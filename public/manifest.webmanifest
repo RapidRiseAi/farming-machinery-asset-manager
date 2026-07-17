@@ -1,0 +1,17 @@
+{
+  "name": "FarmGear",
+  "short_name": "FarmGear",
+  "description": "Farm machinery & vehicle manager for South African farms.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#16a34a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

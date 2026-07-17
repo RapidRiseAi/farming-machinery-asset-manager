@@ -1,0 +1,57 @@
+{
+  "app": {
+    "name": "FarmGear",
+    "tagline": "Every machine on your farm — costs, services, faults, in one place."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "back": "Back",
+    "loading": "Loading…",
+    "yes": "Yes",
+    "no": "No",
+    "required": "Required"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "machines": "Machines",
+    "admin": "Admin",
+    "signOut": "Sign out"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "email": "Email",
+    "password": "Password",
+    "magicLink": "Email me a sign-in link",
+    "sendLink": "Send link",
+    "checkEmail": "Check your email for the sign-in link."
+  },
+  "machines": {
+    "title": "Machines",
+    "add": "Add machine",
+    "name": "Name / nickname",
+    "type": "Type",
+    "make": "Make",
+    "model": "Model",
+    "year": "Year",
+    "status": "Status",
+    "meterType": "Meter type",
+    "currentReading": "Current reading"
+  },
+  "qr": {
+    "reportProblem": "Report a problem",
+    "logReading": "Log reading",
+    "viewFullHistory": "Log in for full history"
+  },
+  "admin": {
+    "farms": "Farms",
+    "createFarm": "Create farm",
+    "tier": "Tier",
+    "status": "Status"
+  }
+}
