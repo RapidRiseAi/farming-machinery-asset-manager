@@ -1,0 +1,1 @@
+# farming-machinery-asset-manager
