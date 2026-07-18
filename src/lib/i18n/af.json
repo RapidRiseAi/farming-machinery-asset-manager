@@ -20,6 +20,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "machines": "Machines",
+    "jobcards": "Job cards",
+    "faults": "Faults",
     "admin": "Admin",
     "signOut": "Sign out"
   },

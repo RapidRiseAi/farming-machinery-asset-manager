@@ -6,7 +6,9 @@ import { MachineFields } from "@/components/machine-fields";
 import { MACHINE_STATUSES, STATUS_LABELS, TYPE_LABELS, METER_LABELS } from "@/lib/machine-options";
 import { updateMachine } from "../actions";
 import { addReading } from "./reading-actions";
+import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { MachinePhotos } from "@/components/machine-photos";
+import { rands } from "@/lib/money";
 
 type Machine = {
   id: string;
@@ -58,6 +60,15 @@ export default async function MachineDetailPage({
   const canAddReading =
     machine.meter_type !== "none" &&
     (profile.role === "owner" || profile.role === "manager" || profile.role === "mechanic");
+  const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
+
+  const { data: jcData } = await supabase
+    .from("job_cards")
+    .select("id, type, status, total_cents")
+    .eq("machine_id", id)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  const jobCards = (jcData as { id: string; type: string; status: string; total_cents: number }[] | null) ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,6 +145,36 @@ export default async function MachineDetailPage({
           </ul>
         </section>
       ) : null}
+
+      <section className="rounded-lg border border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Job cards</h2>
+          {canJob ? (
+            <form action={createJobCard} className="flex gap-1">
+              <input type="hidden" name="machine_id" value={machine.id} />
+              <input type="hidden" name="farm_id" value={machine.farm_id} />
+              <select name="type" className="rounded border border-gray-300 p-1 text-sm" defaultValue="repair">
+                <option value="repair">Repair</option>
+                <option value="scheduled_service">Service</option>
+                <option value="inspection">Inspection</option>
+                <option value="other">Other</option>
+              </select>
+              <button className="rounded bg-status-ok px-3 py-1 text-sm font-medium text-white">+ New</button>
+            </form>
+          ) : null}
+        </div>
+        <ul className="mt-2 flex flex-col divide-y divide-gray-100 text-sm">
+          {jobCards.map((j) => (
+            <li key={j.id}>
+              <Link href={`/jobcards/${j.id}`} className="flex justify-between py-1.5">
+                <span>{j.type.replace("_", " ")} · {j.status.replace("_", " ")}</span>
+                <span className="text-gray-500">{rands(j.total_cents)}</span>
+              </Link>
+            </li>
+          ))}
+          {jobCards.length === 0 ? <li className="py-1.5 text-gray-400">None yet.</li> : null}
+        </ul>
+      </section>
 
       <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} />
 

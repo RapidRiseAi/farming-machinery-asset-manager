@@ -21,6 +21,12 @@ export default async function AppLayout({
           <Link href="/machines" className="text-gray-700">
             {t("nav.machines", locale)}
           </Link>
+          <Link href="/jobcards" className="text-gray-700">
+            {t("nav.jobcards", locale)}
+          </Link>
+          <Link href="/faults" className="text-gray-700">
+            {t("nav.faults", locale)}
+          </Link>
           {profile.role === "rr_admin" ? (
             <Link href="/admin/farms" className="text-gray-700">
               {t("nav.admin", locale)}
