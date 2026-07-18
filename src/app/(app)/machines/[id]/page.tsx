@@ -6,6 +6,7 @@ import { MachineFields } from "@/components/machine-fields";
 import { MACHINE_STATUSES, STATUS_LABELS, TYPE_LABELS, METER_LABELS } from "@/lib/machine-options";
 import { updateMachine } from "../actions";
 import { addReading } from "./reading-actions";
+import { MachinePhotos } from "@/components/machine-photos";
 
 type Machine = {
   id: string;
@@ -130,6 +131,8 @@ export default async function MachineDetailPage({
           </ul>
         </section>
       ) : null}
+
+      <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} />
 
       <p className="text-xs text-gray-400">
         QR code, service plan &amp; job-card history attach here in the next increments.
