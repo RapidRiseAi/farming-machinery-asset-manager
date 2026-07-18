@@ -77,6 +77,9 @@ export default async function MachineDetailPage({
             ? `: ${machine.current_reading}${machine.current_reading_date ? ` (${machine.current_reading_date})` : ""}`
             : ""}
         </p>
+        <Link href={`/machines/${machine.id}/qr`} className="mt-1 inline-block text-sm text-status-ok">
+          QR code →
+        </Link>
       </div>
 
       {sp.error ? <p className="rounded bg-red-50 p-2 text-sm text-red-700">{sp.error}</p> : null}
