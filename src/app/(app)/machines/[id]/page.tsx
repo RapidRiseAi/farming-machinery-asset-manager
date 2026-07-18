@@ -8,6 +8,7 @@ import { updateMachine } from "../actions";
 import { addReading } from "./reading-actions";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { MachinePhotos } from "@/components/machine-photos";
+import { setWatchStatus } from "./watch-actions";
 import { rands } from "@/lib/money";
 
 type Machine = {
@@ -69,6 +70,14 @@ export default async function MachineDetailPage({
     .order("created_at", { ascending: false })
     .limit(8);
   const jobCards = (jcData as { id: string; type: string; status: string; total_cents: number }[] | null) ?? [];
+
+  const { data: watchData } = await supabase
+    .from("watch_items")
+    .select("id, text, status")
+    .eq("machine_id", id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  const watchItems = (watchData as { id: string; text: string; status: string }[] | null) ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,6 +151,35 @@ export default async function MachineDetailPage({
               </li>
             ))}
             {readings.length === 0 ? <li className="py-2 text-gray-400">No readings yet.</li> : null}
+          </ul>
+        </section>
+      ) : null}
+
+      {watchItems.length > 0 ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <h2 className="font-medium">Watch items</h2>
+          <ul className="mt-2 flex flex-col gap-1 text-sm">
+            {watchItems.map((w) => (
+              <li key={w.id} className="flex items-center justify-between gap-2">
+                <span>{w.text}</span>
+                {canEdit ? (
+                  <span className="flex gap-1">
+                    <form action={setWatchStatus}>
+                      <input type="hidden" name="id" value={w.id} />
+                      <input type="hidden" name="machine_id" value={machine.id} />
+                      <input type="hidden" name="status" value="done" />
+                      <button className="rounded border border-gray-300 px-2 text-xs">Done</button>
+                    </form>
+                    <form action={setWatchStatus}>
+                      <input type="hidden" name="id" value={w.id} />
+                      <input type="hidden" name="machine_id" value={machine.id} />
+                      <input type="hidden" name="status" value="dismissed" />
+                      <button className="rounded border border-gray-300 px-2 text-xs">Dismiss</button>
+                    </form>
+                  </span>
+                ) : null}
+              </li>
+            ))}
           </ul>
         </section>
       ) : null}
