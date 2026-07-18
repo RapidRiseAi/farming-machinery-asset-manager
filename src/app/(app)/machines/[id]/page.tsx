@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { MachineFields } from "@/components/machine-fields";
 import { MACHINE_STATUSES, STATUS_LABELS, TYPE_LABELS, METER_LABELS } from "@/lib/machine-options";
 import { updateMachine } from "../actions";
+import { addReading } from "./reading-actions";
 
 type Machine = {
   id: string;
+  farm_id: string;
   name: string;
   type: string;
   make: string | null;
@@ -37,12 +39,24 @@ export default async function MachineDetailPage({
   const { data } = await supabase
     .from("machines")
     .select(
-      "id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status"
+      "id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status"
     )
     .eq("id", id)
     .maybeSingle();
   const machine = data as Machine | null;
   if (!machine) notFound();
+
+  const { data: readingsData } = await supabase
+    .from("meter_readings")
+    .select("id, reading, reading_date, source")
+    .eq("machine_id", id)
+    .order("reading_date", { ascending: false })
+    .limit(10);
+  const readings =
+    (readingsData as { id: string; reading: number; reading_date: string; source: string }[] | null) ?? [];
+  const canAddReading =
+    machine.meter_type !== "none" &&
+    (profile.role === "owner" || profile.role === "manager" || profile.role === "mechanic");
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,8 +95,44 @@ export default async function MachineDetailPage({
         </form>
       ) : null}
 
+      {machine.meter_type !== "none" ? (
+        <section className="rounded-lg border border-gray-200 p-4">
+          <h2 className="font-medium">Meter readings</h2>
+          {canAddReading ? (
+            <form action={addReading} className="mt-2 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="machine_id" value={machine.id} />
+              <input type="hidden" name="farm_id" value={machine.farm_id} />
+              <input
+                name="reading"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                required
+                placeholder={`New ${machine.meter_type}`}
+                className="rounded border border-gray-300 p-2"
+              />
+              <input name="reading_date" type="date" className="rounded border border-gray-300 p-2" />
+              <button className="rounded-lg bg-status-ok px-4 py-2 font-medium text-white">Log</button>
+            </form>
+          ) : null}
+          <ul className="mt-3 flex flex-col divide-y divide-gray-100 text-sm">
+            {readings.map((r) => (
+              <li key={r.id} className="flex justify-between py-1.5">
+                <span>
+                  {r.reading} {machine.meter_type}
+                </span>
+                <span className="text-gray-500">
+                  {r.reading_date} · {r.source}
+                </span>
+              </li>
+            ))}
+            {readings.length === 0 ? <li className="py-2 text-gray-400">No readings yet.</li> : null}
+          </ul>
+        </section>
+      ) : null}
+
       <p className="text-xs text-gray-400">
-        Meter readings, QR code, service plan &amp; job-card history attach here in the next increments.
+        QR code, service plan &amp; job-card history attach here in the next increments.
       </p>
     </div>
   );
