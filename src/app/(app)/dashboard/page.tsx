@@ -42,7 +42,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-bold">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Dashboard</h1>
+        <Link href="/reports" className="text-sm text-status-ok">Reports →</Link>
+      </div>
 
       <section>
         <h2 className="mb-2 text-sm font-medium text-gray-600">Service board</h2>
