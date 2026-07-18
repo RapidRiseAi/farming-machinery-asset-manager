@@ -54,14 +54,24 @@ Done:
 - Next.js PWA scaffold (App Router, Tailwind, i18n en/af + `t()`, Supabase clients,
   session middleware). Builds clean; home ~105 KB.
 - Demo-farm seed: 12 machines with realistic histories (`pnpm db:seed`).
+- **App layer (build-verified in CI; runtime-verify pending hosted DB):**
+  auth (email + magic-link, `/auth/callback`, session guards, `lib/auth.ts`);
+  RR admin console (`/admin/farms` create + tier/status, farm detail);
+  machine registry CRUD (`/machines` list/filter/search, new, edit).
+- README with Vercel deploy env-var notes.
 
 Blocked:
-- **Hosted Supabase dev project** — `create`/`restore` blocked by the org's free-tier
-  2-project limit. Needs a slot freed (delete/upgrade in the Supabase dashboard) before
-  auth + Storage features can run end-to-end. Migrations/RLS/seed all proven on local PG.
+- **Hosted Supabase dev project** — `create` AND `restore` both blocked by the org's
+  free-tier 2-project limit; my tools can't delete a project. Needs a slot freed
+  (delete a project or upgrade in the Supabase dashboard). Until then the app-layer
+  code above is build-verified only. Migrations/RLS/seed all proven on local PG.
+- **Do NOT push to `main`** (production/Vercel) until the hosted DB is wired and the
+  app is runtime-verified — per owner instruction.
 
-Next (in order), once the hosted project exists:
-- Auth (email + magic-link) + route guards → RR admin console → farm creation →
-  users/invites → machine CRUD (photos/docs) → meter readings → QR + public-lite page.
+Next (in order):
+- Free a Supabase slot → create project → apply migrations + buckets + seed → wire env
+  → runtime-verify auth/admin/machines.
+- Machine photos/docs (Storage + client compression) → users/invites → meter readings
+  → QR generation + public-lite page. Then RR admin impersonation-logged.
 
 > Update this "current status" block at the end of every session.
