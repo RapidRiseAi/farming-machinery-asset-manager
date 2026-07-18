@@ -57,7 +57,11 @@ Done:
 - **App layer (runtime-verified against the live DB):**
   auth (email + magic-link, `/auth/callback`, session guards, `lib/auth.ts`);
   RR admin console (`/admin/farms` create + tier/status, farm detail);
-  machine registry CRUD (`/machines` list/filter/search, new, edit).
+  machine registry CRUD (`/machines` list/filter/search, new, edit);
+  meter readings (capture + current-reading advance, farm-scoped);
+  machine photos (client-side compression → Storage, farm-scoped `storage.objects`
+  RLS in `0201`). Verified as owner `danie@weltevrede.example` (all dev logins:
+  `FarmGear!dev1`).
 - README with Vercel deploy env-var notes.
 - **Hosted Supabase wired + verified.** Project `nmqtcvdwtyggxjjgtnzm` (repurposed the
   org's spare; cleared an old restaurant demo). Migrations + Storage buckets + demo seed
@@ -75,7 +79,10 @@ Main → production push: **awaiting owner confirmation** (partial Week 1; Verce
 must be set in the Vercel project first).
 
 Next (in order):
-- Machine photos/docs (Storage + client compression) → users/invites → meter readings
-  → QR generation + public-lite page. Then RR admin impersonation-logged.
+- **Needs `SUPABASE_SERVICE_ROLE_KEY`** (dashboard → Settings → API; MCP can't fetch the
+  secret): users/invites (Auth admin invite) and the public-lite QR **submit** routes.
+- QR generation (printable, logged-in) — no key needed.
+- Machine docs (PDF) reuse the photo pattern (machine-docs bucket).
+- RR admin impersonation-logged.
 
 > Update this "current status" block at the end of every session.
