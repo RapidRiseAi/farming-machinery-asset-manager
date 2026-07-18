@@ -54,23 +54,27 @@ Done:
 - Next.js PWA scaffold (App Router, Tailwind, i18n en/af + `t()`, Supabase clients,
   session middleware). Builds clean; home ~105 KB.
 - Demo-farm seed: 12 machines with realistic histories (`pnpm db:seed`).
-- **App layer (build-verified in CI; runtime-verify pending hosted DB):**
+- **App layer (runtime-verified against the live DB):**
   auth (email + magic-link, `/auth/callback`, session guards, `lib/auth.ts`);
   RR admin console (`/admin/farms` create + tier/status, farm detail);
   machine registry CRUD (`/machines` list/filter/search, new, edit).
 - README with Vercel deploy env-var notes.
+- **Hosted Supabase wired + verified.** Project `nmqtcvdwtyggxjjgtnzm` (repurposed the
+  org's spare; cleared an old restaurant demo). Migrations + Storage buckets + demo seed
+  applied; security advisors clean bar the optional leaked-password toggle. Verified via
+  REST against the live project: login works, RLS scopes correctly (rr_admin sees all,
+  anon denied), `/dashboard` guarded, job-card money triggers correct. `.env.local`
+  wired (gitignored). Dev RR-admin: `admin@farmgear.dev`.
 
-Blocked:
-- **Hosted Supabase dev project** — `create` AND `restore` both blocked by the org's
-  free-tier 2-project limit; my tools can't delete a project. Needs a slot freed
-  (delete a project or upgrade in the Supabase dashboard). Until then the app-layer
-  code above is build-verified only. Migrations/RLS/seed all proven on local PG.
-- **Do NOT push to `main`** (production/Vercel) until the hosted DB is wired and the
-  app is runtime-verified — per owner instruction.
+Owner dashboard follow-ups (small):
+- Delete the now-private empty `menu-media` bucket (Storage API blocks SQL delete).
+- Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` + Vercel (QR public routes need it).
+- Optional: enable Auth leaked-password protection.
+
+Main → production push: **awaiting owner confirmation** (partial Week 1; Vercel env vars
+must be set in the Vercel project first).
 
 Next (in order):
-- Free a Supabase slot → create project → apply migrations + buckets + seed → wire env
-  → runtime-verify auth/admin/machines.
 - Machine photos/docs (Storage + client compression) → users/invites → meter readings
   → QR generation + public-lite page. Then RR admin impersonation-logged.
 

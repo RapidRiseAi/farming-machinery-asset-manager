@@ -69,7 +69,7 @@ end $do$;
 
 -- ── Job-card line total computation (money in integer cents) ──────
 create or replace function app_compute_line_total() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public, pg_temp as $$
 begin
   if new.kind = 'part' then
     new.total_cents := (round(coalesce(new.qty, 0) * coalesce(new.unit_cost_cents, 0)))::bigint;
@@ -117,7 +117,7 @@ create trigger job_card_lines_totals
 -- Once a card is locked (approved), it and its lines may not be modified.
 -- The approving UPDATE itself is allowed because OLD.locked is still false.
 create or replace function app_enforce_jobcard_lock() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public, pg_temp as $$
 begin
   if coalesce(old.locked, false) then
     raise exception 'job card % is locked (approved) and cannot be modified', old.id
@@ -146,3 +146,14 @@ end $$;
 create trigger job_card_lines_lock
   before insert or update or delete on job_card_lines
   for each row execute function app_enforce_jobcard_line_lock();
+
+-- These are trigger-only functions living in the API-exposed `public` schema.
+-- Revoke EXECUTE so they can never be called via PostgREST RPC (they still fire as
+-- triggers regardless of these grants).
+revoke execute on function
+  app_audit(),
+  app_compute_line_total(),
+  app_recompute_jobcard_totals(),
+  app_enforce_jobcard_lock(),
+  app_enforce_jobcard_line_lock()
+from anon, authenticated, public;
