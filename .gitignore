@@ -43,3 +43,6 @@ supabase/.branches/
 
 # os
 Thumbs.db
+
+# typescript incremental build cache
+*.tsbuildinfo
