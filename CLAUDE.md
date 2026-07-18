@@ -42,7 +42,7 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
   invoicing/accounting, crop/livestock/labour, store apps, full offline sync, >2 languages.
 
 ## Build plan (Scope §10) — current status
-**Phase: Week 1 — Foundation.** Building strictly in §10 order.
+**Phase: v1 backend complete (Weeks 1–3).** Deployed to production on Vercel (`main`).
 
 Done:
 - Repo skeleton; scope at `docs/SCOPE.md`.
@@ -70,19 +70,23 @@ Done:
   anon denied), `/dashboard` guarded, job-card money triggers correct. `.env.local`
   wired (gitignored). Dev RR-admin: `admin@farmgear.dev`.
 
-Owner dashboard follow-ups (small):
-- Delete the now-private empty `menu-media` bucket (Storage API blocks SQL delete).
-- Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` + Vercel (QR public routes need it).
-- Optional: enable Auth leaked-password protection.
+- **Week 2–3 backend (migrations 0202–0204; verified live + isolation-tested):**
+  service **due engine** (`app.recalc_machine_service`/`recalc_all_due`, meter trigger);
+  **job cards** end-to-end (create/lines/complete/approve→lock, completion side-effects:
+  service-line reset, meter capture, watch item, fault resolve); **faults** (in-app +
+  QR, fault→job); **watch items**; **dashboard** (service board/spend/faults/stale);
+  **reports** 1–4 + cost CSV; **notifications** queue (fault/job triggers) + in-app centre;
+  **users/invites** (Auth admin) + deactivate; **settings** RPC (owner-editable).
 
-Main → production push: **awaiting owner confirmation** (partial Week 1; Vercel env vars
-must be set in the Vercel project first).
+Remaining (Week 3 polish + Week 4 + v1.5):
+- Afrikaans translation *content* pass (keys + `t()` wired; values still English).
+- Machine history timeline UI + per-machine file PDF; job-card PDF export.
+- WhatsApp Stage 2 (BSP API) — Stage 1 is manual; in-app centre carries alerts now.
+- Nightly cron to call `app.recalc_all_due()` (calendar dues); onboarding checklist/polish.
+- v1.5 diesel/fuel module (tables + RLS exist; no features) — out of v1 scope.
 
-Next (in order):
-- **Needs `SUPABASE_SERVICE_ROLE_KEY`** (dashboard → Settings → API; MCP can't fetch the
-  secret): users/invites (Auth admin invite) and the public-lite QR **submit** routes.
-- QR generation (printable, logged-in) — no key needed.
-- Machine docs (PDF) reuse the photo pattern (machine-docs bucket).
-- RR admin impersonation-logged.
+Env/dashboard follow-ups: delete the empty `menu-media` bucket; optional Auth
+leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.example`
+(both `FarmGear!dev1`).
 
 > Update this "current status" block at the end of every session.

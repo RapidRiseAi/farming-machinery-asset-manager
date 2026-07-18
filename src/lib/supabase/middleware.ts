@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
   // Guard the authenticated areas. The public-lite QR page (/m/[token]) and the
   // auth routes stay open.
   const path = request.nextUrl.pathname;
-  const isProtected = ["/dashboard", "/machines", "/admin", "/jobcards", "/faults", "/team", "/reports"].some(
+  const isProtected = ["/dashboard", "/machines", "/admin", "/jobcards", "/faults", "/team", "/reports", "/notifications", "/settings"].some(
     (p) => path === p || path.startsWith(`${p}/`)
   );
   if (!user && isProtected) {

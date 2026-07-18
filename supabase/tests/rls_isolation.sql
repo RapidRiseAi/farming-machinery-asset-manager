@@ -106,9 +106,8 @@ insert into attachments (farm_id, parent_type, parent_id, kind, url) values
   ('11111111-1111-1111-1111-111111111111', 'machine', 'aa111111-1111-1111-1111-111111111111', 'photo', 'http://x/a'),
   ('22222222-2222-2222-2222-222222222222', 'machine', 'bb222222-2222-2222-2222-222222222222', 'photo', 'http://x/b');
 
-insert into notifications (farm_id, user_id, channel, template) values
-  ('11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'inapp', 'test'),
-  ('22222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222', 'inapp', 'test');
+-- notifications are produced by the fault-reported trigger (0203): one per farm,
+-- to that farm's owner. (No explicit seed needed — the faults above generate them.)
 
 insert into fuel_tanks (id, farm_id, name) values
   ('af111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'Tank A'),
