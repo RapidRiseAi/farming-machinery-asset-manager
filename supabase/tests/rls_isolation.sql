@@ -91,6 +91,13 @@ insert into job_card_lines (farm_id, job_card_id, kind, description, qty, unit_c
   ('11111111-1111-1111-1111-111111111111', 'ac111111-1111-1111-1111-111111111111', 'part', 'Oil filter', 1, 15000),
   ('22222222-2222-2222-2222-222222222222', 'bc222222-2222-2222-2222-222222222222', 'part', 'Oil filter', 1, 15000);
 
+insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id)
+select 'ac111111-1111-1111-1111-111111111111', id, '11111111-1111-1111-1111-111111111111'
+  from service_plan_lines where machine_id = 'aa111111-1111-1111-1111-111111111111' limit 1;
+insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id)
+select 'bc222222-2222-2222-2222-222222222222', id, '22222222-2222-2222-2222-222222222222'
+  from service_plan_lines where machine_id = 'bb222222-2222-2222-2222-222222222222' limit 1;
+
 insert into watch_items (farm_id, machine_id, text) values
   ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'Front tyres 50%'),
   ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'Front tyres 50%');
@@ -137,6 +144,7 @@ do $$ begin
   perform _t_assert('faults',             1, 'ownerA');
   perform _t_assert('job_cards',          1, 'ownerA');
   perform _t_assert('job_card_lines',     1, 'ownerA');
+  perform _t_assert('job_card_service_lines', 1, 'ownerA');
   perform _t_assert('watch_items',        1, 'ownerA');
   perform _t_assert('attachments',        1, 'ownerA');
   perform _t_assert('notifications',      1, 'ownerA');
@@ -170,6 +178,7 @@ do $$ begin
   perform _t_assert('faults',             1, 'ownerB');
   perform _t_assert('job_cards',          1, 'ownerB');
   perform _t_assert('job_card_lines',     1, 'ownerB');
+  perform _t_assert('job_card_service_lines', 1, 'ownerB');
   perform _t_assert('watch_items',        1, 'ownerB');
   perform _t_assert('attachments',        1, 'ownerB');
   perform _t_assert('notifications',      1, 'ownerB');
@@ -196,6 +205,7 @@ do $$ begin
   perform _t_assert('faults',             1, 'workshopW');
   perform _t_assert('job_cards',          1, 'workshopW');
   perform _t_assert('job_card_lines',     1, 'workshopW');
+  perform _t_assert('job_card_service_lines', 1, 'workshopW');
   perform _t_assert('watch_items',        1, 'workshopW');
   perform _t_assert('attachments',        1, 'workshopW');
   perform _t_assert('notifications',      1, 'workshopW');
@@ -222,6 +232,7 @@ do $$ begin
   perform _t_assert('faults',             2, 'rrAdmin');
   perform _t_assert('job_cards',          2, 'rrAdmin');
   perform _t_assert('job_card_lines',     2, 'rrAdmin');
+  perform _t_assert('job_card_service_lines', 2, 'rrAdmin');
   perform _t_assert('watch_items',        2, 'rrAdmin');
   perform _t_assert('attachments',        2, 'rrAdmin');
   perform _t_assert('notifications',      2, 'rrAdmin');
@@ -246,7 +257,7 @@ begin
     'farms','workshops','users','workshop_links','machines','meter_readings',
     'service_templates','service_plan_lines','faults','job_cards','job_card_lines',
     'watch_items','attachments','notifications','fuel_tanks','fuel_deliveries',
-    'fuel_issues','audit_log'
+    'fuel_issues','job_card_service_lines','audit_log'
   ] loop
     begin
       execute format('select count(*) from public.%I', t) into c;
