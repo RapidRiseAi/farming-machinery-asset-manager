@@ -45,14 +45,23 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 **Phase: Week 1 — Foundation.** Building strictly in §10 order.
 
 Done:
-- Repo skeleton, scope moved to `docs/SCOPE.md`, this file.
+- Repo skeleton; scope at `docs/SCOPE.md`.
+- Full Section 6 schema (incl. v1.5 fuel tables); money-in-cents, soft-delete, audit
+  trigger, job-card lock + totals triggers. `supabase/migrations/0001–0008`.
+- RLS helpers + policies for **every** table; **green isolation tests** (`pnpm db:test`).
+  `0100–0102`, `0200` (storage buckets).
+- CI: migrations + isolation suite **and** app typecheck/build (`.github/workflows/ci.yml`).
+- Next.js PWA scaffold (App Router, Tailwind, i18n en/af + `t()`, Supabase clients,
+  session middleware). Builds clean; home ~105 KB.
+- Demo-farm seed: 12 machines with realistic histories (`pnpm db:seed`).
 
-Next (in order):
-- Full Section 6 schema migrations (incl. fuel v1.5 tables, money/audit/soft-delete/lock).
-- RLS helpers + policies + **green isolation tests** (the gate).
-- CI running migrations + isolation tests.
-- Next.js PWA scaffold; Supabase dev project.
-- Auth + roles → RR admin console → farm creation → users/invites →
-  machine CRUD (photos/docs) → meter readings → QR + public-lite page → demo-farm seed.
+Blocked:
+- **Hosted Supabase dev project** — `create`/`restore` blocked by the org's free-tier
+  2-project limit. Needs a slot freed (delete/upgrade in the Supabase dashboard) before
+  auth + Storage features can run end-to-end. Migrations/RLS/seed all proven on local PG.
+
+Next (in order), once the hosted project exists:
+- Auth (email + magic-link) + route guards → RR admin console → farm creation →
+  users/invites → machine CRUD (photos/docs) → meter readings → QR + public-lite page.
 
 > Update this "current status" block at the end of every session.
