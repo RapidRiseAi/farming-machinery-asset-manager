@@ -31,7 +31,22 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Touch the session so refreshed tokens are written back to cookies.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Guard the authenticated areas. The public-lite QR page (/m/[token]) and the
+  // auth routes stay open.
+  const path = request.nextUrl.pathname;
+  const isProtected = ["/dashboard", "/machines", "/admin"].some(
+    (p) => path === p || path.startsWith(`${p}/`)
+  );
+  if (!user && isProtected) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }
