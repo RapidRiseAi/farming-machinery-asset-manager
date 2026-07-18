@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:test": "bash supabase/tests/run.sh"
+    "db:test": "bash supabase/tests/run.sh",
+    "db:seed": "bash scripts/seed_local.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
