@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateFarm } from "./actions";
+import { inviteUser, setUserActive } from "@/app/(app)/team/actions";
 
 type Farm = { id: string; name: string; tier: string; status: string; created_at: string };
 type FarmUser = { id: string; name: string; role: string; email: string | null; active: boolean };
@@ -12,7 +13,7 @@ export default async function FarmDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; invited?: string }>;
 }) {
   await requireRole(["rr_admin"]);
   const { id } = await params;
@@ -49,6 +50,9 @@ export default async function FarmDetailPage({
       {sp.saved ? (
         <p className="rounded bg-green-50 p-2 text-sm text-green-700">Saved.</p>
       ) : null}
+      {sp.invited ? (
+        <p className="rounded bg-green-50 p-2 text-sm text-green-700">Invited — they sign in via the magic-link.</p>
+      ) : null}
 
       <form action={updateFarm} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-4">
         <input type="hidden" name="id" value={farm.id} />
@@ -69,8 +73,23 @@ export default async function FarmDetailPage({
         <button className="rounded-lg bg-status-ok px-4 py-2 font-medium text-white">Save</button>
       </form>
 
-      <div>
-        <h2 className="mb-2 font-medium">Users</h2>
+      <div className="flex flex-col gap-3">
+        <form action={inviteUser} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3">
+          <h2 className="font-medium">Invite user</h2>
+          <input type="hidden" name="farm_id" value={farm.id} />
+          <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
+          <input name="name" required placeholder="Name" className="rounded border border-gray-300 p-2" />
+          <input name="email" type="email" required placeholder="Email" className="rounded border border-gray-300 p-2" />
+          <select name="role" defaultValue="owner" className="rounded border border-gray-300 p-2">
+            <option value="owner">Owner</option>
+            <option value="manager">Manager</option>
+            <option value="mechanic">Mechanic</option>
+            <option value="operator">Operator</option>
+          </select>
+          <button className="self-start rounded-lg bg-status-ok px-4 py-2 text-sm font-medium text-white">Invite</button>
+        </form>
+
+        <h2 className="font-medium">Users</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-gray-500">
@@ -79,6 +98,7 @@ export default async function FarmDetailPage({
                 <th>Role</th>
                 <th>Email</th>
                 <th>Active</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -88,13 +108,21 @@ export default async function FarmDetailPage({
                   <td>{u.role}</td>
                   <td className="text-gray-500">{u.email ?? "—"}</td>
                   <td>{u.active ? "yes" : "no"}</td>
+                  <td className="text-right">
+                    <form action={setUserActive}>
+                      <input type="hidden" name="id" value={u.id} />
+                      <input type="hidden" name="active" value={u.active ? "false" : "true"} />
+                      <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
+                      <button className="rounded border border-gray-300 px-2 py-1 text-xs">
+                        {u.active ? "Deactivate" : "Activate"}
+                      </button>
+                    </form>
+                  </td>
                 </tr>
               ))}
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-4 text-gray-400">
-                    No users yet. Invites land in the next increment.
-                  </td>
+                  <td colSpan={5} className="py-4 text-gray-400">No users yet — invite the owner above.</td>
                 </tr>
               ) : null}
             </tbody>
