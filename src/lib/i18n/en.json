@@ -25,7 +25,14 @@
     "notifications": "Alerts",
     "settings": "Settings",
     "admin": "Admin",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "reports": "Reports",
+    "more": "More",
+    "menu": "Menu",
+    "groupOverview": "Overview",
+    "groupWorkshop": "Workshop",
+    "groupFarm": "Farm",
+    "groupAdmin": "Admin"
   },
   "auth": {
     "signIn": "Sign in",
@@ -58,5 +65,32 @@
     "createFarm": "Create farm",
     "tier": "Tier",
     "status": "Status"
+  },
+  "ui": {
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "loading": "Loading…",
+    "saved": "Saved.",
+    "savedChanges": "Your changes were saved.",
+    "somethingWrong": "Something went wrong.",
+    "all": "All",
+    "viewAll": "View all",
+    "none": "None",
+    "statusOk": "OK",
+    "statusDueSoon": "Due soon",
+    "statusOverdue": "Overdue",
+    "serviceBoard": "Service board",
+    "overdue": "Overdue",
+    "dueSoon": "Due soon",
+    "ok": "OK",
+    "spendThisMonth": "Spend this month",
+    "spendLastMonth": "Spend last month",
+    "vsLastMonth": "vs {v} last month",
+    "openFaults": "Open faults",
+    "noOpenFaults": "No open faults right now.",
+    "inWorkshop": "In workshop",
+    "staleReadings": "Stale readings",
+    "noStaleReadings": "All readings are up to date.",
+    "reports": "Reports"
   }
 }

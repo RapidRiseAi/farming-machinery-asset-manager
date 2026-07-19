@@ -2,17 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * FarmGear global styles. Light-theme baseline (Scope §7). Semantic surface
+ * tokens live as CSS custom properties so components can lean on them without
+ * bloating the Tailwind config.
+ */
 :root {
   color-scheme: light;
+
+  /* Semantic surfaces (warm neutrals). */
+  --surface: #ffffff;
+  --surface-muted: #faf9f7; /* sand-50  */
+  --border: #e9e5dd; /* sand-200 */
+  --text: #26221c; /* sand-900 */
+  --text-muted: #6b6356; /* sand-600 */
+
+  /* Focus ring (brand). */
+  --ring: #15803d; /* brand-600 */
+
+  /* Fixed chrome height, used to keep content clear of the mobile tab bar. */
+  --tabbar-h: 4rem;
 }
 
 html,
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  @apply bg-sand-50 text-sand-900 antialiased;
+  font-family: theme("fontFamily.sans");
 }
 
 /* Mobile-first: avoid the 300ms tap delay and keep tap targets responsive. */
 button,
 a {
   touch-action: manipulation;
+}
+
+@layer base {
+  /* Consistent, visible keyboard focus everywhere (WCAG-AA). Pointer clicks
+     don't get the ring (focus-visible), keyboard users always do. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+
+  /* Respect users who ask for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Reusable focus-ring for custom-styled interactive elements that opt out of
+     the default outline (e.g. nav tiles) but still need an AA focus indicator. */
+  .focus-ring {
+    @apply outline-none ring-offset-2 ring-offset-white focus-visible:ring-2 focus-visible:ring-brand-600;
+  }
+
+  /* Honour the iOS/Android home-indicator safe area on the fixed bottom bar. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .h-safe-tabbar {
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
 }
