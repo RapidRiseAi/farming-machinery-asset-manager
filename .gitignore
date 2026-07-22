@@ -41,6 +41,9 @@ supabase/.branches/
 .idea/
 *.swp
 
+# claude code (agent worktrees, local settings)
+.claude/
+
 # os
 Thumbs.db
 
