@@ -1,0 +1,221 @@
+
+===== PAGE 1 =====
+FleetWise
+BY RAPID RISE AI
+Build checklist and functional requirements
+The complete, itemised specification of everything FleetWise must do for
+production: every feature, how features interact, the data it holds, the metrics it must
+report, and the acceptance criteria that define "done".
+Engineering reference & gap-analysis baseline · Rapid Rise AI · 2026 · v1.0
+How to use this document. Every requirement has a stable ID (e.g. FR-3.2.4). Use these IDs to track
+implementation status, write tickets, and drive a gap analysis against the current codebase. A requirement is
+only "done" when its acceptance criteria are met.
+Priority key: P0 launch-critical   P1 important   P2 later
+Contents
+1 · Product scope & principles
+2 · User roles & permissions
+3 · Asset register
+4 · Maintenance & servicing
+5 · Service kits & parts
+6 · Fuel & consumables
+7 · Fault & issue reporting
+8 · Contractor & mechanic portal
+9 · QR codes & field capture
+10 · Costs & true cost of ownership
+11 · Dashboard & reporting
+12 · Voice control AI assistant
+13 · Compliance (AARTO, audits, docs)
+14 · Notifications & reminders
+15 · Offline & sync
+16 · WhatsApp & mobile capture
+17 · Integrations & API
+18 · Localisation (EN/AF)
+19 · Billing, plans & entitlements
+20 · Feature interaction map
+21 · Data model summary
+22 · Non-functional requirements
+23 · Metrics & stats to compute
+24 · Production readiness gate
+1 · Product scope & principles
+FR-1.1P0 Manage every asset on a farm in one system: vehicles, implements and equipment.
+FR-1.2P0 Every data-capture action (service, fuel, fault) completable in under 30 seconds on mobile.
+FR-1.3P0 Full functionality offline; nothing critical requires a live connection.
+FR-1.4P1 Every record is auditable: who created/changed it, when, and from where.
+FR-1.5P0 Multi-farm / multi-site support under one account, with data isolation per site.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 2 =====
+2 · User roles & permissions
+FR-2.1P0 Role-based access control with at least: Owner, Manager, Operator/Driver, Workshop/Mechanic,
+External Contractor.
+FR-2.2P0 Unlimited users per account, regardless of plan.
+FR-2.3P1 Per-role visibility: operators see only their assigned assets; contractors see only assigned jobs.
+FR-2.4P1 Invite/deactivate users; enforce least-privilege by default.
+FR-2.5P2 Custom roles with granular permission toggles.
+3 · Asset register
+FR-3.1P0 Create/edit/archive assets of any type (tractor, bakkie, truck, implement, pump,
+generator, other).
+FR-3.2P0 Per-asset fields: make, model, year, registration, VIN/serial, purchase date & price, finance
+details, photos.
+FR-3.3P0 Live status per asset: In use, Available, In workshop, Out of service.
+FR-3.4P1 Group/filter by type, location, cost centre, department.
+FR-3.5P0 Current engine-hour and odometer reading per asset, updated on each relevant log.
+FR-3.6P1 Assign a default operator/driver to each asset.
+FR-3.7P1 Bulk import assets (CSV/Excel) during onboarding.
+4 · Maintenance & servicing
+FR-4.1P0 Complete, dated service/maintenance history per machine (fuel, parts, labour,
+breakages, repairs).
+FR-4.2P0 Schedule services by engine hours, kilometres AND calendar time, whichever is due first.
+FR-4.3P0 Recurring service intervals per machine (e.g. every 250 engine hours).
+FR-4.4P0 Due / due-soon / overdue states computed automatically from latest readings.
+FR-4.5P1 Attach photos and notes to every service record.
+FR-4.6P1 Job cards: plan a service, mark in-progress, complete, and record who did it.
+FR-4.7P2 Warranty period tracking per machine with expiry reminders (links to §13).
+5 · Service kits & parts
+FR-5.1P0 Pre-loaded service kit per machine: exact engine oil, gearbox oil and filter part numbers.
+FR-5.2P1 Parts catalogue with part number, description, supplier and typical cost.
+FR-5.3P1 Parts consumed on a service auto-append to that machine's cost and history.
+FR-5.4P2 Optional parts inventory/stock levels with low-stock alerts.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 3 =====
+6 · Fuel & consumables
+FR-6.1P0 Log fuel entries per asset (litres, cost, date, engine hours/odo, operator).
+FR-6.2P0 Compute consumption (L/hr or L/100km) and trend per asset.
+FR-6.3P0 Anomaly detection: flag fuel entries that deviate from the asset's baseline (possible leak/theft).
+FR-6.4P2 Import fuel-card transactions and reconcile against logged entries (links to §17).
+7 · Fault & issue reporting
+FR-7.1P0 Operators log a fault against an asset in seconds, with description, severity and photos.
+FR-7.2P0 Each fault captures asset, reporter, timestamp and (if available) location.
+FR-7.3P1 Fault lifecycle: Open →  Acknowledged →  In progress →  Resolved, with assignee.
+FR-7.4P1 A fault can be converted into a job card / service (links to §4).
+FR-7.5P1 Reporting a fault can flip asset status to Out of service (links to §3).
+8 · Contractor & mechanic portal
+FR-8.1P0 External mechanics get scoped access to log work only on assigned assets/jobs.
+FR-8.2P0 Upload quotes, invoices and job photos against an asset.
+FR-8.3P1 Update job status; owner/manager notified on change (links to §14).
+FR-8.4P1 Uploaded invoice amounts flow into that asset's cost record (links to §10).
+9 · QR codes & field capture
+FR-9.1P0 Generate a unique QR code per asset; printable as a weatherproof sticker.
+FR-9.2P0 Scanning a QR opens that asset and offers quick actions: log service, log fuel, report fault.
+FR-9.3P1 Scan-to-log works offline and queues for sync (links to §15).
+FR-9.4P2 Re-issue/replace a QR code if a sticker is damaged, preserving asset link.
+10 · Costs & true cost of ownership
+FR-10.1P0 Every cost (fuel, parts, labour, external invoice, finance/interest) attributed to its asset.
+FR-10.2P0 True cost of ownership per asset (purchase + finance + fuel + maintenance + repairs).
+FR-10.3P0 Cost per engine hour and per kilometre, computed and displayed.
+FR-10.4P1 Budgets per asset/category with budget-vs-actual tracking.
+FR-10.5P2 Repair-vs-replace indicator when lifetime cost crosses a threshold of asset value.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 4 =====
+11 · Dashboard & reporting
+FR-11.1P0 Dashboard: machines due/overdue, total maintenance spend, assets tracked, cost by machine.
+FR-11.2P0 "Breaks most often" analysis: parts/machines with the highest repeat repairs.
+FR-11.3P1 Selectable period ranges and per-site/per-group filtering.
+FR-11.4P1 Export reports to Excel/CSV and PDF.
+FR-11.5P2 Custom/scheduled reports emailed on a cadence.
+12 · Voice control AI assistant
+FR-12.1P0 Voice control in English and Afrikaans to log services/faults and query status hands-free.
+FR-12.2P1 Assistant confirms the action back and asks for missing detail before committing.
+FR-12.3P1 Voice actions respect the same permissions and validation as manual entry.
+FR-12.4P2 Graceful fallback to manual entry when offline or on recognition failure.
+13 · Compliance (AARTO, audits, docs)
+FR-13.1P0 Record which driver operated each vehicle and when, to support AARTO driver nomination.
+FR-13.2P1 AARTO fine workflow: capture a fine, identify driver from usage log, track nomination deadline.
+FR-13.3P1 Licence/renewal tracking with reminders.
+FR-13.4P1 Export-audit pack for GLOBALG.A.P. / SIZA; vehicle-sale and warranty-claim document packs.
+14 · Notifications & reminders
+FR-14.1P0 Service-due, overdue and licence-expiry reminders via in-app, push and WhatsApp.
+FR-14.2P1 Notify relevant roles on fault reported, job status change, and fuel anomaly.
+FR-14.3P2 Per-user notification preferences and quiet hours.
+15 · Offline & sync
+FR-15.1P0 All capture actions work offline and queue locally.
+FR-15.2P0 Automatic sync when connectivity returns, with visible sync status.
+FR-15.3P0 Deterministic conflict resolution (no silent data loss; last-writer + audit trail).
+FR-15.4P1 Offline media (photos) cached and uploaded on reconnect.
+16 · WhatsApp & mobile capture
+FR-16.1P0 Log a service or fault via WhatsApp, resolving to the correct asset and user.
+FR-16.2P1 WhatsApp reminders and confirmations tie back to the same records as the app.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 5 =====
+FR-16.3P0 Responsive mobile UI; touch targets ≥  44px; works on low-end Android.
+17 · Integrations & API
+FR-17.1P1 Fuel-card import; GPS/telematics tracker feed for engine hours & location.
+FR-17.2P2 Accounting export/integration (e.g. Sage/Xero) for costs.
+FR-17.3P2 Public REST API with token auth for custom integrations.
+18 · Localisation (EN/AF)
+FR-18.1P0 Full UI in English and Afrikaans, switchable per user, choice persisted.
+FR-18.2P1 Rand currency, local date formats, and ZA units throughout.
+19 · Billing, plans & entitlements
+FR-19.1P0 Per-vehicle-per-month billing; unlimited users; four tiers
+(Essential/Professional/Complete/Done-For-You).
+FR-19.2P0 Feature entitlements gated by plan (e.g. dashboard = Professional+, voice AI & AARTO
+= Complete+).
+FR-19.3P1 Annual pre-pay (2 months free); asset-count-based pricing; no lock-in / easy export on cancel.
+FR-19.4P2 Self-hosted licence deployment path.
+20 · Feature interaction map
+The system's value comes from how modules feed each other. Each of these data flows must exist end to end:
+A fuel/service log updates the asset's engine hours/odometer → recomputes service-due state →  may fire
+a reminder.
+A QR scan or voice command or WhatsApp message all create the same underlying log records.
+A fault report can set asset status Out of service, spawn a job card, and notify the manager.
+A contractor invoice upload adds to the asset's cost record and true cost of ownership.
+Every cost event feeds the dashboard metrics and cost-per-hour/km calculations.
+Driver-to-vehicle usage logs power both accountability and AARTO nomination.
+Any capture offline queues and later syncs, after which all dependent metrics recompute.
+21 · Data model summary
+Core entities the system must persist (with relationships):
+Organisation → has many Sites/Farms → has many Assets, Users.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 6 =====
+Asset → has many ServiceRecords, FuelEntries, Faults, CostEntries, Documents, QRCode(1),
+ServiceSchedule(s), ServiceKit(1).
+User (role) →  creates logs; Operator ↔ Asset assignment; Contractor ↔ Job assignment.
+ServiceRecord → references Parts (from Catalogue), Labour, Photos, performedBy.
+Fault → status lifecycle; optional →  JobCard →  ServiceRecord.
+CostEntry → type (fuel/parts/labour/invoice/finance) →  rolls up to Asset TCO.
+UsageLog (driver, asset, time) →  feeds accountability & AARTO. Fine → links UsageLog + deadline.
+Subscription → plan, asset count, entitlements, billing period.
+SyncQueue → pending offline mutations + conflict metadata. AuditLog → all changes.
+22 · Non-functional requirements
+NFR-1P0 Performance: key screens interactive < 2s on 3G / low-end Android.
+NFR-2P0 Security: encrypted in transit & at rest; hashed credentials; per-tenant data isolation.
+NFR-3P0 POPIA compliance for personal/driver data; documented retention & deletion.
+NFR-4P1 Reliability: automated backups, documented restore, ≥  99.5% uptime target.
+NFR-5P1 Accessibility: legible in sunlight/high-contrast, large tap targets, screen-reader labels.
+NFR-6P1 Observability: error logging, sync-failure alerts, usage analytics.
+NFR-7P1 Scalability: thousands of assets per org without degradation.
+23 · Metrics & stats to compute
+The system must be able to derive and display all of the following:
+• Machines due / overdue for service
+• Total maintenance spend (period)
+• Number of assets tracked
+• Cost by machine (ranked)
+• Parts/machines that break most often
+• Total accumulated cost per asset (TCO)
+• Cost per engine hour
+• Cost per kilometre
+• Fuel consumption (L/hr, L/100km) & trend
+• Fuel anomalies flagged
+• Downtime per asset
+• Open vs resolved faults
+• Budget vs actual
+• Utilisation (hours used vs idle)
+• Warranty/licence expiries upcoming
+• AARTO nominations pending & deadlines
+24 · Production readiness gate
+FleetWise is production-ready only when:
+All P0 requirements are implemented, tested and pass their acceptance criteria.
+Every §20 data flow works end to end across app, QR, voice and WhatsApp inputs.
+Offline capture + sync verified with conflict cases and no data loss.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
+===== PAGE 7 =====
+All §23 metrics compute correctly against seeded and real-shaped data.
+NFR security, POPIA, backup/restore and performance targets verified.
+Plan entitlements enforced; billing correct; EN/AF complete with no missing strings.
+FleetWise Build checklist & functional requirements · Rapid Rise AI
+Internal engineering reference · confidential Rapid Rise AI (Reg. No. K2024727338)
