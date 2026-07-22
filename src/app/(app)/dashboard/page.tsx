@@ -286,8 +286,8 @@ export default async function DashboardPage() {
           title={t("dashboard.noMachinesTitle", locale)}
           hint={t("dashboard.noMachinesHint", locale)}
           action={
-            <Link href="/machines/new" className={buttonVariants({ variant: "primary", size: "sm" })}>
-              {t("machines.add", locale)}
+            <Link href="/onboarding" className={buttonVariants({ variant: "primary", size: "sm" })}>
+              {t("dashboard.noMachinesAdd", locale)}
             </Link>
           }
         />
