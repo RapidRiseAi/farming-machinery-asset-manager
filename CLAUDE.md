@@ -78,12 +78,38 @@ Done:
   **reports** 1–4 + cost CSV; **notifications** queue (fault/job triggers) + in-app centre;
   **users/invites** (Auth admin) + deactivate; **settings** RPC (owner-editable).
 
-Remaining (Week 3 polish + Week 4 + v1.5):
-- Afrikaans translation *content* pass (keys + `t()` wired; values still English).
-- Machine history timeline UI + per-machine file PDF; job-card PDF export.
-- WhatsApp Stage 2 (BSP API) — Stage 1 is manual; in-app centre carries alerts now.
-- Nightly cron to call `app.recalc_all_due()` (calendar dues); onboarding checklist/polish.
+- **UI/UX rework + v1 completion (this mission — branch `claude/farmgear-ui-ux-backend-th78c7`):**
+  - **Design system**: tokens (brand/`sand` scales around the traffic-light `status.*`),
+    responsive app shells (mobile bottom-tab + "More" sheet; desktop sidebar + top bar),
+    and an accessible UI kit in `src/components/ui/**` (Button/Field/Card/Table/Badge/
+    StatusPill/Stat/Modal/Sheet/Toast/Tabs/EmptyState/Skeleton/icons). Server pages import
+    kit pieces from direct module paths to keep bundles flat (see kit README).
+  - **Every surface reworked** on the kit with mobile+desktop treatments, empty/loading/
+    error states, and `t()`: **dashboard** (KPIs, 6-month spend trend + breakdowns, actionable
+    faults, drill-downs); **machines** (cards/table, filters/search/sort, **bulk CSV import**);
+    **machine detail** (identity, SVG meter graph, **service-plan CRUD + apply-template**,
+    chronological **history timeline**, lifetime stats, QR print sheet); **job cards**
+    (mobile-fast entry, **draft autosave**, **VAT-inclusive entry** → ex-VAT cents, lock
+    affordance, confirm modals); **faults + public QR** (common-fault buttons, photo +
+    **voice-note** capture; public path stays anon-DB-free via service-role routes); **reports**
+    (4 families, period filter, print CSS, **CSV per family**); **team/settings/notifications**;
+    **admin** (usage stats, logged impersonation, template library); **auth + onboarding checklist**.
+  - **New backend**: `0205` service-due notifications (due-soon/overdue, weekly digest,
+    stale-meter nudge) honouring thresholds + quiet hours (`deliver_after`), **nightly cron**
+    (`/api/cron/nightly`, `vercel.json`, `CRON_SECRET`; see `docs/CRON.md`); `0206` admin
+    impersonation audit RPC; `0207` fault-voice Storage bucket. All isolation-tested; `db:test` green.
+  - **PDFs** (`pdf-lib`, server-route-only): job-card PDF + machine-file "service book" PDF.
+  - **Afrikaans**: `af.json` fully translated (429 keys at parity with `en.json`).
+  - **Retired/sold machines** excluded from every dashboard/report/alert count and the
+    notification engine (Scope §4.1 / C8).
+  - Gates green (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
+
+Remaining (Week 4 + v1.5):
+- WhatsApp Stage 2 (BSP API) — Stage 1 manual; in-app centre + `deliver_after` queue ready.
+- Wire the nightly cron in the Vercel project + set `CRON_SECRET` (route + docs shipped).
 - v1.5 diesel/fuel module (tables + RLS exist; no features) — out of v1 scope.
+- Runtime click-through against the live DB (this session verified boot/render/guards with
+  placeholder env; `.env.local` with live creds was absent in the fresh clone).
 
 Env/dashboard follow-ups: delete the empty `menu-media` bucket; optional Auth
 leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.example`

@@ -25,3 +25,18 @@ export async function updateFarm(formData: FormData) {
   revalidatePath(`/admin/farms/${id}`);
   redirect(`/admin/farms/${id}?saved=1`);
 }
+
+/**
+ * Record RR-admin "act into a farm" support access (Scope §4.9 — impersonate,
+ * logged). Writes one append-only audit_log row via the guarded RPC every time.
+ */
+export async function impersonateFarm(formData: FormData) {
+  await requireRole(["rr_admin"]);
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/admin/farms?error=Missing+farm");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "impersonate" });
+  if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
+  revalidatePath(`/admin/farms/${id}`);
+  redirect(`/admin/farms/${id}?entered=1`);
+}

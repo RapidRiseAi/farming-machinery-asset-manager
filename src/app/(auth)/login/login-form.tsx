@@ -2,53 +2,31 @@
 
 import { signInWithPassword, signInWithMagicLink } from "./actions";
 import { t } from "@/lib/i18n";
+import { Input } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Flash } from "@/components/ui/flash";
 
 export function LoginForm({ error, sent }: { error?: string; sent?: string }) {
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
-      ) : null}
-      {sent ? (
-        <p className="rounded bg-green-50 p-2 text-sm text-green-700">
-          {t("auth.checkEmail")}
-        </p>
-      ) : null}
+      <Flash tone="error" message={error} />
+      <Flash tone="success" message={sent ? t("auth.checkEmail") : undefined} />
 
-      <form action={signInWithPassword} className="flex flex-col gap-2">
-        <input
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder={t("auth.email")}
-          className="rounded border border-gray-300 p-3"
-        />
-        <input
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          placeholder={t("auth.password")}
-          className="rounded border border-gray-300 p-3"
-        />
-        <button className="rounded-lg bg-status-ok px-4 py-3 font-medium text-white">
-          {t("auth.signIn")}
-        </button>
+      <form action={signInWithPassword} className="flex flex-col gap-2.5">
+        <Input name="email" type="email" required autoComplete="email" placeholder={t("auth.email")} />
+        <Input name="password" type="password" required autoComplete="current-password" placeholder={t("auth.password")} />
+        <SubmitButton variant="primary" fullWidth>{t("auth.signIn")}</SubmitButton>
       </form>
 
-      <form action={signInWithMagicLink} className="flex flex-col gap-2 border-t border-gray-200 pt-4">
-        <input
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder={t("auth.email")}
-          className="rounded border border-gray-300 p-3"
-        />
-        <button className="rounded-lg border border-gray-300 px-4 py-3">
-          {t("auth.magicLink")}
-        </button>
+      <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-sand-400">
+        <span className="h-px flex-1 bg-sand-200" />
+        {t("auth.or")}
+        <span className="h-px flex-1 bg-sand-200" />
+      </div>
+
+      <form action={signInWithMagicLink} className="flex flex-col gap-2.5">
+        <Input name="email" type="email" required autoComplete="email" placeholder={t("auth.email")} />
+        <SubmitButton variant="secondary" fullWidth>{t("auth.magicLink")}</SubmitButton>
       </form>
     </div>
   );

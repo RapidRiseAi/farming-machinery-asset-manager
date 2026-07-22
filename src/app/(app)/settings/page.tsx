@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { t } from "@/lib/i18n";
 import { updateSettings } from "./actions";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Flash } from "@/components/ui/flash";
 
 type Settings = Record<string, unknown>;
 
@@ -12,6 +19,7 @@ export default async function SettingsPage({
 }) {
   const profile = await requireProfile();
   if (profile.role !== "owner" && profile.role !== "manager") redirect("/dashboard");
+  const locale = profile.language;
   const sp = await searchParams;
 
   const supabase = await createClient();
@@ -20,48 +28,75 @@ export default async function SettingsPage({
   const s = (farm?.settings ?? {}) as Record<string, unknown>;
   const n = (k: string, d: number) => (typeof s[k] === "number" ? (s[k] as number) : d);
   const b = (k: string) => s[k] === true;
-  const input = "rounded border border-gray-300 p-2";
+
+  const check = "h-5 w-5 rounded border-sand-300 text-brand-600";
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold">Settings — {farm?.name}</h1>
-      {sp.error ? <p className="rounded bg-red-50 p-2 text-sm text-red-700">{sp.error}</p> : null}
-      {sp.saved ? <p className="rounded bg-green-50 p-2 text-sm text-green-700">Saved.</p> : null}
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("settings.title", locale)} — {farm?.name}</h1>
+      <Flash tone="error" message={sp.error} />
+      <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
-      <form action={updateSettings} className="flex flex-col gap-3">
-        <label className="text-sm">Warn when service due within (hours)
-          <input name="due_soon_hours" type="number" defaultValue={n("due_soon_hours", 25)} className={`${input} mt-1 w-full`} />
-        </label>
-        <label className="text-sm">Warn when service due within (days)
-          <input name="due_soon_days" type="number" defaultValue={n("due_soon_days", 14)} className={`${input} mt-1 w-full`} />
-        </label>
-        <label className="text-sm">Flag reading stale after (days)
-          <input name="stale_reading_days" type="number" defaultValue={n("stale_reading_days", 30)} className={`${input} mt-1 w-full`} />
-        </label>
-        <label className="text-sm">VAT rate (basis points, 1500 = 15%)
-          <input name="vat_rate_bps" type="number" defaultValue={n("vat_rate_bps", 1500)} className={`${input} mt-1 w-full`} />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="approval_required" defaultChecked={b("approval_required")} /> Require owner approval of job cards
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="cost_visible_to_operators" defaultChecked={b("cost_visible_to_operators")} /> Show costs to operators
-        </label>
-        <div className="flex gap-2">
-          <label className="flex-1 text-sm">Quiet hours start
-            <input name="quiet_hours_start" type="number" defaultValue={n("quiet_hours_start", 20)} className={`${input} mt-1 w-full`} />
-          </label>
-          <label className="flex-1 text-sm">Quiet hours end
-            <input name="quiet_hours_end" type="number" defaultValue={n("quiet_hours_end", 5)} className={`${input} mt-1 w-full`} />
-          </label>
-        </div>
-        <label className="text-sm">Default language
-          <select name="default_language" defaultValue={(s.default_language as string) ?? "af"} className={`${input} mt-1 w-full`}>
-            <option value="af">Afrikaans</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <button className="self-start rounded-lg bg-status-ok px-4 py-2 font-medium text-white">Save settings</button>
+      <form action={updateSettings} className="flex flex-col gap-4">
+        <Card>
+          <CardHeader><CardTitle>{t("settings.thresholds", locale)}</CardTitle></CardHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label={t("settings.dueHours", locale)} htmlFor="due_soon_hours">
+              <Input id="due_soon_hours" name="due_soon_hours" type="number" defaultValue={n("due_soon_hours", 25)} />
+            </Field>
+            <Field label={t("settings.dueDays", locale)} htmlFor="due_soon_days">
+              <Input id="due_soon_days" name="due_soon_days" type="number" defaultValue={n("due_soon_days", 14)} />
+            </Field>
+            <Field label={t("settings.staleDays", locale)} htmlFor="stale_reading_days">
+              <Input id="stale_reading_days" name="stale_reading_days" type="number" defaultValue={n("stale_reading_days", 30)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>{t("settings.money", locale)}</CardTitle></CardHeader>
+          <Field label={t("settings.vatRate", locale)} htmlFor="vat_rate_bps">
+            <Input id="vat_rate_bps" name="vat_rate_bps" type="number" defaultValue={n("vat_rate_bps", 1500)} />
+          </Field>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>{t("settings.workflow", locale)}</CardTitle></CardHeader>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2.5 text-sm text-sand-800">
+              <input type="checkbox" name="approval_required" defaultChecked={b("approval_required")} className={check} />
+              {t("settings.approvalRequired", locale)}
+            </label>
+            <label className="flex items-center gap-2.5 text-sm text-sand-800">
+              <input type="checkbox" name="cost_visible_to_operators" defaultChecked={b("cost_visible_to_operators")} className={check} />
+              {t("settings.costVisible", locale)}
+            </label>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>{t("settings.quietHours", locale)}</CardTitle></CardHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t("settings.quietStart", locale)} htmlFor="quiet_hours_start">
+              <Input id="quiet_hours_start" name="quiet_hours_start" type="number" min={0} max={23} defaultValue={n("quiet_hours_start", 20)} />
+            </Field>
+            <Field label={t("settings.quietEnd", locale)} htmlFor="quiet_hours_end">
+              <Input id="quiet_hours_end" name="quiet_hours_end" type="number" min={0} max={23} defaultValue={n("quiet_hours_end", 5)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>{t("settings.language", locale)}</CardTitle></CardHeader>
+          <Field label={t("settings.language", locale)} htmlFor="default_language">
+            <Select id="default_language" name="default_language" defaultValue={(s.default_language as string) ?? "af"}>
+              <option value="af">{t("settings.afrikaans", locale)}</option>
+              <option value="en">{t("settings.english", locale)}</option>
+            </Select>
+          </Field>
+        </Card>
+
+        <SubmitButton variant="primary" className="self-start">{t("settings.save", locale)}</SubmitButton>
       </form>
     </div>
   );

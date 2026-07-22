@@ -99,31 +99,33 @@ export function MachinePhotos({
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 p-4">
-      <h2 className="font-medium">Photos</h2>
-      {err ? <p className="mt-1 text-sm text-red-700">{err}</p> : null}
-      {canEdit ? (
-        <label className="mt-2 inline-block cursor-pointer rounded-lg border border-gray-300 px-3 py-2 text-sm">
-          {busy ? "Uploading…" : "Add photo"}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={onFile}
-            disabled={busy}
-          />
-        </label>
-      ) : null}
-      <div className="mt-3 grid grid-cols-3 gap-2">
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-semibold text-sand-900">Photos</h2>
+        {canEdit ? (
+          <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
+            {busy ? "Uploading…" : "Add photo"}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={onFile}
+              disabled={busy}
+            />
+          </label>
+        ) : null}
+      </div>
+      {err ? <p className="mb-2 text-sm text-status-overdue">{err}</p> : null}
+      <div className="grid grid-cols-3 gap-2">
         {photos.map((p) =>
           p.url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={p.id} src={p.url} alt="Machine photo" className="aspect-square w-full rounded object-cover" />
+            <img key={p.id} src={p.url} alt="Machine photo" className="aspect-square w-full rounded-lg object-cover" />
           ) : null
         )}
         {photos.length === 0 ? (
-          <p className="col-span-3 text-sm text-gray-400">No photos yet.</p>
+          <p className="col-span-3 text-sm text-sand-400">No photos yet.</p>
         ) : null}
       </div>
     </section>

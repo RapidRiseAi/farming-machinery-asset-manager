@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
+import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
 
 function str(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -23,6 +24,30 @@ function numOrNull(fd: FormData, k: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 const inList = (list: readonly string[], v: string) => list.includes(v);
+
+/** Parse a Rand amount string to integer cents, ex-VAT (no float drift). */
+function priceToCents(fd: FormData, k: string): number | null {
+  const v = str(fd, k);
+  if (v == null) return null;
+  const cleaned = v.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return null;
+  const [whole, frac = ""] = cleaned.split(".");
+  const cents = Number.parseInt(whole || "0", 10) * 100 + Number.parseInt((frac + "00").slice(0, 2), 10);
+  return Number.isFinite(cents) ? cents : null;
+}
+
+/** Extra optional machine fields shared by create + update. */
+function extraFields(fd: FormData) {
+  return {
+    purchase_date: str(fd, "purchase_date"),
+    purchase_price_cents: priceToCents(fd, "purchase_price"),
+    supplier: str(fd, "supplier"),
+    warranty_expiry_date: str(fd, "warranty_expiry_date"),
+    warranty_expiry_hours: numOrNull(fd, "warranty_expiry_hours"),
+    location: str(fd, "location"),
+    notes: str(fd, "notes"),
+  };
+}
 
 export async function createMachine(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
@@ -53,6 +78,7 @@ export async function createMachine(formData: FormData) {
       current_reading,
       current_reading_date: current_reading != null ? new Date().toISOString().slice(0, 10) : null,
       status: "active",
+      ...extraFields(formData),
     })
     .select("id")
     .single();
@@ -93,6 +119,7 @@ export async function updateMachine(formData: FormData) {
       reg_no: str(formData, "reg_no"),
       meter_type,
       status,
+      ...extraFields(formData),
     })
     .eq("id", id);
 
@@ -100,4 +127,47 @@ export async function updateMachine(formData: FormData) {
 
   revalidatePath(`/machines/${id}`);
   redirect(`/machines/${id}?saved=1`);
+}
+
+/** Bulk import machines from a CSV posted by the import preview. The server
+ *  re-parses and re-validates (the client preview is UX only) and inserts only
+ *  the valid rows, farm-scoped. */
+export async function importMachines(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  if (!profile.farm_id) redirect("/machines?error=No+farm+context");
+
+  const csv = String(formData.get("csv") ?? "");
+  if (!csv.trim()) redirect("/machines/import?error=No+CSV+provided");
+
+  const parsed = validateCsv(csv);
+  if (parsed.headerError) redirect("/machines/import?error=Invalid+CSV+header");
+
+  const valid = parsed.rows.filter((r) => r.valid && r.machine).map((r) => r.machine!);
+  if (valid.length === 0) redirect("/machines/import?error=No+valid+rows");
+  if (valid.length > MAX_IMPORT_ROWS) redirect(`/machines/import?error=Too+many+rows`);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const supabase = await createClient();
+  const { error } = await supabase.from("machines").insert(
+    valid.map((m) => ({
+      farm_id: profile.farm_id,
+      name: m.name,
+      type: m.type,
+      make: m.make,
+      model: m.model,
+      year: m.year,
+      serial_no: m.serial_no,
+      reg_no: m.reg_no,
+      meter_type: m.meter_type,
+      current_reading: m.current_reading,
+      current_reading_date: m.current_reading != null ? today : null,
+      status: m.status,
+      notes: m.notes,
+    }))
+  );
+
+  if (error) redirect(`/machines/import?error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath("/machines");
+  redirect(`/machines?imported=${valid.length}`);
 }
