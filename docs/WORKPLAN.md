@@ -123,10 +123,21 @@ Reports added to nav; renders at ~360px and ≥1024px; gates green; no bundle bl
 Every task: leave the repo green (`pnpm typecheck && pnpm build && pnpm lint`,
 plus `pnpm db:test` if DB touched); commit with a clear message.
 
-## Status
-- [x] Baseline green (typecheck, lint, build, db:test) — 2026-07-18
+## Status — SHIPPED
+- [x] Baseline green (typecheck, lint, build, db:test)
 - [x] Plan written
-- [ ] A merged
-- [ ] B1–B9 merged
-- [ ] C2/C3, C4, C9 merged
-- [ ] Final verification + push + PR
+- [x] A merged — design system, shells, UI kit
+- [x] B1 dashboard · B2 machines+import · B2b machine detail/timeline/service-plan ·
+      B3 job cards (autosave, VAT-inclusive) · B4 faults+voice/public QR ·
+      B5 reports+CSV · B6 team/settings/notifications · B7 admin · B8 auth/onboarding ·
+      B9 Afrikaans
+- [x] C2/C3 notifications+cron (0205) · C4 admin audit (0206) · C7 bulk import ·
+      C8 retired/sold exclusion · C9 PDFs · (0207 fault-voice bucket)
+- [x] Final verification: typecheck + lint + build + db:test green; shared JS flat 102 kB;
+      runtime boot/render/guard smoke; PDF-engine + i18n runtime checks
+- [x] Pushed to `claude/farmgear-ui-ux-backend-th78c7`; draft PR #3 refreshed
+
+Notes: built inline by the orchestrator (Opus) after repeated usage-limit interruptions
+killed the parallel Opus worktree subagents before they could commit; each surface was
+gated + committed incrementally instead. Branch is the session-designated one (supersedes
+the mission text's `week-1-foundation` name). Admin console is English-only by design.
