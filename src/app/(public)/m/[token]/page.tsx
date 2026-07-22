@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/service";
-import { submitReading, submitFault } from "./actions";
+import { t, defaultLocale } from "@/lib/i18n";
+import { FaultCapture } from "@/components/fault-capture";
+import { submitReading } from "./actions";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
 export const dynamic = "force-dynamic";
@@ -16,7 +18,6 @@ async function getMachine(token: string) {
       .maybeSingle();
     return data as { id: string; name: string; meter_type: string } | null;
   } catch {
-    // Service role not configured yet, or lookup failed.
     return null;
   }
 }
@@ -31,52 +32,55 @@ export default async function PublicMachinePage({
   const { token } = await params;
   const sp = await searchParams;
   const machine = await getMachine(token);
+  const locale = defaultLocale;
 
   if (!machine) {
     return (
       <main className="mx-auto max-w-sm p-6">
-        <h1 className="text-lg font-bold">Machine not found</h1>
-        <p className="mt-1 text-gray-500">This code isn’t recognised.</p>
+        <h1 className="text-lg font-bold text-sand-900">Machine not found</h1>
+        <p className="mt-1 text-sand-500">This code isn’t recognised.</p>
       </main>
     );
   }
 
-  const input = "rounded border border-gray-300 p-3";
+  const input = "w-full rounded-lg border border-sand-300 px-3 py-2.5 text-base";
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-4 p-5">
-      <h1 className="text-xl font-bold">{machine.name}</h1>
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-4 bg-sand-50 p-5">
+      <header className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">🚜</span>
+        <span className="text-sm font-semibold text-sand-500">{t("app.name", locale)}</span>
+      </header>
+      <h1 className="text-2xl font-bold text-sand-900">{machine.name}</h1>
+
       {sp.sent ? (
-        <p className="rounded bg-green-50 p-2 text-sm text-green-700">Thanks — sent!</p>
-      ) : null}
-      {sp.error ? (
-        <p className="rounded bg-red-50 p-2 text-sm text-red-700">Something went wrong — try again.</p>
+        <p className="rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700">✓ {t("qr.scanCaption", locale)}</p>
       ) : null}
 
-      <form action={submitFault} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-4">
-        <input type="hidden" name="token" value={token} />
-        <span className="font-medium">Report a problem</span>
-        <textarea name="description" required rows={3} placeholder="What’s wrong?" className={input} />
-        <select name="urgency" defaultValue="can_work" className={input}>
-          <option value="can_work">Can still work</option>
-          <option value="limping">Limping</option>
-          <option value="stopped">Stopped</option>
-        </select>
-        <input name="name" placeholder="Your name (optional)" className={input} />
-        <button className="rounded-lg bg-status-overdue px-4 py-3 font-medium text-white">Send problem</button>
-      </form>
+      <section className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
+        <h2 className="mb-3 text-lg font-semibold text-sand-900">{t("qr.reportProblem", locale)}</h2>
+        <FaultCapture
+          endpoint="/api/public/fault"
+          token={token}
+          redirectTo={`/m/${token}?sent=1`}
+          locale={locale}
+          variant="public"
+        />
+      </section>
 
       {machine.meter_type !== "none" ? (
-        <form action={submitReading} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-4">
-          <input type="hidden" name="token" value={token} />
-          <span className="font-medium">Log reading ({machine.meter_type})</span>
-          <input name="reading" type="number" inputMode="decimal" step="0.1" required placeholder="Current reading" className={input} />
-          <input name="name" placeholder="Your name (optional)" className={input} />
-          <button className="rounded-lg bg-status-ok px-4 py-3 font-medium text-white">Send reading</button>
-        </form>
+        <section className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
+          <h2 className="mb-3 text-lg font-semibold text-sand-900">{t("qr.logReading", locale)} ({machine.meter_type})</h2>
+          <form action={submitReading} className="flex flex-col gap-2">
+            <input type="hidden" name="token" value={token} />
+            <input name="reading" type="number" inputMode="decimal" step="0.1" required placeholder={t("machine.newReading", locale)} className={input} />
+            <input name="name" placeholder={`${t("faults.yourName", locale)} (${t("faults.optional", locale)})`} className={input} />
+            <button className="min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">{t("qr.logReading", locale)}</button>
+          </form>
+        </section>
       ) : null}
 
-      <Link href="/login" className="text-center text-sm text-gray-500">
-        Log in for full history
+      <Link href="/login" className="pb-6 text-center text-sm text-sand-500">
+        {t("qr.viewFullHistory", locale)}
       </Link>
     </main>
   );
