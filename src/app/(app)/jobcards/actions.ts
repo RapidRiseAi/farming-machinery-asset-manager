@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
+import { parseRandsToCents, exVatCents } from "@/lib/money";
 
 // Who may work job cards (Scope §2): internal mechanic, manager, owner, external workshop.
 const CREW: Role[] = ["owner", "manager", "mechanic", "workshop"];
 const JOB_TYPES = ["scheduled_service", "repair", "inspection", "other"];
+const JOB_STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed"];
 const LINE_KINDS = ["part", "labour", "other"];
 
 function s(fd: FormData, k: string): string | null {
@@ -21,11 +23,6 @@ function num(fd: FormData, k: string): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-/** Rands (as typed) → integer cents, ex-VAT. */
-function rToCents(fd: FormData, k: string): number | null {
-  const n = num(fd, k);
-  return n == null ? null : Math.round(n * 100);
-}
 
 export async function createJobCard(formData: FormData) {
   const profile = await requireRole(CREW);
@@ -37,6 +34,11 @@ export async function createJobCard(formData: FormData) {
   if (!machineId || !farmId) redirect("/machines?error=Missing+machine");
 
   const supabase = await createClient();
+  // Snapshot the farm's current VAT rate onto the card (money is stored ex-VAT).
+  const { data: farm } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+  const settings = (farm?.settings ?? {}) as Record<string, unknown>;
+  const vatRateBps = typeof settings.vat_rate_bps === "number" ? (settings.vat_rate_bps as number) : 1500;
+
   const { data, error } = await supabase
     .from("job_cards")
     .insert({
@@ -47,6 +49,7 @@ export async function createJobCard(formData: FormData) {
       created_from_fault_id: faultId,
       mechanic_user_id: profile.role === "mechanic" || profile.role === "workshop" ? profile.id : null,
       workshop_id: profile.workshop_id ?? null,
+      vat_rate_bps: vatRateBps,
       date_in: new Date().toISOString().slice(0, 10),
     })
     .select("id")
@@ -64,14 +67,19 @@ export async function saveJobCard(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/jobcards");
   const supabase = await createClient();
+  const statusRaw = String(formData.get("status") ?? "open");
+  const status = JOB_STATUSES.includes(statusRaw) ? statusRaw : "open";
   const { error } = await supabase
     .from("job_cards")
     .update({
+      date_in: s(formData, "date_in"),
+      date_out: s(formData, "date_out"),
+      reported_problem: s(formData, "reported_problem"),
       diagnosis: s(formData, "diagnosis"),
       work_performed: s(formData, "work_performed"),
       recommendations: s(formData, "recommendations"),
       meter_reading: num(formData, "meter_reading"),
-      status: String(formData.get("status") ?? "open"),
+      status,
     })
     .eq("id", id);
   if (error) redirect(`/jobcards/${id}?error=${encodeURIComponent(error.message)}`);
@@ -88,6 +96,19 @@ export async function addLine(formData: FormData) {
   if (!jobCardId || !farmId) redirect(`/jobcards/${jobCardId}?error=Missing+ids`);
 
   const supabase = await createClient();
+
+  // Money is stored ex-VAT (Scope §6). If the user entered VAT-inclusive prices,
+  // convert to ex-VAT using the card's own VAT rate (authoritative, from the DB).
+  const inclVat = String(formData.get("incl_vat") ?? "") === "1";
+  let unitCents = kind === "labour" ? null : parseRandsToCents(String(formData.get("unit_cost") ?? ""));
+  let rateCents = kind === "labour" ? parseRandsToCents(String(formData.get("rate") ?? "")) : null;
+  if (inclVat) {
+    const { data: jc } = await supabase.from("job_cards").select("vat_rate_bps").eq("id", jobCardId).maybeSingle();
+    const bps = (jc as { vat_rate_bps: number } | null)?.vat_rate_bps ?? 1500;
+    if (unitCents != null) unitCents = exVatCents(unitCents, bps);
+    if (rateCents != null) rateCents = exVatCents(rateCents, bps);
+  }
+
   const { error } = await supabase.from("job_card_lines").insert({
     farm_id: farmId,
     job_card_id: jobCardId,
@@ -95,9 +116,9 @@ export async function addLine(formData: FormData) {
     description: s(formData, "description"),
     part_no: s(formData, "part_no"),
     qty: kind === "part" ? num(formData, "qty") : null,
-    unit_cost_cents: kind === "labour" ? null : rToCents(formData, "unit_cost"),
+    unit_cost_cents: unitCents,
     hours: kind === "labour" ? num(formData, "hours") : null,
-    rate_cents: kind === "labour" ? rToCents(formData, "rate") : null,
+    rate_cents: rateCents,
   });
   if (error) redirect(`/jobcards/${jobCardId}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/jobcards/${jobCardId}`);
