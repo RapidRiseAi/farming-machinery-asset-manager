@@ -1,7 +1,17 @@
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { t } from "@/lib/i18n";
 import { inviteUser, setUserActive } from "./actions";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Flash } from "@/components/ui/flash";
 
 type TeamUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 
@@ -12,75 +22,94 @@ export default async function TeamPage({
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
+  const locale = profile.language;
   const sp = await searchParams;
 
   const supabase = await createClient();
   const { data } = await supabase.from("users").select("id, name, role, email, active").order("role");
   const users = (data as TeamUser[] | null) ?? [];
-
   const canManage = profile.role === "owner" || profile.role === "manager";
-  const input = "rounded border border-gray-300 p-2 text-sm";
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold">Team</h1>
-      {sp.error ? <p className="rounded bg-red-50 p-2 text-sm text-red-700">{sp.error}</p> : null}
-      {sp.invited ? <p className="rounded bg-green-50 p-2 text-sm text-green-700">Invited — they sign in via the magic-link on the login page.</p> : null}
-      {sp.saved ? <p className="rounded bg-green-50 p-2 text-sm text-green-700">Saved.</p> : null}
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
+      <Flash tone="error" message={sp.error} />
+      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
 
       {canManage && profile.farm_id ? (
-        <form action={inviteUser} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3">
-          <h2 className="font-medium">Invite a worker</h2>
-          <input type="hidden" name="farm_id" value={profile.farm_id} />
-          <input type="hidden" name="back" value="/team" />
-          <input name="name" required placeholder="Name" className={input} />
-          <input name="email" type="email" required placeholder="Email" className={input} />
-          <div className="flex gap-2">
-            <select name="role" defaultValue="operator" className={`${input} flex-1`}>
-              <option value="manager">Manager</option>
-              <option value="mechanic">Mechanic</option>
-              <option value="operator">Operator</option>
-            </select>
-            <select name="language" defaultValue="af" className={`${input} w-28`}>
-              <option value="af">Afrikaans</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <button className="self-start rounded-lg bg-status-ok px-4 py-2 text-sm font-medium text-white">Invite</button>
-        </form>
+        <Card>
+          <CardHeader><CardTitle>{t("team.invite", locale)}</CardTitle></CardHeader>
+          <form action={inviteUser} className="flex flex-col gap-3">
+            <input type="hidden" name="farm_id" value={profile.farm_id} />
+            <input type="hidden" name="back" value="/team" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label={t("team.name", locale)} htmlFor="inv-name" required>
+                <Input id="inv-name" name="name" required />
+              </Field>
+              <Field label={t("team.email", locale)} htmlFor="inv-email" required>
+                <Input id="inv-email" name="email" type="email" required />
+              </Field>
+              <Field label={t("team.role", locale)} htmlFor="inv-role">
+                <Select id="inv-role" name="role" defaultValue="operator">
+                  <option value="manager">{t("team.roleManager", locale)}</option>
+                  <option value="mechanic">{t("team.roleMechanic", locale)}</option>
+                  <option value="operator">{t("team.roleOperator", locale)}</option>
+                </Select>
+              </Field>
+              <Field label={t("team.language", locale)} htmlFor="inv-lang">
+                <Select id="inv-lang" name="language" defaultValue="af">
+                  <option value="af">{t("settings.afrikaans", locale)}</option>
+                  <option value="en">{t("settings.english", locale)}</option>
+                </Select>
+              </Field>
+            </div>
+            <SubmitButton variant="primary" className="self-start">{t("team.inviteBtn", locale)}</SubmitButton>
+          </form>
+        </Card>
       ) : null}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-gray-500">
-            <tr><th className="py-2">Name</th><th>Role</th><th>Email</th><th>Active</th>{canManage ? <th /> : null}</tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t border-gray-100">
-                <td className="py-2">{u.name}</td>
-                <td>{u.role}</td>
-                <td className="text-gray-500">{u.email ?? "—"}</td>
-                <td>{u.active ? "yes" : "no"}</td>
-                {canManage ? (
-                  <td className="text-right">
-                    {u.id !== profile.id ? (
-                      <form action={setUserActive}>
-                        <input type="hidden" name="id" value={u.id} />
-                        <input type="hidden" name="active" value={u.active ? "false" : "true"} />
-                        <input type="hidden" name="back" value="/team" />
-                        <button className="rounded border border-gray-300 px-2 py-1 text-xs">
-                          {u.active ? "Deactivate" : "Activate"}
-                        </button>
-                      </form>
-                    ) : null}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card flush>
+        {users.length === 0 ? (
+          <p className="p-4 text-sm text-sand-500">{t("team.empty", locale)}</p>
+        ) : (
+          <Table>
+            <Thead>
+              <Tr>
+                <Th>{t("team.name", locale)}</Th>
+                <Th>{t("team.role", locale)}</Th>
+                <Th>{t("team.email", locale)}</Th>
+                <Th>{t("team.active", locale)}</Th>
+                {canManage ? <Th /> : null}
+              </Tr>
+            </Thead>
+            <Tbody>
+              {users.map((u) => (
+                <Tr key={u.id}>
+                  <Td className="font-medium text-sand-900">
+                    {u.name}
+                    {u.id === profile.id ? <span className="ml-1 text-xs text-sand-400">({t("team.you", locale)})</span> : null}
+                  </Td>
+                  <Td><Badge tone="neutral" className="capitalize">{u.role}</Badge></Td>
+                  <Td className="text-sand-500">{u.email ?? "—"}</Td>
+                  <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
+                  {canManage ? (
+                    <Td className="text-right">
+                      {u.id !== profile.id ? (
+                        <form action={setUserActive}>
+                          <input type="hidden" name="id" value={u.id} />
+                          <input type="hidden" name="active" value={u.active ? "false" : "true"} />
+                          <input type="hidden" name="back" value="/team" />
+                          <Button type="submit" variant="ghost" size="sm">{u.active ? t("team.deactivate", locale) : t("team.activate", locale)}</Button>
+                        </form>
+                      ) : null}
+                    </Td>
+                  ) : null}
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }
