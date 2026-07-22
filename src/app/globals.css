@@ -36,6 +36,23 @@ a {
   touch-action: manipulation;
 }
 
+/* Print: drop the app chrome (sidebar, headers, tab bar) so a printed report or
+   QR sheet is just the content. Pages hide their own controls with `print:hidden`. */
+@media print {
+  aside,
+  nav,
+  header {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+}
+
 @layer base {
   /* Consistent, visible keyboard focus everywhere (WCAG-AA). Pointer clicks
      don't get the ring (focus-visible), keyboard users always do. */

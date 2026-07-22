@@ -2,7 +2,7 @@ import { getUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse, centsToR } from "../data";
 
-/** Cost-per-machine CSV for the accountant (Scope §4.8). Farm-scoped by RLS. */
+/** Spend-by-job-type CSV (Scope §4.8 farm maintenance summary). Farm-scoped by RLS. */
 export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
@@ -11,9 +11,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const data = await getReportData(supabase, parseFilters(sp));
 
-  const rows: (string | number)[][] = [["Machine", "Parts (R)", "Labour (R)", "Other (R)", "Total (R)", "Cost per hour (R)"]];
-  for (const r of data.costPerMachine) {
-    rows.push([r.name, centsToR(r.parts), centsToR(r.labour), centsToR(r.other), centsToR(r.total), r.perHour != null ? centsToR(r.perHour) : ""]);
-  }
-  return csvResponse("cost-per-machine.csv", toCsv(rows));
+  const rows: (string | number)[][] = [["Job type", "Total (R)"]];
+  for (const r of data.byType) rows.push([r.type.replace(/_/g, " "), centsToR(r.total)]);
+  return csvResponse("spend-by-type.csv", toCsv(rows));
 }
