@@ -535,3 +535,49 @@ end $$;
 reset role;
 
 select 'ALL 0205 NOTIFICATION-ENGINE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ 0206: ADMIN FARM-ACCESS (IMPERSONATION) AUDIT (appended) ════
+-- Proves: (a) a non-admin authenticated user CANNOT call
+-- log_admin_farm_access (raises); (b) an rr_admin call appends exactly one
+-- append-only audit_log row for that farm; (c) that row stays farm-scoped —
+-- Owner B cannot see Farm A's admin-access row. Nothing above is modified.
+-- ═════════════════════════════════════════════════════════════════
+set role authenticated;
+
+-- (a) non-admin is refused.
+do $$
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A (not admin)
+  begin
+    perform public.log_admin_farm_access('11111111-1111-1111-1111-111111111111', 'impersonate');
+    raise exception 'ADMIN FAIL: non-admin was allowed to log farm access';
+  exception
+    when others then
+      if sqlstate = 'P0001' and sqlerrm like 'ADMIN FAIL%' then raise; end if;   -- our own marker bubbles up
+      -- otherwise the expected refusal — swallow
+      null;
+  end;
+end $$;
+
+-- (b) rr_admin call appends exactly one admin_farm_access row for Farm A.
+do $$ declare c bigint; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
+  perform public.log_admin_farm_access('11111111-1111-1111-1111-111111111111', 'impersonate');
+  select count(*) into c from audit_log
+    where entity = 'admin_farm_access'
+      and farm_id = '11111111-1111-1111-1111-111111111111'
+      and user_id = 'd4444444-4444-4444-4444-444444444444';
+  if c <> 1 then raise exception 'ADMIN FAIL: expected 1 admin_farm_access row, got %', c; end if;
+end $$;
+
+-- (c) Owner B cannot see Farm A's admin-access audit row.
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  select count(*) into c from audit_log where entity = 'admin_farm_access';
+  if c <> 0 then raise exception 'ADMIN FAIL: Owner B sees % admin_farm_access rows (expected 0)', c; end if;
+end $$;
+
+reset role;
+
+select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;
