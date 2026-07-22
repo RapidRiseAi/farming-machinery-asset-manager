@@ -92,5 +92,35 @@
     "staleReadings": "Stale readings",
     "noStaleReadings": "All readings are up to date.",
     "reports": "Reports"
+  },
+  "jobType": {
+    "scheduled_service": "Scheduled service",
+    "repair": "Repair",
+    "inspection": "Inspection",
+    "other": "Other"
+  },
+  "urgency": {
+    "can_work": "Can still work",
+    "limping": "Limping",
+    "stopped": "Stopped"
+  },
+  "dashboard": {
+    "kpiOverdue": "Overdue service",
+    "kpiDueSoon": "Due soon",
+    "kpiOpenFaults": "Open faults",
+    "kpiInWorkshop": "In workshop",
+    "kpiServicesOk": "Services OK",
+    "upTo": "up to",
+    "vsLast": "vs last month",
+    "spendTrend": "Spend — last 6 months",
+    "spendByType": "Spend by job type",
+    "costPerMachine": "Cost per machine",
+    "noSpendYet": "No spend recorded yet.",
+    "today": "today",
+    "dayShort": "d",
+    "weekShort": "w",
+    "noMachinesTitle": "No machines yet",
+    "noMachinesHint": "Add your first machine to start tracking services, faults and costs.",
+    "noMachinesAdd": "Add a machine"
   }
 }

@@ -10,23 +10,38 @@ export default function DashboardLoading() {
         <Skeleton className="h-9 w-24 rounded-lg" />
       </div>
 
-      <Card>
-        <Skeleton className="mb-3 h-5 w-32" />
-        <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-lg bg-sand-50 py-3">
-              <Skeleton className="mx-auto h-8 w-10" />
-              <Skeleton className="mx-auto mt-2 h-5 w-16 rounded-full" />
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-8 w-14" />
+          </Card>
+        ))}
+      </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {Array.from({ length: 2 }).map((_, i) => (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i}>
             <Skeleton className="h-3 w-24" />
             <Skeleton className="mt-2 h-8 w-32" />
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <Skeleton className="mb-3 h-5 w-40" />
+        <Skeleton className="h-40 w-full" />
+      </Card>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <Skeleton className="mb-3 h-5 w-32" />
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 4 }).map((__, j) => (
+                <Skeleton key={j} className="h-6 w-full" />
+              ))}
+            </div>
           </Card>
         ))}
       </div>
