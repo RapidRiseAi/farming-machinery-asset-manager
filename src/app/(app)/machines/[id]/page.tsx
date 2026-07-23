@@ -14,6 +14,7 @@ import { addReading } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
+import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { StatusPill, Badge, type BadgeTone } from "@/components/ui/badge";
@@ -238,7 +239,7 @@ export default async function MachineDetailPage({
               <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
               <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
               {canAddReading ? (
-                <form action={addReading} className="mt-3 flex flex-wrap items-end gap-2">
+                <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="machine_id" value={machine.id} />
                   <input type="hidden" name="farm_id" value={machine.farm_id} />
                   <Field label={t("machine.newReading", locale)} htmlFor="reading" className="flex-1">
@@ -248,7 +249,7 @@ export default async function MachineDetailPage({
                     <Input id="reading_date" name="reading_date" type="date" />
                   </Field>
                   <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
-                </form>
+                </OfflineForm>
               ) : null}
               {readings.length > 0 ? (
                 <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
