@@ -419,7 +419,11 @@
     "tplWeeklyDigest": "Weekly digest: {overdue} overdue, {dueSoon} due soon, {faults} open faults",
     "tplFaultReported": "{machine}: {description} ({urgency})",
     "tplJobCompleted": "{machine}: job completed — {total}",
-    "tplFuelAnomaly": "{machine}: unusually high fuel use ({litres} L, {delta}% over usual) — possible leak or theft"
+    "tplFuelAnomaly": "{machine}: unusually high fuel use ({litres} L, {delta}% over usual) — possible leak or theft",
+    "tplWarrantyExpiring": "{machine}: warranty expiring on {date}",
+    "tplWarrantyExpired": "{machine}: warranty expired on {date}",
+    "tplLicenceExpiring": "{machine}: {type} expiring on {date}",
+    "tplLicenceExpired": "{machine}: {type} expired on {date}"
   },
   "settings": {
     "title": "Settings",
@@ -438,6 +442,10 @@
     "fuelSection": "Fuel anomalies",
     "fuelAnomalyPct": "Flag a draw above usual by (%)",
     "fuelMinHistory": "Minimum draws before flagging",
+    "expirySection": "Expiry reminders",
+    "warrantyLeadDays": "Warn before warranty expiry (days)",
+    "warrantyHoursLead": "Warn before warranty hour limit (hours)",
+    "licenceLeadDays": "Warn before licence expiry (days)",
     "language": "Default language",
     "afrikaans": "Afrikaans",
     "english": "English",
@@ -655,7 +663,9 @@
     "weekShort": "w",
     "noMachinesTitle": "No machines yet",
     "noMachinesHint": "Add your first machine to start tracking services, faults and costs.",
-    "noMachinesAdd": "Add a machine"
+    "noMachinesAdd": "Add a machine",
+    "expiriesTitle": "Expiries upcoming",
+    "noExpiries": "No warranties or licences expiring soon."
   },
   "offline": {
     "online": "Online",
@@ -674,5 +684,65 @@
     "job": "Job card",
     "manual": "Manual",
     "whatsapp": "WhatsApp"
+  },
+  "compliance": {
+    "title": "Compliance",
+    "warranty": "Warranty",
+    "warrantyDate": "Warranty expiry",
+    "warrantyHours": "Warranty (hours)",
+    "noWarranty": "No warranty recorded.",
+    "licences": "Licences & renewals",
+    "noLicences": "No licences or renewals tracked.",
+    "addLicence": "Add a licence / renewal",
+    "number": "Number",
+    "expires": "Expires",
+    "leadDays": "Remind (days before)",
+    "statusNone": "—",
+    "status": {
+      "ok": "In date",
+      "expiring": "Expiring soon",
+      "expired": "Expired"
+    }
+  },
+  "licenceType": {
+    "vehicle_licence": "Vehicle licence",
+    "roadworthy": "Roadworthy",
+    "permit": "Permit",
+    "crossborder": "Cross-border permit",
+    "insurance": "Insurance",
+    "other": "Other"
+  },
+  "pushTitle": {
+    "service": "Service reminder",
+    "warranty": "Warranty",
+    "licence": "Licence renewal",
+    "fault": "Fault reported",
+    "job": "Job card",
+    "fuel": "Fuel alert",
+    "weekly_digest": "Weekly digest",
+    "stale_meter": "Meter readings"
+  },
+  "prefs": {
+    "title": "Your alert preferences",
+    "inapp": "Show alerts in the app",
+    "push": "Send push notifications",
+    "quietHours": "Your quiet hours",
+    "quietHoursHint": "No non-urgent alerts during these hours. Leave blank to use the farm default.",
+    "quietStart": "Quiet from (0–23)",
+    "quietEnd": "Quiet until (0–23)",
+    "inherit": "Farm default",
+    "save": "Save preferences"
+  },
+  "push": {
+    "title": "Push on this device",
+    "thisDevice": "Push notifications on this device",
+    "enabledHint": "This device will receive push alerts.",
+    "disabledHint": "Turn on to receive alerts even when the app is closed.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "error": "Couldn't change push notifications. Please try again.",
+    "unsupported": "This browser doesn't support push notifications.",
+    "unconfigured": "Push notifications aren't set up on this server yet.",
+    "denied": "Notifications are blocked in your browser settings."
   }
 }

@@ -91,7 +91,7 @@ export function notificationTitle(template: string, locale: Locale): string {
             : template.startsWith("fuel_")
               ? "fuel"
               : template;
-  return t(`notifications.title.${family}`, locale);
+  return t(`pushTitle.${family}`, locale);
 }
 
 /** Deep link a notification click should open (best-effort; falls back to the alert centre). */

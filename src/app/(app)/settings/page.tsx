@@ -87,6 +87,21 @@ export default async function SettingsPage({
         </Card>
 
         <Card>
+          <CardHeader><CardTitle>{t("settings.expirySection", locale)}</CardTitle></CardHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label={t("settings.warrantyLeadDays", locale)} htmlFor="warranty_lead_days">
+              <Input id="warranty_lead_days" name="warranty_lead_days" type="number" min={0} defaultValue={n("warranty_lead_days", 30)} />
+            </Field>
+            <Field label={t("settings.warrantyHoursLead", locale)} htmlFor="warranty_hours_lead">
+              <Input id="warranty_hours_lead" name="warranty_hours_lead" type="number" min={0} defaultValue={n("warranty_hours_lead", 50)} />
+            </Field>
+            <Field label={t("settings.licenceLeadDays", locale)} htmlFor="licence_lead_days">
+              <Input id="licence_lead_days" name="licence_lead_days" type="number" min={0} defaultValue={n("licence_lead_days", 30)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>{t("settings.fuelSection", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label={t("settings.fuelAnomalyPct", locale)} htmlFor="fuel_anomaly_pct">
