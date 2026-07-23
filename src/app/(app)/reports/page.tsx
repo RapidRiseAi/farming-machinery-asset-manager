@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -9,6 +9,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Stat } from "@/components/ui/stat";
 import { buttonVariants } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -17,8 +18,24 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string; inactive?: string; group?: string }>;
 }) {
-  const profile = await requireProfile();
+  // Advanced reports are a Professional+ feature (FR-19.2). Deny server-side for
+  // under-plan farms — report data is never computed; an upgrade prompt shows instead.
+  const gate = await checkEntitlement("advanced_reports");
+  const profile = gate.profile;
   const locale = profile.language;
+  if (!gate.allowed) {
+    return (
+      <div className="flex flex-col gap-5">
+        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+        <UpgradeNotice
+          feature="advanced_reports"
+          requiredPlan={gate.requiredPlan}
+          currentPlan={gate.plan}
+          locale={locale}
+        />
+      </div>
+    );
+  }
   const sp = await searchParams;
   const filters = parseFilters(sp);
   const supabase = await createClient();

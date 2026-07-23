@@ -1,12 +1,14 @@
-import { getUser } from "@/lib/auth";
+import { getProfile, checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse, centsToR } from "../data";
 
 /** Per-machine fuel CSV (litres, spend, consumption) for the accountant / SARS diesel
  *  logbook basis (Scope §9). Farm-scoped by RLS; respects the report period + filters. */
 export async function GET(request: Request) {
-  const user = await getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  const profile = await getProfile();
+  if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
+  if (!(await checkEntitlement("fuel", profile)).allowed)
+    return new Response("Upgrade required", { status: 403 });
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();

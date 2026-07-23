@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireEntitlement } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
 
@@ -22,6 +22,7 @@ async function vatBps(supabase: Awaited<ReturnType<typeof createClient>>, farmId
 /** Add a storage tank (owner/manager). */
 export async function addFuelTank(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
+  await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+), not just hidden UI
   if (!profile.farm_id) bounce("No farm");
   const name = String(formData.get("name") ?? "").trim();
   const capRaw = String(formData.get("capacity_l") ?? "").trim();
@@ -44,6 +45,7 @@ export async function addFuelTank(formData: FormData) {
  *  NOT book a cost_entry (per-issue attribution model, migration 0241). */
 export async function addFuelDelivery(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
+  await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+)
   if (!profile.farm_id) bounce("No farm");
   const farmId = profile.farm_id;
   const tankId = String(formData.get("tank_id") ?? "").trim();
@@ -80,6 +82,7 @@ export async function addFuelDelivery(formData: FormData) {
  *  migration 0241). Also writes a driver-usage log when a driver + meter are known (FR-13.1). */
 export async function addFuelIssue(formData: FormData) {
   const profile = await requireRole(["owner", "manager", "mechanic", "operator"]);
+  await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+)
   // Return to the originating machine page when asked, else the fuel page.
   const rawBack = String(formData.get("redirect_to") ?? "");
   const back = rawBack.startsWith("/machines/") ? rawBack : "/fuel";

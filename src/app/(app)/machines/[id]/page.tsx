@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { currentPlan } from "@/lib/auth";
+import { planAllows, requiredPlan } from "@/lib/entitlements";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
@@ -70,7 +72,10 @@ export default async function MachineDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; saved?: string; usageDate?: string }>;
 }) {
-  const profile = await requireProfile();
+  // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
+  const { profile, plan } = await currentPlan();
+  const fuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
+  const aartoAllowed = plan == null ? true : planAllows(plan, "aarto"); // Complete+
   const { id } = await params;
   const sp = await searchParams;
   const locale = profile.language;
@@ -324,7 +329,8 @@ export default async function MachineDetailPage({
             </Card>
           ) : null}
 
-          {/* Fuel & consumption (F4) */}
+          {/* Fuel & consumption (F4) — Professional+ (F5 entitlement gate) */}
+          {fuelAllowed ? (
           <Card>
             <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -411,6 +417,12 @@ export default async function MachineDetailPage({
               <p className="mt-3 text-sm text-sand-400">{t("machine.noFuel", locale)}</p>
             )}
           </Card>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
+              <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+            </Card>
+          )}
 
           {/* Service plan */}
           <Card>
@@ -537,7 +549,8 @@ export default async function MachineDetailPage({
             )}
           </Card>
 
-          {/* Who operated / when — AARTO driver-usage log (FR-13.1) */}
+          {/* Who operated / when — AARTO driver-usage log (FR-13.1) — Complete+ (F5 gate) */}
+          {aartoAllowed ? (
           <Card>
             <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
 
@@ -577,6 +590,12 @@ export default async function MachineDetailPage({
               </ul>
             )}
           </Card>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
+              <UpgradeNotice feature="aarto" requiredPlan={requiredPlan("aarto")} currentPlan={plan} locale={locale} compact />
+            </Card>
+          )}
         </div>
 
         {/* Sidebar */}

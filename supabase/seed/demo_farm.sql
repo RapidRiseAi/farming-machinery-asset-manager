@@ -29,9 +29,10 @@ begin
     return;
   end if;
 
-  -- ── Farm (Starter tier, active) ────────────────────────────────
-  insert into farms (id, name, tier, status, settings) values
-    (v_farm, 'Weltevrede Boerdery', 'starter', 'active',
+  -- ── Farm (Complete plan, active) — a strong plan so the demo shows every
+  --     entitlement-gated surface (dashboard, fuel, advanced reports, AARTO). ──
+  insert into farms (id, name, plan, billing_period, status, settings) values
+    (v_farm, 'Weltevrede Boerdery', 'complete', 'annual', 'active',
      jsonb_build_object(
        'currency','ZAR','vat_rate_bps',1500,'vat_inclusive_entry',true,
        'default_language','af','due_soon_hours',25,'due_soon_days',14,

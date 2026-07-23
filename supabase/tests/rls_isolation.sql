@@ -995,3 +995,113 @@ end $$;
 reset role;
 
 select 'ALL F4 FUEL-MODULE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F5: PLANS & ENTITLEMENT GATING (0250–0251, appended) ════════
+-- Proves: (a) app.has_entitlement / public.has_entitlement gate by the FARM's plan —
+-- essential denies dashboard/fuel/aarto, allows ungated core; complete allows the P+/C+
+-- features but not api_access; done_for_you unlocks api_access; (b) cross-tenant
+-- isolation — a user cannot read another farm's entitlement (no plan probing), while
+-- rr_admin reads any farm's real result; (c) anon cannot execute the helper; (d) the
+-- asset_count trigger keeps farms.asset_count current (out_of_service counts; retired /
+-- sold / soft-deleted excluded). Farm A/B were seeded with no plan → default 'essential'.
+-- This section MUTATES Farm A's plan and adds a fresh Farm C; nothing above is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- (a) essential (default) denies gated features; ungated core allowed. As Owner A.
+set role authenticated;
+do $$ declare fa uuid := '11111111-1111-1111-1111-111111111111'; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  if app.has_entitlement(fa,'dashboard') then raise exception 'ENT FAIL: essential has dashboard'; end if;
+  if app.has_entitlement(fa,'fuel')      then raise exception 'ENT FAIL: essential has fuel'; end if;
+  if app.has_entitlement(fa,'aarto')     then raise exception 'ENT FAIL: essential has aarto'; end if;
+  if not app.has_entitlement(fa,'machines') then raise exception 'ENT FAIL: essential denied an ungated feature'; end if;
+  -- the public PostgREST wrapper agrees with the app.* helper.
+  if public.has_entitlement(fa,'dashboard') then raise exception 'ENT FAIL: public wrapper allowed dashboard on essential'; end if;
+  if not public.has_entitlement(fa,'machines') then raise exception 'ENT FAIL: public wrapper denied an ungated feature'; end if;
+end $$;
+reset role;
+
+-- (b) upgrade Farm A → complete: the Professional+/Complete+ features unlock; api_access
+-- (done_for_you) still denied.
+update farms set plan = 'complete' where id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+do $$ declare fa uuid := '11111111-1111-1111-1111-111111111111'; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  if not app.has_entitlement(fa,'dashboard') then raise exception 'ENT FAIL: complete missing dashboard'; end if;
+  if not app.has_entitlement(fa,'fuel')      then raise exception 'ENT FAIL: complete missing fuel'; end if;
+  if not app.has_entitlement(fa,'aarto')     then raise exception 'ENT FAIL: complete missing aarto'; end if;
+  if app.has_entitlement(fa,'api_access')    then raise exception 'ENT FAIL: complete unexpectedly has api_access'; end if;
+end $$;
+reset role;
+
+-- (b) upgrade Farm A → done_for_you: api_access unlocks.
+update farms set plan = 'done_for_you' where id = '11111111-1111-1111-1111-111111111111';
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  if not app.has_entitlement('11111111-1111-1111-1111-111111111111','api_access')
+    then raise exception 'ENT FAIL: done_for_you missing api_access'; end if;
+end $$;
+reset role;
+
+-- (c) cross-tenant isolation: Owner A cannot read Farm B's entitlement — not even an
+-- ungated feature — because they have no access to Farm B (no plan probing).
+set role authenticated;
+do $$ declare fb uuid := '22222222-2222-2222-2222-222222222222'; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  if app.has_entitlement(fb,'machines')  then raise exception 'ENT ISOLATION FAIL: Owner A read Farm B ungated entitlement'; end if;
+  if app.has_entitlement(fb,'dashboard') then raise exception 'ENT ISOLATION FAIL: Owner A read Farm B gated entitlement'; end if;
+end $$;
+-- rr_admin can read any farm's real result (Farm B is essential → ungated yes, dashboard no).
+do $$ declare fb uuid := '22222222-2222-2222-2222-222222222222'; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
+  if not app.has_entitlement(fb,'machines') then raise exception 'ENT FAIL: rr_admin denied ungated on Farm B'; end if;
+  if app.has_entitlement(fb,'dashboard')    then raise exception 'ENT FAIL: rr_admin saw dashboard on essential Farm B'; end if;
+end $$;
+reset role;
+
+-- (c) anon cannot execute the entitlement helper (revoked from anon).
+set role anon;
+do $$ begin
+  perform set_config('request.jwt.claims', '', false);
+  begin
+    perform public.has_entitlement('11111111-1111-1111-1111-111111111111','dashboard');
+    raise exception 'ENT PRIV FAIL: anon executed public.has_entitlement';
+  exception
+    when insufficient_privilege then null;                 -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- (d) asset_count trigger: fresh farm starts at 0; out_of_service counts; retired/sold
+-- and soft-deleted are excluded; status/soft-delete changes recompute.
+insert into farms (id, name, plan, billing_period) values
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Farm C', 'professional', 'annual');
+do $$ declare v int; begin
+  select asset_count into v from farms where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  if v <> 0 then raise exception 'ASSET COUNT FAIL: new farm asset_count = % (expected 0)', v; end if;
+end $$;
+insert into machines (farm_id, name, type, status) values
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'C1', 'tractor', 'active'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'C2', 'tractor', 'active'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'C3', 'tractor', 'out_of_service'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'C4', 'tractor', 'retired'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'C5', 'tractor', 'sold');
+do $$ declare v int; begin
+  select asset_count into v from farms where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  if v <> 3 then raise exception 'ASSET COUNT FAIL: asset_count = % (expected 3: out_of_service counts, retired/sold excluded)', v; end if;
+end $$;
+update machines set deleted_at = now() where farm_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and name = 'C1';
+do $$ declare v int; begin
+  select asset_count into v from farms where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  if v <> 2 then raise exception 'ASSET COUNT FAIL: after soft-delete asset_count = % (expected 2)', v; end if;
+end $$;
+update machines set status = 'retired' where farm_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and name = 'C2';
+do $$ declare v int; begin
+  select asset_count into v from farms where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  if v <> 1 then raise exception 'ASSET COUNT FAIL: after retire asset_count = % (expected 1)', v; end if;
+end $$;
+
+select 'ALL F5 ENTITLEMENT TESTS PASSED' as result;

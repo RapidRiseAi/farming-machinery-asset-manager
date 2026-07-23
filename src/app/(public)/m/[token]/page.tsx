@@ -4,6 +4,7 @@ import { t, defaultLocale } from "@/lib/i18n";
 import { FaultCapture } from "@/components/fault-capture";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { FUEL_ACTIVITIES, activityLabel } from "@/lib/fuel";
+import { isPlan, planAllows } from "@/lib/entitlements";
 import { submitReading, submitService, submitFuel } from "./actions";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
@@ -14,11 +15,13 @@ async function getMachine(token: string) {
     const svc = createServiceClient();
     const { data } = await svc
       .from("machines")
-      .select("id, name, meter_type")
+      .select("id, name, meter_type, farms(plan)")
       .eq("public_token", token)
       .is("deleted_at", null)
       .maybeSingle();
-    return data as { id: string; name: string; meter_type: string } | null;
+    return data as
+      | { id: string; name: string; meter_type: string; farms: { plan: string } | null }
+      | null;
   } catch {
     return null;
   }
@@ -44,6 +47,11 @@ export default async function PublicMachinePage({
       </main>
     );
   }
+
+  // Only surface the fuel quick-action when the farm's plan unlocks fuel (the server
+  // action enforces this too — this just hides the UI on under-plan farms).
+  const machinePlan = machine.farms?.plan;
+  const fuelAllowed = !!machinePlan && isPlan(machinePlan) && planAllows(machinePlan, "fuel");
 
   const input = "w-full rounded-lg border border-sand-300 px-3 py-2.5 text-base";
   return (
@@ -101,7 +109,8 @@ export default async function PublicMachinePage({
         </form>
       </section>
 
-      {/* Log fuel (token-gated, service-role — zero anon DB access) */}
+      {/* Log fuel (token-gated, service-role — zero anon DB access; Professional+ only) */}
+      {fuelAllowed ? (
       <section className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-semibold text-sand-900">⛽ {t("qr.logFuel", locale)}</h2>
         <p className="mb-3 text-sm text-sand-500">{t("qr.logFuelDesc", locale)}</p>
@@ -122,6 +131,7 @@ export default async function PublicMachinePage({
           <button className="min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">{t("qr.logFuelBtn", locale)}</button>
         </form>
       </section>
+      ) : null}
 
       <Link href="/login" className="pb-6 text-center text-sm text-sand-500">
         {t("qr.viewFullHistory", locale)}

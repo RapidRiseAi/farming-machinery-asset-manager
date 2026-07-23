@@ -2,6 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { t } from "@/lib/i18n";
+import { rands } from "@/lib/money";
+import {
+  PLANS,
+  BILLING_PERIODS,
+  planNameKey,
+  perVehicleMonthlyCents,
+  subscriptionSubtotalCents,
+  type Plan,
+  type BillingPeriod,
+} from "@/lib/entitlements";
 import { updateFarm, impersonateFarm } from "./actions";
 import { inviteUser, setUserActive } from "@/app/(app)/team/actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +26,15 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 
-type Farm = { id: string; name: string; tier: string; status: string; created_at: string };
+type Farm = {
+  id: string;
+  name: string;
+  plan: string;
+  billing_period: string;
+  asset_count: number;
+  status: string;
+  created_at: string;
+};
 type FarmUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 type Access = { id: number; user_id: string | null; action: string; at: string };
 
@@ -31,9 +50,15 @@ export default async function FarmDetailPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const { data: farmData } = await supabase.from("farms").select("id, name, tier, status, created_at").eq("id", id).maybeSingle();
+  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at").eq("id", id).maybeSingle();
   const farm = farmData as Farm | null;
   if (!farm) notFound();
+
+  // Pricing figures are DISPLAY ONLY (VAT-inclusive) — no charge is made (payments deferred).
+  const farmPlan = farm.plan as Plan;
+  const farmPeriod = farm.billing_period as BillingPeriod;
+  const perVehicle = perVehicleMonthlyCents(farmPlan, farmPeriod);
+  const subtotal = subscriptionSubtotalCents(farmPlan, farmPeriod, farm.asset_count);
 
   const [{ data: usersData }, { data: accessData }] = await Promise.all([
     supabase.from("users").select("id, name, role, email, active").eq("farm_id", id).order("role"),
@@ -71,13 +96,22 @@ export default async function FarmDetailPage({
           </CardHeader>
           <form action={updateFarm} className="flex flex-col gap-3">
             <input type="hidden" name="id" value={farm.id} />
-            <Field label="Tier" htmlFor="tier">
-              <Select id="tier" name="tier" defaultValue={farm.tier}>
-                <option value="starter">Starter</option>
-                <option value="standard">Standard</option>
-                <option value="large">Large</option>
-              </Select>
-            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Plan" htmlFor="plan">
+                <Select id="plan" name="plan" defaultValue={farm.plan}>
+                  {PLANS.map((p) => (
+                    <option key={p} value={p}>{t(planNameKey(p), "en")}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Billing period" htmlFor="billing_period">
+                <Select id="billing_period" name="billing_period" defaultValue={farm.billing_period}>
+                  {BILLING_PERIODS.map((bp) => (
+                    <option key={bp} value={bp}>{t(`billingPeriod.${bp}`, "en")}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
             <Field label="Status" htmlFor="status">
               <Select id="status" name="status" defaultValue={farm.status}>
                 <option value="trial">Trial</option>
@@ -88,6 +122,30 @@ export default async function FarmDetailPage({
             </Field>
             <SubmitButton variant="primary" className="self-start">Save</SubmitButton>
           </form>
+
+          {/* Asset count + per-vehicle price — DISPLAY ONLY (VAT-inclusive; no charging). */}
+          <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-sand-100 pt-4 text-sm">
+            <div>
+              <dt className="text-sand-500">Billable assets</dt>
+              <dd className="text-lg font-semibold tabular-nums text-sand-900">{farm.asset_count}</dd>
+            </div>
+            <div>
+              <dt className="text-sand-500">Per vehicle / month <span className="text-sand-400">(incl. VAT)</span></dt>
+              <dd className="text-lg font-semibold tabular-nums text-sand-900">
+                {perVehicle != null ? rands(perVehicle) : "POA"}
+              </dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-sand-500">
+                Indicative {farm.billing_period === "annual" ? "per year" : "per month"}{" "}
+                <span className="text-sand-400">(incl. VAT · {farm.asset_count} × {perVehicle != null ? rands(perVehicle) : "POA"})</span>
+              </dt>
+              <dd className="text-lg font-semibold tabular-nums text-sand-900">
+                {subtotal != null ? rands(subtotal) : "POA"}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-xs text-sand-400">Display only — no charge is made (payments not yet wired).</p>
         </Card>
 
         <Card>

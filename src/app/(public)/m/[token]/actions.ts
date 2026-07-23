@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
+import { isPlan, planAllows } from "@/lib/entitlements";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
 
@@ -134,8 +135,11 @@ export async function submitFuel(formData: FormData) {
   const { svc, machine } = await machineFromToken(token);
   if (!machine) redirect(`/m/${token}?error=1`);
 
-  // Ex-VAT conversion using the farm's VAT rate (default 15%).
-  const { data: farm } = await svc.from("farms").select("settings").eq("id", machine.farm_id).maybeSingle();
+  // Ex-VAT conversion using the farm's VAT rate (default 15%); also enforce the fuel
+  // entitlement server-side (the farm's plan must unlock fuel), even on the anon QR path.
+  const { data: farm } = await svc.from("farms").select("settings, plan").eq("id", machine.farm_id).maybeSingle();
+  const plan = (farm as { plan?: string } | null)?.plan;
+  if (!plan || !isPlan(plan) || !planAllows(plan, "fuel")) redirect(`/m/${token}?error=upgrade`);
   const rate = (() => {
     const v = (farm as { settings?: Record<string, unknown> } | null)?.settings?.["vat_rate_bps"];
     return typeof v === "number" && v >= 0 ? v : 1500;

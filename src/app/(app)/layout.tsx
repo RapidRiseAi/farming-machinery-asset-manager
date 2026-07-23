@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { currentPlan } from "@/lib/auth";
+import { planAllows } from "@/lib/entitlements";
 import { t } from "@/lib/i18n";
 import { signOut } from "./actions";
 // Direct module imports keep every (app) route's client bundle to just the nav
@@ -22,10 +23,19 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireProfile();
+  const { profile, plan } = await currentPlan();
   const locale = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
   const isAdmin = profile.role === "rr_admin";
+
+  // Entitlement-aware nav (F5): hide surfaces the farm's plan does not unlock.
+  // plan == null → rr_admin/workshop bypass (everything visible).
+  const has = (f: Parameters<typeof planAllows>[1]) => plan == null || planAllows(plan, f);
+  const dashAllowed = has("dashboard");
+  const reportsAllowed = has("advanced_reports");
+  const fuelAllowed = has("fuel");
+  // Logo/home link must point somewhere the plan can actually open.
+  const homeHref = dashAllowed ? "/dashboard" : "/machines";
 
   // Nav catalogue (translated once, reused across shells).
   const dashboard: NavItemData = { href: "/dashboard", label: t("nav.dashboard", locale), icon: "dashboard" };
@@ -39,20 +49,24 @@ export default async function AppLayout({
   const settings: NavItemData = { href: "/settings", label: t("nav.settings", locale), icon: "settings" };
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
-  // Mobile: 4 primary tabs + a "More" sheet holding the rest.
-  const tabItems: NavItemData[] = [dashboard, machines, jobcards, faults];
+  // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
+  const tabItems: NavItemData[] = [...(dashAllowed ? [dashboard] : []), machines, jobcards, faults];
   const moreItems: NavItemData[] = [
-    fuel,
-    reports,
+    ...(fuelAllowed ? [fuel] : []),
+    ...(reportsAllowed ? [reports] : []),
     alerts,
     ...(isManagerPlus ? [team, settings] : []),
     ...(isAdmin ? [admin] : []),
   ];
 
-  // Desktop: grouped sidebar sections.
+  // Desktop: grouped sidebar sections (gated items dropped).
+  const overviewItems: NavItemData[] = [
+    ...(dashAllowed ? [dashboard] : []),
+    ...(reportsAllowed ? [reports] : []),
+  ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = [
-    { key: "overview", label: t("nav.groupOverview", locale), items: [dashboard, reports] },
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, fuel] },
+    ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
+    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : [])] },
     {
       key: "farm",
       label: t("nav.groupFarm", locale),
@@ -147,7 +161,7 @@ export default async function AppLayout({
       <div className="flex min-h-dvh flex-col lg:pl-64">
         {/* Mobile header */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sand-200 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
-          <Link href="/dashboard" className="focus-ring flex items-center gap-2 rounded-lg">
+          <Link href={homeHref} className="focus-ring flex items-center gap-2 rounded-lg">
             {brandMark}
             <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
           </Link>

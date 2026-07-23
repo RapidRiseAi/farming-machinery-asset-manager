@@ -1,11 +1,13 @@
-import { getUser } from "@/lib/auth";
+import { getProfile, checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
 
 /** Recurring-problems CSV: most-replaced parts + top fault categories (Scope §4.8). */
 export async function GET(request: Request) {
-  const user = await getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  const profile = await getProfile();
+  if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
+  if (!(await checkEntitlement("advanced_reports", profile)).allowed)
+    return new Response("Upgrade required", { status: 403 });
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
