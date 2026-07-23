@@ -841,3 +841,157 @@ end $$;
 reset role;
 
 select 'ALL F3 FIELD-CAPTURE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F4: FUEL MODULE (0240–0242, appended section) ═══════════════
+-- Proves:
+--   (a) NO DOUBLE-COUNT: with the per-issue attribution model (0241), a delivery books
+--       ZERO fuel cost entries and each costed issue books exactly ONE per-machine fuel
+--       cost entry, so a farm's fuel appears in TCO exactly once (= Σ issue costs), never
+--       delivery + issue.
+--   (b) fuel_issues → per-machine `fuel` cost_entry raises app.machine_tco.
+--   (c) app.machine_fuel_consumption computes L/hr from issues-vs-meter deltas under RLS
+--       (and reads 0 across tenants).
+--   (d) app.enqueue_fuel_anomalies flags a draw above the rolling baseline, enqueues a
+--       farm-scoped `fuel_anomaly` to owner+manager, honours retired/sold exclusion, and
+--       dedupes on re-run.
+--   (e) authenticated CANNOT execute the anomaly engine / its cron wrapper.
+--   (f) cross-tenant fuel_issues WRITE denial (new columns don't loosen RLS).
+-- Nothing above this line is modified. Fresh Farm A fixtures avoid disturbing earlier
+-- counts; Manager A (added in the 0205 section) makes Farm A alerts target 2 recipients.
+-- ═════════════════════════════════════════════════════════════════
+
+-- A dedicated Farm A machine (hours meter) + reuse Tank A (af111111). Five metered draws:
+-- four at a steady 0.5 L/hr, then one at 1.0 L/hr (an anomaly vs the 0.5 baseline).
+insert into machines (id, farm_id, name, type, status, meter_type) values
+  ('aaf20000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Fuel A', 'tractor', 'active', 'hours');
+
+-- A delivery WITH a price (R18.00/L ex-VAT × 1000 L). Under the per-issue model this must
+-- book ZERO cost entries (it is tank stock, not an asset cost).
+insert into fuel_deliveries (farm_id, tank_id, date, litres, price_per_l_cents) values
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', date '2026-06-01', 1000, 1800);
+
+-- Costed per-machine draws (ex-VAT cost_cents). Σ cost = 630000c.
+insert into fuel_issues (farm_id, tank_id, machine_id, date, litres, meter_reading, cost_cents) values
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-000000000001', date '2026-06-01', 100, 1000, 180000),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-000000000001', date '2026-06-05',  50, 1100,  90000),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-000000000001', date '2026-06-10',  50, 1200,  90000),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-000000000001', date '2026-06-15',  50, 1300,  90000),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-000000000001', date '2026-06-20', 100, 1400, 180000);
+
+-- (a) NO DOUBLE-COUNT: the delivery booked ZERO fuel cost entries…
+do $$ declare v bigint; begin
+  select count(*) into v from cost_entries
+    where source_type = 'fuel_delivery' and farm_id = '11111111-1111-1111-1111-111111111111' and deleted_at is null;
+  if v <> 0 then raise exception 'FUEL DOUBLE-COUNT FAIL: delivery booked % fuel cost entries (expected 0)', v; end if;
+  -- …and each costed issue booked exactly one per-machine fuel cost entry.
+  select count(*) into v from cost_entries
+    where source_type = 'fuel_issue' and machine_id = 'aaf20000-0000-0000-0000-000000000001' and deleted_at is null;
+  if v <> 5 then raise exception 'FUEL SYNC FAIL: expected 5 issue cost entries, got %', v; end if;
+  -- Farm A fuel total = Σ issue costs (630000), NOT Σ issues + delivery(1 800 000): once.
+  select coalesce(sum(amount_cents), 0) into v from cost_entries
+    where type = 'fuel' and farm_id = '11111111-1111-1111-1111-111111111111' and deleted_at is null;
+  if v <> 630000 then raise exception 'FUEL ONCE FAIL: farm fuel in ledger = % (expected 630000, proving no delivery double-count)', v; end if;
+end $$;
+
+-- (b) app.machine_tco includes the issued fuel (machine has only fuel costs → 630000).
+set role authenticated;
+do $$ declare v bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  select app.machine_tco('aaf20000-0000-0000-0000-000000000001') into v;
+  if v <> 630000 then raise exception 'FUEL TCO FAIL: machine_tco(Fuel A) = % (expected 630000)', v; end if;
+end $$;
+reset role;
+
+-- (c) consumption metric: 3 intervals of 0.5 L/hr → lifetime 0.5 L/hr (150 L / 300 h),
+--     but the anomaly draw (4th interval, 1.0 L/hr) makes the lifetime 250 L / 400 h.
+set role authenticated;
+do $$ declare j jsonb; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  j := app.machine_fuel_consumption('aaf20000-0000-0000-0000-000000000001');
+  if (j->>'unit') <> 'hours' then raise exception 'FUEL METRIC FAIL: unit = % (expected hours)', j->>'unit'; end if;
+  if (j->>'intervals')::int <> 4 then raise exception 'FUEL METRIC FAIL: intervals = % (expected 4)', j->>'intervals'; end if;
+  if (j->>'litres')::numeric <> 250 then raise exception 'FUEL METRIC FAIL: litres = % (expected 250)', j->>'litres'; end if;
+  if (j->>'meter_span')::numeric <> 400 then raise exception 'FUEL METRIC FAIL: meter_span = % (expected 400)', j->>'meter_span'; end if;
+  if round((j->>'consumption')::numeric, 4) <> 0.6250 then raise exception 'FUEL METRIC FAIL: consumption = % (expected 0.625 L/hr)', j->>'consumption'; end if;
+  -- cross-tenant: Owner B reads no Farm A fuel → zero intervals.
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  j := app.machine_fuel_consumption('aaf20000-0000-0000-0000-000000000001');
+  if (j->>'intervals')::int <> 0 then raise exception 'FUEL METRIC ISOLATION FAIL: Owner B saw % Farm A intervals', j->>'intervals'; end if;
+end $$;
+reset role;
+
+-- A retired Farm A machine with an identical anomalous series — must NEVER enqueue.
+insert into machines (id, farm_id, name, type, status, meter_type) values
+  ('aaf20000-0000-0000-0000-0000000000ff', '11111111-1111-1111-1111-111111111111', 'Fuel Retired', 'tractor', 'retired', 'hours');
+insert into fuel_issues (farm_id, tank_id, machine_id, date, litres, meter_reading) values
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-0000000000ff', date '2026-06-01', 100, 1000),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-0000000000ff', date '2026-06-05',  50, 1100),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-0000000000ff', date '2026-06-10',  50, 1200),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-0000000000ff', date '2026-06-15',  50, 1300),
+  ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aaf20000-0000-0000-0000-0000000000ff', date '2026-06-20', 100, 1400);
+
+-- (e) authenticated CANNOT execute the engine / cron wrapper.
+set role authenticated;
+do $$
+declare calls text[] := array[
+  'select app.enqueue_fuel_anomalies()',
+  'select public.cron_enqueue_fuel_anomalies()'
+]; c text;
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  foreach c in array calls loop
+    begin
+      execute c;
+      raise exception 'FUEL PRIV FAIL: authenticated executed % without a privilege error', c;
+    exception
+      when insufficient_privilege then null;                 -- expected
+      when others then if sqlstate = 'P0001' then raise; end if;
+    end;
+  end loop;
+end $$;
+reset role;
+
+-- (d) run the anomaly engine as the service role (the nightly route's identity).
+set role service_role;
+do $$ begin perform app.enqueue_fuel_anomalies(); end $$;
+reset role;
+
+do $$ declare fa uuid := '11111111-1111-1111-1111-111111111111'; begin
+  -- exactly ONE anomalous draw on Fuel A → owner + manager = 2 rows; retired machine adds 0.
+  if _t_notif(fa, 'fuel_anomaly') <> 2 then
+    raise exception 'FUEL ANOMALY FAIL: Farm A fuel_anomaly = % (expected 2: retired machine must be excluded)', _t_notif(fa, 'fuel_anomaly');
+  end if;
+  if _t_notif('22222222-2222-2222-2222-222222222222', 'fuel_anomaly') <> 0 then
+    raise exception 'FUEL ANOMALY FAIL: Farm B received an un-warranted fuel_anomaly';
+  end if;
+  -- the flagged draw (1.0 L/hr at meter 1400) is marked notified; the steady draws are not.
+  perform 1 from fuel_issues where machine_id = 'aaf20000-0000-0000-0000-000000000001'
+    and meter_reading = 1400 and anomaly_notified_at is not null;
+  if not found then raise exception 'FUEL ANOMALY FAIL: anomalous draw not marked notified'; end if;
+end $$;
+
+-- (d) dedupe: a second run enqueues nothing new.
+set role service_role;
+do $$ begin perform app.enqueue_fuel_anomalies(); end $$;
+reset role;
+do $$ begin
+  if _t_notif('11111111-1111-1111-1111-111111111111', 'fuel_anomaly') <> 2 then
+    raise exception 'FUEL ANOMALY DEDUPE FAIL: Farm A fuel_anomaly changed on re-run';
+  end if;
+end $$;
+
+-- (f) cross-tenant fuel_issues WRITE denial (with the new cost columns present).
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into fuel_issues (farm_id, tank_id, machine_id, litres, cost_cents)
+      values ('22222222-2222-2222-2222-222222222222', 'bf222222-2222-2222-2222-222222222222',
+              'bb222222-2222-2222-2222-222222222222', 10, 5000);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'FUEL ISOLATION FAIL [ownerA]: wrote a fuel_issue into Farm B'; end if;
+end $$;
+reset role;
+
+select 'ALL F4 FUEL-MODULE TESTS PASSED' as result;
