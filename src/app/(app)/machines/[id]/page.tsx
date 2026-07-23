@@ -18,6 +18,17 @@ import { updateMachine, returnMachineToService } from "../actions";
 import { addReading } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
+import { addLicence, updateLicence, deleteLicence } from "./licence-actions";
+import {
+  warrantyStatus,
+  dateExpiryStatus,
+  expiryTone,
+  expiryLabel,
+  licenceTypeLabel,
+  LICENCE_TYPES,
+  DEFAULT_WARRANTY_LEAD_DAYS,
+  DEFAULT_WARRANTY_HOURS_LEAD,
+} from "@/lib/compliance";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,8 +72,13 @@ type PlanLine = {
 };
 type Template = { id: string; name: string; machine_type: string | null };
 
+type Licence = {
+  id: string; type: string; number: string | null; expiry_date: string;
+  reminder_lead_days: number; notes: string | null;
+};
+
 const savedMsg: Record<string, string> = {
-  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", "1": "ui.saved",
+  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", "1": "ui.saved",
 };
 
 export default async function MachineDetailPage({
@@ -92,7 +108,7 @@ export default async function MachineDetailPage({
   const machine = data as Machine | null;
   if (!machine) notFound();
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -104,6 +120,8 @@ export default async function MachineDetailPage({
     supabase.from("cost_entries").select("type, amount_cents").eq("machine_id", id).is("deleted_at", null),
     supabase.from("fuel_issues").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
+    supabase.from("licences").select("id, type, number, expiry_date, reminder_lead_days, notes").eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
+    supabase.from("farms").select("settings").eq("id", machine.farm_id).maybeSingle(),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -131,6 +149,15 @@ export default async function MachineDetailPage({
     (u.driver_user_id ? operatorName.get(u.driver_user_id) : null) ?? u.driver_name ?? t("machine.unknownDriver", locale);
   const isOutOfService = machine.status === "out_of_service";
   const assignedOperatorName = machine.assigned_operator_id ? operatorName.get(machine.assigned_operator_id) : null;
+
+  // Compliance (F6): warranty (on machines) + licences/renewals. Status ok/expiring/expired
+  // uses the same thresholds as the nightly expiry engine (0263).
+  const licences = (licenceRes.data as Licence[] | null) ?? [];
+  const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
+  const warrantyLeadDays = Number(farmSettings.warranty_lead_days) || DEFAULT_WARRANTY_LEAD_DAYS;
+  const warrantyHoursLead = Number(farmSettings.warranty_hours_lead) || DEFAULT_WARRANTY_HOURS_LEAD;
+  const hasWarranty = machine.warranty_expiry_date != null || machine.warranty_expiry_hours != null;
+  const wStatus = warrantyStatus(machine, warrantyLeadDays, warrantyHoursLead);
 
   // Lifetime stats. TCO = every cost_entry for this asset (purchase + finance + fuel +
   // parts + labour + invoices + other). cost-per-hour / cost-per-km are TCO ÷ lifetime
@@ -515,6 +542,99 @@ export default async function MachineDetailPage({
                 ) : null}
               </div>
             ) : null}
+          </Card>
+
+          {/* Compliance — warranty + licences (F6) */}
+          <Card>
+            <CardHeader><CardTitle>{t("compliance.title", locale)}</CardTitle></CardHeader>
+
+            {/* Warranty (stored on the machine) */}
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.warranty", locale)}</p>
+              {hasWarranty ? (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-sand-700">
+                  {machine.warranty_expiry_date ? (
+                    <span>{t("compliance.warrantyDate", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_date}</span></span>
+                  ) : null}
+                  {machine.warranty_expiry_hours != null ? (
+                    <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_hours}{machine.meter_type === "hours" ? " h" : ""}</span></span>
+                  ) : null}
+                  <Badge tone={expiryTone(wStatus)}>{expiryLabel(wStatus, locale)}</Badge>
+                </div>
+              ) : (
+                <p className="text-sm text-sand-400">{t("compliance.noWarranty", locale)}</p>
+              )}
+            </div>
+
+            {/* Licences / renewals */}
+            <div className="mt-4 border-t border-sand-100 pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.licences", locale)}</p>
+              {licences.length === 0 ? (
+                <p className="mt-1 text-sm text-sand-400">{t("compliance.noLicences", locale)}</p>
+              ) : (
+                <ul className="mt-2 flex flex-col gap-2">
+                  {licences.map((l) => {
+                    const s = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
+                    return (
+                      <li key={l.id} className="rounded-lg border border-sand-200 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sand-900">
+                              {licenceTypeLabel(l.type, locale)}
+                              {l.number ? <span className="text-sand-500"> · {l.number}</span> : null}
+                            </p>
+                            <p className="text-xs text-sand-500">
+                              {t("compliance.expires", locale)}: <span className="tabular-nums">{l.expiry_date}</span> · {t("compliance.leadDays", locale)}: {l.reminder_lead_days}
+                            </p>
+                            {l.notes ? <p className="mt-0.5 text-xs text-sand-500">{l.notes}</p> : null}
+                          </div>
+                          <Badge tone={expiryTone(s)}>{expiryLabel(s, locale)}</Badge>
+                        </div>
+                        {canEdit ? (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                            <form action={updateLicence} className="mt-2 flex flex-wrap gap-2">
+                              <input type="hidden" name="id" value={l.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <select name="type" defaultValue={l.type} className={`${inputCls} w-40`}>
+                                {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                              </select>
+                              <input name="number" defaultValue={l.number ?? ""} placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
+                              <input name="expiry_date" type="date" defaultValue={l.expiry_date} className={inputCls} required />
+                              <input name="reminder_lead_days" type="number" min={0} defaultValue={l.reminder_lead_days} className={`${inputCls} w-24`} />
+                              <input name="notes" defaultValue={l.notes ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                              <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                            </form>
+                            <form action={deleteLicence} className="mt-1">
+                              <input type="hidden" name="id" value={l.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
+                            </form>
+                          </details>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {canEdit ? (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("compliance.addLicence", locale)}</summary>
+                  <form action={addLicence} className="mt-2 flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="machine_id" value={machine.id} />
+                    <input type="hidden" name="farm_id" value={machine.farm_id} />
+                    <select name="type" defaultValue="vehicle_licence" className={`${inputCls} w-40`}>
+                      {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                    </select>
+                    <input name="number" placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
+                    <input name="expiry_date" type="date" className={inputCls} required />
+                    <input name="reminder_lead_days" type="number" min={0} defaultValue={30} className={`${inputCls} w-24`} />
+                    <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                    <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                  </form>
+                </details>
+              ) : null}
+            </div>
           </Card>
 
           {/* Timeline */}

@@ -445,7 +445,11 @@
     "tplWeeklyDigest": "Weeklikse opsomming: {overdue} agterstallig, {dueSoon} binnekort verskuldig, {faults} oop foute",
     "tplFaultReported": "{machine}: {description} ({urgency})",
     "tplJobCompleted": "{machine}: werk voltooi — {total}",
-    "tplFuelAnomaly": "{machine}: buitengewoon hoë brandstofgebruik ({litres} L, {delta}% bo gewoonlik) — moontlike lekkasie of diefstal"
+    "tplFuelAnomaly": "{machine}: buitengewoon hoë brandstofgebruik ({litres} L, {delta}% bo gewoonlik) — moontlike lekkasie of diefstal",
+    "tplWarrantyExpiring": "{machine}: waarborg verval op {date}",
+    "tplWarrantyExpired": "{machine}: waarborg het op {date} verval",
+    "tplLicenceExpiring": "{machine}: {type} verval op {date}",
+    "tplLicenceExpired": "{machine}: {type} het op {date} verval"
   },
   "settings": {
     "title": "Instellings",
@@ -464,6 +468,10 @@
     "fuelSection": "Brandstof-afwykings",
     "fuelAnomalyPct": "Merk 'n uitreiking bo gewoonlik met (%)",
     "fuelMinHistory": "Minimum uitreikings voor merking",
+    "expirySection": "Vervaldatum-herinneringe",
+    "warrantyLeadDays": "Waarsku voor waarborg verval (dae)",
+    "warrantyHoursLead": "Waarsku voor waarborg-uurgrens (ure)",
+    "licenceLeadDays": "Waarsku voor lisensie verval (dae)",
     "language": "Verstektaal",
     "afrikaans": "Afrikaans",
     "english": "Engels",
@@ -681,7 +689,9 @@
     "weekShort": "w",
     "noMachinesTitle": "Nog geen masjiene nie",
     "noMachinesHint": "Voeg jou eerste masjien by om dienste, foute en koste te begin volg.",
-    "noMachinesAdd": "Voeg 'n masjien by"
+    "noMachinesAdd": "Voeg 'n masjien by",
+    "expiriesTitle": "Vervaldatums op koms",
+    "noExpiries": "Geen waarborge of lisensies verval binnekort nie."
   },
   "offline": {
     "online": "Aanlyn",
@@ -700,5 +710,65 @@
     "job": "Werkkaart",
     "manual": "Handmatig",
     "whatsapp": "WhatsApp"
+  },
+  "compliance": {
+    "title": "Nakoming",
+    "warranty": "Waarborg",
+    "warrantyDate": "Waarborg verval",
+    "warrantyHours": "Waarborg (ure)",
+    "noWarranty": "Geen waarborg aangeteken nie.",
+    "licences": "Lisensies & hernuwings",
+    "noLicences": "Geen lisensies of hernuwings word gevolg nie.",
+    "addLicence": "Voeg 'n lisensie / hernuwing by",
+    "number": "Nommer",
+    "expires": "Verval",
+    "leadDays": "Herinner (dae voor)",
+    "statusNone": "—",
+    "status": {
+      "ok": "Geldig",
+      "expiring": "Verval binnekort",
+      "expired": "Verval"
+    }
+  },
+  "licenceType": {
+    "vehicle_licence": "Voertuiglisensie",
+    "roadworthy": "Padwaardigheid",
+    "permit": "Permit",
+    "crossborder": "Grensoorskrydende permit",
+    "insurance": "Versekering",
+    "other": "Ander"
+  },
+  "pushTitle": {
+    "service": "Diensherinnering",
+    "warranty": "Waarborg",
+    "licence": "Lisensiehernuwing",
+    "fault": "Fout gerapporteer",
+    "job": "Werkkaart",
+    "fuel": "Brandstofwaarskuwing",
+    "weekly_digest": "Weeklikse opsomming",
+    "stale_meter": "Meterlesings"
+  },
+  "prefs": {
+    "title": "Jou waarskuwingvoorkeure",
+    "inapp": "Wys waarskuwings in die app",
+    "push": "Stuur stootkennisgewings",
+    "quietHours": "Jou stil ure",
+    "quietHoursHint": "Geen nie-dringende waarskuwings gedurende hierdie ure nie. Los leeg om die plaas se verstek te gebruik.",
+    "quietStart": "Stil vanaf (0–23)",
+    "quietEnd": "Stil tot (0–23)",
+    "inherit": "Plaas-verstek",
+    "save": "Stoor voorkeure"
+  },
+  "push": {
+    "title": "Stoot op hierdie toestel",
+    "thisDevice": "Stootkennisgewings op hierdie toestel",
+    "enabledHint": "Hierdie toestel sal stootwaarskuwings ontvang.",
+    "disabledHint": "Skakel aan om waarskuwings te ontvang selfs wanneer die app toe is.",
+    "enable": "Skakel aan",
+    "disable": "Skakel af",
+    "error": "Kon nie stootkennisgewings verander nie. Probeer asseblief weer.",
+    "unsupported": "Hierdie blaaier ondersteun nie stootkennisgewings nie.",
+    "unconfigured": "Stootkennisgewings is nog nie op hierdie bediener opgestel nie.",
+    "denied": "Kennisgewings is in jou blaaierinstellings geblokkeer."
   }
 }

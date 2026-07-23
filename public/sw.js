@@ -102,3 +102,50 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(staleWhileRevalidate(request, DATA_CACHE));
 });
+
+/*
+ * Web Push (F6). Additive — the offline strategy above is untouched. Payloads are the
+ * JSON encrypted by src/lib/push/webpush.ts: { title, body, url, tag }.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data && event.data.text ? event.data.text() : "" };
+  }
+  const title = data.title || "FleetWise";
+  const options = {
+    body: data.body || "",
+    tag: data.tag || undefined,
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    data: { url: data.url || "/notifications" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/notifications";
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of all) {
+        // Focus an existing tab and route it to the target if we can.
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) {
+            try {
+              await client.navigate(target);
+            } catch {
+              /* cross-origin or not allowed — ignore */
+            }
+          }
+          return;
+        }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(target);
+    })(),
+  );
+});

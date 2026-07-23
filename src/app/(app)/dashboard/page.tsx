@@ -11,16 +11,21 @@ import { Stat } from "@/components/ui/stat";
 import { StatusPill, Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
-import { FaultsIcon, ReportsIcon, ChevronRightIcon, MachinesIcon } from "@/components/ui/icons";
+import { FaultsIcon, ReportsIcon, ChevronRightIcon, MachinesIcon, WarningIcon } from "@/components/ui/icons";
 import { SpendTrend, HBars } from "./charts";
+import { warrantyStatus, dateExpiryStatus, expiryTone, expiryLabel, licenceTypeLabel } from "@/lib/compliance";
 
 type Machine = {
   id: string;
   name: string;
   status: string;
   meter_type: string;
+  current_reading: number | null;
   current_reading_date: string | null;
+  warranty_expiry_date: string | null;
+  warranty_expiry_hours: number | null;
 };
+type Licence = { id: string; machine_id: string; type: string; number: string | null; expiry_date: string; reminder_lead_days: number };
 type SPL = { machine_id: string; status: string };
 type Fault = { id: string; machine_id: string; description: string | null; urgency: string | null; created_at: string };
 type JC = { machine_id: string; type: string; total_cents: number; date_out: string | null };
@@ -57,14 +62,15 @@ export default async function DashboardPage() {
   const staleDate = ymd(new Date(now.getTime() - 30 * 86400000));
 
   const flagCut = ymd(new Date(now.getTime() - 45 * 86400000));
-  const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes] = await Promise.all([
-    supabase.from("machines").select("id, name, status, meter_type, current_reading_date").is("deleted_at", null),
+  const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes, licenceRes] = await Promise.all([
+    supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours").is("deleted_at", null),
     supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null),
     supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo)),
     supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"]),
     supabase.from("fuel_issues").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis)),
     supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut),
+    supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null),
   ]);
 
   const machines = (machinesRes.data as Machine[] | null) ?? [];
@@ -142,6 +148,33 @@ export default async function DashboardPage() {
   const fuelLitresMonth = fuelMonth.reduce((a, f) => a + (f.litres ?? 0), 0);
   const fuelAnomalyCount = fuelFlags.filter((f) => f.machine_id != null && activeIds.has(f.machine_id)).length;
   const fuelHasData = fuelMonth.length > 0 || fuelAnomalyCount > 0;
+
+  // Expiries upcoming (F6): warranty (machine) + licences, expiring or expired, on active
+  // machines only (retired/sold excluded like every other count). Most severe / soonest first.
+  const licences = (licenceRes.data as Licence[] | null) ?? [];
+  type Expiry = { key: string; machineId: string; machineName: string; label: string; date: string; status: "expiring" | "expired" };
+  const expiries: Expiry[] = [];
+  for (const m of active) {
+    const s = warrantyStatus(m);
+    if (s === "expiring" || s === "expired") {
+      expiries.push({
+        key: `w-${m.id}`, machineId: m.id, machineName: m.name,
+        label: t("compliance.warranty", locale), date: m.warranty_expiry_date ?? "", status: s,
+      });
+    }
+  }
+  for (const l of licences) {
+    if (!activeIds.has(l.machine_id)) continue;
+    const s = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
+    if (s === "expiring" || s === "expired") {
+      expiries.push({
+        key: `l-${l.id}`, machineId: l.machine_id, machineName: nameById[l.machine_id] ?? "—",
+        label: licenceTypeLabel(l.type, locale), date: l.expiry_date, status: s,
+      });
+    }
+  }
+  const sevRank: Record<string, number> = { expired: 0, expiring: 1 };
+  expiries.sort((a, b) => sevRank[a.status] - sevRank[b.status] || a.date.localeCompare(b.date));
 
   // Spend delta.
   const spendPct = spendLast > 0 ? Math.round(((spendThis - spendLast) / spendLast) * 100) : null;
@@ -242,6 +275,37 @@ export default async function DashboardPage() {
           </div>
         </Card>
       ) : null}
+
+      {/* Expiries upcoming — warranty + licences (F6) */}
+      <Card>
+        <CardHeader
+          action={
+            <Link href="/machines" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+              {t("nav.machines", locale)}
+              <ChevronRightIcon className="text-[1rem]" />
+            </Link>
+          }
+        >
+          <CardTitle>{t("dashboard.expiriesTitle", locale)}</CardTitle>
+        </CardHeader>
+        {expiries.length === 0 ? (
+          <EmptyState icon={<WarningIcon />} title={t("dashboard.noExpiries", locale)} />
+        ) : (
+          <ul className="flex flex-col divide-y divide-sand-100">
+            {expiries.slice(0, 8).map((e) => (
+              <li key={e.key}>
+                <Link href={`/machines/${e.machineId}`} className="focus-ring flex items-center justify-between gap-3 rounded-md py-2.5">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-sand-900">{e.machineName}</span>
+                    <span className="block truncate text-sm text-sand-500">{e.label}{e.date ? ` · ${e.date}` : ""}</span>
+                  </span>
+                  <Badge tone={expiryTone(e.status)}>{expiryLabel(e.status, locale)}</Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {/* Open faults (actionable) */}
       <Card>

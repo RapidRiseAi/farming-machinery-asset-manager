@@ -12,13 +12,29 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
 3. `cron_enqueue_stale_meter_nudges` → `app.enqueue_stale_meter_nudges()` — one
    `stale_meter` digest row per farm whose metered machines have readings older than
    the threshold (Scope §4.3 / §4.7 msg 6).
-4. `cron_enqueue_weekly_digest` → `app.enqueue_weekly_digest()` — **Mondays only**
+4. `cron_enqueue_fuel_anomalies` → `app.enqueue_fuel_anomalies()` — fuel leak/theft
+   anomalies vs each asset's rolling baseline (deduped, F4).
+5. `cron_enqueue_expiry_notifications` → `app.enqueue_expiry_notifications()` —
+   `warranty_expiring` / `warranty_expired` / `licence_expiring` / `licence_expired`
+   reminders honouring per-farm lead thresholds (`warranty_lead_days`,
+   `warranty_hours_lead`, `licence_lead_days`), quiet hours, and a **weekly** re-notify
+   while expired (F6 / FR-4.7 / FR-13.3).
+6. `cron_enqueue_weekly_digest` → `app.enqueue_weekly_digest()` — **Mondays only**
    (Africa/Johannesburg). One `weekly_digest` per active farm (Scope §4.7 msg 5). The
    route decides it is Monday; the SQL just enqueues.
+7. **Web Push delivery** (`deliverPush`) — for every queued row that is now deliverable
+   (past its quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
+   to each recipient's subscribed devices, honouring the per-user `notify_push` toggle.
+   No-ops gracefully when the VAPID env keys are unset (see `.env.example`).
 
-Channel is **in-app only** (Stage 1). WhatsApp (Stage 2 / BSP API) is deferred; a later
-worker maps queued `notifications` rows onto WhatsApp. Retired/sold and soft-deleted
-machines never enqueue.
+In-app is the always-on channel. **Web Push** (F6) is self-hosted (VAPID, no external
+provider) and layered on top of the same `notifications` rows. WhatsApp (Stage 2 / BSP
+API) is deferred; a later worker maps queued `notifications` rows onto WhatsApp.
+Retired/sold and soft-deleted machines never enqueue.
+
+Per-user preferences (FR-14.3) gate delivery: `users.notify_inapp` decides whether a row
+is enqueued at all; `users.notify_push` decides whether it is pushed; per-user
+`quiet_hours_start` / `quiet_hours_end` override the farm window.
 
 ## Schedule
 

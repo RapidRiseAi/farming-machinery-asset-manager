@@ -1105,3 +1105,178 @@ do $$ declare v int; begin
 end $$;
 
 select 'ALL F5 ENTITLEMENT TESTS PASSED' as result;
+
+-- ═══ F6: COMPLIANCE REMINDERS & WEB PUSH (0260–0263, appended) ═══
+-- Proves:
+--   (a) `licences` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop
+--       scoped to its linked farm, rr_admin sees all, anon covered in the anon sweep);
+--       cross-tenant licence WRITE is rejected.
+--   (b) `push_subscriptions` is OWN-USER isolated (a farm-mate cannot see or write another
+--       user's device tokens); cross-user WRITE is rejected.
+--   (c) authenticated CANNOT execute the expiry engine / its cron wrapper.
+--   (d) app.enqueue_expiry_notifications enqueues warranty + licence reminders to the right
+--       farm's owner+manager (2 each), never cross-tenant; excludes retired machines; dedupes
+--       on re-run.
+--   (e) per-user prefs: a recipient with notify_inapp = false receives no in-app row.
+-- Fresh fixtures avoid disturbing earlier counts. Manager A (0205 section) makes Farm A
+-- alerts target 2 recipients. Nothing above this line is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- Active machines with a warranty expiring soon (date within the default 30-day lead).
+insert into machines (id, farm_id, name, type, meter_type, current_reading, status, warranty_expiry_date) values
+  ('aae60000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Warranty A', 'tractor', 'hours', 100, 'active', current_date + 10),
+  ('bbe60000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'Warranty B', 'tractor', 'hours', 100, 'active', current_date + 10);
+-- A RETIRED Farm A machine with an EXPIRED warranty — must NEVER enqueue.
+insert into machines (id, farm_id, name, type, status, warranty_expiry_date) values
+  ('aae60000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'Retired Warranty A', 'tractor', 'retired', current_date - 5);
+
+-- Licences: Farm A expired (enqueues), Farm B in-date (silent), Farm A retired-machine (excluded).
+insert into licences (id, farm_id, machine_id, type, number, expiry_date, reminder_lead_days) values
+  ('11ce0000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aae60000-0000-0000-0000-000000000001', 'vehicle_licence', 'ND-A-123', current_date - 3,   30),
+  ('22ce0000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bbe60000-0000-0000-0000-000000000002', 'vehicle_licence', 'ND-B-999', current_date + 200, 30),
+  ('11ce0000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'aae60000-0000-0000-0000-0000000000f0', 'roadworthy',      'RW-OLD',   current_date - 100, 30);
+
+-- Push subscriptions: one for Owner A, one for Manager A (both Farm A).
+insert into push_subscriptions (id, farm_id, user_id, endpoint, p256dh, auth) values
+  ('50b50000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'https://push.example/ownerA', 'p256dh-a', 'auth-a'),
+  ('50b50000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-1111111111aa', 'https://push.example/managerA', 'p256dh-m', 'auth-m');
+
+-- ── (a) licences isolation ────────────────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('licences', 2, 'ownerA');                 -- both Farm A licences (incl. retired-machine one)
+  execute $q$ select count(*) from licences where farm_id <> '11111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'LICENCE ISOLATION FAIL [ownerA]: sees % non-Farm-A licences', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('licences', 1, 'ownerB');    end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('licences', 2, 'workshopW'); end $$;
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('licences', 3, 'rrAdmin');   end $$;
+reset role;
+
+-- (a) cross-tenant licence WRITE is rejected.
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into licences (farm_id, machine_id, type, expiry_date)
+      values ('22222222-2222-2222-2222-222222222222', 'bbe60000-0000-0000-0000-000000000002', 'permit', current_date + 30);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'LICENCE ISOLATION FAIL [ownerA]: wrote a licence into Farm B'; end if;
+end $$;
+reset role;
+
+-- ── (b) push_subscriptions own-user isolation ─────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('push_subscriptions', 1, 'ownerA');       -- sees ONLY own (not Manager A's)
+  execute $q$ select count(*) from push_subscriptions where user_id <> 'a1111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'PUSH ISOLATION FAIL [ownerA]: sees % other-user subscriptions', c; end if;
+end $$;
+do $$ begin perform _t_login('a1111111-1111-1111-1111-1111111111aa'); perform _t_assert('push_subscriptions', 1, 'managerA'); end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('push_subscriptions', 0, 'ownerB');   end $$;
+reset role;
+
+-- (b) cross-user push WRITE is rejected (with check user_id = auth.uid()).
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A impersonating Manager A
+  begin
+    insert into push_subscriptions (farm_id, user_id, endpoint, p256dh, auth)
+      values ('11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-1111111111aa', 'https://push.example/evil', 'x', 'y');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'PUSH ISOLATION FAIL [ownerA]: wrote a subscription for another user'; end if;
+end $$;
+reset role;
+
+-- ── (c) authenticated CANNOT execute the expiry engine / cron wrapper ──
+set role authenticated;
+do $$
+declare calls text[] := array[
+  'select app.enqueue_expiry_notifications()',
+  'select public.cron_enqueue_expiry_notifications()'
+]; c text;
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  foreach c in array calls loop
+    begin
+      execute c;
+      raise exception 'EXPIRY PRIV FAIL: authenticated executed % without a privilege error', c;
+    exception
+      when insufficient_privilege then null;                 -- expected
+      when others then if sqlstate = 'P0001' then raise; end if;
+    end;
+  end loop;
+end $$;
+reset role;
+
+-- ── (d) run the expiry engine as the service role (the nightly route's identity) ──
+set role service_role;
+do $$ begin perform app.enqueue_expiry_notifications(); end $$;
+reset role;
+
+do $$
+declare fa uuid := '11111111-1111-1111-1111-111111111111';
+        fb uuid := '22222222-2222-2222-2222-222222222222';
+begin
+  -- Warranty A (expiring) → owner + manager = 2; retired warranty machine adds 0.
+  if _t_notif(fa, 'warranty_expiring') <> 2 then
+    raise exception 'EXPIRY FAIL: Farm A warranty_expiring = % (expected 2)', _t_notif(fa, 'warranty_expiring');
+  end if;
+  if _t_notif(fa, 'warranty_expired') <> 0 then
+    raise exception 'EXPIRY FAIL: Farm A warranty_expired = % (retired machine must be excluded)', _t_notif(fa, 'warranty_expired');
+  end if;
+  -- Farm A expired licence → owner + manager = 2; retired-machine licence excluded.
+  if _t_notif(fa, 'licence_expired') <> 2 then
+    raise exception 'EXPIRY FAIL: Farm A licence_expired = % (expected 2; retired-machine licence excluded)', _t_notif(fa, 'licence_expired');
+  end if;
+  -- Farm B: its own warranty_expiring (1); its in-date licence stays silent.
+  if _t_notif(fb, 'warranty_expiring') <> 1 then
+    raise exception 'EXPIRY FAIL: Farm B warranty_expiring = % (expected 1)', _t_notif(fb, 'warranty_expiring');
+  end if;
+  if _t_notif(fb, 'licence_expired') <> 0 or _t_notif(fb, 'licence_expiring') <> 0 then
+    raise exception 'EXPIRY FAIL: Farm B received an un-warranted licence reminder';
+  end if;
+end $$;
+
+-- (d) dedupe: a second run enqueues nothing new.
+set role service_role;
+do $$ begin perform app.enqueue_expiry_notifications(); end $$;
+reset role;
+do $$ declare fa uuid := '11111111-1111-1111-1111-111111111111'; begin
+  if _t_notif(fa, 'warranty_expiring') <> 2 or _t_notif(fa, 'licence_expired') <> 2 then
+    raise exception 'EXPIRY DEDUPE FAIL: Farm A counts changed on re-run (warranty=%, licence=%)',
+      _t_notif(fa, 'warranty_expiring'), _t_notif(fa, 'licence_expired');
+  end if;
+end $$;
+
+-- ── (e) per-user prefs: notify_inapp = false suppresses the in-app row ──
+insert into machines (id, farm_id, name, type, meter_type, current_reading, status, warranty_expiry_date) values
+  ('aae60000-0000-0000-0000-0000000000e5', '11111111-1111-1111-1111-111111111111', 'Prefs A', 'tractor', 'hours', 100, 'active', current_date + 10);
+update users set notify_inapp = false where id = 'a1111111-1111-1111-1111-1111111111aa';   -- Manager A opts out of in-app
+
+set role service_role;
+do $$ begin perform app.enqueue_expiry_notifications(); end $$;
+reset role;
+
+do $$
+declare
+  fa uuid := '11111111-1111-1111-1111-111111111111';
+  mgr uuid := 'a1111111-1111-1111-1111-1111111111aa';
+  own uuid := 'a1111111-1111-1111-1111-111111111111';
+  c_mgr bigint; c_own bigint;
+begin
+  -- Only the new Prefs A machine should have fired (others deduped) → owner only, not manager.
+  select count(*) into c_mgr from notifications
+    where farm_id = fa and template = 'warranty_expiring'
+      and payload->>'machine_id' = 'aae60000-0000-0000-0000-0000000000e5' and user_id = mgr and deleted_at is null;
+  select count(*) into c_own from notifications
+    where farm_id = fa and template = 'warranty_expiring'
+      and payload->>'machine_id' = 'aae60000-0000-0000-0000-0000000000e5' and user_id = own and deleted_at is null;
+  if c_mgr <> 0 then raise exception 'PREFS FAIL: opted-out Manager A still received % in-app rows', c_mgr; end if;
+  if c_own <> 1 then raise exception 'PREFS FAIL: Owner A received % rows for Prefs A (expected 1)', c_own; end if;
+end $$;
+
+select 'ALL F6 COMPLIANCE & PUSH TESTS PASSED' as result;
