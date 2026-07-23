@@ -4,6 +4,9 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
+import { computeConsumption, formatConsumption, activityLabel, FUEL_ACTIVITIES } from "@/lib/fuel";
+import { addFuelIssue } from "@/app/(app)/fuel/actions";
+import { FuelTrend } from "@/components/fuel-trend";
 import { t } from "@/lib/i18n";
 import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
@@ -84,7 +87,7 @@ export default async function MachineDetailPage({
   const machine = data as Machine | null;
   if (!machine) notFound();
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -94,6 +97,8 @@ export default async function MachineDetailPage({
     supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     supabase.from("cost_entries").select("type, amount_cents").eq("machine_id", id).is("deleted_at", null),
+    supabase.from("fuel_issues").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
+    supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -106,6 +111,13 @@ export default async function MachineDetailPage({
   const operators = (opRes.data as OperatorOption[] | null) ?? [];
   const operatorName = new Map(operators.map((o) => [o.id, o.name]));
   const openWatch = watchAll.filter((w) => w.status === "open");
+
+  // Fuel & consumption (F4). L/hr or L/100km from this machine's metered draws (0242).
+  type FuelDraw = { id: string; date: string; litres: number | null; meter_reading: number | null; cost_cents: number | null; activity: string | null; anomaly_notified_at: string | null };
+  const fuelDraws = (fuelRes.data as FuelDraw[] | null) ?? [];
+  const fuelTanks = (fuelTankRes.data as { id: string; name: string }[] | null) ?? [];
+  const fuelConsumption = computeConsumption(fuelDraws, machine.meter_type);
+  const canFuel = ["owner", "manager", "mechanic", "operator"].includes(profile.role);
 
   // Driver-on-date lookup (AARTO nomination basis, FR-13.1): usage on a chosen date.
   const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
@@ -311,6 +323,94 @@ export default async function MachineDetailPage({
               ) : <p className="mt-3 text-sm text-sand-400">{t("machine.noReadings", locale)}</p>}
             </Card>
           ) : null}
+
+          {/* Fuel & consumption (F4) */}
+          <Card>
+            <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-sand-400">{t("machine.fuelConsumption", locale)}</p>
+                <p className="text-2xl font-bold tabular-nums text-sand-900">
+                  {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "—"}
+                </p>
+                {fuelConsumption.intervals > 0 ? (
+                  <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
+                ) : (
+                  <p className="text-xs text-sand-400">{t("fuel.needMoreData", locale)}</p>
+                )}
+              </div>
+              {fuelConsumption.trend.length > 1 ? (
+                <div className="w-40">
+                  <FuelTrend trend={fuelConsumption.trend} unit={machine.meter_type === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)} title={t("fuel.trend", locale)} />
+                </div>
+              ) : null}
+            </div>
+
+            {canFuel && fuelTanks.length > 0 ? (
+              <form action={addFuelIssue} className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
+                <input type="hidden" name="machine_id" value={machine.id} />
+                <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
+                <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
+                  <Select id="f_tank" name="tank_id" required defaultValue={fuelTanks[0]?.id ?? ""}>
+                    {fuelTanks.map((tk) => (
+                      <option key={tk.id} value={tk.id}>{tk.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t("fuel.litres", locale)} htmlFor="f_litres">
+                  <Input id="f_litres" name="litres" type="number" inputMode="decimal" step="0.1" required className="w-24" />
+                </Field>
+                {machine.meter_type !== "none" ? (
+                  <Field label={t("fuel.meter", locale)} htmlFor="f_meter">
+                    <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" className="w-28" defaultValue={machine.current_reading ?? ""} />
+                  </Field>
+                ) : null}
+                <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
+                  <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
+                </Field>
+                <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
+                  <Select id="f_activity" name="activity" defaultValue="">
+                    <option value="">—</option>
+                    {FUEL_ACTIVITIES.map((a) => (
+                      <option key={a} value={a}>{activityLabel(a, locale)}</option>
+                    ))}
+                  </Select>
+                </Field>
+                {operators.length > 0 ? (
+                  <Field label={t("fuel.driver", locale)} htmlFor="f_driver">
+                    <Select id="f_driver" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
+                      <option value="">{t("machines.noOperator", locale)}</option>
+                      {operators.map((op) => (
+                        <option key={op.id} value={op.id}>{op.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+                <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
+              </form>
+            ) : null}
+
+            {fuelDraws.length > 0 ? (
+              <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
+                {fuelDraws.slice(0, 8).map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="min-w-0 truncate">
+                      <span className="font-medium text-sand-800">{d.litres} {t("fuel.litresShort", locale)}</span>
+                      {d.activity ? <span className="text-sand-500"> · {activityLabel(d.activity, locale)}</span> : null}
+                      {d.meter_reading != null ? <span className="text-sand-400"> · {d.meter_reading} {machine.meter_type}</span> : null}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                      {d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
+                      {d.anomaly_notified_at ? <Badge tone="danger">{t("fuel.flagged", locale)}</Badge> : null}
+                      <span className="tabular-nums">{d.date}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-sand-400">{t("machine.noFuel", locale)}</p>
+            )}
+          </Card>
 
           {/* Service plan */}
           <Card>

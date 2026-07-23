@@ -80,8 +80,12 @@ export async function addFuelDelivery(formData: FormData) {
  *  migration 0241). Also writes a driver-usage log when a driver + meter are known (FR-13.1). */
 export async function addFuelIssue(formData: FormData) {
   const profile = await requireRole(["owner", "manager", "mechanic", "operator"]);
-  if (!profile.farm_id) bounce("No farm");
-  const farmId = profile.farm_id;
+  // Return to the originating machine page when asked, else the fuel page.
+  const rawBack = String(formData.get("redirect_to") ?? "");
+  const back = rawBack.startsWith("/machines/") ? rawBack : "/fuel";
+  const fail = (msg: string): never => redirect(`${back}?error=${encodeURIComponent(msg)}`);
+  if (!profile.farm_id) fail("No farm");
+  const farmId = profile.farm_id as string;
   const tankId = String(formData.get("tank_id") ?? "").trim();
   const machineRaw = String(formData.get("machine_id") ?? "").trim();
   const dateRaw = String(formData.get("date") ?? "").trim();
@@ -91,8 +95,8 @@ export async function addFuelIssue(formData: FormData) {
   const activityRaw = String(formData.get("activity") ?? "").trim();
   const activity = (FUEL_ACTIVITIES as readonly string[]).includes(activityRaw) ? activityRaw : null;
   const inclCents = parseRandsToCents(String(formData.get("cost") ?? ""));
-  if (!tankId || !Number.isFinite(litres) || litres <= 0) bounce("Enter a tank and litres");
-  if (meter != null && (!Number.isFinite(meter) || meter < 0)) bounce("Enter a valid meter reading");
+  if (!tankId || !Number.isFinite(litres) || litres <= 0) fail("Enter a tank and litres");
+  if (meter != null && (!Number.isFinite(meter) || meter < 0)) fail("Enter a valid meter reading");
 
   const supabase = await createClient();
 
@@ -130,7 +134,7 @@ export async function addFuelIssue(formData: FormData) {
     activity,
     by_user: profile.id,
   });
-  if (error) bounce(error.message);
+  if (error) fail(error.message);
 
   // Driver-usage log for a per-machine draw where the operator + meter are known (FR-13.1),
   // consistent with the reading/QR/job-card capture paths.
@@ -148,5 +152,5 @@ export async function addFuelIssue(formData: FormData) {
 
   revalidatePath("/fuel");
   if (machineId) revalidatePath(`/machines/${machineId}`);
-  redirect("/fuel?saved=draw");
+  redirect(`${back}?saved=draw`);
 }
