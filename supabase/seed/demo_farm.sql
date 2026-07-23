@@ -205,6 +205,35 @@ begin
     (v_farm, 'machine', '20000000-0000-0000-0000-000000000001', 'photo', 'demo://groen-jd.jpg', v_owner),
     (v_farm, 'fault',   '40000000-0000-0000-0000-000000000004', 'photo', 'demo://stroper-fault.jpg', v_op1);
 
-  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories';
+  -- ── Fuel module demo (F4): tank, deliveries, per-machine draws ──
+  -- Draws are ex-VAT costed (~R18.26/L). The Groen John Deere series runs a steady
+  -- ~12 L/hr then spikes to 19 L/hr (a possible leak/theft the anomaly engine flags);
+  -- the Toyota bakkie shows a steady ~12 L/100km.
+  insert into fuel_tanks (id, farm_id, name, capacity_l) values
+    ('60000000-0000-0000-0000-000000000001', v_farm, 'Hoof dieseltenk', 10000);
+
+  insert into fuel_deliveries (farm_id, tank_id, date, supplier, invoice_no, litres, price_per_l_cents, vat_rate_bps, by_user) values
+    (v_farm, '60000000-0000-0000-0000-000000000001', current_date - 90, 'Senwes', 'INV-4471', 5000, 1826, 1500, v_owner),
+    (v_farm, '60000000-0000-0000-0000-000000000001', current_date - 30, 'Senwes', 'INV-4620', 5000, 1826, 1500, v_owner);
+
+  insert into fuel_issues (farm_id, tank_id, machine_id, date, litres, meter_reading, cost_cents, price_per_l_cents, vat_rate_bps, activity, by_user) values
+    -- Groen John Deere (hours): ~12 L/hr baseline, final draw anomalous (19 L/hr).
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 100, 1200, 4320, 2191200, 1826, 1500, 'ploughing',  v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 80,  1150, 4420, 2099900, 1826, 1500, 'ploughing',  v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 60,  1250, 4520, 2282500, 1826, 1500, 'planting',   v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 40,  1200, 4620, 2191200, 1826, 1500, 'spraying',   v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 20,  1180, 4720, 2154680, 1826, 1500, 'harvesting', v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', current_date - 2,   1900, 4820, 3469400, 1826, 1500, 'harvesting', v_op1),
+    -- Wit Toyota Bakkie (km): steady ~12 L/100km.
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000007', current_date - 100,  300, 145000,  547800, 1826, 1500, 'transport', v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000007', current_date - 80,    96, 145800,  175296, 1826, 1500, 'transport', v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000007', current_date - 55,   100, 146600,  182600, 1826, 1500, 'transport', v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000007', current_date - 25,    92, 147400,  167992, 1826, 1500, 'transport', v_op1),
+    (v_farm, '60000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000007', current_date - 1,    105, 148300,  191730, 1826, 1500, 'transport', v_op1);
+
+  -- Run the anomaly sweep once so the demo shows the flagged draw + a fuel_anomaly alert.
+  perform app.enqueue_fuel_anomalies();
+
+  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
 end
 $seed$;
