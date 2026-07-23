@@ -256,7 +256,7 @@ begin
     'farms','workshops','users','workshop_links','machines','meter_readings',
     'service_templates','service_plan_lines','faults','job_cards','job_card_lines',
     'watch_items','attachments','notifications','fuel_tanks','fuel_deliveries',
-    'fuel_issues','job_card_service_lines','audit_log'
+    'fuel_issues','job_card_service_lines','cost_entries','audit_log'
   ] loop
     begin
       execute format('select count(*) from public.%I', t) into c;
@@ -581,3 +581,87 @@ end $$;
 reset role;
 
 select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ 0210/0211: COST-ENTRIES & TCO SPINE (appended section) ══════
+-- Proves: (a) a job-card part line auto-generates a farm-scoped `parts` cost entry via
+-- the SECURITY DEFINER sync trigger; (b) cost_entries stay tenant-isolated (own-farm
+-- visible, cross-tenant = 0, workshop scoped to its linked farm, rr_admin sees all,
+-- anon none — anon covered in the anon sweep above); (c) app.machine_tco sums the
+-- ledger under RLS and cannot read another farm's TCO; (d) a manual invoice-style entry
+-- raises TCO; (e) cross-tenant cost writes are rejected; (f) soft-deleting a source line
+-- soft-deletes its cost entry while preserving the row for audit. Nothing above is
+-- modified. After the seed above, each farm has exactly one cost entry (its part line).
+-- ═════════════════════════════════════════════════════════════════
+
+-- (a) the sync trigger already fired during seed → assert the generated Farm A row.
+do $$ declare v bigint; ty text; m uuid; begin
+  select count(*) into v from cost_entries where farm_id = '11111111-1111-1111-1111-111111111111' and deleted_at is null;
+  if v <> 1 then raise exception 'COST FAIL: Farm A cost_entries = % (expected 1 synced from the part line)', v; end if;
+  select amount_cents, type::text, machine_id into v, ty, m from cost_entries
+    where farm_id = '11111111-1111-1111-1111-111111111111' and source_type = 'job_card_line';
+  if v <> 15000 or ty <> 'parts' or m <> 'aa111111-1111-1111-1111-111111111111'
+    then raise exception 'COST FAIL: synced part line = (amount %, type %, machine %)', v, ty, m; end if;
+end $$;
+
+-- (b) per-persona isolation of cost_entries.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('cost_entries', 1, 'ownerA');
+  execute $q$ select count(*) from cost_entries where farm_id <> '11111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'COST ISOLATION FAIL [ownerA]: sees % non-Farm-A cost rows', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('cost_entries', 1, 'ownerB');   end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('cost_entries', 1, 'workshopW'); end $$;
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('cost_entries', 2, 'rrAdmin');   end $$;
+reset role;
+
+-- (c) app.machine_tco sums the ledger under RLS and cannot cross tenants.
+set role authenticated;
+do $$ declare v bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  select app.machine_tco('aa111111-1111-1111-1111-111111111111') into v;
+  if v <> 15000 then raise exception 'TCO FAIL: machine_tco(Farm A machine) = % (expected 15000)', v; end if;
+  select app.machine_tco('bb222222-2222-2222-2222-222222222222') into v;   -- Farm B machine, invisible to A
+  if v <> 0 then raise exception 'TCO ISOLATION FAIL: Owner A read Farm B TCO = % (expected 0)', v; end if;
+end $$;
+reset role;
+
+-- (e) cross-tenant cost write is rejected (do this before the invoice mutation).
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into cost_entries (farm_id, machine_id, type, amount_cents)
+      values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'other', 999);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'COST ISOLATION FAIL [ownerA]: inserted a cost entry into Farm B'; end if;
+end $$;
+reset role;
+
+-- (d) a manual invoice-style entry (FR-8.4) raises the machine's TCO.
+set role authenticated;
+do $$ declare v bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  insert into cost_entries (farm_id, machine_id, type, amount_cents, source_type, source_id, occurred_on)
+    values ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'invoice', 50000,
+            'job_card', 'ac111111-1111-1111-1111-111111111111', current_date);
+  select app.machine_tco('aa111111-1111-1111-1111-111111111111') into v;
+  if v <> 65000 then raise exception 'INVOICE FAIL: TCO after invoice = % (expected 65000)', v; end if;
+end $$;
+reset role;
+
+-- (f) soft-deleting the source line soft-deletes its cost entry (preserved for audit).
+-- Farm B's job card (bc222222) is NOT locked, so its line may be soft-deleted.
+update job_card_lines set deleted_at = now() where job_card_id = 'bc222222-2222-2222-2222-222222222222';
+do $$ declare v bigint; begin
+  select count(*) into v from cost_entries
+    where source_type = 'job_card_line' and farm_id = '22222222-2222-2222-2222-222222222222' and deleted_at is null;
+  if v <> 0 then raise exception 'COST SYNC FAIL: Farm B cost entry survived line soft-delete (% still active)', v; end if;
+  select count(*) into v from cost_entries
+    where source_type = 'job_card_line' and farm_id = '22222222-2222-2222-2222-222222222222' and deleted_at is not null;
+  if v <> 1 then raise exception 'COST SYNC FAIL: Farm B cost entry not preserved for audit (% soft-deleted)', v; end if;
+end $$;
+
+select 'ALL 0210/0211 COST-ENTRIES & TCO TESTS PASSED' as result;
