@@ -162,4 +162,32 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (one anomaly). i18n EN/AF at parity (**610 keys**). Gates green (typecheck + lint
     + build + `db:test`); shared first-load JS flat at **102 kB**.
 
+- **FleetWise F6 — Compliance reminders & Web Push (migrations `0260–0263`; branch
+  `claude/fleetwise-compliance-push`; isolation-tested, `db:test` green):**
+  - **`licences`** table (per-machine renewals: vehicle-licence/roadworthy/permit/
+    crossborder/insurance/other, number, `expiry_date`, `reminder_lead_days`, notes)
+    with `expiry_status` + `licence_type` enums; farm-scoped RLS + composite FK + grants
+    + audit + soft-delete + notify dedupe columns. Warranty already on `machines`; `0260`
+    adds `warranty_notified_status/_at` for engine dedupe.
+  - **Expiry engine** (`0263`, 0205-pattern): `app.enqueue_expiry_notifications`
+    (warranty date **and** hours basis + licences) honouring per-farm thresholds
+    (`warranty_lead_days`/`warranty_hours_lead`/`licence_lead_days`), quiet hours, weekly
+    re-fire dedupe; retired/sold excluded; `public.cron_*` wrapper wired into the nightly
+    route. Templates `warranty_expiring/_expired`, `licence_expiring/_expired`.
+  - **Web Push** (self-hosted VAPID, no provider): `push_subscriptions` table (own-user
+    RLS + audit); `src/lib/push/webpush.ts` (VAPID JWT ES256 + RFC 8291/8188 aes128gcm via
+    Node crypto only); `deliverPush` (per-user `notify_push`, dedupe via
+    `notifications.push_sent_at`, prunes dead endpoints); routes `/api/push/{subscribe,
+    unsubscribe,send}`; `public/sw.js` gains `push` + `notificationclick` (F2 offline logic
+    intact); nightly cron delivers after enqueues; env-gated (no-op if VAPID unset;
+    `.env.example` + `scripts/gen-vapid-keys.mjs`).
+  - **Per-user prefs** (FR-14.3): `users.notify_inapp/notify_push/quiet_hours_*` +
+    `set_notification_prefs` RPC; prefs-aware `notify_farm` (both overloads). Preferences
+    UI + PushToggle on the alert centre; shared `formatNotification` renders expiry/push
+    templates in-app + push.
+  - App: machine-detail **Compliance card** (warranty + licence CRUD w/ status badges);
+    **dashboard "Expiries upcoming"**; farm **expiry-lead settings**. i18n EN/AF at parity
+    (**668 leaf keys**). Gates green (typecheck + lint + build + `db:test`); shared
+    first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.
