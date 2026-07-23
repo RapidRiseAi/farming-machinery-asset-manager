@@ -15,7 +15,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; inactive?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; inactive?: string; group?: string }>;
 }) {
   const profile = await requireProfile();
   const locale = profile.language;
@@ -39,6 +39,7 @@ export default async function ReportsPage({
     if (filters.from) p.set("from", filters.from);
     if (filters.to) p.set("to", filters.to);
     if (filters.includeInactive) p.set("inactive", "1");
+    if (filters.group) p.set("group", filters.group);
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     return p.toString();
   };
@@ -47,6 +48,7 @@ export default async function ReportsPage({
     if (p.from) params.set("from", p.from);
     if (p.to) params.set("to", p.to);
     if (filters.includeInactive) params.set("inactive", "1");
+    if (filters.group) params.set("group", filters.group);
     return `/reports?${params.toString()}`;
   };
   const toggleInactiveHref = () => {
@@ -54,6 +56,7 @@ export default async function ReportsPage({
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
     if (!filters.includeInactive) params.set("inactive", "1");
+    if (filters.group) params.set("group", filters.group);
     return `/reports?${params.toString()}`;
   };
 
@@ -84,6 +87,25 @@ export default async function ReportsPage({
             {t("reports.includeInactive", locale)}
           </Link>
         </div>
+        {data.groups.length > 0 ? (
+          <form method="get" action="/reports" className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand-100 pt-3">
+            {filters.from ? <input type="hidden" name="from" value={filters.from} /> : null}
+            {filters.to ? <input type="hidden" name="to" value={filters.to} /> : null}
+            {filters.includeInactive ? <input type="hidden" name="inactive" value="1" /> : null}
+            <span className="text-sm font-medium text-sand-600">{t("reports.site", locale)}:</span>
+            <select
+              name="group"
+              defaultValue={filters.group ?? ""}
+              className="focus-ring rounded-lg border border-sand-300 px-3 py-1.5 text-sm"
+            >
+              <option value="">{t("reports.allGroups", locale)}</option>
+              {data.groups.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>{t("reports.apply", locale)}</button>
+          </form>
+        ) : null}
       </Card>
 
       {/* Cost per machine */}
@@ -108,8 +130,10 @@ export default async function ReportsPage({
                 <Th className="text-right">{t("reports.parts", locale)}</Th>
                 <Th className="text-right">{t("reports.labour", locale)}</Th>
                 <Th className="text-right">{t("reports.other", locale)}</Th>
-                <Th className="text-right">{t("reports.total", locale)}</Th>
+                <Th className="text-right">{t("reports.spend", locale)}</Th>
+                <Th className="text-right">{t("reports.tco", locale)}</Th>
                 <Th className="text-right">{t("reports.perHour", locale)}</Th>
+                <Th className="text-right">{t("reports.perKm", locale)}</Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -121,8 +145,10 @@ export default async function ReportsPage({
                   <Td className="text-right">{rands(r.parts)}</Td>
                   <Td className="text-right">{rands(r.labour)}</Td>
                   <Td className="text-right">{rands(r.other)}</Td>
-                  <Td className="text-right font-medium">{rands(r.total)}</Td>
+                  <Td className="text-right">{rands(r.total)}</Td>
+                  <Td className="text-right font-medium">{rands(r.tco)}</Td>
                   <Td className="text-right">{r.perHour != null ? rands(r.perHour) : "—"}</Td>
+                  <Td className="text-right">{r.perKm != null ? rands(r.perKm) : "—"}</Td>
                 </Tr>
               ))}
             </Tbody>
@@ -177,7 +203,16 @@ export default async function ReportsPage({
           >
             <CardTitle>{t("reports.recurringProblems", locale)}</CardTitle>
           </CardHeader>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-400">{t("reports.breaksMostOften", locale)}</p>
+              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                {data.problems.breaksMostOften.map((p, i) => (
+                  <li key={i} className="flex justify-between py-1"><span className="truncate">{p.name}</span><span className="text-sand-500">{p.count}</span></li>
+                ))}
+                {data.problems.breaksMostOften.length === 0 ? <li className="py-1 text-sand-400">{t("reports.none", locale)}</li> : null}
+              </ul>
+            </div>
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-400">{t("reports.topParts", locale)}</p>
               <ul className="flex flex-col divide-y divide-sand-100 text-sm">

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
+import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
 
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
 const URGENCIES = ["can_work", "limping", "stopped"] as const;
@@ -27,7 +28,8 @@ async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<
  * Shared fault-report form with common-fault buttons, photo and voice-note capture.
  * Posts multipart to `endpoint`; used by the public QR page (token, no login) and the
  * in-app faults page. The public path never touches the DB directly — the endpoint is
- * a service-role route that validates the token server-side.
+ * a service-role route that validates the token server-side. Captures work offline
+ * (queued via IndexedDB) and record an optional geolocation when the browser grants it.
  */
 export function FaultCapture({
   endpoint,
@@ -55,6 +57,7 @@ export function FaultCapture({
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoDenied, setGeoDenied] = useState(false);
+  const [queued, setQueued] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
 
@@ -101,30 +104,82 @@ export function FaultCapture({
     setError(null);
     if (!description.trim()) return;
     setBusy(true);
+
+    // Compress up-front so the same bytes are used online or queued offline.
+    const compressedPhoto = photo ? await compressImage(photo) : undefined;
+    const name =
+      variant === "public"
+        ? (document.getElementById("fault-name") as HTMLInputElement | null)?.value ?? ""
+        : "";
+
+    // Build the field map once (mirrors the /api/sync + endpoint field names).
+    const fields: Record<string, string> = { description: description.trim(), urgency };
+    if (category) fields.category = category;
+    if (token) fields.token = token;
+    if (variant === "app") fields.machine_id = machineId;
+    if (name) fields.name = name;
+    if (coords) {
+      fields.lat = String(coords.lat);
+      fields.lng = String(coords.lng);
+    }
+
+    const queueOffline = async () => {
+      await queueMutation({
+        type: "report_fault",
+        scope: variant === "public" ? "public" : "app",
+        fields,
+        photo: compressedPhoto,
+        voice: voice ?? undefined,
+      });
+      // Optimistic confirm: reset the form, show "saved offline".
+      setDescription("");
+      setCategory(null);
+      setUrgency("can_work");
+      setPhoto(null);
+      setVoice(null);
+      setCoords(null);
+      setQueued(true);
+      setBusy(false);
+    };
+
+    // Offline up-front → queue without hitting the network.
+    if (!isOnline() && canQueueOffline()) {
+      await queueOffline();
+      return;
+    }
+
+    const fd = new FormData();
+    fd.set("description", fields.description);
+    fd.set("urgency", urgency);
+    if (fields.category) fd.set("category", fields.category);
+    if (token) fd.set("token", token);
+    if (variant === "app") fd.set("machine_id", machineId);
+    if (name) fd.set("name", name);
+    if (compressedPhoto) fd.set("photo", compressedPhoto, "photo.jpg");
+    if (voice) fd.set("voice", voice, "voice.webm");
+    if (fields.lat) fd.set("lat", fields.lat);
+    if (fields.lng) fd.set("lng", fields.lng);
+
+    let res: Response;
     try {
-      const fd = new FormData();
-      fd.set("description", description.trim());
-      fd.set("urgency", urgency);
-      if (category) fd.set("category", category);
-      if (token) fd.set("token", token);
-      if (variant === "app") fd.set("machine_id", machineId);
-      if (variant === "public") {
-        const name = (document.getElementById("fault-name") as HTMLInputElement | null)?.value ?? "";
-        if (name) fd.set("name", name);
-      }
-      if (photo) fd.set("photo", await compressImage(photo), "photo.jpg");
-      if (voice) fd.set("voice", voice, "voice.webm");
-      if (coords) {
-        fd.set("lat", String(coords.lat));
-        fd.set("lng", String(coords.lng));
-      }
-      const res = await fetch(endpoint, { method: "POST", body: fd });
-      if (!res.ok) throw new Error("failed");
-      window.location.href = redirectTo;
+      res = await fetch(endpoint, { method: "POST", body: fd });
     } catch {
+      // Network dropped mid-send → queue for later if we can.
+      if (canQueueOffline()) {
+        await queueOffline();
+        return;
+      }
       setError(t("faults.error", locale));
       setBusy(false);
+      return;
     }
+    if (res.ok) {
+      window.location.href = redirectTo;
+      return;
+    }
+    // Server rejected the report (bad input / permission) — surface it, don't queue.
+    setError(t("faults.error", locale));
+    setBusy(false);
   };
 
   const input = "w-full rounded-lg border border-sand-300 px-3 py-2.5 text-base";
@@ -206,6 +261,7 @@ export function FaultCapture({
         ) : null}
       </div>
 
+      {queued ? <p className="text-sm font-medium text-status-due" role="status">✓ {t("offline.savedOffline", locale)}</p> : null}
       {error ? <p className="text-sm text-status-overdue" role="alert">{error}</p> : null}
 
       <button

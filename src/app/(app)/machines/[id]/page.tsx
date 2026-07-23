@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
+import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import { t } from "@/lib/i18n";
 import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
@@ -13,6 +14,7 @@ import { addReading } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
+import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { StatusPill, Badge, type BadgeTone } from "@/components/ui/badge";
@@ -39,6 +41,8 @@ type Machine = {
   purchase_date: string | null; purchase_price_cents: number | null; supplier: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
   assigned_operator_id: string | null;
+  finance_provider: string | null; finance_total_cents: number | null; finance_monthly_cents: number | null;
+  finance_term_months: number | null; finance_interest_bps: number | null;
 };
 type Reading = { id: string; reading: number; reading_date: string; source: string };
 type Usage = { id: string; driver_user_id: string | null; driver_name: string | null; occurred_on: string; meter_reading: number | null; source: string };
@@ -74,13 +78,13 @@ export default async function MachineDetailPage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, notes, assigned_operator_id")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, notes, assigned_operator_id, finance_provider, finance_total_cents, finance_monthly_cents, finance_term_months, finance_interest_bps")
     .eq("id", id)
     .maybeSingle();
   const machine = data as Machine | null;
   if (!machine) notFound();
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -89,6 +93,7 @@ export default async function MachineDetailPage({
     supabase.from("service_templates").select("id, name, machine_type").is("deleted_at", null).or(`machine_type.eq.${machine.type},machine_type.is.null`),
     supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
+    supabase.from("cost_entries").select("type, amount_cents").eq("machine_id", id).is("deleted_at", null),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -110,12 +115,23 @@ export default async function MachineDetailPage({
   const isOutOfService = machine.status === "out_of_service";
   const assignedOperatorName = machine.assigned_operator_id ? operatorName.get(machine.assigned_operator_id) : null;
 
-  // Lifetime stats.
+  // Lifetime stats. TCO = every cost_entry for this asset (purchase + finance + fuel +
+  // parts + labour + invoices + other). cost-per-hour / cost-per-km are TCO ÷ lifetime
+  // meter on a consistent basis (fixes D-2/D-3); the same helper drives the reports page.
+  const costRows = (costRes.data as { type: string; amount_cents: number | null }[] | null) ?? [];
+  const { total: tco, breakdown } = summariseCosts(costRows);
   const totalSpend = jobCards.reduce((a, j) => a + (j.total_cents || 0), 0);
-  const costPerHour =
-    machine.meter_type === "hours" && machine.current_reading && machine.current_reading > 0
-      ? Math.round(totalSpend / machine.current_reading)
+  const perMeter =
+    machine.meter_type === "hours" || machine.meter_type === "km"
+      ? costPerMeter(tco, machine.current_reading)
       : null;
+  const perMeterLabel = machine.meter_type === "km" ? t("machine.costPerKm", locale) : t("machine.costPerHour", locale);
+  const hasFinance =
+    machine.finance_provider != null ||
+    machine.finance_total_cents != null ||
+    machine.finance_monthly_cents != null ||
+    machine.finance_term_months != null ||
+    machine.finance_interest_bps != null;
   const openFaultCount = faults.filter((f) => f.status !== "resolved").length;
 
   // Timeline (merge + sort desc).
@@ -261,7 +277,7 @@ export default async function MachineDetailPage({
               <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
               <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
               {canAddReading ? (
-                <form action={addReading} className="mt-3 flex flex-wrap items-end gap-2">
+                <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="machine_id" value={machine.id} />
                   <input type="hidden" name="farm_id" value={machine.farm_id} />
                   <Field label={t("machine.newReading", locale)} htmlFor="reading" className="flex-1">
@@ -281,7 +297,7 @@ export default async function MachineDetailPage({
                     </Field>
                   ) : null}
                   <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
-                </form>
+                </OfflineForm>
               ) : null}
               {readings.length > 0 ? (
                 <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
@@ -469,12 +485,47 @@ export default async function MachineDetailPage({
           <Card>
             <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
             <div className="grid grid-cols-2 gap-3">
-              <Stat label={t("machine.totalSpend", locale)} value={rands(totalSpend)} />
+              <Stat label={t("machine.tco", locale)} value={rands(tco)} />
+              <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "—"} />
+              <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} />
               <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
-              <Stat label={t("machine.costPerHour", locale)} value={costPerHour != null ? rands(costPerHour) : "—"} />
               <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
             </div>
+            {tco > 0 ? (
+              <ul className="mt-3 flex flex-col divide-y divide-sand-100 border-t border-sand-100 pt-3 text-sm">
+                {COST_TYPES.filter((ct) => breakdown[ct] > 0).map((ct) => (
+                  <li key={ct} className="flex justify-between py-1">
+                    <span className="text-sand-600">{t(`costType.${ct}`, locale)}</span>
+                    <span className="font-medium tabular-nums text-sand-900">{rands(breakdown[ct])}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </Card>
+
+          {/* Finance */}
+          {hasFinance ? (
+            <Card>
+              <CardHeader><CardTitle>{t("machine.finance", locale)}</CardTitle></CardHeader>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                {machine.finance_provider ? (
+                  <div className="col-span-2"><dt className="text-sand-500">{t("machines.financeProvider", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_provider}</dd></div>
+                ) : null}
+                {machine.finance_total_cents != null ? (
+                  <div><dt className="text-sand-500">{t("machines.financeTotal", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_total_cents)}</dd></div>
+                ) : null}
+                {machine.finance_monthly_cents != null ? (
+                  <div><dt className="text-sand-500">{t("machines.financeMonthly", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_monthly_cents)}</dd></div>
+                ) : null}
+                {machine.finance_term_months != null ? (
+                  <div><dt className="text-sand-500">{t("machines.financeTerm", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_term_months}</dd></div>
+                ) : null}
+                {machine.finance_interest_bps != null ? (
+                  <div><dt className="text-sand-500">{t("machines.financeInterest", locale)}</dt><dd className="font-medium text-sand-900">{(machine.finance_interest_bps / 100).toFixed(2)}%</dd></div>
+                ) : null}
+              </dl>
+            </Card>
+          ) : null}
 
           {/* Watch items */}
           {openWatch.length > 0 ? (

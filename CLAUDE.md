@@ -115,4 +115,22 @@ Env/dashboard follow-ups: delete the empty `menu-media` bucket; optional Auth
 leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.example`
 (both `FarmGear!dev1`).
 
+- **FleetWise F1 — Cost & TCO spine (migrations `0210–0211`; branch
+  `claude/fleetwise-cost-tco-spine`; isolation-tested, `db:test` green):**
+  - `cost_entries` ledger (types purchase/finance/fuel/parts/labour/invoice/other,
+    ex-VAT cents, nullable `machine_id` for farm-level fuel, composite FK, full RLS +
+    grants + audit). SECURITY-DEFINER sync triggers keep it in step with
+    `job_card_lines` (parts/labour/other), `machines` (purchase price + derived finance
+    interest) and `fuel_deliveries` (farm-level fuel); idempotent backfill for existing
+    rows. `app.machine_tco()` rollup. Machine finance fields added.
+  - App: real **TCO** on machine detail (+ cost breakdown + finance card) and **ranked
+    by TCO** in reports; **cost-per-hour & cost-per-km on a consistent lifetime basis**
+    (shared `src/lib/cost.ts`, fixes D-2/D-3 — detail and reports now agree); true
+    per-machine **"breaks most often"** (FR-11.2) + **per-site/group** report filter
+    (FR-11.3, graceful pre-F7); job-card **quote/invoice/photo upload** with invoice
+    amount → `invoice` cost entry (FR-8.4, service-role media route + `jobcard-photos`).
+  - Rename **FarmGear → FleetWise** across touched UI/metadata (layout, manifest,
+    `env.APP_NAME`, i18n `app.name`, README, PDF wordmark). i18n EN/AF at parity
+    (466 keys). Bucket ids + `farmgear:` localStorage prefixes kept stable.
+
 > Update this "current status" block at the end of every session.

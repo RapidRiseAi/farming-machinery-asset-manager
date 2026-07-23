@@ -11,7 +11,9 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { problems } = await getReportData(supabase, parseFilters(sp));
 
-  const rows: (string | number)[][] = [["Most-replaced part", "Count"]];
+  const rows: (string | number)[][] = [["Machine (breaks most often)", "Count"]];
+  for (const b of problems.breaksMostOften) rows.push([b.name, b.count]);
+  rows.push(["", ""], ["Most-replaced part", "Count"]);
   for (const p of problems.topParts) rows.push([p.name, p.count]);
   rows.push(["", ""], ["Top fault category", "Count"]);
   for (const ft of problems.topFaults) rows.push([ft.name, ft.count]);

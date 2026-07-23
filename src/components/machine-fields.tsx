@@ -23,6 +23,11 @@ type Defaults = {
   assigned_operator_id?: string | null;
   location?: string | null;
   notes?: string | null;
+  finance_provider?: string | null;
+  finance_total_cents?: number | null;
+  finance_monthly_cents?: number | null;
+  finance_term_months?: number | null;
+  finance_interest_bps?: number | null;
 };
 
 export type OperatorOption = { id: string; name: string };
@@ -44,6 +49,10 @@ export function MachineFields({
   const m = machine ?? {};
   const price =
     m.purchase_price_cents != null ? (m.purchase_price_cents / 100).toFixed(2) : "";
+  const financeTotal =
+    m.finance_total_cents != null ? (m.finance_total_cents / 100).toFixed(2) : "";
+  const financeMonthly =
+    m.finance_monthly_cents != null ? (m.finance_monthly_cents / 100).toFixed(2) : "";
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
@@ -145,6 +154,27 @@ export function MachineFields({
           </Field>
         </div>
       ) : null}
+
+      <div className="flex flex-col gap-3">
+        <SectionTitle>{t("machines.sections.finance", locale)}</SectionTitle>
+        <Field label={t("machines.financeProvider", locale)} htmlFor="finance_provider">
+          <Input id="finance_provider" name="finance_provider" defaultValue={m.finance_provider ?? ""} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label={t("machines.financeTotal", locale)} htmlFor="finance_total">
+            <Input id="finance_total" name="finance_total" type="number" inputMode="decimal" step="0.01" defaultValue={financeTotal} />
+          </Field>
+          <Field label={t("machines.financeMonthly", locale)} htmlFor="finance_monthly">
+            <Input id="finance_monthly" name="finance_monthly" type="number" inputMode="decimal" step="0.01" defaultValue={financeMonthly} />
+          </Field>
+          <Field label={t("machines.financeTerm", locale)} htmlFor="finance_term_months">
+            <Input id="finance_term_months" name="finance_term_months" type="number" inputMode="numeric" defaultValue={m.finance_term_months ?? ""} />
+          </Field>
+          <Field label={t("machines.financeInterest", locale)} htmlFor="finance_interest_bps">
+            <Input id="finance_interest_bps" name="finance_interest_bps" type="number" inputMode="numeric" defaultValue={m.finance_interest_bps ?? ""} />
+          </Field>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3">
         <SectionTitle>{t("machines.sections.notes", locale)}</SectionTitle>

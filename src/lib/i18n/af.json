@@ -49,7 +49,7 @@
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
-    "subtitle": "Enkele vinnige stappe om die meeste uit FarmGear te kry.",
+    "subtitle": "Enkele vinnige stappe om die meeste uit FleetWise te kry.",
     "progress": "{done} van {total} klaar",
     "allDone": "Alles is opgestel — mooi werk!",
     "done": "Klaar",
@@ -115,6 +115,7 @@
       "identity": "Identiteit",
       "meter": "Meter",
       "purchase": "Aankoop & waarborg",
+      "finance": "Finansiering",
       "notes": "Notas",
       "operator": "Operateur"
     },
@@ -135,6 +136,11 @@
     "warrantyDate": "Waarborg verval (datum)",
     "warrantyHours": "Waarborg verval (ure)",
     "location": "Ligging / kamp",
+    "financeProvider": "Finansieringsverskaffer",
+    "financeTotal": "Bedrag gefinansier (R, excl. BTW)",
+    "financeMonthly": "Maandelikse paaiement (R, excl. BTW)",
+    "financeTerm": "Termyn (maande)",
+    "financeInterest": "Rentekoers (bpt)",
     "assignedOperator": "Toegewese operateur",
     "noOperator": "— Geen —"
   },
@@ -159,6 +165,15 @@
     "hours": "Ure",
     "km": "Kilometer",
     "none": "Geen (net kalender)"
+  },
+  "costType": {
+    "purchase": "Aankoop",
+    "finance": "Finansiering",
+    "fuel": "Brandstof",
+    "parts": "Onderdele",
+    "labour": "Arbeid",
+    "invoice": "Faktuur",
+    "other": "Ander"
   },
   "qr": {
     "reportProblem": "Rapporteer 'n probleem",
@@ -210,6 +225,10 @@
     "totalSpend": "Totale besteding (excl. BTW)",
     "jobCardCount": "Werkkaarte",
     "costPerHour": "Koste per uur",
+    "costPerKm": "Koste per km",
+    "tco": "Totale eienaarskoste",
+    "maintenanceSpend": "Onderhoudsuitgawe",
+    "finance": "Finansiering",
     "openFaults": "Oop foute",
     "watchItems": "Waaklyste",
     "done": "Klaar",
@@ -376,6 +395,12 @@
     "other": "Ander",
     "total": "Totaal",
     "perHour": "R / uur",
+    "perKm": "R / km",
+    "spend": "Besteding",
+    "tco": "TEK",
+    "site": "Terrein / groep",
+    "allGroups": "Alle terreine",
+    "breaksMostOften": "Breek die meeste",
     "noCosts": "Geen werkkaartkoste in hierdie tydperk nie.",
     "spendByType": "Besteding per werktipe",
     "serviceCompliance": "Diensnakoming",
@@ -502,7 +527,21 @@
     "draftFound": "Jy het 'n ongestoorde konsep vir hierdie kaart.",
     "restore": "Herstel konsep",
     "discard": "Gooi weg",
-    "cancel": "Kanselleer"
+    "cancel": "Kanselleer",
+    "mediaTitle": "Media en fakture",
+    "mediaError": "Oplaai het misluk — probeer weer.",
+    "kind_photo": "Foto",
+    "kind_quote": "Kwotasie",
+    "kind_invoice": "Faktuur",
+    "invoiceAmount": "Faktuurbedrag",
+    "invoiceNote": "Nota (verskaffer, verw…)",
+    "file": "Lêer",
+    "recordInvoice": "Stoor faktuur",
+    "uploadFile": "Laai lêer op",
+    "uploading": "Laai op…",
+    "invoiceRecorded": "Faktuur gestoor",
+    "noMedia": "Nog geen kwotasies, fakture of foto's nie.",
+    "attachment": "Aanhegsel"
   },
   "dashboard": {
     "kpiOverdue": "Agterstallige diens",
@@ -522,6 +561,17 @@
     "noMachinesTitle": "Nog geen masjiene nie",
     "noMachinesHint": "Voeg jou eerste masjien by om dienste, foute en koste te begin volg.",
     "noMachinesAdd": "Voeg 'n masjien by"
+  },
+  "offline": {
+    "online": "Aanlyn",
+    "offline": "Vanlyn",
+    "syncing": "Sinkroniseer…",
+    "synced": "Gesinkroniseer",
+    "pending": "wag om te sinkroniseer",
+    "savedOffline": "Vanlyn gestoor — sal sinkroniseer sodra jy weer aanlyn is.",
+    "pageTitle": "Jy is vanlyn",
+    "pageBody": "Hierdie bladsy is nog nie vanlyn beskikbaar nie. Lesings, foute en werkkaart-inskrywings wat jy vaslê, word op jou toestel gestoor en sinkroniseer outomaties sodra jy weer verbind.",
+    "retry": "Probeer weer"
   },
   "meterSource": {
     "app": "In-toep",

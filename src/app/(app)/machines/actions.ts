@@ -66,6 +66,13 @@ function extraFields(fd: FormData) {
     warranty_expiry_hours: numOrNull(fd, "warranty_expiry_hours"),
     location: str(fd, "location"),
     notes: str(fd, "notes"),
+    // Finance details (FR-3.2). Money in ex-VAT cents; the DB trigger derives a
+    // finance-interest cost entry from these (see migration 0211).
+    finance_provider: str(fd, "finance_provider"),
+    finance_total_cents: priceToCents(fd, "finance_total"),
+    finance_monthly_cents: priceToCents(fd, "finance_monthly"),
+    finance_term_months: intOrNull(fd, "finance_term_months"),
+    finance_interest_bps: intOrNull(fd, "finance_interest_bps"),
   };
 }
 

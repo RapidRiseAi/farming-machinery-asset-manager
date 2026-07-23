@@ -80,9 +80,9 @@ export class Pdf {
     return lines;
   }
 
-  /** Document title block with the FarmGear wordmark. */
+  /** Document title block with the FleetWise wordmark. */
   header(subtitle?: string) {
-    this.page.drawText("FarmGear", { x: MARGIN, y: this.y, size: 12, font: this.bold, color: BRAND });
+    this.page.drawText("FleetWise", { x: MARGIN, y: this.y, size: 12, font: this.bold, color: BRAND });
     this.y -= 24;
     this.page.drawText(sanitize(this.title), { x: MARGIN, y: this.y, size: 20, font: this.bold, color: INK });
     this.y -= 18;
@@ -162,7 +162,7 @@ export class Pdf {
   private footers() {
     const pages = this.doc.getPages();
     const total = pages.length;
-    const stamp = `FarmGear · generated ${new Date().toISOString().slice(0, 10)}`;
+    const stamp = `FleetWise · generated ${new Date().toISOString().slice(0, 10)}`;
     pages.forEach((pg, i) => {
       pg.drawText(sanitize(stamp), { x: MARGIN, y: MARGIN - 16, size: 8, font: this.font, color: MUTED });
       const label = `${i + 1} / ${total}`;

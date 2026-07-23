@@ -126,6 +126,12 @@ insert into usage_logs (farm_id, machine_id, driver_user_id, occurred_on, meter_
   ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', current_date, 100, 'app'),
   ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222', current_date, 200, 'app');
 
+-- One synced mutation per farm (written by the /api/sync service-role route in prod;
+-- seeded here as superuser) so the isolation assertions cover sync_log too.
+insert into sync_log (farm_id, client_id, mutation, scope, status, client_ts, entity) values
+  ('11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 'log_reading', 'app', 'applied', now(), 'meter_readings'),
+  ('22222222-2222-2222-2222-222222222222', 'c2222222-2222-2222-2222-222222222222', 'log_reading', 'app', 'applied', now(), 'meter_readings');
+
 -- ─────────────────────────────────────────────────────────────────
 -- Structural: job-card totals computed by trigger (1 × 15000c = 15000c)
 -- ─────────────────────────────────────────────────────────────────
@@ -155,10 +161,11 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'ownerA');
   perform _t_assert('fuel_deliveries',    1, 'ownerA');
   perform _t_assert('fuel_issues',        1, 'ownerA');
-  perform _t_assert('usage_logs',         1, 'ownerA');
   perform _t_assert('users',              1, 'ownerA');  -- self only
   perform _t_assert('workshops',          1, 'ownerA');  -- W linked to Farm A
   perform _t_assert('workshop_links',     1, 'ownerA');
+  perform _t_assert('sync_log',           1, 'ownerA');
+  perform _t_assert('usage_logs',         1, 'ownerA');
 end $$;
 -- audit isolation: no Farm B audit rows; some Farm A audit rows
 do $$ declare c int; begin
@@ -190,10 +197,11 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'ownerB');
   perform _t_assert('fuel_deliveries',    1, 'ownerB');
   perform _t_assert('fuel_issues',        1, 'ownerB');
-  perform _t_assert('usage_logs',         1, 'ownerB');
   perform _t_assert('users',              1, 'ownerB');
   perform _t_assert('workshops',          0, 'ownerB');  -- W not linked to Farm B
   perform _t_assert('workshop_links',     0, 'ownerB');
+  perform _t_assert('sync_log',           1, 'ownerB');
+  perform _t_assert('usage_logs',         1, 'ownerB');
 end $$;
 reset role;
 
@@ -218,10 +226,11 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'workshopW');
   perform _t_assert('fuel_deliveries',    1, 'workshopW');
   perform _t_assert('fuel_issues',        1, 'workshopW');
-  perform _t_assert('usage_logs',         1, 'workshopW');
   perform _t_assert('users',              2, 'workshopW');  -- self + Owner A (linked farm)
   perform _t_assert('workshops',          1, 'workshopW');  -- self
   perform _t_assert('workshop_links',     1, 'workshopW');
+  perform _t_assert('sync_log',           1, 'workshopW');  -- Farm A only
+  perform _t_assert('usage_logs',         1, 'workshopW');
 end $$;
 reset role;
 
@@ -246,10 +255,11 @@ do $$ begin
   perform _t_assert('fuel_tanks',         2, 'rrAdmin');
   perform _t_assert('fuel_deliveries',    2, 'rrAdmin');
   perform _t_assert('fuel_issues',        2, 'rrAdmin');
-  perform _t_assert('usage_logs',         2, 'rrAdmin');
   perform _t_assert('users',              4, 'rrAdmin');
   perform _t_assert('workshops',          1, 'rrAdmin');
   perform _t_assert('workshop_links',     1, 'rrAdmin');
+  perform _t_assert('sync_log',           2, 'rrAdmin');
+  perform _t_assert('usage_logs',         2, 'rrAdmin');
 end $$;
 reset role;
 
@@ -265,7 +275,7 @@ begin
     'farms','workshops','users','workshop_links','machines','meter_readings',
     'service_templates','service_plan_lines','faults','job_cards','job_card_lines',
     'watch_items','attachments','notifications','fuel_tanks','fuel_deliveries',
-    'fuel_issues','job_card_service_lines','usage_logs','audit_log'
+    'fuel_issues','job_card_service_lines','cost_entries','usage_logs','audit_log','sync_log'
   ] loop
     begin
       execute format('select count(*) from public.%I', t) into c;
@@ -590,6 +600,170 @@ end $$;
 reset role;
 
 select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ 0210/0211: COST-ENTRIES & TCO SPINE (appended section) ══════
+-- Proves: (a) a job-card part line auto-generates a farm-scoped `parts` cost entry via
+-- the SECURITY DEFINER sync trigger; (b) cost_entries stay tenant-isolated (own-farm
+-- visible, cross-tenant = 0, workshop scoped to its linked farm, rr_admin sees all,
+-- anon none — anon covered in the anon sweep above); (c) app.machine_tco sums the
+-- ledger under RLS and cannot read another farm's TCO; (d) a manual invoice-style entry
+-- raises TCO; (e) cross-tenant cost writes are rejected; (f) soft-deleting a source line
+-- soft-deletes its cost entry while preserving the row for audit. Nothing above is
+-- modified. After the seed above, each farm has exactly one cost entry (its part line).
+-- ═════════════════════════════════════════════════════════════════
+
+-- (a) the sync trigger already fired during seed → assert the generated Farm A row.
+do $$ declare v bigint; ty text; m uuid; begin
+  select count(*) into v from cost_entries where farm_id = '11111111-1111-1111-1111-111111111111' and deleted_at is null;
+  if v <> 1 then raise exception 'COST FAIL: Farm A cost_entries = % (expected 1 synced from the part line)', v; end if;
+  select amount_cents, type::text, machine_id into v, ty, m from cost_entries
+    where farm_id = '11111111-1111-1111-1111-111111111111' and source_type = 'job_card_line';
+  if v <> 15000 or ty <> 'parts' or m <> 'aa111111-1111-1111-1111-111111111111'
+    then raise exception 'COST FAIL: synced part line = (amount %, type %, machine %)', v, ty, m; end if;
+end $$;
+
+-- (b) per-persona isolation of cost_entries.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('cost_entries', 1, 'ownerA');
+  execute $q$ select count(*) from cost_entries where farm_id <> '11111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'COST ISOLATION FAIL [ownerA]: sees % non-Farm-A cost rows', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('cost_entries', 1, 'ownerB');   end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('cost_entries', 1, 'workshopW'); end $$;
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('cost_entries', 2, 'rrAdmin');   end $$;
+reset role;
+
+-- (c) app.machine_tco sums the ledger under RLS and cannot cross tenants.
+set role authenticated;
+do $$ declare v bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  select app.machine_tco('aa111111-1111-1111-1111-111111111111') into v;
+  if v <> 15000 then raise exception 'TCO FAIL: machine_tco(Farm A machine) = % (expected 15000)', v; end if;
+  select app.machine_tco('bb222222-2222-2222-2222-222222222222') into v;   -- Farm B machine, invisible to A
+  if v <> 0 then raise exception 'TCO ISOLATION FAIL: Owner A read Farm B TCO = % (expected 0)', v; end if;
+end $$;
+reset role;
+
+-- (e) cross-tenant cost write is rejected (do this before the invoice mutation).
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into cost_entries (farm_id, machine_id, type, amount_cents)
+      values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'other', 999);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'COST ISOLATION FAIL [ownerA]: inserted a cost entry into Farm B'; end if;
+end $$;
+reset role;
+
+-- (d) a manual invoice-style entry (FR-8.4) raises the machine's TCO.
+set role authenticated;
+do $$ declare v bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  insert into cost_entries (farm_id, machine_id, type, amount_cents, source_type, source_id, occurred_on)
+    values ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'invoice', 50000,
+            'job_card', 'ac111111-1111-1111-1111-111111111111', current_date);
+  select app.machine_tco('aa111111-1111-1111-1111-111111111111') into v;
+  if v <> 65000 then raise exception 'INVOICE FAIL: TCO after invoice = % (expected 65000)', v; end if;
+end $$;
+reset role;
+
+-- (f) soft-deleting the source line soft-deletes its cost entry (preserved for audit).
+-- Farm B's job card (bc222222) is NOT locked, so its line may be soft-deleted.
+update job_card_lines set deleted_at = now() where job_card_id = 'bc222222-2222-2222-2222-222222222222';
+do $$ declare v bigint; begin
+  select count(*) into v from cost_entries
+    where source_type = 'job_card_line' and farm_id = '22222222-2222-2222-2222-222222222222' and deleted_at is null;
+  if v <> 0 then raise exception 'COST SYNC FAIL: Farm B cost entry survived line soft-delete (% still active)', v; end if;
+  select count(*) into v from cost_entries
+    where source_type = 'job_card_line' and farm_id = '22222222-2222-2222-2222-222222222222' and deleted_at is not null;
+  if v <> 1 then raise exception 'COST SYNC FAIL: Farm B cost entry not preserved for audit (% soft-deleted)', v; end if;
+end $$;
+
+-- (g) setting a machine's purchase price seeds a `purchase` cost entry via the trigger.
+update machines set purchase_price_cents = 120000000, purchase_date = current_date
+  where id = 'bb222222-2222-2222-2222-222222222222';
+do $$ declare v bigint; ty text; begin
+  select amount_cents, type::text into v, ty from cost_entries
+    where source_type = 'machine' and source_id = 'bb222222-2222-2222-2222-222222222222' and deleted_at is null;
+  if v is distinct from 120000000 or ty <> 'purchase'
+    then raise exception 'PURCHASE FAIL: machine purchase cost entry = (amount %, type %)', v, ty; end if;
+end $$;
+
+select 'ALL 0210/0211 COST-ENTRIES & TCO TESTS PASSED' as result;
+
+-- ═══ 0220: OFFLINE SYNC — deterministic LWW conflict resolution ══
+-- Proves: (a) two conflicting offline reading edits for the same machine reconcile
+-- deterministically by client timestamp (last-writer-wins); (b) the superseded value
+-- is preserved (no silent loss); (c) BOTH reading rows survive in history + audit_log
+-- (recoverable); (d) authenticated CANNOT execute the service-role apply function.
+-- Nothing above this line is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- A dedicated Farm A machine so the conflict fixtures don't disturb earlier counts.
+insert into machines (id, farm_id, name, type, meter_type) values
+  ('aa777777-7777-7777-7777-777777777777', '11111111-1111-1111-1111-111111111111', 'Conflict A', 'tractor', 'hours');
+
+-- (d) a normal farm user must not be able to call the service-role apply function.
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    perform public.sync_apply_reading(
+      '11111111-1111-1111-1111-111111111111'::uuid, 'aa777777-7777-7777-7777-777777777777'::uuid,
+      1, current_date, 'manual'::meter_source, null::uuid, now());
+    raise exception 'SYNC PRIV FAIL: authenticated executed sync_apply_reading';
+  exception
+    when insufficient_privilege then null;                 -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- (a)(b)(c) forced conflict — as the service role (the /api/sync route's identity).
+set role service_role;
+do $$
+declare
+  m uuid := 'aa777777-7777-7777-7777-777777777777';
+  f uuid := '11111111-1111-1111-1111-111111111111';
+  r1 jsonb; r2 jsonb;
+  v_reading numeric; v_ts timestamptz; v_hist bigint;
+begin
+  -- Edit X: LATER client timestamp, reading 1200 → becomes the winner.
+  r1 := public.sync_apply_reading(f, m, 1200, current_date, 'manual'::meter_source, null,
+        '2026-01-01T10:00:00Z'::timestamptz);
+  if r1->>'status' <> 'applied' then raise exception 'CONFLICT FAIL: first edit status=% (expected applied)', r1->>'status'; end if;
+
+  -- Edit Y: EARLIER client timestamp, reading 1000, arrives late → must LOSE.
+  r2 := public.sync_apply_reading(f, m, 1000, current_date, 'manual'::meter_source, null,
+        '2026-01-01T09:00:00Z'::timestamptz);
+  if r2->>'status' <> 'conflict' then raise exception 'CONFLICT FAIL: stale edit status=% (expected conflict)', r2->>'status'; end if;
+  if (r2->'superseded'->>'reading')::numeric <> 1000 then
+    raise exception 'CONFLICT FAIL: superseded value not preserved: %', r2->'superseded'; end if;
+
+  -- Deterministic outcome: the machine reflects the greatest-timestamp writer (1200).
+  select current_reading, current_reading_client_ts into v_reading, v_ts from machines where id = m;
+  if v_reading <> 1200 then raise exception 'LWW FAIL: current_reading=% (expected 1200)', v_reading; end if;
+  if v_ts <> '2026-01-01T10:00:00Z'::timestamptz then raise exception 'LWW FAIL: winner ts=% (expected 10:00Z)', v_ts; end if;
+
+  -- No silent loss: BOTH reading rows persist in append-only history.
+  select count(*) into v_hist from meter_readings where machine_id = m and deleted_at is null;
+  if v_hist <> 2 then raise exception 'HISTORY FAIL: expected 2 reading rows, got %', v_hist; end if;
+end $$;
+reset role;
+
+-- The losing value is ALSO recoverable from the append-only audit_log (both inserts logged).
+do $$ declare c bigint; begin
+  select count(*) into c from audit_log
+    where entity = 'meter_readings'
+      and (diff->'new'->>'machine_id') = 'aa777777-7777-7777-7777-777777777777';
+  if c <> 2 then raise exception 'AUDIT FAIL: expected 2 audit rows for conflict readings, got %', c; end if;
+end $$;
+
+select 'ALL 0220 OFFLINE-SYNC TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
 -- ═══ F3: FIELD CAPTURE & ACCOUNTABILITY (0230–0236, appended) ═════

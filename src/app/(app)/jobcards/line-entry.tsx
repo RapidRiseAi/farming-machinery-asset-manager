@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import { addLine } from "./actions";
 
 export function LineEntry({
@@ -26,6 +27,18 @@ export function LineEntry({
   const [unit, setUnit] = useState("");
   const [hours, setHours] = useState("");
   const [rate, setRate] = useState("");
+  const [queued, setQueued] = useState(false);
+
+  // Offline: queue the line locally (idempotency UUID + client ts) instead of failing.
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    if (isOnline() || !canQueueOffline()) return; // online → native server action
+    e.preventDefault();
+    const form = e.currentTarget;
+    await queueMutation({ type: "add_job_line", scope: "app", fields: fieldsFromForm(form) });
+    setQty(""); setUnit(""); setHours(""); setRate("");
+    setQueued(true);
+    window.setTimeout(() => setQueued(false), 2500);
+  };
 
   // Live preview of what will be stored (the DB trigger computes the canonical total).
   const baseCents = parseRandsToCents(kind === "labour" ? rate : unit) ?? 0;
@@ -37,7 +50,7 @@ export function LineEntry({
   const showPreview = baseCents > 0;
 
   return (
-    <form action={addLine} className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-sand-50/60 p-3">
+    <form action={addLine} onSubmit={onSubmit} className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-sand-50/60 p-3">
       <input type="hidden" name="job_card_id" value={jobCardId} />
       <input type="hidden" name="farm_id" value={farmId} />
 
@@ -95,6 +108,9 @@ export function LineEntry({
       ) : null}
 
       <SubmitButton variant="primary" size="sm" className="self-start">{t("jobcards.add", locale)}</SubmitButton>
+      {queued ? (
+        <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
+      ) : null}
     </form>
   );
 }

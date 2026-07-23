@@ -11,9 +11,12 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const data = await getReportData(supabase, parseFilters(sp));
 
-  const rows: (string | number)[][] = [["Machine", "Parts (R)", "Labour (R)", "Other (R)", "Total (R)", "Cost per hour (R)"]];
+  const rows: (string | number)[][] = [["Machine", "Parts (R)", "Labour (R)", "Other (R)", "Spend in period (R)", "TCO (R)", "Cost per hour (R)", "Cost per km (R)"]];
   for (const r of data.costPerMachine) {
-    rows.push([r.name, centsToR(r.parts), centsToR(r.labour), centsToR(r.other), centsToR(r.total), r.perHour != null ? centsToR(r.perHour) : ""]);
+    rows.push([
+      r.name, centsToR(r.parts), centsToR(r.labour), centsToR(r.other), centsToR(r.total), centsToR(r.tco),
+      r.perHour != null ? centsToR(r.perHour) : "", r.perKm != null ? centsToR(r.perKm) : "",
+    ]);
   }
   return csvResponse("cost-per-machine.csv", toCsv(rows));
 }
