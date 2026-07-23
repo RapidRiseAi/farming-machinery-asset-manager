@@ -48,6 +48,7 @@ export default async function NotificationsPage() {
       case "weekly_digest": return fill("notifications.tplWeeklyDigest", { overdue: String(p.overdue_count ?? 0), dueSoon: String(p.due_soon_count ?? 0), faults: String(p.open_faults_count ?? 0) });
       case "fault_reported": return fill("notifications.tplFaultReported", { machine: m, description: String(p.description ?? ""), urgency: String(p.urgency ?? "") });
       case "job_completed": return fill("notifications.tplJobCompleted", { machine: m, total: rands(p.total_cents as number) });
+      case "fuel_anomaly": return fill("notifications.tplFuelAnomaly", { machine: m, litres: String(p.litres ?? ""), delta: String(p.delta_pct ?? "") });
       default: return n.template;
     }
   };
