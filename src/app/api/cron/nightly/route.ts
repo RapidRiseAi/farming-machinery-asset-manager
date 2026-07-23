@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { deliverPush } from "@/lib/push/deliver";
 
 /**
  * Nightly maintenance cron (Scope §4.3 nightly recompute, §4.7 alerts).
@@ -9,12 +10,15 @@ import { createServiceClient } from "@/lib/supabase/service";
  *   2. cron_enqueue_service_notifications — due-soon/overdue in-app notifications (deduped)
  *   3. cron_enqueue_stale_meter_nudges    — one "reading outdated" nudge per farm
  *   4. cron_enqueue_fuel_anomalies        — fuel leak/theft anomalies (deduped, F4)
- *   5. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *   5. cron_enqueue_expiry_notifications  — warranty/licence expiry reminders (deduped, F6)
+ *   6. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *   7. push delivery                      — Web Push for the freshly-queued rows (F6)
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
  * sends this header when a CRON_SECRET env var is set (see docs/CRON.md), so the same
  * check covers Vercel's scheduler and any external pinger.
  */
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -36,6 +40,7 @@ export async function GET(request: Request) {
   await run("service_notifications", "cron_enqueue_service_notifications");
   await run("stale_meter_nudges", "cron_enqueue_stale_meter_nudges");
   await run("fuel_anomalies", "cron_enqueue_fuel_anomalies");
+  await run("expiry_notifications", "cron_enqueue_expiry_notifications");
 
   // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {
@@ -48,7 +53,15 @@ export async function GET(request: Request) {
     steps["weekly_digest"] = "skipped (not Monday SAST)";
   }
 
-  const ok = Object.values(steps).every((s) => s === "ok" || s.startsWith("skipped"));
+  // Web Push for everything just enqueued and now deliverable (no-op if VAPID unset).
+  try {
+    const push = await deliverPush(supabase);
+    steps["push_delivery"] = push.skipped ? `skipped (${push.skipped})` : `ok (pushed ${push.pushed})`;
+  } catch (err) {
+    steps["push_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+  }
+
+  const ok = Object.values(steps).every((s) => s === "ok" || s.startsWith("skipped") || s.startsWith("ok"));
   return NextResponse.json(
     { ok, ranAt: new Date().toISOString(), steps },
     { status: ok ? 200 : 500 }
