@@ -133,4 +133,33 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     `env.APP_NAME`, i18n `app.name`, README, PDF wordmark). i18n EN/AF at parity
     (466 keys). Bucket ids + `farmgear:` localStorage prefixes kept stable.
 
+- **FleetWise F4 — Fuel module (migrations `0240–0242`; branch
+  `claude/fleetwise-fuel`; isolation-tested, `db:test` green):**
+  - Fuel-cost model = **per-issue attribution** (no double-count): fuel enters the
+    TCO ledger ONLY via `fuel_issues` (per-machine `fuel` cost_entry, `machine_id`
+    null → farm-level); the F1 `0211` `fuel_delivery`→cost trigger is **replaced** to
+    book nothing (deliveries are tank stock) and to soft-delete any pre-existing
+    delivery-sourced fuel entry. Result: a farm's fuel appears in `cost_entries`
+    **exactly once** — asserted in `rls_isolation.sql` (F4 section). Capture columns
+    added to `fuel_issues` (`cost_cents`, `price_per_l_cents`, `vat_rate_bps`,
+    `driver_name`, `anomaly_notified_at`) + `fuel_deliveries` (`vat_rate_bps`,
+    `by_user`); RLS/audit/grants already covered these tables (0101/0008/0102).
+  - **Consumption engine**: `app.machine_fuel_consumption` (interval/brim-to-brim,
+    L/hr for hours, L/100km for km) mirrored client-side in `src/lib/fuel.ts` so UI ==
+    SQL. **Anomaly engine** `app.enqueue_fuel_anomalies` (rolling-baseline leak/theft;
+    thresholds `fuel_anomaly_pct`/`fuel_anomaly_min_history`; retired/sold excluded;
+    quiet hours honoured; owner/manager `fuel_anomaly` notify; dedupe via
+    `anomaly_notified_at`) + `public.cron_enqueue_fuel_anomalies` wired into the
+    nightly cron.
+  - App: **/fuel** section (tanks + reconciliation, delivery + per-machine draw
+    capture, per-machine consumption with trend sparkline, flagged anomalies, recent
+    lists); **QR "log fuel"** quick action finishing the F3 placeholder (token-gated
+    service-role, zero anon-DB, auto-creates a default tank); machine-detail **Fuel &
+    consumption** card + quick draw; **dashboard** fuel card; **reports** fuel section
+    + `fuel.csv`; **settings** anomaly thresholds. Draws write a driver `usage_log`
+    when operator + meter are known (FR-13.1). Cost entered VAT-inclusive → stored
+    ex-VAT cents. Fuel nav item + icon. Demo seed gains a tank, deliveries and draws
+    (one anomaly). i18n EN/AF at parity (**610 keys**). Gates green (typecheck + lint
+    + build + `db:test`); shared first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.
