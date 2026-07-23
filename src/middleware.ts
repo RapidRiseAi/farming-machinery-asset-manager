@@ -9,6 +9,6 @@ export const config = {
   // Run on all routes except static assets. The public QR page (/m/[token]) is
   // handled inside route logic; role-based guards are added in the auth phase.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

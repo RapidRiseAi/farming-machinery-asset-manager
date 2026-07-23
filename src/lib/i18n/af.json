@@ -483,5 +483,16 @@
     "noMachinesTitle": "Nog geen masjiene nie",
     "noMachinesHint": "Voeg jou eerste masjien by om dienste, foute en koste te begin volg.",
     "noMachinesAdd": "Voeg 'n masjien by"
+  },
+  "offline": {
+    "online": "Aanlyn",
+    "offline": "Vanlyn",
+    "syncing": "Sinkroniseer…",
+    "synced": "Gesinkroniseer",
+    "pending": "wag om te sinkroniseer",
+    "savedOffline": "Vanlyn gestoor — sal sinkroniseer sodra jy weer aanlyn is.",
+    "pageTitle": "Jy is vanlyn",
+    "pageBody": "Hierdie bladsy is nog nie vanlyn beskikbaar nie. Lesings, foute en werkkaart-inskrywings wat jy vaslê, word op jou toestel gestoor en sinkroniseer outomaties sodra jy weer verbind.",
+    "retry": "Probeer weer"
   }
 }

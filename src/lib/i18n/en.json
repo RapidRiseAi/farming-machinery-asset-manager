@@ -483,5 +483,16 @@
     "noMachinesTitle": "No machines yet",
     "noMachinesHint": "Add your first machine to start tracking services, faults and costs.",
     "noMachinesAdd": "Add a machine"
+  },
+  "offline": {
+    "online": "Online",
+    "offline": "Offline",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "pending": "waiting to sync",
+    "savedOffline": "Saved offline — will sync when you're back online.",
+    "pageTitle": "You're offline",
+    "pageBody": "This page isn't available offline yet. Readings, faults and job-card entries you capture are saved on your device and sync automatically when you reconnect.",
+    "retry": "Try again"
   }
 }

@@ -7,6 +7,7 @@ import { signOut } from "./actions";
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon } from "@/components/ui/icons";
+import { SyncStatus } from "@/components/offline/sync-status";
 
 /** Two-letter initials from a display name, for the avatar chip. */
 function initials(name: string): string {
@@ -148,14 +149,16 @@ export default async function AppLayout({
             {brandMark}
             <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
           </Link>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            <SyncStatus locale={locale} />
             {bellLink}
             {avatar}
           </div>
         </header>
 
         {/* Desktop slim top bar */}
-        <header className="sticky top-0 z-20 hidden items-center justify-end gap-1 border-b border-sand-200 bg-white/90 px-6 py-2 backdrop-blur lg:flex">
+        <header className="sticky top-0 z-20 hidden items-center justify-end gap-1.5 border-b border-sand-200 bg-white/90 px-6 py-2 backdrop-blur lg:flex">
+          <SyncStatus locale={locale} />
           {bellLink}
           {avatar}
         </header>

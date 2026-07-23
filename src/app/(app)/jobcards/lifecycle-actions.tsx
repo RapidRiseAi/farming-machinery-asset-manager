@@ -5,6 +5,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Modal } from "@/components/ui/dialog";
+import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import { completeJobCard, approveJobCard } from "./actions";
 
 export function LifecycleActions({
@@ -19,10 +20,21 @@ export function LifecycleActions({
   locale: Locale;
 }) {
   const [confirm, setConfirm] = useState<null | "complete" | "approve">(null);
+  const [queued, setQueued] = useState(false);
   const noMeter = meterReading == null;
 
+  // Offline: queue the completion locally (idempotent replay) instead of failing.
+  const onCompleteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    if (isOnline() || !canQueueOffline()) return; // online → native server action
+    e.preventDefault();
+    await queueMutation({ type: "complete_job", scope: "app", fields: fieldsFromForm(e.currentTarget) });
+    setConfirm(null);
+    setQueued(true);
+    window.setTimeout(() => setQueued(false), 3000);
+  };
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Button type="button" variant="primary" onClick={() => setConfirm("complete")}>
         {t("jobcards.markCompleted", locale)}
       </Button>
@@ -30,6 +42,9 @@ export function LifecycleActions({
         <Button type="button" variant="secondary" onClick={() => setConfirm("approve")}>
           {t("jobcards.approveLock", locale)}
         </Button>
+      ) : null}
+      {queued ? (
+        <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
       ) : null}
 
       <Modal
@@ -40,7 +55,7 @@ export function LifecycleActions({
       >
         <p className="text-sm text-sand-600">{t("jobcards.confirmCompleteBody", locale)}</p>
         {noMeter ? <p className="mt-2 text-sm text-status-overdue">{t("jobcards.meterRequired", locale)}</p> : null}
-        <form action={completeJobCard} className="mt-4 flex justify-end gap-2">
+        <form action={completeJobCard} onSubmit={onCompleteSubmit} className="mt-4 flex justify-end gap-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="meter_reading" value={meterReading ?? ""} />
           <Button type="button" variant="ghost" onClick={() => setConfirm(null)}>{t("jobcards.cancel", locale)}</Button>

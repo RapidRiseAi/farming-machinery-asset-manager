@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/service";
 import { t, defaultLocale } from "@/lib/i18n";
 import { FaultCapture } from "@/components/fault-capture";
+import { OfflineForm } from "@/components/offline/offline-form";
 import { submitReading } from "./actions";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
@@ -70,12 +71,12 @@ export default async function PublicMachinePage({
       {machine.meter_type !== "none" ? (
         <section className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
           <h2 className="mb-3 text-lg font-semibold text-sand-900">{t("qr.logReading", locale)} ({machine.meter_type})</h2>
-          <form action={submitReading} className="flex flex-col gap-2">
+          <OfflineForm action={submitReading} type="log_reading" scope="public" locale={locale} className="flex flex-col gap-2">
             <input type="hidden" name="token" value={token} />
             <input name="reading" type="number" inputMode="decimal" step="0.1" required placeholder={t("machine.newReading", locale)} className={input} />
             <input name="name" placeholder={`${t("faults.yourName", locale)} (${t("faults.optional", locale)})`} className={input} />
             <button className="min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">{t("qr.logReading", locale)}</button>
-          </form>
+          </OfflineForm>
         </section>
       ) : null}
 
