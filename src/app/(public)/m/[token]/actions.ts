@@ -38,9 +38,78 @@ export async function submitReading(formData: FormData) {
     .from("machines")
     .update({ current_reading: reading, current_reading_date: today })
     .eq("id", machine.id);
-  void reporter; // captured on faults; readings track by_user only for logged-in users
+  // Record who operated the machine (AARTO driver-usage log, FR-13.1). Anonymous QR
+  // capture has no user id, so the free-text name is the driver record.
+  await svc.from("usage_logs").insert({
+    farm_id: machine.farm_id,
+    machine_id: machine.id,
+    driver_name: reporter,
+    occurred_on: today,
+    meter_reading: reading,
+    source: "qr",
+  });
 
   redirect(`/m/${token}?sent=1`);
+}
+
+/** Anonymous "log service" via QR (FR-9.2) — service role, gated by a valid token.
+ *  Records a completed scheduled-service job card in the machine's history with an
+ *  optional meter reading (which advances the current reading + recalcs the schedule)
+ *  and a driver-usage log. Never touches the DB from the browser (zero anon DB). */
+export async function submitService(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  const readingRaw = String(formData.get("reading") ?? "").trim();
+  const reading = readingRaw === "" ? null : Number(readingRaw);
+  const driver = String(formData.get("name") ?? "").trim() || null;
+  if (!token || (!note && readingRaw === "")) redirect(`/m/${token}?error=1`);
+  if (reading != null && (!Number.isFinite(reading) || reading < 0)) redirect(`/m/${token}?error=1`);
+
+  const { svc, machine } = await machineFromToken(token);
+  if (!machine) redirect(`/m/${token}?error=1`);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Completed service job card — appears on the machine's history timeline.
+  await svc.from("job_cards").insert({
+    farm_id: machine.farm_id,
+    machine_id: machine.id,
+    type: "scheduled_service",
+    status: "completed",
+    date_in: today,
+    date_out: today,
+    reported_problem: "Field service (QR)",
+    work_performed: note || null,
+    meter_reading: reading,
+  });
+
+  if (reading != null) {
+    // A reading advances the current reading + recalcs due status via its trigger.
+    await svc.from("meter_readings").insert({
+      farm_id: machine.farm_id,
+      machine_id: machine.id,
+      reading,
+      reading_date: today,
+      source: "qr",
+    });
+    await svc
+      .from("machines")
+      .update({ current_reading: reading, current_reading_date: today })
+      .eq("id", machine.id);
+  }
+
+  // Driver-usage log for the service visit (FR-13.1).
+  await svc.from("usage_logs").insert({
+    farm_id: machine.farm_id,
+    machine_id: machine.id,
+    driver_name: driver,
+    occurred_on: today,
+    meter_reading: reading,
+    source: "qr",
+    note: note || "Field service (QR)",
+  });
+
+  redirect(`/m/${token}?sent=service`);
 }
 
 /** Anonymous fault report via QR — service role, gated by a valid token. */

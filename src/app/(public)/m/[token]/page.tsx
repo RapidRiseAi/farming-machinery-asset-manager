@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { t, defaultLocale } from "@/lib/i18n";
 import { FaultCapture } from "@/components/fault-capture";
 import { OfflineForm } from "@/components/offline/offline-form";
-import { submitReading } from "./actions";
+import { submitReading, submitService } from "./actions";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
 export const dynamic = "force-dynamic";
@@ -52,8 +52,11 @@ export default async function PublicMachinePage({
         <span className="text-sm font-semibold text-sand-500">{t("app.name", locale)}</span>
       </header>
       <h1 className="text-2xl font-bold text-sand-900">{machine.name}</h1>
+      <p className="-mt-2 text-sm text-sand-500">{t("qr.quickActions", locale)}</p>
 
-      {sp.sent ? (
+      {sp.sent === "service" ? (
+        <p className="rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700">✓ {t("qr.serviceSent", locale)}</p>
+      ) : sp.sent ? (
         <p className="rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700">✓ {t("qr.scanCaption", locale)}</p>
       ) : null}
 
@@ -79,6 +82,32 @@ export default async function PublicMachinePage({
           </OfflineForm>
         </section>
       ) : null}
+
+      {/* Log a service (token-gated, service-role — zero anon DB access) */}
+      <section className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
+        <h2 className="text-lg font-semibold text-sand-900">{t("qr.logService", locale)}</h2>
+        <p className="mb-3 text-sm text-sand-500">{t("qr.logServiceDesc", locale)}</p>
+        <form action={submitService} className="flex flex-col gap-2">
+          <input type="hidden" name="token" value={token} />
+          <textarea name="note" rows={2} required placeholder={t("qr.serviceNote", locale)} className={input} />
+          {machine.meter_type !== "none" ? (
+            <input name="reading" type="number" inputMode="decimal" step="0.1" placeholder={`${t("qr.serviceReading", locale)} (${machine.meter_type})`} className={input} />
+          ) : null}
+          <input name="name" placeholder={`${t("qr.driver", locale)} (${t("faults.optional", locale)})`} className={input} />
+          <button className="min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">{t("qr.logServiceBtn", locale)}</button>
+        </form>
+      </section>
+
+      {/* Log fuel — placeholder (fuel ships in F4). Clearly disabled. */}
+      <section className="rounded-2xl border border-dashed border-sand-300 bg-white p-4 opacity-70">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-sand-400">⛽ {t("qr.logFuel", locale)}</h2>
+          <span className="rounded-full bg-sand-100 px-2.5 py-1 text-xs font-medium text-sand-500">{t("qr.fuelComingSoon", locale)}</span>
+        </div>
+        <button type="button" disabled aria-disabled="true" className="mt-3 min-h-[48px] w-full cursor-not-allowed rounded-lg bg-sand-100 px-4 text-base font-semibold text-sand-400">
+          {t("qr.logFuel", locale)}
+        </button>
+      </section>
 
       <Link href="/login" className="pb-6 text-center text-sm text-sand-500">
         {t("qr.viewFullHistory", locale)}
