@@ -162,4 +162,39 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (one anomaly). i18n EN/AF at parity (**610 keys**). Gates green (typecheck + lint
     + build + `db:test`); shared first-load JS flat at **102 kB**.
 
+- **FleetWise F5 — Plans & entitlement gating framework (migrations `0250–0251`;
+  branch `claude/fleetwise-entitlements`; isolation-tested, `db:test` green;
+  PAYMENTS DEFERRED):**
+  - **Plans**: replace `farm_tier` (starter/standard/large) with `farm_plan`
+    **essential/professional/complete/done_for_you**. Data map applied in `0250`:
+    starter→essential, standard→professional, large→complete (done_for_you = new
+    top plan; default 'essential'). Subscription shape on `farms`: `plan`,
+    `billing_period` (monthly/annual enum), maintained `asset_count` (+ existing
+    `status`). Tenancy/RLS/audit unchanged (farms only reshaped).
+  - **Entitlement map** = single source of truth `src/lib/entitlements.ts`, mirrored
+    by SQL `app.has_entitlement(farm, feature)` (+ `public.has_entitlement` wrapper),
+    `app.plan_rank`/`app.feature_min_rank` (0251, SECURITY DEFINER, revoked from
+    public/anon). Gates per FR-19.2: **dashboard/advanced_reports/fuel/tco =
+    Professional+**, **aarto/voice_ai/multi_site/whatsapp = Complete+**, **api_access
+    = Done-For-You**; unlisted features are ungated core. `has_entitlement` also
+    guards cross-tenant probing (returns false without farm access).
+  - **Server-side enforcement** via `requireEntitlement(feature)` / `checkEntitlement`
+    / `currentPlan` in `lib/auth.ts` (rr_admin + workshop bypass). Gated **at the
+    route/action, not just hidden**: dashboard, reports (+ all report CSV routes →
+    403), fuel page + `addFuel*` actions + the **public QR fuel action** (service-role
+    plan check), and the machine-detail **fuel (Prof+)** + **AARTO (Complete+)** panels.
+    Denied surfaces render a server-side `UpgradeNotice`; nav hides gated items and the
+    logo falls back to `/machines` when dashboard is gated.
+  - **Admin** (`admin/farms` list + `[id]`): 4-plan + billing-period selects, plus
+    **asset count** and **per-vehicle price DISPLAY ONLY** (VAT-INCLUSIVE per founder
+    decision — indicative monthly/annual subtotal shown; **no charging**).
+  - **Billing seam** `src/lib/billing/*`: `BillingAdapter` interface + env-gated
+    (`BILLING_PROVIDER`) **no-op adapter** returning `{deferred:true}` — clean plug-in
+    point for the provider chosen after research. No real provider wired.
+  - Demo seed farm set to **Complete/annual** so every gated surface demos. i18n EN/AF
+    at parity (**628 keys**; `plan.*`, `billingPeriod.*`, `upgrade.*`). `rls_isolation.sql`
+    F5 section proves plan gating, cross-tenant isolation, anon-deny, and the
+    asset-count trigger. Gates green (typecheck + lint + build + `db:test`); shared
+    first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { isPlan, isBillingPeriod } from "@/lib/entitlements";
+import { getBillingAdapter } from "@/lib/billing";
 
 const STATUSES = ["trial", "active", "suspended", "cancelled"];
 
@@ -27,6 +28,17 @@ export async function updateFarm(formData: FormData) {
     .update({ plan, billing_period: billingPeriod, status })
     .eq("id", id);
   if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
+
+  // Payment seam (deferred): reconcile the subscription with the billing provider. The
+  // no-op adapter returns { deferred: true } and moves no money — this is the exact
+  // lifecycle point where a real provider will plug in after research.
+  const { data: after } = await supabase.from("farms").select("asset_count").eq("id", id).maybeSingle();
+  await getBillingAdapter().syncSubscription({
+    farmId: id,
+    plan,
+    billingPeriod,
+    assetCount: (after as { asset_count: number } | null)?.asset_count ?? 0,
+  });
 
   revalidatePath(`/admin/farms/${id}`);
   redirect(`/admin/farms/${id}?saved=1`);

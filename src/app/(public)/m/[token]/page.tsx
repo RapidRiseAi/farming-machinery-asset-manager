@@ -4,6 +4,7 @@ import { t, defaultLocale } from "@/lib/i18n";
 import { FaultCapture } from "@/components/fault-capture";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { FUEL_ACTIVITIES, activityLabel } from "@/lib/fuel";
+import { isPlan, planAllows } from "@/lib/entitlements";
 import { submitReading, submitService, submitFuel } from "./actions";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
@@ -130,6 +131,7 @@ export default async function PublicMachinePage({
           <button className="min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">{t("qr.logFuelBtn", locale)}</button>
         </form>
       </section>
+      ) : null}
 
       <Link href="/login" className="pb-6 text-center text-sm text-sand-500">
         {t("qr.viewFullHistory", locale)}
