@@ -1,4 +1,4 @@
-# FarmGear — Farm Machinery & Vehicle Manager
+# FleetWise — Farm Machinery & Vehicle Manager
 
 Multi-tenant PWA for South African farms to manage machinery: registry, QR codes,
 service scheduling, job cards, faults, costs, dashboards, and WhatsApp alerts.
@@ -34,7 +34,7 @@ The app is a standard Next.js project — Vercel auto-detects it (pnpm via the
 | `NEXT_PUBLIC_SUPABASE_URL` | all | Supabase project API URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | all | Supabase anon/publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | server only | Used by service-role routes (QR submit, admin). **Never** expose to the browser. |
-| `NEXT_PUBLIC_APP_NAME` | all | Optional; defaults to `FarmGear` |
+| `NEXT_PUBLIC_APP_NAME` | all | Optional; defaults to `FleetWise` |
 | `NEXT_PUBLIC_SITE_URL` | all | Public site URL (magic-link redirects) |
 
 The build succeeds without these set (env is read lazily), so a preview deploy is

@@ -24,4 +24,4 @@ export function getServiceRoleKey(): string {
   return key;
 }
 
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FarmGear";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";

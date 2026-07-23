@@ -12,6 +12,7 @@ import { removeLine, toggleServiceLine } from "../actions";
 import { LineEntry } from "../line-entry";
 import { JobCardEditor } from "../job-card-editor";
 import { LifecycleActions } from "../lifecycle-actions";
+import { JobCardMedia } from "@/components/jobcard-media";
 
 type JobCard = {
   id: string; farm_id: string; machine_id: string; type: string; status: string;
@@ -47,16 +48,33 @@ export default async function JobCardDetail({
   const jc = data as JobCard | null;
   if (!jc) notFound();
 
-  const [{ data: machineData }, { data: linesData }, { data: planData }, { data: coverData }] = await Promise.all([
+  const [{ data: machineData }, { data: linesData }, { data: planData }, { data: coverData }, { data: attachData }, { data: invoiceData }] = await Promise.all([
     supabase.from("machines").select("name, meter_type").eq("id", jc.machine_id).maybeSingle(),
     supabase.from("job_card_lines").select("id, kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
     supabase.from("service_plan_lines").select("id, task, status").eq("machine_id", jc.machine_id).is("deleted_at", null),
     supabase.from("job_card_service_lines").select("service_plan_line_id").eq("job_card_id", id),
+    supabase.from("attachments").select("id, kind, storage_path, created_at").eq("parent_type", "job_card").eq("parent_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    supabase.from("cost_entries").select("id, amount_cents, note, occurred_on").eq("source_type", "job_card").eq("source_id", id).eq("type", "invoice").is("deleted_at", null).order("occurred_on", { ascending: false }),
   ]);
   const machine = machineData as { name: string; meter_type: string } | null;
   const lines = (linesData as Line[] | null) ?? [];
   const planLines = (planData as PlanLine[] | null) ?? [];
   const covered = new Set(((coverData as { service_plan_line_id: string }[] | null) ?? []).map((c) => c.service_plan_line_id));
+
+  // Signed URLs for job-card media (private bucket; farm-scoped storage RLS, 0201).
+  const attachRows = (attachData as { id: string; kind: string; storage_path: string | null; created_at: string }[] | null) ?? [];
+  const attachments = await Promise.all(
+    attachRows.map(async (a) => {
+      let url: string | null = null;
+      if (a.storage_path) {
+        const { data: s } = await supabase.storage.from("jobcard-photos").createSignedUrl(a.storage_path, 3600);
+        url = s?.signedUrl ?? null;
+      }
+      return { id: a.id, kind: a.kind, url };
+    }),
+  );
+  const invoices = (invoiceData as { id: string; amount_cents: number; note: string | null; occurred_on: string }[] | null) ?? [];
+  const canMedia = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const canApprove = profile.role === "owner" || profile.role === "manager";
   const locked = jc.locked;
@@ -138,6 +156,51 @@ export default async function JobCardDetail({
         {!locked ? (
           <div className="mt-3">
             <LineEntry jobCardId={jc.id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} />
+          </div>
+        ) : null}
+      </Card>
+
+      {/* Media & invoices (quotes / invoices / photos; an invoice amount raises TCO) */}
+      <Card>
+        <CardHeader><CardTitle>{t("jobcards.mediaTitle", locale)}</CardTitle></CardHeader>
+        {invoices.length > 0 ? (
+          <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
+            {invoices.map((iv) => (
+              <li key={iv.id} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="min-w-0 truncate text-sand-700">
+                  <Badge tone="ok" className="mr-2">{t("jobcards.kind_invoice", locale)}</Badge>
+                  {iv.note ?? t("jobcards.invoiceRecorded", locale)}
+                  <span className="ml-2 text-sand-400">{iv.occurred_on}</span>
+                </span>
+                <span className="shrink-0 font-medium tabular-nums">{rands(iv.amount_cents)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {attachments.length > 0 ? (
+          <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {attachments.map((a) =>
+              a.url ? (
+                a.kind === "photo" ? (
+                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="focus-ring block rounded-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={t("jobcards.attachment", locale)} className="aspect-square w-full rounded-lg object-cover" />
+                  </a>
+                ) : (
+                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="focus-ring flex aspect-square items-center justify-center rounded-lg border border-sand-200 bg-sand-50 p-2 text-center text-xs font-medium text-brand-700">
+                    {t(`jobcards.kind_${a.kind === "invoice" ? "invoice" : "quote"}`, locale)} ↓
+                  </a>
+                )
+              ) : null,
+            )}
+          </div>
+        ) : null}
+        {invoices.length === 0 && attachments.length === 0 ? (
+          <p className="mb-3 text-sm text-sand-400">{t("jobcards.noMedia", locale)}</p>
+        ) : null}
+        {canMedia ? (
+          <div className="border-t border-sand-100 pt-3">
+            <JobCardMedia jobCardId={jc.id} locale={locale} />
           </div>
         ) : null}
       </Card>

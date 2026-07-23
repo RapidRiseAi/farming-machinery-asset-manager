@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "FarmGear",
+    "name": "FleetWise",
     "tagline": "Every machine on your farm — costs, services, faults, in one place."
   },
   "common": {
@@ -49,7 +49,7 @@
   },
   "onboarding": {
     "title": "Get your farm set up",
-    "subtitle": "A few quick steps to get the most out of FarmGear.",
+    "subtitle": "A few quick steps to get the most out of FleetWise.",
     "progress": "{done} of {total} done",
     "allDone": "You're all set up — nice work!",
     "done": "Done",
@@ -115,6 +115,7 @@
       "identity": "Identity",
       "meter": "Meter",
       "purchase": "Purchase & warranty",
+      "finance": "Finance",
       "notes": "Notes"
     },
     "err": {
@@ -133,7 +134,12 @@
     "supplier": "Supplier",
     "warrantyDate": "Warranty expiry (date)",
     "warrantyHours": "Warranty expiry (hours)",
-    "location": "Location / camp"
+    "location": "Location / camp",
+    "financeProvider": "Finance provider",
+    "financeTotal": "Amount financed (R, ex-VAT)",
+    "financeMonthly": "Monthly instalment (R, ex-VAT)",
+    "financeTerm": "Term (months)",
+    "financeInterest": "Interest rate (bps)"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -155,6 +161,15 @@
     "hours": "Hours",
     "km": "Kilometres",
     "none": "None (calendar only)"
+  },
+  "costType": {
+    "purchase": "Purchase",
+    "finance": "Finance",
+    "fuel": "Fuel",
+    "parts": "Parts",
+    "labour": "Labour",
+    "invoice": "Invoice",
+    "other": "Other"
   },
   "qr": {
     "reportProblem": "Report a problem",
@@ -196,6 +211,10 @@
     "totalSpend": "Total spend (ex-VAT)",
     "jobCardCount": "Job cards",
     "costPerHour": "Cost per hour",
+    "costPerKm": "Cost per km",
+    "tco": "Total cost of ownership",
+    "maintenanceSpend": "Maintenance spend",
+    "finance": "Finance",
     "openFaults": "Open faults",
     "watchItems": "Watch items",
     "done": "Done",
@@ -348,6 +367,12 @@
     "other": "Other",
     "total": "Total",
     "perHour": "R / hour",
+    "perKm": "R / km",
+    "spend": "Spend",
+    "tco": "TCO",
+    "site": "Site / group",
+    "allGroups": "All sites",
+    "breaksMostOften": "Breaks most often",
     "noCosts": "No job-card costs in this period.",
     "spendByType": "Spend by job type",
     "serviceCompliance": "Service compliance",
@@ -463,7 +488,21 @@
     "draftFound": "You have an unsaved draft for this card.",
     "restore": "Restore draft",
     "discard": "Discard",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "mediaTitle": "Media & invoices",
+    "mediaError": "Upload failed — please try again.",
+    "kind_photo": "Photo",
+    "kind_quote": "Quote",
+    "kind_invoice": "Invoice",
+    "invoiceAmount": "Invoice amount",
+    "invoiceNote": "Note (supplier, ref…)",
+    "file": "File",
+    "recordInvoice": "Record invoice",
+    "uploadFile": "Upload file",
+    "uploading": "Uploading…",
+    "invoiceRecorded": "Invoice recorded",
+    "noMedia": "No quotes, invoices or photos yet.",
+    "attachment": "Attachment"
   },
   "dashboard": {
     "kpiOverdue": "Overdue service",

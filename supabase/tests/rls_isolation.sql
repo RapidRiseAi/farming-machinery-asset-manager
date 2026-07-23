@@ -664,4 +664,14 @@ do $$ declare v bigint; begin
   if v <> 1 then raise exception 'COST SYNC FAIL: Farm B cost entry not preserved for audit (% soft-deleted)', v; end if;
 end $$;
 
+-- (g) setting a machine's purchase price seeds a `purchase` cost entry via the trigger.
+update machines set purchase_price_cents = 120000000, purchase_date = current_date
+  where id = 'bb222222-2222-2222-2222-222222222222';
+do $$ declare v bigint; ty text; begin
+  select amount_cents, type::text into v, ty from cost_entries
+    where source_type = 'machine' and source_id = 'bb222222-2222-2222-2222-222222222222' and deleted_at is null;
+  if v is distinct from 120000000 or ty <> 'purchase'
+    then raise exception 'PURCHASE FAIL: machine purchase cost entry = (amount %, type %)', v, ty; end if;
+end $$;
+
 select 'ALL 0210/0211 COST-ENTRIES & TCO TESTS PASSED' as result;

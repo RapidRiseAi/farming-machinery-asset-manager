@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FarmGear";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
 
 export const metadata: Metadata = {
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
