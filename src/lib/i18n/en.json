@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "FarmGear",
+    "name": "FleetWise",
     "tagline": "Every machine on your farm — costs, services, faults, in one place."
   },
   "common": {
@@ -115,7 +115,8 @@
       "identity": "Identity",
       "meter": "Meter",
       "purchase": "Purchase & warranty",
-      "notes": "Notes"
+      "notes": "Notes",
+      "operator": "Operator"
     },
     "err": {
       "name_required": "Name is required",
@@ -133,7 +134,9 @@
     "supplier": "Supplier",
     "warrantyDate": "Warranty expiry (date)",
     "warrantyHours": "Warranty expiry (hours)",
-    "location": "Location / camp"
+    "location": "Location / camp",
+    "assignedOperator": "Assigned operator",
+    "noOperator": "— None —"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -149,7 +152,8 @@
     "in_workshop": "In workshop",
     "standby": "Standby",
     "retired": "Retired",
-    "sold": "Sold"
+    "sold": "Sold",
+    "out_of_service": "Out of service"
   },
   "meterType": {
     "hours": "Hours",
@@ -161,7 +165,17 @@
     "logReading": "Log reading",
     "viewFullHistory": "Log in for full history",
     "scanCaption": "Scan to report a fault or log a reading",
-    "print": "Print QR sheet"
+    "print": "Print QR sheet",
+    "quickActions": "What would you like to do?",
+    "logService": "Log a service",
+    "logServiceDesc": "Record maintenance done in the field",
+    "serviceNote": "What was done?",
+    "serviceReading": "Meter reading (optional)",
+    "logServiceBtn": "Log service",
+    "serviceSent": "Service logged — thank you.",
+    "logFuel": "Log fuel",
+    "fuelComingSoon": "Coming soon",
+    "driver": "Driver / operator"
   },
   "machine": {
     "edit": "Edit",
@@ -212,7 +226,19 @@
     "evFault": "Fault",
     "evReading": "Reading",
     "evWatch": "Watch item",
-    "evEarlier": "…and {n} earlier readings"
+    "evEarlier": "…and {n} earlier readings",
+    "outOfServiceTitle": "Out of service",
+    "outOfServiceHint": "This machine was marked down by a stopped fault. Return it to service when it is fixed.",
+    "returnToService": "Return to service",
+    "driver": "Driver / operator",
+    "whoOperated": "Who operated / when",
+    "noUsage": "No usage logged yet.",
+    "unknownDriver": "Unknown driver",
+    "driverOnDate": "Driver on a date",
+    "check": "Check",
+    "operatedBy": "Operated by",
+    "noDriverOn": "No usage recorded on this date.",
+    "usageMeter": "Meter"
   },
   "admin": {
     "farms": "Farms",
@@ -270,7 +296,9 @@
     "open": "Open",
     "in_job": "In job",
     "scheduled": "Scheduled",
-    "resolved": "Resolved"
+    "resolved": "Resolved",
+    "acknowledged": "Acknowledged",
+    "in_progress": "In progress"
   },
   "watchStatus": {
     "open": "Open",
@@ -401,7 +429,18 @@
       "hydraulic": "Hydraulic",
       "electrical": "Electrical",
       "other": "Other"
-    }
+    },
+    "assignTo": "Assign to",
+    "assignedTo": "Assigned to",
+    "unassigned": "Unassigned",
+    "assign": "Assign",
+    "acknowledge": "Acknowledge",
+    "startWork": "Start work",
+    "location": "Location",
+    "viewLocation": "View on map",
+    "addLocation": "Add location",
+    "locationAdded": "Location captured",
+    "locationDenied": "Location not available"
   },
   "jobcards": {
     "title": "Job cards",
@@ -483,5 +522,12 @@
     "noMachinesTitle": "No machines yet",
     "noMachinesHint": "Add your first machine to start tracking services, faults and costs.",
     "noMachinesAdd": "Add a machine"
+  },
+  "meterSource": {
+    "app": "In-app",
+    "qr": "QR",
+    "job": "Job card",
+    "manual": "Manual",
+    "whatsapp": "WhatsApp"
   }
 }

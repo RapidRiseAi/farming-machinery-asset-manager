@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
@@ -36,6 +37,25 @@ function priceToCents(fd: FormData, k: string): number | null {
   return Number.isFinite(cents) ? cents : null;
 }
 
+/** Validate that a chosen assigned-operator id is an active user of this farm.
+ *  Returns the id when valid, or null (unassigns) — never lets a cross-farm id through. */
+async function validOperatorId(
+  supabase: SupabaseClient,
+  farmId: string,
+  raw: string | null,
+): Promise<string | null> {
+  if (!raw) return null;
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", raw)
+    .eq("farm_id", farmId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return data ? raw : null;
+}
+
 /** Extra optional machine fields shared by create + update. */
 function extraFields(fd: FormData) {
   return {
@@ -63,6 +83,7 @@ export async function createMachine(formData: FormData) {
   const current_reading = numOrNull(formData, "current_reading");
 
   const supabase = await createClient();
+  const assigned_operator_id = await validOperatorId(supabase, profile.farm_id, str(formData, "assigned_operator_id"));
   const { data, error } = await supabase
     .from("machines")
     .insert({
@@ -78,6 +99,7 @@ export async function createMachine(formData: FormData) {
       current_reading,
       current_reading_date: current_reading != null ? new Date().toISOString().slice(0, 10) : null,
       status: "active",
+      assigned_operator_id,
       ...extraFields(formData),
     })
     .select("id")
@@ -105,8 +127,10 @@ export async function updateMachine(formData: FormData) {
   const meter_type = inList(METER_TYPES, meterInput) ? meterInput : "hours";
 
   const supabase = await createClient();
-  // RLS scopes this to the caller's farm; profile is used only to gate the role.
-  void profile;
+  // RLS scopes this to the caller's farm; profile.farm_id gates the operator select.
+  const assigned_operator_id = profile.farm_id
+    ? await validOperatorId(supabase, profile.farm_id, str(formData, "assigned_operator_id"))
+    : null;
   const { error } = await supabase
     .from("machines")
     .update({
@@ -119,12 +143,30 @@ export async function updateMachine(formData: FormData) {
       reg_no: str(formData, "reg_no"),
       meter_type,
       status,
+      assigned_operator_id,
       ...extraFields(formData),
     })
     .eq("id", id);
 
   if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
 
+  revalidatePath(`/machines/${id}`);
+  redirect(`/machines/${id}?saved=1`);
+}
+
+/** Return an out-of-service machine to `active` (FR-7.5 revert). Owner/manager only;
+ *  RLS scopes the update to the caller's farm. Retired/sold are left untouched. */
+export async function returnMachineToService(formData: FormData) {
+  await requireRole(["owner", "manager"]);
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/machines?error=Missing+id");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("machines")
+    .update({ status: "active" })
+    .eq("id", id)
+    .eq("status", "out_of_service");
+  if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/machines/${id}`);
   redirect(`/machines/${id}?saved=1`);
 }

@@ -121,6 +121,11 @@ insert into fuel_issues (farm_id, tank_id, machine_id, litres) values
   ('11111111-1111-1111-1111-111111111111', 'af111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 50),
   ('22222222-2222-2222-2222-222222222222', 'bf222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 50);
 
+-- usage_logs (0233): one driver-usage record per farm (AARTO driver-usage log).
+insert into usage_logs (farm_id, machine_id, driver_user_id, occurred_on, meter_reading, source) values
+  ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', current_date, 100, 'app'),
+  ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222', current_date, 200, 'app');
+
 -- ─────────────────────────────────────────────────────────────────
 -- Structural: job-card totals computed by trigger (1 × 15000c = 15000c)
 -- ─────────────────────────────────────────────────────────────────
@@ -150,6 +155,7 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'ownerA');
   perform _t_assert('fuel_deliveries',    1, 'ownerA');
   perform _t_assert('fuel_issues',        1, 'ownerA');
+  perform _t_assert('usage_logs',         1, 'ownerA');
   perform _t_assert('users',              1, 'ownerA');  -- self only
   perform _t_assert('workshops',          1, 'ownerA');  -- W linked to Farm A
   perform _t_assert('workshop_links',     1, 'ownerA');
@@ -184,6 +190,7 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'ownerB');
   perform _t_assert('fuel_deliveries',    1, 'ownerB');
   perform _t_assert('fuel_issues',        1, 'ownerB');
+  perform _t_assert('usage_logs',         1, 'ownerB');
   perform _t_assert('users',              1, 'ownerB');
   perform _t_assert('workshops',          0, 'ownerB');  -- W not linked to Farm B
   perform _t_assert('workshop_links',     0, 'ownerB');
@@ -211,6 +218,7 @@ do $$ begin
   perform _t_assert('fuel_tanks',         1, 'workshopW');
   perform _t_assert('fuel_deliveries',    1, 'workshopW');
   perform _t_assert('fuel_issues',        1, 'workshopW');
+  perform _t_assert('usage_logs',         1, 'workshopW');
   perform _t_assert('users',              2, 'workshopW');  -- self + Owner A (linked farm)
   perform _t_assert('workshops',          1, 'workshopW');  -- self
   perform _t_assert('workshop_links',     1, 'workshopW');
@@ -238,6 +246,7 @@ do $$ begin
   perform _t_assert('fuel_tanks',         2, 'rrAdmin');
   perform _t_assert('fuel_deliveries',    2, 'rrAdmin');
   perform _t_assert('fuel_issues',        2, 'rrAdmin');
+  perform _t_assert('usage_logs',         2, 'rrAdmin');
   perform _t_assert('users',              4, 'rrAdmin');
   perform _t_assert('workshops',          1, 'rrAdmin');
   perform _t_assert('workshop_links',     1, 'rrAdmin');
@@ -256,7 +265,7 @@ begin
     'farms','workshops','users','workshop_links','machines','meter_readings',
     'service_templates','service_plan_lines','faults','job_cards','job_card_lines',
     'watch_items','attachments','notifications','fuel_tanks','fuel_deliveries',
-    'fuel_issues','job_card_service_lines','audit_log'
+    'fuel_issues','job_card_service_lines','usage_logs','audit_log'
   ] loop
     begin
       execute format('select count(*) from public.%I', t) into c;
@@ -581,3 +590,80 @@ end $$;
 reset role;
 
 select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F3: FIELD CAPTURE & ACCOUNTABILITY (0230–0236, appended) ═════
+-- Proves: (a) usage_logs cross-tenant WRITE denial; (b) a `stopped` fault flips the
+-- machine to out_of_service (active-but-down), while retired/sold are never flipped;
+-- (c) the extended fault lifecycle (acknowledged / in_progress) + assignee persist;
+-- (d) the "driver on date D" usage query is farm-scoped. Nothing above is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- Fresh Farm A machine for the out-of-service + usage tests (avoids disturbing counts).
+insert into machines (id, farm_id, name, type, status) values
+  ('aa333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'F3 Machine', 'tractor', 'active');
+
+-- (a) Owner A cannot write a usage_log into Farm B.
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into usage_logs (farm_id, machine_id, driver_user_id, meter_reading, source)
+      values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222',
+              'a1111111-1111-1111-1111-111111111111', 5, 'app');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'ISOLATION FAIL [ownerA]: wrote a usage_log into Farm B'; end if;
+end $$;
+reset role;
+
+-- (b) a `stopped` fault flips the machine to out_of_service (trigger, any path).
+insert into faults (id, farm_id, machine_id, description, urgency, status) values
+  ('a5333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111',
+   'aa333333-3333-3333-3333-333333333333', 'Engine seized', 'stopped', 'open');
+do $$ declare s text; begin
+  select status::text into s from machines where id = 'aa333333-3333-3333-3333-333333333333';
+  if s <> 'out_of_service' then raise exception 'OOS FAIL: stopped fault did not flip machine (status=%)', s; end if;
+end $$;
+
+-- (b) retired machines are NEVER flipped by a stopped fault.
+insert into faults (farm_id, machine_id, description, urgency, status) values
+  ('11111111-1111-1111-1111-111111111111', 'aa999999-9999-9999-9999-999999999999', 'Dead', 'stopped', 'open');
+do $$ declare s text; begin
+  select status::text into s from machines where id = 'aa999999-9999-9999-9999-999999999999';
+  if s <> 'retired' then raise exception 'OOS FAIL: a retired machine was flipped (status=%)', s; end if;
+end $$;
+
+-- (c) fault lifecycle: acknowledged → in_progress + assignee persist.
+update faults set status = 'acknowledged', assigned_to = 'a1111111-1111-1111-1111-1111111111aa'
+  where id = 'a5333333-3333-3333-3333-333333333333';
+update faults set status = 'in_progress'
+  where id = 'a5333333-3333-3333-3333-333333333333';
+do $$ declare s text; a uuid; begin
+  select status::text, assigned_to into s, a from faults where id = 'a5333333-3333-3333-3333-333333333333';
+  if s <> 'in_progress' then raise exception 'LIFECYCLE FAIL: status=% (expected in_progress)', s; end if;
+  if a is distinct from 'a1111111-1111-1111-1111-1111111111aa' then raise exception 'LIFECYCLE FAIL: assignee not persisted'; end if;
+end $$;
+
+-- (d) "driver on date D": a farm-scoped usage query returns the right driver, and
+-- never leaks across tenants.
+insert into usage_logs (farm_id, machine_id, driver_user_id, driver_name, occurred_on, meter_reading, source) values
+  ('11111111-1111-1111-1111-111111111111', 'aa333333-3333-3333-3333-333333333333',
+   'a1111111-1111-1111-1111-1111111111aa', 'Manager A', date '2026-05-01', 1234, 'app');
+set role authenticated;
+do $$ declare c bigint; d uuid; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  select count(*) into c from usage_logs
+    where machine_id = 'aa333333-3333-3333-3333-333333333333' and occurred_on = date '2026-05-01' and deleted_at is null;
+  if c <> 1 then raise exception 'USAGE FAIL: driver-on-date returned % rows (expected 1)', c; end if;
+  select driver_user_id into d from usage_logs
+    where machine_id = 'aa333333-3333-3333-3333-333333333333' and occurred_on = date '2026-05-01' and deleted_at is null
+    limit 1;
+  if d is distinct from 'a1111111-1111-1111-1111-1111111111aa' then raise exception 'USAGE FAIL: wrong driver on date'; end if;
+  -- Owner B sees none of Farm A's usage logs.
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  select count(*) into c from usage_logs where machine_id = 'aa333333-3333-3333-3333-333333333333';
+  if c <> 0 then raise exception 'USAGE FAIL: Owner B leaked % Farm A usage logs', c; end if;
+end $$;
+reset role;
+
+select 'ALL F3 FIELD-CAPTURE TESTS PASSED' as result;

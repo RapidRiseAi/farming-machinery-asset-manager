@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "FarmGear",
+    "name": "FleetWise",
     "tagline": "Elke masjien op jou plaas — koste, dienste, foute, op een plek."
   },
   "common": {
@@ -115,7 +115,8 @@
       "identity": "Identiteit",
       "meter": "Meter",
       "purchase": "Aankoop & waarborg",
-      "notes": "Notas"
+      "notes": "Notas",
+      "operator": "Operateur"
     },
     "err": {
       "name_required": "Naam is vereis",
@@ -133,7 +134,9 @@
     "supplier": "Verskaffer",
     "warrantyDate": "Waarborg verval (datum)",
     "warrantyHours": "Waarborg verval (ure)",
-    "location": "Ligging / kamp"
+    "location": "Ligging / kamp",
+    "assignedOperator": "Toegewese operateur",
+    "noOperator": "— Geen —"
   },
   "machineType": {
     "tractor": "Trekker",
@@ -149,7 +152,8 @@
     "in_workshop": "In werkswinkel",
     "standby": "Bystand",
     "retired": "Afgetree",
-    "sold": "Verkoop"
+    "sold": "Verkoop",
+    "out_of_service": "Buite diens"
   },
   "meterType": {
     "hours": "Ure",
@@ -161,7 +165,17 @@
     "logReading": "Teken lesing aan",
     "viewFullHistory": "Teken in vir volledige geskiedenis",
     "scanCaption": "Skandeer om 'n fout te rapporteer of 'n lesing aan te teken",
-    "print": "Druk QR-blad"
+    "print": "Druk QR-blad",
+    "quickActions": "Wat wil jy doen?",
+    "logService": "Teken 'n diens aan",
+    "logServiceDesc": "Teken instandhouding aan wat in die veld gedoen is",
+    "serviceNote": "Wat is gedoen?",
+    "serviceReading": "Meterlesing (opsioneel)",
+    "logServiceBtn": "Teken diens aan",
+    "serviceSent": "Diens aangeteken — dankie.",
+    "logFuel": "Teken brandstof aan",
+    "fuelComingSoon": "Binnekort",
+    "driver": "Bestuurder / operateur"
   },
   "machine": {
     "edit": "Wysig",
@@ -212,7 +226,19 @@
     "evFault": "Fout",
     "evReading": "Lesing",
     "evWatch": "Waaklys",
-    "evEarlier": "…en {n} vroeëre lesings"
+    "evEarlier": "…en {n} vroeëre lesings",
+    "outOfServiceTitle": "Buite diens",
+    "outOfServiceHint": "Hierdie masjien is deur 'n gestopte fout afgemerk. Sit dit terug in diens wanneer dit reg is.",
+    "returnToService": "Sit terug in diens",
+    "driver": "Bestuurder / operateur",
+    "whoOperated": "Wie het bestuur / wanneer",
+    "noUsage": "Nog geen gebruik aangeteken nie.",
+    "unknownDriver": "Onbekende bestuurder",
+    "driverOnDate": "Bestuurder op 'n datum",
+    "check": "Gaan na",
+    "operatedBy": "Bestuur deur",
+    "noDriverOn": "Geen gebruik op hierdie datum aangeteken nie.",
+    "usageMeter": "Meter"
   },
   "admin": {
     "farms": "Plase",
@@ -270,7 +296,9 @@
     "open": "Oop",
     "in_job": "In werkkaart",
     "scheduled": "Geskeduleer",
-    "resolved": "Opgelos"
+    "resolved": "Opgelos",
+    "acknowledged": "Erken",
+    "in_progress": "Aan die gang"
   },
   "watchStatus": {
     "open": "Oop",
@@ -401,7 +429,18 @@
       "hydraulic": "Hidroulies",
       "electrical": "Elektries",
       "other": "Ander"
-    }
+    },
+    "assignTo": "Ken toe aan",
+    "assignedTo": "Toegeken aan",
+    "unassigned": "Nie toegeken nie",
+    "assign": "Ken toe",
+    "acknowledge": "Erken",
+    "startWork": "Begin werk",
+    "location": "Ligging",
+    "viewLocation": "Sien op kaart",
+    "addLocation": "Voeg ligging by",
+    "locationAdded": "Ligging vasgelê",
+    "locationDenied": "Ligging nie beskikbaar nie"
   },
   "jobcards": {
     "title": "Werkkaarte",
@@ -483,5 +522,12 @@
     "noMachinesTitle": "Nog geen masjiene nie",
     "noMachinesHint": "Voeg jou eerste masjien by om dienste, foute en koste te begin volg.",
     "noMachinesAdd": "Voeg 'n masjien by"
+  },
+  "meterSource": {
+    "app": "In-toep",
+    "qr": "QR",
+    "job": "Werkkaart",
+    "manual": "Handmatig",
+    "whatsapp": "WhatsApp"
   }
 }

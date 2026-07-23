@@ -6,6 +6,16 @@ export const dynamic = "force-dynamic";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
 
+/** Parse an optional lat/lng pair from the form; returns {} unless both are valid. */
+function geoFields(form: FormData): { lat?: number; lng?: number } {
+  const lat = Number(form.get("lat"));
+  const lng = Number(form.get("lng"));
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    return { lat, lng };
+  }
+  return {};
+}
+
 /**
  * Anonymous fault report from the public QR page (Scope §4.5). The per-machine
  * token is the ONLY credential — this route runs as the service role and does all
@@ -39,7 +49,7 @@ export async function POST(request: Request) {
 
   const { data: fault, error } = await svc
     .from("faults")
-    .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reporter_name: reporter, status: "open" })
+    .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reporter_name: reporter, status: "open", ...geoFields(form) })
     .select("id")
     .single();
   if (error || !fault) return NextResponse.json({ error: "insert_failed" }, { status: 500 });

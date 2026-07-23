@@ -53,8 +53,25 @@ export function FaultCapture({
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoDenied, setGeoDenied] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+
+  // Permission-gated geolocation (FR-7.2). Silent fallback: if unsupported or denied
+  // we simply don't attach a location — the fault still submits normally.
+  const captureLocation = () => {
+    setGeoDenied(false);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoDenied(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setGeoDenied(true),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
 
   const startRec = async () => {
     setError(null);
@@ -97,6 +114,10 @@ export function FaultCapture({
       }
       if (photo) fd.set("photo", await compressImage(photo), "photo.jpg");
       if (voice) fd.set("voice", voice, "voice.webm");
+      if (coords) {
+        fd.set("lat", String(coords.lat));
+        fd.set("lng", String(coords.lng));
+      }
       const res = await fetch(endpoint, { method: "POST", body: fd });
       if (!res.ok) throw new Error("failed");
       window.location.href = redirectTo;
@@ -170,6 +191,18 @@ export function FaultCapture({
             <audio controls src={URL.createObjectURL(voice)} className="h-9 max-w-[180px]" />
             <button type="button" onClick={() => setVoice(null)} className="text-sm text-status-overdue">{t("faults.remove", locale)}</button>
           </span>
+        ) : null}
+      </div>
+
+      {/* Location (permission-gated, silent fallback) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={captureLocation} className="focus-ring inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
+          📍 {coords ? t("faults.locationAdded", locale) : t("faults.addLocation", locale)}
+        </button>
+        {coords ? (
+          <span className="text-sm tabular-nums text-sand-500">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>
+        ) : geoDenied ? (
+          <span className="text-sm text-sand-400">{t("faults.locationDenied", locale)}</span>
         ) : null}
       </div>
 

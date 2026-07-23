@@ -20,16 +20,27 @@ type Defaults = {
   supplier?: string | null;
   warranty_expiry_date?: string | null;
   warranty_expiry_hours?: number | null;
+  assigned_operator_id?: string | null;
   location?: string | null;
   notes?: string | null;
 };
+
+export type OperatorOption = { id: string; name: string };
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wider text-sand-400">{children}</h3>;
 }
 
 /** Shared machine input fields for the create + edit forms, on the UI kit. */
-export function MachineFields({ machine, locale = "en" }: { machine?: Defaults; locale?: Locale }) {
+export function MachineFields({
+  machine,
+  operators,
+  locale = "en",
+}: {
+  machine?: Defaults;
+  operators?: OperatorOption[];
+  locale?: Locale;
+}) {
   const m = machine ?? {};
   const price =
     m.purchase_price_cents != null ? (m.purchase_price_cents / 100).toFixed(2) : "";
@@ -118,6 +129,22 @@ export function MachineFields({ machine, locale = "en" }: { machine?: Defaults; 
           </Field>
         </div>
       </div>
+
+      {operators ? (
+        <div className="flex flex-col gap-3">
+          <SectionTitle>{t("machines.sections.operator", locale)}</SectionTitle>
+          <Field label={t("machines.assignedOperator", locale)} htmlFor="assigned_operator_id">
+            <Select id="assigned_operator_id" name="assigned_operator_id" defaultValue={m.assigned_operator_id ?? ""}>
+              <option value="">{t("machines.noOperator", locale)}</option>
+              {operators.map((op) => (
+                <option key={op.id} value={op.id}>
+                  {op.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3">
         <SectionTitle>{t("machines.sections.notes", locale)}</SectionTitle>

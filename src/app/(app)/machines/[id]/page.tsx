@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
-import { MachineFields } from "@/components/machine-fields";
+import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotos } from "@/components/machine-photos";
 import { MeterGraph } from "./meter-graph";
-import { updateMachine } from "../actions";
+import { updateMachine, returnMachineToService } from "../actions";
 import { addReading } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
@@ -38,8 +38,10 @@ type Machine = {
   current_reading: number | null; current_reading_date: string | null; status: string;
   purchase_date: string | null; purchase_price_cents: number | null; supplier: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
+  assigned_operator_id: string | null;
 };
 type Reading = { id: string; reading: number; reading_date: string; source: string };
+type Usage = { id: string; driver_user_id: string | null; driver_name: string | null; occurred_on: string; meter_reading: number | null; source: string };
 type JobCard = { id: string; type: string; status: string; total_cents: number; date_out: string | null; created_at: string };
 type Fault = { id: string; description: string | null; urgency: string | null; status: string; created_at: string };
 type Watch = { id: string; text: string; status: string; created_at: string; source_job_card_id: string | null };
@@ -59,7 +61,7 @@ export default async function MachineDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string }>;
 }) {
   const profile = await requireProfile();
   const { id } = await params;
@@ -72,19 +74,21 @@ export default async function MachineDetailPage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, notes")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, notes, assigned_operator_id")
     .eq("id", id)
     .maybeSingle();
   const machine = data as Machine | null;
   if (!machine) notFound();
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("watch_items").select("id, text, status, created_at, source_job_card_id").eq("machine_id", id).order("created_at", { ascending: false }),
     supabase.from("service_plan_lines").select("id, task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     supabase.from("service_templates").select("id, name, machine_type").is("deleted_at", null).or(`machine_type.eq.${machine.type},machine_type.is.null`),
+    supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
+    supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -93,7 +97,18 @@ export default async function MachineDetailPage({
   const watchAll = (watchRes.data as Watch[] | null) ?? [];
   const planLines = (planRes.data as PlanLine[] | null) ?? [];
   const templates = (tplRes.data as Template[] | null) ?? [];
+  const usage = (usageRes.data as Usage[] | null) ?? [];
+  const operators = (opRes.data as OperatorOption[] | null) ?? [];
+  const operatorName = new Map(operators.map((o) => [o.id, o.name]));
   const openWatch = watchAll.filter((w) => w.status === "open");
+
+  // Driver-on-date lookup (AARTO nomination basis, FR-13.1): usage on a chosen date.
+  const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
+  const usageOnDate = usageDate ? usage.filter((u) => u.occurred_on === usageDate) : [];
+  const driverLabel = (u: Usage) =>
+    (u.driver_user_id ? operatorName.get(u.driver_user_id) : null) ?? u.driver_name ?? t("machine.unknownDriver", locale);
+  const isOutOfService = machine.status === "out_of_service";
+  const assignedOperatorName = machine.assigned_operator_id ? operatorName.get(machine.assigned_operator_id) : null;
 
   // Lifetime stats.
   const totalSpend = jobCards.reduce((a, j) => a + (j.total_cents || 0), 0);
@@ -195,7 +210,7 @@ export default async function MachineDetailPage({
               {machine.year ? ` · ${machine.year}` : ""}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-sand-600">
-              <Badge tone="neutral" className="capitalize">{statusLabel(machine.status, locale)}</Badge>
+              <Badge tone={isOutOfService ? "danger" : "neutral"} className="capitalize">{statusLabel(machine.status, locale)}</Badge>
               <span>
                 {meterLabel(machine.meter_type, locale)}
                 {machine.current_reading != null ? `: ${machine.current_reading}` : ""}
@@ -203,6 +218,11 @@ export default async function MachineDetailPage({
               </span>
               {isStale ? <Badge tone="warning">{t("machines.stale", locale)}</Badge> : null}
             </div>
+            {assignedOperatorName ? (
+              <p className="mt-1.5 text-sm text-sand-600">
+                {t("machines.assignedOperator", locale)}: <span className="font-medium text-sand-800">{assignedOperatorName}</span>
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-col items-end gap-1 text-sm">
             <Link href={`/machines/${machine.id}/qr`} className="focus-ring rounded-md text-brand-700">{t("machine.qrCode", locale)} →</Link>
@@ -210,6 +230,24 @@ export default async function MachineDetailPage({
           </div>
         </div>
       </Card>
+
+      {/* Out-of-service banner (active-but-down) — owner/manager can revert. */}
+      {isOutOfService ? (
+        <Card className="border-status-overdue bg-red-50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-status-overdue">{t("machine.outOfServiceTitle", locale)}</p>
+              <p className="mt-0.5 text-sm text-sand-700">{t("machine.outOfServiceHint", locale)}</p>
+            </div>
+            {canEdit ? (
+              <form action={returnMachineToService}>
+                <input type="hidden" name="id" value={machine.id} />
+                <SubmitButton variant="secondary" size="sm">{t("machine.returnToService", locale)}</SubmitButton>
+              </form>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
 
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
@@ -232,6 +270,16 @@ export default async function MachineDetailPage({
                   <Field label={t("machine.date", locale)} htmlFor="reading_date">
                     <Input id="reading_date" name="reading_date" type="date" />
                   </Field>
+                  {operators.length > 0 ? (
+                    <Field label={t("machine.driver", locale)} htmlFor="driver_user_id">
+                      <Select id="driver_user_id" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
+                        <option value="">{t("machines.noOperator", locale)}</option>
+                        {operators.map((op) => (
+                          <option key={op.id} value={op.id}>{op.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  ) : null}
                   <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
                 </form>
               ) : null}
@@ -372,6 +420,47 @@ export default async function MachineDetailPage({
               </ol>
             )}
           </Card>
+
+          {/* Who operated / when — AARTO driver-usage log (FR-13.1) */}
+          <Card>
+            <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
+
+            {/* Driver-on-date lookup (the AARTO nomination question). */}
+            <form method="get" className="mb-3 flex flex-wrap items-end gap-2">
+              <Field label={t("machine.driverOnDate", locale)} htmlFor="usageDate">
+                <Input id="usageDate" name="usageDate" type="date" defaultValue={usageDate ?? ""} />
+              </Field>
+              <SubmitButton variant="secondary" size="sm">{t("machine.check", locale)}</SubmitButton>
+            </form>
+            {usageDate ? (
+              usageOnDate.length > 0 ? (
+                <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-800">
+                  {t("machine.operatedBy", locale)}:{" "}
+                  <span className="font-medium">{usageOnDate.map(driverLabel).join(", ")}</span>
+                  <span className="text-sand-400"> · {usageDate}</span>
+                </p>
+              ) : (
+                <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-500">{t("machine.noDriverOn", locale)}</p>
+              )
+            ) : null}
+
+            {usage.length === 0 ? (
+              <p className="text-sm text-sand-500">{t("machine.noUsage", locale)}</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                {usage.slice(0, 12).map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-3 py-1.5">
+                    <span className="min-w-0 truncate font-medium text-sand-800">{driverLabel(u)}</span>
+                    <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                      {u.meter_reading != null ? <span className="tabular-nums">{u.meter_reading} {machine.meter_type !== "none" ? machine.meter_type : ""}</span> : null}
+                      <span>{t(`meterSource.${u.source}`, locale)}</span>
+                      <span className="tabular-nums">{u.occurred_on}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
 
         {/* Sidebar */}
@@ -459,7 +548,7 @@ export default async function MachineDetailPage({
                 <summary className="cursor-pointer font-semibold text-sand-900">{t("machine.editMachine", locale)}</summary>
                 <form action={updateMachine} className="mt-3 flex flex-col gap-4">
                   <input type="hidden" name="id" value={machine.id} />
-                  <MachineFields machine={machine} locale={locale} />
+                  <MachineFields machine={machine} operators={operators} locale={locale} />
                   <Field label={t("machines.status", locale)} htmlFor="status">
                     <Select id="status" name="status" defaultValue={machine.status}>
                       {MACHINE_STATUSES.map((s) => (

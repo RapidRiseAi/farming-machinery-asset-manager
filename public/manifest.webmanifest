@@ -1,6 +1,6 @@
 {
-  "name": "FarmGear",
-  "short_name": "FarmGear",
+  "name": "FleetWise",
+  "short_name": "FleetWise",
   "description": "Farm machinery & vehicle manager for South African farms.",
   "start_url": "/",
   "display": "standalone",

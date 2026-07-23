@@ -9,6 +9,16 @@ export const dynamic = "force-dynamic";
 const URGENCIES = ["can_work", "limping", "stopped"];
 const REPORTERS = ["owner", "manager", "mechanic", "operator"];
 
+/** Parse an optional lat/lng pair from the form; returns {} unless both are valid. */
+function geoFields(form: FormData): { lat?: number; lng?: number } {
+  const lat = Number(form.get("lat"));
+  const lng = Number(form.get("lng"));
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    return { lat, lng };
+  }
+  return {};
+}
+
 /**
  * In-app fault report with optional photo + voice note. The fault row is written
  * through the authenticated (RLS-scoped) client; media is uploaded via the service
@@ -42,7 +52,7 @@ export async function POST(request: Request) {
 
   const { data: fault, error } = await supabase
     .from("faults")
-    .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reported_by: profile.id, status: "open" })
+    .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reported_by: profile.id, status: "open", ...geoFields(form) })
     .select("id")
     .single();
   if (error || !fault) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
