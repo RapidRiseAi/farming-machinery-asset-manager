@@ -23,6 +23,8 @@ export async function updateSettings(formData: FormData) {
     cost_visible_to_operators: formData.get("cost_visible_to_operators") === "on",
     quiet_hours_start: intOr(formData, "quiet_hours_start", 20),
     quiet_hours_end: intOr(formData, "quiet_hours_end", 5),
+    fuel_anomaly_pct: intOr(formData, "fuel_anomaly_pct", 50),
+    fuel_anomaly_min_history: intOr(formData, "fuel_anomaly_min_history", 3),
     default_language: String(formData.get("default_language") ?? "af") === "en" ? "en" : "af",
   };
 

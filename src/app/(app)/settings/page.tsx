@@ -87,6 +87,18 @@ export default async function SettingsPage({
         </Card>
 
         <Card>
+          <CardHeader><CardTitle>{t("settings.fuelSection", locale)}</CardTitle></CardHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={t("settings.fuelAnomalyPct", locale)} htmlFor="fuel_anomaly_pct">
+              <Input id="fuel_anomaly_pct" name="fuel_anomaly_pct" type="number" min={1} defaultValue={n("fuel_anomaly_pct", 50)} />
+            </Field>
+            <Field label={t("settings.fuelMinHistory", locale)} htmlFor="fuel_anomaly_min_history">
+              <Input id="fuel_anomaly_min_history" name="fuel_anomaly_min_history" type="number" min={1} defaultValue={n("fuel_anomaly_min_history", 3)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>{t("settings.language", locale)}</CardTitle></CardHeader>
           <Field label={t("settings.language", locale)} htmlFor="default_language">
             <Select id="default_language" name="default_language" defaultValue={(s.default_language as string) ?? "af"}>

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { costPerMeter } from "@/lib/cost";
+import { computeConsumption, type FuelIssueRow } from "@/lib/fuel";
 
 export type ReportFilters = { from: string | null; to: string | null; includeInactive: boolean; group: string | null };
 
@@ -16,6 +17,13 @@ export type ReportData = {
     topParts: { name: string; count: number }[];
     topFaults: { name: string; count: number }[];
     breaksMostOften: { name: string; count: number }[];
+  };
+  fuel: {
+    perMachine: { machineId: string; name: string; meterType: string; litres: number; spend: number; consumption: number | null }[];
+    totalLitres: number;
+    totalSpend: number;
+    purchasedLitres: number;
+    purchasedSpend: number;
   };
   groups: string[];
 };
@@ -41,13 +49,15 @@ const inRange = (d: string | null, f: ReportFilters) =>
  *  parts + labour + invoices + other); cost-per-hour / cost-per-km use lifetime TCO ÷
  *  lifetime meter (fixes D-2), identical to the machine-detail page. */
 export async function getReportData(supabase: SupabaseClient, f: ReportFilters): Promise<ReportData> {
-  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }] = await Promise.all([
+  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }] = await Promise.all([
     supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null),
     supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null),
     supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null),
     supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null),
     supabase.from("service_plan_lines").select("machine_id, task, status").is("deleted_at", null),
     supabase.from("cost_entries").select("machine_id, amount_cents").is("deleted_at", null),
+    supabase.from("fuel_issues").select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null),
+    supabase.from("fuel_deliveries").select("date, litres, price_per_l_cents").is("deleted_at", null),
   ]);
 
   const machines = (mData as Machine[] | null) ?? [];
@@ -123,7 +133,52 @@ export async function getReportData(supabase: SupabaseClient, f: ReportFilters):
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  return { costPerMachine, byType, compliance, problems: { topParts: top(partMap), topFaults: top(faultMap), breaksMostOften }, groups };
+  // 5) Fuel — period litres/spend per machine (draws) + lifetime consumption; plus the
+  //    farm-level purchased totals (deliveries). Farm-level draws (machine_id null) are
+  //    counted in totals but not in the per-machine table.
+  type FI = { id: string; machine_id: string | null; date: string; litres: number | null; meter_reading: number | null; cost_cents: number | null };
+  const fuelIssues = ((fuelData as FI[] | null) ?? []).filter((i) => i.machine_id == null || allowed.has(i.machine_id));
+  const allIssuesByMachine = new Map<string, FuelIssueRow[]>();
+  const periodByMachine = new Map<string, { litres: number; spend: number }>();
+  let totalLitres = 0;
+  let totalSpend = 0;
+  for (const i of fuelIssues) {
+    const inP = inRange(i.date, f);
+    if (inP) { totalLitres += i.litres ?? 0; totalSpend += i.cost_cents ?? 0; }
+    if (i.machine_id == null) continue;
+    const all = allIssuesByMachine.get(i.machine_id) ?? [];
+    all.push({ id: i.id, date: i.date, litres: i.litres, meter_reading: i.meter_reading, cost_cents: i.cost_cents });
+    allIssuesByMachine.set(i.machine_id, all);
+    if (inP) {
+      const p = periodByMachine.get(i.machine_id) ?? { litres: 0, spend: 0 };
+      p.litres += i.litres ?? 0; p.spend += i.cost_cents ?? 0;
+      periodByMachine.set(i.machine_id, p);
+    }
+  }
+  const fuelPerMachine = [...allIssuesByMachine.entries()]
+    .map(([id, rows]) => {
+      const m = mById[id];
+      const p = periodByMachine.get(id) ?? { litres: 0, spend: 0 };
+      const c = computeConsumption(rows, m?.meter_type ?? "none");
+      return { machineId: id, name: m?.name ?? "—", meterType: m?.meter_type ?? "none", litres: p.litres, spend: p.spend, consumption: c.display };
+    })
+    .filter((r) => r.litres > 0 || r.spend > 0)
+    .sort((a, b) => b.spend - a.spend || b.litres - a.litres);
+
+  let purchasedLitres = 0;
+  let purchasedSpend = 0;
+  for (const d of (delData as { date: string; litres: number | null; price_per_l_cents: number | null }[] | null) ?? []) {
+    if (!inRange(d.date, f)) continue;
+    purchasedLitres += d.litres ?? 0;
+    purchasedSpend += Math.round((d.litres ?? 0) * (d.price_per_l_cents ?? 0));
+  }
+
+  return {
+    costPerMachine, byType, compliance,
+    problems: { topParts: top(partMap), topFaults: top(faultMap), breaksMostOften },
+    fuel: { perMachine: fuelPerMachine, totalLitres, totalSpend, purchasedLitres, purchasedSpend },
+    groups,
+  };
 }
 
 /** Serialise a grid to RFC-4180 CSV (quoted fields, CRLF). */

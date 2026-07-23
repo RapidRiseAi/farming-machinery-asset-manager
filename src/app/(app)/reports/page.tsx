@@ -234,6 +234,58 @@ export default async function ReportsPage({
           </div>
         </Card>
       </div>
+
+      {/* Fuel */}
+      <Card flush>
+        <CardHeader
+          className="px-4 pt-4"
+          action={
+            <a href={`/reports/fuel.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+              {t("reports.csv", locale)} ↓
+            </a>
+          }
+        >
+          <CardTitle>{t("reports.fuel", locale)}</CardTitle>
+        </CardHeader>
+        <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
+          <Stat label={t("reports.fuelPurchased", locale)} value={rands(data.fuel.purchasedSpend)} />
+          <Stat label={`${t("reports.fuelPurchased", locale)} (${t("fuel.litresShort", locale)})`} value={data.fuel.purchasedLitres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
+          <Stat label={t("reports.fuelUsed", locale)} value={rands(data.fuel.totalSpend)} />
+          <Stat label={`${t("reports.fuelUsed", locale)} (${t("fuel.litresShort", locale)})`} value={data.fuel.totalLitres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
+        </div>
+        {data.fuel.perMachine.length === 0 ? (
+          <p className="px-4 pb-4 pt-3 text-sm text-sand-500">{t("fuel.noDraws", locale)}</p>
+        ) : (
+          <div className="mt-3">
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>{t("reports.machine", locale)}</Th>
+                  <Th className="text-right">{t("reports.fuelLitres", locale)}</Th>
+                  <Th className="text-right">{t("reports.fuelSpend", locale)}</Th>
+                  <Th className="text-right">{t("reports.fuelConsumption", locale)}</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {data.fuel.perMachine.map((r) => (
+                  <Tr key={r.machineId}>
+                    <Td className="font-medium">
+                      <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{r.name}</Link>
+                    </Td>
+                    <Td className="text-right tabular-nums">{r.litres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</Td>
+                    <Td className="text-right tabular-nums">{rands(r.spend)}</Td>
+                    <Td className="text-right tabular-nums">
+                      {r.consumption != null
+                        ? `${r.consumption.toLocaleString("en-ZA", { maximumFractionDigits: 2 })} ${r.meterType === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)}`
+                        : "—"}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

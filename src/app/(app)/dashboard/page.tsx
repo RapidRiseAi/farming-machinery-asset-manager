@@ -39,12 +39,15 @@ export default async function DashboardPage() {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const staleDate = ymd(new Date(now.getTime() - 30 * 86400000));
 
-  const [machinesRes, splRes, faultsRes, jcRes, openJcRes] = await Promise.all([
+  const flagCut = ymd(new Date(now.getTime() - 45 * 86400000));
+  const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes] = await Promise.all([
     supabase.from("machines").select("id, name, status, meter_type, current_reading_date").is("deleted_at", null),
     supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null),
     supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo)),
     supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"]),
+    supabase.from("fuel_issues").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis)),
+    supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut),
   ]);
 
   const machines = (machinesRes.data as Machine[] | null) ?? [];
@@ -52,6 +55,8 @@ export default async function DashboardPage() {
   const allFaults = (faultsRes.data as Fault[] | null) ?? [];
   const jcs = (jcRes.data as JC[] | null) ?? [];
   const openJcs = (openJcRes.data as OpenJC[] | null) ?? [];
+  const fuelMonth = (fuelMonthRes.data as { machine_id: string | null; litres: number | null; cost_cents: number | null }[] | null) ?? [];
+  const fuelFlags = (fuelFlagRes.data as { machine_id: string | null }[] | null) ?? [];
 
   // Active machines only — retired/sold drop out of every count, list and total (Scope §4.1).
   const active = machines.filter((m) => m.status !== "retired" && m.status !== "sold");
@@ -114,6 +119,12 @@ export default async function DashboardPage() {
     .map(([id, v]) => ({ key: id, label: nameById[id] ?? "—", value: v, href: `/machines/${id}` }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
+
+  // Fuel this month + open anomaly count (active machines / farm-level draws).
+  const fuelSpendMonth = fuelMonth.reduce((a, f) => a + (f.cost_cents ?? 0), 0);
+  const fuelLitresMonth = fuelMonth.reduce((a, f) => a + (f.litres ?? 0), 0);
+  const fuelAnomalyCount = fuelFlags.filter((f) => f.machine_id != null && activeIds.has(f.machine_id)).length;
+  const fuelHasData = fuelMonth.length > 0 || fuelAnomalyCount > 0;
 
   // Spend delta.
   const spendPct = spendLast > 0 ? Math.round(((spendThis - spendLast) / spendLast) * 100) : null;
@@ -193,6 +204,27 @@ export default async function DashboardPage() {
           <HBars data={byMachine} title={t("dashboard.costPerMachine", locale)} emptyLabel={t("dashboard.noSpendYet", locale)} />
         </Card>
       </div>
+
+      {/* Fuel (this month + anomalies) */}
+      {fuelHasData ? (
+        <Card>
+          <CardHeader
+            action={
+              <Link href="/fuel" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+                {t("nav.fuel", locale)}
+                <ChevronRightIcon className="text-[1rem]" />
+              </Link>
+            }
+          >
+            <CardTitle>{t("nav.fuel", locale)}</CardTitle>
+          </CardHeader>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" />
+            <Stat label={t("dashboard.fuelLitres", locale)} value={fuelLitresMonth.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} href="/fuel" />
+            <Stat label={t("dashboard.fuelAnomalies", locale)} value={fuelAnomalyCount} tone={fuelAnomalyCount > 0 ? "overdue" : "default"} href="/fuel" />
+          </div>
+        </Card>
+      ) : null}
 
       {/* Open faults (actionable) */}
       <Card>
