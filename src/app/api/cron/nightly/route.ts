@@ -8,7 +8,8 @@ import { createServiceClient } from "@/lib/supabase/service";
  *   1. cron_recalc_all_due            — recompute calendar/hour dues (calendar drifts nightly)
  *   2. cron_enqueue_service_notifications — due-soon/overdue in-app notifications (deduped)
  *   3. cron_enqueue_stale_meter_nudges    — one "reading outdated" nudge per farm
- *   4. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *   4. cron_enqueue_fuel_anomalies        — fuel leak/theft anomalies (deduped, F4)
+ *   5. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
  * sends this header when a CRON_SECRET env var is set (see docs/CRON.md), so the same
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
   await run("recalc_all_due", "cron_recalc_all_due");
   await run("service_notifications", "cron_enqueue_service_notifications");
   await run("stale_meter_nudges", "cron_enqueue_stale_meter_nudges");
+  await run("fuel_anomalies", "cron_enqueue_fuel_anomalies");
 
   // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {

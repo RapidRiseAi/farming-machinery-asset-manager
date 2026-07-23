@@ -32,6 +32,7 @@ export default async function AppLayout({
   const machines: NavItemData = { href: "/machines", label: t("nav.machines", locale), icon: "machines" };
   const jobcards: NavItemData = { href: "/jobcards", label: t("nav.jobcards", locale), icon: "jobcards" };
   const faults: NavItemData = { href: "/faults", label: t("nav.faults", locale), icon: "faults" };
+  const fuel: NavItemData = { href: "/fuel", label: t("nav.fuel", locale), icon: "fuel" };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -41,6 +42,7 @@ export default async function AppLayout({
   // Mobile: 4 primary tabs + a "More" sheet holding the rest.
   const tabItems: NavItemData[] = [dashboard, machines, jobcards, faults];
   const moreItems: NavItemData[] = [
+    fuel,
     reports,
     alerts,
     ...(isManagerPlus ? [team, settings] : []),
@@ -50,7 +52,7 @@ export default async function AppLayout({
   // Desktop: grouped sidebar sections.
   const groups: { key: string; label: string; items: NavItemData[] }[] = [
     { key: "overview", label: t("nav.groupOverview", locale), items: [dashboard, reports] },
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults] },
+    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, fuel] },
     {
       key: "farm",
       label: t("nav.groupFarm", locale),

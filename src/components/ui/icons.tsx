@@ -182,6 +182,15 @@ export const SignOutIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const FuelIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 21V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v15" />
+    <path d="M3 21h12" />
+    <path d="M7 9h4" />
+    <path d="M14 8l3 2.2a2 2 0 0 1 .8 1.6V17a1.6 1.6 0 0 0 3.2 0v-6l-2.4-2.4" />
+  </Svg>
+);
+
 export const InboxIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 13h4l1.5 3h7L17 13h4" />
@@ -219,6 +228,7 @@ export const iconByName = {
   jobcards: JobCardsIcon,
   faults: FaultsIcon,
   reports: ReportsIcon,
+  fuel: FuelIcon,
   bell: BellIcon,
   team: TeamIcon,
   settings: SettingsIcon,
