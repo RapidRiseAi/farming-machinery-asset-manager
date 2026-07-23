@@ -76,11 +76,15 @@ export function planNameKey(plan: Plan): string {
 }
 
 // ── Pricing (DISPLAY ONLY — no charging; FR-19.1/19.3 non-payment parts) ──────────
-// Per-vehicle-per-month price in integer cents, ex-VAT (ZAR), consistent with the
-// money-in-cents rule. Annual billing applies a two-months-free discount (÷12 → the
-// effective per-month figure shown). done_for_you is a bespoke / managed plan → POA.
+// Per-vehicle-per-month price in integer cents. Founder decision: DISPLAYED PRICES ARE
+// VAT-INCLUSIVE (unlike the money-in-cents-ex-VAT rule that governs stored transaction
+// money — these are marketing/list prices, not booked money, and never charged here).
+// Annual billing applies a two-months-free discount (pay 10 → FR-19.3). done_for_you is
+// a bespoke / managed plan → price on application.
+export const PRICING_VAT_INCLUSIVE = true;
+
 export type PlanPrice = {
-  /** Per-vehicle-per-month, ex-VAT, in cents. null = price on application (bespoke). */
+  /** Per-vehicle-per-month, VAT-inclusive, in cents. null = price on application (bespoke). */
   perVehicleMonthlyCents: number | null;
 };
 
@@ -95,8 +99,8 @@ export const PLAN_PRICING: Record<Plan, PlanPrice> = {
 export const ANNUAL_MONTHS_CHARGED = 10;
 
 /**
- * Effective per-vehicle-per-month price (cents) for a plan + billing period — DISPLAY
- * ONLY. Returns null for a price-on-application (bespoke) plan.
+ * Effective per-vehicle-per-month price (cents, VAT-inclusive) for a plan + billing
+ * period — DISPLAY ONLY. Returns null for a price-on-application (bespoke) plan.
  */
 export function perVehicleMonthlyCents(plan: Plan, period: BillingPeriod): number | null {
   const base = PLAN_PRICING[plan].perVehicleMonthlyCents;
@@ -106,8 +110,8 @@ export function perVehicleMonthlyCents(plan: Plan, period: BillingPeriod): numbe
 }
 
 /**
- * Indicative recurring subtotal (cents, ex-VAT) for `assetCount` vehicles — DISPLAY
- * ONLY. Monthly period → per-month total; annual period → per-YEAR total (list ×
+ * Indicative recurring subtotal (cents, VAT-inclusive) for `assetCount` vehicles —
+ * DISPLAY ONLY. Monthly period → per-month total; annual period → per-YEAR total (list ×
  * ANNUAL_MONTHS_CHARGED). Returns null for a bespoke plan.
  */
 export function subscriptionSubtotalCents(

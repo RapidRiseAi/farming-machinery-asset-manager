@@ -347,6 +347,32 @@
     "tier": "Vlak",
     "status": "Status"
   },
+  "plan": {
+    "essential": "Essensieel",
+    "professional": "Professioneel",
+    "complete": "Volledig",
+    "done_for_you": "Klaar-Vir-Jou"
+  },
+  "billingPeriod": {
+    "monthly": "Maandeliks",
+    "annual": "Jaarliks (2 maande gratis)"
+  },
+  "upgrade": {
+    "title": "Gradeer op om {feature} te ontsluit",
+    "body": "{feature} is beskikbaar op die {plan}-plan en hoër. Jy is op {current}. Vra jou plaas-eienaar of FleetWise om op te gradeer.",
+    "cta": "Gaan na masjiene",
+    "feature": {
+      "dashboard": "die paneelbord",
+      "advanced_reports": "gevorderde verslae",
+      "fuel": "die brandstofmodule",
+      "tco": "totale eienaarskoste",
+      "aarto": "bestuurder- en AARTO-rekords",
+      "voice_ai": "die stemassistent",
+      "multi_site": "veelvuldige plekke",
+      "whatsapp": "WhatsApp-kennisgewings",
+      "api_access": "API-toegang"
+    }
+  },
   "ui": {
     "close": "Maak toe",
     "dismiss": "Wys af",

@@ -347,6 +347,32 @@
     "tier": "Tier",
     "status": "Status"
   },
+  "plan": {
+    "essential": "Essential",
+    "professional": "Professional",
+    "complete": "Complete",
+    "done_for_you": "Done-For-You"
+  },
+  "billingPeriod": {
+    "monthly": "Monthly",
+    "annual": "Annual (2 months free)"
+  },
+  "upgrade": {
+    "title": "Upgrade to unlock {feature}",
+    "body": "{feature} is available on the {plan} plan and above. You're on {current}. Ask your farm owner or FleetWise to upgrade.",
+    "cta": "Go to machines",
+    "feature": {
+      "dashboard": "the dashboard",
+      "advanced_reports": "advanced reports",
+      "fuel": "the fuel module",
+      "tco": "total cost of ownership",
+      "aarto": "driver & AARTO records",
+      "voice_ai": "the voice assistant",
+      "multi_site": "multi-site",
+      "whatsapp": "WhatsApp alerts",
+      "api_access": "API access"
+    }
+  },
   "ui": {
     "close": "Close",
     "dismiss": "Dismiss",

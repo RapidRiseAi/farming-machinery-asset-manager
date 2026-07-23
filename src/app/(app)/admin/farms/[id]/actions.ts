@@ -4,22 +4,28 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { isPlan, isBillingPeriod } from "@/lib/entitlements";
 
-const TIERS = ["starter", "standard", "large"];
 const STATUSES = ["trial", "active", "suspended", "cancelled"];
 
 export async function updateFarm(formData: FormData) {
   await requireRole(["rr_admin"]);
 
   const id = String(formData.get("id") ?? "");
-  const tier = String(formData.get("tier") ?? "");
+  const plan = String(formData.get("plan") ?? "");
+  const billingPeriod = String(formData.get("billing_period") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !TIERS.includes(tier) || !STATUSES.includes(status)) {
+  if (!id || !isPlan(plan) || !isBillingPeriod(billingPeriod) || !STATUSES.includes(status)) {
     redirect(`/admin/farms/${id}?error=Invalid+values`);
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("farms").update({ tier, status }).eq("id", id);
+  // Sets plan/billing_period/status only — asset_count is trigger-maintained (0251),
+  // never client-set. Pricing is display-only; no charge is made (payments deferred).
+  const { error } = await supabase
+    .from("farms")
+    .update({ plan, billing_period: billingPeriod, status })
+    .eq("id", id);
   if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
 
   revalidatePath(`/admin/farms/${id}`);
