@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { meterLabel } from "@/lib/machine-options";
 import {
   FUEL_ACTIVITIES,
@@ -41,8 +42,24 @@ export default async function FuelPage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  const profile = await requireProfile();
+  // Fuel is a Professional+ feature (FR-19.2 mapping). Deny server-side for under-plan
+  // farms — fuel data is never fetched; an upgrade prompt shows instead.
+  const gate = await checkEntitlement("fuel");
+  const profile = gate.profile;
   const locale = profile.language;
+  if (!gate.allowed) {
+    return (
+      <div className="flex flex-col gap-5">
+        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.fuel", locale)}</h1>
+        <UpgradeNotice
+          feature="fuel"
+          requiredPlan={gate.requiredPlan}
+          currentPlan={gate.plan}
+          locale={locale}
+        />
+      </div>
+    );
+  }
   const sp = await searchParams;
   const canManage = profile.role === "owner" || profile.role === "manager";
   const canDraw = ["owner", "manager", "mechanic", "operator"].includes(profile.role);

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 // Import from specific modules (not the barrel) so this Server Component stays
 // free of the kit's client chunk — see src/components/ui/README.md.
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +30,25 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export default async function DashboardPage() {
-  const profile = await requireProfile();
-  const supabase = await createClient();
+  // Dashboard is a Professional+ feature (FR-19.2). Deny server-side for under-plan
+  // farms — the KPI data below is never fetched or rendered; an upgrade prompt shows.
+  const gate = await checkEntitlement("dashboard");
+  const profile = gate.profile;
   const locale = profile.language;
+  if (!gate.allowed) {
+    return (
+      <div className="flex flex-col gap-5">
+        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.dashboard", locale)}</h1>
+        <UpgradeNotice
+          feature="dashboard"
+          requiredPlan={gate.requiredPlan}
+          currentPlan={gate.plan}
+          locale={locale}
+        />
+      </div>
+    );
+  }
+  const supabase = await createClient();
 
   const now = new Date();
   const firstThis = new Date(now.getFullYear(), now.getMonth(), 1);
