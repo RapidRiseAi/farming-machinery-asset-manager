@@ -50,6 +50,7 @@ export default async function AppLayout({
   const fuel: NavItemData = { href: "/fuel", label: t("nav.fuel", locale), icon: "fuel" };
   const parts: NavItemData = { href: "/parts", label: t("nav.parts", locale), icon: "parts" };
   const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
+  const work: NavItemData = { href: "/work", label: t("nav.work", locale), icon: "work" };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -59,6 +60,7 @@ export default async function AppLayout({
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
   const tabItems: NavItemData[] = [...(dashAllowed ? [dashboard] : []), machines, jobcards, faults];
   const moreItems: NavItemData[] = [
+    work,
     ...(fuelAllowed ? [fuel] : []),
     ...(canParts ? [parts] : []),
     ...(canPartners ? [partners] : []),
@@ -75,7 +77,7 @@ export default async function AppLayout({
   ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = [
     ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : [])] },
+    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, work, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : [])] },
     {
       key: "farm",
       label: t("nav.groupFarm", locale),

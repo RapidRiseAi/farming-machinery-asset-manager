@@ -214,6 +214,15 @@ export const PartnersIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Work requests — a clipboard with a check (jobs sent to contractors). */
+export const WorkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="6" y="4" width="12" height="16" rx="2" />
+    <path d="M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9V4Z" />
+    <path d="m9.5 13 1.7 1.7L14.5 11" />
+  </Svg>
+);
+
 export const PhoneIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 5a1 1 0 0 1 1-1h2.3a1 1 0 0 1 1 .76l.7 2.8a1 1 0 0 1-.3 1L7.3 10a12 12 0 0 0 5.7 5.7l1.4-1.4a1 1 0 0 1 1-.3l2.8.7a1 1 0 0 1 .76 1V18a1 1 0 0 1-1 1A15 15 0 0 1 4 6Z" />
@@ -284,6 +293,7 @@ export const iconByName = {
   fuel: FuelIcon,
   parts: PartsIcon,
   partners: PartnersIcon,
+  work: WorkIcon,
   bell: BellIcon,
   team: TeamIcon,
   settings: SettingsIcon,
