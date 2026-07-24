@@ -1464,3 +1464,93 @@ do $$ declare c bigint; amt bigint; begin
 end $$;
 
 select 'ALL F9 SERVICE-KITS & PARTS-CATALOGUE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F12a: CONTRACTOR SPINE & PARTNERS DIRECTORY (0300–0301) ═════
+-- ═════════════════════════════════════════════════════════════════
+-- `partners` tenancy mirrors service_templates/parts_catalogue:
+--   (a) GLOBAL suggested rows (farm_id null, is_suggested true) are visible to ALL
+--       authenticated users; farm-owned rows only via app.has_farm_access — INCLUDING
+--       the linked workshop, which proves the contractor spine still isolates by farm;
+--   (b) cross-tenant writes are rejected;
+--   (c) mutation is restricted to the owning farm's owner/manager (an operator is denied);
+--   (d) anon sees nothing and cannot write;
+--   (e) the (farm_id IS NULL) = is_suggested invariant is enforced by a check constraint.
+
+-- An extra Farm A operator, to prove partner mutation is owner/manager-only.
+insert into auth.users (id, email) values
+  ('a0000000-0000-0000-0000-0000000000a9', 'operatorA@test');
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('a0000000-0000-0000-0000-0000000000a9', '11111111-1111-1111-1111-111111111111', null, 'operator', 'Operator A');
+
+-- Seed: one GLOBAL suggested, one Farm A partner, one Farm B partner (superuser → RLS off).
+insert into partners (id, farm_id, is_suggested, name, kind, created_by) values
+  ('c0000000-0000-0000-0000-000000000001', null,                                     true,  'Global Parts Co', 'parts_supplier', null),
+  ('ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111',   false, 'Farm A Mechanic', 'mechanic',       'a1111111-1111-1111-1111-111111111111'),
+  ('cb000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222',   false, 'Farm B Mechanic', 'mechanic',       'b2222222-2222-2222-2222-222222222222');
+
+-- ── (a) visibility: own-farm + GLOBAL; other farms hidden; workshop link holds ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');       -- Owner A
+  perform _t_assert('partners', 2, 'ownerA');                      -- Farm A + GLOBAL
+  execute $q$ select count(*) from partners where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
+  if c <> 0 then raise exception 'PARTNERS ISOLATION FAIL [ownerA]: sees % Farm B partners', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('partners', 2, 'ownerB');    end $$;  -- Farm B + GLOBAL
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('partners', 2, 'workshopW'); end $$;  -- Farm A + GLOBAL (link holds)
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('partners', 3, 'rrAdmin');   end $$;  -- A + B + GLOBAL
+
+-- ── (b) cross-tenant write denied (Owner A → a Farm B partner) ────
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin insert into partners (farm_id, is_suggested, name) values ('22222222-2222-2222-2222-222222222222', false, 'HACK');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'PARTNERS ISOLATION FAIL [ownerA]: wrote a Farm B partner'; end if;
+end $$;
+
+-- ── (c) role gating: an operator cannot write even its OWN farm's partner ──
+do $$ declare ok boolean := false; begin
+  perform _t_login('a0000000-0000-0000-0000-0000000000a9');       -- Operator A
+  begin insert into partners (farm_id, is_suggested, name) values ('11111111-1111-1111-1111-111111111111', false, 'op-hack');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'PARTNERS ROLE FAIL [operatorA]: operator wrote a partner'; end if;
+end $$;
+reset role;
+
+-- ── (d) anon sees nothing and cannot write ────────────────────────
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin execute 'select count(*) from public.partners' into c;
+  exception when insufficient_privilege then c := 0; end;
+  if c <> 0 then raise exception 'F12a ISOLATION FAIL [anon]: sees % partners', c; end if;
+  begin
+    insert into partners (farm_id, is_suggested, name) values (null, true, 'anon-hack');
+    raise exception 'F12a ISOLATION FAIL [anon]: inserted a partner';
+  exception
+    when insufficient_privilege then null;                        -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (e) scope invariant: (farm_id IS NULL) = is_suggested (check constraint) ──
+do $$ declare ok1 boolean := false; ok2 boolean := false; begin
+  begin insert into partners (farm_id, is_suggested, name) values (null, false, 'bad-global');
+  exception when check_violation then ok1 := true; end;
+  if not ok1 then raise exception 'PARTNERS SCOPE FAIL: farm_id NULL with is_suggested=false accepted'; end if;
+  begin insert into partners (farm_id, is_suggested, name) values ('11111111-1111-1111-1111-111111111111', true, 'bad-farm');
+  exception when check_violation then ok2 := true; end;
+  if not ok2 then raise exception 'PARTNERS SCOPE FAIL: farm-owned row with is_suggested=true accepted'; end if;
+end $$;
+
+-- ── (f) owner CAN add a partner to its own farm (positive path) ───
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  insert into partners (farm_id, is_suggested, name, kind) values ('11111111-1111-1111-1111-111111111111', false, 'Owner-added', 'tyre');
+end $$;
+reset role;
+
+select 'ALL F12a CONTRACTOR-SPINE & PARTNERS TESTS PASSED' as result;

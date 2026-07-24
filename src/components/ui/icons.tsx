@@ -206,6 +206,51 @@ export const InboxIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Partners / contractors — a handshake. */
+export const PartnersIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 13.5 5 10.5a2 2 0 0 1 0-2.8l2-2a2 2 0 0 1 2.6-.2L12 7l2.4-1.7a2 2 0 0 1 2.6.2l2 2a2 2 0 0 1 0 2.8L18 13" />
+    <path d="m8 13.5 2 2a1.5 1.5 0 0 0 2.1 0M10 15.5l1.5 1.5a1.5 1.5 0 0 0 2.1 0M13.6 17l1 1a1.5 1.5 0 0 0 2.1-2.1L18 14.5" />
+  </Svg>
+);
+
+export const PhoneIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 5a1 1 0 0 1 1-1h2.3a1 1 0 0 1 1 .76l.7 2.8a1 1 0 0 1-.3 1L7.3 10a12 12 0 0 0 5.7 5.7l1.4-1.4a1 1 0 0 1 1-.3l2.8.7a1 1 0 0 1 .76 1V18a1 1 0 0 1-1 1A15 15 0 0 1 4 6Z" />
+  </Svg>
+);
+
+/** WhatsApp / chat bubble. */
+export const ChatIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 12a8 8 0 1 1 3.5 6.6L4 20l1.4-3.5A8 8 0 0 1 4 12Z" />
+    <path d="M9 10.5c0 2.5 2 4.5 4.5 4.5" />
+  </Svg>
+);
+
+export const MailIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m4 7 8 5 8-5" />
+  </Svg>
+);
+
+/** A link / connect chain. */
+export const LinkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9.5 14.5 14.5 9.5" />
+    <path d="M8 12.5 6.5 14a3 3 0 0 0 4.2 4.2l1.8-1.7" />
+    <path d="M16 11.5 17.5 10a3 3 0 0 0-4.2-4.2l-1.8 1.7" />
+  </Svg>
+);
+
+export const CopyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+  </Svg>
+);
+
 /** A small spinning loader used by buttons in their pending state. */
 export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
   <svg
@@ -238,6 +283,7 @@ export const iconByName = {
   reports: ReportsIcon,
   fuel: FuelIcon,
   parts: PartsIcon,
+  partners: PartnersIcon,
   bell: BellIcon,
   team: TeamIcon,
   settings: SettingsIcon,

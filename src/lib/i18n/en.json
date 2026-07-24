@@ -34,7 +34,8 @@
     "groupWorkshop": "Workshop",
     "groupFarm": "Farm",
     "groupAdmin": "Admin",
-    "parts": "Parts"
+    "parts": "Parts",
+    "partners": "Partners"
   },
   "auth": {
     "signIn": "Sign in",
@@ -822,5 +823,58 @@
     "scope": "Scope",
     "scopeGlobal": "Global",
     "scopeFarm": "Farm"
+  },
+  "partnerKind": {
+    "mechanic": "Mechanic",
+    "auto_electrician": "Auto electrician",
+    "parts_supplier": "Parts supplier",
+    "panel_beater": "Panel beater",
+    "tyre": "Tyre fitment",
+    "towing": "Towing",
+    "other": "Other"
+  },
+  "contact": {
+    "call": "Call",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "none": "No contact details",
+    "waPrefill": "Hi, I found you on FleetWise and would like to get in touch.",
+    "loginMsg": "Here is your FleetWise login link:",
+    "loginSubject": "Your FleetWise login link"
+  },
+  "partners": {
+    "title": "Partners",
+    "subtitle": "Find, add and connect the contractors and suppliers who service your fleet.",
+    "add": "Add a partner",
+    "addHint": "Add your own mechanic, parts supplier or other contractor to your farm's directory.",
+    "addHintAdmin": "Add a suggested partner to the global, RapidRise-curated catalogue every farm sees.",
+    "name": "Name",
+    "namePlaceholder": "e.g. TJ Service & Repairs",
+    "kind": "Type",
+    "area": "Area",
+    "areaPlaceholder": "Town or region served",
+    "phone": "Phone",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "notes": "Notes",
+    "yours": "Your partners",
+    "yoursEmpty": "You haven't added any partners yet.",
+    "yoursEmptyHint": "Add your contractors and suppliers, or adopt one of the suggested partners below.",
+    "suggested": "Suggested partners",
+    "suggestedEmpty": "No suggested partners available yet.",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "invite": "Invite / connect",
+    "inviteHint": "Create a login for this contractor so they get authenticated, role-based access to your fleet.",
+    "inviteEmail": "Contractor email",
+    "sendLogin": "Send login link",
+    "adopt": "Add to my partners",
+    "connectedFlash": "Contractor connected. Share the login link below.",
+    "loginUrlTitle": "Login link ready",
+    "loginUrlHint": "Send this one-time login link to the contractor so they can sign in to their FleetWise access.",
+    "loginUrlShareWa": "Share on WhatsApp",
+    "loginUrlShareEmail": "Share by email",
+    "copy": "Copy",
+    "copied": "Copied"
   }
 }

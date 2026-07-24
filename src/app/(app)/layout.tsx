@@ -29,6 +29,9 @@ export default async function AppLayout({
   const isAdmin = profile.role === "rr_admin";
   // Parts catalogue & service kits (F9) — maintained by farm crew + RR admin (global lib).
   const canParts = ["owner", "manager", "mechanic", "rr_admin"].includes(profile.role);
+  // Partners directory (F12a) — farmer-facing (browse/add/connect contractors) + RR admin
+  // (curates the global suggested catalogue). Workshop users have their own views (F12c).
+  const canPartners = profile.role !== "workshop";
 
   // Entitlement-aware nav (F5): hide surfaces the farm's plan does not unlock.
   // plan == null → rr_admin/workshop bypass (everything visible).
@@ -46,6 +49,7 @@ export default async function AppLayout({
   const faults: NavItemData = { href: "/faults", label: t("nav.faults", locale), icon: "faults" };
   const fuel: NavItemData = { href: "/fuel", label: t("nav.fuel", locale), icon: "fuel" };
   const parts: NavItemData = { href: "/parts", label: t("nav.parts", locale), icon: "parts" };
+  const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -57,6 +61,7 @@ export default async function AppLayout({
   const moreItems: NavItemData[] = [
     ...(fuelAllowed ? [fuel] : []),
     ...(canParts ? [parts] : []),
+    ...(canPartners ? [partners] : []),
     ...(reportsAllowed ? [reports] : []),
     alerts,
     ...(isManagerPlus ? [team, settings] : []),
@@ -70,7 +75,7 @@ export default async function AppLayout({
   ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = [
     ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : [])] },
+    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : [])] },
     {
       key: "farm",
       label: t("nav.groupFarm", locale),

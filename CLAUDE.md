@@ -263,4 +263,41 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     demo seed gains a catalogue + a 250h kit. i18n EN/AF at parity (**724 leaf keys**). Gates
     green (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
 
+- **FleetWise F12a — Contractor spine & Partners directory (migrations `0300–0301`;
+  branch `claude/fleetwise-contractor-spine`; isolation-tested, `db:test` green):**
+  - **Contractor typing on the existing workshop spine**: `contractor_kind` enum
+    (mechanic/auto_electrician/parts_supplier/panel_beater/tyre/towing/other) + structured
+    contact columns (`phone`/`whatsapp`/`email`/`area`) added to `workshops` (0300; additive,
+    default kind 'other'; existing 0101 RLS + 0008 audit unchanged). A contractor/supplier
+    stays a `workshop`; staff are `workshop`-role users reaching linked farms via
+    `workshop_links` (the one-account→many-farms spine — extended, not replaced).
+  - **`partners`** table (0301): find/add/quick-contact/connect directory. Tenancy mirrors
+    `service_templates`/`parts_catalogue` — GLOBAL suggested rows (`farm_id` null,
+    `is_suggested` true, RR-curated) readable by all authenticated; farm-owned rows via
+    `app.has_farm_access`. **Mutation restricted to the owning farm's owner/manager (or RR
+    admin for globals)** via `app.current_app_role()` in the policies. `(farm_id IS NULL) =
+    is_suggested` check-constraint invariant; nullable `workshop_id` link (set once joined);
+    grants + audit + soft-delete; anon zero-DB.
+  - **Invite / connect flow** (`inviteContractor`, service-role — workshops/users are
+    RR-admin-only under RLS): from a farm-owned partner, owner/manager creates/reuses a
+    `workshop` (carrying the partner's kind + contacts), an **active** `workshop_link` to the
+    farm, a confirmed `workshop`-role user, and a **magic login URL** (`auth.admin.generateLink`)
+    to hand over — deep-links to `/auth/callback?next=/machines`. Idempotent (reuses the linked
+    workshop, re-activates a revoked link, skips existing profiles). No guessable bypass —
+    access remains RLS + `workshop_links`. `sendLoginUrl` re-issues a link for a connected
+    partner; `adoptSuggested` clones a global suggested row into the farm.
+  - **Partners UI** (`/partners`): suggested + your-partners sections, add/edit/remove (owner/
+    manager; RR admin curates globals), connected badges, provider-free **quick-contact**
+    buttons (`src/lib/contact.ts`: SA-aware E.164 → `tel:` / `https://wa.me/<e164>?text=` /
+    `mailto:`), a copy-able login-URL card with WhatsApp/email share (WhatsApp Cloud API stays
+    deferred). Partners nav item + handshake icon (farm roles + RR admin; not workshop).
+  - Demo seed gains a classified TJ workshop + 3 global suggested + 2 farm partners (one
+    connected). i18n EN/AF at parity (**784 leaf keys**; `partners.*`/`partnerKind.*`/`contact.*`
+    /`nav.partners`). `rls_isolation.sql` F12a section proves global-visible-to-all, farm-owned
+    cross-tenant = 0, cross-tenant + operator-role writes denied, anon deny, the scope
+    invariant, and that the linked workshop still sees the farm's partners. Gates green
+    (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
+  - **Not built** (later workstreams): work-request flow (F12b), contractor aggregated/
+    per-kind dashboards + contractor-plan gating (F12c), checklists (F11).
+
 > Update this "current status" block at the end of every session.

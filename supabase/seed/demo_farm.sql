@@ -39,9 +39,10 @@ begin
        'stale_reading_days',30,'approval_required',true,
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
 
-  -- ── External workshop + link ───────────────────────────────────
-  insert into workshops (id, name, contact) values
-    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134');
+  -- ── External workshop + link (classified contractor, F12a) ─────
+  insert into workshops (id, name, contact, kind, phone, whatsapp, email, area) values
+    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic',
+     '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville');
   insert into workshop_links (workshop_id, farm_id, status) values
     (v_workshop, v_farm, 'active');
 
@@ -260,6 +261,16 @@ begin
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'JD-RE504836',   'John Deere oil filter',     1,  32000),
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'JD-RE509672',   'John Deere fuel filter',    1,  41000);
 
-  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
+  -- ── Partners directory (F12a) ──────────────────────────────────
+  -- GLOBAL suggested partners (RR-curated, farm_id null, is_suggested true) that every
+  -- farm sees, plus this farm's own contractors — one already connected to TJ's workshop.
+  insert into partners (farm_id, is_suggested, name, kind, phone, whatsapp, email, area, workshop_id, notes, created_by) values
+    (null,   true,  'AgriParts Wholesale',   'parts_supplier',   '+27514440101', '+27514440101', 'sales@agriparts.example', 'Welkom',     null,        'Bulk filters, oils and belts', null),
+    (null,   true,  'Vrystaat Auto Electric', 'auto_electrician', '+27514440202', '+27514440202', 'info@vsauto.example',     'Bloemfontein', null,      'Alternators, starters, wiring', null),
+    (null,   true,  'Highway Towing 24/7',    'towing',           '+27824440303', '+27824440303', null,                      'N1 corridor', null,       'Heavy recovery, day and night', null),
+    (v_farm, false, 'TJ Service & Repairs',   'mechanic',         '+27825550134', '+27825550134', 'tj@tjrepairs.example',    'Bothaville',  v_workshop, 'Our main mechanic — connected', v_owner),
+    (v_farm, false, 'Bothaville Tyres',       'tyre',             '+27825550777', '+27825550777', 'shop@bvtyres.example',    'Bothaville',  null,       'Tractor + bakkie tyres',        v_owner);
+
+  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners';
 end
 $seed$;

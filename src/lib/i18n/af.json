@@ -34,7 +34,8 @@
     "groupWorkshop": "Werkswinkel",
     "groupFarm": "Plaas",
     "groupAdmin": "Admin",
-    "parts": "Onderdele"
+    "parts": "Onderdele",
+    "partners": "Vennote"
   },
   "auth": {
     "signIn": "Teken in",
@@ -822,5 +823,58 @@
     "scope": "Omvang",
     "scopeGlobal": "Globaal",
     "scopeFarm": "Plaas"
+  },
+  "partnerKind": {
+    "mechanic": "Werktuigkundige",
+    "auto_electrician": "Motorelektrisiën",
+    "parts_supplier": "Onderdeleverskaffer",
+    "panel_beater": "Paneelklopper",
+    "tyre": "Bandpassing",
+    "towing": "Insleep",
+    "other": "Ander"
+  },
+  "contact": {
+    "call": "Bel",
+    "whatsapp": "WhatsApp",
+    "email": "E-pos",
+    "none": "Geen kontakbesonderhede nie",
+    "waPrefill": "Hallo, ek het jou op FleetWise gekry en wil graag kontak maak.",
+    "loginMsg": "Hier is jou FleetWise-aanmeldskakel:",
+    "loginSubject": "Jou FleetWise-aanmeldskakel"
+  },
+  "partners": {
+    "title": "Vennote",
+    "subtitle": "Vind, voeg by en verbind die kontrakteurs en verskaffers wat jou vloot diens.",
+    "add": "Voeg 'n vennoot by",
+    "addHint": "Voeg jou eie werktuigkundige, onderdeleverskaffer of ander kontrakteur by jou plaas se gids.",
+    "addHintAdmin": "Voeg 'n voorgestelde vennoot by die globale, RapidRise-saamgestelde katalogus wat elke plaas sien.",
+    "name": "Naam",
+    "namePlaceholder": "bv. TJ Diens & Herstel",
+    "kind": "Tipe",
+    "area": "Gebied",
+    "areaPlaceholder": "Dorp of streek bedien",
+    "phone": "Foon",
+    "whatsapp": "WhatsApp",
+    "email": "E-pos",
+    "notes": "Notas",
+    "yours": "Jou vennote",
+    "yoursEmpty": "Jy het nog geen vennote bygevoeg nie.",
+    "yoursEmptyHint": "Voeg jou kontrakteurs en verskaffers by, of neem een van die voorgestelde vennote hieronder oor.",
+    "suggested": "Voorgestelde vennote",
+    "suggestedEmpty": "Nog geen voorgestelde vennote beskikbaar nie.",
+    "connected": "Verbind",
+    "notConnected": "Nie verbind nie",
+    "invite": "Nooi / verbind",
+    "inviteHint": "Skep 'n aanmelding vir hierdie kontrakteur sodat hulle geverifieerde, rolgebaseerde toegang tot jou vloot kry.",
+    "inviteEmail": "Kontrakteur se e-pos",
+    "sendLogin": "Stuur aanmeldskakel",
+    "adopt": "Voeg by my vennote",
+    "connectedFlash": "Kontrakteur verbind. Deel die aanmeldskakel hieronder.",
+    "loginUrlTitle": "Aanmeldskakel gereed",
+    "loginUrlHint": "Stuur hierdie eenmalige aanmeldskakel aan die kontrakteur sodat hulle by hul FleetWise-toegang kan aanmeld.",
+    "loginUrlShareWa": "Deel op WhatsApp",
+    "loginUrlShareEmail": "Deel per e-pos",
+    "copy": "Kopieer",
+    "copied": "Gekopieer"
   }
 }
