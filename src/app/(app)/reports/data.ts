@@ -58,18 +58,27 @@ const inRange = (d: string | null, f: ReportFilters) =>
  *  ships in F7). TCO = every non-deleted cost_entry per asset (purchase + finance + fuel +
  *  parts + labour + invoices + other); cost-per-hour / cost-per-km use lifetime TCO ÷
  *  lifetime meter (fixes D-2), identical to the machine-detail page. */
-export async function getReportData(supabase: SupabaseClient, f: ReportFilters): Promise<ReportData> {
+export async function getReportData(
+  supabase: SupabaseClient,
+  f: ReportFilters,
+  farmId?: string | null,
+): Promise<ReportData> {
+  // Multi-site (F7): when acting in a specific farm, scope every farm-keyed query to it.
+  // Single-farm users are unaffected (RLS already scopes to their one farm). `workshops`
+  // has no farm_id — it stays RLS-scoped; contractor rollups key off farm-scoped requests.
+  const byFarm = <Q,>(q: Q): Q =>
+    farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
   const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }] = await Promise.all([
-    supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null),
-    supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null),
-    supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null),
-    supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null),
-    supabase.from("service_plan_lines").select("machine_id, task, status").is("deleted_at", null),
-    supabase.from("cost_entries").select("machine_id, amount_cents, type, occurred_on").is("deleted_at", null),
-    supabase.from("fuel_issues").select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null),
-    supabase.from("fuel_deliveries").select("date, litres, price_per_l_cents").is("deleted_at", null),
-    supabase.from("work_requests").select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null),
-    supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null),
+    byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null)),
+    byFarm(supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null)),
+    byFarm(supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null)),
+    byFarm(supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null)),
+    byFarm(supabase.from("service_plan_lines").select("machine_id, task, status").is("deleted_at", null)),
+    byFarm(supabase.from("cost_entries").select("machine_id, amount_cents, type, occurred_on").is("deleted_at", null)),
+    byFarm(supabase.from("fuel_issues").select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null)),
+    byFarm(supabase.from("fuel_deliveries").select("date, litres, price_per_l_cents").is("deleted_at", null)),
+    byFarm(supabase.from("work_requests").select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null)),
+    byFarm(supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null)),
     supabase.from("workshops").select("id, name"),
   ]);
 

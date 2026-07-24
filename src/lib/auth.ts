@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -81,6 +82,48 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
   const profile = await requireProfile();
   if (!roles.includes(profile.role)) redirect("/dashboard?error=forbidden");
   return profile;
+}
+
+// ── Multi-site "current farm" (F7) ───────────────────────────────────────────
+// One account can now reach MULTIPLE farms (user_farm_memberships, 0340). The app keeps
+// a "current farm" the user is acting in — a cookie choice, validated against the farms
+// they may actually access, defaulting to their PRIMARY farm (users.farm_id). Per-site
+// surfaces (dashboard/reports/machines) filter by this id; single-farm users are
+// unaffected (it is always their one farm). rr_admin/workshop have no single acting farm.
+
+export const CURRENT_FARM_COOKIE = "fw_farm";
+
+export type FarmOption = { id: string; name: string };
+
+/** Farms the current user may act in (primary + active memberships), name-sorted.
+ *  RLS-scoped via `farms_sel` (== app.accessible_farm_ids). Empty for rr_admin/workshop,
+ *  which use their own shells rather than a per-site switcher. */
+export async function accessibleFarms(profile?: Profile): Promise<FarmOption[]> {
+  const p = profile ?? (await requireProfile());
+  if (p.role === "rr_admin" || p.role === "workshop") return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("farms")
+    .select("id, name")
+    .is("deleted_at", null)
+    .order("name");
+  return (data as FarmOption[] | null) ?? [];
+}
+
+/** The farm the user is currently acting in: the validated cookie choice, else their
+ *  primary farm. Returns null for roles with no single farm (rr_admin/workshop). */
+export async function currentFarmId(profile?: Profile): Promise<string | null> {
+  const p = profile ?? (await requireProfile());
+  if (!p.farm_id) return null;
+  const store = await cookies();
+  const chosen = store.get(CURRENT_FARM_COOKIE)?.value;
+  if (chosen && chosen !== p.farm_id) {
+    // Only honour a cookie that names a farm this user can genuinely access — never a
+    // guessable bypass (RLS would deny the data regardless, but keep the UI honest).
+    const farms = await accessibleFarms(p);
+    if (farms.some((f) => f.id === chosen)) return chosen;
+  }
+  return p.farm_id;
 }
 
 // ── Entitlement gating (F5) ──────────────────────────────────────────────────

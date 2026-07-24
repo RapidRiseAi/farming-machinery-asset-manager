@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import {
@@ -50,11 +50,16 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const showRetired = sp.retired === "1";
 
   const supabase = await createClient();
+  // Multi-site (F7): scope the list to the farm the user is currently acting in. For a
+  // single-farm user this is simply their farm (RLS already scopes it); a multi-site user
+  // sees the farm chosen in the site switcher. null → rr_admin/workshop (RLS-only scope).
+  const farmId = await currentFarmId(profile);
   let query = supabase
     .from("machines")
     .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date, primary_attachment_id")
     .is("deleted_at", null)
     .order(sort, { ascending: dir === "asc" });
+  if (farmId) query = query.eq("farm_id", farmId);
   if (sp.type) query = query.eq("type", sp.type);
   if (sp.status) query = query.eq("status", sp.status);
   else if (!showRetired) query = query.not("status", "in", "(retired,sold)");
@@ -65,10 +70,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const machines = (data as MachineRow[] | null) ?? [];
 
   // Distinct cost-centre / department values (farm-scoped by RLS) for the FR-3.4 filters.
-  const { data: dimData } = await supabase
+  let dimQuery = supabase
     .from("machines")
     .select("cost_centre, department")
     .is("deleted_at", null);
+  if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
+  const { data: dimData } = await dimQuery;
   const costCentres = [...new Set(((dimData as { cost_centre: string | null }[] | null) ?? []).map((r) => r.cost_centre).filter((v): v is string => !!v))].sort();
   const departments = [...new Set(((dimData as { department: string | null }[] | null) ?? []).map((r) => r.department).filter((v): v is string => !!v))].sort();
 

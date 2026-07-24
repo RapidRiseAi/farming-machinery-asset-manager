@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { checkEntitlement } from "@/lib/auth";
+import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -39,7 +39,8 @@ export default async function ReportsPage({
   const sp = await searchParams;
   const filters = parseFilters(sp);
   const supabase = await createClient();
-  const data = await getReportData(supabase, filters);
+  const farmId = await currentFarmId(profile);
+  const data = await getReportData(supabase, filters, farmId);
 
   const now = new Date();
   const today = ymd(now);

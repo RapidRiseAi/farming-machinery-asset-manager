@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { currentPlan } from "@/lib/auth";
+import { currentPlan, accessibleFarms, currentFarmId } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { countInboxUnread } from "@/lib/inbox";
@@ -10,6 +10,7 @@ import { signOut } from "./actions";
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon } from "@/components/ui/icons";
+import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
 
 /** Two-letter initials from a display name, for the avatar chip. */
@@ -55,6 +56,13 @@ export default async function AppLayout({
     const supabase = await createClient();
     inboxUnread = await countInboxUnread(supabase, profile.id);
   }
+
+  // Multi-site switcher (F7): only for farm roles that can reach more than one farm.
+  // Contractors (workshop) and rr_admin get [] from accessibleFarms and no switcher.
+  const farms = await accessibleFarms(profile);
+  const currentFarm = farms.length > 1 ? (await currentFarmId(profile)) ?? "" : profile.farm_id ?? "";
+  const showSwitcher = farms.length > 1 && currentFarm !== "";
+  const switcherLabel = t("nav.switchFarm", locale);
 
   // Nav catalogue (translated once, reused across shells).
   const contractor: NavItemData = { href: "/contractor", label: t("nav.contractor", locale), icon: "dashboard" };
@@ -167,6 +175,11 @@ export default async function AppLayout({
           {brandMark}
           <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
         </div>
+        {showSwitcher && (
+          <div className="px-3 pb-2">
+            <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
+          </div>
+        )}
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
           {groups.map((g) => (
             <div key={g.key} className="space-y-1">
@@ -213,6 +226,13 @@ export default async function AppLayout({
             {avatar}
           </div>
         </header>
+
+        {/* Mobile site switcher (F7) — only when the account can reach >1 farm */}
+        {showSwitcher && (
+          <div className="sticky top-[57px] z-10 border-b border-sand-200 bg-white/95 px-4 py-2 backdrop-blur lg:hidden">
+            <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
+          </div>
+        )}
 
         {/* Desktop slim top bar */}
         <header className="sticky top-0 z-20 hidden items-center justify-end gap-1.5 border-b border-sand-200 bg-white/90 px-6 py-2 backdrop-blur lg:flex">
