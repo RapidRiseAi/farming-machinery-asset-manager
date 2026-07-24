@@ -260,6 +260,37 @@ begin
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'JD-RE504836',   'John Deere oil filter',     1,  32000),
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'JD-RE509672',   'John Deere fuel filter',    1,  41000);
 
+  -- ── Checklist templates + a filled instance (F11) ──────────────
+  -- A GLOBAL daily pre-use inspection (RR library) + a farm service sign-off, and one
+  -- completed inspection on the Groen John Deere so the machine timeline + checklist
+  -- list have real data.
+  insert into checklist_templates (id, farm_id, machine_type, name, description, created_by) values
+    ('72000000-0000-0000-0000-000000000001', null,   'tractor', 'Daily pre-use inspection', 'Walkaround before starting the tractor', v_mech),
+    ('72000000-0000-0000-0000-000000000002', v_farm, 'tractor', 'Weltevrede diens-aftekening', 'Werkswinkel diens-kontrolelys', v_mech);
+
+  insert into checklist_template_fields (id, template_id, farm_id, sort_order, field_type, label, required, help_text, config) values
+    ('72100000-0000-0000-0000-000000000001', '72000000-0000-0000-0000-000000000001', null, 0, 'section_break', 'Walkaround',          false, null, null),
+    ('72100000-0000-0000-0000-000000000002', '72000000-0000-0000-0000-000000000001', null, 1, 'checkbox',      'Oil level OK',        true,  'Dipstick between min/max', null),
+    ('72100000-0000-0000-0000-000000000003', '72000000-0000-0000-0000-000000000001', null, 2, 'checkbox',      'Coolant level OK',    true,  null, null),
+    ('72100000-0000-0000-0000-000000000004', '72000000-0000-0000-0000-000000000001', null, 3, 'rating',        'Overall condition',   false, '1 = poor, 5 = excellent', '{"max":5}'::jsonb),
+    ('72100000-0000-0000-0000-000000000005', '72000000-0000-0000-0000-000000000001', null, 4, 'number',        'Fuel level %',        false, null, null),
+    ('72100000-0000-0000-0000-000000000006', '72000000-0000-0000-0000-000000000001', null, 5, 'photo',         'Damage photo',        false, 'Photograph any new damage', null),
+    ('72100000-0000-0000-0000-000000000007', '72000000-0000-0000-0000-000000000001', null, 6, 'text',          'Notes',               false, null, null),
+    ('72200000-0000-0000-0000-000000000001', '72000000-0000-0000-0000-000000000002', v_farm, 0, 'checkbox',    'Filters vervang',     true,  null, null),
+    ('72200000-0000-0000-0000-000000000002', '72000000-0000-0000-0000-000000000002', v_farm, 1, 'text',        'Werk gedoen',         false, null, null);
+
+  insert into checklist_instances (id, farm_id, machine_id, template_id, template_name, status, meter_reading, notes, performed_by, completed_at, created_by) values
+    ('72300000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000001',
+     '72000000-0000-0000-0000-000000000001', 'Daily pre-use inspection', 'completed', 4820, 'Alles reg vir die dag', v_op1, now() - interval '2 days', v_op1);
+
+  insert into checklist_instance_values (farm_id, instance_id, template_field_id, sort_order, field_type, label, value_text, notes) values
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000001', 0, 'section_break', 'Walkaround',        null,   null),
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000002', 1, 'checkbox',      'Oil level OK',      'true', null),
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000003', 2, 'checkbox',      'Coolant level OK',  'true', null),
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000004', 3, 'rating',        'Overall condition', '4',    'Klein olielekkasie dopgehou'),
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000005', 4, 'number',        'Fuel level %',      '80',   null),
+    (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000007', 6, 'text',          'Notes',             'Bande reg', null);
+
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
 end
 $seed$;

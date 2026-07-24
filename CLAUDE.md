@@ -263,4 +263,39 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     demo seed gains a catalogue + a 250h kit. i18n EN/AF at parity (**724 leaf keys**). Gates
     green (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
 
+- **FleetWise F11 — Vehicle checklists & template builder (migrations `0290–0291`;
+  branch `claude/fleetwise-checklists`; isolation-tested, `db:test` green):**
+  - Mirrors **RapidRiseAi/TJ-autovault**'s inspection template→report pattern
+    (`inspection-template-builder` / `inspection-report-form-renderer` /
+    `inspection-templates-table` / `lib/inspection-reports` / `*inspection_*` migrations),
+    adapted to FleetWise house rules. Field-type model widened per spec §7 to
+    **checkbox / text / number / photo / rating / section_break** (TJ's dropdown dropped;
+    photo + rating added).
+  - **`checklist_templates`** (farm-owned, or GLOBAL/RR-library when `farm_id` null —
+    visibility mirrors `service_templates`/`parts_catalogue`) **+ `checklist_template_fields`**
+    (ordered; `farm_id` mirrors the parent, composite FK keeps FARM fields isolated; plain
+    FK cascades). **`checklist_instances`** (per machine; optional `job_card_id` composite FK
+    + nullable `work_request_id` reserved for F12) **+ `checklist_instance_values`** (one row
+    per field at fill time — value + note + optional **photo attachment** via a composite FK
+    to `attachments(id, farm_id)`; field label/type/order **snapshotted** so a saved
+    checklist renders even after the template changes). `attachments.parent_type` extended
+    with `checklist_instance`. All farm-scoped RLS + grants + audit + soft-delete;
+    `0291` adds the farm-scoped `checklist-photos` bucket (0207-pattern; local no-op).
+  - App: **/checklists** template library (global-vs-farm badges, create/edit/duplicate/
+    delete) + **builder UI** (`src/components/checklists/template-builder.tsx`:
+    add/reorder/type/required/help/section-breaks/rating scale). **Per-vehicle fill flow**
+    (`/machines/[id]/checklists/new` → pick template → fill → save; photo fields compressed
+    client-side, ferried as base64 through the RLS server action → `src/lib/checklist-media.ts`),
+    a read-only **saved-checklist view**, and a machine-detail **"Vehicle checklists" card +
+    timeline events**. Roles: owner/manager/mechanic (+RR admin for globals) design
+    templates; the broader crew (incl. operator/workshop) fill them. Checklists are ungated
+    core (not in the F5 entitlement map). Shared model `src/lib/checklists.ts`; **Checklists**
+    nav item + clipboard icon; demo seed gains a global + a farm template and one completed
+    inspection. i18n EN/AF at parity (**802 leaf keys**; `checklists.*`/`checklistField.*`/
+    `nav.checklists`/`machine.checklists*`). `rls_isolation.sql` F11 section proves
+    global-vs-farm template visibility, instance/value farm isolation, cross-tenant +
+    composite-FK write denials (fields→other-farm template, value→other-farm photo), and
+    anon deny. Gates green (typecheck + lint + build + `db:test`); shared first-load JS flat
+    at **102 kB**. Not built (later): contractor work-request link (F12), checklist PDFs.
+
 > Update this "current status" block at the end of every session.
