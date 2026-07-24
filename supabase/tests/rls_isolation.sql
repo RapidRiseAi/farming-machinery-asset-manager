@@ -1989,3 +1989,130 @@ end $$;
 reset role;
 
 select 'ALL F13 OWNER-INBOX REMINDER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F8 · POPIA data-subject rights (export + erasure RPCs)
+-- Proves: (a) execute is REVOKED from anon on both RPCs (and the app.* guard is
+-- revoked from public/anon/authenticated); (b) the RPCs are FARM-SCOPED — a farm's
+-- owner/manager may only act on their OWN farm's people, cross-farm attempts raise;
+-- (c) rr_admin may act cross-tenant and the access is logged; (d) erasure anonymises
+-- the identity in place (name/email cleared, deactivated + soft-deleted) and nulls
+-- the free-text name copies; (e) a user cannot erase their own account via the RPC.
+-- ═════════════════════════════════════════════════════════════════
+
+-- Disposable Farm A operator + a couple of authored records (seeded as superuser).
+insert into auth.users (id, email) values
+  ('e5111111-1111-1111-1111-111111111111', 'opa2@test');
+insert into users (id, farm_id, workshop_id, role, name, email, phone) values
+  ('e5111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', null,
+   'operator', 'Operator A2', 'opa2@test', '+27820000001');
+insert into meter_readings (farm_id, machine_id, reading, source, by_user) values
+  ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 321, 'app',
+   'e5111111-1111-1111-1111-111111111111');
+insert into usage_logs (farm_id, machine_id, driver_user_id, driver_name, occurred_on, meter_reading, source) values
+  ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111',
+   'e5111111-1111-1111-1111-111111111111', 'Operator A2', current_date, 321, 'app');
+
+-- ── (a) execute privileges ────────────────────────────────────────
+do $$ begin
+  if has_function_privilege('anon', 'public.export_personal_data(uuid)', 'execute')
+    then raise exception 'F8 ISOLATION FAIL: anon can execute export_personal_data'; end if;
+  if has_function_privilege('anon', 'public.erase_personal_data(uuid, text)', 'execute')
+    then raise exception 'F8 ISOLATION FAIL: anon can execute erase_personal_data'; end if;
+  if not has_function_privilege('authenticated', 'public.export_personal_data(uuid)', 'execute')
+    then raise exception 'F8 FAIL: authenticated cannot execute export_personal_data'; end if;
+  if not has_function_privilege('authenticated', 'public.erase_personal_data(uuid, text)', 'execute')
+    then raise exception 'F8 FAIL: authenticated cannot execute erase_personal_data'; end if;
+  if has_function_privilege('authenticated', 'app.assert_can_manage_person(uuid, text)', 'execute')
+    then raise exception 'F8 ISOLATION FAIL: authenticated can call the internal guard directly'; end if;
+end $$;
+
+-- ── (b) farm scoping — Owner B may NOT export a Farm A person ──────
+set role authenticated;
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  begin
+    perform public.export_personal_data('e5111111-1111-1111-1111-111111111111');
+    raise exception 'F8 ISOLATION FAIL [ownerB]: exported a Farm A person';
+  exception when others then if sqlstate <> 'P0001' then raise; end if;
+  end;
+end $$;
+
+-- Owner A CAN export their own farm's person; the bundle carries the profile + logs.
+do $$ declare j jsonb; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  j := public.export_personal_data('e5111111-1111-1111-1111-111111111111');
+  if (j -> 'profile' ->> 'id') <> 'e5111111-1111-1111-1111-111111111111'
+    then raise exception 'F8 EXPORT FAIL: profile missing/wrong'; end if;
+  if jsonb_array_length(j -> 'usage_logs') < 1
+    then raise exception 'F8 EXPORT FAIL: usage_logs not included'; end if;
+  if jsonb_array_length(j -> 'meter_readings') < 1
+    then raise exception 'F8 EXPORT FAIL: meter_readings not included'; end if;
+end $$;
+reset role;
+
+-- ── (c) rr_admin exports cross-tenant AND the access is logged ────
+set role authenticated;
+do $$ declare j jsonb; c int; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
+  j := public.export_personal_data('e5111111-1111-1111-1111-111111111111');
+  if j is null then raise exception 'F8 EXPORT FAIL: rr_admin got null'; end if;
+  execute $q$ select count(*) from audit_log
+              where entity = 'data_subject_export'
+                and entity_id = 'e5111111-1111-1111-1111-111111111111' $q$ into c;
+  if c < 1 then raise exception 'F8 AUDIT FAIL: rr_admin cross-tenant export not logged'; end if;
+end $$;
+reset role;
+
+-- ── (e) self-erase is blocked ─────────────────────────────────────
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  begin
+    perform public.erase_personal_data('a1111111-1111-1111-1111-111111111111', 'test');
+    raise exception 'F8 FAIL: a user erased their own account';
+  exception when others then if sqlstate <> 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (b′) erasure scoping — Owner B may NOT erase a Farm A person ───
+set role authenticated;
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  begin
+    perform public.erase_personal_data('e5111111-1111-1111-1111-111111111111', 'test');
+    raise exception 'F8 ISOLATION FAIL [ownerB]: erased a Farm A person';
+  exception when others then if sqlstate <> 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (d) Owner A erases their farm's person → identity anonymised ──
+set role authenticated;
+do $$ declare r jsonb; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  r := public.erase_personal_data('e5111111-1111-1111-1111-111111111111', 'left the farm');
+  if (r ->> 'erased') <> 'true' then raise exception 'F8 ERASE FAIL: not erased'; end if;
+end $$;
+reset role;
+
+-- Verify the anonymisation as superuser (RLS bypassed).
+do $$ declare u record; c int; begin
+  select name, email, phone, active, deleted_at, whatsapp_opt_in into u
+    from users where id = 'e5111111-1111-1111-1111-111111111111';
+  if u.name <> '[erased]'   then raise exception 'F8 ERASE FAIL: name not anonymised (%)', u.name; end if;
+  if u.email is not null    then raise exception 'F8 ERASE FAIL: email not cleared'; end if;
+  if u.phone is not null    then raise exception 'F8 ERASE FAIL: phone not cleared'; end if;
+  if u.active               then raise exception 'F8 ERASE FAIL: account still active'; end if;
+  if u.deleted_at is null   then raise exception 'F8 ERASE FAIL: not soft-deleted'; end if;
+  select count(*) into c from usage_logs
+    where driver_user_id = 'e5111111-1111-1111-1111-111111111111' and driver_name is not null;
+  if c <> 0 then raise exception 'F8 ERASE FAIL: % usage_log name copies survived', c; end if;
+  execute $q$ select count(*) from audit_log
+              where entity = 'data_subject_erasure'
+                and entity_id = 'e5111111-1111-1111-1111-111111111111' $q$ into c;
+  if c < 1 then raise exception 'F8 AUDIT FAIL: erasure not logged'; end if;
+end $$;
+
+select 'ALL F8 POPIA DATA-SUBJECT-RIGHTS TESTS PASSED' as result;

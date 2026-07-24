@@ -63,6 +63,43 @@ export async function inviteUser(formData: FormData) {
   redirect(`${back}?invited=1`);
 }
 
+/**
+ * POPIA erasure (right to deletion): anonymise a person's personal data on request.
+ * The guarded `erase_personal_data` RPC (owner/manager of the subject's farm, or
+ * rr_admin) clears name/email/phone, deactivates + soft-deletes the profile, and nulls
+ * free-text name copies — keeping legally-required history de-identified (see
+ * docs/POPIA.md). We then scrub + disable the auth identity so the residual email in
+ * auth.users is removed and the person cannot sign back in.
+ */
+export async function erasePerson(formData: FormData) {
+  const actor = await requireProfile();
+  const id = String(formData.get("id") ?? "").trim();
+  const back = String(formData.get("back") ?? "/team");
+  const reason = String(formData.get("reason") ?? "").trim() || "data-subject request";
+  if (!id) redirect(`${back}?error=${encodeURIComponent("Missing person")}`);
+  if (id === actor.id) redirect(`${back}?error=${encodeURIComponent("You cannot erase your own account.")}`);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("erase_personal_data", { p_user: id, p_reason: reason });
+  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+
+  // Belt-and-braces: remove the residual email in auth.users and ban re-login. Soft-fails
+  // where Auth admin is unavailable — the DB anonymisation + deactivation already stands.
+  try {
+    const svc = createServiceClient();
+    await svc.auth.admin.updateUserById(id, {
+      email: `erased+${id}@fleetwise.invalid`,
+      user_metadata: { name: "[erased]" },
+      ban_duration: "876000h",
+    });
+  } catch {
+    // ignore — the person's app access is already revoked
+  }
+
+  revalidatePath(back);
+  redirect(`${back}?erased=1`);
+}
+
 /** Activate/deactivate a user. Scoped by RLS (owner/manager over their farm; RR admin all). */
 export async function setUserActive(formData: FormData) {
   await requireProfile();

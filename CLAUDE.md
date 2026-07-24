@@ -446,4 +446,44 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Gates green (typecheck + lint + build + `db:test`); shared first-load JS flat at
     **102 kB**. **Not built** (out of scope): contractor dashboard (F12c), multi-site (F7).
 
+- **FleetWise F8 — POPIA, security & backup (migration `0350`; branch
+  `claude/fleetwise-popia-security`; isolation-tested, `db:test` green; NFR-2/3/4):**
+  - **Docs** (the NFR-2/4 documentation deliverables): `docs/POPIA.md` (personal-data
+    inventory across users/auth/usage_logs/faults/attachments/audit_log; lawful bases;
+    retention & deletion policy incl. the **AARTO legal-obligation** + **audit-log**
+    retention exceptions, documented; cross-border-AI consent+DPA stance per founder
+    decision #2; data-subject rights + operational checklist), `docs/SECURITY.md` (RLS as
+    the **sole** tenant-isolation guarantor proven by `rls_isolation.sql`; grants/least-
+    privilege; encryption in transit/at rest + bcrypt creds — inherited vs configured;
+    service-role key server-only handling; zero-anon-DB public-QR property; leaked-
+    password toggle + live-project verify list), `docs/BACKUP.md` (Supabase Pro daily
+    backups/PITR runbook, PITR + full-project + schema restore procedures, **99.5% uptime
+    target** + RPO/RTO, post-restore smoke checks incl. **re-applying erasures after a
+    PITR rewind**, quarterly **restore-drill checklist**).
+  - **Data-subject rights RPCs** (`0350`, SECURITY DEFINER, `search_path` pinned):
+    `public.export_personal_data(uuid)` (DSAR → full JSON bundle: profile + usage_logs +
+    meter_readings + faults + job_cards + cost_entries + attachments + notifications +
+    audit actions) and `public.erase_personal_data(uuid,text)` (**anonymise, not hard-
+    delete** — clears name/email/phone, deactivates + soft-deletes, nulls free-text name
+    copies in usage_logs/faults; keeps de-identified structural + legally-retained AARTO
+    history). Shared guard `app.assert_can_manage_person` (revoked from
+    public/anon/authenticated) = owner/manager-of-the-subject's-farm **or** rr_admin
+    (cross-tenant, **logged** via `data_subject_export`/`_erasure` audit rows); execute
+    **revoked from anon**, granted to authenticated (self-guarded); self-erase blocked.
+    The `users` audit trigger records the erasure diff (proof); audit_log retained by
+    documented choice.
+  - App: **Team → per-person Export data** (`GET /team/export?user=` route → downloadable
+    JSON, RPC-guarded → 403 for non-owner/manager) + **Erase personal data** (`erasePerson`
+    server action → RPC, then service-role auth-scrub of the residual `auth.users` email +
+    ban re-login; belt-and-braces, soft-fails without Auth admin). New reusable
+    `ConfirmForm` client component (native confirm before destructive submit); **Data &
+    privacy (POPIA)** info card on Team. Fixed the last visible `FarmGear`→`FleetWise`
+    onboarding string in en/af. i18n EN/AF at parity (**1019 leaf keys**; `privacy.*`).
+    `rls_isolation.sql` F8 section proves anon execute-deny on both RPCs (+ guard revoked
+    from authenticated), farm-scoping (cross-farm export/erase raises), rr_admin cross-
+    tenant export + logging, post-erase anonymisation (name/email/phone/active/soft-delete
+    + name-copy scrub), and self-erase block. Gates green (typecheck + lint + build +
+    `db:test`); shared first-load JS flat at **102 kB** (`/team` 105 kB). **Not built**
+    (out of scope): multi-site (F7), observability/Sentry (NFR-6).
+
 > Update this "current status" block at the end of every session.

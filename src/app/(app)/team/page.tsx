@@ -2,23 +2,24 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import { inviteUser, setUserActive } from "./actions";
+import { inviteUser, setUserActive, erasePerson } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { ConfirmForm } from "@/components/confirm-form";
 
 type TeamUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invited?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string; saved?: string; erased?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
@@ -34,7 +35,7 @@ export default async function TeamPage({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
       <Flash tone="error" message={sp.error} />
-      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
 
       {canManage && profile.farm_id ? (
         <Card>
@@ -94,14 +95,32 @@ export default async function TeamPage({
                   <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
                   {canManage ? (
                     <Td className="text-right">
-                      {u.id !== profile.id ? (
-                        <form action={setUserActive}>
-                          <input type="hidden" name="id" value={u.id} />
-                          <input type="hidden" name="active" value={u.active ? "false" : "true"} />
-                          <input type="hidden" name="back" value="/team" />
-                          <Button type="submit" variant="ghost" size="sm">{u.active ? t("team.deactivate", locale) : t("team.activate", locale)}</Button>
-                        </form>
-                      ) : null}
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <a
+                          href={`/team/export?user=${u.id}`}
+                          className={buttonVariants({ variant: "ghost", size: "sm" })}
+                        >
+                          {t("privacy.export", locale)}
+                        </a>
+                        {u.id !== profile.id ? (
+                          <>
+                            <form action={setUserActive}>
+                              <input type="hidden" name="id" value={u.id} />
+                              <input type="hidden" name="active" value={u.active ? "false" : "true"} />
+                              <input type="hidden" name="back" value="/team" />
+                              <Button type="submit" variant="ghost" size="sm">{u.active ? t("team.deactivate", locale) : t("team.activate", locale)}</Button>
+                            </form>
+                            <ConfirmForm
+                              action={erasePerson}
+                              message={t("privacy.eraseConfirm", locale)}
+                              label={t("privacy.erase", locale)}
+                            >
+                              <input type="hidden" name="id" value={u.id} />
+                              <input type="hidden" name="back" value="/team" />
+                            </ConfirmForm>
+                          </>
+                        ) : null}
+                      </div>
                     </Td>
                   ) : null}
                 </Tr>
@@ -110,6 +129,16 @@ export default async function TeamPage({
           </Table>
         )}
       </Card>
+
+      {canManage ? (
+        <Card>
+          <CardHeader><CardTitle>{t("privacy.title", locale)}</CardTitle></CardHeader>
+          <div className="flex flex-col gap-2 text-sm text-sand-600">
+            <p>{t("privacy.intro", locale)}</p>
+            <p className="text-sand-500">{t("privacy.retentionNote", locale)}</p>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -68,7 +68,7 @@
     "step1Cta": "Voeg 'n masjien by",
     "step1Alt": "Voer CSV in",
     "step2Title": "Stel diensplanne op",
-    "step2Desc": "Pas 'n diensjabloon op elke masjien toe sodat FarmGear weet wanneer 'n diens verskuldig is.",
+    "step2Desc": "Pas 'n diensjabloon op elke masjien toe sodat FleetWise weet wanneer 'n diens verskuldig is.",
     "step2Cta": "Maak masjiene oop",
     "step3Title": "Druk & plak QR-kodes",
     "step3Desc": "Druk 'n QR-plakker vir elke masjien sodat werkers binne sekondes foute kan rapporteer en lesings kan aanteken.",
@@ -534,6 +534,16 @@
     "roleManager": "Bestuurder",
     "roleMechanic": "Werktuigkundige",
     "roleOperator": "Operateur"
+  },
+  "privacy": {
+    "title": "Data & privaatheid (POPIA)",
+    "intro": "Voer 'n persoon se persoonlike data uit of wis dit op versoek. 'n Uitvoer gee alles terug wat ons oor hulle hou; opwissing anonimiseer hul identiteit maar behou wetlik-vereiste geskiedenis.",
+    "export": "Voer data uit",
+    "exportHint": "Laai 'n JSON-lêer af.",
+    "erase": "Wis persoonlike data",
+    "eraseConfirm": "Wis hierdie persoon se persoonlike data? Hul naam, e-pos en telefoon word uitgevee en die rekening word gedeaktiveer. Onderhoud-, koste- en AARTO-bestuurdergebruikgeskiedenis word behou maar ge-de-identifiseer. Dit kan nie ongedaan gemaak word nie.",
+    "erased": "Persoonlike data uitgewis en die rekening gedeaktiveer.",
+    "retentionNote": "Bestuurdergebruik- (AARTO) rekords word onder 'n wetlike verpligting behou selfs ná opwissing — sien docs/POPIA.md."
   },
   "reports": {
     "title": "Verslae",

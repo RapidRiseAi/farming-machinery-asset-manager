@@ -68,7 +68,7 @@
     "step1Cta": "Add a machine",
     "step1Alt": "Import CSV",
     "step2Title": "Set up service plans",
-    "step2Desc": "Apply a service template to each machine so FarmGear knows when a service is due.",
+    "step2Desc": "Apply a service template to each machine so FleetWise knows when a service is due.",
     "step2Cta": "Open machines",
     "step3Title": "Print & stick QR codes",
     "step3Desc": "Print a QR sticker for each machine so workers can report faults and log readings in seconds.",
@@ -534,6 +534,16 @@
     "roleManager": "Manager",
     "roleMechanic": "Mechanic",
     "roleOperator": "Operator"
+  },
+  "privacy": {
+    "title": "Data & privacy (POPIA)",
+    "intro": "Export or erase a person's personal data on request. An export returns everything we hold on them; erasure anonymises their identity while keeping legally-required history.",
+    "export": "Export data",
+    "exportHint": "Downloads a JSON file.",
+    "erase": "Erase personal data",
+    "eraseConfirm": "Erase this person's personal data? Their name, email and phone are cleared and the account is deactivated. Maintenance, cost and AARTO driver-usage history is kept but de-identified. This cannot be undone.",
+    "erased": "Personal data erased and the account deactivated.",
+    "retentionNote": "Driver-usage (AARTO) records are retained under a legal obligation even after erasure — see docs/POPIA.md."
   },
   "reports": {
     "title": "Reports",
