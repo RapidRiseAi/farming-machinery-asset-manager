@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
@@ -40,6 +41,9 @@ export default async function DashboardPage() {
   const gate = await checkEntitlement("dashboard");
   const profile = gate.profile;
   const locale = profile.language;
+  // A contractor (workshop role) has no single "farm" — their home is the aggregated
+  // contractor dashboard (F12c), not this farm-centric one.
+  if (profile.role === "workshop") redirect("/contractor");
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">

@@ -152,7 +152,8 @@ async function issueLoginUrl(
   email: string,
   origin: string
 ): Promise<{ url: string | null; userId: string | null; error?: string }> {
-  const redirectTo = `${origin}/auth/callback?next=/machines`;
+  // Land the invited contractor on their aggregated contractor dashboard (F12c).
+  const redirectTo = `${origin}/auth/callback?next=/contractor`;
   const { data, error } = await svc.auth.admin.generateLink({
     type: "magiclink",
     email,

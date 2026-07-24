@@ -8,6 +8,13 @@ import {
   planAllows,
   requiredPlan as minPlanFor,
 } from "@/lib/entitlements";
+import {
+  type WorkshopPlan,
+  type WorkshopFeature,
+  isWorkshopPlan,
+  workshopPlanAllows,
+  workshopRequiredPlan,
+} from "@/lib/contractor-plan";
 
 export type Role =
   | "rr_admin"
@@ -135,4 +142,49 @@ export async function requireEntitlement(
   const { profile, allowed } = await checkEntitlement(feature);
   if (!allowed) redirect(`${redirectTo}?error=upgrade_required`);
   return profile;
+}
+
+// ── Contractor-plan gating (F12c) ────────────────────────────────────────────
+// The two-sided twin of the farm entitlement above: this governs the CONTRACTOR's
+// portal extras by the workshop's own plan (`workshops.plan`, 0320), NOT tenancy —
+// isolation stays with RLS + workshop_links. Map lives in src/lib/contractor-plan.ts.
+
+export type WorkshopEntitlementCheck = {
+  profile: Profile;
+  /** The workshop's plan, or null when the user is not a workshop (no contractor portal). */
+  plan: WorkshopPlan | null;
+  feature: WorkshopFeature;
+  requiredPlan: WorkshopPlan;
+  allowed: boolean;
+};
+
+/**
+ * The current workshop user's contractor plan, or null when the user is not a workshop.
+ * Defaults to `free` if the row is somehow unreadable. Reads the real `workshops.plan`
+ * column — this is not a stub; the map in contractor-plan.ts is the entitlement authority.
+ */
+export async function workshopPlan(
+  profile?: Profile
+): Promise<{ profile: Profile; plan: WorkshopPlan | null }> {
+  const p = profile ?? (await requireProfile());
+  if (p.role !== "workshop" || !p.workshop_id) return { profile: p, plan: null };
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("workshops")
+    .select("plan")
+    .eq("id", p.workshop_id)
+    .maybeSingle();
+  const plan = (data as { plan: string } | null)?.plan;
+  return { profile: p, plan: plan && isWorkshopPlan(plan) ? plan : "free" };
+}
+
+/** Evaluate a contractor-plan entitlement without redirecting (for inline panels/nav). */
+export async function checkWorkshopEntitlement(
+  feature: WorkshopFeature,
+  profile?: Profile
+): Promise<WorkshopEntitlementCheck> {
+  const { profile: p, plan } = await workshopPlan(profile);
+  // A non-workshop has no contractor portal → the feature is not applicable (denied).
+  const allowed = plan == null ? false : workshopPlanAllows(plan, feature);
+  return { profile: p, plan, feature, requiredPlan: workshopRequiredPlan(feature), allowed };
 }

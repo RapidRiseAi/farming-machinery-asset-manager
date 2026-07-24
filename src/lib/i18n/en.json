@@ -37,7 +37,9 @@
     "parts": "Parts",
     "partners": "Partners",
     "checklists": "Checklists",
-    "work": "Work"
+    "work": "Work",
+    "contractor": "My dashboard",
+    "groupContractor": "Contractor"
   },
   "auth": {
     "signIn": "Sign in",
@@ -1041,5 +1043,47 @@
     "none": "None",
     "quoteSaved": "Quote recorded",
     "invoiceSaved": "Invoice recorded"
+  },
+  "contractorPlan": {
+    "free": "Free",
+    "pro": "Pro"
+  },
+  "contractor": {
+    "title": "Contractor dashboard",
+    "allRequests": "All requests",
+    "tagline": {
+      "mechanic": "Repairs and inspections across all the farms you serve.",
+      "auto_electrician": "Electrical jobs and diagnostics across your linked farms.",
+      "parts_supplier": "Parts and quote requests from all your farm clients.",
+      "panel_beater": "Body and panel work across the farms you serve.",
+      "tyre": "Tyre fitment and repairs across your linked farms.",
+      "towing": "Recovery and towing jobs from your farm clients.",
+      "other": "Every request from the farms you serve, in one place."
+    },
+    "kpiNew": "New requests",
+    "kpiInProgress": "In progress",
+    "kpiToInvoice": "To invoice",
+    "kpiOpen": "Open total",
+    "empty": "No requests yet",
+    "emptyHint": "When a farm you're linked to sends you a job, it appears here — across every client, in one dashboard.",
+    "focus": "My work",
+    "allTypes": "All types",
+    "client": "Client",
+    "allClients": "All clients",
+    "sort": "Sort",
+    "sortPriority": "Priority",
+    "sortUpdated": "Recently updated",
+    "noneMatch": "No requests match",
+    "noneMatchHint": "Try a different type, client or status filter.",
+    "clients": "Your clients",
+    "openN": "{n} open",
+    "parts": "Parts catalogue",
+    "partsHint": "Look up part numbers and typical prices to quote faster.",
+    "analytics": "Client analytics",
+    "clientsN": "Clients",
+    "invoicedTotal": "Invoiced total",
+    "analyticsLocked": "Cross-client analytics",
+    "analyticsLockedHint": "See per-client volumes, invoiced totals and trends across every farm you serve.",
+    "contactRr": "Upgrade to Pro to unlock — contact RapidRise."
   }
 }

@@ -27,6 +27,9 @@ export default async function AppLayout({
   const locale = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
   const isAdmin = profile.role === "rr_admin";
+  // Contractors (workshop role) get a tailored, contractor-first shell (F12c): their
+  // aggregated dashboard is home, and farm-only surfaces are dropped.
+  const isWorkshop = profile.role === "workshop";
   // Parts catalogue & service kits (F9) — maintained by farm crew + RR admin (global lib).
   const canParts = ["owner", "manager", "mechanic", "rr_admin"].includes(profile.role);
   // Partners directory (F12a) — farmer-facing (browse/add/connect contractors) + RR admin
@@ -39,10 +42,12 @@ export default async function AppLayout({
   const dashAllowed = has("dashboard");
   const reportsAllowed = has("advanced_reports");
   const fuelAllowed = has("fuel");
-  // Logo/home link must point somewhere the plan can actually open.
-  const homeHref = dashAllowed ? "/dashboard" : "/machines";
+  // Logo/home link must point somewhere the role/plan can actually open. A contractor's
+  // home is their aggregated dashboard (F12c).
+  const homeHref = isWorkshop ? "/contractor" : dashAllowed ? "/dashboard" : "/machines";
 
   // Nav catalogue (translated once, reused across shells).
+  const contractor: NavItemData = { href: "/contractor", label: t("nav.contractor", locale), icon: "dashboard" };
   const dashboard: NavItemData = { href: "/dashboard", label: t("nav.dashboard", locale), icon: "dashboard" };
   const machines: NavItemData = { href: "/machines", label: t("nav.machines", locale), icon: "machines" };
   const jobcards: NavItemData = { href: "/jobcards", label: t("nav.jobcards", locale), icon: "jobcards" };
@@ -59,34 +64,45 @@ export default async function AppLayout({
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
-  const tabItems: NavItemData[] = [...(dashAllowed ? [dashboard] : []), machines, jobcards, faults];
-  const moreItems: NavItemData[] = [
-    work,
-    ...(fuelAllowed ? [fuel] : []),
-    ...(canParts ? [parts] : []),
-    ...(canPartners ? [partners] : []),
-    checklists,
-    ...(reportsAllowed ? [reports] : []),
-    alerts,
-    ...(isManagerPlus ? [team, settings] : []),
-    ...(isAdmin ? [admin] : []),
-  ];
+  // Contractors get a contractor-first tab set; everyone else the farm set.
+  const tabItems: NavItemData[] = isWorkshop
+    ? [contractor, work, machines, faults]
+    : [...(dashAllowed ? [dashboard] : []), machines, jobcards, faults];
+  const moreItems: NavItemData[] = isWorkshop
+    ? [jobcards, checklists, alerts]
+    : [
+        work,
+        ...(fuelAllowed ? [fuel] : []),
+        ...(canParts ? [parts] : []),
+        ...(canPartners ? [partners] : []),
+        checklists,
+        ...(reportsAllowed ? [reports] : []),
+        alerts,
+        ...(isManagerPlus ? [team, settings] : []),
+        ...(isAdmin ? [admin] : []),
+      ];
 
   // Desktop: grouped sidebar sections (gated items dropped).
   const overviewItems: NavItemData[] = [
     ...(dashAllowed ? [dashboard] : []),
     ...(reportsAllowed ? [reports] : []),
   ];
-  const groups: { key: string; label: string; items: NavItemData[] }[] = [
-    ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, work, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : []), checklists] },
-    {
-      key: "farm",
-      label: t("nav.groupFarm", locale),
-      items: [alerts, ...(isManagerPlus ? [team, settings] : [])],
-    },
-    ...(isAdmin ? [{ key: "admin", label: t("nav.groupAdmin", locale), items: [admin] }] : []),
-  ];
+  const groups: { key: string; label: string; items: NavItemData[] }[] = isWorkshop
+    ? [
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, work] },
+        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
+        { key: "farm", label: t("nav.groupFarm", locale), items: [alerts] },
+      ]
+    : [
+        ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
+        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, work, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : []), checklists] },
+        {
+          key: "farm",
+          label: t("nav.groupFarm", locale),
+          items: [alerts, ...(isManagerPlus ? [team, settings] : [])],
+        },
+        ...(isAdmin ? [{ key: "admin", label: t("nav.groupAdmin", locale), items: [admin] }] : []),
+      ];
 
   const appName = t("app.name", locale);
   const signOutLabel = t("nav.signOut", locale);

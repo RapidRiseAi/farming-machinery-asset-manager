@@ -367,4 +367,45 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Not built** (F12c): contractor aggregated dashboard / per-kind views + contractor-
     plan gating.
 
+- **FleetWise F12c — Contractor aggregated dashboard & per-kind views (migration
+  `0320`; branch `claude/fleetwise-contractor-dashboard`; isolation-tested, `db:test`
+  green):**
+  - **Aggregated contractor dashboard** (`/contractor`): a `workshop`-role user gets ONE
+    dashboard listing **every `work_request` assigned to their workshop across ALL linked
+    farms** — the one-account→many-farmers value prop. Farm isolation is RLS's job
+    (`app.has_farm_access` already scopes a workshop to its `workshop_links` farms); the
+    query **additionally** filters `workshop_id = the user's workshop` so a contractor sees
+    only its OWN requests (a farm may use several contractors) and never an unlinked farm's
+    data. KPIs (new/in-progress/to-invoice/open), status-grouped list (farm + vehicle +
+    kind + quote/invoice + priority + status, priority/updated sort), a **Your clients**
+    panel with quick-contact (tel/wa.me/mailto to each farm's owner, reusing F12a
+    `src/lib/contact.ts`), and a parts-catalogue shortcut for supply trades. Each row deep-
+    links to the existing `/work/[id]` detail (accept/decline, status, notes, quote/invoice/
+    proof upload via F12b `/api/work/media`, farmer quick-contact).
+  - **Tailored per-kind views** (`src/lib/contractor.ts`): a view-router keyed on
+    `workshops.kind` sets each contractor type's DEFAULT focus (mechanic → repair/
+    inspection, parts_supplier → parts/quote + catalogue, auto_electrician → electrical,
+    panel_beater/tyre/towing → theirs) and tagline — shared components, differing default
+    filter/labels. Kind labels reuse F12a's `partnerKind.*`.
+  - **Workshop-first shell**: layout routes the logo/home to `/contractor` for the workshop
+    role, gives it a contractor-first nav (contractor · work · machines · faults + job
+    cards/checklists/alerts) and drops farm-only surfaces; `/dashboard` redirects a
+    workshop to `/contractor`; the F12a invite login URL now deep-links to `/contractor`.
+  - **Contractor-plan gating seam** (payments DEFERRED): `0320` adds `workshops.plan`
+    (`workshop_plan` enum free/pro; additive, default free; RR-admin-writable only, workshop
+    reads own via existing 0101 policy). Map = single source of truth
+    `src/lib/contractor-plan.ts` (mirrors F5's `entitlements.ts` shape) + `workshopPlan()`
+    / `checkWorkshopEntitlement()` in `lib/auth.ts`. NOT a tenancy guard (RLS +
+    `workshop_links` stay the sole isolation guarantor → no SQL/RLS mirror needed); gates
+    ONE example feature — the **client-analytics** panel (per-client rollups) shows for
+    `pro`, an upgrade nudge for `free`. Demo workshop set to `pro`.
+  - i18n EN/AF at parity (**973 leaf keys**; `contractor.*`, `contractorPlan.*`,
+    `nav.contractor`/`nav.groupContractor`). `rls_isolation.sql` F12c section (fresh Farm E +
+    Workshop X) proves aggregation across ≥2 linked farms, own-workshop-only filtering on a
+    SHARED farm (RLS lets W see X's row; the workshop_id filter excludes it), unlinked-farm
+    invisibility even for a request assigned to the workshop, a cross-tenant write denial,
+    and the plan column default. Gates green (typecheck + lint + build + `db:test`); shared
+    first-load JS flat at **102 kB** (`/contractor` 105 kB).
+  - **Not built** (later): owner inbox (F13, concurrent), multi-site (F7).
+
 > Update this "current status" block at the end of every session.

@@ -1803,3 +1803,98 @@ do $$ declare c bigint; amt bigint; begin
 end $$;
 
 select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F12c: CONTRACTOR AGGREGATED DASHBOARD (0320, appended) ══════
+-- ═════════════════════════════════════════════════════════════════
+-- The contractor dashboard (/contractor) shows EVERY work_request assigned to the
+-- signed-in contractor's OWN workshop, across ALL the farms that workshop is linked to,
+-- in ONE view. Its query is RLS(app.has_farm_access → linked farms) AND an explicit
+-- `workshop_id = <my workshop>` filter. This section proves that combination is airtight:
+--   (a) AGGREGATION — a workshop linked to TWO farms sees its requests from BOTH in the
+--       one dashboard query;
+--   (b) OWN-WORKSHOP ONLY — on a farm shared by two contractors, RLS alone is farm-scoped
+--       (so W can SEE X's request row), but the dashboard's workshop_id filter excludes
+--       another workshop's request — the app filter is load-bearing and is asserted;
+--   (c) NEVER AN UNLINKED FARM — a request assigned to W but on a farm W is NOT linked to
+--       stays invisible (RLS dominates the assignment); a workshop cannot update it;
+--   (d) the `workshops.plan` gating column reads back with its default.
+-- Fresh fixtures (Farm E, Workshop X, distinct request ids) leave earlier counts intact.
+
+-- Farm E + a machine on it; a SECOND workshop X (plan 'pro'); X's staff user. Link W to
+-- Farm E (so W is linked to Farm A AND Farm E) and link X to Farm A (shared with W).
+insert into farms (id, name) values
+  ('e1000000-0000-0000-0000-0000000000e1', 'Farm E');
+insert into machines (id, farm_id, name, type) values
+  ('ee100000-0000-0000-0000-0000000000e1', 'e1000000-0000-0000-0000-0000000000e1', 'Machine E1', 'tractor');
+insert into workshops (id, name, kind, plan) values
+  ('e3000000-0000-0000-0000-0000000000e3', 'Workshop X', 'parts_supplier', 'pro');
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('33333333-3333-3333-3333-333333333333', 'e1000000-0000-0000-0000-0000000000e1', 'active'),  -- W → Farm E
+  ('e3000000-0000-0000-0000-0000000000e3', '11111111-1111-1111-1111-111111111111', 'active');  -- X → Farm A
+insert into auth.users (id, email) values
+  ('e4000000-0000-0000-0000-0000000000e4', 'workshopX@test');
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('e4000000-0000-0000-0000-0000000000e4', null, 'e3000000-0000-0000-0000-0000000000e3', 'workshop', 'Workshop X Staff');
+
+-- Requests: one for W on Farm E (aggregation), one for X on the SHARED Farm A (own-only),
+-- and one for W on Farm B — a farm W is NOT linked to (unlinked-farm isolation).
+insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, created_by) values
+  ('d3000000-0000-0000-0000-0000000000e1', 'e1000000-0000-0000-0000-0000000000e1', 'ee100000-0000-0000-0000-0000000000e1', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'normal', 'E tractor service', null),
+  ('d4000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'e3000000-0000-0000-0000-0000000000e3', 'parts',  'requested', 'normal', 'A parts order',     'a1111111-1111-1111-1111-111111111111'),
+  ('d5000000-0000-0000-0000-0000000000b2', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'normal', 'B (unlinked)',      'b2222222-2222-2222-2222-222222222222');
+
+-- ── (a) aggregation + (b) own-workshop-only + (c) unlinked-farm isolation ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');          -- Workshop W (linked to Farm A + Farm E)
+
+  -- (a) The DASHBOARD query: own workshop across ALL linked farms → Farm A (d1..a1) +
+  --     Farm E (d3..e1) = 2. The unlinked Farm B request (d5..b2) is NOT counted.
+  execute $q$ select count(*) from work_requests where workshop_id = '33333333-3333-3333-3333-333333333333' and deleted_at is null $q$ into c;
+  if c <> 2 then raise exception 'F12c FAIL [W dashboard]: aggregated own-workshop count=% (expected 2)', c; end if;
+
+  -- (b) RLS alone is FARM-scoped, not workshop-scoped: on the shared Farm A, W can SEE
+  --     X's request row — so the app-side workshop_id filter is what excludes it.
+  execute $q$ select count(*) from work_requests where workshop_id = 'e3000000-0000-0000-0000-0000000000e3' $q$ into c;
+  if c <> 1 then raise exception 'F12c FAIL [W sees shared farm]: X-request visibility=% (expected 1)', c; end if;
+
+  -- Total RLS-visible to W = Farm A (d1..a1 W + d4..a2 X) + Farm E (d3..e1 W) = 3; the
+  -- dashboard (2) is thus a strict subset, differing only by X's request.
+  execute $q$ select count(*) from work_requests $q$ into c;
+  if c <> 3 then raise exception 'F12c FAIL [W total visible]: %=(expected 3)', c; end if;
+
+  -- (c) An unlinked farm's rows stay invisible even when a request is assigned to W.
+  execute $q$ select count(*) from work_requests where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
+  if c <> 0 then raise exception 'F12c FAIL [W unlinked farm]: sees % Farm B requests (expected 0)', c; end if;
+end $$;
+
+-- Workshop X: its dashboard shows only its own (Farm A parts order); it sees W's shared
+-- Farm A request via RLS but never W's Farm E work (X is not linked to Farm E).
+do $$ declare c bigint; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');          -- Workshop X (linked to Farm A only)
+  execute $q$ select count(*) from work_requests where workshop_id = 'e3000000-0000-0000-0000-0000000000e3' and deleted_at is null $q$ into c;
+  if c <> 1 then raise exception 'F12c FAIL [X dashboard]: own-workshop count=% (expected 1)', c; end if;
+  execute $q$ select count(*) from work_requests where farm_id = 'e1000000-0000-0000-0000-0000000000e1' $q$ into c;
+  if c <> 0 then raise exception 'F12c FAIL [X unlinked farm]: sees % Farm E requests (expected 0)', c; end if;
+end $$;
+
+-- (c) A workshop cannot UPDATE a request on a farm it is not linked to (RLS write guard).
+do $$ declare st work_request_status; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');          -- Workshop X (NOT linked to Farm E)
+  update work_requests set status = 'closed' where id = 'd3000000-0000-0000-0000-0000000000e1';  -- RLS → 0 rows
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  select status into st from work_requests where id = 'd3000000-0000-0000-0000-0000000000e1';
+  if st <> 'requested' then raise exception 'F12c ISOLATION FAIL [X]: mutated a Farm E request (status=%)', st; end if;
+end $$;
+reset role;
+
+-- ── (d) the contractor-plan gating column reads back with its default ──
+do $$ declare p workshop_plan; begin
+  select plan into p from workshops where id = '33333333-3333-3333-3333-333333333333';  -- W (top fixture, no plan set)
+  if p <> 'free' then raise exception 'F12c FAIL [plan default]: Workshop W plan=% (expected free)', p; end if;
+  select plan into p from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';  -- X (set 'pro')
+  if p <> 'pro' then raise exception 'F12c FAIL [plan set]: Workshop X plan=% (expected pro)', p; end if;
+end $$;
+
+select 'ALL F12c CONTRACTOR-DASHBOARD TESTS PASSED' as result;

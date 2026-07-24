@@ -37,7 +37,9 @@
     "parts": "Onderdele",
     "partners": "Vennote",
     "checklists": "Kontrolelyste",
-    "work": "Werk"
+    "work": "Werk",
+    "contractor": "My paneelbord",
+    "groupContractor": "Kontrakteur"
   },
   "auth": {
     "signIn": "Teken in",
@@ -1041,5 +1043,47 @@
     "none": "Geen",
     "quoteSaved": "Kwotasie geboek",
     "invoiceSaved": "Faktuur geboek"
+  },
+  "contractorPlan": {
+    "free": "Gratis",
+    "pro": "Pro"
+  },
+  "contractor": {
+    "title": "Kontrakteur-paneelbord",
+    "allRequests": "Alle versoeke",
+    "tagline": {
+      "mechanic": "Herstelwerk en inspeksies oor al die plase wat jy bedien.",
+      "auto_electrician": "Elektriese werk en diagnostiek oor jou gekoppelde plase.",
+      "parts_supplier": "Onderdele- en kwotasieversoeke van al jou plaas-kliënte.",
+      "panel_beater": "Bakwerk en paneelwerk oor die plase wat jy bedien.",
+      "tyre": "Bandpassing en herstelwerk oor jou gekoppelde plase.",
+      "towing": "Insleep- en herwinningswerk van jou plaas-kliënte.",
+      "other": "Elke versoek van die plase wat jy bedien, op een plek."
+    },
+    "kpiNew": "Nuwe versoeke",
+    "kpiInProgress": "Aan die gang",
+    "kpiToInvoice": "Om te faktureer",
+    "kpiOpen": "Oop totaal",
+    "empty": "Nog geen versoeke nie",
+    "emptyHint": "Wanneer 'n plaas waaraan jy gekoppel is vir jou werk stuur, verskyn dit hier — oor elke kliënt, in een paneelbord.",
+    "focus": "My werk",
+    "allTypes": "Alle tipes",
+    "client": "Kliënt",
+    "allClients": "Alle kliënte",
+    "sort": "Sorteer",
+    "sortPriority": "Prioriteit",
+    "sortUpdated": "Onlangs bygewerk",
+    "noneMatch": "Geen versoeke pas nie",
+    "noneMatchHint": "Probeer 'n ander tipe-, kliënt- of statusfilter.",
+    "clients": "Jou kliënte",
+    "openN": "{n} oop",
+    "parts": "Onderdelekatalogus",
+    "partsHint": "Soek onderdeelnommers en tipiese pryse op om vinniger te kwoteer.",
+    "analytics": "Kliënt-analise",
+    "clientsN": "Kliënte",
+    "invoicedTotal": "Gefaktureer totaal",
+    "analyticsLocked": "Kruis-kliënt-analise",
+    "analyticsLockedHint": "Sien volumes per kliënt, gefaktureerde totale en tendense oor elke plaas wat jy bedien.",
+    "contactRr": "Gradeer op na Pro om te ontsluit — kontak RapidRise."
   }
 }

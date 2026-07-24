@@ -40,8 +40,9 @@ begin
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
 
   -- ── External workshop + link (classified contractor, F12a) ─────
-  insert into workshops (id, name, contact, kind, phone, whatsapp, email, area) values
-    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic',
+  -- Pro contractor plan (F12c) so the demo shows the gated client-analytics panel.
+  insert into workshops (id, name, contact, kind, plan, phone, whatsapp, email, area) values
+    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'pro',
      '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville');
   insert into workshop_links (workshop_id, farm_id, status) values
     (v_workshop, v_farm, 'active');
