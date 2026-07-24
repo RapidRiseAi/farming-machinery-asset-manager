@@ -40,7 +40,8 @@
     "work": "Work",
     "contractor": "My dashboard",
     "groupContractor": "Contractor",
-    "inbox": "Inbox"
+    "inbox": "Inbox",
+    "switchFarm": "Switch farm"
   },
   "auth": {
     "signIn": "Sign in",

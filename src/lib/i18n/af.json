@@ -40,7 +40,8 @@
     "work": "Werk",
     "contractor": "My paneelbord",
     "groupContractor": "Kontrakteur",
-    "inbox": "Inmandjie"
+    "inbox": "Inmandjie",
+    "switchFarm": "Wissel plaas"
   },
   "auth": {
     "signIn": "Teken in",

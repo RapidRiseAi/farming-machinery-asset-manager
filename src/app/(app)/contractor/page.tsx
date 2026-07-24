@@ -62,10 +62,10 @@ export default async function ContractorDashboardPage({
   const analyticsAllowed = plan != null && workshopPlanAllows(plan, "client_analytics");
 
   // ── The aggregated feed: EVERY request assigned to THIS workshop, across ALL its
-  // linked farms, in one place. RLS (app.has_farm_access) already limits rows to the
-  // farms this workshop is linked to; the explicit workshop_id filter narrows to the
-  // contractor's OWN requests (a farm may use several contractors). Together: a
-  // contractor sees only its own work, and never an unlinked farm's data.
+  // linked farms, in one place. Since F7 (0341) RLS itself workshop-scopes work_requests
+  // for a workshop user — so a contractor never sees another workshop's request even on a
+  // shared farm. The explicit workshop_id filter is kept (belt-and-suspenders + intent).
+  // Together: a contractor sees only its own work, and never an unlinked farm's data.
   const { data: wrData } = await supabase
     .from("work_requests")
     .select("id, farm_id, machine_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")

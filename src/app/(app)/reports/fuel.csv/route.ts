@@ -1,4 +1,4 @@
-import { getProfile, checkEntitlement } from "@/lib/auth";
+import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse, centsToR } from "../data";
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
-  const data = await getReportData(supabase, parseFilters(sp));
+  const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
 
   const rows: (string | number)[][] = [["Machine", "Litres", "Fuel spend (R)", "Consumption", "Unit"]];
   for (const r of data.fuel.perMachine) {

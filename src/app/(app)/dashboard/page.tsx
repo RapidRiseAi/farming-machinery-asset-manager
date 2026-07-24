@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { checkEntitlement } from "@/lib/auth";
+import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -58,6 +58,12 @@ export default async function DashboardPage() {
     );
   }
   const supabase = await createClient();
+  // Multi-site (F7): scope every KPI query to the farm the user is currently acting in.
+  // Single-farm users are unaffected (RLS already scopes to their one farm); a multi-site
+  // user sees the farm chosen in the switcher. rr_admin (farmId null) keeps its all-farms view.
+  const farmId = await currentFarmId(profile);
+  const byFarm = <Q,>(q: Q): Q =>
+    farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
 
   const now = new Date();
   const firstThis = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -67,14 +73,14 @@ export default async function DashboardPage() {
 
   const flagCut = ymd(new Date(now.getTime() - 45 * 86400000));
   const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes, licenceRes] = await Promise.all([
-    supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours").is("deleted_at", null),
-    supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null),
-    supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo)),
-    supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"]),
-    supabase.from("fuel_issues").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis)),
-    supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut),
-    supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null),
+    byFarm(supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours").is("deleted_at", null)),
+    byFarm(supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null)),
+    byFarm(supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false })),
+    byFarm(supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo))),
+    byFarm(supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"])),
+    byFarm(supabase.from("fuel_issues").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis))),
+    byFarm(supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut)),
+    byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null)),
   ]);
 
   const machines = (machinesRes.data as Machine[] | null) ?? [];
