@@ -315,11 +315,19 @@ begin
 
   insert into work_request_events (farm_id, work_request_id, from_status, to_status, note, by_user) values
     (v_farm, '72000000-0000-0000-0000-000000000001', null, 'requested', 'Aangevra by TJ', v_owner),
+    (v_farm, '72000000-0000-0000-0000-000000000001', 'requested', 'viewed', 'TJ het gesien', v_wstaff),
+    (v_farm, '72000000-0000-0000-0000-000000000001', 'viewed', 'quoted', 'Kwotasie gestuur', v_wstaff),
     (v_farm, '72000000-0000-0000-0000-000000000002', null, 'requested', 'Aangevra by TJ', v_manager),
     (v_farm, '72000000-0000-0000-0000-000000000002', 'requested', 'completed', 'Inspeksie gedoen', v_wstaff),
     (v_farm, '72000000-0000-0000-0000-000000000002', 'completed', 'invoiced', 'Faktuur gestuur', v_wstaff);
 
-  -- Recording the invoice amount (ex-VAT) books a single 'invoice' cost_entry via 0311.
+  -- Request 1 is QUOTED (ex-VAT) and awaiting the owner's decision → shows in the F13
+  -- activity inbox "Needs your action" and drives a `quote_awaiting` reminder.
+  update work_requests set status = 'quoted', quote_amount_cents = 95000
+   where id = '72000000-0000-0000-0000-000000000001';
+
+  -- Request 2 is INVOICED: recording the invoice amount (ex-VAT) books a single 'invoice'
+  -- cost_entry via 0311 and drives an `invoice_awaiting` reminder until the owner closes it.
   update work_requests set invoice_amount_cents = 180000
    where id = '72000000-0000-0000-0000-000000000002';
 

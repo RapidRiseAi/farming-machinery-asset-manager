@@ -1803,3 +1803,95 @@ do $$ declare c bigint; amt bigint; begin
 end $$;
 
 select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F13: OWNER INBOX — WORK-REQUEST REMINDERS (0330, appended) ══
+-- ═════════════════════════════════════════════════════════════════
+-- Proves the outstanding quote/invoice reminder engine (app.enqueue_work_request_
+-- reminders):
+--   (a) authenticated / anon CANNOT execute the app.* engine or its public.cron_* wrapper;
+--   (b) a 'quoted' request enqueues `quote_awaiting` and an 'invoiced' request enqueues
+--       `invoice_awaiting`, to that farm's owner/manager only — never cross-tenant;
+--   (c) retired/sold machines are excluded (Scope §4.1);
+--   (d) the 7-day queue dedupe means a second run enqueues nothing new.
+-- Fresh fixtures (distinct ids) so earlier counts are undisturbed.
+
+-- Seed as superuser (RLS bypassed). Inserting a status directly does NOT fire the 0311
+-- AFTER-UPDATE notify trigger, so the only rows the reminder templates below can create
+-- are the reminders themselves — keeping the assertion about this engine alone.
+-- Manager A opted out of in-app earlier (F6 §e); re-enable so Farm A targets owner+manager.
+update users set notify_inapp = true where id = 'a1111111-1111-1111-1111-1111111111aa';
+
+insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, quote_amount_cents, invoice_amount_cents, vat_rate_bps, created_by) values
+  ('e1000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'repair',     'quoted',   'normal', 95000,  null,   1500, 'a1111111-1111-1111-1111-111111111111'),
+  ('e2000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'inspection', 'invoiced', 'normal', null,   180000, 1500, 'a1111111-1111-1111-1111-111111111111'),
+  ('e3000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111', 'aa999999-9999-9999-9999-999999999999', '33333333-3333-3333-3333-333333333333', 'repair',     'quoted',   'normal', 50000,  null,   1500, 'a1111111-1111-1111-1111-111111111111'),
+  ('e4000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', null,                                     'repair',     'invoiced', 'normal', null,   70000,  1500, 'b2222222-2222-2222-2222-222222222222');
+
+-- ── (a) authenticated cannot execute the engine or its wrapper ────
+set role authenticated;
+do $$
+declare calls text[] := array[
+    'select app.enqueue_work_request_reminders()',
+    'select public.cron_enqueue_work_request_reminders()'
+  ]; c text;
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  foreach c in array calls loop
+    begin execute c;
+      raise exception 'F13 PRIV FAIL: authenticated executed % without a privilege error', c;
+    exception
+      when insufficient_privilege then null;                    -- expected
+      when others then if sqlstate = 'P0001' then raise; end if;
+    end;
+  end loop;
+end $$;
+reset role;
+
+-- ── (b)+(c) enqueue reminders to the right farm's owner/manager ───
+set role service_role;
+do $$ begin perform app.enqueue_work_request_reminders(); end $$;
+reset role;
+
+do $$
+declare fa uuid := '11111111-1111-1111-1111-111111111111';
+        fb uuid := '22222222-2222-2222-2222-222222222222';
+begin
+  -- Farm A: owner + manager → 2 rows for the quoted request, 2 for the invoiced one.
+  if _t_notif(fa,'quote_awaiting')   <> 2 then raise exception 'F13 ENQUEUE FAIL: Farm A quote_awaiting = % (expected 2)',   _t_notif(fa,'quote_awaiting'); end if;
+  if _t_notif(fa,'invoice_awaiting') <> 2 then raise exception 'F13 ENQUEUE FAIL: Farm A invoice_awaiting = % (expected 2)', _t_notif(fa,'invoice_awaiting'); end if;
+  -- Farm B: owner only → 1 invoice reminder, and it never saw a quote.
+  if _t_notif(fb,'invoice_awaiting') <> 1 then raise exception 'F13 ENQUEUE FAIL: Farm B invoice_awaiting = % (expected 1)', _t_notif(fb,'invoice_awaiting'); end if;
+  -- (c) the retired-machine quote (e3) contributed nothing — else Farm A quote_awaiting = 4.
+  --     and no cross-tenant leak in either direction.
+  if _t_notif(fb,'quote_awaiting')   <> 0 then raise exception 'F13 ISOLATION FAIL: Farm B leaked quote_awaiting = %',   _t_notif(fb,'quote_awaiting'); end if;
+  if _t_notif(fa,'quote_awaiting')    = 4 then raise exception 'F13 RETIRED FAIL: retired-machine quote enqueued a reminder'; end if;
+end $$;
+
+-- ── (d) 7-day queue dedupe: a second run adds nothing new ─────────
+set role service_role;
+do $$ begin perform app.enqueue_work_request_reminders(); end $$;
+reset role;
+
+do $$
+declare fa uuid := '11111111-1111-1111-1111-111111111111';
+        fb uuid := '22222222-2222-2222-2222-222222222222';
+begin
+  if _t_notif(fa,'quote_awaiting')   <> 2 then raise exception 'F13 DEDUPE FAIL: Farm A quote_awaiting re-fired to %',   _t_notif(fa,'quote_awaiting'); end if;
+  if _t_notif(fa,'invoice_awaiting') <> 2 then raise exception 'F13 DEDUPE FAIL: Farm A invoice_awaiting re-fired to %', _t_notif(fa,'invoice_awaiting'); end if;
+  if _t_notif(fb,'invoice_awaiting') <> 1 then raise exception 'F13 DEDUPE FAIL: Farm B invoice_awaiting re-fired to %', _t_notif(fb,'invoice_awaiting'); end if;
+end $$;
+
+-- ── anon cannot execute the wrapper ───────────────────────────────
+set role anon;
+do $$ begin
+  begin perform public.cron_enqueue_work_request_reminders();
+    raise exception 'F13 ISOLATION FAIL [anon]: executed cron wrapper';
+  exception
+    when insufficient_privilege then null;                      -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+select 'ALL F13 OWNER-INBOX REMINDER TESTS PASSED' as result;

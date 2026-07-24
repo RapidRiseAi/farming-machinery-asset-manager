@@ -303,6 +303,89 @@ export default async function ReportsPage({
           </div>
         )}
       </Card>
+
+      {/* Contractors (F13) — outstanding value, throughput, responsiveness, spend */}
+      <Card flush>
+        <CardHeader
+          className="px-4 pt-4"
+          action={
+            <a href={`/reports/contractors.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+              {t("reports.csv", locale)} ↓
+            </a>
+          }
+        >
+          <CardTitle>{t("reports.contractors", locale)}</CardTitle>
+        </CardHeader>
+        <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
+          <Stat label={t("reports.outstandingQuotes", locale)} value={data.contractors.outstandingQuotes.count} tone={data.contractors.outstandingQuotes.count > 0 ? "due" : "default"} delta={rands(data.contractors.outstandingQuotes.value)} />
+          <Stat label={t("reports.outstandingInvoices", locale)} value={data.contractors.outstandingInvoices.count} tone={data.contractors.outstandingInvoices.count > 0 ? "overdue" : "default"} delta={rands(data.contractors.outstandingInvoices.value)} />
+          <Stat label={t("reports.spendViaContractors", locale)} value={rands(data.contractors.spendViaContractors)} />
+          <Stat
+            label={t("reports.responsiveness", locale)}
+            value={data.contractors.responsiveness.requestedToViewedHrs != null ? `${data.contractors.responsiveness.requestedToViewedHrs} ${t("reports.hoursShort", locale)}` : "—"}
+            delta={t("reports.toViewed", locale)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 px-4 pb-4 pt-4 lg:grid-cols-2">
+          {/* Throughput by status */}
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-400">{t("reports.throughput", locale)}</p>
+            <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+              {data.contractors.byStatus.length === 0 ? (
+                <li className="py-1.5 text-sand-400">{t("reports.none", locale)}</li>
+              ) : (
+                data.contractors.byStatus.map((s) => (
+                  <li key={s.status} className="flex justify-between py-1.5">
+                    <span>{t(`workStatus.${s.status}`, locale)}</span>
+                    <span className="font-medium tabular-nums">{s.count}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+            <p className="mt-3 text-xs text-sand-500">
+              {t("reports.avgViewedToQuoted", locale)}:{" "}
+              <span className="font-medium text-sand-700">
+                {data.contractors.responsiveness.viewedToQuotedHrs != null
+                  ? `${data.contractors.responsiveness.viewedToQuotedHrs} ${t("reports.hoursShort", locale)}`
+                  : "—"}
+              </span>
+              {data.contractors.responsiveness.sample > 0 ? (
+                <span className="text-sand-400"> · {t("reports.sampleN", locale).replace("{n}", String(data.contractors.responsiveness.sample))}</span>
+              ) : null}
+            </p>
+          </div>
+
+          {/* Per contractor */}
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-400">{t("reports.perContractor", locale)}</p>
+            {data.contractors.perContractor.length === 0 ? (
+              <p className="py-1.5 text-sm text-sand-400">{t("reports.none", locale)}</p>
+            ) : (
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>{t("reports.contractor", locale)}</Th>
+                    <Th className="text-right">{t("reports.requestsShort", locale)}</Th>
+                    <Th className="text-right">{t("reports.invoicedShort", locale)}</Th>
+                    <Th className="text-right">{t("reports.spend", locale)}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {data.contractors.perContractor.map((c) => (
+                    <Tr key={c.workshopId}>
+                      <Td className="font-medium">{c.name}</Td>
+                      <Td className="text-right tabular-nums">{c.requests}</Td>
+                      <Td className="text-right tabular-nums">{c.invoiced}</Td>
+                      <Td className="text-right tabular-nums">{rands(c.spend)}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -37,7 +37,8 @@
     "parts": "Parts",
     "partners": "Partners",
     "checklists": "Checklists",
-    "work": "Work"
+    "work": "Work",
+    "inbox": "Inbox"
   },
   "auth": {
     "signIn": "Sign in",
@@ -481,7 +482,12 @@
     "tplWarrantyExpiring": "{machine}: warranty expiring on {date}",
     "tplWarrantyExpired": "{machine}: warranty expired on {date}",
     "tplLicenceExpiring": "{machine}: {type} expiring on {date}",
-    "tplLicenceExpired": "{machine}: {type} expired on {date}"
+    "tplLicenceExpired": "{machine}: {type} expired on {date}",
+    "tplWorkStatus": "{machine}: {kind} — {status}",
+    "tplWorkQuoted": "{machine}: quote received — {amount}",
+    "tplWorkInvoiced": "{machine}: invoice received — {amount}",
+    "tplQuoteAwaiting": "{machine}: quote awaiting your approval — {amount}",
+    "tplInvoiceAwaiting": "{machine}: invoice awaiting your approval — {amount}"
   },
   "settings": {
     "title": "Settings",
@@ -571,6 +577,20 @@
     "fuelConsumption": "Consumption",
     "fuelPurchased": "Purchased",
     "fuelUsed": "Used by machines",
+    "contractors": "Contractors",
+    "outstandingQuotes": "Outstanding quotes",
+    "outstandingInvoices": "Outstanding invoices",
+    "spendViaContractors": "Spend via contractors",
+    "responsiveness": "Avg to view",
+    "toViewed": "requested → viewed",
+    "throughput": "Requests by status",
+    "avgViewedToQuoted": "Avg viewed → quoted",
+    "sampleN": "{n} measured",
+    "perContractor": "Per contractor",
+    "contractor": "Contractor",
+    "requestsShort": "Reqs",
+    "invoicedShort": "Inv.",
+    "hoursShort": "h",
     "none": "—"
   },
   "faults": {
@@ -783,7 +803,8 @@
     "job": "Job card",
     "fuel": "Fuel alert",
     "weekly_digest": "Weekly digest",
-    "stale_meter": "Meter readings"
+    "stale_meter": "Meter readings",
+    "work": "Contractor update"
   },
   "prefs": {
     "title": "Your alert preferences",
@@ -1041,5 +1062,24 @@
     "none": "None",
     "quoteSaved": "Quote recorded",
     "invoiceSaved": "Invoice recorded"
+  },
+  "inbox": {
+    "title": "Activity inbox",
+    "subtitle": "Quotes, invoices and updates from your contractors — act on them here.",
+    "outstandingQuotes": "Quotes to review",
+    "quoteValue": "Quote value",
+    "outstandingInvoices": "Invoices to approve",
+    "invoiceValue": "Invoice value",
+    "needsAction": "Needs your action",
+    "noActions": "Nothing awaiting you",
+    "noActionsHint": "New quotes and invoices from contractors will show up here.",
+    "acceptQuote": "Accept quote",
+    "approveInvoice": "Approve & close",
+    "activeWork": "Active work by vehicle",
+    "noActiveWork": "No open work requests",
+    "noActiveWorkHint": "Open a vehicle and use \"Get something done\" to send a job to a contractor.",
+    "recentActivity": "Recent activity",
+    "quoteAccepted": "Quote accepted",
+    "invoiceApproved": "Invoice approved"
   }
 }

@@ -11,8 +11,9 @@ import { deliverPush } from "@/lib/push/deliver";
  *   3. cron_enqueue_stale_meter_nudges    — one "reading outdated" nudge per farm
  *   4. cron_enqueue_fuel_anomalies        — fuel leak/theft anomalies (deduped, F4)
  *   5. cron_enqueue_expiry_notifications  — warranty/licence expiry reminders (deduped, F6)
- *   6. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
- *   7. push delivery                      — Web Push for the freshly-queued rows (F6)
+ *   6. cron_enqueue_work_request_reminders — outstanding quote/invoice chasers (deduped, F13)
+ *   7. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *   8. push delivery                      — Web Push for the freshly-queued rows (F6)
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
  * sends this header when a CRON_SECRET env var is set (see docs/CRON.md), so the same
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
   await run("stale_meter_nudges", "cron_enqueue_stale_meter_nudges");
   await run("fuel_anomalies", "cron_enqueue_fuel_anomalies");
   await run("expiry_notifications", "cron_enqueue_expiry_notifications");
+  await run("work_request_reminders", "cron_enqueue_work_request_reminders");
 
   // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {

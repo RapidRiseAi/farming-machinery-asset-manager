@@ -25,12 +25,22 @@ export type ReportData = {
     purchasedLitres: number;
     purchasedSpend: number;
   };
+  contractors: {
+    outstandingQuotes: { count: number; value: number };
+    outstandingInvoices: { count: number; value: number };
+    byStatus: { status: string; count: number }[];
+    responsiveness: { requestedToViewedHrs: number | null; viewedToQuotedHrs: number | null; sample: number };
+    spendViaContractors: number;
+    perContractor: { workshopId: string; name: string; requests: number; quoted: number; invoiced: number; spend: number }[];
+  };
   groups: string[];
 };
 
 type Machine = { id: string; name: string; status: string; current_reading: number | null; meter_type: string; location: string | null };
 type JC = { id: string; machine_id: string; type: string; parts_total_cents: number; labour_total_cents: number; other_total_cents: number; total_cents: number; date_out: string | null };
-type Cost = { machine_id: string | null; amount_cents: number | null };
+type Cost = { machine_id: string | null; amount_cents: number | null; type: string; occurred_on: string | null };
+type WR = { id: string; machine_id: string; workshop_id: string | null; status: string; quote_amount_cents: number | null; invoice_amount_cents: number | null; created_at: string };
+type WRE = { work_request_id: string; to_status: string; created_at: string };
 
 /** Parse report filters from URL search params. */
 export function parseFilters(sp: { from?: string; to?: string; inactive?: string; group?: string }): ReportFilters {
@@ -49,15 +59,18 @@ const inRange = (d: string | null, f: ReportFilters) =>
  *  parts + labour + invoices + other); cost-per-hour / cost-per-km use lifetime TCO ÷
  *  lifetime meter (fixes D-2), identical to the machine-detail page. */
 export async function getReportData(supabase: SupabaseClient, f: ReportFilters): Promise<ReportData> {
-  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }] = await Promise.all([
+  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }] = await Promise.all([
     supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null),
     supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null),
     supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null),
     supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null),
     supabase.from("service_plan_lines").select("machine_id, task, status").is("deleted_at", null),
-    supabase.from("cost_entries").select("machine_id, amount_cents").is("deleted_at", null),
+    supabase.from("cost_entries").select("machine_id, amount_cents, type, occurred_on").is("deleted_at", null),
     supabase.from("fuel_issues").select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null),
     supabase.from("fuel_deliveries").select("date, litres, price_per_l_cents").is("deleted_at", null),
+    supabase.from("work_requests").select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null),
+    supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null),
+    supabase.from("workshops").select("id, name"),
   ]);
 
   const machines = (mData as Machine[] | null) ?? [];
@@ -173,10 +186,88 @@ export async function getReportData(supabase: SupabaseClient, f: ReportFilters):
     purchasedSpend += Math.round((d.litres ?? 0) * (d.price_per_l_cents ?? 0));
   }
 
+  // 6) Contractor analytics (F13) — outstanding quote/invoice value, work-request
+  //    throughput, contractor responsiveness (requested→viewed→quoted from the event
+  //    log), and spend via contractors (cost_entries type=invoice, period-filtered).
+  //    Farm-scoped by RLS; retired/sold machines excluded via `allowed`.
+  const wrs = ((wrData as WR[] | null) ?? []).filter((w) => allowed.has(w.machine_id));
+  const wrAllowedIds = new Set(wrs.map((w) => w.id));
+  const wsName = Object.fromEntries(((wsData as { id: string; name: string }[] | null) ?? []).map((w) => [w.id, w.name]));
+
+  const outstandingQuotes = { count: 0, value: 0 };
+  const outstandingInvoices = { count: 0, value: 0 };
+  const statusMap = new Map<string, number>();
+  const perContractorMap = new Map<string, { requests: number; quoted: number; invoiced: number; spend: number }>();
+  const ensureWs = (id: string) => {
+    const cur = perContractorMap.get(id) ?? { requests: 0, quoted: 0, invoiced: 0, spend: 0 };
+    perContractorMap.set(id, cur);
+    return cur;
+  };
+  for (const w of wrs) {
+    statusMap.set(w.status, (statusMap.get(w.status) ?? 0) + 1);
+    if (w.status === "quoted") { outstandingQuotes.count++; outstandingQuotes.value += w.quote_amount_cents ?? 0; }
+    if (w.status === "invoiced") { outstandingInvoices.count++; outstandingInvoices.value += w.invoice_amount_cents ?? 0; }
+    if (w.workshop_id) {
+      const c = ensureWs(w.workshop_id);
+      c.requests++;
+      if (w.quote_amount_cents != null) c.quoted++;
+      if (w.invoice_amount_cents != null) c.invoiced++;
+    }
+  }
+  const byStatus = [...statusMap.entries()].map(([status, count]) => ({ status, count }));
+
+  // Responsiveness: per request, requested (created_at) → first 'viewed' → first 'quoted'.
+  const firstEvent = new Map<string, { viewed?: string; quoted?: string }>();
+  for (const e of (wreData as WRE[] | null) ?? []) {
+    if (!wrAllowedIds.has(e.work_request_id)) continue;
+    if (e.to_status !== "viewed" && e.to_status !== "quoted") continue;
+    const cur = firstEvent.get(e.work_request_id) ?? {};
+    const slot = e.to_status as "viewed" | "quoted";
+    if (!cur[slot] || e.created_at < cur[slot]!) cur[slot] = e.created_at;
+    firstEvent.set(e.work_request_id, cur);
+  }
+  const HOUR = 3600 * 1000;
+  let rtvSum = 0, rtvN = 0, vtqSum = 0, vtqN = 0, sample = 0;
+  const createdById = new Map(wrs.map((w) => [w.id, w.created_at]));
+  for (const [id, ev] of firstEvent.entries()) {
+    const created = createdById.get(id);
+    if (created && ev.viewed) { rtvSum += (new Date(ev.viewed).getTime() - new Date(created).getTime()) / HOUR; rtvN++; }
+    if (ev.viewed && ev.quoted) { vtqSum += (new Date(ev.quoted).getTime() - new Date(ev.viewed).getTime()) / HOUR; vtqN++; }
+    if (ev.viewed || ev.quoted) sample++;
+  }
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  // Spend via contractors — the invoice cost entries (the F1 invoice→cost path), in range.
+  let spendViaContractors = 0;
+  for (const c of (costData as Cost[] | null) ?? []) {
+    if (c.type !== "invoice" || c.machine_id == null || !allowed.has(c.machine_id)) continue;
+    if (!inRange(c.occurred_on, f)) continue;
+    spendViaContractors += c.amount_cents ?? 0;
+  }
+  // Attribute invoice spend to contractors via their invoiced requests (best-effort split
+  // when a machine has one contractor; otherwise counted in the total above).
+  for (const w of wrs) {
+    if (w.workshop_id && w.invoice_amount_cents != null && (w.status === "invoiced" || w.status === "closed")) {
+      ensureWs(w.workshop_id).spend += w.invoice_amount_cents;
+    }
+  }
+  const perContractor = [...perContractorMap.entries()]
+    .map(([workshopId, v]) => ({ workshopId, name: wsName[workshopId] ?? "—", ...v }))
+    .sort((a, b) => b.spend - a.spend || b.requests - a.requests);
+
   return {
     costPerMachine, byType, compliance,
     problems: { topParts: top(partMap), topFaults: top(faultMap), breaksMostOften },
     fuel: { perMachine: fuelPerMachine, totalLitres, totalSpend, purchasedLitres, purchasedSpend },
+    contractors: {
+      outstandingQuotes, outstandingInvoices, byStatus,
+      responsiveness: {
+        requestedToViewedHrs: rtvN ? round1(rtvSum / rtvN) : null,
+        viewedToQuotedHrs: vtqN ? round1(vtqSum / vtqN) : null,
+        sample,
+      },
+      spendViaContractors, perContractor,
+    },
     groups,
   };
 }

@@ -367,4 +367,43 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Not built** (F12c): contractor aggregated dashboard / per-kind views + contractor-
     plan gating.
 
+- **FleetWise F13 — Owner/manager activity inbox + fleet analytics + reminders
+  (migration `0330`; branch `claude/fleetwise-owner-inbox`; isolation-tested,
+  `db:test` green):**
+  - **Activity inbox** (`/inbox`, owner/manager only): a unified, actionable feed built
+    on `work_requests` + `work_request_events` + `notifications` (surfaces the notification
+    engine — does NOT duplicate it). Outstanding quote/invoice value stats; a **"Needs your
+    action"** list where a quote is **accepted** (`acceptQuote` → status `accepted`) or an
+    invoice **approved & closed** (`approveInvoice` → status `closed`) inline (each writes a
+    `work_request_event`); **active work grouped by vehicle + contractor** with an unread dot
+    (a request with an unread alert) + quick-contact (reuse `src/lib/contact.ts` tel/wa/mail);
+    a **recent-activity** feed rendering `formatNotification` with `notificationUrl`
+    deep-links + mark-read. Nav item + **unread badge** (new `NavItemData.badge` on
+    NavLink/MoreMenu; count via `src/lib/inbox.ts` `countInboxUnread`, RLS-scoped, only for
+    owner/manager).
+  - **Fleet analytics** (reports section + `contractors.csv`): outstanding quotes/invoices
+    (count + value), work-request **throughput by status**, **contractor responsiveness**
+    (avg requested→viewed / viewed→quoted from `work_request_events`), **spend via
+    contractors** (`cost_entries` type=`invoice`, period-filtered), and a **per-contractor**
+    table — all farm-scoped, retired/sold excluded (via `reports/data.ts` `allowed` set).
+  - **Reminders** (`0330`, 0205-pattern): `app.enqueue_work_request_reminders` chases
+    still-outstanding `quoted`/`invoiced` requests → `quote_awaiting`/`invoice_awaiting`
+    to owner/manager, honouring quiet hours; **weekly dedupe read from the notification
+    queue itself (no new column)**; retired/sold + non-active farms excluded; SECURITY
+    DEFINER, execute revoked from public/anon/authenticated; `public.cron_*` wrapper wired
+    into the **nightly cron** route. `formatNotification`/`notificationTitle`/`notificationUrl`
+    now render the F12b `work_request_*` templates + the two new reminder templates
+    (`pushTitle.work`).
+  - **Timelines**: machine-detail history timeline now includes **work requests + their
+    quotes/invoices** (new `work` event kind + `WorkIcon`, deep-links to `/work/[id]`).
+  - Demo seed: request 1 → `quoted` (R950 ex-VAT) so the inbox "needs action" + quote
+    reminder demo; request 2 stays `invoiced`. i18n EN/AF at parity (**973 leaf keys**;
+    `inbox.*`, `nav.inbox`, `reports.contractors`/`outstanding*`/`perContractor`/…,
+    `notifications.tplWork*`/`tpl*Awaiting`, `pushTitle.work`). `rls_isolation.sql` F13
+    section proves engine execute-deny (authenticated/anon), owner+manager-only enqueue,
+    cross-tenant isolation, retired-machine exclusion, and the 7-day dedupe. **No new
+    table** (reminders reuse the queue); only migration `0330` (engine + cron wrapper).
+    Gates green (typecheck + lint + build + `db:test`); shared first-load JS flat at
+    **102 kB**. **Not built** (out of scope): contractor dashboard (F12c), multi-site (F7).
+
 > Update this "current status" block at the end of every session.
