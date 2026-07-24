@@ -1813,9 +1813,9 @@ select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;
 -- `workshop_id = <my workshop>` filter. This section proves that combination is airtight:
 --   (a) AGGREGATION — a workshop linked to TWO farms sees its requests from BOTH in the
 --       one dashboard query;
---   (b) OWN-WORKSHOP ONLY — on a farm shared by two contractors, RLS alone is farm-scoped
---       (so W can SEE X's request row), but the dashboard's workshop_id filter excludes
---       another workshop's request — the app filter is load-bearing and is asserted;
+--   (b) OWN-WORKSHOP ONLY — on a farm shared by two contractors, RLS is now workshop-scoped
+--       (F7/0341): W can NO LONGER see X's request row even though both are linked to the
+--       shared farm. What used to be an app-only workshop_id filter is now an RLS guarantee;
 --   (c) NEVER AN UNLINKED FARM — a request assigned to W but on a farm W is NOT linked to
 --       stays invisible (RLS dominates the assignment); a workshop cannot update it;
 --   (d) the `workshops.plan` gating column reads back with its default.
@@ -1854,15 +1854,16 @@ do $$ declare c bigint; begin
   execute $q$ select count(*) from work_requests where workshop_id = '33333333-3333-3333-3333-333333333333' and deleted_at is null $q$ into c;
   if c <> 2 then raise exception 'F12c FAIL [W dashboard]: aggregated own-workshop count=% (expected 2)', c; end if;
 
-  -- (b) RLS alone is FARM-scoped, not workshop-scoped: on the shared Farm A, W can SEE
-  --     X's request row — so the app-side workshop_id filter is what excludes it.
+  -- (b) F7 STRENGTHENING: RLS is now workshop-scoped, not merely farm-scoped. On the
+  --     shared Farm A, W can NO LONGER see X's request — the RLS predicate (0341) enforces
+  --     what used to be only an app-side workshop_id filter. This is the F12c gap closed.
   execute $q$ select count(*) from work_requests where workshop_id = 'e3000000-0000-0000-0000-0000000000e3' $q$ into c;
-  if c <> 1 then raise exception 'F12c FAIL [W sees shared farm]: X-request visibility=% (expected 1)', c; end if;
+  if c <> 0 then raise exception 'F12c FAIL [W sees shared farm]: X-request visibility=% (expected 0 after F7 RLS workshop-scoping)', c; end if;
 
-  -- Total RLS-visible to W = Farm A (d1..a1 W + d4..a2 X) + Farm E (d3..e1 W) = 3; the
-  -- dashboard (2) is thus a strict subset, differing only by X's request.
+  -- Total RLS-visible to W now EQUALS the dashboard set: Farm A (d1..a1 W) + Farm E
+  -- (d3..e1 W) = 2. X's Farm A request (d4..a2) is excluded by RLS, not just the app query.
   execute $q$ select count(*) from work_requests $q$ into c;
-  if c <> 3 then raise exception 'F12c FAIL [W total visible]: %=(expected 3)', c; end if;
+  if c <> 2 then raise exception 'F12c FAIL [W total visible]: %=(expected 2 after F7 RLS workshop-scoping)', c; end if;
 
   -- (c) An unlinked farm's rows stay invisible even when a request is assigned to W.
   execute $q$ select count(*) from work_requests where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
@@ -1989,3 +1990,225 @@ end $$;
 reset role;
 
 select 'ALL F13 OWNER-INBOX REMINDER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F7: MULTI-SITE + PER-ROLE VISIBILITY (0340–0341, appended) ══
+-- ═════════════════════════════════════════════════════════════════
+-- Proves the three F7 access paths, each ADDITIVE to (never weakening) the model above:
+--   (A) MULTI-SITE — a user whose PRIMARY farm is F and who holds an ACTIVE
+--       user_farm_membership to G sees exactly F ∪ G (machines + child rows), never a
+--       third farm H; revoking the membership immediately removes G (dynamic scoping,
+--       like workshop_links); the memberships table is itself tenant/own-user isolated
+--       and anon-denied.
+--   (B) OPERATOR — a user whose role is `operator` sees ONLY machines assigned to them
+--       (assigned_operator_id = auth.uid()) and only those machines' child rows; a
+--       non-assigned machine (and its readings/faults/work) is invisible. Owner/manager
+--       keep full-farm access (operator gating never leaks upward).
+--   (C) CONTRACTOR — a `workshop` user sees (and may update) ONLY the work_requests
+--       assigned to its own workshop, even on a farm shared with another contractor;
+--       another workshop's request on the SAME farm is invisible and un-updatable.
+-- Fresh fixtures (Farms F/G/H, distinct ids) leave every earlier count intact.
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+insert into farms (id, name) values
+  ('f0000000-0000-0000-0000-0000000000f1', 'Farm F'),
+  ('f0000000-0000-0000-0000-0000000000f2', 'Farm G'),
+  ('f0000000-0000-0000-0000-0000000000f3', 'Farm H');
+
+insert into auth.users (id, email) values
+  ('f5000000-0000-0000-0000-0000000000f1', 'multisite@test'),   -- MS: owner F + member G
+  ('f5000000-0000-0000-0000-0000000000f2', 'operatorF@test'),   -- OP: operator on F, assigned F1
+  ('f4000000-0000-0000-0000-0000000000f1', 'wsM@test'),         -- Workshop M staff
+  ('f4000000-0000-0000-0000-0000000000f2', 'wsN@test');         -- Workshop N staff
+
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('f5000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f1', null, 'owner',    'MultiSite Owner'),
+  ('f5000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f1', null, 'operator', 'Operator F');
+
+insert into workshops (id, name) values
+  ('f3000000-0000-0000-0000-0000000000f1', 'Workshop M'),
+  ('f3000000-0000-0000-0000-0000000000f2', 'Workshop N');
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('f4000000-0000-0000-0000-0000000000f1', null, 'f3000000-0000-0000-0000-0000000000f1', 'workshop', 'Workshop M Staff'),
+  ('f4000000-0000-0000-0000-0000000000f2', null, 'f3000000-0000-0000-0000-0000000000f2', 'workshop', 'Workshop N Staff');
+-- Both contractors are linked to the SHARED Farm F.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('f3000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f1', 'active'),
+  ('f3000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f1', 'active');
+
+-- Machines: F1 (assigned to OP) + F2 (unassigned) on Farm F; G1 on Farm G; H1 on Farm H.
+insert into machines (id, farm_id, name, type, assigned_operator_id) values
+  ('f1000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f1', 'F1 (assigned)',   'tractor', 'f5000000-0000-0000-0000-0000000000f2'),
+  ('f1000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f1', 'F2 (unassigned)', 'tractor', null),
+  ('f1000000-0000-0000-0000-0000000000f9', 'f0000000-0000-0000-0000-0000000000f2', 'G1',              'tractor', null),
+  ('f1000000-0000-0000-0000-0000000000fa', 'f0000000-0000-0000-0000-0000000000f3', 'H1',              'tractor', null);
+
+-- One reading + one fault on EACH Farm F machine (child-row scoping fixtures).
+insert into meter_readings (farm_id, machine_id, reading, source) values
+  ('f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 10, 'manual'),
+  ('f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f2', 20, 'manual');
+insert into faults (farm_id, machine_id, description, urgency, status) values
+  ('f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 'F1 fault', 'limping', 'open'),
+  ('f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f2', 'F2 fault', 'limping', 'open');
+
+-- MS's cross-site access: an ACTIVE membership to Farm G (role manager). MS reaches Farm F
+-- via users.farm_id (primary) and Farm G via this membership — proving the UNION.
+insert into user_farm_memberships (id, user_id, farm_id, role, active) values
+  ('f7000000-0000-0000-0000-0000000000f1', 'f5000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f2', 'manager', true);
+
+-- Work requests on the SHARED Farm F: one for Workshop M, one for Workshop N (both on F1),
+-- and one on the unassigned F2 (for the operator negative test).
+insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status) values
+  ('f6000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 'f3000000-0000-0000-0000-0000000000f1', 'repair', 'requested'),
+  ('f6000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 'f3000000-0000-0000-0000-0000000000f2', 'repair', 'requested'),
+  ('f6000000-0000-0000-0000-0000000000f3', 'f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f2', null,                                   'repair', 'requested');
+insert into work_request_events (farm_id, work_request_id, from_status, to_status, note) values
+  ('f0000000-0000-0000-0000-0000000000f1', 'f6000000-0000-0000-0000-0000000000f1', null, 'requested', 'M created'),
+  ('f0000000-0000-0000-0000-0000000000f1', 'f6000000-0000-0000-0000-0000000000f2', null, 'requested', 'N created');
+
+-- ── (A) MULTI-SITE: MS sees Farm F ∪ Farm G, never Farm H ─────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f1');       -- MS (owner F + member G)
+  -- farms: F + G (not H).
+  execute $q$ select count(*) from farms where id in
+    ('f0000000-0000-0000-0000-0000000000f1','f0000000-0000-0000-0000-0000000000f2','f0000000-0000-0000-0000-0000000000f3') $q$ into c;
+  if c <> 2 then raise exception 'F7 MULTISITE FAIL [MS farms]: sees % of F/G/H (expected 2)', c; end if;
+  -- machines across the union: F1 + F2 (Farm F) + G1 (Farm G) = 3; H1 invisible.
+  execute $q$ select count(*) from machines where farm_id in
+    ('f0000000-0000-0000-0000-0000000000f1','f0000000-0000-0000-0000-0000000000f2') $q$ into c;
+  if c <> 3 then raise exception 'F7 MULTISITE FAIL [MS machines]: sees % (expected 3: F1+F2+G1)', c; end if;
+  execute $q$ select count(*) from machines where farm_id = 'f0000000-0000-0000-0000-0000000000f3' $q$ into c;
+  if c <> 0 then raise exception 'F7 MULTISITE FAIL [MS Farm H]: sees % Farm H machines (expected 0)', c; end if;
+  -- owner sees BOTH Farm F machines' child rows (operator gating never leaks upward).
+  execute $q$ select count(*) from meter_readings where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 2 then raise exception 'F7 MULTISITE FAIL [MS readings]: owner sees % Farm F readings (expected 2)', c; end if;
+  -- owner sees ALL Farm F work_requests (workshop-scoping never narrows a farm owner).
+  execute $q$ select count(*) from work_requests where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 3 then raise exception 'F7 MULTISITE FAIL [MS work]: owner sees % Farm F requests (expected 3)', c; end if;
+end $$;
+reset role;
+
+-- ── (A) membership table isolation + own-user visibility ──────────
+set role authenticated;
+do $$ begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f1');       -- MS sees its own membership row
+  perform _t_assert('user_farm_memberships', 1, 'MS');
+end $$;
+do $$ begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f2');       -- Operator F: no memberships, not an admin
+  perform _t_assert('user_farm_memberships', 0, 'operatorF');
+end $$;
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');       -- Owner B: unrelated tenant
+  perform _t_assert('user_farm_memberships', 0, 'ownerB');
+end $$;
+do $$ begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');       -- RR admin sees the only membership row
+  perform _t_assert('user_farm_memberships', 1, 'rrAdmin');
+end $$;
+reset role;
+
+-- ── (A) dynamic scoping: revoking the membership removes Farm G ────
+update user_farm_memberships set active = false where id = 'f7000000-0000-0000-0000-0000000000f1';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f1');       -- MS after revoke
+  execute $q$ select count(*) from machines where farm_id = 'f0000000-0000-0000-0000-0000000000f2' $q$ into c;
+  if c <> 0 then raise exception 'F7 MULTISITE FAIL [MS after revoke]: still sees % Farm G machines (expected 0)', c; end if;
+  execute $q$ select count(*) from machines where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 2 then raise exception 'F7 MULTISITE FAIL [MS after revoke]: lost primary Farm F (sees %, expected 2)', c; end if;
+end $$;
+reset role;
+update user_farm_memberships set active = true where id = 'f7000000-0000-0000-0000-0000000000f1';
+
+-- ── (A) anon: memberships table denies read + write ───────────────
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin execute 'select count(*) from public.user_farm_memberships' into c;
+  exception when insufficient_privilege then c := 0; end;
+  if c <> 0 then raise exception 'F7 ISOLATION FAIL [anon]: sees % memberships', c; end if;
+  begin
+    insert into user_farm_memberships (user_id, farm_id, role)
+      values ('f5000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f2', 'operator');
+    raise exception 'F7 ISOLATION FAIL [anon]: inserted a membership';
+  exception
+    when insufficient_privilege then null;                        -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (A) a non-admin cannot grant themselves a membership to another farm ──
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f2');       -- Operator F (no admin rights anywhere)
+  begin insert into user_farm_memberships (user_id, farm_id, role)
+    values ('f5000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f3', 'operator');   -- self → Farm H
+  exception when others then ok := true; end;
+  if not ok then raise exception 'F7 ISOLATION FAIL [operatorF]: granted itself a Farm H membership'; end if;
+end $$;
+reset role;
+
+-- ── (B) OPERATOR: sees ONLY the assigned machine + its child rows ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f5000000-0000-0000-0000-0000000000f2');       -- Operator F (assigned F1 only)
+  -- machines: only F1.
+  execute $q$ select count(*) from machines where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 1 then raise exception 'F7 OPERATOR FAIL [machines]: sees % Farm F machines (expected 1: F1)', c; end if;
+  -- explicitly: the UNASSIGNED machine F2 is invisible (denied).
+  execute $q$ select count(*) from machines where id = 'f1000000-0000-0000-0000-0000000000f2' $q$ into c;
+  if c <> 0 then raise exception 'F7 OPERATOR FAIL [non-assigned machine]: F2 visible (count=%, expected 0)', c; end if;
+  -- child rows follow the machine: F1's reading + fault visible, F2's are not.
+  execute $q$ select count(*) from meter_readings where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 1 then raise exception 'F7 OPERATOR FAIL [readings]: sees % (expected 1: F1 only)', c; end if;
+  execute $q$ select count(*) from faults where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 1 then raise exception 'F7 OPERATOR FAIL [faults]: sees % (expected 1: F1 only)', c; end if;
+  -- work_requests: the two on F1 are visible; the one on F2 is not.
+  execute $q$ select count(*) from work_requests where farm_id = 'f0000000-0000-0000-0000-0000000000f1' $q$ into c;
+  if c <> 2 then raise exception 'F7 OPERATOR FAIL [work]: sees % Farm F requests (expected 2: both on F1)', c; end if;
+  execute $q$ select count(*) from work_requests where machine_id = 'f1000000-0000-0000-0000-0000000000f2' $q$ into c;
+  if c <> 0 then raise exception 'F7 OPERATOR FAIL [work on non-assigned]: sees % (expected 0)', c; end if;
+end $$;
+reset role;
+
+-- ── (C) CONTRACTOR: each workshop sees ONLY its own assigned requests on the SHARED farm ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M (linked to Farm F)
+  -- Only M's request (f6..f1), NOT N's (f6..f2) — even though BOTH are on the shared Farm F.
+  perform _t_assert('work_requests', 1, 'workshopM');
+  execute $q$ select count(*) from work_requests where workshop_id = 'f3000000-0000-0000-0000-0000000000f2' $q$ into c;
+  if c <> 0 then raise exception 'F7 CONTRACTOR FAIL [M sees N]: workshop M sees % of N''s requests (expected 0)', c; end if;
+  -- events follow the request: M sees only its own request's event.
+  perform _t_assert('work_request_events', 1, 'workshopM');
+end $$;
+do $$ begin
+  perform _t_login('f4000000-0000-0000-0000-0000000000f2');       -- Workshop N
+  perform _t_assert('work_requests', 1, 'workshopN');             -- only N's request
+end $$;
+reset role;
+
+-- ── (C) a workshop cannot UPDATE another workshop's request on the shared farm ──
+do $$ declare st work_request_status; begin
+  set role authenticated;
+  perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M
+  update work_requests set status = 'closed' where id = 'f6000000-0000-0000-0000-0000000000f2';  -- N's request → RLS filters to 0 rows
+  reset role;
+  select status into st from work_requests where id = 'f6000000-0000-0000-0000-0000000000f2';    -- read back unfiltered
+  if st <> 'requested' then raise exception 'F7 CONTRACTOR FAIL [M mutated N]: N''s request status=% (expected requested)', st; end if;
+end $$;
+
+-- ── (C) but a workshop CAN update its OWN assigned request (positive path) ──
+set role authenticated;
+do $$ declare st work_request_status; begin
+  perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M
+  update work_requests set status = 'viewed', updated_at = now() where id = 'f6000000-0000-0000-0000-0000000000f1';
+  select status into st from work_requests where id = 'f6000000-0000-0000-0000-0000000000f1';
+  if st <> 'viewed' then raise exception 'F7 CONTRACTOR FAIL [M own request]: could not advance own request (status=%)', st; end if;
+end $$;
+reset role;
+
+select 'ALL F7 MULTI-SITE & PER-ROLE TESTS PASSED' as result;
