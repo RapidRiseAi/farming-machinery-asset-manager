@@ -46,6 +46,7 @@ export default async function AppLayout({
   const faults: NavItemData = { href: "/faults", label: t("nav.faults", locale), icon: "faults" };
   const fuel: NavItemData = { href: "/fuel", label: t("nav.fuel", locale), icon: "fuel" };
   const parts: NavItemData = { href: "/parts", label: t("nav.parts", locale), icon: "parts" };
+  const checklists: NavItemData = { href: "/checklists", label: t("nav.checklists", locale), icon: "checklists" };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -57,6 +58,7 @@ export default async function AppLayout({
   const moreItems: NavItemData[] = [
     ...(fuelAllowed ? [fuel] : []),
     ...(canParts ? [parts] : []),
+    checklists,
     ...(reportsAllowed ? [reports] : []),
     alerts,
     ...(isManagerPlus ? [team, settings] : []),
@@ -70,7 +72,7 @@ export default async function AppLayout({
   ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = [
     ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : [])] },
+    { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), checklists] },
     {
       key: "farm",
       label: t("nav.groupFarm", locale),

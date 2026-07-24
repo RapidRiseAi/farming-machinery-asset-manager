@@ -49,6 +49,7 @@ import {
   MachinesIcon,
   BellIcon,
   PlusIcon,
+  ChecklistIcon,
 } from "@/components/ui/icons";
 
 type Machine = {
@@ -83,7 +84,7 @@ type Licence = {
 };
 
 const savedMsg: Record<string, string> = {
-  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", "1": "ui.saved",
+  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", "1": "ui.saved",
 };
 
 export default async function MachineDetailPage({
@@ -129,7 +130,7 @@ export default async function MachineDetailPage({
     }
   }
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -147,6 +148,8 @@ export default async function MachineDetailPage({
     supabase.from("service_kits").select("id, name, notes, service_kit_items(id, part_no, description, qty, unit_cost_cents, part_catalogue_id)").eq("machine_id", id).is("deleted_at", null).is("service_kit_items.deleted_at", null).order("created_at"),
     // Catalogue parts visible to this user (global + own farm) for the kit-item picker.
     supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
+    // Vehicle checklists (F11): filled inspections/sign-offs/condition reports for this machine.
+    supabase.from("checklist_instances").select("id, template_name, status, completed_at, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(20),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -209,8 +212,15 @@ export default async function MachineDetailPage({
     machine.finance_interest_bps != null;
   const openFaultCount = faults.filter((f) => f.status !== "resolved").length;
 
+  // Vehicle checklists (F11): completed/draft inspections + sign-offs for this machine.
+  type ChecklistRow = { id: string; template_name: string; status: string; completed_at: string | null; created_at: string };
+  const checklists = (checklistRes.data as ChecklistRow[] | null) ?? [];
+  const canFill = ["owner", "manager", "mechanic", "workshop", "operator"].includes(profile.role);
+  const checklistStatusLabel = (s: string) =>
+    s === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale);
+
   // Timeline (merge + sort desc).
-  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch"; title: string; sub: string; href?: string };
+  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist"; title: string; sub: string; href?: string };
   const events: Ev[] = [];
   for (const j of jobCards)
     events.push({
@@ -243,10 +253,18 @@ export default async function MachineDetailPage({
       sub: t(`watchStatus.${w.status}`, locale),
       href: w.source_job_card_id ? `/jobcards/${w.source_job_card_id}` : undefined,
     });
+  for (const c of checklists)
+    events.push({
+      date: (c.completed_at ?? c.created_at).slice(0, 10),
+      kind: "checklist",
+      title: c.template_name,
+      sub: checklistStatusLabel(c.status),
+      href: `/machines/${machine.id}/checklists/${c.id}`,
+    });
   events.sort((a, b) => b.date.localeCompare(a.date));
 
   const evIcon = (k: Ev["kind"]) =>
-    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : <BellIcon />;
+    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : <BellIcon />;
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
@@ -977,6 +995,36 @@ export default async function MachineDetailPage({
                     <Link href={`/jobcards/${j.id}`} className="focus-ring flex items-center justify-between rounded-md py-1.5">
                       <span>{t(`jobType.${j.type}`, locale)}</span>
                       <span className="text-sand-500">{rands(j.total_cents)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          {/* Vehicle checklists (F11) — pre-use inspections, service sign-offs, condition reports */}
+          <Card>
+            <CardHeader
+              action={canFill ? (
+                <Link href={`/machines/${machine.id}/checklists/new`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-700">
+                  <PlusIcon className="text-[1rem]" />{t("checklists.newChecklist", locale)}
+                </Link>
+              ) : undefined}
+            >
+              <CardTitle>{t("machine.checklists", locale)}</CardTitle>
+            </CardHeader>
+            {checklists.length === 0 ? (
+              <p className="text-sm text-sand-500">{t("machine.noChecklists", locale)}</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                {checklists.slice(0, 6).map((c) => (
+                  <li key={c.id}>
+                    <Link href={`/machines/${machine.id}/checklists/${c.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
+                      <span className="min-w-0 truncate text-sand-800">{c.template_name}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                        <Badge tone={c.status === "completed" ? "ok" : "warning"}>{checklistStatusLabel(c.status)}</Badge>
+                        <span className="tabular-nums">{(c.completed_at ?? c.created_at).slice(0, 10)}</span>
+                      </span>
                     </Link>
                   </li>
                 ))}

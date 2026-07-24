@@ -1464,3 +1464,134 @@ do $$ declare c bigint; amt bigint; begin
 end $$;
 
 select 'ALL F9 SERVICE-KITS & PARTS-CATALOGUE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F11: VEHICLE CHECKLISTS + TEMPLATE BUILDER (0290, appended) ══
+-- Proves:
+--   (a) checklist_templates + checklist_template_fields visibility mirrors
+--       service_templates: own-farm rows + GLOBAL (farm_id null) rows are visible;
+--       other farms' rows never are.
+--   (b) checklist_instances / checklist_instance_values are farm-isolated (own-farm
+--       only; cross-tenant write rejected; anon sees nothing and cannot write).
+--   (c) composite-FK isolation: a farm field can't attach to another farm's template,
+--       and an instance value can't cite another farm's photo attachment.
+-- Fresh fixtures reuse the base Farm A / Farm B machines; nothing above is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+insert into checklist_templates (id, farm_id, machine_type, name) values
+  ('ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'tractor', 'Farm A pre-use inspection'),
+  ('ca000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'tractor', 'Farm B pre-use inspection'),
+  ('ca000000-0000-0000-0000-0000000000f0', null,                                   'tractor', 'GLOBAL daily inspection');
+
+insert into checklist_template_fields (id, template_id, farm_id, sort_order, field_type, label, required) values
+  ('cb000000-0000-0000-0000-0000000000a1', 'ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 0, 'checkbox', 'Oil level OK',   true),
+  ('cb000000-0000-0000-0000-0000000000a2', 'ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 1, 'photo',    'Damage photo',   false),
+  ('cb000000-0000-0000-0000-0000000000b1', 'ca000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 0, 'text',     'Notes',          false),
+  ('cb000000-0000-0000-0000-0000000000f0', 'ca000000-0000-0000-0000-0000000000f0', null,                                   0, 'rating',   'Overall condition', false);
+
+insert into checklist_instances (id, farm_id, machine_id, template_id, template_name, status) values
+  ('cc000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'ca000000-0000-0000-0000-0000000000a1', 'Farm A pre-use inspection', 'completed'),
+  ('cc000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'ca000000-0000-0000-0000-0000000000b1', 'Farm B pre-use inspection', 'completed');
+
+-- Per-farm checklist photo attachments (kind=photo, parent=checklist_instance).
+insert into attachments (id, farm_id, parent_type, parent_id, kind, storage_path) values
+  ('ce000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'checklist_instance', 'cc000000-0000-0000-0000-0000000000a1', 'photo', '11111111-1111-1111-1111-111111111111/cc000000-0000-0000-0000-0000000000a1/p.jpg'),
+  ('ce000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'checklist_instance', 'cc000000-0000-0000-0000-0000000000b1', 'photo', '22222222-2222-2222-2222-222222222222/cc000000-0000-0000-0000-0000000000b1/p.jpg');
+
+insert into checklist_instance_values (id, farm_id, instance_id, template_field_id, sort_order, field_type, label, value_text, attachment_id) values
+  ('cd000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000a1', 'cb000000-0000-0000-0000-0000000000a1', 0, 'checkbox', 'Oil level OK', 'true', null),
+  ('cd000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000a1', 'cb000000-0000-0000-0000-0000000000a2', 1, 'photo',    'Damage photo', null,   'ce000000-0000-0000-0000-0000000000a1'),
+  ('cd000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'cc000000-0000-0000-0000-0000000000b1', 'cb000000-0000-0000-0000-0000000000b1', 0, 'text',     'Notes',        'B note', null);
+
+-- ── (a) templates + fields: own-farm + GLOBAL visible; other farms hidden ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('checklist_templates',       2, 'ownerA'); -- Farm A + GLOBAL
+  perform _t_assert('checklist_template_fields', 3, 'ownerA'); -- 2 Farm A fields + 1 GLOBAL
+  execute $q$ select count(*) from checklist_templates where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
+  if c <> 0 then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: sees % Farm B templates', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('checklist_templates', 2, 'ownerB'); perform _t_assert('checklist_template_fields', 2, 'ownerB'); end $$;  -- Farm B + GLOBAL
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('checklist_templates', 2, 'workshopW'); perform _t_assert('checklist_template_fields', 3, 'workshopW'); end $$;  -- Farm A + GLOBAL
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('checklist_templates', 3, 'rrAdmin'); perform _t_assert('checklist_template_fields', 4, 'rrAdmin'); end $$;  -- A + B + GLOBAL
+reset role;
+
+-- ── (b) instances / values farm isolation ─────────────────────────
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('checklist_instances',       1, 'ownerA');
+  perform _t_assert('checklist_instance_values', 2, 'ownerA');
+end $$;
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  perform _t_assert('checklist_instances',       1, 'ownerB');
+  perform _t_assert('checklist_instance_values', 1, 'ownerB');
+end $$;
+do $$ begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');   -- Workshop W (linked to A)
+  perform _t_assert('checklist_instances',       1, 'workshopW');
+  perform _t_assert('checklist_instance_values', 2, 'workshopW');
+end $$;
+do $$ begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR Admin
+  perform _t_assert('checklist_instances',       2, 'rrAdmin');
+  perform _t_assert('checklist_instance_values', 3, 'rrAdmin');
+end $$;
+reset role;
+
+-- ── (b/c) cross-tenant WRITE + composite-FK denials (Owner A → Farm B) ──
+set role authenticated;
+do $$ declare ok boolean; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  -- a GLOBAL template (only RR admin may) — farm_id null fails the ins check
+  ok := false;
+  begin insert into checklist_templates (farm_id, name) values (null, 'HACK GLOBAL'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: wrote a GLOBAL template'; end if;
+  -- a farm template into Farm B
+  ok := false;
+  begin insert into checklist_templates (farm_id, name) values ('22222222-2222-2222-2222-222222222222', 'HACK'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: wrote a Farm B template'; end if;
+  -- a field tagged Farm A but pointing at Farm B's template → composite FK rejects
+  ok := false;
+  begin insert into checklist_template_fields (template_id, farm_id, sort_order, field_type, label)
+        values ('ca000000-0000-0000-0000-0000000000b1', '11111111-1111-1111-1111-111111111111', 0, 'text', 'HACK'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: attached a field to Farm B''s template'; end if;
+  -- an instance onto a Farm B machine
+  ok := false;
+  begin insert into checklist_instances (farm_id, machine_id, template_name) values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'hack'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: wrote a Farm B instance'; end if;
+  -- a value into Farm B's instance
+  ok := false;
+  begin insert into checklist_instance_values (farm_id, instance_id, sort_order, field_type, label) values ('22222222-2222-2222-2222-222222222222', 'cc000000-0000-0000-0000-0000000000b1', 0, 'text', 'HACK'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: wrote into Farm B instance'; end if;
+  -- a Farm A value citing Farm B's photo attachment → composite FK rejects
+  ok := false;
+  begin insert into checklist_instance_values (farm_id, instance_id, sort_order, field_type, label, attachment_id)
+        values ('11111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000a1', 5, 'photo', 'HACK', 'ce000000-0000-0000-0000-0000000000b1'); exception when others then ok := true; end;
+  if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: cited Farm B''s photo attachment'; end if;
+end $$;
+reset role;
+
+-- ── (b) anon sees nothing and cannot write the new tables ─────────
+set role anon;
+do $$ declare t text; c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  foreach t in array array['checklist_templates','checklist_template_fields','checklist_instances','checklist_instance_values'] loop
+    begin execute format('select count(*) from public.%I', t) into c;
+    exception when insufficient_privilege then c := 0; end;
+    if c <> 0 then raise exception 'F11 ISOLATION FAIL [anon]: sees % rows in %', c, t; end if;
+  end loop;
+  begin
+    insert into checklist_templates (farm_id, name) values ('11111111-1111-1111-1111-111111111111', 'anon-hack');
+    raise exception 'F11 ISOLATION FAIL [anon]: inserted a template';
+  exception
+    when insufficient_privilege then null;                    -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+select 'ALL F11 CHECKLIST TESTS PASSED' as result;
