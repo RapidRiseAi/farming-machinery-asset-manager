@@ -39,7 +39,8 @@
     "checklists": "Kontrolelyste",
     "work": "Werk",
     "contractor": "My paneelbord",
-    "groupContractor": "Kontrakteur"
+    "groupContractor": "Kontrakteur",
+    "inbox": "Inmandjie"
   },
   "auth": {
     "signIn": "Teken in",
@@ -483,7 +484,12 @@
     "tplWarrantyExpiring": "{machine}: waarborg verval op {date}",
     "tplWarrantyExpired": "{machine}: waarborg het op {date} verval",
     "tplLicenceExpiring": "{machine}: {type} verval op {date}",
-    "tplLicenceExpired": "{machine}: {type} het op {date} verval"
+    "tplLicenceExpired": "{machine}: {type} het op {date} verval",
+    "tplWorkStatus": "{machine}: {kind} — {status}",
+    "tplWorkQuoted": "{machine}: kwotasie ontvang — {amount}",
+    "tplWorkInvoiced": "{machine}: faktuur ontvang — {amount}",
+    "tplQuoteAwaiting": "{machine}: kwotasie wag op jou goedkeuring — {amount}",
+    "tplInvoiceAwaiting": "{machine}: faktuur wag op jou goedkeuring — {amount}"
   },
   "settings": {
     "title": "Instellings",
@@ -573,6 +579,20 @@
     "fuelConsumption": "Verbruik",
     "fuelPurchased": "Aangekoop",
     "fuelUsed": "Deur masjiene gebruik",
+    "contractors": "Kontrakteurs",
+    "outstandingQuotes": "Uitstaande kwotasies",
+    "outstandingInvoices": "Uitstaande fakture",
+    "spendViaContractors": "Besteding via kontrakteurs",
+    "responsiveness": "Gem. tot besigtig",
+    "toViewed": "aangevra → besigtig",
+    "throughput": "Versoeke volgens status",
+    "avgViewedToQuoted": "Gem. besigtig → gekwoteer",
+    "sampleN": "{n} gemeet",
+    "perContractor": "Per kontrakteur",
+    "contractor": "Kontrakteur",
+    "requestsShort": "Versk.",
+    "invoicedShort": "Fakt.",
+    "hoursShort": "h",
     "none": "—"
   },
   "faults": {
@@ -785,7 +805,8 @@
     "job": "Werkkaart",
     "fuel": "Brandstofwaarskuwing",
     "weekly_digest": "Weeklikse opsomming",
-    "stale_meter": "Meterlesings"
+    "stale_meter": "Meterlesings",
+    "work": "Kontrakteur-opdatering"
   },
   "prefs": {
     "title": "Jou waarskuwingvoorkeure",
@@ -1085,5 +1106,24 @@
     "analyticsLocked": "Kruis-kliënt-analise",
     "analyticsLockedHint": "Sien volumes per kliënt, gefaktureerde totale en tendense oor elke plaas wat jy bedien.",
     "contactRr": "Gradeer op na Pro om te ontsluit — kontak RapidRise."
+  },
+  "inbox": {
+    "title": "Aktiwiteit-inmandjie",
+    "subtitle": "Kwotasies, fakture en opdaterings van jou kontrakteurs — reageer hier daarop.",
+    "outstandingQuotes": "Kwotasies om te hersien",
+    "quoteValue": "Kwotasiewaarde",
+    "outstandingInvoices": "Fakture om goed te keur",
+    "invoiceValue": "Faktuurwaarde",
+    "needsAction": "Benodig jou aksie",
+    "noActions": "Niks wag op jou nie",
+    "noActionsHint": "Nuwe kwotasies en fakture van kontrakteurs verskyn hier.",
+    "acceptQuote": "Aanvaar kwotasie",
+    "approveInvoice": "Keur goed & sluit",
+    "activeWork": "Aktiewe werk per voertuig",
+    "noActiveWork": "Geen oop werkversoeke nie",
+    "noActiveWorkHint": "Maak 'n voertuig oop en gebruik \"Kry iets gedoen\" om 'n taak na 'n kontrakteur te stuur.",
+    "recentActivity": "Onlangse aktiwiteit",
+    "quoteAccepted": "Kwotasie aanvaar",
+    "invoiceApproved": "Faktuur goedgekeur"
   }
 }

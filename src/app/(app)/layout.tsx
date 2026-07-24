@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { currentPlan } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
+import { createClient } from "@/lib/supabase/server";
+import { countInboxUnread } from "@/lib/inbox";
 import { t } from "@/lib/i18n";
 import { signOut } from "./actions";
 // Direct module imports keep every (app) route's client bundle to just the nav
@@ -46,6 +48,14 @@ export default async function AppLayout({
   // home is their aggregated dashboard (F12c).
   const homeHref = isWorkshop ? "/contractor" : dashAllowed ? "/dashboard" : "/machines";
 
+  // Owner/manager activity inbox (F13): unread badge on the nav. Only the two roles that
+  // own the inbox pay the extra query; the count runs under RLS (own farm only).
+  let inboxUnread = 0;
+  if (isManagerPlus) {
+    const supabase = await createClient();
+    inboxUnread = await countInboxUnread(supabase, profile.id);
+  }
+
   // Nav catalogue (translated once, reused across shells).
   const contractor: NavItemData = { href: "/contractor", label: t("nav.contractor", locale), icon: "dashboard" };
   const dashboard: NavItemData = { href: "/dashboard", label: t("nav.dashboard", locale), icon: "dashboard" };
@@ -57,6 +67,7 @@ export default async function AppLayout({
   const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
   const checklists: NavItemData = { href: "/checklists", label: t("nav.checklists", locale), icon: "checklists" };
   const work: NavItemData = { href: "/work", label: t("nav.work", locale), icon: "work" };
+  const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -71,6 +82,7 @@ export default async function AppLayout({
   const moreItems: NavItemData[] = isWorkshop
     ? [jobcards, checklists, alerts]
     : [
+        ...(isManagerPlus ? [inbox] : []),
         work,
         ...(fuelAllowed ? [fuel] : []),
         ...(canParts ? [parts] : []),
@@ -85,6 +97,7 @@ export default async function AppLayout({
   // Desktop: grouped sidebar sections (gated items dropped).
   const overviewItems: NavItemData[] = [
     ...(dashAllowed ? [dashboard] : []),
+    ...(isManagerPlus ? [inbox] : []),
     ...(reportsAllowed ? [reports] : []),
   ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = isWorkshop

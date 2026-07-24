@@ -11,7 +11,24 @@ export type NavItemData = {
   href: string;
   label: string;
   icon: IconName;
+  /** Optional unread count → a small pill on the item (e.g. the inbox). */
+  badge?: number;
 };
+
+/** Small unread-count pill shown on a nav item (caps at 99+). */
+function Badge({ count, className }: { count: number; className?: string }) {
+  if (!count || count <= 0) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-brand-600 px-1 text-[0.62rem] font-bold leading-none text-white",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 function useIsActive(href: string) {
   const pathname = usePathname();
@@ -37,11 +54,14 @@ export function NavLink({
         href={item.href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
+          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
           active ? "text-brand-700" : "text-sand-500",
         )}
       >
-        <Icon name={item.icon} className="text-[1.4rem]" />
+        <span className="relative">
+          <Icon name={item.icon} className="text-[1.4rem]" />
+          {item.badge ? <Badge count={item.badge} className="absolute -right-2.5 -top-1.5" /> : null}
+        </span>
         <span className="max-w-full truncate">{item.label}</span>
       </Link>
     );
@@ -60,6 +80,7 @@ export function NavLink({
     >
       <Icon name={item.icon} className="text-[1.3rem]" />
       <span className="truncate">{item.label}</span>
+      {item.badge ? <Badge count={item.badge} className="ml-auto" /> : null}
     </Link>
   );
 }
@@ -88,6 +109,8 @@ export function MoreMenu({
   const active = items.some(
     (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
   );
+  // Surface overflow unread counts on the collapsed "More" button.
+  const badgeTotal = items.reduce((a, i) => a + (i.badge ?? 0), 0);
 
   // Close the sheet after a navigation.
   useEffect(() => {
@@ -102,11 +125,14 @@ export function MoreMenu({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          "focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
+          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
           active || open ? "text-brand-700" : "text-sand-500",
         )}
       >
-        <MoreIcon className="text-[1.4rem]" />
+        <span className="relative">
+          <MoreIcon className="text-[1.4rem]" />
+          {badgeTotal > 0 ? <Badge count={badgeTotal} className="absolute -right-2.5 -top-1.5" /> : null}
+        </span>
         <span>{label}</span>
       </button>
 
@@ -127,7 +153,8 @@ export function MoreMenu({
                 )}
               >
                 <Icon name={item.icon} className="text-[1.35rem] text-sand-500" />
-                {item.label}
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.badge ? <Badge count={item.badge} /> : null}
               </Link>
             );
           })}

@@ -71,6 +71,22 @@ export function formatNotification(
         type: licenceType,
         date: String(p.expiry_date ?? ""),
       });
+    // Work-request activity (F12b trigger 0311) — surfaced in the owner inbox + alerts.
+    case "work_request_status":
+      return fill("notifications.tplWorkStatus", locale, {
+        machine: m,
+        kind: p.kind ? t(`workKind.${p.kind}`, locale) : "",
+        status: p.status ? t(`workStatus.${p.status}`, locale) : "",
+      });
+    case "work_request_quoted":
+      return fill("notifications.tplWorkQuoted", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    case "work_request_invoiced":
+      return fill("notifications.tplWorkInvoiced", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    // Outstanding-action reminders (F13 engine 0330).
+    case "quote_awaiting":
+      return fill("notifications.tplQuoteAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    case "invoice_awaiting":
+      return fill("notifications.tplInvoiceAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
     default:
       return template;
   }
@@ -90,7 +106,11 @@ export function notificationTitle(template: string, locale: Locale): string {
             ? "job"
             : template.startsWith("fuel_")
               ? "fuel"
-              : template;
+              : template.startsWith("work_request_") ||
+                  template === "quote_awaiting" ||
+                  template === "invoice_awaiting"
+                ? "work"
+                : template;
   return t(`pushTitle.${family}`, locale);
 }
 
@@ -99,6 +119,12 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   const p = payload ?? {};
   if (template.startsWith("fault_")) return "/faults";
   if (template === "job_completed" && p.job_card_id) return `/jobcards/${p.job_card_id}`;
+  // Work-request activity + quote/invoice reminders deep-link to the request itself.
+  if (
+    (template.startsWith("work_request_") || template === "quote_awaiting" || template === "invoice_awaiting") &&
+    p.work_request_id
+  )
+    return `/work/${p.work_request_id}`;
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";
 }

@@ -50,6 +50,7 @@ import {
   BellIcon,
   PlusIcon,
   ChecklistIcon,
+  WorkIcon,
 } from "@/components/ui/icons";
 import { createWorkRequest } from "@/app/(app)/work/actions";
 import {
@@ -237,7 +238,7 @@ export default async function MachineDetailPage({
   const workshopNameById = new Map(linkedWorkshops.map((w) => [w.id, w.name]));
 
   // Timeline (merge + sort desc).
-  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist"; title: string; sub: string; href?: string };
+  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist" | "work"; title: string; sub: string; href?: string };
   const events: Ev[] = [];
   for (const j of jobCards)
     events.push({
@@ -278,10 +279,28 @@ export default async function MachineDetailPage({
       sub: checklistStatusLabel(c.status),
       href: `/machines/${machine.id}/checklists/${c.id}`,
     });
+  // Contractor work requests (F12b) + their quotes/invoices (F13) on the timeline.
+  for (const w of workRequests) {
+    const amountLabel =
+      w.invoice_amount_cents != null
+        ? `${t("work.invoice", locale)}: ${rands(w.invoice_amount_cents)}`
+        : w.quote_amount_cents != null
+          ? `${t("work.quote", locale)}: ${rands(w.quote_amount_cents)}`
+          : w.workshop_id
+            ? (workshopNameById.get(w.workshop_id) ?? t("work.unassigned", locale))
+            : t("work.unassigned", locale);
+    events.push({
+      date: w.updated_at.slice(0, 10),
+      kind: "work",
+      title: `${workKindLabel(w.kind, locale)} · ${workStatusLabel(w.status, locale)}`,
+      sub: amountLabel,
+      href: `/work/${w.id}`,
+    });
+  }
   events.sort((a, b) => b.date.localeCompare(a.date));
 
   const evIcon = (k: Ev["kind"]) =>
-    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : <BellIcon />;
+    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : <BellIcon />;
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
