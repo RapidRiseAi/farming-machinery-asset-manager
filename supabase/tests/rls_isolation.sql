@@ -1684,3 +1684,122 @@ end $$;
 reset role;
 
 select 'ALL F11 CHECKLIST TESTS PASSED' as result;
+
+-- ═══ F12b: WORK-REQUEST FLOW (0310–0311, appended section) ═══════
+-- ═════════════════════════════════════════════════════════════════
+-- Proves for work_requests + work_request_events:
+--   (a) farm isolation — each farm sees only its own requests;
+--   (b) the LINKED WORKSHOP sees AND can update its assigned farm's requests
+--       (app.has_farm_access resolves the workshop_link) but never another farm's;
+--   (c) cross-tenant writes are rejected;
+--   (d) anon sees nothing and cannot write;
+--   (e) INVOICE → COST with NO DOUBLE-COUNT: the invoice amount books exactly one
+--       `invoice` cost_entry keyed (source_type='work_request', source_id), re-edits
+--       update it in place, clearing it soft-deletes it, and a QUOTE never costs;
+--   (f) a status change notifies the assigned farm's owner/manager (notify trigger).
+-- Fresh fixtures (distinct ids) so earlier counts are undisturbed.
+
+-- Seed as superuser (RLS bypassed): one Farm A request assigned to Workshop W (linked
+-- to Farm A), one Farm B request. Opening events for each.
+insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, created_by) values
+  ('d1000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'high', 'A hydraulic leak', 'Fix the leak', 'a1111111-1111-1111-1111-111111111111'),
+  ('d2000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', null,                                     'quote',  'requested', 'normal', 'B service quote', 'Quote a 250h service', 'b2222222-2222-2222-2222-222222222222');
+insert into work_request_events (farm_id, work_request_id, from_status, to_status, note, by_user) values
+  ('11111111-1111-1111-1111-111111111111', 'd1000000-0000-0000-0000-0000000000a1', null, 'requested', 'created', 'a1111111-1111-1111-1111-111111111111'),
+  ('22222222-2222-2222-2222-222222222222', 'd2000000-0000-0000-0000-0000000000b1', null, 'requested', 'created', 'b2222222-2222-2222-2222-222222222222');
+
+-- ── (a) farm isolation + (b) linked-workshop visibility ───────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');       -- Owner A
+  perform _t_assert('work_requests', 1, 'ownerA');
+  perform _t_assert('work_request_events', 1, 'ownerA');
+  execute $q$ select count(*) from work_requests where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
+  if c <> 0 then raise exception 'WORK-REQ ISOLATION FAIL [ownerA]: sees % Farm B requests', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('work_requests', 1, 'ownerB'); perform _t_assert('work_request_events', 1, 'ownerB'); end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('work_requests', 1, 'workshopW'); perform _t_assert('work_request_events', 1, 'workshopW'); end $$;  -- linked to Farm A
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('work_requests', 2, 'rrAdmin');   perform _t_assert('work_request_events', 2, 'rrAdmin');   end $$;
+
+-- ── (b) linked workshop UPDATES its assigned farm's request, and can NOT
+--        touch another farm's — both under the workshopW login ──
+do $$ declare st work_request_status; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W (linked to Farm A only)
+  update work_requests set status = 'viewed', updated_at = now() where id = 'd1000000-0000-0000-0000-0000000000a1';
+  select status into st from work_requests where id = 'd1000000-0000-0000-0000-0000000000a1';
+  if st <> 'viewed' then raise exception 'WORK-REQ FAIL [workshopW]: could not advance its assigned request (status=%)', st; end if;
+  update work_requests set status = 'closed' where id = 'd2000000-0000-0000-0000-0000000000b1';  -- RLS filters → 0 rows
+end $$;
+reset role;
+
+-- Read back unfiltered (superuser): Farm B untouched; (f) the status-change notify
+-- trigger queued at least one owner/manager alert on Farm A.
+do $$ declare st work_request_status; c bigint; begin
+  select status into st from work_requests where id = 'd2000000-0000-0000-0000-0000000000b1';
+  if st <> 'requested' then raise exception 'WORK-REQ ISOLATION FAIL [workshopW]: mutated a Farm B request (status=%)', st; end if;
+  select count(*) into c from notifications
+    where farm_id = '11111111-1111-1111-1111-111111111111' and template = 'work_request_status';
+  if c < 1 then raise exception 'WORK-REQ NOTIFY FAIL: status change queued % notifications', c; end if;
+end $$;
+
+-- ── (c) cross-tenant write denied (Owner A → a Farm B request) ────
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into work_requests (farm_id, machine_id, kind) values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'repair');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'WORK-REQ ISOLATION FAIL [ownerA]: wrote a Farm B request'; end if;
+end $$;
+reset role;
+
+-- ── (d) anon sees nothing and cannot write ────────────────────────
+set role anon;
+do $$ declare t text; c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  foreach t in array array['work_requests','work_request_events'] loop
+    begin execute format('select count(*) from public.%I', t) into c;
+    exception when insufficient_privilege then c := 0; end;
+    if c <> 0 then raise exception 'F12b ISOLATION FAIL [anon]: sees % rows in %', c, t; end if;
+  end loop;
+  begin
+    insert into work_requests (farm_id, machine_id, kind) values ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'repair');
+    raise exception 'F12b ISOLATION FAIL [anon]: inserted a request';
+  exception
+    when insufficient_privilege then null;                          -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (e) INVOICE → COST, NO DOUBLE-COUNT (the F1 invoice→TCO path) ──
+-- Booking an invoice amount produces exactly ONE cost_entry; re-editing updates it in
+-- place; clearing it soft-deletes it; a quote never costs. Mutate as superuser (RLS
+-- bypassed) so the assertion is about the sync trigger alone.
+do $$ declare c bigint; amt bigint; begin
+  update work_requests set invoice_amount_cents = 100000, vat_rate_bps = 1500 where id = 'd1000000-0000-0000-0000-0000000000a1';
+  select count(*), coalesce(max(amount_cents), 0) into c, amt
+    from cost_entries where source_type = 'work_request' and source_id = 'd1000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  if c <> 1 then raise exception 'F12b DOUBLE-COUNT FAIL: invoice booked % cost_entries (expected 1)', c; end if;
+  if amt <> 100000 then raise exception 'F12b COST FAIL: invoice cost = % (expected 100000)', amt; end if;
+
+  -- Re-edit the amount: still exactly one row, updated in place (no duplicate).
+  update work_requests set invoice_amount_cents = 150000 where id = 'd1000000-0000-0000-0000-0000000000a1';
+  select count(*), coalesce(max(amount_cents), 0) into c, amt
+    from cost_entries where source_type = 'work_request' and source_id = 'd1000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  if c <> 1 then raise exception 'F12b DOUBLE-COUNT FAIL: re-edit produced % live cost_entries (expected 1)', c; end if;
+  if amt <> 150000 then raise exception 'F12b COST FAIL: re-edited cost = % (expected 150000)', amt; end if;
+
+  -- Clearing the amount soft-deletes the entry (no live cost row remains).
+  update work_requests set invoice_amount_cents = null where id = 'd1000000-0000-0000-0000-0000000000a1';
+  select count(*) into c
+    from cost_entries where source_type = 'work_request' and source_id = 'd1000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  if c <> 0 then raise exception 'F12b FAIL: clearing the invoice left % live cost_entries', c; end if;
+
+  -- A QUOTE is recorded but never creates a cost_entry.
+  update work_requests set quote_amount_cents = 90000 where id = 'd2000000-0000-0000-0000-0000000000b1';
+  select count(*) into c from cost_entries where source_type = 'work_request' and source_id = 'd2000000-0000-0000-0000-0000000000b1';
+  if c <> 0 then raise exception 'F12b DOUBLE-COUNT FAIL: a quote booked % cost_entries (expected 0)', c; end if;
+end $$;
+
+select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;

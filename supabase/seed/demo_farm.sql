@@ -304,5 +304,25 @@ begin
     (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000007', 6, 'text',          'Notes',             'Bande reg', null);
 
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
+  -- ── Work requests (F12b) — jobs sent to the TJ contractor ──────
+  -- One fresh request (awaiting the contractor), one already invoiced so the invoice
+  -- flows into the machine's TCO via the 0311 sync trigger (no double-count).
+  insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, vat_rate_bps, created_by) values
+    ('72000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000004', v_workshop, 'repair', 'requested', 'high',
+     'Hidroulika lek', 'Lek onder die masjien — kom kyk asseblief', 1500, v_owner),
+    ('72000000-0000-0000-0000-000000000002', v_farm, '20000000-0000-0000-0000-000000000005', v_workshop, 'inspection', 'invoiced', 'normal',
+     'Voor-seisoen inspeksie', 'Volledige inspeksie voor stroopseisoen', 1500, v_manager);
+
+  insert into work_request_events (farm_id, work_request_id, from_status, to_status, note, by_user) values
+    (v_farm, '72000000-0000-0000-0000-000000000001', null, 'requested', 'Aangevra by TJ', v_owner),
+    (v_farm, '72000000-0000-0000-0000-000000000002', null, 'requested', 'Aangevra by TJ', v_manager),
+    (v_farm, '72000000-0000-0000-0000-000000000002', 'requested', 'completed', 'Inspeksie gedoen', v_wstaff),
+    (v_farm, '72000000-0000-0000-0000-000000000002', 'completed', 'invoiced', 'Faktuur gestuur', v_wstaff);
+
+  -- Recording the invoice amount (ex-VAT) books a single 'invoice' cost_entry via 0311.
+  update work_requests set invoice_amount_cents = 180000
+   where id = '72000000-0000-0000-0000-000000000002';
+
+  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners + work requests';
 end
 $seed$;

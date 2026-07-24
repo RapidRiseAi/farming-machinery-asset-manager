@@ -51,6 +51,11 @@ import {
   PlusIcon,
   ChecklistIcon,
 } from "@/components/ui/icons";
+import { createWorkRequest } from "@/app/(app)/work/actions";
+import {
+  WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
+  workStatusLabel, workStatusTone,
+} from "@/lib/work";
 
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
@@ -218,6 +223,18 @@ export default async function MachineDetailPage({
   const canFill = ["owner", "manager", "mechanic", "workshop", "operator"].includes(profile.role);
   const checklistStatusLabel = (s: string) =>
     s === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale);
+
+  // Work requests (F12b): this machine's contractor requests + the farm's linked
+  // contractors (RLS returns workshops linked to farms the user can access).
+  const canWorkReq = ["owner", "manager", "mechanic"].includes(profile.role);
+  type WR = { id: string; kind: string; status: string; priority: string; title: string | null; workshop_id: string | null; quote_amount_cents: number | null; invoice_amount_cents: number | null; updated_at: string };
+  const [workReqRes, workshopRes] = await Promise.all([
+    supabase.from("work_requests").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false }),
+    supabase.from("workshops").select("id, name, kind"),
+  ]);
+  const workRequests = (workReqRes.data as WR[] | null) ?? [];
+  const linkedWorkshops = (workshopRes.data as { id: string; name: string; kind: string }[] | null) ?? [];
+  const workshopNameById = new Map(linkedWorkshops.map((w) => [w.id, w.name]));
 
   // Timeline (merge + sort desc).
   type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist"; title: string; sub: string; href?: string };
@@ -1030,6 +1047,79 @@ export default async function MachineDetailPage({
                 ))}
               </ul>
             )}
+          </Card>
+
+          {/* Get something done — contractor work requests (F12b) */}
+          <Card>
+            <CardHeader><CardTitle>{t("work.getSomethingDone", locale)}</CardTitle></CardHeader>
+            {workRequests.length > 0 ? (
+              <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
+                {workRequests.slice(0, 6).map((w) => (
+                  <li key={w.id}>
+                    <Link href={`/work/${w.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium text-sand-800">{w.title || workKindLabel(w.kind, locale)}</span>
+                        {w.workshop_id ? <span className="text-sand-400"> · {workshopNameById.get(w.workshop_id) ?? ""}</span> : null}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {(w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
+                          <span className="tabular-nums text-sand-500">{rands(w.invoice_amount_cents ?? w.quote_amount_cents)}</span>
+                        ) : null}
+                        <Badge tone={workStatusTone(w.status)}>{workStatusLabel(w.status, locale)}</Badge>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mb-2 text-sm text-sand-500">{t("work.machineNone", locale)}</p>
+            )}
+            {canWorkReq ? (
+              linkedWorkshops.length > 0 ? (
+                <details className="border-t border-sand-100 pt-3">
+                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("work.getSomethingDone", locale)}</summary>
+                  <form action={createWorkRequest} className="mt-2 flex flex-col gap-2">
+                    <input type="hidden" name="machine_id" value={machine.id} />
+                    <input type="hidden" name="farm_id" value={machine.farm_id} />
+                    <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
+                      <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
+                        {linkedWorkshops.map((w) => (
+                          <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <div className="flex flex-wrap gap-2">
+                      <Field label={t("work.kind", locale)} htmlFor="wr_kind">
+                        <Select id="wr_kind" name="kind" defaultValue="repair">
+                          {WORK_KINDS.map((k) => (
+                            <option key={k} value={k}>{workKindLabel(k, locale)}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label={t("work.priority", locale)} htmlFor="wr_priority">
+                        <Select id="wr_priority" name="priority" defaultValue="normal">
+                          {WORK_PRIORITIES.map((p) => (
+                            <option key={p} value={p}>{workPriorityLabel(p, locale)}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+                    <Field label={t("work.titleField", locale)} htmlFor="wr_title">
+                      <Input id="wr_title" name="title" placeholder={t("work.titlePlaceholder", locale)} />
+                    </Field>
+                    <Field label={t("work.description", locale)} htmlFor="wr_desc">
+                      <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
+                    </Field>
+                    <SubmitButton variant="primary" size="sm">{t("work.send", locale)}</SubmitButton>
+                  </form>
+                </details>
+              ) : (
+                <p className="border-t border-sand-100 pt-3 text-sm text-sand-500">
+                  {t("work.noContractors", locale)}{" "}
+                  <Link href="/partners" className="focus-ring rounded text-brand-700">{t("nav.partners", locale)} →</Link>
+                </p>
+              )
+            ) : null}
           </Card>
 
           {/* Photos */}
