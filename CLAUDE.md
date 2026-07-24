@@ -446,4 +446,44 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Gates green (typecheck + lint + build + `db:test`); shared first-load JS flat at
     **102 kB**. **Not built** (out of scope): contractor dashboard (F12c), multi-site (F7).
 
+- **FleetWise F7 — Multi-site + per-role visibility (migrations `0340–0341`; branch
+  `claude/fleetwise-multisite`; isolation-tested, `db:test` green — the MOST tenancy-
+  sensitive change; every prior isolation assertion kept green, model extended not weakened):**
+  - **Multi-site (FR-1.5)**: new **`user_farm_memberships`** spine (`user_id`,`farm_id`,
+    `role`,active,soft-delete; role-check excludes rr_admin/workshop; unique per user+farm;
+    RLS + audit + grants + anon-zero). `app.accessible_farm_ids()`/`app.has_farm_access()`
+    rewritten to **UNION active memberships** ON TOP of the primary-farm + workshop-link
+    paths — **purely additive** (`users.farm_id` stays the default/primary; idempotent
+    backfill of a membership per current farm user makes the new union == old behaviour, so
+    the isolation suite's directly-seeded users still resolve via the primary path). The
+    workshop path (`workshop_links`) is untouched. Membership `active=false` immediately
+    removes access (dynamic scoping, like `workshop_links`).
+  - **Per-role visibility (FR-2.3/FR-8.1), enforced in RLS not just UI** — helpers
+    `app.row_visible_to_role(farm,machine)` + `app.work_request_visible(wr)` (SEC DEFINER,
+    search_path pinned, execute revoked from public/anon). **Operators** see only machines
+    where `assigned_operator_id = auth.uid()` and only those machines' child rows
+    (`machines`,`meter_readings`,`service_plan_lines`,`faults`,`job_cards`,`watch_items`,
+    `fuel_issues`,`usage_logs`,`licences`,`work_requests`); owner/manager/mechanic keep full
+    farm access (the predicate reduces to `has_farm_access` for every non-operator, so no
+    seeded persona's counts change). **Contractors (workshop)** now see **and may update**
+    only work_requests assigned to their own workshop (+ their events + `work_request`
+    attachments) — closing the F12c gap where the workshop_id filter was app-only. Farm crew
+    keep full access.
+  - **App layer**: `accessibleFarms()`/`currentFarmId()` + `CURRENT_FARM_COOKIE` in
+    `lib/auth.ts` (validated cookie choice, default primary; null for rr_admin/workshop);
+    `setCurrentFarm` server action; **`SiteSwitcher`** in the shell (desktop sidebar + mobile
+    bar) shown only when the account reaches >1 farm; **dashboard + machines list + reports
+    (page & all 6 CSV routes) scope every farm-keyed query to the current farm** (completes
+    FR-11.3; single-farm users unaffected — RLS already scopes them). Team/settings stay on
+    the primary farm (documented boundary).
+  - `rls_isolation.sql` **F7 section** (fresh Farms F/G/H): multi-site union sees exactly
+    F∪G never H, membership revoke removes G while primary F holds, membership table
+    own-user/farm-admin isolation + anon-deny + non-admin cannot self-grant; operator sees
+    only the assigned machine + its child/work rows and is denied a non-assigned one; two
+    contractors on a **shared** farm each see/mutate ONLY their own request. **Reconciled
+    F12c** (the one place an assertion encoded the now-fixed leak): W no longer sees X's
+    request on a shared farm — RLS enforces workshop-scoping. i18n EN/AF at parity
+    (**1012 leaf keys**; `nav.switchFarm`). Gates green (typecheck + lint + build +
+    `db:test`); shared first-load JS flat at **102 kB**. Migrations **0340–0341** only.
+
 > Update this "current status" block at the end of every session.
