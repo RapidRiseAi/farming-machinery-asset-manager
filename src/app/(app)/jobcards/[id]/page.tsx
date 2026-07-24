@@ -8,8 +8,11 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { ChevronLeftIcon } from "@/components/ui/icons";
-import { removeLine, toggleServiceLine } from "../actions";
-import { LineEntry } from "../line-entry";
+import { removeLine, toggleServiceLine, applyServiceKit } from "../actions";
+import { LineEntry, type CataloguePart } from "../line-entry";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Select } from "@/components/ui/select";
+import { Field } from "@/components/ui/field";
 import { JobCardEditor } from "../job-card-editor";
 import { LifecycleActions } from "../lifecycle-actions";
 import { JobCardMedia } from "@/components/jobcard-media";
@@ -26,6 +29,7 @@ type Line = {
   qty: number | null; unit_cost_cents: number | null; hours: number | null; rate_cents: number | null; total_cents: number;
 };
 type PlanLine = { id: string; task: string; status: string };
+type ServiceKit = { id: string; name: string; item_count: number };
 
 const savedMsg: Record<string, string> = {
   "1": "ui.saved", line: "ui.saved", service: "ui.saved", completed: "ui.saved", approved: "ui.saved",
@@ -48,18 +52,26 @@ export default async function JobCardDetail({
   const jc = data as JobCard | null;
   if (!jc) notFound();
 
-  const [{ data: machineData }, { data: linesData }, { data: planData }, { data: coverData }, { data: attachData }, { data: invoiceData }] = await Promise.all([
+  const [{ data: machineData }, { data: linesData }, { data: planData }, { data: coverData }, { data: attachData }, { data: invoiceData }, { data: catalogueData }, { data: kitData }] = await Promise.all([
     supabase.from("machines").select("name, meter_type").eq("id", jc.machine_id).maybeSingle(),
     supabase.from("job_card_lines").select("id, kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
     supabase.from("service_plan_lines").select("id, task, status").eq("machine_id", jc.machine_id).is("deleted_at", null),
     supabase.from("job_card_service_lines").select("service_plan_line_id").eq("job_card_id", id),
     supabase.from("attachments").select("id, kind, storage_path, created_at").eq("parent_type", "job_card").eq("parent_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("cost_entries").select("id, amount_cents, note, occurred_on").eq("source_type", "job_card").eq("source_id", id).eq("type", "invoice").is("deleted_at", null).order("occurred_on", { ascending: false }),
+    // Catalogue parts visible to this user (global + own farm, RLS-scoped) → "add from catalogue" (F9).
+    supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
+    // This machine's service kits + their live item counts (F9).
+    supabase.from("service_kits").select("id, name, service_kit_items(id)").eq("machine_id", jc.machine_id).is("deleted_at", null).is("service_kit_items.deleted_at", null).order("created_at"),
   ]);
   const machine = machineData as { name: string; meter_type: string } | null;
   const lines = (linesData as Line[] | null) ?? [];
   const planLines = (planData as PlanLine[] | null) ?? [];
   const covered = new Set(((coverData as { service_plan_line_id: string }[] | null) ?? []).map((c) => c.service_plan_line_id));
+  const catalogue = (catalogueData as CataloguePart[] | null) ?? [];
+  const kits: ServiceKit[] = ((kitData as { id: string; name: string; service_kit_items: { id: string }[] | null }[] | null) ?? [])
+    .map((k) => ({ id: k.id, name: k.name, item_count: (k.service_kit_items ?? []).length }))
+    .filter((k) => k.item_count > 0);
 
   // Signed URLs for job-card media (private bucket; farm-scoped storage RLS, 0201).
   const attachRows = (attachData as { id: string; kind: string; storage_path: string | null; created_at: string }[] | null) ?? [];
@@ -153,9 +165,23 @@ export default async function JobCardDetail({
             ))}
           </ul>
         )}
+        {!locked && kits.length > 0 ? (
+          <form action={applyServiceKit} className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-200 bg-brand-50/60 p-3">
+            <input type="hidden" name="job_card_id" value={jc.id} />
+            <input type="hidden" name="farm_id" value={jc.farm_id} />
+            <Field label={t("jobcards.applyKit", locale)} htmlFor="apply-kit" className="flex-1">
+              <Select id="apply-kit" name="service_kit_id" defaultValue={kits[0]?.id ?? ""}>
+                {kits.map((k) => (
+                  <option key={k.id} value={k.id}>{k.name} · {t("jobcards.kitItems", locale).replace("{n}", String(k.item_count))}</option>
+                ))}
+              </Select>
+            </Field>
+            <SubmitButton variant="secondary" size="sm">{t("jobcards.applyKitButton", locale)}</SubmitButton>
+          </form>
+        ) : null}
         {!locked ? (
           <div className="mt-3">
-            <LineEntry jobCardId={jc.id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} />
+            <LineEntry jobCardId={jc.id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} />
           </div>
         ) : null}
       </Card>

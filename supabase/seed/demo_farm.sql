@@ -243,6 +243,23 @@ begin
   -- Run the anomaly sweep once so the demo shows the flagged draw + a fuel_anomaly alert.
   perform app.enqueue_fuel_anomalies();
 
+  -- ── Parts catalogue + a service kit (F9) ───────────────────────
+  -- A couple of GLOBAL (RR-seeded) parts + this farm's own parts; all money ex-VAT cents.
+  insert into parts_catalogue (id, farm_id, part_no, description, supplier, category, typical_cost_cents, created_by) values
+    ('70000000-0000-0000-0000-000000000001', null,   'JD-RE504836', 'John Deere oil filter',        'John Deere', 'filter', 32000,  v_mech),
+    ('70000000-0000-0000-0000-000000000002', null,   'JD-RE509672', 'John Deere fuel filter',       'John Deere', 'filter', 41000,  v_mech),
+    ('70000000-0000-0000-0000-000000000003', v_farm, 'OIL-15W40-20L','Engine oil 15W40 20L drum',   'Senwes',     'oil',    128000, v_mech),
+    ('70000000-0000-0000-0000-000000000004', v_farm, 'HYD-68-20L',   'Hydraulic oil ISO 68 20L',    'Afgri',      'oil',    112000, v_mech);
+
+  -- The 250h service kit for the Groen John Deere (parts BOM referencing catalogue rows).
+  insert into service_kits (id, farm_id, machine_id, name, notes, created_by) values
+    ('71000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000001', '250h diens-stel',
+     'Enjinolie, oliefilter en brandstoffilter', v_mech);
+  insert into service_kit_items (farm_id, service_kit_id, part_catalogue_id, part_no, description, qty, unit_cost_cents) values
+    (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000003', 'OIL-15W40-20L', 'Engine oil 15W40 20L drum', 1, 128000),
+    (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'JD-RE504836',   'John Deere oil filter',     1,  32000),
+    (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'JD-RE509672',   'John Deere fuel filter',    1,  41000);
+
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
 end
 $seed$;

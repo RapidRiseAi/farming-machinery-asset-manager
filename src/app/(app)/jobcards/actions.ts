@@ -177,6 +177,43 @@ export async function approveJobCard(formData: FormData) {
   redirect(`/jobcards/${id}?saved=approved`);
 }
 
+/**
+ * Apply a machine's service kit (F9) to a job card: append one part line per kit item.
+ * The kit items store ex-VAT unit costs, so the lines are inserted ex-VAT directly (no
+ * VAT conversion). Each new line flows to cost_entries/TCO + history via the existing
+ * 0211 job_card_lines trigger — the ONLY kit→cost path, so there is no double-count.
+ */
+export async function applyServiceKit(formData: FormData) {
+  await requireRole(CREW);
+  const jobCardId = String(formData.get("job_card_id") ?? "");
+  const farmId = String(formData.get("farm_id") ?? "");
+  const kitId = String(formData.get("service_kit_id") ?? "");
+  if (!jobCardId || !farmId || !kitId) redirect(`/jobcards/${jobCardId}?error=Pick+a+kit`);
+
+  const supabase = await createClient();
+  const { data: itemData } = await supabase
+    .from("service_kit_items")
+    .select("part_no, description, qty, unit_cost_cents")
+    .eq("service_kit_id", kitId)
+    .is("deleted_at", null);
+  const items = (itemData as { part_no: string | null; description: string | null; qty: number | null; unit_cost_cents: number | null }[] | null) ?? [];
+  if (items.length === 0) redirect(`/jobcards/${jobCardId}?error=Kit+has+no+items`);
+
+  const rows = items.map((i) => ({
+    farm_id: farmId,
+    job_card_id: jobCardId,
+    kind: "part",
+    description: i.description,
+    part_no: i.part_no,
+    qty: i.qty ?? 1,
+    unit_cost_cents: i.unit_cost_cents, // already ex-VAT
+  }));
+  const { error } = await supabase.from("job_card_lines").insert(rows);
+  if (error) redirect(`/jobcards/${jobCardId}?error=${encodeURIComponent(error.message)}`);
+  revalidatePath(`/jobcards/${jobCardId}`);
+  redirect(`/jobcards/${jobCardId}?saved=line`);
+}
+
 /** Toggle whether this (scheduled-service) job covers a given service-plan line. */
 export async function toggleServiceLine(formData: FormData) {
   await requireRole(CREW);

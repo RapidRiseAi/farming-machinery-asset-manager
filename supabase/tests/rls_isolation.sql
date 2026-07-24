@@ -1333,3 +1333,134 @@ end $$;
 reset role;
 
 select 'ALL F10 VEHICLE-CAPTURE TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════
+-- ═══ F9: SERVICE KITS & PARTS CATALOGUE (0270–0271, appended) ════
+-- Proves:
+--   (a) parts_catalogue visibility mirrors service_templates: own-farm rows + GLOBAL
+--       (farm_id null) rows are visible; other farms' rows never are.
+--   (b) service_kits / service_kit_items are farm-isolated (own-farm only; cross-tenant
+--       write rejected; anon sees nothing and cannot write).
+--   (c) the scope check rejects a kit with neither a machine nor a machine_type.
+--   (d) NO DOUBLE-COUNT: a kit/kit-item creates ZERO cost_entries by itself; applying a
+--       kit (== inserting job_card_lines) books exactly one cost_entry per line via the
+--       existing 0211 trigger.
+-- Fresh fixtures reuse the base Farm A / Farm B machines; nothing above is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+insert into parts_catalogue (id, farm_id, part_no, description, typical_cost_cents) values
+  ('9a000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'OIL-15W40', 'Engine oil 15W40 20L', 120000),
+  ('9a000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'OIL-15W40', 'Engine oil 15W40 20L', 120000),
+  ('9a000000-0000-0000-0000-0000000000f0', null,                                   'FILT-GLOBAL', 'Global oil filter',  15000);
+
+insert into service_kits (id, farm_id, machine_id, name) values
+  ('9c000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '250h service kit'),
+  ('9c000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', '250h service kit');
+
+insert into service_kit_items (id, farm_id, service_kit_id, part_catalogue_id, part_no, description, qty, unit_cost_cents) values
+  ('9d000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', '9c000000-0000-0000-0000-0000000000a1', '9a000000-0000-0000-0000-0000000000a1', 'OIL-15W40',   'Engine oil', 2, 120000),
+  ('9d000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', '9c000000-0000-0000-0000-0000000000a1', '9a000000-0000-0000-0000-0000000000f0', 'FILT-GLOBAL', 'Oil filter', 1,  15000),
+  ('9d000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', '9c000000-0000-0000-0000-0000000000b1', null,                                    'OIL-15W40',   'Engine oil', 2, 120000);
+
+-- ── (a) parts_catalogue: own-farm + GLOBAL visible; other farms hidden ──
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('parts_catalogue', 2, 'ownerA');          -- Farm A + GLOBAL
+  execute $q$ select count(*) from parts_catalogue where farm_id = '22222222-2222-2222-2222-222222222222' $q$ into c;
+  if c <> 0 then raise exception 'PARTS ISOLATION FAIL [ownerA]: sees % Farm B parts', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('parts_catalogue', 2, 'ownerB');    end $$;  -- Farm B + GLOBAL
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('parts_catalogue', 2, 'workshopW'); end $$;  -- Farm A + GLOBAL
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('parts_catalogue', 3, 'rrAdmin');   end $$;  -- A + B + GLOBAL
+reset role;
+
+-- ── (b) service_kits / service_kit_items farm isolation ───────────
+set role authenticated;
+do $$ begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('service_kits',      1, 'ownerA');
+  perform _t_assert('service_kit_items', 2, 'ownerA');
+end $$;
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  perform _t_assert('service_kits',      1, 'ownerB');
+  perform _t_assert('service_kit_items', 1, 'ownerB');
+end $$;
+do $$ begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');   -- Workshop W (linked to A)
+  perform _t_assert('service_kits',      1, 'workshopW');
+  perform _t_assert('service_kit_items', 2, 'workshopW');
+end $$;
+do $$ begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR Admin
+  perform _t_assert('service_kits',      2, 'rrAdmin');
+  perform _t_assert('service_kit_items', 3, 'rrAdmin');
+end $$;
+reset role;
+
+-- ── (b) cross-tenant WRITE denials (Owner A → Farm B) ─────────────
+set role authenticated;
+do $$ declare ok boolean; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  -- a per-farm part into Farm B
+  ok := false;
+  begin insert into parts_catalogue (farm_id, part_no) values ('22222222-2222-2222-2222-222222222222', 'HACK'); exception when others then ok := true; end;
+  if not ok then raise exception 'PARTS ISOLATION FAIL [ownerA]: wrote a Farm B part'; end if;
+  -- a kit onto a Farm B machine
+  ok := false;
+  begin insert into service_kits (farm_id, machine_id, name) values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'hack'); exception when others then ok := true; end;
+  if not ok then raise exception 'KIT ISOLATION FAIL [ownerA]: wrote a Farm B kit'; end if;
+  -- a kit item into Farm B's kit
+  ok := false;
+  begin insert into service_kit_items (farm_id, service_kit_id, part_no) values ('22222222-2222-2222-2222-222222222222', '9c000000-0000-0000-0000-0000000000b1', 'HACK'); exception when others then ok := true; end;
+  if not ok then raise exception 'KIT ITEM ISOLATION FAIL [ownerA]: wrote into Farm B kit'; end if;
+end $$;
+reset role;
+
+-- ── (b) anon sees nothing and cannot write the new tables ─────────
+set role anon;
+do $$ declare t text; c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  foreach t in array array['parts_catalogue','service_kits','service_kit_items'] loop
+    begin execute format('select count(*) from public.%I', t) into c;
+    exception when insufficient_privilege then c := 0; end;
+    if c <> 0 then raise exception 'F9 ISOLATION FAIL [anon]: sees % rows in %', c, t; end if;
+  end loop;
+  begin
+    insert into parts_catalogue (farm_id, part_no) values ('11111111-1111-1111-1111-111111111111', 'anon-hack');
+    raise exception 'F9 ISOLATION FAIL [anon]: inserted a part';
+  exception
+    when insufficient_privilege then null;                    -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (c) scope check: a kit needs a machine OR a machine_type ───────
+do $$ declare ok boolean := false; begin
+  begin insert into service_kits (farm_id, name) values ('11111111-1111-1111-1111-111111111111', 'scopeless'); exception when check_violation then ok := true; end;
+  if not ok then raise exception 'KIT SCOPE FAIL: a kit with neither machine nor machine_type was accepted'; end if;
+end $$;
+
+-- ── (d) NO DOUBLE-COUNT: kit/items book no cost; applying a kit (== job_card_lines) books once ──
+-- Kit items themselves never create cost_entries (there is no kit→cost path).
+do $$ declare c bigint; begin
+  execute $q$ select count(*) from cost_entries where source_type like 'service_kit%' $q$ into c;
+  if c <> 0 then raise exception 'F9 DOUBLE-COUNT FAIL: % cost_entries were booked directly from kit items', c; end if;
+end $$;
+
+-- Apply a kit to a fresh (unlocked) Farm A job card: the OIL line (qty 2 × R1200 =
+-- R2400 ex-VAT) must produce exactly one cost_entry via the 0211 job_card_lines trigger.
+insert into job_cards (id, farm_id, machine_id, type, status) values
+  ('9e000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'scheduled_service', 'open');
+insert into job_card_lines (id, farm_id, job_card_id, kind, part_no, description, qty, unit_cost_cents) values
+  ('9f000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', '9e000000-0000-0000-0000-0000000000a1', 'part', 'OIL-15W40', 'Engine oil', 2, 120000);
+do $$ declare c bigint; amt bigint; begin
+  select count(*), coalesce(max(amount_cents), 0) into c, amt
+    from cost_entries where source_type = 'job_card_line' and source_id = '9f000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  if c <> 1 then raise exception 'F9 DOUBLE-COUNT FAIL: applied kit line produced % cost_entries (expected 1)', c; end if;
+  if amt <> 240000 then raise exception 'F9 COST FAIL: applied kit line cost = % (expected 240000)', amt; end if;
+end $$;
+
+select 'ALL F9 SERVICE-KITS & PARTS-CATALOGUE TESTS PASSED' as result;

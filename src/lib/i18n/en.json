@@ -33,7 +33,8 @@
     "groupOverview": "Overview",
     "groupWorkshop": "Workshop",
     "groupFarm": "Farm",
-    "groupAdmin": "Admin"
+    "groupAdmin": "Admin",
+    "parts": "Parts"
   },
   "auth": {
     "signIn": "Sign in",
@@ -351,7 +352,21 @@
     "fuelLitres": "Litres",
     "fuelRecent": "Recent draws",
     "fuelLifetime": "Lifetime consumption",
-    "fuelIntervals": "based on {n} intervals"
+    "fuelIntervals": "based on {n} intervals",
+    "serviceKit": "Service kit",
+    "serviceKitHint": "The exact parts a service needs — oils, filters, part numbers. Apply it to a job card to add these lines automatically.",
+    "noServiceKit": "No service kit yet.",
+    "deleteKit": "Delete kit",
+    "noKitItems": "No parts in this kit yet.",
+    "qtyShort": "Qty",
+    "removeItem": "Remove item",
+    "addKitItem": "Add part",
+    "kitFromCatalogue": "From catalogue…",
+    "kitPartNo": "Part no.",
+    "kitPartDesc": "Description",
+    "kitUnitCost": "Unit cost (ex-VAT)",
+    "addServiceKit": "Add a service kit",
+    "kitName": "Kit name (e.g. 250h service)"
   },
   "admin": {
     "farms": "Farms",
@@ -679,7 +694,12 @@
     "uploading": "Uploading…",
     "invoiceRecorded": "Invoice recorded",
     "noMedia": "No quotes, invoices or photos yet.",
-    "attachment": "Attachment"
+    "attachment": "Attachment",
+    "fromCatalogue": "From catalogue",
+    "cataloguePick": "Pick a part…",
+    "applyKit": "Service kit",
+    "applyKitButton": "Apply kit",
+    "kitItems": "{n} parts"
   },
   "dashboard": {
     "kpiOverdue": "Overdue service",
@@ -782,5 +802,25 @@
     "unsupported": "This browser doesn't support push notifications.",
     "unconfigured": "Push notifications aren't set up on this server yet.",
     "denied": "Notifications are blocked in your browser settings."
+  },
+  "parts": {
+    "title": "Parts catalogue",
+    "subtitle": "Part numbers, suppliers and typical prices for your machines.",
+    "search": "Search",
+    "searchPlaceholder": "Part no, description, category…",
+    "add": "Add part",
+    "partNo": "Part no.",
+    "description": "Description",
+    "category": "Category",
+    "categoryPlaceholder": "e.g. filter, oil",
+    "supplier": "Supplier",
+    "typicalCost": "Typical cost (ex-VAT)",
+    "inclVat": "Price includes VAT",
+    "catalogue": "Catalogue",
+    "empty": "No parts in the catalogue yet.",
+    "emptyHint": "Add the parts your machines use — oils, filters, belts — with their part numbers.",
+    "scope": "Scope",
+    "scopeGlobal": "Global",
+    "scopeFarm": "Farm"
   }
 }
