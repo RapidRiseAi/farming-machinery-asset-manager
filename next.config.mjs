@@ -3,7 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   // Mobile-first, low-bandwidth: keep the client bundle lean.
   experimental: {
-    // Nothing enabled yet; placeholder for future optimizations.
+    // The add-vehicle form ferries a client-compressed primary photo (base64 data
+    // URL, ~200–400 KB) through a server action; raise the body limit above the 1 MB
+    // default for headroom.
+    serverActions: { bodySizeLimit: "4mb" },
   },
   async headers() {
     // The offline service worker must be revalidated (never stuck in cache) and be

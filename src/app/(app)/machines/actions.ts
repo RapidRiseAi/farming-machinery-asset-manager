@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
+import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
 import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
 
 function str(fd: FormData, k: string): string | null {
@@ -65,6 +66,9 @@ function extraFields(fd: FormData) {
     warranty_expiry_date: str(fd, "warranty_expiry_date"),
     warranty_expiry_hours: numOrNull(fd, "warranty_expiry_hours"),
     location: str(fd, "location"),
+    // FR-3.4 grouping/filter dimensions (0280).
+    cost_centre: str(fd, "cost_centre"),
+    department: str(fd, "department"),
     notes: str(fd, "notes"),
     // Finance details (FR-3.2). Money in ex-VAT cents; the DB trigger derives a
     // finance-interest cost entry from these (see migration 0211).
@@ -113,6 +117,20 @@ export async function createMachine(formData: FormData) {
     .single();
 
   if (error || !data) redirect(`/machines/new?error=${encodeURIComponent(error?.message ?? "Failed")}`);
+
+  // Optional primary photo captured on the add form (compressed client-side to a
+  // base64 data URL). Upload it, then mark it primary. A photo failure never blocks
+  // creation — the machine already exists.
+  const attachmentId = await uploadMachinePhotoDataUrl(
+    supabase,
+    profile.farm_id,
+    data.id,
+    str(formData, "primary_photo_data"),
+    profile.id,
+  );
+  if (attachmentId) {
+    await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", data.id);
+  }
 
   revalidatePath("/machines");
   redirect(`/machines/${data.id}`);
@@ -176,6 +194,44 @@ export async function returnMachineToService(formData: FormData) {
   if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/machines/${id}`);
   redirect(`/machines/${id}?saved=1`);
+}
+
+/** Mark one of a machine's photos as its primary image (0280). Validates the
+ *  attachment is a non-deleted photo of THIS machine; RLS scopes the read to the
+ *  caller's farm and the composite FK enforces same-farm at write. Owner/manager only.
+ *  Refreshes the detail page + list (no redirect) so the gallery/badge flip in place. */
+export async function setPrimaryPhoto(formData: FormData) {
+  await requireRole(["owner", "manager"]);
+  const machineId = String(formData.get("machine_id") ?? "");
+  const attachmentId = String(formData.get("attachment_id") ?? "");
+  if (!machineId || !attachmentId) return;
+
+  const supabase = await createClient();
+  const { data: att } = await supabase
+    .from("attachments")
+    .select("id")
+    .eq("id", attachmentId)
+    .eq("parent_type", "machine")
+    .eq("parent_id", machineId)
+    .eq("kind", "photo")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!att) return; // not this machine's photo — no-op
+
+  await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", machineId);
+  revalidatePath(`/machines/${machineId}`);
+  revalidatePath("/machines");
+}
+
+/** Clear a machine's primary image (0280). Owner/manager only. */
+export async function clearPrimaryPhoto(formData: FormData) {
+  await requireRole(["owner", "manager"]);
+  const machineId = String(formData.get("machine_id") ?? "");
+  if (!machineId) return;
+  const supabase = await createClient();
+  await supabase.from("machines").update({ primary_attachment_id: null }).eq("id", machineId);
+  revalidatePath(`/machines/${machineId}`);
+  revalidatePath("/machines");
 }
 
 /** Bulk import machines from a CSV posted by the import preview. The server

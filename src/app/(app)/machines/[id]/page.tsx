@@ -56,7 +56,8 @@ type Machine = {
   current_reading: number | null; current_reading_date: string | null; status: string;
   purchase_date: string | null; purchase_price_cents: number | null; supplier: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
-  assigned_operator_id: string | null;
+  assigned_operator_id: string | null; cost_centre: string | null; department: string | null;
+  primary_attachment_id: string | null;
   finance_provider: string | null; finance_total_cents: number | null; finance_monthly_cents: number | null;
   finance_term_months: number | null; finance_interest_bps: number | null;
 };
@@ -102,11 +103,27 @@ export default async function MachineDetailPage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, notes, assigned_operator_id, finance_provider, finance_total_cents, finance_monthly_cents, finance_term_months, finance_interest_bps")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, finance_provider, finance_total_cents, finance_monthly_cents, finance_term_months, finance_interest_bps")
     .eq("id", id)
     .maybeSingle();
   const machine = data as Machine | null;
   if (!machine) notFound();
+
+  // Primary vehicle image (0280): resolve its storage path → signed URL for the header.
+  let primaryPhotoUrl: string | null = null;
+  if (machine.primary_attachment_id) {
+    const { data: pa } = await supabase
+      .from("attachments")
+      .select("storage_path")
+      .eq("id", machine.primary_attachment_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    const storagePath = (pa as { storage_path: string | null } | null)?.storage_path ?? null;
+    if (storagePath) {
+      const { data: signed } = await supabase.storage.from("machine-photos").createSignedUrl(storagePath, 3600);
+      primaryPhotoUrl = signed?.signedUrl ?? null;
+    }
+  }
 
   const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
@@ -262,27 +279,47 @@ export default async function MachineDetailPage({
       {/* Identity card */}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{machine.name}</h1>
-            <p className="mt-0.5 text-sm text-sand-500">
-              {typeLabel(machine.type, locale)}
-              {machine.make ? ` · ${machine.make} ${machine.model ?? ""}` : ""}
-              {machine.year ? ` · ${machine.year}` : ""}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-sand-600">
-              <Badge tone={isOutOfService ? "danger" : "neutral"} className="capitalize">{statusLabel(machine.status, locale)}</Badge>
-              <span>
-                {meterLabel(machine.meter_type, locale)}
-                {machine.current_reading != null ? `: ${machine.current_reading}` : ""}
-                {machine.current_reading_date ? ` (${machine.current_reading_date})` : ""}
-              </span>
-              {isStale ? <Badge tone="warning">{t("machines.stale", locale)}</Badge> : null}
+          <div className="flex min-w-0 items-start gap-3">
+            {/* Primary vehicle image (0280) — graceful placeholder when unset. */}
+            <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-sand-100 ring-1 ring-sand-200 sm:block">
+              {primaryPhotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={primaryPhotoUrl} alt={machine.name} className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-sand-300">
+                  <MachinesIcon className="text-[1.4rem]" />
+                </span>
+              )}
             </div>
-            {assignedOperatorName ? (
-              <p className="mt-1.5 text-sm text-sand-600">
-                {t("machines.assignedOperator", locale)}: <span className="font-medium text-sand-800">{assignedOperatorName}</span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-sand-900">{machine.name}</h1>
+              <p className="mt-0.5 text-sm text-sand-500">
+                {typeLabel(machine.type, locale)}
+                {machine.make ? ` · ${machine.make} ${machine.model ?? ""}` : ""}
+                {machine.year ? ` · ${machine.year}` : ""}
               </p>
-            ) : null}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-sand-600">
+                <Badge tone={isOutOfService ? "danger" : "neutral"} className="capitalize">{statusLabel(machine.status, locale)}</Badge>
+                <span>
+                  {meterLabel(machine.meter_type, locale)}
+                  {machine.current_reading != null ? `: ${machine.current_reading}` : ""}
+                  {machine.current_reading_date ? ` (${machine.current_reading_date})` : ""}
+                </span>
+                {isStale ? <Badge tone="warning">{t("machines.stale", locale)}</Badge> : null}
+              </div>
+              {assignedOperatorName ? (
+                <p className="mt-1.5 text-sm text-sand-600">
+                  {t("machines.assignedOperator", locale)}: <span className="font-medium text-sand-800">{assignedOperatorName}</span>
+                </p>
+              ) : null}
+              {machine.location || machine.cost_centre || machine.department ? (
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-sand-600">
+                  {machine.location ? <span>{t("machines.location", locale)}: <span className="font-medium text-sand-800">{machine.location}</span></span> : null}
+                  {machine.cost_centre ? <span>{t("machines.costCentre", locale)}: <span className="font-medium text-sand-800">{machine.cost_centre}</span></span> : null}
+                  {machine.department ? <span>{t("machines.department", locale)}: <span className="font-medium text-sand-800">{machine.department}</span></span> : null}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1 text-sm">
             <Link href={`/machines/${machine.id}/qr`} className="focus-ring rounded-md text-brand-700">{t("machine.qrCode", locale)} →</Link>
@@ -828,7 +865,7 @@ export default async function MachineDetailPage({
 
           {/* Photos */}
           <Card>
-            <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} />
+            <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} primaryAttachmentId={machine.primary_attachment_id} locale={locale} />
           </Card>
 
           {/* Edit */}

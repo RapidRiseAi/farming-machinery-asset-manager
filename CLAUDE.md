@@ -224,4 +224,27 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (**668 leaf keys**). Gates green (typecheck + lint + build + `db:test`); shared
     first-load JS flat at **102 kB**.
 
+- **FleetWise F10 — Vehicle capture completeness + images (migration `0280`; branch
+  `claude/fleetwise-vehicle-capture`; isolation-tested, `db:test` green):**
+  - **Primary vehicle image**: `machines.primary_attachment_id` — a **composite FK** to
+    `attachments(id, farm_id)` so a machine can only point at a photo of its OWN farm
+    (nullable → graceful placeholder). Rendered on the **machines list** (cards + a new
+    desktop thumbnail column, batch-signed URLs) and the **detail header** (signed URL,
+    placeholder fallback). `MachinePhotos` reworked into a gallery with **set/unset
+    primary** (server actions + `revalidatePath`; primary-first ordering, ring + badge)
+    and full i18n/locale.
+  - **Full capture on add** (FR-3.2/3.4): `cost_centre` + `department` capture columns
+    added to `machines`, `MachineFields` (new "Grouping" section), `createMachine`/
+    `updateMachine`; shown in the detail identity card; added as **distinct-value dropdown
+    filters** on the machines list. **Primary photo upload during add** — a client-
+    compressed base64 data URL ferried through `createMachine`, uploaded via the RLS
+    server client and marked primary (`serverActions.bodySizeLimit` → 4 MB). Finance
+    (F1) + warranty/licence (F1/F6) + assigned operator (F3) capture kept intact.
+  - Shared client `src/lib/image-compress.ts`; server `src/lib/machine-photo.ts` uploader;
+    demo seed gains cost-centre/department. i18n EN/AF at parity (**698 leaf keys**).
+    `rls_isolation.sql` F10 section proves the primary reference stays farm-isolated
+    (composite-FK cross-farm reject) + capture-column tenant isolation. Storage stays
+    farm-scoped (`{farm_id}/{machine_id}/…`, signed URLs); anon zero-DB unchanged. Gates
+    green (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

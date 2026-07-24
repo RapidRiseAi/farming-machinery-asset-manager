@@ -118,7 +118,8 @@
       "purchase": "Aankoop & waarborg",
       "finance": "Finansiering",
       "notes": "Notas",
-      "operator": "Operateur"
+      "operator": "Operateur",
+      "grouping": "Groepering"
     },
     "err": {
       "name_required": "Naam is vereis",
@@ -143,7 +144,14 @@
     "financeTerm": "Termyn (maande)",
     "financeInterest": "Rentekoers (bpt)",
     "assignedOperator": "Toegewese operateur",
-    "noOperator": "— Geen —"
+    "noOperator": "— Geen —",
+    "costCentre": "Kostesentrum",
+    "department": "Afdeling",
+    "allCostCentres": "Alle kostesentrums",
+    "allDepartments": "Alle afdelings",
+    "primaryPhoto": "Hooffoto",
+    "choosePhoto": "Kies foto",
+    "removePhoto": "Verwyder foto"
   },
   "machineType": {
     "tractor": "Trekker",
@@ -312,6 +320,10 @@
     "addPhoto": "Voeg foto by",
     "uploading": "Laai op…",
     "noPhotos": "Nog geen foto's nie.",
+    "uploadFailed": "Oplaai het misluk",
+    "setPrimary": "Stel as hoof",
+    "unsetPrimary": "Verwyder hoof",
+    "primaryBadge": "Hoof",
     "jobCards": "Werkkaarte",
     "newJobCard": "Nuut",
     "none": "Nog niks nie.",

@@ -29,9 +29,10 @@ type MachineRow = {
   meter_type: string;
   current_reading: number | null;
   current_reading_date: string | null;
+  primary_attachment_id: string | null;
 };
 
-type SP = { type?: string; status?: string; q?: string; sort?: string; dir?: string; retired?: string; imported?: string };
+type SP = { type?: string; status?: string; q?: string; sort?: string; dir?: string; retired?: string; imported?: string; cc?: string; dept?: string };
 
 const worst = (a: string, b: string) => {
   const rank: Record<string, number> = { overdue: 3, due_soon: 2, ok: 1 };
@@ -51,15 +52,53 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
   let query = supabase
     .from("machines")
-    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date")
+    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date, primary_attachment_id")
     .is("deleted_at", null)
     .order(sort, { ascending: dir === "asc" });
   if (sp.type) query = query.eq("type", sp.type);
   if (sp.status) query = query.eq("status", sp.status);
   else if (!showRetired) query = query.not("status", "in", "(retired,sold)");
+  if (sp.cc) query = query.eq("cost_centre", sp.cc);
+  if (sp.dept) query = query.eq("department", sp.dept);
   if (sp.q) query = query.or(`name.ilike.%${sp.q}%,make.ilike.%${sp.q}%,model.ilike.%${sp.q}%,serial_no.ilike.%${sp.q}%`);
   const { data } = await query;
   const machines = (data as MachineRow[] | null) ?? [];
+
+  // Distinct cost-centre / department values (farm-scoped by RLS) for the FR-3.4 filters.
+  const { data: dimData } = await supabase
+    .from("machines")
+    .select("cost_centre, department")
+    .is("deleted_at", null);
+  const costCentres = [...new Set(((dimData as { cost_centre: string | null }[] | null) ?? []).map((r) => r.cost_centre).filter((v): v is string => !!v))].sort();
+  const departments = [...new Set(((dimData as { department: string | null }[] | null) ?? []).map((r) => r.department).filter((v): v is string => !!v))].sort();
+
+  // Primary vehicle image (0280): batch-sign the referenced photos → machine-id → URL.
+  const primaryIds = machines.map((m) => m.primary_attachment_id).filter((v): v is string => !!v);
+  const photoUrlByMachine = new Map<string, string>();
+  if (primaryIds.length > 0) {
+    const { data: atts } = await supabase
+      .from("attachments")
+      .select("id, storage_path")
+      .in("id", primaryIds)
+      .is("deleted_at", null);
+    const pathById = new Map<string, string>();
+    for (const a of (atts as { id: string; storage_path: string | null }[] | null) ?? []) {
+      if (a.storage_path) pathById.set(a.id, a.storage_path);
+    }
+    const paths = [...new Set(pathById.values())];
+    if (paths.length > 0) {
+      const { data: signed } = await supabase.storage.from("machine-photos").createSignedUrls(paths, 3600);
+      const urlByPath = new Map<string, string>();
+      for (const s of signed ?? []) {
+        if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+      }
+      for (const m of machines) {
+        const p = m.primary_attachment_id ? pathById.get(m.primary_attachment_id) : undefined;
+        const u = p ? urlByPath.get(p) : undefined;
+        if (u) photoUrlByMachine.set(m.id, u);
+      }
+    }
+  }
 
   // Worst service status per machine.
   const { data: splData } = await supabase
@@ -81,6 +120,8 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     if (sp.type) params.set("type", sp.type);
     if (sp.status) params.set("status", sp.status);
     if (sp.q) params.set("q", sp.q);
+    if (sp.cc) params.set("cc", sp.cc);
+    if (sp.dept) params.set("dept", sp.dept);
     if (showRetired) params.set("retired", "1");
     params.set("sort", col);
     params.set("dir", sort === (col === "reading" ? "current_reading" : "name") && dir === "asc" ? "desc" : "asc");
@@ -96,6 +137,24 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     const s = svcByMachine.get(id);
     if (!s) return <span className="text-sand-300">—</span>;
     return <StatusPill status={s as "ok" | "due_soon" | "overdue"} label={t(`ui.status${s === "due_soon" ? "DueSoon" : s === "overdue" ? "Overdue" : "Ok"}`, locale)} />;
+  };
+
+  // Primary-image thumbnail (0280) with a graceful placeholder.
+  const thumb = (id: string, size: "sm" | "md" = "md") => {
+    const url = photoUrlByMachine.get(id);
+    const cls = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+    return (
+      <div className={`${cls} shrink-0 overflow-hidden rounded-lg bg-sand-100 ring-1 ring-sand-200`}>
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-sand-300">
+            <MachinesIcon className="text-[1rem]" />
+          </span>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -118,14 +177,14 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       <Flash tone="success" message={sp.imported ? t("machines.importedN", locale).replace("{n}", sp.imported) : undefined} />
 
       <Card>
-        <form className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
-          <Field label={t("common.search", locale)} htmlFor="q">
+        <form className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <Field label={t("common.search", locale)} htmlFor="q" className="sm:min-w-[12rem] sm:flex-1">
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
               <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
             </div>
           </Field>
-          <Field label={t("machines.type", locale)} htmlFor="type">
+          <Field label={t("machines.type", locale)} htmlFor="type" className="sm:w-40">
             <Select id="type" name="type" defaultValue={sp.type ?? ""}>
               <option value="">{t("machines.allTypes", locale)}</option>
               {MACHINE_TYPES.map((ty) => (
@@ -133,7 +192,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               ))}
             </Select>
           </Field>
-          <Field label={t("machines.status", locale)} htmlFor="status">
+          <Field label={t("machines.status", locale)} htmlFor="status" className="sm:w-40">
             <Select id="status" name="status" defaultValue={sp.status ?? ""}>
               <option value="">{t("machines.allStatuses", locale)}</option>
               {MACHINE_STATUSES.map((s) => (
@@ -141,6 +200,26 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               ))}
             </Select>
           </Field>
+          {costCentres.length > 0 ? (
+            <Field label={t("machines.costCentre", locale)} htmlFor="cc" className="sm:w-40">
+              <Select id="cc" name="cc" defaultValue={sp.cc ?? ""}>
+                <option value="">{t("machines.allCostCentres", locale)}</option>
+                {costCentres.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          {departments.length > 0 ? (
+            <Field label={t("machines.department", locale)} htmlFor="dept" className="sm:w-40">
+              <Select id="dept" name="dept" defaultValue={sp.dept ?? ""}>
+                <option value="">{t("machines.allDepartments", locale)}</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
           <div className="flex items-end">
             <Button type="submit" variant="secondary" fullWidth>
               {t("common.search", locale)}
@@ -179,12 +258,15 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                 <Link href={`/machines/${m.id}`} className="focus-ring block rounded-xl">
                   <Card className="transition-shadow hover:shadow-soft">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-sand-900">{m.name}</p>
-                        <p className="truncate text-sm text-sand-500">
-                          {typeLabel(m.type, locale)}
-                          {m.make ? ` · ${m.make}${m.model ? " " + m.model : ""}` : ""}
-                        </p>
+                      <div className="flex min-w-0 items-start gap-3">
+                        {thumb(m.id)}
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-sand-900">{m.name}</p>
+                          <p className="truncate text-sm text-sand-500">
+                            {typeLabel(m.type, locale)}
+                            {m.make ? ` · ${m.make}${m.model ? " " + m.model : ""}` : ""}
+                          </p>
+                        </div>
                       </div>
                       <Badge tone="neutral" className="shrink-0 capitalize">{statusLabel(m.status, locale)}</Badge>
                     </div>
@@ -210,6 +292,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
             <Table>
               <Thead>
                 <Tr>
+                  <Th className="w-12"><span className="sr-only">{t("machines.primaryPhoto", locale)}</span></Th>
                   <Th>
                     <Link href={sortHref("name")} className="focus-ring inline-flex items-center gap-1 rounded">
                       {t("machines.name", locale)} {sortIndicator("name")}
@@ -229,6 +312,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               <Tbody>
                 {machines.map((m) => (
                   <Tr key={m.id}>
+                    <Td>{thumb(m.id, "sm")}</Td>
                     <Td className="font-medium">
                       <Link href={`/machines/${m.id}`} className="focus-ring rounded font-medium text-brand-700 hover:underline">
                         {m.name}

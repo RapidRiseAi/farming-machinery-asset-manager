@@ -1280,3 +1280,56 @@ begin
 end $$;
 
 select 'ALL F6 COMPLIANCE & PUSH TESTS PASSED' as result;
+
+-- ═══ F10: VEHICLE CAPTURE + PRIMARY IMAGE (0280, appended) ═══════════
+-- Proves the primary-image reference (machines.primary_attachment_id) stays
+-- farm-isolated: the composite FK to attachments(id, farm_id) lets a machine point
+-- ONLY at a photo of its own farm; and the new capture columns (cost_centre /
+-- department) are farm-scoped like the rest of the row. Runs as superuser (RLS
+-- bypassed for seeding) — FK + tenant checks still apply.
+reset role;
+
+insert into attachments (id, farm_id, parent_type, parent_id, kind, storage_path) values
+  ('a7100000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'machine',
+     'aa111111-1111-1111-1111-111111111111', 'photo',
+     '11111111-1111-1111-1111-111111111111/aa111111-1111-1111-1111-111111111111/p.jpg'),
+  ('b7200000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'machine',
+     'bb222222-2222-2222-2222-222222222222', 'photo',
+     '22222222-2222-2222-2222-222222222222/bb222222-2222-2222-2222-222222222222/p.jpg');
+
+-- (a) same-farm primary reference is accepted.
+update machines set primary_attachment_id = 'a7100000-0000-0000-0000-0000000000a1'
+  where id = 'aa111111-1111-1111-1111-111111111111';
+do $$ begin
+  if not exists (select 1 from machines
+      where id = 'aa111111-1111-1111-1111-111111111111'
+        and primary_attachment_id = 'a7100000-0000-0000-0000-0000000000a1') then
+    raise exception 'F10 FAIL: same-farm primary_attachment_id was not set';
+  end if;
+end $$;
+
+-- (b) cross-farm primary reference is REJECTED by the composite FK (no tenant leak).
+do $$
+begin
+  begin
+    update machines set primary_attachment_id = 'b7200000-0000-0000-0000-0000000000b1'
+      where id = 'aa111111-1111-1111-1111-111111111111';
+    raise exception 'F10 FAIL: Farm A machine accepted Farm B''s attachment as primary (tenant leak!)';
+  exception when foreign_key_violation then
+    null; -- expected: the (attachment_id, farm_id) pair does not exist in Farm A
+  end;
+end $$;
+
+-- (c) the new capture columns are farm-scoped: Owner B cannot see Farm A's values.
+update machines set cost_centre = 'CC-A', department = 'Werkswinkel'
+  where id = 'aa111111-1111-1111-1111-111111111111';
+select _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+set role authenticated;
+do $$ begin
+  if exists (select 1 from machines where cost_centre = 'CC-A' or department = 'Werkswinkel') then
+    raise exception 'F10 FAIL: Owner B can see Farm A cost_centre/department (tenant leak!)';
+  end if;
+end $$;
+reset role;
+
+select 'ALL F10 VEHICLE-CAPTURE TESTS PASSED' as result;

@@ -118,7 +118,8 @@
       "purchase": "Purchase & warranty",
       "finance": "Finance",
       "notes": "Notes",
-      "operator": "Operator"
+      "operator": "Operator",
+      "grouping": "Grouping"
     },
     "err": {
       "name_required": "Name is required",
@@ -143,7 +144,14 @@
     "financeTerm": "Term (months)",
     "financeInterest": "Interest rate (bps)",
     "assignedOperator": "Assigned operator",
-    "noOperator": "— None —"
+    "noOperator": "— None —",
+    "costCentre": "Cost centre",
+    "department": "Department",
+    "allCostCentres": "All cost centres",
+    "allDepartments": "All departments",
+    "primaryPhoto": "Primary photo",
+    "choosePhoto": "Choose photo",
+    "removePhoto": "Remove photo"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -312,6 +320,10 @@
     "addPhoto": "Add photo",
     "uploading": "Uploading…",
     "noPhotos": "No photos yet.",
+    "uploadFailed": "Upload failed",
+    "setPrimary": "Set primary",
+    "unsetPrimary": "Unset primary",
+    "primaryBadge": "Primary",
     "jobCards": "Job cards",
     "newJobCard": "New",
     "none": "None yet.",

@@ -22,6 +22,8 @@ type Defaults = {
   warranty_expiry_hours?: number | null;
   assigned_operator_id?: string | null;
   location?: string | null;
+  cost_centre?: string | null;
+  department?: string | null;
   notes?: string | null;
   finance_provider?: string | null;
   finance_total_cents?: number | null;
@@ -135,6 +137,19 @@ export function MachineFields({
           </Field>
           <Field label={t("machines.warrantyHours", locale)} htmlFor="warranty_expiry_hours">
             <Input id="warranty_expiry_hours" name="warranty_expiry_hours" type="number" inputMode="decimal" step="0.1" defaultValue={m.warranty_expiry_hours ?? ""} />
+          </Field>
+        </div>
+      </div>
+
+      {/* Grouping dimensions for filtering/reporting (FR-3.4). */}
+      <div className="flex flex-col gap-3">
+        <SectionTitle>{t("machines.sections.grouping", locale)}</SectionTitle>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label={t("machines.costCentre", locale)} htmlFor="cost_centre">
+            <Input id="cost_centre" name="cost_centre" defaultValue={m.cost_centre ?? ""} />
+          </Field>
+          <Field label={t("machines.department", locale)} htmlFor="department">
+            <Input id="department" name="department" defaultValue={m.department ?? ""} />
           </Field>
         </div>
       </div>

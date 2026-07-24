@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
+import { MachinePhotoNew } from "@/components/machine-photo-new";
 import { Card } from "@/components/ui/card";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -38,6 +39,10 @@ export default async function NewMachinePage({
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
           <MachineFields locale={locale} operators={operators} />
+          <div className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-sand-400">{t("machines.primaryPhoto", locale)}</h3>
+            <MachinePhotoNew locale={locale} />
+          </div>
           <SubmitButton variant="primary" fullWidth>
             {t("common.save", locale)}
           </SubmitButton>

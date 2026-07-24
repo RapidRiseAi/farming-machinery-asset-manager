@@ -97,6 +97,14 @@ begin
     ('20000000-0000-0000-0000-000000000011', v_farm, 'Sproeier',         'implement', 'Hardi', 'Navigator 3000', 2019, 'HARDI-11', null, 'none', 'active', null, null, '2019-05-01', 41000000, 'Hardi', 'Implementstoor', 'Trekker-gedrewe spuit'),
     ('20000000-0000-0000-0000-000000000012', v_farm, 'Waterpomp Lister', 'pump_generator', 'Lister', 'HR2', 2014, 'LISTER-12', null, 'hours', 'active', 1980, current_date - 15, '2014-03-01', 3500000, null, 'Besproeiingsdam', 'Diesel waterpomp');
 
+  -- Cost-centre / department (F10, FR-3.4) so the machines-list filters have data.
+  update machines set
+    cost_centre = case type when 'harvester' then 'CC-200'
+                            when 'bakkie' then 'CC-300' when 'truck' then 'CC-300' else 'CC-100' end,
+    department  = case type when 'bakkie' then 'Vervoer' when 'truck' then 'Vervoer'
+                            when 'implement' then 'Lande' else 'Werkswinkel' end
+  where farm_id = v_farm;
+
   -- ── Meter reading history (last ~4 months) for metered machines ─
   insert into meter_readings (farm_id, machine_id, reading, reading_date, source, by_user)
   select v_farm, m.id,
