@@ -10,24 +10,47 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import { addLine } from "./actions";
 
+export type CataloguePart = {
+  id: string;
+  part_no: string;
+  description: string | null;
+  typical_cost_cents: number | null;
+};
+
 export function LineEntry({
   jobCardId,
   farmId,
   vatRateBps,
   locale,
+  catalogue = [],
 }: {
   jobCardId: string;
   farmId: string;
   vatRateBps: number;
   locale: Locale;
+  catalogue?: CataloguePart[];
 }) {
   const [kind, setKind] = useState<"part" | "labour" | "other">("part");
   const [inclVat, setInclVat] = useState(false);
   const [qty, setQty] = useState("");
   const [unit, setUnit] = useState("");
+  const [partNo, setPartNo] = useState("");
+  const [desc, setDesc] = useState("");
   const [hours, setHours] = useState("");
   const [rate, setRate] = useState("");
   const [queued, setQueued] = useState(false);
+
+  // "Add from catalogue" (F9): pick a catalogue part → prefill part_no/description/cost.
+  // Catalogue costs are stored ex-VAT, so we prefill ex-VAT and clear the incl-VAT flag.
+  const onPickCatalogue = (id: string) => {
+    const p = catalogue.find((c) => c.id === id);
+    if (!p) return;
+    setPartNo(p.part_no);
+    setDesc(p.description ?? "");
+    setUnit(p.typical_cost_cents != null ? (p.typical_cost_cents / 100).toFixed(2) : "");
+    setInclVat(false);
+    if (!qty) setQty("1");
+  };
 
   // Offline: queue the line locally (idempotency UUID + client ts) instead of failing.
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -35,7 +58,7 @@ export function LineEntry({
     e.preventDefault();
     const form = e.currentTarget;
     await queueMutation({ type: "add_job_line", scope: "app", fields: fieldsFromForm(form) });
-    setQty(""); setUnit(""); setHours(""); setRate("");
+    setQty(""); setUnit(""); setHours(""); setRate(""); setPartNo(""); setDesc("");
     setQueued(true);
     window.setTimeout(() => setQueued(false), 2500);
   };
@@ -63,22 +86,36 @@ export function LineEntry({
           </Select>
         </Field>
         <Field label={t("jobcards.description", locale)} htmlFor="line-desc">
-          <Input id="line-desc" name="description" />
+          <Input id="line-desc" name="description" value={desc} onChange={(e) => setDesc(e.target.value)} />
         </Field>
       </div>
 
       {kind === "part" ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Field label={t("jobcards.partNo", locale)} htmlFor="line-partno">
-            <Input id="line-partno" name="part_no" />
-          </Field>
-          <Field label={t("jobcards.qty", locale)} htmlFor="line-qty">
-            <Input id="line-qty" name="qty" type="number" inputMode="decimal" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
-          </Field>
-          <Field label={t("jobcards.unitCost", locale)} htmlFor="line-unit">
-            <Input id="line-unit" name="unit_cost" type="number" inputMode="decimal" step="0.01" value={unit} onChange={(e) => setUnit(e.target.value)} />
-          </Field>
-        </div>
+        <>
+          {catalogue.length > 0 ? (
+            <Field label={t("jobcards.fromCatalogue", locale)} htmlFor="line-catalogue">
+              <Select id="line-catalogue" defaultValue="" onChange={(e) => onPickCatalogue(e.target.value)}>
+                <option value="">{t("jobcards.cataloguePick", locale)}</option>
+                {catalogue.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.part_no}{c.description ? ` — ${c.description}` : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Field label={t("jobcards.partNo", locale)} htmlFor="line-partno">
+              <Input id="line-partno" name="part_no" value={partNo} onChange={(e) => setPartNo(e.target.value)} />
+            </Field>
+            <Field label={t("jobcards.qty", locale)} htmlFor="line-qty">
+              <Input id="line-qty" name="qty" type="number" inputMode="decimal" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
+            </Field>
+            <Field label={t("jobcards.unitCost", locale)} htmlFor="line-unit">
+              <Input id="line-unit" name="unit_cost" type="number" inputMode="decimal" step="0.01" value={unit} onChange={(e) => setUnit(e.target.value)} />
+            </Field>
+          </div>
+        </>
       ) : kind === "labour" ? (
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("jobcards.hours", locale)} htmlFor="line-hours">

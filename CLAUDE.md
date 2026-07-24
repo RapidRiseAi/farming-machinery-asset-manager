@@ -224,4 +224,22 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (**668 leaf keys**). Gates green (typecheck + lint + build + `db:test`); shared
     first-load JS flat at **102 kB**.
 
+- **FleetWise F9 — Service kits & parts catalogue (migrations `0270–0271`; branch
+  `claude/fleetwise-service-kits`; isolation-tested, `db:test` green):**
+  - **`parts_catalogue`** (part_no, description, supplier, category, `typical_cost_cents`
+    ex-VAT, nullable `farm_id` = GLOBAL/RR-seeded row) — tenancy mirrors `service_templates`
+    (global rows readable by all authenticated; per-farm rows RLS-scoped) + grants + audit +
+    soft-delete. Manual CRUD at **/parts** (owner/manager/mechanic for their farm; RR admin
+    for the global library), with search + VAT-inclusive→ex-VAT capture.
+  - **`service_kits`** (per machine, or a machine_type template; scope check enforces one)
+    **+ `service_kit_items`** (catalogue-part ref or free part_no + qty + ex-VAT unit cost);
+    farm-scoped RLS + composite FK + audit + soft-delete. Machine-detail **"Service kit"
+    card**: create kit, add/edit/remove items (pick from catalogue → snapshot, or free part).
+  - **"Add from catalogue"** on job-card line entry (prefills part_no/description/ex-VAT cost)
+    + **"Apply kit"** on a job card → appends one `job_card_line` per item; those flow to
+    `cost_entries`/TCO + history via the **existing 0211 trigger** (the ONLY kit→cost path —
+    **no double-count**, asserted in `rls_isolation.sql` F9 section). Parts nav item + icon;
+    demo seed gains a catalogue + a 250h kit. i18n EN/AF at parity (**724 leaf keys**). Gates
+    green (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

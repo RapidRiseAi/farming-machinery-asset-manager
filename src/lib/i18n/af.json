@@ -33,7 +33,8 @@
     "groupOverview": "Oorsig",
     "groupWorkshop": "Werkswinkel",
     "groupFarm": "Plaas",
-    "groupAdmin": "Admin"
+    "groupAdmin": "Admin",
+    "parts": "Onderdele"
   },
   "auth": {
     "signIn": "Teken in",
@@ -339,7 +340,21 @@
     "fuelLitres": "Liter",
     "fuelRecent": "Onlangse uitreikings",
     "fuelLifetime": "Leeftyd-verbruik",
-    "fuelIntervals": "gebaseer op {n} intervalle"
+    "fuelIntervals": "gebaseer op {n} intervalle",
+    "serviceKit": "Diensstel",
+    "serviceKitHint": "Die presiese onderdele wat 'n diens benodig — olies, filters, onderdeelnommers. Pas dit op 'n werkkaart toe om hierdie reëls outomaties by te voeg.",
+    "noServiceKit": "Nog geen diensstel nie.",
+    "deleteKit": "Vee stel uit",
+    "noKitItems": "Nog geen onderdele in hierdie stel nie.",
+    "qtyShort": "Hoev.",
+    "removeItem": "Verwyder item",
+    "addKitItem": "Voeg onderdeel by",
+    "kitFromCatalogue": "Uit katalogus…",
+    "kitPartNo": "Onderdeelnr.",
+    "kitPartDesc": "Beskrywing",
+    "kitUnitCost": "Eenheidsprys (excl. BTW)",
+    "addServiceKit": "Voeg 'n diensstel by",
+    "kitName": "Stelnaam (bv. 250u-diens)"
   },
   "admin": {
     "farms": "Plase",
@@ -667,7 +682,12 @@
     "uploading": "Laai op…",
     "invoiceRecorded": "Faktuur gestoor",
     "noMedia": "Nog geen kwotasies, fakture of foto's nie.",
-    "attachment": "Aanhegsel"
+    "attachment": "Aanhegsel",
+    "fromCatalogue": "Uit katalogus",
+    "cataloguePick": "Kies 'n onderdeel…",
+    "applyKit": "Diensstel",
+    "applyKitButton": "Pas stel toe",
+    "kitItems": "{n} onderdele"
   },
   "dashboard": {
     "kpiOverdue": "Agterstallige diens",
@@ -770,5 +790,25 @@
     "unsupported": "Hierdie blaaier ondersteun nie stootkennisgewings nie.",
     "unconfigured": "Stootkennisgewings is nog nie op hierdie bediener opgestel nie.",
     "denied": "Kennisgewings is in jou blaaierinstellings geblokkeer."
+  },
+  "parts": {
+    "title": "Onderdelekatalogus",
+    "subtitle": "Onderdeelnommers, verskaffers en tipiese pryse vir jou masjiene.",
+    "search": "Soek",
+    "searchPlaceholder": "Onderdeelnr, beskrywing, kategorie…",
+    "add": "Voeg onderdeel by",
+    "partNo": "Onderdeelnr.",
+    "description": "Beskrywing",
+    "category": "Kategorie",
+    "categoryPlaceholder": "bv. filter, olie",
+    "supplier": "Verskaffer",
+    "typicalCost": "Tipiese prys (excl. BTW)",
+    "inclVat": "Prys sluit BTW in",
+    "catalogue": "Katalogus",
+    "empty": "Nog geen onderdele in die katalogus nie.",
+    "emptyHint": "Voeg die onderdele by wat jou masjiene gebruik — olies, filters, bande — met hul onderdeelnommers.",
+    "scope": "Omvang",
+    "scopeGlobal": "Globaal",
+    "scopeFarm": "Plaas"
   }
 }

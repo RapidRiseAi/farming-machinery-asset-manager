@@ -18,6 +18,7 @@ import { updateMachine, returnMachineToService } from "../actions";
 import { addReading } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
+import { createServiceKit, deleteServiceKit, addKitItem, updateKitItem, deleteKitItem } from "./kit-actions";
 import { addLicence, updateLicence, deleteLicence } from "./licence-actions";
 import {
   warrantyStatus,
@@ -71,6 +72,9 @@ type PlanLine = {
   next_due_reading: number | null; next_due_date: string | null; status: string;
 };
 type Template = { id: string; name: string; machine_type: string | null };
+type CataloguePart = { id: string; part_no: string; description: string | null; typical_cost_cents: number | null };
+type KitItem = { id: string; part_no: string | null; description: string | null; qty: number | null; unit_cost_cents: number | null; part_catalogue_id: string | null };
+type ServiceKit = { id: string; name: string; notes: string | null; items: KitItem[] };
 
 type Licence = {
   id: string; type: string; number: string | null; expiry_date: string;
@@ -78,7 +82,7 @@ type Licence = {
 };
 
 const savedMsg: Record<string, string> = {
-  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", "1": "ui.saved",
+  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", "1": "ui.saved",
 };
 
 export default async function MachineDetailPage({
@@ -108,7 +112,7 @@ export default async function MachineDetailPage({
   const machine = data as Machine | null;
   if (!machine) notFound();
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -122,6 +126,10 @@ export default async function MachineDetailPage({
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("licences").select("id, type, number, expiry_date, reminder_lead_days, notes").eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
     supabase.from("farms").select("settings").eq("id", machine.farm_id).maybeSingle(),
+    // Service kits (F9): this machine's part BOMs + their items.
+    supabase.from("service_kits").select("id, name, notes, service_kit_items(id, part_no, description, qty, unit_cost_cents, part_catalogue_id)").eq("machine_id", id).is("deleted_at", null).is("service_kit_items.deleted_at", null).order("created_at"),
+    // Catalogue parts visible to this user (global + own farm) for the kit-item picker.
+    supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -153,6 +161,12 @@ export default async function MachineDetailPage({
   // Compliance (F6): warranty (on machines) + licences/renewals. Status ok/expiring/expired
   // uses the same thresholds as the nightly expiry engine (0263).
   const licences = (licenceRes.data as Licence[] | null) ?? [];
+
+  // Service kits (F9). Only owner/manager/mechanic edit the parts BOM.
+  const canKit = ["owner", "manager", "mechanic"].includes(profile.role);
+  const catalogue = (catalogueRes.data as CataloguePart[] | null) ?? [];
+  const kits: ServiceKit[] = ((kitRes.data as { id: string; name: string; notes: string | null; service_kit_items: KitItem[] | null }[] | null) ?? [])
+    .map((k) => ({ id: k.id, name: k.name, notes: k.notes, items: k.service_kit_items ?? [] }));
   const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
   const warrantyLeadDays = Number(farmSettings.warranty_lead_days) || DEFAULT_WARRANTY_LEAD_DAYS;
   const warrantyHoursLead = Number(farmSettings.warranty_hours_lead) || DEFAULT_WARRANTY_HOURS_LEAD;
@@ -540,6 +554,113 @@ export default async function MachineDetailPage({
                     </form>
                   </details>
                 ) : null}
+              </div>
+            ) : null}
+          </Card>
+
+          {/* Service kit — parts BOM (F9): the exact oils/filters/part numbers a service needs */}
+          <Card>
+            <CardHeader><CardTitle>{t("machine.serviceKit", locale)}</CardTitle></CardHeader>
+            <p className="mb-2 text-xs text-sand-500">{t("machine.serviceKitHint", locale)}</p>
+            {kits.length === 0 ? (
+              <p className="text-sm text-sand-500">{t("machine.noServiceKit", locale)}</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {kits.map((kit) => (
+                  <li key={kit.id} className="rounded-lg border border-sand-200 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sand-900">{kit.name}</p>
+                        {kit.notes ? <p className="text-xs text-sand-500">{kit.notes}</p> : null}
+                      </div>
+                      {canKit ? (
+                        <form action={deleteServiceKit}>
+                          <input type="hidden" name="id" value={kit.id} />
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <button className="text-xs text-status-overdue">{t("machine.deleteKit", locale)}</button>
+                        </form>
+                      ) : null}
+                    </div>
+                    {kit.items.length === 0 ? (
+                      <p className="mt-2 text-xs text-sand-400">{t("machine.noKitItems", locale)}</p>
+                    ) : (
+                      <ul className="mt-2 flex flex-col divide-y divide-sand-100 text-sm">
+                        {kit.items.map((item) => (
+                          <li key={item.id} className="py-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 truncate">
+                                <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "—"}</span>
+                                {item.part_no && item.description ? <span className="text-sand-500"> · {item.description}</span> : null}
+                                <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
+                              </span>
+                              <span className="flex shrink-0 items-center gap-2">
+                                <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
+                                {canKit ? (
+                                  <form action={deleteKitItem}>
+                                    <input type="hidden" name="id" value={item.id} />
+                                    <input type="hidden" name="machine_id" value={machine.id} />
+                                    <button className="focus-ring rounded px-1 text-status-overdue" aria-label={t("machine.removeItem", locale)}>✕</button>
+                                  </form>
+                                ) : null}
+                              </span>
+                            </div>
+                            {canKit ? (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                                <form action={updateKitItem} className="mt-1 flex flex-wrap gap-2">
+                                  <input type="hidden" name="id" value={item.id} />
+                                  <input type="hidden" name="machine_id" value={machine.id} />
+                                  <input name="part_no" defaultValue={item.part_no ?? ""} placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
+                                  <input name="description" defaultValue={item.description ?? ""} placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
+                                  <input name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} className={`${inputCls} w-20`} />
+                                  <input name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
+                                  <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                                </form>
+                              </details>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {canKit ? (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.addKitItem", locale)}</summary>
+                        <form action={addKitItem} className="mt-2 flex flex-wrap gap-2">
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <input type="hidden" name="service_kit_id" value={kit.id} />
+                          {catalogue.length > 0 ? (
+                            <select name="part_catalogue_id" defaultValue="" className={`${inputCls} w-full`}>
+                              <option value="">{t("machine.kitFromCatalogue", locale)}</option>
+                              {catalogue.map((c) => (
+                                <option key={c.id} value={c.id}>{c.part_no}{c.description ? ` — ${c.description}` : ""}</option>
+                              ))}
+                            </select>
+                          ) : null}
+                          <input name="part_no" placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
+                          <input name="description" placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
+                          <input name="qty" type="number" step="0.01" defaultValue="1" className={`${inputCls} w-20`} />
+                          <input name="unit_cost" inputMode="decimal" placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
+                          <SubmitButton variant="secondary" size="sm">{t("common.add", locale)}</SubmitButton>
+                        </form>
+                      </details>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canKit ? (
+              <div className="mt-3 border-t border-sand-100 pt-3">
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceKit", locale)}</summary>
+                  <form action={createServiceKit} className="mt-2 flex flex-wrap gap-2">
+                    <input type="hidden" name="machine_id" value={machine.id} />
+                    <input type="hidden" name="farm_id" value={machine.farm_id} />
+                    <input name="name" placeholder={t("machine.kitName", locale)} className={`${inputCls} flex-1`} required />
+                    <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                    <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                  </form>
+                </details>
               </div>
             ) : null}
           </Card>
