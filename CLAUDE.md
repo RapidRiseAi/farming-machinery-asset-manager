@@ -300,4 +300,37 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Not built** (later workstreams): work-request flow (F12b), contractor aggregated/
     per-kind dashboards + contractor-plan gating (F12c), checklists (F11).
 
+- **FleetWise F12b — Work-request flow (migrations `0310–0311`; branch
+  `claude/fleetwise-work-requests`; isolation-tested, `db:test` green):**
+  - **`work_requests`** (farm-initiated jobs to an assigned `workshop`): `kind`
+    (repair/quote/inspection/parts/other), full status lifecycle enum
+    `requested→viewed→quoted→accepted→in_progress→completed→invoiced→closed`,
+    `priority`, `title`/`description`, ex-VAT `quote_amount_cents` +
+    `invoice_amount_cents` + `vat_rate_bps`, `job_card_id` link. **`work_request_events`**
+    (from/to status + note + by_user) drives the timeline. farm_id + composite FKs
+    (machine + job_card), RLS via `app.has_farm_access` (covers farm crew AND the linked
+    workshop — the assigned contractor sees/updates exactly the farms they serve), audit,
+    soft-delete, grants, anon-zero-DB. `attachments.parent_type` widened to `work_request`.
+  - **Invoice → cost, no double-count** (0311, SECURITY DEFINER): setting
+    `invoice_amount_cents` UPSERTS a **single** `invoice` `cost_entry` keyed
+    `(source_type='work_request', source_id)` → flows into machine TCO; re-edits update in
+    place, clearing/deleting soft-deletes it, and a **quote is never costed**. This is the
+    ONLY work-request→cost path; converting to a job card books nothing here (the job
+    card's own lines cost via the 0211 path), so the two never double-count — asserted in
+    `rls_isolation.sql` (F12b section: farm isolation, linked-workshop see+update,
+    cross-tenant + anon denial, invoice-once, quote-not-costed, status-change notify).
+    A status-change/quote/invoice **notify trigger** fires `app.notify_farm` to
+    owner/manager (in-app now; push via F6).
+  - App: **/work** list (farm inbox + contractor's assigned view, grouped by status) and
+    **/work/[id]** deep-link (vehicle highlighted, lifecycle stepper, events timeline,
+    quote/invoice capture + proof upload via the F1 `jobcard-photos`/attachments/service-
+    role pattern → `/api/work/media`, contractor quick-contact, **convert-to-job-card**);
+    machine-detail **"Get something done"** card (pick a linked contractor + kind →
+    pre-filled request) + this-machine request list. Work nav item + icon (all roles incl.
+    contractors). Demo seed gains 2 requests (one invoiced → TCO). i18n EN/AF at parity
+    (**869 leaf keys**). Gates green (typecheck + lint + build + `db:test`); shared
+    first-load JS flat at **102 kB**.
+  - **Not built** (F12c): contractor aggregated dashboard / per-kind views + contractor-
+    plan gating.
+
 > Update this "current status" block at the end of every session.
