@@ -251,6 +251,15 @@ export const CopyIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Vehicle checklist / inspection — a clipboard with a tick. */
+export const ChecklistIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 4h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+    <path d="M8 5H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2" />
+    <path d="M8.5 12.5l2 2 3.5-4" />
+  </Svg>
+);
+
 /** A small spinning loader used by buttons in their pending state. */
 export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
   <svg
@@ -284,6 +293,7 @@ export const iconByName = {
   fuel: FuelIcon,
   parts: PartsIcon,
   partners: PartnersIcon,
+  checklists: ChecklistIcon,
   bell: BellIcon,
   team: TeamIcon,
   settings: SettingsIcon,
