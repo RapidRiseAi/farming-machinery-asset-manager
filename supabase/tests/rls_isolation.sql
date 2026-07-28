@@ -2338,3 +2338,142 @@ do $$ declare u record; c int; begin
 end $$;
 
 select 'ALL F8 POPIA DATA-SUBJECT-RIGHTS TESTS PASSED' as result;
+
+-- ═══ G2: AARTO FINE WORKFLOW (0370–0371, appended section) ═══════
+-- Proves:
+--   (a) `fines` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop scoped to
+--       its linked farm, rr_admin sees all; anon covered in the anon sweep below).
+--   (b) a cross-tenant fine WRITE is rejected.
+--   (c) authenticated CANNOT execute the nomination-reminder engine / its cron wrapper.
+--   (d) app.enqueue_aarto_nomination_reminders enqueues `aarto_nomination_due` to the right
+--       farm's owner+manager for a fine still owing a nomination whose deadline is due, and
+--       NEVER for a fine already nominated, on a retired machine, or with a distant deadline;
+--       it dedupes on re-run.
+-- Fresh fixtures avoid disturbing earlier counts. Nothing above this line is modified.
+-- ═════════════════════════════════════════════════════════════════
+
+-- Manager A opted out of in-app in F6 §e (re-enabled in F13); re-assert so Farm A targets
+-- owner+manager for the enqueue assertion below.
+update users set notify_inapp = true where id = 'a1111111-1111-1111-1111-1111111111aa';
+
+-- Vehicles: Farm A active, Farm B active, Farm A RETIRED (its fine must never enqueue).
+insert into machines (id, farm_id, name, type, status) values
+  ('aa720000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'Fine A', 'tractor', 'active'),
+  ('bb720000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'Fine B', 'tractor', 'active'),
+  ('aa720000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'Retired Fine A', 'tractor', 'retired');
+
+-- Fines: Farm A due (enqueues), Farm A already nominated (silent), Farm B distant deadline
+-- (silent), Farm A retired-machine (excluded).
+insert into fines (id, farm_id, machine_id, notice_number, offence, offence_date, nomination_deadline, status) values
+  ('f1720000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa720000-0000-0000-0000-0000000000a1', 'NA-DUE',  'Speeding', current_date - 30, current_date - 2,   'received'),
+  ('f1720000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa720000-0000-0000-0000-0000000000a1', 'NA-NOM',  'Speeding', current_date - 30, current_date - 2,   'nominated'),
+  ('f2720000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb720000-0000-0000-0000-0000000000b1', 'NB-OK',   'Speeding', current_date - 30, current_date + 200, 'received'),
+  ('f1720000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'aa720000-0000-0000-0000-0000000000f0', 'NA-RET',  'Speeding', current_date - 30, current_date - 2,   'received');
+
+-- ── (a) fines isolation ───────────────────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('fines', 3, 'ownerA');                    -- all three Farm A fines (incl. retired-machine one)
+  execute $q$ select count(*) from fines where farm_id <> '11111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'FINES ISOLATION FAIL [ownerA]: sees % non-Farm-A fines', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('fines', 1, 'ownerB');    end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('fines', 3, 'workshopW'); end $$;
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('fines', 4, 'rrAdmin');   end $$;
+reset role;
+
+-- (a) cross-tenant fine WRITE is rejected.
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into fines (farm_id, machine_id, offence)
+      values ('22222222-2222-2222-2222-222222222222', 'bb720000-0000-0000-0000-0000000000b1', 'Illegal parking');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'FINES ISOLATION FAIL [ownerA]: wrote a fine into Farm B'; end if;
+end $$;
+reset role;
+
+-- (a) anon sees no fines and cannot write.
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin execute 'select count(*) from public.fines' into c;
+  exception when insufficient_privilege then c := 0; end;
+  if c <> 0 then raise exception 'FINES ISOLATION FAIL [anon]: sees % fines', c; end if;
+  begin
+    insert into fines (farm_id, machine_id, offence)
+      values ('11111111-1111-1111-1111-111111111111', 'aa720000-0000-0000-0000-0000000000a1', 'x');
+    raise exception 'FINES ISOLATION FAIL [anon]: inserted a fine';
+  exception
+    when insufficient_privilege then null;                   -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (b) authenticated CANNOT execute the reminder engine / cron wrapper ──
+set role authenticated;
+do $$
+declare calls text[] := array[
+  'select app.enqueue_aarto_nomination_reminders()',
+  'select public.cron_enqueue_aarto_nominations()'
+]; c text;
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  foreach c in array calls loop
+    begin
+      execute c;
+      raise exception 'AARTO PRIV FAIL: authenticated executed % without a privilege error', c;
+    exception
+      when insufficient_privilege then null;                 -- expected
+      when others then if sqlstate = 'P0001' then raise; end if;
+    end;
+  end loop;
+end $$;
+reset role;
+
+-- ── (c) run the engine as the service role (the nightly route's identity) ──
+set role service_role;
+do $$ begin perform app.enqueue_aarto_nomination_reminders(); end $$;
+reset role;
+
+do $$
+declare
+  fa uuid := '11111111-1111-1111-1111-111111111111';
+  fb uuid := '22222222-2222-2222-2222-222222222222';
+  expected bigint;
+begin
+  -- Expected recipients = Farm A owner+manager who accept in-app notifications.
+  select count(*) into expected from users
+    where farm_id = fa and role in ('owner','manager') and active and deleted_at is null and coalesce(notify_inapp, true);
+  if expected < 1 then raise exception 'AARTO TEST SETUP FAIL: Farm A has no in-app owner/manager recipients'; end if;
+
+  -- Only the due, still-owed Farm A fine fires (nominated + retired-machine excluded).
+  if _t_notif(fa, 'aarto_nomination_due') <> expected then
+    raise exception 'AARTO ENQUEUE FAIL: Farm A aarto_nomination_due = % (expected % = owner+manager for one due fine)',
+      _t_notif(fa, 'aarto_nomination_due'), expected;
+  end if;
+  -- Farm B's fine has a distant deadline → silent.
+  if _t_notif(fb, 'aarto_nomination_due') <> 0 then
+    raise exception 'AARTO ENQUEUE FAIL: Farm B enqueued % (expected 0 — deadline not near)', _t_notif(fb, 'aarto_nomination_due');
+  end if;
+end $$;
+
+-- (c) dedupe: a second run enqueues nothing new.
+set role service_role;
+do $$ begin perform app.enqueue_aarto_nomination_reminders(); end $$;
+reset role;
+do $$
+declare fa uuid := '11111111-1111-1111-1111-111111111111'; expected bigint;
+begin
+  select count(*) into expected from users
+    where farm_id = fa and role in ('owner','manager') and active and deleted_at is null and coalesce(notify_inapp, true);
+  if _t_notif(fa, 'aarto_nomination_due') <> expected then
+    raise exception 'AARTO DEDUPE FAIL: Farm A count changed on re-run (now %, expected %)',
+      _t_notif(fa, 'aarto_nomination_due'), expected;
+  end if;
+end $$;
+
+select 'ALL G2 AARTO-FINE-WORKFLOW TESTS PASSED' as result;
