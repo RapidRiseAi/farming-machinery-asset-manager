@@ -7,9 +7,11 @@ import { getReportData, parseFilters } from "./data";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Stat } from "@/components/ui/stat";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
+import { budgetTone, budgetPeriodLabel, budgetCategoryLabel } from "@/lib/budgets";
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 

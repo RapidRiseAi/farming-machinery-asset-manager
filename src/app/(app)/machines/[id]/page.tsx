@@ -6,6 +6,14 @@ import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
+import {
+  computeUtilisation, repairVsReplace, addDaysYmd, UTILISATION_WINDOW_DAYS,
+  DEFAULT_HOURS_PER_DAY, DEFAULT_KM_PER_DAY, DEFAULT_REPAIR_REPLACE_PCT,
+} from "@/lib/analytics";
+import {
+  budgetProgress, budgetTone, budgetPeriodLabel, budgetCategoryLabel,
+  BUDGET_PERIODS, type Budget, type BudgetCostRow,
+} from "@/lib/budgets";
 import { computeConsumption, formatConsumption, activityLabel, FUEL_ACTIVITIES } from "@/lib/fuel";
 import { addFuelIssue } from "@/app/(app)/fuel/actions";
 import { FuelTrend } from "@/components/fuel-trend";
@@ -20,6 +28,7 @@ import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
 import { createServiceKit, deleteServiceKit, addKitItem, updateKitItem, deleteKitItem } from "./kit-actions";
 import { addLicence, updateLicence, deleteLicence } from "./licence-actions";
+import { addBudget, updateBudget, deleteBudget } from "./budget-actions";
 import {
   warrantyStatus,
   dateExpiryStatus,
@@ -90,7 +99,7 @@ type Licence = {
 };
 
 const savedMsg: Record<string, string> = {
-  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", "1": "ui.saved",
+  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
 };
 
 export default async function MachineDetailPage({
@@ -136,7 +145,7 @@ export default async function MachineDetailPage({
     }
   }
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -145,7 +154,7 @@ export default async function MachineDetailPage({
     supabase.from("service_templates").select("id, name, machine_type").is("deleted_at", null).or(`machine_type.eq.${machine.type},machine_type.is.null`),
     supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
-    supabase.from("cost_entries").select("type, amount_cents").eq("machine_id", id).is("deleted_at", null),
+    supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null),
     supabase.from("fuel_issues").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("licences").select("id, type, number, expiry_date, reminder_lead_days, notes").eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
@@ -156,6 +165,8 @@ export default async function MachineDetailPage({
     supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
     // Vehicle checklists (F11): filled inspections/sign-offs/condition reports for this machine.
     supabase.from("checklist_instances").select("id, template_name, status, completed_at, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(20),
+    // Budgets (G1): this machine's spend targets → budget-vs-actual.
+    supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").eq("machine_id", id).is("deleted_at", null).order("period_start", { ascending: false }),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -202,7 +213,7 @@ export default async function MachineDetailPage({
   // Lifetime stats. TCO = every cost_entry for this asset (purchase + finance + fuel +
   // parts + labour + invoices + other). cost-per-hour / cost-per-km are TCO ÷ lifetime
   // meter on a consistent basis (fixes D-2/D-3); the same helper drives the reports page.
-  const costRows = (costRes.data as { type: string; amount_cents: number | null }[] | null) ?? [];
+  const costRows = (costRes.data as BudgetCostRow[] | null) ?? [];
   const { total: tco, breakdown } = summariseCosts(costRows);
   const totalSpend = jobCards.reduce((a, j) => a + (j.total_cents || 0), 0);
   const perMeter =
@@ -210,6 +221,25 @@ export default async function MachineDetailPage({
       ? costPerMeter(tco, machine.current_reading)
       : null;
   const perMeterLabel = machine.meter_type === "km" ? t("machine.costPerKm", locale) : t("machine.costPerHour", locale);
+
+  // Analytics (G1) — utilisation, downtime + repair-vs-replace over a trailing window.
+  // Capacity + threshold are farm-configurable (settings); downtime is reconstructed from
+  // the audit-log status trail server-side (0361 rpc). Retired/sold machines are excluded
+  // from fleet reports, but the per-machine detail still shows these for the asset itself.
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const winFrom = addDaysYmd(todayYmd, -UTILISATION_WINDOW_DAYS);
+  const hoursPerDay = Number(farmSettings.utilisation_hours_per_day) || DEFAULT_HOURS_PER_DAY;
+  const kmPerDay = Number(farmSettings.utilisation_km_per_day) || DEFAULT_KM_PER_DAY;
+  const repairPct = Number(farmSettings.repair_replace_pct) || DEFAULT_REPAIR_REPLACE_PCT;
+  const utilisation = computeUtilisation(readings, machine.meter_type, winFrom, todayYmd, hoursPerDay, kmPerDay);
+  const repair = repairVsReplace(breakdown, machine.purchase_price_cents, repairPct);
+  const { data: downtimeData } = await supabase.rpc("machine_downtime_days", { p_machine: id, p_from: winFrom, p_to: todayYmd });
+  const downtimeDays = Number(downtimeData ?? 0);
+
+  // Budgets (G1) — budget-vs-actual for this machine (actual summed from cost_entries).
+  const budgets = (budgetRes.data as Budget[] | null) ?? [];
+  const budgetRows = budgets.map((b) => budgetProgress(costRows, b));
+  const canBudget = profile.role === "owner" || profile.role === "manager";
   const hasFinance =
     machine.finance_provider != null ||
     machine.finance_total_cents != null ||
@@ -849,6 +879,98 @@ export default async function MachineDetailPage({
             </div>
           </Card>
 
+          {/* Budgets & budget-vs-actual (FR-10.4) */}
+          <Card>
+            <CardHeader><CardTitle>{t("budget.title", locale)}</CardTitle></CardHeader>
+            <p className="mb-2 text-xs text-sand-500">{t("budget.hint", locale)}</p>
+            {budgetRows.length === 0 ? (
+              <p className="text-sm text-sand-500">{t("budget.none", locale)}</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {budgetRows.map((bp) => (
+                  <li key={bp.budget.id} className="rounded-lg border border-sand-200 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sand-900">
+                          {budgetCategoryLabel(bp.budget.category, locale)}
+                          <span className="text-sand-500"> · {budgetPeriodLabel(bp.budget.period_type, locale)}</span>
+                        </p>
+                        <p className="text-xs tabular-nums text-sand-500">{bp.budget.period_start} → {bp.budget.period_end}</p>
+                        {bp.budget.note ? <p className="mt-0.5 text-xs text-sand-500">{bp.budget.note}</p> : null}
+                      </div>
+                      <Badge tone={budgetTone(bp.status)}>{bp.status === "over" ? t("budget.over", locale) : t("budget.under", locale)}</Badge>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-sand-600">{t("budget.actual", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.actual)}</span></span>
+                      <span className="text-sand-600">{t("budget.budget", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.budget.amount_cents)}</span></span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                      <div className={`h-full rounded-full ${bp.status === "over" ? "bg-status-overdue" : bp.status === "warning" ? "bg-status-due" : "bg-status-ok"}`} style={{ width: `${bp.pct != null ? Math.min(100, Math.round(bp.pct)) : 0}%` }} />
+                    </div>
+                    <p className="mt-1 text-xs tabular-nums text-sand-500">
+                      {bp.variance > 0
+                        ? t("budget.overBy", locale).replace("{amt}", rands(bp.variance))
+                        : t("budget.remaining", locale).replace("{amt}", rands(bp.remaining))}
+                      {bp.pct != null ? ` · ${bp.pct.toFixed(0)}%` : ""}
+                    </p>
+                    {canBudget ? (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                        <form action={updateBudget} className="mt-2 flex flex-wrap gap-2">
+                          <input type="hidden" name="id" value={bp.budget.id} />
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <select name="category" defaultValue={bp.budget.category ?? ""} className={`${inputCls} w-32`}>
+                            <option value="">{t("budget.allCategories", locale)}</option>
+                            {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                          </select>
+                          <select name="period_type" defaultValue={bp.budget.period_type} className={`${inputCls} w-28`}>
+                            {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                          </select>
+                          <input name="anchor" type="date" defaultValue={bp.budget.period_start} className={inputCls} />
+                          <input name="amount" inputMode="decimal" defaultValue={(bp.budget.amount_cents / 100).toFixed(2)} placeholder={t("budget.amount", locale)} className={`${inputCls} w-28`} />
+                          <input name="note" defaultValue={bp.budget.note ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                          <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                        </form>
+                        <form action={deleteBudget} className="mt-1">
+                          <input type="hidden" name="id" value={bp.budget.id} />
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
+                        </form>
+                      </details>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canBudget ? (
+              <details className="mt-3 border-t border-sand-100 pt-3">
+                <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("budget.add", locale)}</summary>
+                <form action={addBudget} className="mt-2 flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="machine_id" value={machine.id} />
+                  <input type="hidden" name="farm_id" value={machine.farm_id} />
+                  <Field label={t("budget.category", locale)} htmlFor="b_category">
+                    <Select id="b_category" name="category" defaultValue="">
+                      <option value="">{t("budget.allCategories", locale)}</option>
+                      {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label={t("budget.period", locale)} htmlFor="b_period">
+                    <Select id="b_period" name="period_type" defaultValue="month">
+                      {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label={t("budget.anchor", locale)} htmlFor="b_anchor">
+                    <Input id="b_anchor" name="anchor" type="date" defaultValue={todayYmd} />
+                  </Field>
+                  <Field label={t("budget.amount", locale)} htmlFor="b_amount">
+                    <Input id="b_amount" name="amount" inputMode="decimal" placeholder="R" className="w-28" />
+                  </Field>
+                  <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                </form>
+              </details>
+            ) : null}
+          </Card>
+
           {/* Timeline */}
           <Card>
             <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
@@ -952,6 +1074,64 @@ export default async function MachineDetailPage({
                 ))}
               </ul>
             ) : null}
+
+            {/* Repair-vs-replace indicator (FR-10.5): lifetime repair spend ÷ purchase price. */}
+            {repair.ratioPct != null ? (
+              <div className="mt-3 border-t border-sand-100 pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-sand-600">{t("machine.repairRatio", locale)}</span>
+                  <span className={`text-sm font-semibold tabular-nums ${repair.flagged ? "text-status-overdue" : "text-sand-900"}`}>
+                    {repair.ratioPct.toFixed(0)}%
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-sand-400">{t("machine.repairRatioHint", locale).replace("{pct}", String(repair.thresholdPct))}</p>
+                {repair.flagged ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 p-2.5">
+                    <Badge tone="danger">{t("machine.considerReplacing", locale)}</Badge>
+                    <span className="text-xs text-sand-600">{t("machine.considerReplacingHint", locale)}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </Card>
+
+          {/* Utilisation & downtime (§23) — trailing window. */}
+          <Card>
+            <CardHeader><CardTitle>{t("machine.utilisationTitle", locale)}</CardTitle></CardHeader>
+            <p className="mb-2 text-xs text-sand-500">{t("machine.utilisationWindow", locale).replace("{n}", String(UTILISATION_WINDOW_DAYS))}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Stat
+                label={t("machine.utilisation", locale)}
+                value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "—"}
+              />
+              <Stat
+                label={machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}
+                value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+              />
+              <Stat
+                label={t("machine.idle", locale)}
+                value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+              />
+              <Stat
+                label={t("machine.downtime", locale)}
+                value={`${downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} ${t("machine.daysShort", locale)}`}
+                tone={downtimeDays > 0 ? "overdue" : "default"}
+              />
+            </div>
+            {utilisation.pct != null ? (
+              <div className="mt-3">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                  <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, Math.round(utilisation.pct))}%` }} />
+                </div>
+                <p className="mt-1 text-xs text-sand-400">
+                  {t("machine.utilisationBasis", locale)
+                    .replace("{cap}", String(machine.meter_type === "km" ? kmPerDay : hoursPerDay))
+                    .replace("{unit}", machine.meter_type === "km" ? t("machine.kmShort", locale) : t("machine.hrs", locale))}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-sand-400">{t("machine.utilisationNoMeter", locale)}</p>
+            )}
           </Card>
 
           {/* Finance */}

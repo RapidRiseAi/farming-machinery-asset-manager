@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { costPerMeter } from "@/lib/cost";
 import { computeConsumption, type FuelIssueRow } from "@/lib/fuel";
+import {
+  computeUtilisation, analysisWindow, DEFAULT_HOURS_PER_DAY, DEFAULT_KM_PER_DAY,
+  type MeterReadingLite,
+} from "@/lib/analytics";
+import { budgetProgress, type Budget, type BudgetCostRow, type BudgetStatus } from "@/lib/budgets";
 
 export type ReportFilters = { from: string | null; to: string | null; includeInactive: boolean; group: string | null };
 
@@ -32,6 +37,22 @@ export type ReportData = {
     responsiveness: { requestedToViewedHrs: number | null; viewedToQuotedHrs: number | null; sample: number };
     spendViaContractors: number;
     perContractor: { workshopId: string; name: string; requests: number; quoted: number; invoiced: number; spend: number }[];
+  };
+  // Budgets & budget-vs-actual (G1 · FR-10.4). Actual summed from cost_entries for each
+  // budget's own scope + period (independent of the report period).
+  budgets: {
+    id: string; machineId: string | null; scope: string; category: string | null;
+    periodType: string; periodStart: string; periodEnd: string;
+    amount: number; actual: number; variance: number; pct: number | null; status: BudgetStatus;
+  }[];
+  // Utilisation & downtime (G1 · §23) over the analysis window (report period, or a
+  // trailing window for "all time"). used/idle in the machine's meter unit.
+  utilisation: {
+    window: { from: string; to: string };
+    perMachine: {
+      machineId: string; name: string; meterType: string;
+      used: number | null; pct: number | null; idle: number | null; downtimeDays: number;
+    }[];
   };
   groups: string[];
 };
@@ -68,7 +89,9 @@ export async function getReportData(
   // has no farm_id — it stays RLS-scoped; contractor rollups key off farm-scoped requests.
   const byFarm = <Q,>(q: Q): Q =>
     farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
-  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }] = await Promise.all([
+  // Analysis window for utilisation/downtime (bounded; a trailing window for "all time").
+  const win = analysisWindow(f.from, f.to);
+  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }, { data: budgetData }, { data: readingData }, { data: downtimeData }] = await Promise.all([
     byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null)),
     byFarm(supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null)),
     byFarm(supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null)),
@@ -80,6 +103,11 @@ export async function getReportData(
     byFarm(supabase.from("work_requests").select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null)),
     byFarm(supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null)),
     supabase.from("workshops").select("id, name"),
+    byFarm(supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").is("deleted_at", null).order("period_start", { ascending: false })),
+    // Meter readings inside the analysis window — utilisation (net metered delta ÷ capacity).
+    byFarm(supabase.from("meter_readings").select("machine_id, reading, reading_date").gte("reading_date", win.from).lte("reading_date", win.to).is("deleted_at", null)),
+    // Downtime days per machine, reconstructed from the audit-log status trail (0361 rpc).
+    supabase.rpc("fleet_downtime", { p_from: win.from, p_to: win.to }),
   ]);
 
   const machines = (mData as Machine[] | null) ?? [];
@@ -264,6 +292,53 @@ export async function getReportData(
     .map(([workshopId, v]) => ({ workshopId, name: wsName[workshopId] ?? "—", ...v }))
     .sort((a, b) => b.spend - a.spend || b.requests - a.requests);
 
+  // 7) Budgets (G1 · FR-10.4) — budget-vs-actual per budget. Actual is summed from the
+  //    cost ledger over each budget's OWN scope + period (not the report filter). A
+  //    machine-scoped budget on an excluded (retired/sold/other-group) machine is hidden.
+  const budgetCostRows = ((costData as Cost[] | null) ?? []) as BudgetCostRow[];
+  const budgets = ((budgetData as Budget[] | null) ?? [])
+    .filter((b) => b.machine_id == null || allowed.has(b.machine_id))
+    .map((b) => {
+      const p = budgetProgress(budgetCostRows, b);
+      return {
+        id: b.id, machineId: b.machine_id, scope: b.machine_id ? (mById[b.machine_id]?.name ?? "—") : "",
+        category: b.category, periodType: b.period_type, periodStart: b.period_start, periodEnd: b.period_end,
+        amount: b.amount_cents, actual: p.actual, variance: p.variance, pct: p.pct, status: p.status,
+      };
+    });
+
+  // 8) Utilisation & downtime (G1 · §23) over the analysis window. Capacity/day comes from
+  //    farm settings (same as machine detail) so the two surfaces agree; downtime is the
+  //    audit-log-reconstructed days-down from the 0361 rpc (rows for other farms filtered
+  //    out by `allowed`). Utilisation uses the net metered delta ÷ available capacity.
+  let hoursPerDay = DEFAULT_HOURS_PER_DAY;
+  let kmPerDay = DEFAULT_KM_PER_DAY;
+  if (farmId) {
+    const { data: farmRow } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+    const s = ((farmRow as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
+    hoursPerDay = Number(s.utilisation_hours_per_day) || DEFAULT_HOURS_PER_DAY;
+    kmPerDay = Number(s.utilisation_km_per_day) || DEFAULT_KM_PER_DAY;
+  }
+  const downtimeByMachine = new Map<string, number>();
+  for (const d of (downtimeData as { machine_id: string; down_days: number | null }[] | null) ?? []) {
+    downtimeByMachine.set(d.machine_id, Number(d.down_days ?? 0));
+  }
+  const readingsByMachine = new Map<string, MeterReadingLite[]>();
+  for (const r of (readingData as { machine_id: string; reading: number | null; reading_date: string | null }[] | null) ?? []) {
+    if (!allowed.has(r.machine_id)) continue;
+    const arr = readingsByMachine.get(r.machine_id) ?? [];
+    arr.push({ reading: r.reading, reading_date: r.reading_date });
+    readingsByMachine.set(r.machine_id, arr);
+  }
+  const utilPerMachine = [...allowed]
+    .map((id) => {
+      const m = mById[id];
+      const u = computeUtilisation(readingsByMachine.get(id) ?? [], m?.meter_type ?? "none", win.from, win.to, hoursPerDay, kmPerDay);
+      return { machineId: id, name: m?.name ?? "—", meterType: m?.meter_type ?? "none", used: u.used, pct: u.pct, idle: u.idle, downtimeDays: downtimeByMachine.get(id) ?? 0 };
+    })
+    .filter((r) => r.meterType !== "none" || r.downtimeDays > 0)
+    .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.downtimeDays - a.downtimeDays);
+
   return {
     costPerMachine, byType, compliance,
     problems: { topParts: top(partMap), topFaults: top(faultMap), breaksMostOften },
@@ -277,6 +352,8 @@ export async function getReportData(
       },
       spendViaContractors, perContractor,
     },
+    budgets,
+    utilisation: { window: win, perMachine: utilPerMachine },
     groups,
   };
 }
