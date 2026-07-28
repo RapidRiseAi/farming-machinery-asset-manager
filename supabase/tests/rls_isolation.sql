@@ -2338,3 +2338,113 @@ do $$ declare u record; c int; begin
 end $$;
 
 select 'ALL F8 POPIA DATA-SUBJECT-RIGHTS TESTS PASSED' as result;
+
+-- ═══ G1: BUDGETS & UTILISATION/DOWNTIME ANALYTICS (0360–0361, appended) ═══
+-- Proves:
+--   (a) `budgets` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop scoped
+--       to its linked farm, rr_admin sees all, anon covered in the anon sweep); a
+--       cross-tenant budget WRITE is rejected.
+--   (b) downtime (0361) is reconstructed from the audit_log status trail under RLS: a
+--       Farm A owner sees a Farm A machine's down-days; a Farm B owner sees 0 for it
+--       (audit_log is farm-scoped); anon cannot execute the function.
+-- Fresh fixtures appended at the end — nothing above is disturbed.
+-- ═════════════════════════════════════════════════════════════════
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- Farm A: one machine-scoped budget + one whole-farm budget; Farm B: one machine budget.
+insert into budgets (id, farm_id, machine_id, category, period_type, period_start, period_end, amount_cents) values
+  ('b6a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'parts', 'month',   date '2026-06-01', date '2026-06-30', 500000),
+  ('b6a00000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', null,                                   null,    'quarter', date '2026-04-01', date '2026-06-30', 5000000),
+  ('b6b00000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'parts', 'month',   date '2026-06-01', date '2026-06-30', 400000);
+
+-- ── (a) budgets isolation ─────────────────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
+  perform _t_assert('budgets', 2, 'ownerA');                  -- both Farm A budgets
+  execute $q$ select count(*) from budgets where farm_id <> '11111111-1111-1111-1111-111111111111' $q$ into c;
+  if c <> 0 then raise exception 'BUDGET ISOLATION FAIL [ownerA]: sees % non-Farm-A budgets', c; end if;
+end $$;
+do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('budgets', 1, 'ownerB');    end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('budgets', 2, 'workshopW'); end $$;
+do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('budgets', 3, 'rrAdmin');   end $$;
+reset role;
+
+-- (a) cross-tenant budget WRITE is rejected (Owner A → a Farm B budget).
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  begin
+    insert into budgets (farm_id, machine_id, period_type, period_start, period_end, amount_cents)
+      values ('22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'month', date '2026-07-01', date '2026-07-31', 100000);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'BUDGET ISOLATION FAIL [ownerA]: wrote a budget into Farm B'; end if;
+end $$;
+reset role;
+
+-- (a) anon sees nothing and cannot write budgets.
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin execute 'select count(*) from public.budgets' into c;
+  exception when insufficient_privilege then c := 0; end;
+  if c <> 0 then raise exception 'BUDGET ISOLATION FAIL [anon]: sees % budgets', c; end if;
+  begin
+    insert into budgets (farm_id, machine_id, period_type, period_start, period_end, amount_cents)
+      values ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'month', date '2026-07-01', date '2026-07-31', 100000);
+    raise exception 'BUDGET ISOLATION FAIL [anon]: inserted a budget';
+  exception
+    when insufficient_privilege then null;                    -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- ── (b) downtime reconstruction + isolation (0361) ────────────────
+-- A fresh Farm A machine that went into the workshop 10 days ago (synthetic audit trail).
+insert into machines (id, farm_id, name, type, status) values
+  ('a6100000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Downtime A', 'tractor', 'active');
+insert into audit_log (farm_id, entity, entity_id, action, diff, at) values
+  ('11111111-1111-1111-1111-111111111111', 'machines', 'a6100000-0000-0000-0000-000000000001', 'update',
+   jsonb_build_object('old', jsonb_build_object('status','active'), 'new', jsonb_build_object('status','in_workshop')),
+   now() - interval '10 days');
+
+set role authenticated;
+do $$ declare d numeric; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A (same farm)
+  d := app.machine_downtime_days('a6100000-0000-0000-0000-000000000001', (current_date - 90), current_date);
+  if d is null or d < 5 or d > 15 then
+    raise exception 'DOWNTIME FAIL [ownerA]: down_days = % (expected ~10)', d;
+  end if;
+end $$;
+do $$ declare d numeric; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B (other farm)
+  d := app.machine_downtime_days('a6100000-0000-0000-0000-000000000001', (current_date - 90), current_date);
+  if d <> 0 then
+    raise exception 'DOWNTIME ISOLATION FAIL [ownerB]: sees % down-days for a Farm A machine (expected 0)', d;
+  end if;
+end $$;
+reset role;
+
+-- (b) anon cannot execute the downtime functions (execute revoked).
+set role anon;
+do $$
+declare calls text[] := array[
+  'select public.machine_downtime_days(''a6100000-0000-0000-0000-000000000001'', current_date - 90, current_date)',
+  'select * from public.fleet_downtime(current_date - 90, current_date)'
+]; c text;
+begin
+  perform set_config('request.jwt.claims', '', false);
+  foreach c in array calls loop
+    begin
+      execute c;
+      raise exception 'DOWNTIME PRIV FAIL: anon executed % without a privilege error', c;
+    exception
+      when insufficient_privilege then null;                  -- expected
+      when others then if sqlstate = 'P0001' then raise; end if;
+    end;
+  end loop;
+end $$;
+reset role;
+
+select 'ALL G1 BUDGETS & ANALYTICS TESTS PASSED' as result;

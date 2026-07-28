@@ -375,7 +375,22 @@
     "addServiceKit": "Add a service kit",
     "kitName": "Kit name (e.g. 250h service)",
     "checklists": "Vehicle checklists",
-    "noChecklists": "No checklists yet."
+    "noChecklists": "No checklists yet.",
+    "repairRatio": "Repair vs price",
+    "repairRatioHint": "Lifetime repairs as a share of purchase price — flags at {pct}%.",
+    "considerReplacing": "Consider replacing",
+    "considerReplacingHint": "Repair spend has crossed the replace threshold.",
+    "utilisationTitle": "Utilisation & downtime",
+    "utilisationWindow": "Last {n} days",
+    "utilisation": "Utilisation",
+    "hoursUsed": "Hours used",
+    "kmUsed": "Km used",
+    "idle": "Idle",
+    "downtime": "Downtime",
+    "daysShort": "days",
+    "kmShort": "km",
+    "utilisationBasis": "Based on {cap} {unit}/day capacity",
+    "utilisationNoMeter": "No meter — utilisation not tracked."
   },
   "admin": {
     "farms": "Farms",
@@ -516,7 +531,11 @@
     "language": "Default language",
     "afrikaans": "Afrikaans",
     "english": "English",
-    "save": "Save settings"
+    "save": "Save settings",
+    "analyticsSection": "Analytics & budgets",
+    "repairReplacePct": "Flag repair-vs-replace above (% of price)",
+    "utilHoursPerDay": "Available hours per day",
+    "utilKmPerDay": "Available km per day"
   },
   "team": {
     "title": "Team",
@@ -1136,5 +1155,43 @@
     "recentActivity": "Recent activity",
     "quoteAccepted": "Quote accepted",
     "invoiceApproved": "Invoice approved"
+  },
+  "budget": {
+    "title": "Budgets",
+    "hint": "Set a spend target per period — actual is tracked from costs automatically.",
+    "none": "No budgets set yet.",
+    "add": "Add a budget",
+    "category": "Category",
+    "allCategories": "All categories",
+    "period": "Period",
+    "anchor": "Any date in the period",
+    "amount": "Budget (ex-VAT)",
+    "actual": "Actual",
+    "budget": "Budget",
+    "over": "Over",
+    "under": "Under",
+    "overBy": "Over by {amt}",
+    "remaining": "{amt} left",
+    "thisMachine": "This machine",
+    "wholeFarm": "Whole farm",
+    "reportTitle": "Budget vs actual",
+    "reportNone": "No budgets set. Add budgets on a machine to track spend against target.",
+    "scope": "Scope",
+    "periodCol": "Period",
+    "variance": "Variance"
+  },
+  "budgetPeriod": {
+    "month": "Monthly",
+    "quarter": "Quarterly",
+    "year": "Yearly"
+  },
+  "util": {
+    "reportTitle": "Utilisation & downtime",
+    "windowRange": "Over {from} to {to}",
+    "none": "No metered activity or downtime in this window.",
+    "used": "Used",
+    "utilisation": "Utilisation",
+    "idle": "Idle",
+    "downtime": "Downtime"
   }
 }

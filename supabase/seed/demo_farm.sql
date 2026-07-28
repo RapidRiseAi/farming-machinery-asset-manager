@@ -333,5 +333,20 @@ begin
    where id = '72000000-0000-0000-0000-000000000002';
 
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners + work requests';
+
+  -- ── Budgets (G1 · FR-10.4) — this-year spend targets so budget-vs-actual has colour ──
+  -- A whole-farm all-category budget (comfortably under) + a tight JD parts budget (goes
+  -- over from the completed 500h service) + a bakkie all-category budget.
+  insert into budgets (farm_id, machine_id, category, period_type, period_start, period_end, amount_cents, created_by) values
+    (v_farm, null,                                     null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date, 200000000, v_owner),
+    (v_farm, '20000000-0000-0000-0000-000000000001',  'parts', 'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,    100000, v_owner),
+    (v_farm, '20000000-0000-0000-0000-000000000007',  null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,   3000000, v_manager);
+
+  -- ── Downtime (G1 · §23) — the New Holland went into the workshop 12 days ago. The
+  --    downtime engine (0361) reconstructs days-down from this status-change audit row.
+  insert into audit_log (farm_id, entity, entity_id, action, diff, at) values
+    (v_farm, 'machines', '20000000-0000-0000-0000-000000000004', 'update',
+     jsonb_build_object('old', jsonb_build_object('status','active'), 'new', jsonb_build_object('status','in_workshop')),
+     now() - interval '12 days');
 end
 $seed$;

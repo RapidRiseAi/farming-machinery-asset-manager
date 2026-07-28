@@ -41,16 +41,14 @@ create table budgets (
 create index budgets_farm_idx    on budgets(farm_id);
 create index budgets_machine_idx on budgets(machine_id, period_start);
 
--- One live budget per exact scope+period (nulls folded to sentinels so an all-farm /
--- all-category budget is still de-duplicated). Editing goes through the app (update),
--- not a second row.
-create unique index budgets_scope_uq on budgets (
-  farm_id,
-  coalesce(machine_id, '00000000-0000-0000-0000-000000000000'::uuid),
-  coalesce(category::text, '*'),
-  period_start,
-  period_end
-) where deleted_at is null;
+-- One live budget per exact scope+period. NULLS NOT DISTINCT (PG15+) treats a
+-- whole-farm (machine_id null) / all-category (category null) budget as a single distinct
+-- scope, so duplicates are still rejected. Editing goes through the app (update), not a
+-- second row.
+create unique index budgets_scope_uq
+  on budgets (farm_id, machine_id, category, period_start, period_end)
+  nulls not distinct
+  where deleted_at is null;
 
 -- ── RLS + grants (mirror the standard farm-scoped pattern, 0101/0102) ──
 alter table budgets enable row level security;

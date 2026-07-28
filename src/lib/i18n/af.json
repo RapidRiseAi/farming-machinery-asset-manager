@@ -375,7 +375,22 @@
     "addServiceKit": "Voeg 'n diensstel by",
     "kitName": "Stelnaam (bv. 250u-diens)",
     "checklists": "Voertuig-kontrolelyste",
-    "noChecklists": "Nog geen kontrolelyste nie."
+    "noChecklists": "Nog geen kontrolelyste nie.",
+    "repairRatio": "Herstel vs prys",
+    "repairRatioHint": "Leeftyd-herstelkoste as 'n deel van die aankoopprys — vlag by {pct}%.",
+    "considerReplacing": "Oorweeg vervanging",
+    "considerReplacingHint": "Herstelkoste het die vervangingsdrempel oorskry.",
+    "utilisationTitle": "Benutting & staantyd",
+    "utilisationWindow": "Laaste {n} dae",
+    "utilisation": "Benutting",
+    "hoursUsed": "Ure gebruik",
+    "kmUsed": "Km gebruik",
+    "idle": "Ledig",
+    "downtime": "Staantyd",
+    "daysShort": "dae",
+    "kmShort": "km",
+    "utilisationBasis": "Gebaseer op {cap} {unit}/dag kapasiteit",
+    "utilisationNoMeter": "Geen meter — benutting nie bygehou nie."
   },
   "admin": {
     "farms": "Plase",
@@ -516,7 +531,11 @@
     "language": "Verstektaal",
     "afrikaans": "Afrikaans",
     "english": "Engels",
-    "save": "Stoor instellings"
+    "save": "Stoor instellings",
+    "analyticsSection": "Analise & begrotings",
+    "repairReplacePct": "Vlag herstel-vs-vervang bo (% van prys)",
+    "utilHoursPerDay": "Beskikbare ure per dag",
+    "utilKmPerDay": "Beskikbare km per dag"
   },
   "team": {
     "title": "Span",
@@ -1136,5 +1155,43 @@
     "recentActivity": "Onlangse aktiwiteit",
     "quoteAccepted": "Kwotasie aanvaar",
     "invoiceApproved": "Faktuur goedgekeur"
+  },
+  "budget": {
+    "title": "Begrotings",
+    "hint": "Stel 'n bestedingsteiken per tydperk — werklik word outomaties uit koste bygehou.",
+    "none": "Nog geen begrotings gestel nie.",
+    "add": "Voeg 'n begroting by",
+    "category": "Kategorie",
+    "allCategories": "Alle kategorieë",
+    "period": "Tydperk",
+    "anchor": "Enige datum in die tydperk",
+    "amount": "Begroting (ekskl. BTW)",
+    "actual": "Werklik",
+    "budget": "Begroting",
+    "over": "Oor",
+    "under": "Onder",
+    "overBy": "Oor met {amt}",
+    "remaining": "{amt} oor",
+    "thisMachine": "Hierdie masjien",
+    "wholeFarm": "Hele plaas",
+    "reportTitle": "Begroting vs werklik",
+    "reportNone": "Geen begrotings gestel nie. Voeg begrotings op 'n masjien by om besteding teen teiken te volg.",
+    "scope": "Bestek",
+    "periodCol": "Tydperk",
+    "variance": "Afwyking"
+  },
+  "budgetPeriod": {
+    "month": "Maandeliks",
+    "quarter": "Kwartaalliks",
+    "year": "Jaarliks"
+  },
+  "util": {
+    "reportTitle": "Benutting & staantyd",
+    "windowRange": "Oor {from} tot {to}",
+    "none": "Geen gemeterde aktiwiteit of staantyd in hierdie venster nie.",
+    "used": "Gebruik",
+    "utilisation": "Benutting",
+    "idle": "Ledig",
+    "downtime": "Staantyd"
   }
 }

@@ -525,4 +525,43 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (**1012 leaf keys**; `nav.switchFarm`). Gates green (typecheck + lint + build +
     `db:test`); shared first-load JS flat at **102 kB**. Migrations **0340–0341** only.
 
+- **FleetWise G1 — Budgets & utilisation analytics (migrations `0360–0361`; branch
+  `claude/fleetwise-budgets-analytics`; isolation-tested, `db:test` green; FR-10.4/10.5,
+  §23):**
+  - **Budgets + budget-vs-actual (FR-10.4)**: new **`budgets`** table (`0360`) — a spend
+    target (ex-VAT cents) for a period, optionally narrowed to one machine and/or one cost
+    category (both nullable, like `cost_entries.machine_id`). `period_type`
+    (month/quarter/year) + explicit `period_start`/`period_end`; farm-scoped RLS
+    (`has_farm_access`) + composite FK + audit + soft-delete + grants; a `NULLS NOT
+    DISTINCT` unique index dedupes each scope+period. **Actual is never stored** — summed
+    live from the F1 `cost_entries` ledger over the budget's own scope+period (shared
+    `src/lib/budgets.ts`, so machine-detail + reports agree), with over/near/under
+    indicators. UI: machine-detail **Budgets card** (owner/manager CRUD via
+    `budget-actions.ts`) + reports **Budget-vs-actual** table + `budgets.csv`.
+  - **Utilisation (§23)** — hours/km **used vs idle** over a window, in `src/lib/analytics.ts`
+    (documented): `used = last meter reading on/before `to` − baseline (last reading
+    on/before `from`, else first in-window)`; `available = window-days × capacity/day`
+    (farm settings `utilisation_hours_per_day`/`_km_per_day`, defaults 10 h / 200 km);
+    `pct = used ÷ available`; `idle = available − used`. Machine detail shows a trailing
+    90-day card; reports a per-machine column (window = report period, or trailing 90 d for
+    "all time").
+  - **Downtime per asset (§23)** — days a machine was **in_workshop/out_of_service**,
+    reconstructed in SQL (`0361 app.fleet_downtime`/`app.machine_downtime_days`, SECURITY
+    INVOKER so audit_log RLS scopes it) from the **audit_log status trail** (INSERT status +
+    every status-changing UPDATE, each status held until the next event or now(), clipped to
+    the window; `public.*` PostgREST wrappers, execute revoked from anon). Shown on machine
+    detail + reports (utilisation table).
+  - **Repair-vs-replace (FR-10.5)**: `repairVsReplace()` flags "consider replacing" once
+    lifetime **repair spend (parts+labour+other+invoice) ÷ purchase price** ≥ a farm-
+    settings threshold (`repair_replace_pct`, default 60%) — badge + ratio on machine-detail
+    lifetime stats.
+  - Settings gains an **Analytics & budgets** card (repair-replace % + utilisation
+    capacity). Demo seed gains 3 budgets (one over) + a 12-day New Holland downtime trail.
+    i18n EN/AF at parity (**1071 leaf keys**; `budget.*`/`budgetPeriod.*`/`util.*` +
+    `machine.*`/`settings.*` additions). `rls_isolation.sql` G1 section proves `budgets`
+    farm isolation + cross-tenant/anon write denial, and downtime reconstruction + its
+    farm-scoping (Owner B sees 0 for a Farm A machine) + anon execute-deny. Gates green
+    (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
+    Migrations **0360–0361** only.
+
 > Update this "current status" block at the end of every session.

@@ -307,6 +307,109 @@ export default async function ReportsPage({
         )}
       </Card>
 
+      {/* Budget vs actual (G1 · FR-10.4) */}
+      <Card flush>
+        <CardHeader
+          className="px-4 pt-4"
+          action={
+            <a href={`/reports/budgets.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+              {t("reports.csv", locale)} ↓
+            </a>
+          }
+        >
+          <CardTitle>{t("budget.reportTitle", locale)}</CardTitle>
+        </CardHeader>
+        {data.budgets.length === 0 ? (
+          <p className="px-4 pb-4 text-sm text-sand-500">{t("budget.reportNone", locale)}</p>
+        ) : (
+          <Table>
+            <Thead>
+              <Tr>
+                <Th>{t("budget.scope", locale)}</Th>
+                <Th>{t("budget.category", locale)}</Th>
+                <Th>{t("budget.periodCol", locale)}</Th>
+                <Th className="text-right">{t("budget.budget", locale)}</Th>
+                <Th className="text-right">{t("budget.actual", locale)}</Th>
+                <Th className="text-right">{t("budget.variance", locale)}</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {data.budgets.map((b) => (
+                <Tr key={b.id}>
+                  <Td className="font-medium">
+                    {b.machineId ? (
+                      <Link href={`/machines/${b.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{b.scope}</Link>
+                    ) : (
+                      t("budget.wholeFarm", locale)
+                    )}
+                  </Td>
+                  <Td>{budgetCategoryLabel(b.category, locale)}</Td>
+                  <Td className="text-xs tabular-nums text-sand-500">{budgetPeriodLabel(b.periodType, locale)} · {b.periodStart} → {b.periodEnd}</Td>
+                  <Td className="text-right tabular-nums">{rands(b.amount)}</Td>
+                  <Td className="text-right tabular-nums">{rands(b.actual)}</Td>
+                  <Td className="text-right">
+                    <Badge tone={budgetTone(b.status)}>
+                      {b.variance > 0 ? `+${rands(b.variance)}` : rands(-b.variance)}{b.pct != null ? ` · ${b.pct.toFixed(0)}%` : ""}
+                    </Badge>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        )}
+      </Card>
+
+      {/* Utilisation & downtime (G1 · §23) */}
+      <Card flush>
+        <CardHeader
+          className="px-4 pt-4"
+          action={
+            <a href={`/reports/utilisation.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+              {t("reports.csv", locale)} ↓
+            </a>
+          }
+        >
+          <CardTitle>{t("util.reportTitle", locale)}</CardTitle>
+        </CardHeader>
+        <p className="px-4 text-xs text-sand-500">
+          {t("util.windowRange", locale).replace("{from}", data.utilisation.window.from).replace("{to}", data.utilisation.window.to)}
+        </p>
+        {data.utilisation.perMachine.length === 0 ? (
+          <p className="px-4 pb-4 pt-2 text-sm text-sand-500">{t("util.none", locale)}</p>
+        ) : (
+          <div className="mt-2">
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>{t("reports.machine", locale)}</Th>
+                  <Th className="text-right">{t("util.used", locale)}</Th>
+                  <Th className="text-right">{t("util.utilisation", locale)}</Th>
+                  <Th className="text-right">{t("util.idle", locale)}</Th>
+                  <Th className="text-right">{t("util.downtime", locale)}</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {data.utilisation.perMachine.map((r) => {
+                  const unit = r.meterType === "km" ? t("machine.kmShort", locale) : t("machine.hrs", locale);
+                  const fmt = (v: number) => v.toLocaleString("en-ZA", { maximumFractionDigits: r.meterType === "km" ? 0 : 1 });
+                  return (
+                    <Tr key={r.machineId}>
+                      <Td className="font-medium">
+                        <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{r.name}</Link>
+                      </Td>
+                      <Td className="text-right tabular-nums">{r.used != null ? `${fmt(r.used)} ${unit}` : "—"}</Td>
+                      <Td className="text-right tabular-nums">{r.pct != null ? `${r.pct.toFixed(0)}%` : "—"}</Td>
+                      <Td className="text-right tabular-nums">{r.idle != null ? `${fmt(r.idle)} ${unit}` : "—"}</Td>
+                      <Td className="text-right tabular-nums">{r.downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} {t("machine.daysShort", locale)}</Td>
+                    </Tr>
+                  );
+                })}
+              </Tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
+
       {/* Contractors (F13) — outstanding value, throughput, responsiveness, spend */}
       <Card flush>
         <CardHeader
