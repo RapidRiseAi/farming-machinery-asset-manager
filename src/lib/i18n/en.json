@@ -214,7 +214,12 @@
     "fuelCost": "Cost (optional)",
     "fuelReading": "Meter reading",
     "fuelActivity": "Activity (optional)",
-    "driver": "Driver / operator"
+    "driver": "Driver / operator",
+    "reissueTitle": "Lost or damaged QR sticker?",
+    "reissueDesc": "Generate a new code if this sticker is lost, damaged, or may have been copied. The old printed QR stops working immediately — you'll need to reprint and replace it.",
+    "reissueBtn": "Re-issue QR code",
+    "reissueConfirm": "Re-issue this QR code? The old printed QR will stop working immediately and must be reprinted. This can't be undone.",
+    "reissued": "New QR code issued. The old sticker no longer works — print this sheet and replace it."
   },
   "fuel": {
     "title": "Fuel & diesel",

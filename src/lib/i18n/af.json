@@ -214,7 +214,12 @@
     "fuelCost": "Koste (opsioneel)",
     "fuelReading": "Meterlesing",
     "fuelActivity": "Aktiwiteit (opsioneel)",
-    "driver": "Bestuurder / operateur"
+    "driver": "Bestuurder / operateur",
+    "reissueTitle": "QR-plakker verlore of beskadig?",
+    "reissueDesc": "Skep 'n nuwe kode as hierdie plakker verlore, beskadig of moontlik gekopieer is. Die ou gedrukte QR hou onmiddellik op werk — jy sal dit moet herdruk en vervang.",
+    "reissueBtn": "Herreik QR-kode uit",
+    "reissueConfirm": "Herreik hierdie QR-kode uit? Die ou gedrukte QR sal onmiddellik ophou werk en moet herdruk word. Dit kan nie ongedaan gemaak word nie.",
+    "reissued": "Nuwe QR-kode uitgereik. Die ou plakker werk nie meer nie — druk hierdie blad en vervang dit."
   },
   "fuel": {
     "title": "Brandstof & diesel",
