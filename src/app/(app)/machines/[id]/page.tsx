@@ -30,6 +30,7 @@ import {
   DEFAULT_WARRANTY_LEAD_DAYS,
   DEFAULT_WARRANTY_HOURS_LEAD,
 } from "@/lib/compliance";
+import { fineStatusLabel, fineStatusTone, nominationPending, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,6 +88,11 @@ type ServiceKit = { id: string; name: string; notes: string | null; items: KitIt
 type Licence = {
   id: string; type: string; number: string | null; expiry_date: string;
   reminder_lead_days: number; notes: string | null;
+};
+type MachineFine = {
+  id: string; notice_number: string | null; authority: string | null; offence: string | null;
+  offence_date: string | null; amount_cents: number | null; nomination_deadline: string | null;
+  status: string; driver_user_id: string | null; driver_name: string | null;
 };
 
 const savedMsg: Record<string, string> = {
@@ -184,6 +190,21 @@ export default async function MachineDetailPage({
   const isOutOfService = machine.status === "out_of_service";
   const assignedOperatorName = machine.assigned_operator_id ? operatorName.get(machine.assigned_operator_id) : null;
 
+  // AARTO fines on this vehicle (G2, FR-13.2). Only fetched when the plan unlocks AARTO.
+  let machineFines: MachineFine[] = [];
+  if (aartoAllowed) {
+    const { data: fineData } = await supabase
+      .from("fines")
+      .select("id, notice_number, authority, offence, offence_date, amount_cents, nomination_deadline, status, driver_user_id, driver_name")
+      .eq("machine_id", id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    machineFines = (fineData as MachineFine[] | null) ?? [];
+  }
+  const fineDriverLabel = (f: MachineFine) =>
+    (f.driver_user_id ? operatorName.get(f.driver_user_id) : null) ?? f.driver_name ?? t("fines.driverUnknown", locale);
+
   // Compliance (F6): warranty (on machines) + licences/renewals. Status ok/expiring/expired
   // uses the same thresholds as the nightly expiry engine (0263).
   const licences = (licenceRes.data as Licence[] | null) ?? [];
@@ -196,6 +217,7 @@ export default async function MachineDetailPage({
   const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
   const warrantyLeadDays = Number(farmSettings.warranty_lead_days) || DEFAULT_WARRANTY_LEAD_DAYS;
   const warrantyHoursLead = Number(farmSettings.warranty_hours_lead) || DEFAULT_WARRANTY_HOURS_LEAD;
+  const aartoLeadDays = Number(farmSettings.aarto_nomination_lead_days) || DEFAULT_AARTO_LEAD_DAYS;
   const hasWarranty = machine.warranty_expiry_date != null || machine.warranty_expiry_hours != null;
   const wStatus = warrantyStatus(machine, warrantyLeadDays, warrantyHoursLead);
 
@@ -392,6 +414,8 @@ export default async function MachineDetailPage({
           <div className="flex flex-col items-end gap-1 text-sm">
             <Link href={`/machines/${machine.id}/qr`} className="focus-ring rounded-md text-brand-700">{t("machine.qrCode", locale)} →</Link>
             <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.machineFile", locale)} →</a>
+            <a href={`/machines/${machine.id}/sale-pack.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.salePack", locale)} →</a>
+            <a href={`/machines/${machine.id}/warranty-pack.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.warrantyPack", locale)} →</a>
           </div>
         </div>
       </Card>
@@ -921,6 +945,52 @@ export default async function MachineDetailPage({
                 ))}
               </ul>
             )}
+
+            {/* AARTO fines on this vehicle (FR-13.2) — capture lives on the fines workflow,
+                pre-selecting this vehicle. */}
+            <div className="mt-4 border-t border-sand-100 pt-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("machine.finesTitle", locale)}</p>
+                {canEdit ? (
+                  <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-700">
+                    {t("machine.recordFine", locale)} →
+                  </Link>
+                ) : null}
+              </div>
+              {machineFines.length === 0 ? (
+                <p className="text-sm text-sand-400">{t("machine.noFines", locale)}</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {machineFines.map((f) => {
+                    const ds = nominationDeadlineStatus(f.nomination_deadline, f.status, aartoLeadDays);
+                    return (
+                      <li key={f.id} className="rounded-lg border border-sand-200 p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-sand-800">
+                              {f.offence || t("fines.noOffence", locale)}
+                              {f.notice_number ? <span className="text-sand-400"> · {f.notice_number}</span> : null}
+                            </p>
+                            <p className="text-xs text-sand-500">
+                              {t("fines.driver", locale)}: {fineDriverLabel(f)}
+                              {f.offence_date ? <span className="text-sand-400"> · {f.offence_date}</span> : null}
+                              {f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
+                            </p>
+                            {f.nomination_deadline && nominationPending(f.status) ? (
+                              <p className="text-xs text-sand-500">
+                                {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
+                                {ds ? <> · <Badge tone={expiryTone(ds)}>{expiryLabel(ds, locale)}</Badge></> : null}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge tone={fineStatusTone(f.status)}>{fineStatusLabel(f.status, locale)}</Badge>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </Card>
           ) : (
             <Card>

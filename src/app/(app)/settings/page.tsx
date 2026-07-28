@@ -98,6 +98,9 @@ export default async function SettingsPage({
             <Field label={t("settings.licenceLeadDays", locale)} htmlFor="licence_lead_days">
               <Input id="licence_lead_days" name="licence_lead_days" type="number" min={0} defaultValue={n("licence_lead_days", 30)} />
             </Field>
+            <Field label={t("settings.aartoLeadDays", locale)} htmlFor="aarto_nomination_lead_days">
+              <Input id="aarto_nomination_lead_days" name="aarto_nomination_lead_days" type="number" min={0} defaultValue={n("aarto_nomination_lead_days", 14)} />
+            </Field>
           </div>
         </Card>
 

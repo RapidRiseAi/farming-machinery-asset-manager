@@ -15,6 +15,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { FaultsIcon, ReportsIcon, ChevronRightIcon, MachinesIcon, WarningIcon } from "@/components/ui/icons";
 import { SpendTrend, HBars } from "./charts";
 import { warrantyStatus, dateExpiryStatus, expiryTone, expiryLabel, licenceTypeLabel } from "@/lib/compliance";
+import { fineStatusLabel, fineStatusTone, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
 
 type Machine = {
   id: string;
@@ -27,6 +28,7 @@ type Machine = {
   warranty_expiry_hours: number | null;
 };
 type Licence = { id: string; machine_id: string; type: string; number: string | null; expiry_date: string; reminder_lead_days: number };
+type DashFine = { id: string; machine_id: string; offence: string | null; notice_number: string | null; nomination_deadline: string | null; status: string };
 type SPL = { machine_id: string; status: string };
 type Fault = { id: string; machine_id: string; description: string | null; urgency: string | null; created_at: string };
 type JC = { machine_id: string; type: string; total_cents: number; date_out: string | null };
@@ -186,6 +188,29 @@ export default async function DashboardPage() {
   const sevRank: Record<string, number> = { expired: 0, expiring: 1 };
   expiries.sort((a, b) => sevRank[a.status] - sevRank[b.status] || a.date.localeCompare(b.date));
 
+  // AARTO nominations pending & deadlines (§23) — Complete+ only. Fines still owing a driver
+  // nomination (received | driver_identified) on active machines, soonest deadline first.
+  const aartoAllowed = (await checkEntitlement("aarto", profile)).allowed;
+  type PendingFine = { id: string; machineId: string; machineName: string; label: string; deadline: string | null; status: string };
+  let pendingNominations: PendingFine[] = [];
+  if (aartoAllowed) {
+    let finesQ = supabase
+      .from("fines")
+      .select("id, machine_id, offence, notice_number, nomination_deadline, status")
+      .in("status", ["received", "driver_identified"])
+      .is("deleted_at", null);
+    if (farmId) finesQ = finesQ.eq("farm_id", farmId);
+    const { data: fineData } = await finesQ;
+    pendingNominations = ((fineData as DashFine[] | null) ?? [])
+      .filter((f) => activeIds.has(f.machine_id))
+      .map((f) => ({
+        id: f.id, machineId: f.machine_id, machineName: nameById[f.machine_id] ?? "—",
+        label: f.offence || f.notice_number || t("fines.noOffence", locale),
+        deadline: f.nomination_deadline, status: f.status,
+      }))
+      .sort((a, b) => (a.deadline ?? "9999-99-99").localeCompare(b.deadline ?? "9999-99-99"));
+  }
+
   // Spend delta.
   const spendPct = spendLast > 0 ? Math.round(((spendThis - spendLast) / spendLast) * 100) : null;
   const spendTone = spendThis > spendLast ? "overdue" : spendThis < spendLast ? "ok" : "default";
@@ -316,6 +341,48 @@ export default async function DashboardPage() {
           </ul>
         )}
       </Card>
+
+      {/* AARTO nominations pending & deadlines (§23) — Complete+ */}
+      {aartoAllowed ? (
+        <Card>
+          <CardHeader
+            action={
+              <Link href="/fines" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+                {t("nav.fines", locale)}
+                <ChevronRightIcon className="text-[1rem]" />
+              </Link>
+            }
+          >
+            <CardTitle>{t("dashboard.nominationsTitle", locale)}</CardTitle>
+          </CardHeader>
+          {pendingNominations.length === 0 ? (
+            <EmptyState icon={<WarningIcon />} title={t("dashboard.noNominations", locale)} />
+          ) : (
+            <ul className="flex flex-col divide-y divide-sand-100">
+              {pendingNominations.slice(0, 8).map((f) => {
+                const ds = nominationDeadlineStatus(f.deadline, f.status, DEFAULT_AARTO_LEAD_DAYS);
+                return (
+                  <li key={f.id}>
+                    <Link href="/fines" className="focus-ring flex items-center justify-between gap-3 rounded-md py-2.5">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-sand-900">{f.machineName}</span>
+                        <span className="block truncate text-sm text-sand-500">
+                          {f.label}
+                          {f.deadline ? ` · ${t("fines.deadline", locale)} ${f.deadline}` : ""}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {ds ? <Badge tone={expiryTone(ds)}>{expiryLabel(ds, locale)}</Badge> : null}
+                        <Badge tone={fineStatusTone(f.status)}>{fineStatusLabel(f.status, locale)}</Badge>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      ) : null}
 
       {/* Open faults (actionable) */}
       <Card>

@@ -87,6 +87,13 @@ export function formatNotification(
       return fill("notifications.tplQuoteAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
     case "invoice_awaiting":
       return fill("notifications.tplInvoiceAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    // AARTO nomination-deadline reminder (G2 engine 0371). `status` = expiring | expired.
+    case "aarto_nomination_due":
+      return fill(
+        p.status === "expired" ? "notifications.tplAartoNominationOverdue" : "notifications.tplAartoNominationDue",
+        locale,
+        { machine: m, deadline: String(p.deadline ?? ""), notice: String(p.notice_number ?? "") }
+      );
     default:
       return template;
   }
@@ -110,7 +117,9 @@ export function notificationTitle(template: string, locale: Locale): string {
                   template === "quote_awaiting" ||
                   template === "invoice_awaiting"
                 ? "work"
-                : template;
+                : template.startsWith("aarto_")
+                  ? "aarto"
+                  : template;
   return t(`pushTitle.${family}`, locale);
 }
 
@@ -125,6 +134,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
     p.work_request_id
   )
     return `/work/${p.work_request_id}`;
+  // AARTO nomination reminders deep-link to the fines workflow.
+  if (template.startsWith("aarto_")) return "/fines";
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";
 }

@@ -41,7 +41,8 @@
     "contractor": "My paneelbord",
     "groupContractor": "Kontrakteur",
     "inbox": "Inmandjie",
-    "switchFarm": "Wissel plaas"
+    "switchFarm": "Wissel plaas",
+    "fines": "Boetes"
   },
   "auth": {
     "signIn": "Teken in",
@@ -375,7 +376,12 @@
     "addServiceKit": "Voeg 'n diensstel by",
     "kitName": "Stelnaam (bv. 250u-diens)",
     "checklists": "Voertuig-kontrolelyste",
-    "noChecklists": "Nog geen kontrolelyste nie."
+    "noChecklists": "Nog geen kontrolelyste nie.",
+    "salePack": "Verkooppakket",
+    "warrantyPack": "Waarborgpakket",
+    "finesTitle": "Boetes",
+    "recordFine": "Boete aanteken",
+    "noFines": "Geen boetes op hierdie voertuig nie."
   },
   "admin": {
     "farms": "Plase",
@@ -490,7 +496,9 @@
     "tplWorkQuoted": "{machine}: kwotasie ontvang — {amount}",
     "tplWorkInvoiced": "{machine}: faktuur ontvang — {amount}",
     "tplQuoteAwaiting": "{machine}: kwotasie wag op jou goedkeuring — {amount}",
-    "tplInvoiceAwaiting": "{machine}: faktuur wag op jou goedkeuring — {amount}"
+    "tplInvoiceAwaiting": "{machine}: faktuur wag op jou goedkeuring — {amount}",
+    "tplAartoNominationDue": "{machine}: nomineer die bestuurder vir boete {notice} voor {deadline}",
+    "tplAartoNominationOverdue": "{machine}: bestuurdernominasie vir boete {notice} is agterstallig (was verskuldig {deadline})"
   },
   "settings": {
     "title": "Instellings",
@@ -516,7 +524,8 @@
     "language": "Verstektaal",
     "afrikaans": "Afrikaans",
     "english": "Engels",
-    "save": "Stoor instellings"
+    "save": "Stoor instellings",
+    "aartoLeadDays": "Waarsku voor nominasie-sperdatum (dae)"
   },
   "team": {
     "title": "Span",
@@ -604,7 +613,8 @@
     "requestsShort": "Versk.",
     "invoicedShort": "Fakt.",
     "hoursShort": "h",
-    "none": "—"
+    "none": "—",
+    "auditPack": "Ouditpakket"
   },
   "faults": {
     "title": "Foute",
@@ -761,7 +771,9 @@
     "noMachinesHint": "Voeg jou eerste masjien by om dienste, foute en koste te begin volg.",
     "noMachinesAdd": "Voeg 'n masjien by",
     "expiriesTitle": "Vervaldatums op koms",
-    "noExpiries": "Geen waarborge of lisensies verval binnekort nie."
+    "noExpiries": "Geen waarborge of lisensies verval binnekort nie.",
+    "nominationsTitle": "AARTO-nominasies hangende",
+    "noNominations": "Geen bestuurdernominasies hangende nie."
   },
   "offline": {
     "online": "Aanlyn",
@@ -817,7 +829,8 @@
     "fuel": "Brandstofwaarskuwing",
     "weekly_digest": "Weeklikse opsomming",
     "stale_meter": "Meterlesings",
-    "work": "Kontrakteur-opdatering"
+    "work": "Kontrakteur-opdatering",
+    "aarto": "AARTO-boete"
   },
   "prefs": {
     "title": "Jou waarskuwingvoorkeure",
@@ -1136,5 +1149,53 @@
     "recentActivity": "Onlangse aktiwiteit",
     "quoteAccepted": "Kwotasie aanvaar",
     "invoiceApproved": "Faktuur goedgekeur"
+  },
+  "fineStatus": {
+    "received": "Ontvang",
+    "driver_identified": "Bestuurder geïdentifiseer",
+    "nominated": "Genomineer",
+    "paid": "Betaal",
+    "disputed": "Betwis",
+    "closed": "Gesluit"
+  },
+  "fines": {
+    "title": "Boetes & AARTO",
+    "subtitle": "Vang verkeersboetes vas, identifiseer die bestuurder, en volg nominasie-sperdatums.",
+    "captureTitle": "Boete aanteken",
+    "captureHint": "Kies die voertuig en die oortredingsdatum — ons stel die bestuurder voor uit die gebruikslogboek.",
+    "vehicle": "Voertuig",
+    "selectVehicle": "Kies ’n voertuig",
+    "offenceDate": "Oortredingsdatum",
+    "findDriver": "Vind bestuurder",
+    "suggested": "Voorgestelde bestuurder",
+    "noSuggestion": "Geen gebruik is vir hierdie voertuig op daardie datum aangeteken nie — kies of tik die bestuurder hieronder in.",
+    "driver": "Bestuurder",
+    "driverNameOption": "Op naam…",
+    "driverName": "Bestuurder se naam",
+    "driverNamePlaceholder": "bv. Piet Willemse",
+    "driverUnknown": "Nog nie geïdentifiseer nie",
+    "noticeNumber": "Kennisgewingnommer",
+    "noticeNumberPlaceholder": "bv. 03/1234567890",
+    "authority": "Uitreikende owerheid",
+    "authorityPlaceholder": "bv. JMPD, RTMC",
+    "offence": "Oortreding",
+    "offencePlaceholder": "bv. Oorskryding van die spoedgrens",
+    "amount": "Bedrag (R)",
+    "fineDate": "Kennisgewingdatum",
+    "deadline": "Nominasie-sperdatum",
+    "status": "Status",
+    "notes": "Notas",
+    "notesPlaceholder": "Opsionele notas",
+    "record": "Boete aanteken",
+    "pendingTitle": "Hangende nominasies & sperdatums",
+    "noPending": "Geen boetes wag op ’n bestuurdernominasie nie.",
+    "otherTitle": "Ander boetes",
+    "empty": "Geen boetes aangeteken nie.",
+    "pendingCount": "{n} hangende",
+    "unknownVehicle": "Onbekende voertuig",
+    "noOffence": "Boete",
+    "setStatus": "Opdateer",
+    "identifyDriver": "Identifiseer bestuurder",
+    "upgradeRequired": "Hierdie aksie vereis die Volledig-plan."
   }
 }

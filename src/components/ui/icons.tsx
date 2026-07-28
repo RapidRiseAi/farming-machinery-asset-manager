@@ -223,6 +223,16 @@ export const WorkIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** AARTO fines — an infringement notice (a document with an exclamation). */
+export const FinesIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+    <path d="M14 3v4h4" />
+    <path d="M11 10.5v3.5" />
+    <path d="M11 17h.01" />
+  </Svg>
+);
+
 export const PhoneIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 5a1 1 0 0 1 1-1h2.3a1 1 0 0 1 1 .76l.7 2.8a1 1 0 0 1-.3 1L7.3 10a12 12 0 0 0 5.7 5.7l1.4-1.4a1 1 0 0 1 1-.3l2.8.7a1 1 0 0 1 .76 1V18a1 1 0 0 1-1 1A15 15 0 0 1 4 6Z" />
@@ -304,6 +314,7 @@ export const iconByName = {
   partners: PartnersIcon,
   checklists: ChecklistIcon,
   work: WorkIcon,
+  fines: FinesIcon,
   bell: BellIcon,
   team: TeamIcon,
   settings: SettingsIcon,

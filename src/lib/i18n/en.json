@@ -41,7 +41,8 @@
     "contractor": "My dashboard",
     "groupContractor": "Contractor",
     "inbox": "Inbox",
-    "switchFarm": "Switch farm"
+    "switchFarm": "Switch farm",
+    "fines": "Fines"
   },
   "auth": {
     "signIn": "Sign in",
@@ -375,7 +376,12 @@
     "addServiceKit": "Add a service kit",
     "kitName": "Kit name (e.g. 250h service)",
     "checklists": "Vehicle checklists",
-    "noChecklists": "No checklists yet."
+    "noChecklists": "No checklists yet.",
+    "salePack": "Sale pack",
+    "warrantyPack": "Warranty pack",
+    "finesTitle": "Fines",
+    "recordFine": "Record a fine",
+    "noFines": "No fines on this vehicle."
   },
   "admin": {
     "farms": "Farms",
@@ -490,7 +496,9 @@
     "tplWorkQuoted": "{machine}: quote received — {amount}",
     "tplWorkInvoiced": "{machine}: invoice received — {amount}",
     "tplQuoteAwaiting": "{machine}: quote awaiting your approval — {amount}",
-    "tplInvoiceAwaiting": "{machine}: invoice awaiting your approval — {amount}"
+    "tplInvoiceAwaiting": "{machine}: invoice awaiting your approval — {amount}",
+    "tplAartoNominationDue": "{machine}: nominate the driver for fine {notice} before {deadline}",
+    "tplAartoNominationOverdue": "{machine}: driver nomination for fine {notice} is overdue (was due {deadline})"
   },
   "settings": {
     "title": "Settings",
@@ -516,7 +524,8 @@
     "language": "Default language",
     "afrikaans": "Afrikaans",
     "english": "English",
-    "save": "Save settings"
+    "save": "Save settings",
+    "aartoLeadDays": "Warn before nomination deadline (days)"
   },
   "team": {
     "title": "Team",
@@ -604,7 +613,8 @@
     "requestsShort": "Reqs",
     "invoicedShort": "Inv.",
     "hoursShort": "h",
-    "none": "—"
+    "none": "—",
+    "auditPack": "Audit pack"
   },
   "faults": {
     "title": "Faults",
@@ -761,7 +771,9 @@
     "noMachinesHint": "Add your first machine to start tracking services, faults and costs.",
     "noMachinesAdd": "Add a machine",
     "expiriesTitle": "Expiries upcoming",
-    "noExpiries": "No warranties or licences expiring soon."
+    "noExpiries": "No warranties or licences expiring soon.",
+    "nominationsTitle": "AARTO nominations pending",
+    "noNominations": "No driver nominations pending."
   },
   "offline": {
     "online": "Online",
@@ -817,7 +829,8 @@
     "fuel": "Fuel alert",
     "weekly_digest": "Weekly digest",
     "stale_meter": "Meter readings",
-    "work": "Contractor update"
+    "work": "Contractor update",
+    "aarto": "AARTO fine"
   },
   "prefs": {
     "title": "Your alert preferences",
@@ -1136,5 +1149,53 @@
     "recentActivity": "Recent activity",
     "quoteAccepted": "Quote accepted",
     "invoiceApproved": "Invoice approved"
+  },
+  "fineStatus": {
+    "received": "Received",
+    "driver_identified": "Driver identified",
+    "nominated": "Nominated",
+    "paid": "Paid",
+    "disputed": "Disputed",
+    "closed": "Closed"
+  },
+  "fines": {
+    "title": "Fines & AARTO",
+    "subtitle": "Capture traffic fines, identify the driver, and track nomination deadlines.",
+    "captureTitle": "Record a fine",
+    "captureHint": "Choose the vehicle and the offence date — we suggest the driver from the usage log.",
+    "vehicle": "Vehicle",
+    "selectVehicle": "Select a vehicle",
+    "offenceDate": "Offence date",
+    "findDriver": "Find driver",
+    "suggested": "Suggested driver",
+    "noSuggestion": "No usage was logged for this vehicle on that date — select or enter the driver below.",
+    "driver": "Driver",
+    "driverNameOption": "By name…",
+    "driverName": "Driver name",
+    "driverNamePlaceholder": "e.g. Piet Willemse",
+    "driverUnknown": "Not yet identified",
+    "noticeNumber": "Notice number",
+    "noticeNumberPlaceholder": "e.g. 03/1234567890",
+    "authority": "Issuing authority",
+    "authorityPlaceholder": "e.g. JMPD, RTMC",
+    "offence": "Offence",
+    "offencePlaceholder": "e.g. Exceeding the speed limit",
+    "amount": "Amount (R)",
+    "fineDate": "Notice date",
+    "deadline": "Nomination deadline",
+    "status": "Status",
+    "notes": "Notes",
+    "notesPlaceholder": "Optional notes",
+    "record": "Record fine",
+    "pendingTitle": "Pending nominations & deadlines",
+    "noPending": "No fines awaiting a driver nomination.",
+    "otherTitle": "Other fines",
+    "empty": "No fines recorded.",
+    "pendingCount": "{n} pending",
+    "unknownVehicle": "Unknown vehicle",
+    "noOffence": "Fine",
+    "setStatus": "Update",
+    "identifyDriver": "Identify driver",
+    "upgradeRequired": "This action requires the Complete plan."
   }
 }

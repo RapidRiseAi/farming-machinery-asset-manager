@@ -28,6 +28,7 @@ export async function updateSettings(formData: FormData) {
     warranty_lead_days: intOr(formData, "warranty_lead_days", 30),
     warranty_hours_lead: intOr(formData, "warranty_hours_lead", 50),
     licence_lead_days: intOr(formData, "licence_lead_days", 30),
+    aarto_nomination_lead_days: intOr(formData, "aarto_nomination_lead_days", 14),
     default_language: String(formData.get("default_language") ?? "af") === "en" ? "en" : "af",
   };
 

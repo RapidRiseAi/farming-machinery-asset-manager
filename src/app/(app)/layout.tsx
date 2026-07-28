@@ -45,6 +45,8 @@ export default async function AppLayout({
   const dashAllowed = has("dashboard");
   const reportsAllowed = has("advanced_reports");
   const fuelAllowed = has("fuel");
+  // AARTO fine workflow (G2) — Complete+ (aarto), farm roles only (not the contractor shell).
+  const finesAllowed = !isWorkshop && has("aarto");
   // Logo/home link must point somewhere the role/plan can actually open. A contractor's
   // home is their aggregated dashboard (F12c).
   const homeHref = isWorkshop ? "/contractor" : dashAllowed ? "/dashboard" : "/machines";
@@ -75,6 +77,7 @@ export default async function AppLayout({
   const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
   const checklists: NavItemData = { href: "/checklists", label: t("nav.checklists", locale), icon: "checklists" };
   const work: NavItemData = { href: "/work", label: t("nav.work", locale), icon: "work" };
+  const fines: NavItemData = { href: "/fines", label: t("nav.fines", locale), icon: "fines" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
@@ -96,6 +99,7 @@ export default async function AppLayout({
         ...(canParts ? [parts] : []),
         ...(canPartners ? [partners] : []),
         checklists,
+        ...(finesAllowed ? [fines] : []),
         ...(reportsAllowed ? [reports] : []),
         alerts,
         ...(isManagerPlus ? [team, settings] : []),
@@ -120,7 +124,7 @@ export default async function AppLayout({
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: [alerts, ...(isManagerPlus ? [team, settings] : [])],
+          items: [...(finesAllowed ? [fines] : []), alerts, ...(isManagerPlus ? [team, settings] : [])],
         },
         ...(isAdmin ? [{ key: "admin", label: t("nav.groupAdmin", locale), items: [admin] }] : []),
       ];
