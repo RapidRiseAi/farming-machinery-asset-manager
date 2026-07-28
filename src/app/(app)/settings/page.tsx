@@ -117,6 +117,21 @@ export default async function SettingsPage({
         </Card>
 
         <Card>
+          <CardHeader><CardTitle>{t("settings.analyticsSection", locale)}</CardTitle></CardHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label={t("settings.repairReplacePct", locale)} htmlFor="repair_replace_pct">
+              <Input id="repair_replace_pct" name="repair_replace_pct" type="number" min={1} defaultValue={n("repair_replace_pct", 60)} />
+            </Field>
+            <Field label={t("settings.utilHoursPerDay", locale)} htmlFor="utilisation_hours_per_day">
+              <Input id="utilisation_hours_per_day" name="utilisation_hours_per_day" type="number" min={1} defaultValue={n("utilisation_hours_per_day", 10)} />
+            </Field>
+            <Field label={t("settings.utilKmPerDay", locale)} htmlFor="utilisation_km_per_day">
+              <Input id="utilisation_km_per_day" name="utilisation_km_per_day" type="number" min={1} defaultValue={n("utilisation_km_per_day", 200)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>{t("settings.language", locale)}</CardTitle></CardHeader>
           <Field label={t("settings.language", locale)} htmlFor="default_language">
             <Select id="default_language" name="default_language" defaultValue={(s.default_language as string) ?? "af"}>
