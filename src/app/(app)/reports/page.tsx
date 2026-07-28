@@ -85,6 +85,10 @@ export default async function ReportsPage({
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
         <div className="flex items-center gap-2">
+          {/* Single multi-sheet Excel workbook covering every report family (FR-11.4). */}
+          <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            {t("reports.downloadExcel", locale)} ↓
+          </a>
           {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4) — fleet compliance summary PDF. */}
           <a href="/reports/audit-pack.pdf" className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("reports.auditPack", locale)} ↓

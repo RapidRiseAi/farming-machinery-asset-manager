@@ -587,6 +587,7 @@
     "includeInactive": "Sluit afgetree / verkoop in",
     "print": "Druk",
     "csv": "CSV",
+    "downloadExcel": "Excel-werkboek",
     "costPerMachine": "Koste per masjien",
     "machine": "Masjien",
     "parts": "Onderdele",

@@ -587,6 +587,7 @@
     "includeInactive": "Include retired / sold",
     "print": "Print",
     "csv": "CSV",
+    "downloadExcel": "Excel workbook",
     "costPerMachine": "Cost per machine",
     "machine": "Machine",
     "parts": "Parts",
