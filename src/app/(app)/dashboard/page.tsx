@@ -303,10 +303,10 @@ export default async function DashboardPage() {
           >
             <CardTitle>{t("nav.fuel", locale)}</CardTitle>
           </CardHeader>
-          <div className="grid grid-cols-3 gap-3">
-            <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" />
-            <Stat label={t("dashboard.fuelLitres", locale)} value={fuelLitresMonth.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} href="/fuel" />
-            <Stat label={t("dashboard.fuelAnomalies", locale)} value={fuelAnomalyCount} tone={fuelAnomalyCount > 0 ? "overdue" : "default"} href="/fuel" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" valueClassName="text-xl sm:text-3xl" />
+            <Stat label={t("dashboard.fuelLitres", locale)} value={fuelLitresMonth.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} href="/fuel" valueClassName="text-xl sm:text-3xl" />
+            <Stat label={t("dashboard.fuelAnomalies", locale)} value={fuelAnomalyCount} tone={fuelAnomalyCount > 0 ? "overdue" : "default"} href="/fuel" valueClassName="text-xl sm:text-3xl" />
           </div>
         </Card>
       ) : null}

@@ -23,13 +23,15 @@ export type StatProps = {
   /** When set, the whole tile becomes a link with a chevron affordance. */
   href?: string;
   className?: string;
+  /** Override the value's size (e.g. a responsive class for wide currency in tight grids). */
+  valueClassName?: string;
 };
 
 /**
  * KPI tile: label, big value, optional delta/icon. Colours the value by `tone`
  * (used for the traffic-light service board). Renders as a link when `href` set.
  */
-export function Stat({ label, value, delta, tone = "default", icon, href, className }: StatProps) {
+export function Stat({ label, value, delta, tone = "default", icon, href, className, valueClassName }: StatProps) {
   const inner = (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -39,7 +41,7 @@ export function Stat({ label, value, delta, tone = "default", icon, href, classN
           <ChevronRightIcon className="text-[1.1rem] text-sand-400" />
         ) : null}
       </div>
-      <div className={cn("mt-1.5 text-3xl font-bold leading-none tracking-tight", VALUE_TONE[tone])}>
+      <div className={cn("mt-1.5 text-3xl font-bold leading-none tracking-tight tabular-nums", VALUE_TONE[tone], valueClassName)}>
         {value}
       </div>
       {delta ? <div className="mt-1.5 text-xs text-sand-500">{delta}</div> : null}
