@@ -42,6 +42,7 @@
     "groupContractor": "Kontrakteur",
     "inbox": "Inmandjie",
     "switchFarm": "Wissel plaas",
+    "language": "Taal",
     "fines": "Boetes"
   },
   "auth": {
@@ -49,6 +50,7 @@
     "signOut": "Teken uit",
     "email": "E-pos",
     "password": "Wagwoord",
+    "showPassword": "Hou in om wagwoord te wys",
     "magicLink": "E-pos vir my 'n aanmeldskakel",
     "sendLink": "Stuur skakel",
     "checkEmail": "Kyk in jou e-pos vir die aanmeldskakel.",

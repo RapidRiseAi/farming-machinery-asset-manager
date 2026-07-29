@@ -3,6 +3,7 @@
 import { signInWithPassword, signInWithMagicLink } from "./actions";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 
@@ -14,7 +15,7 @@ export function LoginForm({ error, sent }: { error?: string; sent?: string }) {
 
       <form action={signInWithPassword} className="flex flex-col gap-2.5">
         <Input name="email" type="email" required autoComplete="email" placeholder={t("auth.email")} />
-        <Input name="password" type="password" required autoComplete="current-password" placeholder={t("auth.password")} />
+        <PasswordInput name="password" required autoComplete="current-password" placeholder={t("auth.password")} revealLabel={t("auth.showPassword")} />
         <SubmitButton variant="primary" fullWidth>{t("auth.signIn")}</SubmitButton>
       </form>
 

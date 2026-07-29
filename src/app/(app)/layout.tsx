@@ -11,6 +11,7 @@ import { signOut } from "./actions";
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon } from "@/components/ui/icons";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
 
 /** Two-letter initials from a display name, for the avatar chip. */
@@ -131,6 +132,7 @@ export default async function AppLayout({
 
   const appName = t("app.name", locale);
   const signOutLabel = t("nav.signOut", locale);
+  const languageLabel = t("nav.language", locale);
 
   const brandMark = (
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-[1.3rem] text-white shadow-xs">
@@ -158,17 +160,24 @@ export default async function AppLayout({
     </Link>
   );
 
-  // Sign-out row for the "More" sheet (server action stays server-side).
+  // Footer slot for the "More" sheet: language switch + sign-out (server action stays
+  // server-side).
   const signOutSlot = (
-    <form action={signOut}>
-      <button
-        type="submit"
-        className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium text-sand-800 hover:bg-sand-100"
-      >
-        <SignOutIcon className="text-[1.35rem] text-sand-500" />
-        {signOutLabel}
-      </button>
-    </form>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 px-3 py-1">
+        <span className="text-[0.95rem] font-medium text-sand-800">{languageLabel}</span>
+        <LanguageSwitcher current={locale} label={languageLabel} />
+      </div>
+      <form action={signOut}>
+        <button
+          type="submit"
+          className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium text-sand-800 hover:bg-sand-100"
+        >
+          <SignOutIcon className="text-[1.35rem] text-sand-500" />
+          {signOutLabel}
+        </button>
+      </form>
+    </div>
   );
 
   return (
@@ -197,6 +206,12 @@ export default async function AppLayout({
           ))}
         </nav>
         <div className="border-t border-sand-200 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-sand-400">
+              {languageLabel}
+            </span>
+            <LanguageSwitcher current={locale} label={languageLabel} />
+          </div>
           <div className="mb-1 flex items-center gap-2.5 px-1">
             {avatar}
             <span className="min-w-0">

@@ -42,11 +42,28 @@ begin
     jsonb_build_object('name', p_name)
   )
   on conflict (id) do update set
-    email              = excluded.email,
-    encrypted_password = excluded.encrypted_password,
-    email_confirmed_at = coalesce(auth.users.email_confirmed_at, now()),
-    raw_user_meta_data = excluded.raw_user_meta_data,
-    updated_at         = now();
+    -- GoTrue rejects a login row unless aud='authenticated' and the timestamp/token
+    -- columns are non-null. demo_farm.sql pre-creates these rows with only (id,email),
+    -- so this upsert must (re)assert every column GoTrue scans — otherwise the account
+    -- exists but cannot log in ("Database error querying schema" / "invalid credentials").
+    aud                        = 'authenticated',
+    role                       = 'authenticated',
+    instance_id                = coalesce(auth.users.instance_id, '00000000-0000-0000-0000-000000000000'),
+    email                      = excluded.email,
+    encrypted_password         = excluded.encrypted_password,
+    email_confirmed_at         = coalesce(auth.users.email_confirmed_at, now()),
+    created_at                 = coalesce(auth.users.created_at, now()),
+    raw_app_meta_data          = coalesce(auth.users.raw_app_meta_data, '{"provider":"email","providers":["email"]}'::jsonb),
+    raw_user_meta_data         = excluded.raw_user_meta_data,
+    confirmation_token         = coalesce(auth.users.confirmation_token, ''),
+    recovery_token             = coalesce(auth.users.recovery_token, ''),
+    email_change               = coalesce(auth.users.email_change, ''),
+    email_change_token_new     = coalesce(auth.users.email_change_token_new, ''),
+    email_change_token_current = coalesce(auth.users.email_change_token_current, ''),
+    phone_change               = coalesce(auth.users.phone_change, ''),
+    phone_change_token         = coalesce(auth.users.phone_change_token, ''),
+    reauthentication_token     = coalesce(auth.users.reauthentication_token, ''),
+    updated_at                 = now();
 
   -- GoTrue needs an 'email' identity carrying { sub, email } to allow password login.
   if not exists (select 1 from auth.identities where user_id = p_id and provider = 'email') then
@@ -141,7 +158,7 @@ begin
   insert into users (id, farm_id, workshop_id, role, name, email, language, active) values
     ('10000000-0000-0000-0000-000000000012', null, 'bb000000-0000-0000-0000-000000000002', 'workshop', 'Riaan (Volt)',    'sparky@voltauto.example',      'en', true),
     ('10000000-0000-0000-0000-000000000013', null, 'bb000000-0000-0000-0000-000000000003', 'workshop', 'AgriParts Sales', 'sales@agripartsdepot.example', 'en', true),
-    ('10000000-0000-0000-0000-000000000014', null, 'bb000000-0000-0000-0000-000000000004', 'workshop', 'Deon (Panelworx)','info@panelworx.example',       'af', true),
+    ('10000000-0000-0000-0000-000000000014', null, 'bb000000-0000-0000-0000-000000000004', 'workshop', 'Deon (Panelworx)','info@panelworx.example',       'en', true),
     ('10000000-0000-0000-0000-000000000015', null, 'bb000000-0000-0000-0000-000000000005', 'workshop', 'Karoo Tyre',      'fitment@karootyre.example',    'en', true),
     ('10000000-0000-0000-0000-000000000016', null, 'bb000000-0000-0000-0000-000000000006', 'workshop', 'Boland Towing',   'dispatch@bolandtow.example',   'en', true),
     ('10000000-0000-0000-0000-000000000017', null, 'bb000000-0000-0000-0000-000000000007', 'workshop', 'Sam (Doall)',     'general@doall.example',        'en', true)
@@ -171,12 +188,12 @@ begin
   -- ════════════════════════════════════════════════════════════════════════════
   insert into farms (id, name, plan, billing_period, status, settings)
   values (v_farm2, 'Rooikoppies Plaas', 'professional', 'monthly', 'active',
-          '{"vat_rate_bps":1500,"vat_inclusive_entry":true,"currency":"ZAR","default_language":"af"}'::jsonb)
+          '{"vat_rate_bps":1500,"vat_inclusive_entry":true,"currency":"ZAR","default_language":"en"}'::jsonb)
   on conflict (id) do nothing;
 
   perform public._demo_auth_user(v_owner2, 'hendrik@rooikoppies.example', pw, 'Hendrik van Zyl');
   insert into users (id, farm_id, workshop_id, role, name, email, language, active)
-  values (v_owner2, v_farm2, null, 'owner', 'Hendrik van Zyl', 'hendrik@rooikoppies.example', 'af', true)
+  values (v_owner2, v_farm2, null, 'owner', 'Hendrik van Zyl', 'hendrik@rooikoppies.example', 'en', true)
   on conflict (id) do update set farm_id = v_farm2, role = 'owner', active = true, email = excluded.email;
 
   -- Three vehicles on Rooikoppies.

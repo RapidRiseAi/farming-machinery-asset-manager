@@ -35,7 +35,7 @@ begin
     (v_farm, 'Weltevrede Boerdery', 'complete', 'annual', 'active',
      jsonb_build_object(
        'currency','ZAR','vat_rate_bps',1500,'vat_inclusive_entry',true,
-       'default_language','af','due_soon_hours',25,'due_soon_days',14,
+       'default_language','en','due_soon_hours',25,'due_soon_days',14,
        'stale_reading_days',30,'approval_required',true,
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
 
@@ -58,9 +58,9 @@ begin
   on conflict (id) do nothing;
 
   insert into users (id, farm_id, workshop_id, role, name, phone, language, whatsapp_opt_in) values
-    (v_owner,   v_farm, null, 'owner',    'Oom Danie', '+27825550101', 'af', true),
-    (v_manager, v_farm, null, 'manager',  'Piet Botha', '+27825550102', 'af', true),
-    (v_mech,    v_farm, null, 'mechanic', 'Johan (werkswinkel)', '+27825550103', 'af', false),
+    (v_owner,   v_farm, null, 'owner',    'Oom Danie', '+27825550101', 'en', true),
+    (v_manager, v_farm, null, 'manager',  'Piet Botha', '+27825550102', 'en', true),
+    (v_mech,    v_farm, null, 'mechanic', 'Johan (werkswinkel)', '+27825550103', 'en', false),
     (v_op1,     v_farm, null, 'operator', 'Thabo', '+27825550104', 'en', false),
     (v_op2,     v_farm, null, 'operator', 'Sipho', '+27825550105', 'en', false),
     (v_wstaff,  null, v_workshop, 'workshop', 'TJ', '+27825550134', 'en', true);

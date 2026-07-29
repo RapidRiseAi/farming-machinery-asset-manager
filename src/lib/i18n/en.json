@@ -42,6 +42,7 @@
     "groupContractor": "Contractor",
     "inbox": "Inbox",
     "switchFarm": "Switch farm",
+    "language": "Language",
     "fines": "Fines"
   },
   "auth": {
@@ -49,6 +50,7 @@
     "signOut": "Sign out",
     "email": "Email",
     "password": "Password",
+    "showPassword": "Hold to show password",
     "magicLink": "Email me a sign-in link",
     "sendLink": "Send link",
     "checkEmail": "Check your email for the sign-in link.",
