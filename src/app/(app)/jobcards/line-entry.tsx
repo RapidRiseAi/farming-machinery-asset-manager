@@ -131,20 +131,31 @@ export function LineEntry({
         </Field>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-sand-700">
-        <input type="checkbox" name="incl_vat" value="1" checked={inclVat} onChange={(e) => setInclVat(e.target.checked)} className="h-4 w-4 rounded border-sand-300" />
-        {t("jobcards.inclVat", locale)}
+      {/* The 16px checkbox became the whole row — 48px, and it says what it means.
+          The live preview used to read "R968.30 incl -> R842.00 ex + R126.30 vat". */}
+      <label className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border border-sand-200 px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 focus-within:ring-2 focus-within:ring-brand-500/40">
+        <input
+          type="checkbox"
+          name="incl_vat"
+          value="1"
+          checked={inclVat}
+          onChange={(e) => setInclVat(e.target.checked)}
+          className="h-5 w-5 rounded border-sand-300 text-brand-600"
+        />
+        {t("jobcards.priceInclVat", locale)}
       </label>
 
       {showPreview ? (
         <p className="text-sm text-sand-600" aria-live="polite">
           {inclVat
-            ? `${rands(enteredTotal)} ${t("jobcards.incl", locale)} → ${rands(exTotal)} ${t("jobcards.ex", locale)} + ${rands(vatTotal)} ${t("jobcards.vat", locale)}`
-            : `${rands(exTotal)} ${t("jobcards.ex", locale)}`}
+            ? t("jobcards.vatBreakdown", locale)
+                .replace("{ex}", rands(exTotal))
+                .replace("{vat}", rands(vatTotal))
+            : t("jobcards.exOnly", locale).replace("{ex}", rands(exTotal))}
         </p>
       ) : null}
 
-      <SubmitButton variant="primary" size="sm" className="self-start">{t("jobcards.add", locale)}</SubmitButton>
+      <SubmitButton variant="secondary" className="self-start">{t("jobcards.add", locale)}</SubmitButton>
       {queued ? (
         <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
       ) : null}

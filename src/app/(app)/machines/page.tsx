@@ -2,6 +2,9 @@ import Link from "next/link";
 import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { rands } from "@/lib/money";
+import { summariseCosts, costPerMeter } from "@/lib/cost";
+import { meterReading, relativeDate, num } from "@/lib/format";
 import {
   MACHINE_TYPES,
   MACHINE_STATUSES,
@@ -10,16 +13,14 @@ import {
 } from "@/lib/machine-options";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { StatusPill, Badge } from "@/components/ui/badge";
-import { MachineStatus } from "@/components/ui/status";
-import { meterReading } from "@/lib/format";
-import { Field } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
+import { MachineStatus, ServiceStatus } from "@/components/ui/status";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { GetStarted, NoMatches } from "@/components/ui/empty-state";
+import { FilterChips, type ChipOption } from "@/components/ui/filter-chips";
 import { Flash } from "@/components/ui/flash";
-import { MachinesIcon, PlusIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon } from "@/components/ui/icons";
+import { MachinesIcon, PlusIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, ChevronRightIcon } from "@/components/ui/icons";
 
 type MachineRow = {
   id: string;
@@ -27,10 +28,13 @@ type MachineRow = {
   type: string;
   make: string | null;
   model: string | null;
+  year: number | null;
+  reg_no: string | null;
   status: string;
   meter_type: string;
   current_reading: number | null;
   current_reading_date: string | null;
+  cost_centre: string | null;
   primary_attachment_id: string | null;
 };
 
@@ -58,7 +62,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const farmId = await currentFarmId(profile);
   let query = supabase
     .from("machines")
-    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date, primary_attachment_id")
+    .select("id, name, type, make, model, year, reg_no, status, meter_type, current_reading, current_reading_date, cost_centre, primary_attachment_id")
     .is("deleted_at", null)
     .order(sort, { ascending: dir === "asc" });
   if (farmId) query = query.eq("farm_id", farmId);
@@ -71,15 +75,20 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const { data } = await query;
   const machines = (data as MachineRow[] | null) ?? [];
 
-  // Distinct cost-centre / department values (farm-scoped by RLS) for the FR-3.4 filters.
+  // Distinct cost-centre / department values (farm-scoped by RLS) for the FR-3.4 filters,
+  // plus the unfiltered fleet totals the header needs ("12 on the farm").
   let dimQuery = supabase
     .from("machines")
-    .select("cost_centre, department")
+    .select("id, cost_centre, department, status")
     .is("deleted_at", null);
   if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
   const { data: dimData } = await dimQuery;
-  const costCentres = [...new Set(((dimData as { cost_centre: string | null }[] | null) ?? []).map((r) => r.cost_centre).filter((v): v is string => !!v))].sort();
-  const departments = [...new Set(((dimData as { department: string | null }[] | null) ?? []).map((r) => r.department).filter((v): v is string => !!v))].sort();
+  const allRows = (dimData as { id: string; cost_centre: string | null; department: string | null; status: string }[] | null) ?? [];
+  const costCentres = [...new Set(allRows.map((r) => r.cost_centre).filter((v): v is string => !!v))].sort();
+  const departments = [...new Set(allRows.map((r) => r.department).filter((v): v is string => !!v))].sort();
+  const liveRows = allRows.filter((r) => r.status !== "retired" && r.status !== "sold");
+  const fleetTotal = liveRows.length;
+  const fleetInWorkshop = liveRows.filter((r) => r.status === "in_workshop").length;
 
   // Primary vehicle image (0280): batch-sign the referenced photos → machine-id → URL.
   const primaryIds = machines.map((m) => m.primary_attachment_id).filter((v): v is string => !!v);
@@ -109,7 +118,8 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     }
   }
 
-  // Worst service status per machine.
+  // Worst service status per machine, and which machines have no plan at all — the
+  // second is a real to-do that used to render as an invisible sand-300 dash.
   const { data: splData } = await supabase
     .from("service_plan_lines")
     .select("machine_id, status")
@@ -118,20 +128,48 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   for (const l of (splData as { machine_id: string; status: string }[] | null) ?? []) {
     svcByMachine.set(l.machine_id, worst(svcByMachine.get(l.machine_id) ?? "ok", l.status));
   }
+  const fleetNeedService = liveRows.filter((r) => {
+    const s = svcByMachine.get(r.id);
+    return s === "overdue" || s === "due_soon";
+  }).length;
+
+  // Cost per hour / km, from the same ledger that feeds the reports (F1 `cost.ts`), so
+  // the list and the machine page never disagree.
+  let costQ = supabase.from("cost_entries").select("machine_id, type, amount_cents").is("deleted_at", null);
+  if (farmId) costQ = costQ.eq("farm_id", farmId);
+  const { data: costData } = await costQ;
+  const costByMachine = new Map<string, { type: string; amount_cents: number | null }[]>();
+  for (const c of (costData as { machine_id: string | null; type: string; amount_cents: number | null }[] | null) ?? []) {
+    if (!c.machine_id) continue;
+    const list = costByMachine.get(c.machine_id) ?? [];
+    list.push(c);
+    costByMachine.set(c.machine_id, list);
+  }
+  const costPerUnit = (m: MachineRow): number | null => {
+    if (m.meter_type === "none") return null;
+    const rows = costByMachine.get(m.id);
+    if (!rows || rows.length === 0) return null;
+    return costPerMeter(summariseCosts(rows).total, m.current_reading);
+  };
 
   const staleCut = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const isStale = (m: MachineRow) =>
     m.meter_type !== "none" && (!m.current_reading_date || m.current_reading_date < staleCut);
 
-  // Preserve filters when building sort links.
+  // The current query string, so chips and sort links preserve everything else.
+  const currentParams = new URLSearchParams();
+  if (sp.type) currentParams.set("type", sp.type);
+  if (sp.status) currentParams.set("status", sp.status);
+  if (sp.q) currentParams.set("q", sp.q);
+  if (sp.cc) currentParams.set("cc", sp.cc);
+  if (sp.dept) currentParams.set("dept", sp.dept);
+  if (showRetired) currentParams.set("retired", "1");
+  if (sp.sort) currentParams.set("sort", sp.sort);
+  if (sp.dir) currentParams.set("dir", sp.dir);
+  const search = currentParams.toString();
+
   const sortHref = (col: "name" | "reading") => {
-    const params = new URLSearchParams();
-    if (sp.type) params.set("type", sp.type);
-    if (sp.status) params.set("status", sp.status);
-    if (sp.q) params.set("q", sp.q);
-    if (sp.cc) params.set("cc", sp.cc);
-    if (sp.dept) params.set("dept", sp.dept);
-    if (showRetired) params.set("retired", "1");
+    const params = new URLSearchParams(search);
     params.set("sort", col);
     params.set("dir", sort === (col === "reading" ? "current_reading" : "name") && dir === "asc" ? "desc" : "asc");
     return `/machines?${params.toString()}`;
@@ -142,40 +180,117 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     return dir === "asc" ? <ChevronUpIcon className="text-[0.9rem]" /> : <ChevronDownIcon className="text-[0.9rem]" />;
   };
 
-  const svcPill = (id: string) => {
-    const s = svcByMachine.get(id);
-    if (!s) return <span className="text-sand-300">—</span>;
-    return <StatusPill status={s as "ok" | "due_soon" | "overdue"} label={t(`ui.status${s === "due_soon" ? "DueSoon" : s === "overdue" ? "Overdue" : "Ok"}`, locale)} />;
+  const typeOptions: ChipOption[] = [
+    { value: "", label: t("machines.presetAll", locale) },
+    ...MACHINE_TYPES.map((ty) => ({ value: ty, label: typeLabel(ty, locale) })),
+  ];
+  const statusOptions: ChipOption[] = [
+    { value: "", label: t("filters.all", locale) },
+    ...MACHINE_STATUSES.filter((s) => showRetired || (s !== "retired" && s !== "sold")).map((s) => ({
+      value: s,
+      label: statusLabel(s, locale),
+    })),
+  ];
+
+  const hasFilter = !!(sp.type || sp.status || sp.q || sp.cc || sp.dept);
+
+  /** The service cell — a status, or a tappable "set up a plan" when there is no plan. */
+  const serviceCell = (m: MachineRow) => {
+    const s = svcByMachine.get(m.id);
+    if (!s) {
+      return (
+        <Link
+          href={`/machines/${m.id}`}
+          className="focus-ring inline-flex items-center gap-1 rounded-full border border-dashed border-sand-300 px-2.5 py-1 text-xs font-medium text-brand-700 hover:border-brand-300 hover:bg-brand-50"
+        >
+          <PlusIcon className="text-[0.9rem]" />
+          {t("machines.setUpPlan", locale)}
+        </Link>
+      );
+    }
+    return <ServiceStatus value={s} locale={locale} />;
   };
 
-  // Primary-image thumbnail (0280) with a graceful placeholder.
-  const thumb = (id: string, size: "sm" | "md" = "md") => {
-    const url = photoUrlByMachine.get(id);
-    const cls = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+  /** Meter reading + when it was last read — a stale reading is what breaks service dates. */
+  const readingCell = (m: MachineRow) => {
+    if (m.meter_type === "none") {
+      return <span className="text-sand-400">{t("machines.noMeter", locale)}</span>;
+    }
     return (
-      <div className={`${cls} shrink-0 overflow-hidden rounded-lg bg-sand-100 ring-1 ring-sand-200`}>
+      <span className="block">
+        <span className="font-medium tabular-nums text-sand-900">
+          {m.current_reading != null
+            ? meterReading(m.current_reading, m.meter_type, locale)
+            : t("machines.noReading", locale)}
+        </span>
+        <span className={`mt-0.5 block text-xs ${isStale(m) ? "font-medium text-status-due" : "text-sand-500"}`}>
+          {m.current_reading_date
+            ? t("machines.readWhen", locale).replace("{when}", relativeDate(m.current_reading_date, locale))
+            : t("machines.neverRead", locale)}
+        </span>
+      </span>
+    );
+  };
+
+  const photo = (id: string, size: "sm" | "lg") => {
+    const url = photoUrlByMachine.get(id);
+    const cls = size === "sm" ? "h-12 w-12 rounded-lg" : "h-[132px] w-[132px] rounded-xl";
+    return (
+      <div className={`${cls} shrink-0 overflow-hidden bg-sand-100 ring-1 ring-sand-200`}>
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt="" className="h-full w-full object-cover" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-sand-300">
-            <MachinesIcon className="text-[1rem]" />
+            <MachinesIcon className={size === "sm" ? "text-[1.1rem]" : "text-[2.2rem]"} />
           </span>
         )}
       </div>
     );
   };
 
+  const subtitle = (m: MachineRow) =>
+    [typeLabel(m.type, locale), m.make ? `${m.make}${m.model ? " " + m.model : ""}` : null, m.reg_no ?? (m.year ? String(m.year) : null), m.cost_centre]
+      .filter(Boolean)
+      .join(" · ");
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("machines.title", locale)}</h1>
+      {/* Header — says how big the fleet is and what is wrong with it, which the page
+          never did before. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+            {t("machines.title", locale)}
+          </h1>
+          <p className="mt-1 text-sm text-sand-500">
+            {t("machines.headerCount", locale).replace("{n}", num(fleetTotal, 0))}
+            {fleetNeedService > 0 ? (
+              <>
+                {" · "}
+                <span className="font-medium text-status-due">
+                  {fleetNeedService === 1
+                    ? t("machines.headerOneNeedsService", locale)
+                    : t("machines.headerNeedService", locale).replace("{n}", String(fleetNeedService))}
+                </span>
+              </>
+            ) : null}
+            {fleetInWorkshop > 0 ? (
+              <>
+                {" · "}
+                {fleetInWorkshop === 1
+                  ? t("machines.headerOneInWorkshop", locale)
+                  : t("machines.headerInWorkshop", locale).replace("{n}", String(fleetInWorkshop))}
+              </>
+            ) : null}
+          </p>
+        </div>
         {canEdit ? (
           <div className="flex items-center gap-2">
-            <Link href="/machines/import" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <Link href="/machines/import" className={buttonVariants({ variant: "secondary" })}>
               {t("machines.import", locale)}
             </Link>
-            <Link href="/machines/new" className={buttonVariants({ variant: "primary", size: "sm" })}>
+            <Link href="/machines/new" className={buttonVariants({ variant: "primary" })}>
               <PlusIcon className="text-[1.1rem]" />
               {t("machines.add", locale)}
             </Link>
@@ -185,167 +300,218 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
       <Flash tone="success" message={sp.imported ? t("machines.importedN", locale).replace("{n}", sp.imported) : undefined} />
 
-      <Card>
-        <form className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <Field label={t("common.search", locale)} htmlFor="q" className="sm:min-w-[12rem] sm:flex-1">
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
-              <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
-            </div>
-          </Field>
-          <Field label={t("machines.type", locale)} htmlFor="type" className="sm:w-40">
-            <Select id="type" name="type" defaultValue={sp.type ?? ""}>
-              <option value="">{t("machines.allTypes", locale)}</option>
-              {MACHINE_TYPES.map((ty) => (
-                <option key={ty} value={ty}>{typeLabel(ty, locale)}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("machines.status", locale)} htmlFor="status" className="sm:w-40">
-            <Select id="status" name="status" defaultValue={sp.status ?? ""}>
-              <option value="">{t("machines.allStatuses", locale)}</option>
-              {MACHINE_STATUSES.map((s) => (
-                <option key={s} value={s}>{statusLabel(s, locale)}</option>
-              ))}
-            </Select>
-          </Field>
-          {costCentres.length > 0 ? (
-            <Field label={t("machines.costCentre", locale)} htmlFor="cc" className="sm:w-40">
-              <Select id="cc" name="cc" defaultValue={sp.cc ?? ""}>
-                <option value="">{t("machines.allCostCentres", locale)}</option>
-                {costCentres.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          {departments.length > 0 ? (
-            <Field label={t("machines.department", locale)} htmlFor="dept" className="sm:w-40">
-              <Select id="dept" name="dept" defaultValue={sp.dept ?? ""}>
-                <option value="">{t("machines.allDepartments", locale)}</option>
-                {departments.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          <div className="flex items-end">
-            <Button type="submit" variant="secondary" fullWidth>
-              {t("common.search", locale)}
-            </Button>
+      {/* Search stays a form (it needs a keyboard), but the five dropdowns and the
+          Search button that ate the first screen on a phone are now chips that apply
+          on tap and write the same URL params. */}
+      <div className="flex flex-col gap-3">
+        <form className="flex gap-2">
+          <div className="relative flex-1">
+            <label htmlFor="q" className="sr-only">{t("machines.search", locale)}</label>
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
+            <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
           </div>
+          {sp.type ? <input type="hidden" name="type" value={sp.type} /> : null}
+          {sp.status ? <input type="hidden" name="status" value={sp.status} /> : null}
+          {sp.cc ? <input type="hidden" name="cc" value={sp.cc} /> : null}
+          {sp.dept ? <input type="hidden" name="dept" value={sp.dept} /> : null}
           {showRetired ? <input type="hidden" name="retired" value="1" /> : null}
+          <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
         </form>
-        <div className="mt-3 flex items-center gap-3 text-sm">
-          {showRetired ? (
-            <Link href="/machines" className="focus-ring rounded-md text-brand-700">{t("machines.hideRetired", locale)}</Link>
-          ) : (
-            <Link href="/machines?retired=1" className="focus-ring rounded-md text-brand-700">{t("machines.showRetired", locale)}</Link>
-          )}
-        </div>
-      </Card>
 
-      {machines.length === 0 ? (
-        <EmptyState
+        <FilterChips
+          paramName="type"
+          current={sp.type}
+          options={typeOptions}
+          path="/machines"
+          search={search}
+          label={t("machines.filterType", locale)}
+        />
+        <FilterChips
+          paramName="status"
+          current={sp.status}
+          options={statusOptions}
+          path="/machines"
+          search={search}
+          label={t("machines.filterStatus", locale)}
+        />
+        {costCentres.length > 0 ? (
+          <FilterChips
+            paramName="cc"
+            current={sp.cc}
+            options={[{ value: "", label: t("filters.all", locale) }, ...costCentres.map((c) => ({ value: c, label: c }))]}
+            path="/machines"
+            search={search}
+            label={t("machines.costCentre", locale)}
+          />
+        ) : null}
+        {departments.length > 0 ? (
+          <FilterChips
+            paramName="dept"
+            current={sp.dept}
+            options={[{ value: "", label: t("filters.all", locale) }, ...departments.map((d) => ({ value: d, label: d }))]}
+            path="/machines"
+            search={search}
+            label={t("machines.department", locale)}
+          />
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-3 text-sm text-sand-500">
+          <span className="tabular-nums">
+            {t("machines.showingOf", locale).replace("{n}", String(machines.length)).replace("{total}", String(fleetTotal))}
+          </span>
+          <Link
+            href={showRetired ? "/machines" : "/machines?retired=1"}
+            className="focus-ring rounded-md font-medium text-brand-700"
+          >
+            {showRetired ? t("machines.hideRetired", locale) : t("machines.showRetired", locale)}
+          </Link>
+        </div>
+      </div>
+
+      {machines.length === 0 && !hasFilter ? (
+        /* Nothing on the farm yet — a warm first run, with a ghost of the filled list. */
+        <GetStarted
           icon={<MachinesIcon />}
-          title={t("machines.empty", locale)}
-          hint={t("machines.emptyHint", locale)}
+          title={t("machines.firstRunTitle", locale)}
+          hint={t("machines.firstRunHint", locale)}
           action={
             canEdit ? (
-              <Link href="/machines/new" className={buttonVariants({ variant: "primary", size: "sm" })}>
-                {t("machines.add", locale)}
+              <Link href="/machines/new" className={buttonVariants({ variant: "primary", size: "lg" })}>
+                <PlusIcon className="text-[1.15rem]" />
+                {t("machines.firstRunCta", locale)}
               </Link>
             ) : undefined
+          }
+          secondaryAction={
+            canEdit ? (
+              <Link href="/machines/import" className={buttonVariants({ variant: "secondary", size: "lg" })}>
+                {t("machines.firstRunAlt", locale)}
+              </Link>
+            ) : undefined
+          }
+          preview={
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+                {t("machines.firstRunPreview", locale)}
+              </p>
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-3 rounded-xl border border-sand-200 bg-white p-3">
+                  <div className="h-12 w-12 shrink-0 rounded-lg bg-sand-200" />
+                  <div className="flex-1">
+                    <div className="h-3 w-32 rounded bg-sand-200" />
+                    <div className="mt-2 h-2.5 w-44 rounded bg-sand-100" />
+                  </div>
+                  <div className="h-5 w-16 rounded-full bg-sand-100" />
+                </div>
+              ))}
+            </div>
+          }
+        />
+      ) : machines.length === 0 ? (
+        /* The filter is hiding everything — the fix is to clear it, not to add a machine. */
+        <NoMatches
+          title={t("empty.noMatchTitle", locale)}
+          hint={t("empty.noMatchHint", locale)}
+          action={
+            <Link href="/machines" className={buttonVariants({ variant: "primary" })}>
+              {t("empty.clearFilters", locale)}
+            </Link>
           }
         />
       ) : (
         <>
-          {/* Mobile: cards */}
-          <ul className="flex flex-col gap-2 lg:hidden">
+          {/* Mobile: a driver recognises the green John Deere long before he reads
+              "JD 6120". Photo leads, at a size you can actually see. */}
+          <ul className="flex flex-col gap-2.5 lg:hidden">
             {machines.map((m) => (
               <li key={m.id}>
-                <Link href={`/machines/${m.id}`} className="focus-ring block rounded-xl">
-                  <Card className="transition-shadow hover:shadow-soft">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        {thumb(m.id)}
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-sand-900">{m.name}</p>
-                          <p className="truncate text-sm text-sand-500">
-                            {typeLabel(m.type, locale)}
-                            {m.make ? ` · ${m.make}${m.model ? " " + m.model : ""}` : ""}
-                          </p>
-                        </div>
+                <Card className="p-0">
+                  <Link href={`/machines/${m.id}`} className="focus-ring flex gap-3.5 rounded-xl p-3">
+                    {photo(m.id, "lg")}
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <p className="truncate text-[1.05rem] font-semibold leading-snug text-sand-900">{m.name}</p>
+                      <p className="mt-0.5 truncate text-sm text-sand-500">{subtitle(m)}</p>
+                      <div className="mt-2 text-sm">{readingCell(m)}</div>
+                      <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2.5">
+                        <MachineStatus value={m.status} locale={locale} />
+                        {serviceCell(m)}
                       </div>
-                      <MachineStatus value={m.status} locale={locale} className="shrink-0" />
                     </div>
-                    <div className="mt-3 flex items-center justify-between gap-2 text-sm">
-                      <span className="text-sand-600">
-                        {m.meter_type === "none"
-                          ? "—"
-                          : m.current_reading != null
-                            ? meterReading(m.current_reading, m.meter_type, locale)
-                            : t("machines.noReading", locale)}
-                        {isStale(m) ? <Badge tone="warning" className="ml-2">{t("machines.stale", locale)}</Badge> : null}
-                      </span>
-                      {svcPill(m.id)}
-                    </div>
-                  </Card>
-                </Link>
+                  </Link>
+                </Card>
               </li>
             ))}
           </ul>
 
-          {/* Desktop: dense table */}
+          {/* Desktop: a table is for scanning columns, so the photo stays a thumb. */}
           <Card flush className="hidden lg:block">
             <Table>
               <Thead>
                 <Tr>
-                  <Th className="w-12"><span className="sr-only">{t("machines.primaryPhoto", locale)}</span></Th>
+                  <Th className="w-14"><span className="sr-only">{t("machines.primaryPhoto", locale)}</span></Th>
                   <Th>
                     <Link href={sortHref("name")} className="focus-ring inline-flex items-center gap-1 rounded">
                       {t("machines.name", locale)} {sortIndicator("name")}
                     </Link>
                   </Th>
                   <Th>{t("machines.type", locale)}</Th>
-                  <Th>{t("machines.make", locale)}</Th>
                   <Th>
                     <Link href={sortHref("reading")} className="focus-ring inline-flex items-center gap-1 rounded">
                       {t("machines.reading", locale)} {sortIndicator("reading")}
                     </Link>
                   </Th>
-                  <Th>{t("machines.service", locale)}</Th>
-                  <Th>{t("machines.status", locale)}</Th>
+                  <Th>{t("machines.nextService", locale)}</Th>
+                  <Th>{t("machines.whereItIs", locale)}</Th>
+                  <Th className="text-right">{t("machines.costPerUnit", locale)}</Th>
+                  <Th className="text-right">{t("machines.doColumn", locale)}</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {machines.map((m) => (
-                  <Tr key={m.id}>
-                    <Td>{thumb(m.id, "sm")}</Td>
-                    <Td className="font-medium">
-                      <Link href={`/machines/${m.id}`} className="focus-ring rounded font-medium text-brand-700 hover:underline">
-                        {m.name}
-                      </Link>
-                    </Td>
-                    <Td className="text-sand-600">{typeLabel(m.type, locale)}</Td>
-                    <Td className="text-sand-600">{m.make ? `${m.make}${m.model ? " " + m.model : ""}` : "—"}</Td>
-                    <Td>
-                      {m.meter_type === "none"
-                        ? "—"
-                        : m.current_reading != null
-                          ? meterReading(m.current_reading, m.meter_type, locale)
-                          : t("machines.noReading", locale)}
-                      {isStale(m) ? <Badge tone="warning" className="ml-2">{t("machines.stale", locale)}</Badge> : null}
-                    </Td>
-                    <Td>{svcPill(m.id)}</Td>
-                    <Td><MachineStatus value={m.status} locale={locale} /></Td>
-                  </Tr>
-                ))}
+                {machines.map((m) => {
+                  const cpu = costPerUnit(m);
+                  return (
+                    <Tr key={m.id}>
+                      <Td>{photo(m.id, "sm")}</Td>
+                      <Td>
+                        <Link href={`/machines/${m.id}`} className="focus-ring rounded font-semibold text-sand-900 hover:text-brand-700 hover:underline">
+                          {m.name}
+                        </Link>
+                        <span className="mt-0.5 block text-xs text-sand-500">{subtitle(m)}</span>
+                      </Td>
+                      <Td className="text-sand-600">{typeLabel(m.type, locale)}</Td>
+                      <Td>{readingCell(m)}</Td>
+                      <Td>{serviceCell(m)}</Td>
+                      <Td><MachineStatus value={m.status} locale={locale} /></Td>
+                      <Td className="text-right tabular-nums text-sand-700">
+                        {cpu != null ? rands(cpu) : <span className="text-sand-300">—</span>}
+                      </Td>
+                      <Td className="text-right">
+                        {/* A row you can act on — logging hours used to mean opening the
+                            machine, logging, coming back and losing your place. */}
+                        <Link
+                          href={`/machines/${m.id}`}
+                          className={buttonVariants({ variant: "secondary", size: "sm" })}
+                        >
+                          {t("machines.logHours", locale)}
+                          <ChevronRightIcon className="text-[1rem]" />
+                        </Link>
+                      </Td>
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </Table>
           </Card>
         </>
       )}
+
+      {/* Stale readings are called out in the rows above; this keeps the legend honest. */}
+      {machines.some(isStale) ? (
+        <p className="text-xs text-sand-500">
+          <Badge tone="warning">{t("machines.stale", locale)}</Badge>{" "}
+          {t("dashboard.staleMetersHint", locale)}
+        </p>
+      ) : null}
     </div>
   );
 }

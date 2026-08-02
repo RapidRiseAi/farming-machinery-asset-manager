@@ -34,18 +34,38 @@ export function LifecycleActions({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="primary" onClick={() => setConfirm("complete")}>
-        {t("jobcards.markCompleted", locale)}
-      </Button>
-      {canApprove ? (
-        <Button type="button" variant="secondary" onClick={() => setConfirm("approve")}>
-          {t("jobcards.approveLock", locale)}
+    <div className="flex flex-col gap-3">
+      {/*
+        The requirement is visible BEFORE you try. It used to be discoverable only by
+        being blocked: "Mark completed" opened a modal and then disabled its own confirm
+        button with a red line of text.
+      */}
+      {noMeter ? (
+        <p className="flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-status-due">
+          <span className="font-semibold">{t("jobcards.beforeFinish", locale)}</span>
+          <span className="text-sand-700">{t("jobcards.needMeterOut", locale)}</span>
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="primary"
+          size="lg"
+          disabled={noMeter}
+          onClick={() => setConfirm("complete")}
+        >
+          {t("jobcards.jobDone", locale)}
         </Button>
-      ) : null}
-      {queued ? (
-        <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
-      ) : null}
+        {canApprove ? (
+          <Button type="button" variant="secondary" size="lg" onClick={() => setConfirm("approve")}>
+            {t("jobcards.approveLock", locale)}
+          </Button>
+        ) : null}
+        {queued ? (
+          <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
+        ) : null}
+      </div>
 
       <Modal
         open={confirm === "complete"}
@@ -54,7 +74,6 @@ export function LifecycleActions({
         closeLabel={t("jobcards.cancel", locale)}
       >
         <p className="text-sm text-sand-600">{t("jobcards.confirmCompleteBody", locale)}</p>
-        {noMeter ? <p className="mt-2 text-sm text-status-overdue">{t("jobcards.meterRequired", locale)}</p> : null}
         <form action={completeJobCard} onSubmit={onCompleteSubmit} className="mt-4 flex justify-end gap-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="meter_reading" value={meterReading ?? ""} />

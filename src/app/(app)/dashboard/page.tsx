@@ -9,14 +9,13 @@ import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 // free of the kit's client chunk — see src/components/ui/README.md.
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { StatusPill, Badge, type BadgeTone } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
+import { AllClear, GetStarted } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
-import { FaultsIcon, ReportsIcon, ChevronRightIcon, MachinesIcon, WarningIcon } from "@/components/ui/icons";
-import { SpendTrend, HBars } from "./charts";
+import { FaultsIcon, ChevronRightIcon, MachinesIcon, WarningIcon, PlusIcon } from "@/components/ui/icons";
+import { num, relativeDate } from "@/lib/format";
+import { SpendTrend } from "./charts";
 import { warrantyStatus, dateExpiryStatus, expiryTone, expiryLabel, licenceTypeLabel } from "@/lib/compliance";
-import { fineStatusLabel, fineStatusTone, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
-import { ExpiryStatus, FineStatus } from "@/components/ui/status";
+import { ExpiryStatus, FineStatus, UrgencyStatus, ServiceStatus, MachineStatus } from "@/components/ui/status";
 
 type Machine = {
   id: string;
@@ -30,7 +29,7 @@ type Machine = {
 };
 type Licence = { id: string; machine_id: string; type: string; number: string | null; expiry_date: string; reminder_lead_days: number };
 type DashFine = { id: string; machine_id: string; offence: string | null; notice_number: string | null; nomination_deadline: string | null; status: string };
-type SPL = { machine_id: string; status: string };
+type SPL = { machine_id: string; status: string; task: string };
 type Fault = { id: string; machine_id: string; description: string | null; urgency: string | null; created_at: string };
 type JC = { machine_id: string; type: string; total_cents: number; date_out: string | null };
 type OpenJC = { machine_id: string; date_in: string | null };
@@ -77,7 +76,7 @@ export default async function DashboardPage() {
   const flagCut = ymd(new Date(now.getTime() - 45 * 86400000));
   const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes, licenceRes] = await Promise.all([
     byFarm(supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours").is("deleted_at", null)),
-    byFarm(supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null)),
+    byFarm(supabase.from("service_plan_lines").select("machine_id, status, task").is("deleted_at", null)),
     byFarm(supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false })),
     byFarm(supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo))),
     byFarm(supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"])),
@@ -85,6 +84,12 @@ export default async function DashboardPage() {
     byFarm(supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut)),
     byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null)),
   ]);
+
+  // The farm's own name — a multi-farm user needs to know WHICH farm this is.
+  const { data: farmRow } = farmId
+    ? await supabase.from("farms").select("name").eq("id", farmId).maybeSingle()
+    : { data: null };
+  const farmName = (farmRow as { name: string } | null)?.name ?? null;
 
   const machines = (machinesRes.data as Machine[] | null) ?? [];
   const spl = (splRes.data as SPL[] | null) ?? [];
@@ -212,86 +217,299 @@ export default async function DashboardPage() {
       .sort((a, b) => (a.deadline ?? "9999-99-99").localeCompare(b.deadline ?? "9999-99-99"));
   }
 
-  // Spend delta.
+  // Spend delta, said in words rather than a percentage sign.
   const spendPct = spendLast > 0 ? Math.round(((spendThis - spendLast) / spendLast) * 100) : null;
   const spendTone = spendThis > spendLast ? "overdue" : spendThis < spendLast ? "ok" : "default";
+  const lastMonthName = MONTH_LABELS[firstLast.getMonth()];
   const spendDelta =
-    spendPct == null
-      ? t("ui.vsLastMonth", locale).replace("{v}", rands(spendLast))
-      : `${spendPct > 0 ? "↑" : spendPct < 0 ? "↓" : ""}${Math.abs(spendPct)}% ${t("dashboard.vsLast", locale)}`;
+    spendLast === 0
+      ? undefined
+      : (spendThis < spendLast ? t("dashboard.lessThan", locale) : t("dashboard.moreThan", locale))
+          .replace("{amount}", rands(Math.abs(spendThis - spendLast)))
+          .replace("{month}", lastMonthName);
 
-  const urgencyTone = (u: string | null): BadgeTone => {
-    const s = (u ?? "").toLowerCase();
-    if (s.includes("stop")) return "danger";
-    if (s.includes("limp")) return "warning";
-    return "neutral";
+  // ── "Needs your attention" ────────────────────────────────────────────────
+  // The old page opened with seven counters and left the owner to work out what to do,
+  // and every tile linked to /reports rather than to the thing it named. This is one
+  // ranked list, worst first, where each row deep-links to the machine it is about and
+  // carries the action as a button.
+  type Attend = {
+    key: string;
+    rank: number;
+    machineId: string;
+    machineName: string;
+    detail: string;
+    status: { kind: "urgency" | "service" | "expiry" | "fine"; value: string };
+    ctaLabel: string;
+    ctaHref: string;
   };
-  const age = (iso: string) => {
-    const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);
-    if (days <= 0) return t("dashboard.today", locale);
-    if (days < 14) return `${days}${t("dashboard.dayShort", locale)}`;
-    return `${Math.floor(days / 7)}${t("dashboard.weekShort", locale)}`;
-  };
+  const attention: Attend[] = [];
+
+  const urgencyRank: Record<string, number> = { stopped: 0, limping: 3, can_work: 5 };
+  for (const f of faults) {
+    attention.push({
+      key: `f-${f.id}`,
+      rank: urgencyRank[f.urgency ?? ""] ?? 4,
+      machineId: f.machine_id,
+      machineName: nameById[f.machine_id] ?? "—",
+      detail: `${f.description ?? ""} ${t("dashboard.reportedOn", locale).replace("{when}", relativeDate(f.created_at, locale, now))}`.trim(),
+      status: { kind: "urgency", value: f.urgency ?? "can_work" },
+      ctaLabel: t("dashboard.ctaMakeJobCard", locale),
+      ctaHref: `/machines/${f.machine_id}`,
+    });
+  }
+
+  for (const l of spl) {
+    if (!activeIds.has(l.machine_id)) continue;
+    if (l.status !== "overdue" && l.status !== "due_soon") continue;
+    attention.push({
+      key: `s-${l.machine_id}-${l.task}`,
+      rank: l.status === "overdue" ? 1 : 4,
+      machineId: l.machine_id,
+      machineName: nameById[l.machine_id] ?? "—",
+      detail: t(l.status === "overdue" ? "dashboard.serviceOverdueDetail" : "dashboard.serviceDueDetail", locale).replace("{task}", l.task),
+      status: { kind: "service", value: l.status },
+      ctaLabel: t("dashboard.ctaBookService", locale),
+      ctaHref: `/machines/${l.machine_id}`,
+    });
+  }
+
+  for (const e of expiries) {
+    attention.push({
+      key: `e-${e.key}`,
+      rank: e.status === "expired" ? 2 : 4,
+      machineId: e.machineId,
+      machineName: e.machineName,
+      detail: `${e.label} · ${t(e.status === "expired" ? "dashboard.expiredOn" : "dashboard.expiresOn", locale).replace("{when}", relativeDate(e.date, locale, now))}`,
+      status: { kind: "expiry", value: e.status },
+      ctaLabel: t("dashboard.ctaSeeMachine", locale),
+      ctaHref: `/machines/${e.machineId}`,
+    });
+  }
+
+  for (const f of pendingNominations) {
+    attention.push({
+      key: `n-${f.id}`,
+      rank: 6,
+      machineId: f.machineId,
+      machineName: f.machineName,
+      detail: f.deadline
+        ? `${f.label} · ${t("dashboard.nominationDue", locale).replace("{when}", relativeDate(f.deadline, locale, now))}`
+        : f.label,
+      status: { kind: "fine", value: f.status },
+      ctaLabel: t("dashboard.ctaNominateDriver", locale),
+      ctaHref: "/fines",
+    });
+  }
+  attention.sort((a, b) => a.rank - b.rank || a.machineName.localeCompare(b.machineName));
+
+  // Greeting. South Africa is UTC+2 all year, so the hour is derived rather than
+  // guessed from a server timezone that is almost certainly UTC.
+  const sastHour = new Date(now.getTime() + 2 * 3_600_000).getUTCHours();
+  const greetKey =
+    sastHour < 12 ? "dashboard.goodMorning" : sastHour < 18 ? "dashboard.goodAfternoon" : "dashboard.goodEvening";
+  const firstName = profile.name.trim().split(/\s+/)[0] || profile.name;
+  const todayLine = now.toLocaleDateString(locale === "af" ? "af-ZA" : "en-ZA", {
+    weekday: "long", day: "numeric", month: "long",
+  });
+
+  const working = active.filter((m) => m.status === "active").length;
+  const standby = active.filter((m) => m.status === "standby").length;
+
+  const statusBadge = (s: Attend["status"]) =>
+    s.kind === "urgency" ? <UrgencyStatus value={s.value} locale={locale} />
+    : s.kind === "service" ? <ServiceStatus value={s.value} locale={locale} />
+    : s.kind === "expiry" ? <ExpiryStatus value={s.value} locale={locale} />
+    : <FineStatus value={s.value} locale={locale} />;
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.dashboard", locale)}</h1>
-        <Link href="/reports" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-          <ReportsIcon className="text-[1.1rem]" />
-          {t("nav.reports", locale)}
+      {/* Greeting — replaces the "Dashboard" heading, which told a multi-farm user
+          nothing about which farm they were looking at. */}
+      <header>
+        <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950 sm:text-[1.75rem]">
+          {t(greetKey, locale).replace("{name}", firstName)}
+        </h1>
+        <p className="mt-1 text-sm text-sand-500">
+          <span className="capitalize">{todayLine}</span>
+          {farmName ? <> · {farmName}</> : null}
+          {" · "}
+          <span className={attention.length > 0 ? "font-medium text-sand-700" : ""}>
+            {attention.length === 0
+              ? t("dashboard.nothingNeedsYouSub", locale)
+              : attention.length === 1
+                ? t("dashboard.oneThingNeedsYou", locale)
+                : t("dashboard.thingsNeedYou", locale).replace("{n}", String(attention.length))}
+          </span>
+        </p>
+      </header>
+
+      {/* The two things a farm boss does from this screen, always reachable. */}
+      <div className="flex flex-wrap gap-2">
+        <Link href="/machines" className={buttonVariants({ variant: "secondary" })}>
+          <MachinesIcon className="text-[1.1rem]" />
+          {t("dashboard.quickCaptureHours", locale)}
+        </Link>
+        <Link href="/faults" className={buttonVariants({ variant: "primary" })}>
+          <FaultsIcon className="text-[1.1rem]" />
+          {t("dashboard.quickReportProblem", locale)}
         </Link>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={t("dashboard.kpiOverdue", locale)} value={svc.overdue} tone={svc.overdue > 0 ? "overdue" : "default"} href="/reports" />
-        <Stat label={t("dashboard.kpiDueSoon", locale)} value={svc.due_soon} tone={svc.due_soon > 0 ? "due" : "default"} href="/reports" />
-        <Stat label={t("dashboard.kpiOpenFaults", locale)} value={faults.length} tone={faults.length > 0 ? "overdue" : "default"} href="/faults" />
-        <Stat
-          label={t("dashboard.kpiInWorkshop", locale)}
-          value={inWorkshop.length}
-          delta={maxDaysIn > 0 ? `${t("dashboard.upTo", locale)} ${maxDaysIn}${t("dashboard.dayShort", locale)}` : undefined}
-          href="/machines?status=in_workshop"
+      {/* ── Needs your attention ─────────────────────────────────────────── */}
+      {attention.length === 0 ? (
+        <AllClear
+          title={t("dashboard.allClearTitle", locale)}
+          hint={t("dashboard.allClearHint", locale)}
+          action={
+            <Link href="/onboarding" className={buttonVariants({ variant: "secondary" })}>
+              {t("dashboard.setupOpen", locale)}
+            </Link>
+          }
         />
-      </div>
+      ) : (
+        <Card flush>
+          <div className="flex items-baseline justify-between gap-3 px-4 pt-4">
+            <h2 className="text-[1.05rem] font-bold text-sand-900">
+              {t("dashboard.needsAttention", locale)}
+            </h2>
+            <span className="text-xs font-medium uppercase tracking-wide text-sand-400">
+              {t("dashboard.worstFirst", locale)}
+            </span>
+          </div>
+          <ul className="mt-2 flex flex-col divide-y divide-sand-100">
+            {attention.slice(0, 8).map((a) => (
+              <li key={a.key} className="px-4 py-3.5">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/machines/${a.machineId}`}
+                        className="focus-ring truncate rounded font-semibold text-sand-900 hover:underline"
+                      >
+                        {a.machineName}
+                      </Link>
+                      {statusBadge(a.status)}
+                    </div>
+                    <p className="mt-0.5 text-sm leading-relaxed text-sand-600">{a.detail}</p>
+                  </div>
+                  <Link
+                    href={a.ctaHref}
+                    className={buttonVariants({ variant: "secondary", className: "shrink-0" })}
+                  >
+                    {a.ctaLabel}
+                    <ChevronRightIcon className="text-[1rem]" />
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {attention.length > 8 ? (
+            <div className="border-t border-sand-100 px-4 py-3">
+              <Link href="/faults" className="focus-ring rounded text-sm font-medium text-brand-700">
+                {t("ui.viewAll", locale)} →
+              </Link>
+            </div>
+          ) : null}
+        </Card>
+      )}
 
-      {/* Spend + service OK */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Stat label={t("ui.spendThisMonth", locale)} value={rands(spendThis)} tone={spendTone} delta={spendDelta} />
-        <Stat label={t("ui.spendLastMonth", locale)} value={rands(spendLast)} />
-        <Stat label={t("dashboard.kpiServicesOk", locale)} value={svc.ok} tone={svc.ok > 0 ? "ok" : "default"} />
-      </div>
-
-      {/* Spend trend */}
+      {/* ── What the fleet cost you ──────────────────────────────────────── */}
       <Card>
-        <CardHeader>
-          <CardTitle>{t("dashboard.spendTrend", locale)}</CardTitle>
+        <CardHeader
+          action={
+            <Link href="/reports" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+              {t("dashboard.fullCostReport", locale)}
+              <ChevronRightIcon className="text-[1rem]" />
+            </Link>
+          }
+        >
+          <CardTitle>{t("dashboard.fleetCost", locale)}</CardTitle>
         </CardHeader>
+        <p className="-mt-2 mb-3 text-sm text-sand-500">{t("dashboard.fleetCostHint", locale)}</p>
+
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-3xl font-bold tabular-nums tracking-tight text-sand-950">{rands(spendThis)}</span>
+          <span className="text-sm text-sand-500">{t("dashboard.thisMonth", locale)}</span>
+          {spendDelta ? (
+            <span className={`text-sm font-medium ${spendTone === "overdue" ? "text-status-overdue" : spendTone === "ok" ? "text-status-ok" : "text-sand-500"}`}>
+              {spendDelta}
+            </span>
+          ) : null}
+        </div>
+
         {trend.some((d) => d.value > 0) ? (
-          <SpendTrend data={trend} title={t("dashboard.spendTrend", locale)} />
-        ) : (
-          <EmptyState title={t("dashboard.noSpendYet", locale)} />
-        )}
+          <div className="mt-4">
+            <SpendTrend data={trend} title={t("dashboard.spendTrend", locale)} />
+          </div>
+        ) : null}
+
+        {byType.length > 0 ? (
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-sand-100 pt-3 sm:grid-cols-4">
+            {byType.slice(0, 4).map((b) => (
+              <div key={b.key}>
+                <dt className="truncate text-xs text-sand-500">{b.label}</dt>
+                <dd className="text-base font-semibold tabular-nums text-sand-900">{rands(b.value)}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
       </Card>
 
-      {/* Breakdowns */}
+      {/* ── Servicing + the fleet right now ──────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>{t("dashboard.spendByType", locale)}</CardTitle>
+            <CardTitle>{t("dashboard.servicing", locale)}</CardTitle>
           </CardHeader>
-          <HBars data={byType} title={t("dashboard.spendByType", locale)} emptyLabel={t("dashboard.noSpendYet", locale)} />
+          <ul className="flex flex-col divide-y divide-sand-100">
+            {([
+              { k: "overdue", n: svc.overdue, label: t("dashboard.servicingOverdue", locale) },
+              { k: "due_soon", n: svc.due_soon, label: t("dashboard.servicingDueSoon", locale) },
+              { k: "ok", n: svc.ok, label: t("dashboard.servicingOk", locale) },
+            ] as const).map((row) => (
+              <li key={row.k} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="flex items-center gap-2.5">
+                  <ServiceStatus value={row.k} locale={locale} size="md" />
+                </span>
+                <span className="text-xl font-bold tabular-nums text-sand-900">{row.n}</span>
+              </li>
+            ))}
+          </ul>
+          {svc.overdue === 0 && svc.due_soon === 0 ? (
+            <p className="mt-2 text-sm text-sand-500">{t("dashboard.servicingNothingToDo", locale)}</p>
+          ) : null}
         </Card>
+
         <Card>
           <CardHeader>
-            <CardTitle>{t("dashboard.costPerMachine", locale)}</CardTitle>
+            <CardTitle>{t("dashboard.fleetNow", locale)}</CardTitle>
           </CardHeader>
-          <HBars data={byMachine} title={t("dashboard.costPerMachine", locale)} emptyLabel={t("dashboard.noSpendYet", locale)} />
+          <ul className="flex flex-col divide-y divide-sand-100">
+            <li className="flex items-center justify-between gap-3 py-2.5">
+              <MachineStatus value="active" locale={locale} size="md" />
+              <span className="text-xl font-bold tabular-nums text-sand-900">{working}</span>
+            </li>
+            <li className="flex items-start justify-between gap-3 py-2.5">
+              <span className="min-w-0">
+                <MachineStatus value="in_workshop" locale={locale} size="md" />
+                {inWorkshop.length > 0 ? (
+                  <span className="mt-1 block truncate text-sm text-sand-500">
+                    {inWorkshop.map((m) => (m.days != null ? `${m.name} · ${m.days}${t("dashboard.dayShort", locale)}` : m.name)).join(", ")}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 text-xl font-bold tabular-nums text-sand-900">{inWorkshop.length}</span>
+            </li>
+            <li className="flex items-center justify-between gap-3 py-2.5">
+              <MachineStatus value="standby" locale={locale} size="md" />
+              <span className="text-xl font-bold tabular-nums text-sand-900">{standby}</span>
+            </li>
+          </ul>
         </Card>
       </div>
 
-      {/* Fuel (this month + anomalies) */}
+      {/* Fuel — kept, but only when the farm actually uses it. */}
       {fuelHasData ? (
         <Card>
           <CardHeader
@@ -306,187 +524,59 @@ export default async function DashboardPage() {
           </CardHeader>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" valueClassName="text-xl sm:text-3xl" />
-            <Stat label={t("dashboard.fuelLitres", locale)} value={fuelLitresMonth.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} href="/fuel" valueClassName="text-xl sm:text-3xl" />
+            <Stat label={t("dashboard.fuelLitres", locale)} value={num(fuelLitresMonth, 0)} href="/fuel" valueClassName="text-xl sm:text-3xl" />
             <Stat label={t("dashboard.fuelAnomalies", locale)} value={fuelAnomalyCount} tone={fuelAnomalyCount > 0 ? "overdue" : "default"} href="/fuel" valueClassName="text-xl sm:text-3xl" />
           </div>
         </Card>
       ) : null}
 
-      {/* Expiries upcoming — warranty + licences (F6) */}
-      <Card>
-        <CardHeader
-          action={
-            <Link href="/machines" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
-              {t("nav.machines", locale)}
-              <ChevronRightIcon className="text-[1rem]" />
-            </Link>
-          }
-        >
-          <CardTitle>{t("dashboard.expiriesTitle", locale)}</CardTitle>
-        </CardHeader>
-        {expiries.length === 0 ? (
-          <EmptyState icon={<WarningIcon />} title={t("dashboard.noExpiries", locale)} />
-        ) : (
-          <ul className="flex flex-col divide-y divide-sand-100">
-            {expiries.slice(0, 8).map((e) => (
-              <li key={e.key}>
-                <Link href={`/machines/${e.machineId}`} className="focus-ring flex items-center justify-between gap-3 rounded-md py-2.5">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-sand-900">{e.machineName}</span>
-                    <span className="block truncate text-sm text-sand-500">{e.label}{e.date ? ` · ${e.date}` : ""}</span>
-                  </span>
-                  <ExpiryStatus value={e.status} locale={locale} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {/* AARTO nominations pending & deadlines (§23) — Complete+ */}
-      {aartoAllowed ? (
+      {/* Stale meters — a nudge with the machines named, not a bare count. */}
+      {stale.length > 0 ? (
         <Card>
-          <CardHeader
-            action={
-              <Link href="/fines" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
-                {t("nav.fines", locale)}
-                <ChevronRightIcon className="text-[1rem]" />
-              </Link>
-            }
-          >
-            <CardTitle>{t("dashboard.nominationsTitle", locale)}</CardTitle>
-          </CardHeader>
-          {pendingNominations.length === 0 ? (
-            <EmptyState icon={<WarningIcon />} title={t("dashboard.noNominations", locale)} />
-          ) : (
-            <ul className="flex flex-col divide-y divide-sand-100">
-              {pendingNominations.slice(0, 8).map((f) => {
-                const ds = nominationDeadlineStatus(f.deadline, f.status, DEFAULT_AARTO_LEAD_DAYS);
-                return (
-                  <li key={f.id}>
-                    <Link href="/fines" className="focus-ring flex items-center justify-between gap-3 rounded-md py-2.5">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-sand-900">{f.machineName}</span>
-                        <span className="block truncate text-sm text-sand-500">
-                          {f.label}
-                          {f.deadline ? ` · ${t("fines.deadline", locale)} ${f.deadline}` : ""}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        {ds ? <ExpiryStatus value={ds} locale={locale} /> : null}
-                        <FineStatus value={f.status} locale={locale} />
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50 text-[1.15rem] text-status-due" aria-hidden>
+              <WarningIcon />
+            </span>
+            <div className="min-w-0">
+              <p className="font-semibold text-sand-900">
+                {stale.length === 1
+                  ? t("dashboard.staleMetersOneTitle", locale)
+                  : t("dashboard.staleMetersTitle", locale).replace("{n}", String(stale.length))}
+              </p>
+              <p className="mt-0.5 text-sm text-sand-600">
+                {stale.slice(0, 4).map((m) => m.name).join(", ")}
+                {stale.length > 4 ? "…" : ""} — {t("dashboard.staleMetersHint", locale)}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {stale.slice(0, 3).map((m) => (
+                  <Link key={m.id} href={`/machines/${m.id}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                    {m.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
         </Card>
       ) : null}
 
-      {/* Open faults (actionable) */}
-      <Card>
-        <CardHeader
-          action={
-            <Link href="/faults" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
-              {t("ui.all", locale)}
-              <ChevronRightIcon className="text-[1rem]" />
-            </Link>
-          }
-        >
-          <CardTitle>{t("ui.openFaults", locale)}</CardTitle>
-        </CardHeader>
-        {faults.length === 0 ? (
-          <EmptyState icon={<FaultsIcon />} title={t("ui.noOpenFaults", locale)} />
-        ) : (
-          <ul className="flex flex-col divide-y divide-sand-100">
-            {faults.slice(0, 8).map((f) => (
-              <li key={f.id}>
-                <Link href="/faults" className="focus-ring flex items-center justify-between gap-3 rounded-md py-2.5">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-sand-900">{nameById[f.machine_id] ?? "—"}</span>
-                    <span className="block truncate text-sm text-sand-500">{f.description}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs tabular-nums text-sand-400">{age(f.created_at)}</span>
-                    {f.urgency ? (
-                      <Badge tone={urgencyTone(f.urgency)} className="capitalize">
-                        {t(`urgency.${f.urgency}`, locale)}
-                      </Badge>
-                    ) : null}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {/* Workshop + stale readings */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("ui.inWorkshop", locale)}</CardTitle>
-          </CardHeader>
-          {inWorkshop.length === 0 ? (
-            <p className="text-sm text-sand-500">{t("ui.none", locale)}</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm text-sand-800">
-              {inWorkshop.map((m) => (
-                <li key={m.id} className="flex items-center justify-between gap-2">
-                  <Link href={`/machines/${m.id}`} className="focus-ring flex min-w-0 items-center gap-2 rounded-md">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
-                    <span className="truncate">{m.name}</span>
-                  </Link>
-                  {m.days != null ? (
-                    <span className="shrink-0 text-xs tabular-nums text-sand-400">
-                      {m.days}
-                      {t("dashboard.dayShort", locale)}
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("ui.staleReadings", locale)}</CardTitle>
-          </CardHeader>
-          {stale.length === 0 ? (
-            <p className="text-sm text-sand-500">{t("ui.noStaleReadings", locale)}</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm text-sand-800">
-              {stale.map((m) => (
-                <li key={m.id}>
-                  <Link href={`/machines/${m.id}`} className="focus-ring flex items-center gap-2 rounded-md">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-due" aria-hidden />
-                    <span className="truncate">{m.name}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
       {active.length === 0 ? (
-        <EmptyState
+        <GetStarted
           icon={<MachinesIcon />}
           title={t("dashboard.noMachinesTitle", locale)}
           hint={t("dashboard.noMachinesHint", locale)}
           action={
-            <Link href="/onboarding" className={buttonVariants({ variant: "primary", size: "sm" })}>
+            <Link href="/machines/new" className={buttonVariants({ variant: "primary" })}>
+              <PlusIcon className="text-[1.1rem]" />
               {t("dashboard.noMachinesAdd", locale)}
+            </Link>
+          }
+          secondaryAction={
+            <Link href="/onboarding" className={buttonVariants({ variant: "secondary" })}>
+              {t("dashboard.setupOpen", locale)}
             </Link>
           }
         />
       ) : null}
-
-      <p className="text-xs text-sand-400">
-        {profile.name} · <span className="capitalize">{profile.role}</span>
-      </p>
     </div>
   );
 }
