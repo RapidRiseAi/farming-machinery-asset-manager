@@ -15,7 +15,7 @@ const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /** Shared overlay: portal, backdrop, Esc-to-close, scroll lock, focus trap. */
-function Overlay({
+export function Overlay({
   open,
   onClose,
   labelledBy,
@@ -28,7 +28,8 @@ function Overlay({
   onClose: () => void;
   labelledBy?: string;
   describedBy?: string;
-  align: "center" | "bottom";
+  /** "responsive" = bottom sheet within thumb reach on a phone, centred modal from `sm` up. */
+  align: "center" | "bottom" | "responsive";
   children: ReactNode;
   panelClassName?: string;
 }) {
@@ -95,7 +96,9 @@ function Overlay({
     <div
       className={cn(
         "fixed inset-0 z-50 flex animate-fade-in",
-        align === "center" ? "items-center justify-center p-4" : "items-end justify-center",
+        align === "center" && "items-center justify-center p-4",
+        align === "bottom" && "items-end justify-center",
+        align === "responsive" && "items-end justify-center sm:items-center sm:p-4",
       )}
       onKeyDown={handleKeyDown}
     >
@@ -113,9 +116,11 @@ function Overlay({
         tabIndex={-1}
         className={cn(
           "relative z-10 w-full bg-white shadow-pop outline-none",
-          align === "center"
-            ? "max-w-lg rounded-2xl animate-scale-in"
-            : "max-h-[85vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up",
+          align === "center" && "max-w-lg rounded-2xl animate-scale-in",
+          align === "bottom" &&
+            "max-h-[85vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up",
+          align === "responsive" &&
+            "max-h-[90vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl sm:pb-0 sm:animate-scale-in",
           panelClassName,
         )}
       >

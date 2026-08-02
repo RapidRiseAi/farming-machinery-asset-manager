@@ -23,6 +23,8 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   ChevronLeftIcon, PhoneIcon, ChatIcon, MailIcon, JobCardsIcon, MachinesIcon,
 } from "@/components/ui/icons";
+import { WorkStatus, PriorityStatus } from "@/components/ui/status";
+import { relativeDate } from "@/lib/format";
 import {
   updateWorkRequestStatus, addWorkRequestNote, setWorkRequestQuote,
   setWorkRequestInvoice, convertToJobCard,
@@ -120,11 +122,11 @@ export default async function WorkRequestDetailPage({
               <h1 className="text-2xl font-bold tracking-tight text-sand-900">
                 {wr.title || workKindLabel(wr.kind, locale)}
               </h1>
-              <Badge tone={workStatusTone(wr.status)}>{workStatusLabel(wr.status, locale)}</Badge>
+              <WorkStatus value={wr.status} locale={locale} size="md" />
               {wr.priority !== "normal" ? <Badge tone={workPriorityTone(wr.priority)}>{workPriorityLabel(wr.priority, locale)}</Badge> : null}
             </div>
             <p className="mt-1 text-sm text-sand-500">
-              {workKindLabel(wr.kind, locale)} · {t("work.created", locale)} {wr.created_at.slice(0, 10)}
+              {workKindLabel(wr.kind, locale)} · {t("work.created", locale)} {relativeDate(wr.created_at, locale)}
             </p>
             {wr.description ? <p className="mt-2 text-sm text-sand-700">{wr.description}</p> : null}
           </div>
@@ -228,7 +230,9 @@ export default async function WorkRequestDetailPage({
                   </p>
                   <form action={setWorkRequestQuote} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={wr.id} />
-                    <input name="amount" inputMode="decimal" placeholder="R" className={`${inputCls} w-28`} />
+                    <Field label={t("work.quoteAmountLabel", locale)} htmlFor="quote_amount" hint={t("work.amountHint", locale)}>
+                      <Input id="quote_amount" name="amount" inputMode="decimal" className="w-36" />
+                    </Field>
                     <label className="flex items-center gap-1 text-xs text-sand-600">
                       <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
                     </label>
@@ -243,7 +247,9 @@ export default async function WorkRequestDetailPage({
                   <p className="text-xs text-sand-400">{t("work.invoiceToTco", locale)}</p>
                   <form action={setWorkRequestInvoice} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={wr.id} />
-                    <input name="amount" inputMode="decimal" placeholder="R" className={`${inputCls} w-28`} />
+                    <Field label={t("work.invoiceAmountLabel", locale)} htmlFor="invoice_amount" hint={t("work.amountHint", locale)}>
+                      <Input id="invoice_amount" name="amount" inputMode="decimal" className="w-36" />
+                    </Field>
                     <label className="flex items-center gap-1 text-xs text-sand-600">
                       <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
                     </label>

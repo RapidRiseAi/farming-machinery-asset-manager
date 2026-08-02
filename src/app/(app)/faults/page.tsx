@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { relativeDate } from "@/lib/format";
 import { resolveFault, acknowledgeFault, startFault, assignFault } from "./actions";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { FaultCapture } from "@/components/fault-capture";
@@ -9,9 +10,10 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { AllClear } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { FaultsIcon } from "@/components/ui/icons";
+import { FaultsIcon, JobCardsIcon } from "@/components/ui/icons";
+import { UrgencyStatus, FaultStatus } from "@/components/ui/status";
 
 type Fault = {
   id: string; machine_id: string; farm_id: string; description: string | null;
@@ -20,9 +22,6 @@ type Fault = {
   assigned_to: string | null; lat: number | null; lng: number | null;
 };
 type Attach = { id: string; parent_id: string; kind: string; storage_path: string | null };
-
-const urgencyTone = (u: string | null): BadgeTone =>
-  (u ?? "").includes("stop") ? "danger" : (u ?? "").includes("limp") ? "warning" : "neutral";
 
 export default async function FaultsPage({
   searchParams,
@@ -41,7 +40,24 @@ export default async function FaultsPage({
     .order("status")
     .order("created_at", { ascending: false })
     .limit(50);
-  const faults = (fData as Fault[] | null) ?? [];
+  const rawFaults = (fData as Fault[] | null) ?? [];
+
+  /*
+    Same query, sorted by how bad it is. `.order("status")` is alphabetical, so
+    "acknowledged" came before "open" and a machine standing dead could sit below a
+    torn seat. Re-ranked in memory: stopped, then limping, then just-so-you-know, with
+    anything resolved last.
+  */
+  const URGENCY_RANK: Record<string, number> = { stopped: 0, limping: 1, can_work: 2 };
+  const faults = [...rawFaults].sort((a, b) => {
+    const ar = a.status === "resolved" ? 1 : 0;
+    const br = b.status === "resolved" ? 1 : 0;
+    if (ar !== br) return ar - br;
+    const au = URGENCY_RANK[a.urgency ?? ""] ?? 3;
+    const bu = URGENCY_RANK[b.urgency ?? ""] ?? 3;
+    if (au !== bu) return au - bu;
+    return b.created_at.localeCompare(a.created_at);
+  });
 
   const { data: mData } = await supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
   const machines = (mData as { id: string; name: string; farm_id: string }[] | null) ?? [];
@@ -76,9 +92,31 @@ export default async function FaultsPage({
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
   const canResolve = ["owner", "manager", "mechanic"].includes(profile.role);
 
+  const openFaults = faults.filter((f) => f.status !== "resolved");
+  const resolvedFaults = faults.filter((f) => f.status === "resolved");
+  const openCount = openFaults.length;
+  const resolvedCount = resolvedFaults.length;
+  const stoppedCount = openFaults.filter((f) => f.urgency === "stopped").length;
+  const lastResolved = resolvedFaults[0] ?? null;
+
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("faults.title", locale)}</h1>
+      <div>
+        <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          {t("faults.titleNew", locale)}
+        </h1>
+        <p className="mt-1 text-sm text-sand-500">
+          {stoppedCount > 0 ? (
+            <span className="font-medium text-status-overdue">
+              {stoppedCount === 1
+                ? t("faults.oneStandingStill", locale)
+                : t("faults.standingStill", locale).replace("{n}", String(stoppedCount))}
+            </span>
+          ) : null}
+          {stoppedCount > 0 ? " · " : ""}
+          {t("faults.stillOpen", locale)} {openCount} · {t("faults.sortedOut", locale)} {resolvedCount}
+        </p>
+      </div>
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
@@ -89,9 +127,19 @@ export default async function FaultsPage({
         </Card>
       ) : null}
 
-      {faults.length === 0 ? (
-        <EmptyState icon={<FaultsIcon />} title={t("faults.empty", locale)} hint={t("faults.emptyHint", locale)} />
-      ) : (
+      {openCount === 0 ? (
+        <AllClear
+          icon={<FaultsIcon />}
+          title={t("faults.nothingBrokenTitle", locale)}
+          hint={
+            lastResolved
+              ? `${t("faults.nothingBrokenHint", locale)} ${t("faults.lastSorted", locale).replace("{when}", relativeDate(lastResolved.created_at, locale))}`
+              : t("faults.nothingBrokenHint", locale)
+          }
+        />
+      ) : null}
+
+      {faults.length === 0 ? null : (
         <ul className="flex flex-col gap-2">
           {faults.map((f) => {
             const media = signed.get(f.id) ?? [];
@@ -103,13 +151,20 @@ export default async function FaultsPage({
                     <div className="min-w-0">
                       <p className="font-semibold text-sand-900">{nameById[f.machine_id] ?? "—"}</p>
                       <p className="mt-0.5 text-sm text-sand-700">{f.description}</p>
-                      <p className="mt-1 text-xs text-sand-400">
-                        {t(`faultStatus.${f.status}`, locale)} · {new Date(f.created_at).toLocaleDateString("en-ZA")}
-                        {f.reporter_name ? ` · ${t("faults.reportedBy", locale)} ${f.reporter_name}` : ""}
-                        {" · "}
-                        {f.assigned_to
-                          ? `${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "—"}`
-                          : t("faults.unassigned", locale)}
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sand-500">
+                        <FaultStatus value={f.status} locale={locale} />
+                        <span>
+                          {f.reporter_name
+                            ? t("faults.reportedByWhen", locale)
+                                .replace("{name}", f.reporter_name)
+                                .replace("{when}", relativeDate(f.created_at, locale))
+                            : relativeDate(f.created_at, locale)}
+                        </span>
+                        <span className={f.assigned_to ? "" : "font-medium text-status-due"}>
+                          {f.assigned_to
+                            ? `${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "—"}`
+                            : t("faults.nobodyLooking", locale)}
+                        </span>
                       </p>
                       {f.lat != null && f.lng != null ? (
                         <a
@@ -118,29 +173,56 @@ export default async function FaultsPage({
                           rel="noopener noreferrer"
                           className="focus-ring mt-1 inline-flex items-center gap-1 rounded text-xs font-medium text-brand-700"
                         >
-                          📍 {t("faults.viewLocation", locale)}
+                          {t("faults.viewLocation", locale)}
                         </a>
                       ) : null}
                     </div>
-                    {f.urgency ? <Badge tone={urgencyTone(f.urgency)} className="shrink-0">{t(`urgency.${f.urgency}`, locale)}</Badge> : null}
+                    {f.urgency ? <UrgencyStatus value={f.urgency} locale={locale} className="shrink-0" /> : null}
                   </div>
 
                   {media.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="mt-3 flex flex-wrap items-start gap-3">
                       {media.filter((m) => m.kind === "photo").map((m, i) => (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="focus-ring rounded-lg">
-                          <img src={m.url} alt={t("faults.viewPhoto", locale)} className="h-16 w-16 rounded-lg object-cover" />
+                        <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="focus-ring rounded-xl">
+                          <img
+                            src={m.url}
+                            alt={t("faults.viewPhoto", locale)}
+                            className={`rounded-xl object-cover ring-1 ring-sand-200 ${
+                              f.urgency === "stopped" ? "h-[132px] w-[132px]" : "h-24 w-24"
+                            }`}
+                          />
                         </a>
                       ))}
                       {media.filter((m) => m.kind === "voice").map((m, i) => (
-                        <audio key={i} controls src={m.url} className="h-9 max-w-[220px]" />
+                        <figure key={i} className="rounded-xl border border-sand-200 bg-sand-50 p-2.5">
+                          <figcaption className="mb-1.5 text-xs font-medium text-sand-600">
+                            {f.reporter_name
+                              ? t("faults.voiceNote", locale).replace("{name}", f.reporter_name)
+                              : t("faults.voiceNoteAnon", locale)}
+                          </figcaption>
+                          <audio controls src={m.url} className="h-10 max-w-[240px]" aria-label={t("faults.playVoiceNote", locale)} />
+                        </figure>
                       ))}
                     </div>
                   ) : null}
 
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {/* One green action per row — every one of these used to be a
+                          `variant="ghost" size="sm"`, so when everything is quiet
+                          nothing is obvious. */}
+                      {canJob && !f.job_card_id ? (
+                        <form action={createJobCard}>
+                          <input type="hidden" name="machine_id" value={f.machine_id} />
+                          <input type="hidden" name="farm_id" value={f.farm_id} />
+                          <input type="hidden" name="fault_id" value={f.id} />
+                          <input type="hidden" name="type" value="repair" />
+                          <SubmitButton variant="primary" leftIcon={<JobCardsIcon />}>
+                            {t("faults.makeJobCard", locale)}
+                          </SubmitButton>
+                        </form>
+                      ) : null}
                       {canJob && f.status === "open" ? (
                         <form action={acknowledgeFault}>
                           <input type="hidden" name="id" value={f.id} />
@@ -151,15 +233,6 @@ export default async function FaultsPage({
                         <form action={startFault}>
                           <input type="hidden" name="id" value={f.id} />
                           <Button type="submit" variant="ghost" size="sm">{t("faults.startWork", locale)}</Button>
-                        </form>
-                      ) : null}
-                      {canJob && !f.job_card_id ? (
-                        <form action={createJobCard}>
-                          <input type="hidden" name="machine_id" value={f.machine_id} />
-                          <input type="hidden" name="farm_id" value={f.farm_id} />
-                          <input type="hidden" name="fault_id" value={f.id} />
-                          <input type="hidden" name="type" value="repair" />
-                          <SubmitButton variant="secondary" size="sm">{t("faults.toJobCard", locale)}</SubmitButton>
                         </form>
                       ) : null}
                       {canResolve && users.length > 0 ? (
@@ -177,7 +250,7 @@ export default async function FaultsPage({
                       {canResolve ? (
                         <form action={resolveFault}>
                           <input type="hidden" name="id" value={f.id} />
-                          <Button type="submit" variant="ghost" size="sm">{t("faults.resolve", locale)}</Button>
+                          <Button type="submit" variant="ghost" size="sm">{t("faults.itsSorted", locale)}</Button>
                         </form>
                       ) : null}
                     </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -12,15 +12,18 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { JobCardsIcon, PlusIcon } from "@/components/ui/icons";
 import { createJobCard } from "./actions";
+import { JOB_TYPES } from "@/lib/job-options";
+import { JobStatus } from "@/components/ui/status";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { Field } from "@/components/ui/field";
+import { buttonVariants } from "@/components/ui/button";
+
 
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
 
 type JobCard = {
   id: string; type: string; status: string; date_in: string | null; total_cents: number; machine_id: string;
 };
-
-const statusTone = (s: string): BadgeTone =>
-  s === "approved" || s === "completed" ? "ok" : s === "waiting_parts" ? "warning" : "info";
 
 export default async function JobCardsPage({
   searchParams,
@@ -29,6 +32,10 @@ export default async function JobCardsPage({
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
+  // Current query string, so a chip preserves whatever else is filtered.
+  const search = new URLSearchParams(
+    Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
+  ).toString();
   const locale = profile.language;
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
@@ -43,53 +50,82 @@ export default async function JobCardsPage({
   const { data } = await q;
   const cards = (data as JobCard[] | null) ?? [];
 
-  const { data: ms } = await supabase.from("machines").select("id, name").is("deleted_at", null).order("name");
-  const machines = (ms as { id: string; name: string }[] | null) ?? [];
+  const { data: ms } = await supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
+  const machines = (ms as { id: string; name: string; farm_id: string }[] | null) ?? [];
+  // `createJobCard` requires farm_id and the old form never posted one.
+  const farmIdForCreate = (await currentFarmId(profile)) ?? profile.farm_id ?? machines[0]?.farm_id ?? "";
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("jobcards.title", locale)}</h1>
+        {/*
+          Pick a machine, press New, and a record existed — with `type` hardcoded to
+          "repair", so every job was a repair and a mis-tap created a card you then had
+          to delete. It also never posted `farm_id`, which `createJobCard` requires, so
+          the button failed with "Missing machine". Now: a deliberate form with the type
+          chosen, behind a disclosure so it is not the loudest thing on the page.
+        */}
         {canJob && machines.length > 0 ? (
-          <form action={createJobCard} className="flex items-center gap-2">
-            <input type="hidden" name="type" value="repair" />
-            <Select name="machine_id" defaultValue="" required aria-label={t("jobcards.pickMachine", locale)}>
-              <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </Select>
-            <SubmitButton variant="primary" size="sm" leftIcon={<PlusIcon className="text-[1.1rem]" />}>
-              {t("jobcards.new", locale)}
-            </SubmitButton>
-          </form>
+          <details className="w-full sm:w-auto">
+            <summary className={buttonVariants({ variant: "primary", className: "cursor-pointer list-none" })}>
+              <PlusIcon className="text-[1.1rem]" />
+              {t("jobcards.startNew", locale)}
+            </summary>
+            <form
+              action={createJobCard}
+              className="mt-3 flex flex-col gap-3 rounded-xl border border-sand-200 bg-white p-4 shadow-card sm:w-80"
+            >
+              <input type="hidden" name="farm_id" value={farmIdForCreate} />
+              <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor="new_machine" required>
+                <Select id="new_machine" name="machine_id" defaultValue="" required>
+                  <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
+                  {machines.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t("jobcards.whatKindLabel", locale)} htmlFor="new_type">
+                <Select id="new_type" name="type" defaultValue="repair">
+                  {JOB_TYPES.map((jt) => (
+                    <option key={jt} value={jt}>{t(`jobType.${jt}`, locale)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <SubmitButton variant="primary">{t("jobcards.createIt", locale)}</SubmitButton>
+            </form>
+          </details>
         ) : null}
       </div>
 
-      <Card>
-        <form className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-sand-800">{t("machines.status", locale)}</span>
-            <Select name="status" defaultValue={sp.status ?? ""}>
-              <option value="">{t("jobcards.allStatuses", locale)}</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{t(`jobStatus.${s}`, locale)}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-sand-800">{t("jobcards.machine", locale)}</span>
-            <Select name="machine" defaultValue={sp.machine ?? ""}>
-              <option value="">{t("jobcards.allMachines", locale)}</option>
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </Select>
-          </label>
-          <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
-        </form>
-      </Card>
+      {/* Chips apply on tap and write the same `status` / `machine` params the form
+          did — the card of dropdowns plus a Search button ate the first screen on a
+          phone and did nothing at all until submitted. */}
+      <div className="flex flex-col gap-2.5">
+        <FilterChips
+          paramName="status"
+          current={sp.status}
+          options={[
+            { value: "", label: t("jobcards.allStatuses", locale) },
+            ...STATUSES.map((s) => ({ value: s, label: t(`jobStatus.${s}`, locale) })),
+          ]}
+          path="/jobcards"
+          search={search}
+          label={t("machines.status", locale)}
+        />
+        <FilterChips
+          paramName="machine"
+          current={sp.machine}
+          options={[
+            { value: "", label: t("jobcards.allMachines", locale) },
+            ...machines.map((m) => ({ value: m.id, label: m.name })),
+          ]}
+          path="/jobcards"
+          search={search}
+          label={t("jobcards.machine", locale)}
+        />
+      </div>
 
       {cards.length === 0 ? (
         <EmptyState icon={<JobCardsIcon />} title={t("jobcards.empty", locale)} hint={t("jobcards.emptyHint", locale)} />
@@ -106,7 +142,7 @@ export default async function JobCardsPage({
                         <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "—"}</p>
                         <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? ` · ${c.date_in}` : ""}</p>
                       </div>
-                      <Badge tone={statusTone(c.status)}>{t(`jobStatus.${c.status}`, locale)}</Badge>
+                      <JobStatus value={c.status} locale={locale} />
                     </div>
                     <p className="mt-2 text-right text-sm font-medium text-sand-900">{rands(c.total_cents)}</p>
                   </Card>
@@ -137,7 +173,7 @@ export default async function JobCardsPage({
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
                     <Td className="text-sand-600">{c.date_in ?? "—"}</Td>
-                    <Td><Badge tone={statusTone(c.status)}>{t(`jobStatus.${c.status}`, locale)}</Badge></Td>
+                    <Td><JobStatus value={c.status} locale={locale} /></Td>
                     <Td className="text-right font-medium">{rands(c.total_cents)}</Td>
                   </Tr>
                 ))}

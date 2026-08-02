@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
+import { relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { formatNotification, notificationUrl } from "@/lib/notifications/format";
@@ -14,9 +15,11 @@ import { Stat } from "@/components/ui/stat";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, AllClear } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { WorkStatus } from "@/components/ui/status";
 import {
-  InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon,
+  InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon, CheckIcon,
 } from "@/components/ui/icons";
 
 type WorkRequest = {
@@ -105,20 +108,25 @@ export default async function InboxPage({
     const mail = mailtoHref(ws.email);
     if (!tel && !wa && !mail) return null;
     return (
+      // Icon AND word, never icon-only — three unlabelled glyphs used to sit millimetres
+      // from the button that spends money.
       <div className="flex flex-wrap gap-1.5">
-        {tel ? (
-          <a href={tel} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.call", locale)}>
-            <PhoneIcon className="text-[1.05rem]" />
-          </a>
-        ) : null}
         {wa ? (
-          <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.whatsapp", locale)}>
+          <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "secondary" })}>
             <ChatIcon className="text-[1.05rem]" />
+            {t("contact.whatsapp", locale)}
           </a>
         ) : null}
-        {mail ? (
-          <a href={mail} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.email", locale)}>
+        {tel ? (
+          <a href={tel} className={buttonVariants({ variant: "ghost" })}>
+            <PhoneIcon className="text-[1.05rem]" />
+            {t("contact.call", locale)}
+          </a>
+        ) : null}
+        {mail && !wa && !tel ? (
+          <a href={mail} className={buttonVariants({ variant: "ghost" })}>
             <MailIcon className="text-[1.05rem]" />
+            {t("contact.email", locale)}
           </a>
         ) : null}
       </div>
@@ -132,8 +140,17 @@ export default async function InboxPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("inbox.title", locale)}</h1>
-          <p className="mt-0.5 text-sm text-sand-500">{t("inbox.subtitle", locale)}</p>
+          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+            {t("inbox.waitingForYou", locale)}
+          </h1>
+          <p className="mt-1 text-sm text-sand-500">
+            {actionItems.length === 0
+              ? t("inbox.subtitle", locale)
+              : (actionItems.length === 1
+                  ? t("inbox.oneDecisionWorth", locale)
+                  : t("inbox.decisionsWorth", locale).replace("{n}", String(actionItems.length))
+                ).replace("{amount}", rands(quoteValue + invoiceValue))}
+          </p>
         </div>
         {unreadCount > 0 ? (
           <form action={markAllInboxRead}>
@@ -145,13 +162,36 @@ export default async function InboxPage({
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
-      {/* Outstanding value at a glance */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={t("inbox.outstandingQuotes", locale)} value={outstandingQuotes.length} tone={outstandingQuotes.length > 0 ? "due" : "default"} />
-        <Stat label={t("inbox.quoteValue", locale)} value={rands(quoteValue)} />
-        <Stat label={t("inbox.outstandingInvoices", locale)} value={outstandingInvoices.length} tone={outstandingInvoices.length > 0 ? "overdue" : "default"} />
-        <Stat label={t("inbox.invoiceValue", locale)} value={rands(invoiceValue)} />
-      </div>
+      {/*
+        One total and a two-line split. This was four tiles — outstanding quotes, quote
+        value, outstanding invoices, invoice value — count and money separated, so the
+        owner had to pair them mentally.
+      */}
+      {actionItems.length > 0 ? (
+        <Card>
+          <p className="text-sm font-medium text-sand-600">{t("inbox.ifYouSayYes", locale)}</p>
+          <p className="mt-0.5 text-3xl font-bold tabular-nums tracking-tight text-sand-950">
+            {rands(quoteValue + invoiceValue)}
+          </p>
+          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 border-t border-sand-100 pt-3 text-sm">
+            {outstandingInvoices.length > 0 ? (
+              <div>
+                <dt className="text-sand-500">
+                  {t("inbox.billsToPay", locale)}{" "}
+                  <span className="text-sand-400">({t("inbox.workIsDone", locale)})</span>
+                </dt>
+                <dd className="text-lg font-semibold tabular-nums text-sand-900">{rands(invoiceValue)}</dd>
+              </div>
+            ) : null}
+            {outstandingQuotes.length > 0 ? (
+              <div>
+                <dt className="text-sand-500">{t("inbox.pricesToAccept", locale)}</dt>
+                <dd className="text-lg font-semibold tabular-nums text-sand-900">{rands(quoteValue)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </Card>
+      ) : null}
 
       {/* Needs your action — accept quotes / approve invoices inline */}
       <Card>
@@ -166,38 +206,139 @@ export default async function InboxPage({
           <CardTitle>{t("inbox.needsAction", locale)}</CardTitle>
         </CardHeader>
         {actionItems.length === 0 ? (
-          <EmptyState icon={<InboxIcon />} title={t("inbox.noActions", locale)} hint={t("inbox.noActionsHint", locale)} />
+          <AllClear
+            icon={<InboxIcon />}
+            title={t("inbox.nothingWaitingTitle", locale)}
+            hint={t("inbox.nothingWaitingHint", locale)}
+          />
         ) : (
-          <ul className="flex flex-col divide-y divide-sand-100">
+          <ul className="flex flex-col gap-3">
             {actionItems.map((r) => {
               const ws = r.workshop_id ? wsById.get(r.workshop_id) : undefined;
               const isQuote = r.status === "quoted";
               const amount = amountOf(r);
+              const sameAsQuote =
+                !isQuote && r.quote_amount_cents != null && r.invoice_amount_cents === r.quote_amount_cents;
               return (
-                <li key={r.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {unreadWrIds.has(r.id) ? <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label={t("notifications.unread", locale)} /> : null}
-                      <Link href={`/work/${r.id}`} className="focus-ring truncate rounded font-semibold text-sand-900 hover:underline">
-                        {nameById.get(r.machine_id) ?? "—"}
-                      </Link>
-                      <Badge tone={workStatusTone(r.status)}>{workStatusLabel(r.status, locale)}</Badge>
+                /*
+                  One card per decision. The row used to put the machine-name link, three
+                  icon-only contact buttons and the approve submit in a single flex row —
+                  five targets within a few millimetres, the largest of which spends money.
+                  A bill for finished work and a quote for work not started also rendered
+                  identically; they are different decisions and now look different.
+                */
+                <li
+                  key={r.id}
+                  className={`rounded-xl border p-4 ${isQuote ? "border-sand-200 bg-white" : "border-amber-200 bg-amber-50/40"}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {unreadWrIds.has(r.id) ? (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label={t("notifications.unread", locale)} />
+                        ) : null}
+                        <Link href={`/work/${r.id}`} className="focus-ring truncate rounded text-[1.05rem] font-semibold text-sand-900 hover:underline">
+                          {nameById.get(r.machine_id) ?? "—"}
+                        </Link>
+                        <Badge tone={isQuote ? "brand" : "warning"}>
+                          {isQuote ? t("inbox.priceToAccept", locale) : t("inbox.billToPay", locale)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-sand-600">
+                        {r.title || workKindLabel(r.kind, locale)}
+                        {ws ? ` · ${ws.name}` : ""}
+                      </p>
+                      {isQuote ? (
+                        <p className="mt-1 text-sm text-sand-500">{t("inbox.standingStill", locale)}</p>
+                      ) : sameAsQuote ? (
+                        <p className="mt-1 text-sm text-sand-500">{t("inbox.confirmSameAsQuote", locale)}</p>
+                      ) : r.quote_amount_cents != null && r.invoice_amount_cents != null ? (
+                        <p className="mt-1 text-sm font-medium text-status-due">
+                          {t("inbox.confirmDiffersFromQuote", locale).replace(
+                            "{diff}",
+                            rands(Math.abs(r.invoice_amount_cents - r.quote_amount_cents)),
+                          )}
+                        </p>
+                      ) : null}
                     </div>
-                    <p className="mt-0.5 text-sm text-sand-500">
-                      {workKindLabel(r.kind, locale)}
-                      {r.title ? ` · ${r.title}` : ""}
-                      {ws ? ` · ${ws.name}` : ""}
-                    </p>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-sand-500">{t("inbox.theyWant", locale)}</p>
+                      <p className="text-xl font-bold tabular-nums text-sand-950">
+                        {amount != null ? rands(amount) : "—"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-sand-400">
+                        {t("inbox.sentWhen", locale).replace("{when}", relativeDate(r.updated_at, locale))}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    {amount != null ? <span className="text-sm font-bold tabular-nums text-sand-900">{rands(amount)}</span> : null}
-                    {contactButtons(ws)}
-                    <form action={isQuote ? acceptQuote : approveInvoice}>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {/*
+                      Audit bug 5: both of these commit the farm to real money and used to
+                      fire straight from a `size="sm"` submit. The server action, its `id`
+                      field and its redirect are unchanged — there is now a step in front
+                      that names the amount and, for a bill, compares it to the quote.
+                    */}
+                    <ConfirmDialog
+                      action={isQuote ? acceptQuote : approveInvoice}
+                      tone="brand"
+                      triggerVariant="primary"
+                      triggerSize="lg"
+                      triggerLabel={isQuote ? t("inbox.confirmQuoteYes", locale) : t("inbox.confirmInvoiceYes", locale)}
+                      triggerIcon={<CheckIcon />}
+                      title={
+                        amount == null
+                          ? isQuote
+                            ? t("inbox.confirmQuoteTitleNoAmount", locale)
+                            : t("inbox.confirmInvoiceTitleNoAmount", locale)
+                          : (isQuote
+                              ? t("inbox.confirmQuoteTitle", locale)
+                              : t("inbox.confirmInvoiceTitle", locale)
+                            ).replace("{amount}", rands(amount))
+                      }
+                      intro={(isQuote ? t("inbox.confirmQuoteIntro", locale) : t("inbox.confirmInvoiceIntro", locale)).replace("{contractor}", ws?.name ?? t("inbox.theContractor", locale))}
+                      facts={[
+                        { label: t("inbox.confirmMachine", locale), value: nameById.get(r.machine_id) ?? "—" },
+                        ...(r.quote_amount_cents != null
+                          ? [{ label: t("inbox.confirmQuoted", locale), value: rands(r.quote_amount_cents) }]
+                          : []),
+                        ...(!isQuote && r.invoice_amount_cents != null
+                          ? [
+                              {
+                                label: t("inbox.confirmBilled", locale),
+                                value: rands(r.invoice_amount_cents),
+                                hint:
+                                  r.quote_amount_cents == null
+                                    ? undefined
+                                    : sameAsQuote
+                                      ? t("inbox.confirmSameAsQuote", locale)
+                                      : t("inbox.confirmDiffersFromQuote", locale).replace(
+                                          "{diff}",
+                                          rands(Math.abs(r.invoice_amount_cents - r.quote_amount_cents)),
+                                        ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                      confirmLabel={isQuote ? t("inbox.confirmQuoteYes", locale) : t("inbox.confirmInvoiceYes", locale)}
+                      cancelLabel={t("inbox.confirmNotYet", locale)}
+                      closeLabel={t("ui.close", locale)}
+                    >
                       <input type="hidden" name="id" value={r.id} />
-                      <SubmitButton variant="primary" size="sm">
-                        {isQuote ? t("inbox.acceptQuote", locale) : t("inbox.approveInvoice", locale)}
-                      </SubmitButton>
-                    </form>
+                    </ConfirmDialog>
+
+                    {/*
+                      Accept and Approve used to be the ONLY actions on the card — saying
+                      no, or querying a bill that does not match its quote, had no path at
+                      all, so those conversations happened on WhatsApp and the system lost
+                      them. This deep-links to the request, where the note and the status
+                      change already live.
+                    */}
+                    <Link href={`/work/${r.id}`} className={buttonVariants({ variant: "secondary" })}>
+                      {isQuote ? t("inbox.tooExpensive", locale) : t("inbox.somethingWrong", locale)}
+                    </Link>
+
+                    {contactButtons(ws)}
                   </div>
                 </li>
               );
@@ -212,7 +353,7 @@ export default async function InboxPage({
           <CardTitle>{t("inbox.activeWork", locale)}</CardTitle>
         </CardHeader>
         {machineGroups.length === 0 ? (
-          <EmptyState icon={<WorkIcon />} title={t("inbox.noActiveWork", locale)} hint={t("inbox.noActiveWorkHint", locale)} />
+          <AllClear icon={<WorkIcon />} title={t("inbox.noActiveWork", locale)} hint={t("inbox.noActiveWorkHint", locale)} />
         ) : (
           <div className="flex flex-col gap-4">
             {machineGroups.map((g) => (
@@ -238,7 +379,7 @@ export default async function InboxPage({
                         <span className="flex shrink-0 items-center gap-2">
                           {r.priority !== "normal" ? <Badge tone={workPriorityTone(r.priority)}>{workPriorityLabel(r.priority, locale)}</Badge> : null}
                           {amount != null ? <span className="text-xs font-medium tabular-nums text-sand-500">{rands(amount)}</span> : null}
-                          <Badge tone={workStatusTone(r.status)}>{workStatusLabel(r.status, locale)}</Badge>
+                          <WorkStatus value={r.status} locale={locale} />
                         </span>
                       </li>
                     );
@@ -263,7 +404,7 @@ export default async function InboxPage({
           <CardTitle>{t("inbox.recentActivity", locale)}</CardTitle>
         </CardHeader>
         {notes.length === 0 ? (
-          <EmptyState icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
+          <AllClear icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
         ) : (
           <ul className="flex flex-col divide-y divide-sand-100">
             {notes.map((n) => {

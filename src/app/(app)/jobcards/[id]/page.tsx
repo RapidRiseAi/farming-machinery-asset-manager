@@ -3,14 +3,18 @@ import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
+import { meterReading, shortDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { JobStatus } from "@/components/ui/status";
 import { removeLine, toggleServiceLine, applyServiceKit } from "../actions";
 import { LineEntry, type CataloguePart } from "../line-entry";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { JobCardEditor } from "../job-card-editor";
@@ -91,8 +95,6 @@ export default async function JobCardDetail({
   const canApprove = profile.role === "owner" || profile.role === "manager";
   const locked = jc.locked;
 
-  const statusTone = (s: string): BadgeTone =>
-    s === "approved" || s === "completed" ? "ok" : s === "waiting_parts" ? "warning" : "info";
   const lineDetail = (l: Line) =>
     l.kind === "part"
       ? `${l.qty ?? 0} × ${rands(l.unit_cost_cents)}`
@@ -108,39 +110,81 @@ export default async function JobCardDetail({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{machine?.name ?? t("jobcards.title", locale)}</h1>
+        <div className="min-w-0">
+          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+            {machine?.name ?? t("jobcards.title", locale)}
+          </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{t(`jobType.${jc.type}`, locale)}</Badge>
-            <Badge tone={statusTone(jc.status)}>{t(`jobStatus.${jc.status}`, locale)}</Badge>
+            <JobStatus value={jc.status} locale={locale} size="md" />
+            {jc.meter_reading != null && machine ? (
+              <span className="text-sm text-sand-500">
+                {t("jobcards.hoursWhenIn", locale)}:{" "}
+                <span className="font-medium tabular-nums text-sand-700">
+                  {meterReading(jc.meter_reading, machine.meter_type, locale)}
+                </span>
+              </span>
+            ) : null}
           </div>
+          <Link
+            href={`/machines/${jc.machine_id}`}
+            className="focus-ring mt-1.5 inline-flex items-center gap-1 rounded text-sm font-medium text-brand-700 hover:underline"
+          >
+            {t("jobcards.openMachine", locale)} →
+          </Link>
         </div>
-        <a href={`/jobcards/${jc.id}/pdf`} className="focus-ring rounded-md text-sm text-brand-700">PDF →</a>
+        <a href={`/jobcards/${jc.id}/pdf`} className={buttonVariants({ variant: "secondary" })}>
+          {t("common.print", locale)}
+        </a>
       </div>
 
       {locked ? (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           🔒 {t("jobcards.lockedBanner", locale)}
-          {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${jc.approved_at.slice(0, 10)}` : ""}
+          {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${shortDate(jc.approved_at, locale)}` : ""}
         </div>
       ) : null}
 
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
-      {/* Totals */}
+      {/* This job so far — the number the owner will ask about, above the lines it is
+          made of rather than a page away on the list. */}
       <Card>
-        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <div><p className="text-sand-500">{t("jobcards.parts", locale)}</p><p className="font-medium text-sand-900">{rands(jc.parts_total_cents)}</p></div>
-          <div><p className="text-sand-500">{t("jobcards.labour", locale)}</p><p className="font-medium text-sand-900">{rands(jc.labour_total_cents)}</p></div>
-          <div><p className="text-sand-500">{t("jobcards.other", locale)}</p><p className="font-medium text-sand-900">{rands(jc.other_total_cents)}</p></div>
-          <div><p className="text-sand-500">{t("jobcards.totalExVat", locale)}</p><p className="text-lg font-bold text-sand-900">{rands(jc.total_cents)}</p></div>
-        </div>
+        <p className="text-sm font-medium text-sand-600">{t("jobcards.thisJobSoFar", locale)}</p>
+        <p className="mt-0.5 text-3xl font-bold tabular-nums tracking-tight text-sand-950">
+          {rands(jc.total_cents)}
+        </p>
+        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-sand-100 pt-3 text-sm">
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-sand-500">{t("jobcards.parts", locale)}</dt>
+            <dd className="font-semibold tabular-nums text-sand-900">{rands(jc.parts_total_cents)}</dd>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-sand-500">{t("jobcards.labour", locale)}</dt>
+            <dd className="font-semibold tabular-nums text-sand-900">{rands(jc.labour_total_cents)}</dd>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-sand-500">{t("jobcards.other", locale)}</dt>
+            <dd className="font-semibold tabular-nums text-sand-900">{rands(jc.other_total_cents)}</dd>
+          </div>
+        </dl>
+        <p className="mt-2 text-xs text-sand-400">{t("jobcards.exVatNote", locale)}</p>
       </Card>
 
       {/* Lines */}
       <Card>
-        <CardHeader><CardTitle>{t("jobcards.lines", locale)}</CardTitle></CardHeader>
+        <CardHeader
+          action={
+            <span className="text-sm text-sand-500">
+              {lines.length === 1
+                ? t("jobcards.oneLine", locale)
+                : t("jobcards.linesCount", locale).replace("{n}", String(lines.length))}
+            </span>
+          }
+        >
+          <CardTitle>{t("jobcards.partsAndLabour", locale)}</CardTitle>
+        </CardHeader>
         {lines.length === 0 ? (
           <p className="text-sm text-sand-400">{t("jobcards.noLines", locale)}</p>
         ) : (
@@ -154,11 +198,25 @@ export default async function JobCardDetail({
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="font-medium">{rands(l.total_cents)}</span>
                   {!locked ? (
-                    <form action={removeLine}>
+                    <ConfirmDialog
+                      action={removeLine}
+                      triggerVariant="ghost"
+                      triggerSize="sm"
+                      triggerIcon={<TrashIcon />}
+                      triggerLabel={t("jobcards.remove", locale)}
+                      triggerClassName="text-status-overdue hover:bg-red-50"
+                      title={t("confirm.removeLineTitle", locale).replace(
+                        "{line}",
+                        l.description ?? l.part_no ?? "—",
+                      )}
+                      intro={t("confirm.removeLineIntro", locale).replace("{amount}", rands(l.total_cents))}
+                      confirmLabel={t("confirm.removeLineYes", locale)}
+                      cancelLabel={t("confirm.keepIt", locale)}
+                      closeLabel={t("ui.close", locale)}
+                    >
                       <input type="hidden" name="line_id" value={l.id} />
                       <input type="hidden" name="job_card_id" value={jc.id} />
-                      <button className="focus-ring rounded px-1 text-status-overdue" aria-label={t("jobcards.remove", locale)}>✕</button>
-                    </form>
+                    </ConfirmDialog>
                   ) : null}
                 </span>
               </li>

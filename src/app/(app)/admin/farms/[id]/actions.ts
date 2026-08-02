@@ -45,8 +45,18 @@ export async function updateFarm(formData: FormData) {
 }
 
 /**
- * Record RR-admin "act into a farm" support access (Scope §4.9 — impersonate,
- * logged). Writes one append-only audit_log row via the guarded RPC every time.
+ * Record RR-admin support access to a farm (Scope §4.9). Writes one append-only
+ * audit_log row via the guarded RPC, and nothing else.
+ *
+ * This does NOT enter the farm: no farm context is set and no session state changes.
+ * The button used to read "Act into farm", which staff reasonably took to mean they
+ * were inside the customer's account — they were not, and there was no banner or exit
+ * because there was no mode to exit (audit bug 3). The copy now matches the behaviour.
+ *
+ * Real support mode — a farm-context cookie set on enter and cleared on leave, plus a
+ * second `log_admin_farm_access(…, 'exit')` call so the log shows duration — is a
+ * behavioural change awaiting sign-off (handoff README, "Two decisions"). The function
+ * name is kept so nothing that references it has to move.
  */
 export async function impersonateFarm(formData: FormData) {
   await requireRole(["rr_admin"]);

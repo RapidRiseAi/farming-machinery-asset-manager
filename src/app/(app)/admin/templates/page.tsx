@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TrashIcon } from "@/components/ui/icons";
 
 type Line = { task: string; interval_hours: number | null; interval_months: number | null };
 type Template = { id: string; name: string; machine_type: string | null; lines: Line[] };
@@ -86,10 +88,28 @@ export default async function TemplatesPage({
                       <SubmitButton variant="primary" size="sm">Save</SubmitButton>
                     </div>
                   </form>
-                  <form action={deleteTemplate} className="mt-2">
-                    <input type="hidden" name="id" value={tpl.id} />
-                    <button className="text-sm text-status-overdue">Delete template</button>
-                  </form>
+                  <div className="mt-2">
+                    <ConfirmDialog
+                      action={deleteTemplate}
+                      triggerVariant="ghost"
+                      triggerSize="sm"
+                      triggerIcon={<TrashIcon />}
+                      triggerLabel="Delete template"
+                      triggerClassName="text-status-overdue hover:bg-red-50"
+                      title={`Delete the “${tpl.name}” service template?`}
+                      intro="This is a Rapid Rise template every farm can apply."
+                      consequencesTitle="What happens when you press it"
+                      consequences={[
+                        "No farm can apply it to a machine again",
+                        "Machines that already use it keep their service plans",
+                      ]}
+                      footnote="Nothing is really erased — it stops showing in the library and stays in the history."
+                      confirmLabel="Yes, delete the template"
+                      cancelLabel="Never mind"
+                    >
+                      <input type="hidden" name="id" value={tpl.id} />
+                    </ConfirmDialog>
+                  </div>
                 </details>
               </Card>
             </li>

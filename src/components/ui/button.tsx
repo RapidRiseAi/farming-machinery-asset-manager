@@ -16,11 +16,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
     "bg-status-overdue text-white shadow-xs hover:bg-red-700 active:bg-red-800 disabled:bg-status-overdue/50",
 };
 
-// All sizes clear the 44px minimum tap target (Scope §7 / WCAG).
+/**
+ * 48px minimum on a phone, 40–44px on desktop where there is a mouse. These users are
+ * outdoors, in sunlight, often with dirty or gloved hands — the mobile figure is the
+ * one that matters, so every size steps DOWN at `sm`, never up.
+ */
 const SIZES: Record<ButtonSize, string> = {
-  sm: "min-h-[44px] px-3 text-sm gap-1.5",
-  md: "min-h-[44px] px-4 text-sm gap-2",
-  lg: "min-h-[48px] px-5 text-base gap-2",
+  sm: "min-h-[44px] sm:min-h-[36px] px-3 text-sm gap-1.5",
+  md: "min-h-[48px] sm:min-h-[40px] px-4 text-sm gap-2",
+  lg: "min-h-[52px] sm:min-h-[44px] px-5 text-base gap-2",
 };
 
 /**

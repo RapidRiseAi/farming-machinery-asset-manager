@@ -8,8 +8,10 @@ import { signChecklistPhotos } from "@/lib/checklist-media";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistInstance } from "../actions";
+import { shortDate } from "@/lib/format";
 
 type Instance = {
   id: string; farm_id: string; machine_id: string; template_name: string; status: string;
@@ -66,7 +68,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   const photoUrlByValueIdx = new Map<number, string | null>();
   values.forEach((_, i) => photoUrlByValueIdx.set(i, signed[i]));
 
-  const dateStr = (instance.completed_at ?? instance.created_at).slice(0, 10);
+  const dateStr = shortDate(instance.completed_at ?? instance.created_at, locale);
 
   return (
     <div className="flex flex-col gap-4">
@@ -91,11 +93,23 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
             </p>
           </div>
           {canEdit ? (
-            <form action={deleteChecklistInstance}>
+            <ConfirmDialog
+              action={deleteChecklistInstance}
+              triggerVariant="ghost"
+              triggerSize="sm"
+              triggerIcon={<TrashIcon />}
+              triggerLabel={t("common.delete", locale)}
+              triggerClassName="text-status-overdue hover:bg-red-50"
+              title={t("confirm.deleteChecklistInstanceTitle", locale)}
+              intro={t("confirm.deleteChecklistInstanceIntro", locale).replace("{date}", dateStr)}
+              footnote={t("confirm.softDeleteNote", locale)}
+              confirmLabel={t("confirm.deleteChecklistInstanceYes", locale)}
+              cancelLabel={t("confirm.keepIt", locale)}
+              closeLabel={t("ui.close", locale)}
+            >
               <input type="hidden" name="id" value={instance.id} />
               <input type="hidden" name="machine_id" value={machine.id} />
-              <SubmitButton variant="ghost" size="sm">{t("common.delete", locale)}</SubmitButton>
-            </form>
+            </ConfirmDialog>
           ) : null}
         </div>
       </Card>

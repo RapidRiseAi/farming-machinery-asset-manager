@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ChevronLeftIcon } from "@/components/ui/icons";
+import { dateTime, roleLabel } from "@/lib/format";
 
 type Farm = {
   id: string;
@@ -80,7 +81,18 @@ export default async function FarmDetailPage({
       </div>
 
       <Flash tone="error" message={sp.error} />
-      <Flash tone="success" message={sp.saved ? "Saved." : sp.invited ? "Invited — they sign in via the magic link." : sp.entered ? "Support access logged." : undefined} />
+      <Flash
+        tone="success"
+        message={
+          sp.saved
+            ? "Saved."
+            : sp.invited
+              ? "Invited — they sign in via the magic link."
+              : sp.entered
+                ? "Support access recorded in this farm's audit log. You are still signed in as Rapid Rise — this does not put you inside the farm's account."
+                : undefined
+        }
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
@@ -88,7 +100,7 @@ export default async function FarmDetailPage({
             action={
               <form action={impersonateFarm}>
                 <input type="hidden" name="id" value={farm.id} />
-                <SubmitButton variant="secondary" size="sm">Act into farm (logged)</SubmitButton>
+                <SubmitButton variant="secondary" size="sm">Record support access</SubmitButton>
               </form>
             }
           >
@@ -157,7 +169,7 @@ export default async function FarmDetailPage({
               {access.map((a) => (
                 <li key={a.id} className="flex justify-between py-1.5">
                   <span>{a.user_id ? adminName[a.user_id] ?? "admin" : "admin"} · {a.action}</span>
-                  <span className="text-sand-400">{new Date(a.at).toLocaleString("en-ZA")}</span>
+                  <span className="text-sand-400">{dateTime(a.at, "en")}</span>
                 </li>
               ))}
             </ul>
@@ -203,7 +215,7 @@ export default async function FarmDetailPage({
               {users.map((u) => (
                 <Tr key={u.id}>
                   <Td className="font-medium text-sand-900">{u.name}</Td>
-                  <Td><Badge tone="neutral" className="capitalize">{u.role}</Badge></Td>
+                  <Td><Badge tone="neutral">{roleLabel(u.role, "en")}</Badge></Td>
                   <Td className="text-sand-500">{u.email ?? "—"}</Td>
                   <Td>{u.active ? <Badge tone="ok">yes</Badge> : <Badge tone="danger">no</Badge>}</Td>
                   <Td className="text-right">

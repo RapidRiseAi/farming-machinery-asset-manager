@@ -564,4 +564,84 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
     Migrations **0360–0361** only.
 
+- **UI/UX redesign — Phase 0: the six code defects** (branch `claude/fleetwise-ui-redesign-l4ng55`;
+  no migration, no backend behaviour change; gates green):
+  - Design handoff committed at `design_handoff_fleetwise_ui_upgrade/` (22-screen redesign +
+    176-finding audit + build order + tokens). Phases 1–3 (shared components, then the five
+    daily-loop screens, then the rest) are **not** started.
+  - **Bug 1** onboarding step 3 ("put QR stickers on") shared step 1's `machines > 0` and ticked
+    itself. It now has its own condition — an explicit acknowledgement stored as
+    `farms.settings.qr_labels_printed_at` through the **existing** owner/manager-guarded
+    `update_farm_settings` RPC (0204, jsonb `||` merge), so no schema/RLS change; undoable.
+  - **Bug 2** every pre-auth `t()` ran with no locale (login, public QR), so a bilingual product
+    opened in English for every Afrikaans farm. New `src/lib/locale.ts` `deviceLocale()`
+    (cookie `fw_lang` → `Accept-Language` → `en`), `setDeviceLanguage` action + visible
+    `DeviceLanguageSwitcher` on login and `/m/[token]`, `<html lang>` now follows it, and the
+    signed-in `setLanguage` mirrors the profile choice into the same cookie. The QR route reads
+    a cookie and a header only — **zero-anon-DB unchanged**.
+  - **Bug 3** `impersonateFarm` writes an audit row and nothing else — no farm context, no
+    session change. Copy now matches behaviour ("Record support access"; the flash says you are
+    still Rapid Rise). **Real support mode (farm-context cookie + `exit` log) awaits sign-off.**
+  - **Bug 4** `acceptQuote`/`approveInvoice` committed real money from a `size="sm"` submit. Now
+    behind the new **`ConfirmDialog`**, naming the amount and comparing quote to bill. Both
+    server actions, their `id` field and their redirects are untouched.
+  - **Bug 5** POPIA `erasePerson` was a ghost link behind `window.confirm()` → a dialog stating
+    what is lost, pointing at the reversible option, **type-the-name to unlock**. There is no
+    machine-delete action in this codebase (audit inaccuracy); the five real one-click deletes on
+    machine detail (service line, kit, kit item, licence, budget) got the same treatment, the
+    icon-only `✕` included. Seven other no-confirm deletes (fines/parts/partners/templates/
+    checklists/job-card lines) are deferred to Phase 1.
+  - **Bug 6** the CSV header failure rendered `name_required — previewTitle` ("Name is required —
+    Preview"). `validateCsv` now returns `headerFound`, and empty-file vs missing-name-column get
+    their own messages naming the columns actually present.
+  - New shared UI: `ConfirmDialog` (bottom sheet on phones, centred modal from `sm`; optional
+    type-to-confirm; 48px targets; icon **and** word) on a new `align="responsive"` in
+    `dialog.tsx`, plus `TrashIcon`. i18n EN/AF at parity (**1203 leaf keys**). Shared first-load
+    JS flat at **102 kB**.
+
+- **UI/UX redesign — Phases 1–3** (branch `claude/fleetwise-ui-redesign-l4ng55`; no
+  migration, no backend behaviour change; gates green; shared first-load JS flat at **102 kB**):
+  - **Phase 1 — shared components** (where ~60% of the audit lives). `badge.tsx` gains an
+    eight-glyph **shape vocabulary** + per-enum maps so status is always **shape + word +
+    colour**; new `components/ui/status.tsx` exposes one badge per domain enum (machine,
+    job, fault, urgency, work, priority, expiry, budget, fine, service) — 19 call sites
+    converted, 3 local `statusTone` helpers deleted. New **`lib/format.ts`** (thousands
+    separators, unit words, relative dates, role labels, `vatPercent`/`percentToBps`).
+    `empty-state.tsx` splits into **`AllClear` / `GetStarted` / `NoMatches`**. `field.tsx`
+    gains **`TextField`/`SelectField`/`TextareaField`**. New **`FilterChips`/`ActiveFilters`**
+    (same URL params). Buttons step **down** at `sm` (48px mobile → 40–44px desktop).
+    All 12 destructive actions now go through `ConfirmDialog`.
+  - **Phase 2 — the daily loop.** **Farm home**: seven counters → one ranked "Needs your
+    attention" list, worst first, each row deep-linked to the thing it names + greeting/farm/
+    date header + `AllClear`. **Machines list**: six statuses no longer all grey, `184 320 km`
+    + "read 3 days ago", chips replace the submit-to-filter card, "Set up a plan" replaces an
+    invisible dash, first-run vs no-match empty states, 132px mobile photo. **Job card**: three
+    plain questions, visible status pipeline, running total above the lines, blocker stated
+    before you try, VAT in words, silent draft recovery, primary/secondary inversion fixed.
+    **Owner inbox**: one card per decision, quote vs bill visibly different, a visible "no"
+    path. **QR/driver**: one question + four tiles (was four open forms), every field
+    labelled, leads with the machine photo, icons not emoji. **Faults**: urgency-ordered,
+    one primary action, 132px photo, celebratory empty state.
+  - **Phase 3 — the rest.** **Shell**: 3 sidebar groups + "Everything else", permanent green
+    Report tab. **Machine detail**: 20 cards → **5 tabs** + a header that answers "what is
+    this and what do I do". **New `/driver` home** for the operator role (4 tiles, photo
+    machine grid, closes the loop on their reports, sign-out in reach) + operator shell.
+    Cross-cutting sweeps: ISO/`en-ZA` dates → words, `Rr_admin` → role labels, VAT asked in
+    **percent** (`VatRateField`, still posts `vat_rate_bps`), placeholder-as-label cleared
+    from the parts editor and contractor money fields, chips on jobcards/work, `AllClear`
+    empty states, login gains the **"no work email? use the QR stickers"** path and
+    translates Supabase's raw error strings, diesel loses its bookkeeping vocabulary,
+    settings' 8 cards become jump-to groups with a sticky save, contact buttons get words.
+  - **Defect found while rebuilding** (not in the audit): the job-card list's "New" form
+    never posted `farm_id`, which `createJobCard` requires — the button failed with
+    "Missing machine" and created nothing. Fixed; the form now also lets you pick the job
+    **type** instead of hardcoding `repair`. `JOB_TYPES`/`JOB_STATUSES`/`LINE_KINDS` moved to
+    `lib/job-options.ts` (a `"use server"` file may only export async functions).
+  - i18n EN/AF at parity (**1489 leaf keys**).
+  - **Still awaiting sign-off** (both flagged in the handoff as behavioural): real
+    impersonation state (farm-context cookie + `exit` log) — Phase 0 left the copy honest;
+    and the operator landing (`requireRole` → `/dashboard?error=forbidden`, never rendered).
+    Deferred by request to the later backend/security pass: `/partners` rendering a
+    contractor login URL as copyable plain text, and CSV **column mapping** on import.
+
 > Update this "current status" block at the end of every session.

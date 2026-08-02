@@ -12,6 +12,8 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PartnersIcon } from "@/components/ui/icons";
+import { WorkStatus, PriorityStatus } from "@/components/ui/status";
+import { FilterChips } from "@/components/ui/filter-chips";
 
 type WorkRequest = {
   id: string; machine_id: string; workshop_id: string | null; kind: string; status: string;
@@ -26,6 +28,10 @@ export default async function WorkListPage({
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
+  // Current query string, so a chip preserves whatever else is filtered.
+  const search = new URLSearchParams(
+    Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
+  ).toString();
   const locale = profile.language;
   const isContractor = profile.role === "workshop";
 
@@ -70,29 +76,31 @@ export default async function WorkListPage({
         </p>
       </div>
 
-      <Card>
-        <form className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-sand-800">{t("work.status", locale)}</span>
-            <Select name="status" defaultValue={sp.status ?? ""}>
-              <option value="">{t("work.allStatuses", locale)}</option>
-              {WORK_STATUSES.map((s) => (
-                <option key={s} value={s}>{workStatusLabel(s, locale)}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-sand-800">{t("work.machine", locale)}</span>
-            <Select name="machine" defaultValue={sp.machine ?? ""}>
-              <option value="">{t("work.allMachines", locale)}</option>
-              {machines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </Select>
-          </label>
-          <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
-        </form>
-      </Card>
+      {/* Same `status` / `machine` params, applied on tap. */}
+      <div className="flex flex-col gap-2.5">
+        <FilterChips
+          paramName="status"
+          current={sp.status}
+          options={[
+            { value: "", label: t("work.allStatuses", locale) },
+            ...WORK_STATUSES.map((s) => ({ value: s, label: workStatusLabel(s, locale) })),
+          ]}
+          path="/work"
+          search={search}
+          label={t("work.status", locale)}
+        />
+        <FilterChips
+          paramName="machine"
+          current={sp.machine}
+          options={[
+            { value: "", label: t("work.allMachines", locale) },
+            ...machines.map((m) => ({ value: m.id, label: m.name })),
+          ]}
+          path="/work"
+          search={search}
+          label={t("work.machine", locale)}
+        />
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -108,7 +116,7 @@ export default async function WorkListPage({
             return (
               <section key={status} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge tone={workStatusTone(status)}>{workStatusLabel(status, locale)}</Badge>
+                  <WorkStatus value={status} locale={locale} />
                   <span className="text-sm text-sand-400">{list.length}</span>
                 </div>
                 <ul className="flex flex-col gap-2">

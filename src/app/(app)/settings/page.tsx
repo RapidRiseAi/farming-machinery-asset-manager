@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { VatRateField } from "@/components/vat-rate-field";
 
 type Settings = Record<string, unknown>;
 
@@ -37,8 +38,31 @@ export default async function SettingsPage({
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
-      <form action={updateSettings} className="flex flex-col gap-4">
-        <Card>
+      {/* Change the first field, then scroll past seven more cards to save. The eight
+          cards are now named groups you can jump between, and the save follows you. */}
+      <nav aria-label={t("settings.jumpTo", locale)} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {([
+          ["set-thresholds", "settings.thresholds"],
+          ["set-money", "settings.money"],
+          ["set-workflow", "settings.workflow"],
+          ["set-quiet", "settings.quietHours"],
+          ["set-expiry", "settings.expirySection"],
+          ["set-fuel", "settings.fuelSection"],
+          ["set-analytics", "settings.analyticsSection"],
+          ["set-language", "settings.language"],
+        ] as const).map(([anchor, key]) => (
+          <a
+            key={anchor}
+            href={`#${anchor}`}
+            className="focus-ring inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border border-sand-200 bg-white px-4 text-sm font-medium text-sand-700 hover:bg-sand-50"
+          >
+            {t(key, locale)}
+          </a>
+        ))}
+      </nav>
+
+      <form action={updateSettings} className="flex flex-col gap-4 pb-20">
+        <Card id="set-thresholds">
           <CardHeader><CardTitle>{t("settings.thresholds", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label={t("settings.dueHours", locale)} htmlFor="due_soon_hours">
@@ -53,14 +77,12 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-money">
           <CardHeader><CardTitle>{t("settings.money", locale)}</CardTitle></CardHeader>
-          <Field label={t("settings.vatRate", locale)} htmlFor="vat_rate_bps">
-            <Input id="vat_rate_bps" name="vat_rate_bps" type="number" defaultValue={n("vat_rate_bps", 1500)} />
-          </Field>
+          <VatRateField defaultBps={n("vat_rate_bps", 1500)} locale={locale} />
         </Card>
 
-        <Card>
+        <Card id="set-workflow">
           <CardHeader><CardTitle>{t("settings.workflow", locale)}</CardTitle></CardHeader>
           <div className="flex flex-col gap-3">
             <label className="flex items-center gap-2.5 text-sm text-sand-800">
@@ -74,7 +96,7 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-quiet">
           <CardHeader><CardTitle>{t("settings.quietHours", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("settings.quietStart", locale)} htmlFor="quiet_hours_start">
@@ -86,7 +108,7 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-expiry">
           <CardHeader><CardTitle>{t("settings.expirySection", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label={t("settings.warrantyLeadDays", locale)} htmlFor="warranty_lead_days">
@@ -104,7 +126,7 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-fuel">
           <CardHeader><CardTitle>{t("settings.fuelSection", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label={t("settings.fuelAnomalyPct", locale)} htmlFor="fuel_anomaly_pct">
@@ -116,7 +138,7 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-analytics">
           <CardHeader><CardTitle>{t("settings.analyticsSection", locale)}</CardTitle></CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label={t("settings.repairReplacePct", locale)} htmlFor="repair_replace_pct">
@@ -131,7 +153,7 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        <Card>
+        <Card id="set-language">
           <CardHeader><CardTitle>{t("settings.language", locale)}</CardTitle></CardHeader>
           <Field label={t("settings.language", locale)} htmlFor="default_language">
             <Select id="default_language" name="default_language" defaultValue={(s.default_language as string) ?? "af"}>
@@ -141,7 +163,9 @@ export default async function SettingsPage({
           </Field>
         </Card>
 
-        <SubmitButton variant="primary" className="self-start">{t("settings.save", locale)}</SubmitButton>
+        <div className="sticky bottom-0 -mx-4 border-t border-sand-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-4">
+          <SubmitButton variant="primary" size="lg" fullWidth>{t("settings.save", locale)}</SubmitButton>
+        </div>
       </form>
     </div>
   );

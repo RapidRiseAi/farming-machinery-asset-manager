@@ -13,7 +13,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { buttonVariants } from "@/components/ui/button";
-import { PhoneIcon, ChatIcon, MailIcon, LinkIcon } from "@/components/ui/icons";
+import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CopyField } from "./copy-field";
 import {
   createPartner,
@@ -309,10 +310,29 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         <span className="flex-1" />
                       </div>
                     </form>
-                    <form action={deletePartner} className="mt-1">
-                      <input type="hidden" name="id" value={p.id} />
-                      <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                    </form>
+                    <div className="mt-1">
+                      <ConfirmDialog
+                        action={deletePartner}
+                        triggerVariant="ghost"
+                        triggerSize="sm"
+                        triggerIcon={<TrashIcon />}
+                        triggerLabel={t("common.delete", locale)}
+                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
+                        intro={t("confirm.deletePartnerIntro", locale)}
+                        consequencesTitle={t("confirm.whatHappens", locale)}
+                        consequences={[
+                          t("confirm.deletePartnerEffect1", locale),
+                          t("confirm.deletePartnerEffect2", locale),
+                        ]}
+                        footnote={t("confirm.softDeleteNote", locale)}
+                        confirmLabel={t("confirm.deletePartnerYes", locale)}
+                        cancelLabel={t("confirm.keepIt", locale)}
+                        closeLabel={t("ui.close", locale)}
+                      >
+                        <input type="hidden" name="id" value={p.id} />
+                      </ConfirmDialog>
+                    </div>
                   </details>
                 ) : null}
               </li>
@@ -371,10 +391,29 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                       </div>
                     </form>
-                    <form action={deletePartner} className="mt-1">
-                      <input type="hidden" name="id" value={p.id} />
-                      <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                    </form>
+                    <div className="mt-1">
+                      <ConfirmDialog
+                        action={deletePartner}
+                        triggerVariant="ghost"
+                        triggerSize="sm"
+                        triggerIcon={<TrashIcon />}
+                        triggerLabel={t("common.delete", locale)}
+                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
+                        intro={t("confirm.deletePartnerIntro", locale)}
+                        consequencesTitle={t("confirm.whatHappens", locale)}
+                        consequences={[
+                          t("confirm.deletePartnerEffect1", locale),
+                          t("confirm.deletePartnerEffect2", locale),
+                        ]}
+                        footnote={t("confirm.softDeleteNote", locale)}
+                        confirmLabel={t("confirm.deletePartnerYes", locale)}
+                        cancelLabel={t("confirm.keepIt", locale)}
+                        closeLabel={t("ui.close", locale)}
+                      >
+                        <input type="hidden" name="id" value={p.id} />
+                      </ConfirmDialog>
+                    </div>
                   </details>
                 ) : null}
               </li>

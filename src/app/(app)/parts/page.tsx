@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { SearchIcon } from "@/components/ui/icons";
+import { SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPart, updatePart, deletePart } from "./actions";
 
 type Part = {
@@ -90,7 +91,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                 <Input id="new_supplier" name="supplier" />
               </Field>
               <Field label={t("parts.typicalCost", locale)} htmlFor="new_cost">
-                <Input id="new_cost" name="typical_cost" inputMode="decimal" placeholder="R" />
+                <Input id="new_cost" name="typical_cost" inputMode="decimal" />
               </Field>
               <label className="flex items-center gap-2 self-end pb-2 text-sm text-sand-700">
                 <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" />
@@ -131,18 +132,47 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                         <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
                         <form action={updatePart} className="mt-2 flex flex-wrap gap-2">
                           <input type="hidden" name="id" value={p.id} />
-                          <input name="part_no" defaultValue={p.part_no} placeholder={t("parts.partNo", locale)} className={`${inputCls} w-32`} required />
-                          <input name="description" defaultValue={p.description ?? ""} placeholder={t("parts.description", locale)} className={`${inputCls} w-44`} />
-                          <input name="category" defaultValue={p.category ?? ""} placeholder={t("parts.category", locale)} className={`${inputCls} w-32`} />
-                          <input name="supplier" defaultValue={p.supplier ?? ""} placeholder={t("parts.supplier", locale)} className={`${inputCls} w-32`} />
-                          <input name="typical_cost" inputMode="decimal" defaultValue={p.typical_cost_cents != null ? (p.typical_cost_cents / 100).toFixed(2) : ""} placeholder="R" className={`${inputCls} w-24`} />
+                          <Field label={t("parts.partNoLabel", locale)} htmlFor={`e_no_${p.id}`} required>
+                            <Input id={`e_no_${p.id}`} name="part_no" defaultValue={p.part_no} className="w-36" required />
+                          </Field>
+                          <Field label={t("parts.descriptionLabel", locale)} htmlFor={`e_desc_${p.id}`}>
+                            <Input id={`e_desc_${p.id}`} name="description" defaultValue={p.description ?? ""} className="w-48" />
+                          </Field>
+                          <Field label={t("parts.categoryLabel", locale)} htmlFor={`e_cat_${p.id}`}>
+                            <Input id={`e_cat_${p.id}`} name="category" defaultValue={p.category ?? ""} className="w-36" />
+                          </Field>
+                          <Field label={t("parts.supplierLabel", locale)} htmlFor={`e_sup_${p.id}`}>
+                            <Input id={`e_sup_${p.id}`} name="supplier" defaultValue={p.supplier ?? ""} className="w-36" />
+                          </Field>
+                          <Field label={t("parts.costLabel", locale)} htmlFor={`e_cost_${p.id}`}>
+                            <Input id={`e_cost_${p.id}`} name="typical_cost" inputMode="decimal" defaultValue={p.typical_cost_cents != null ? (p.typical_cost_cents / 100).toFixed(2) : ""} className="w-28" />
+                          </Field>
                           <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                           <span className="w-full" />
                         </form>
-                        <form action={deletePart} className="mt-1">
-                          <input type="hidden" name="id" value={p.id} />
-                          <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                        </form>
+                        <div className="mt-1">
+                          <ConfirmDialog
+                            action={deletePart}
+                            triggerVariant="ghost"
+                            triggerSize="sm"
+                            triggerIcon={<TrashIcon />}
+                            triggerLabel={t("common.delete", locale)}
+                            triggerClassName="text-status-overdue hover:bg-red-50"
+                            title={t("confirm.deletePartTitle", locale).replace(
+                              "{part}",
+                              p.part_no ?? p.description ?? "—",
+                            )}
+                            intro={t("confirm.deletePartIntro", locale)}
+                            consequencesTitle={t("confirm.whatHappens", locale)}
+                            consequences={[t("confirm.deletePartEffect1", locale)]}
+                            footnote={t("confirm.softDeleteNote", locale)}
+                            confirmLabel={t("confirm.deletePartYes", locale)}
+                            cancelLabel={t("confirm.keepIt", locale)}
+                            closeLabel={t("ui.close", locale)}
+                          >
+                            <input type="hidden" name="id" value={p.id} />
+                          </ConfirmDialog>
+                        </div>
                       </details>
                     ) : null}
                   </Td>
