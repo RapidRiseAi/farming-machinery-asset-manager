@@ -499,7 +499,13 @@
     "farms": "Plase",
     "createFarm": "Skep plaas",
     "tier": "Vlak",
-    "status": "Status"
+    "status": "Status",
+    "supportModeTitle": "Ondersteuningsmodus",
+    "supportModeBody": "Jy kyk na {farm} se data. Alles wat jy oopmaak, word aangeteken.",
+    "supportModeExit": "Verlaat hierdie plaas",
+    "supportEntered": "Jy kyk nou na hierdie plaas. Die baniertjie bo kry jou uit.",
+    "supportExited": "Jy het die plaas verlaat. Die besoek is in die log hieronder.",
+    "supportEnter": "Kyk binne hierdie plaas"
   },
   "plan": {
     "essential": "Essensieel",
@@ -553,7 +559,9 @@
     "staleReadings": "Verouderde lesings",
     "noStaleReadings": "Alle lesings is op datum.",
     "reports": "Verslae",
-    "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene."
+    "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene.",
+    "deniedTitle": "Daardie deel is vir die plaaskantoor",
+    "deniedBody": "Jy het nie die sleutels vir daardie bladsy nie. Hier is wat jy kan doen."
   },
   "jobType": {
     "scheduled_service": "Geskeduleerde diens",
@@ -1160,7 +1168,11 @@
     "loginUrlShareWa": "Deel op WhatsApp",
     "loginUrlShareEmail": "Deel per e-pos",
     "copy": "Kopieer",
-    "copied": "Gekopieer"
+    "copied": "Gekopieer",
+    "loginUrlWarnTitle": "Hierdie skakel teken hulle aan",
+    "loginUrlWarn": "Enigiemand wat hierdie skakel kry, kan jou plaas se werk as {name} oopmaak. Stuur dit reguit vir hulle en vir niemand anders nie. Dit werk oor 10 minute nie meer nie.",
+    "loginUrlDone": "Klaar — versteek hierdie skakel",
+    "thisContractor": "hierdie kontrakteur"
   },
   "checklistField": {
     "checkbox": "Merkblokkie",

@@ -597,6 +597,49 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'ADMIN FAIL: Owner B sees % admin_farm_access rows (expected 0)', c; end if;
 end $$;
 
+-- ── S10 support mode: the paired 'exit' row ──────────────────────
+-- "Act into farm" used to write one row and change nothing else. Support mode now
+-- pins a farm-context cookie on enter and clears it on leave, and leaving writes a
+-- matching 'exit' row so the log shows DURATION rather than only that someone looked.
+-- The cookie is app-layer (a narrowing of what the UI queries — rr_admin already reads
+-- every farm through app.is_rr_admin()), so what must hold in SQL is: the exit action
+-- is admin-only, and it lands as its own audit row alongside the enter.
+
+-- (d) a non-admin cannot write an 'exit' row either.
+do $$
+begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A (not admin)
+  begin
+    perform public.log_admin_farm_access('11111111-1111-1111-1111-111111111111', 'exit');
+    raise exception 'ADMIN FAIL: non-admin was allowed to log a support exit';
+  exception
+    when others then
+      if sqlstate = 'P0001' and sqlerrm like 'ADMIN FAIL%' then raise; end if;
+      null;
+  end;
+end $$;
+
+-- (e) rr_admin's exit appends its own row, so enter+exit pair up for the same farm.
+do $$ declare entered bigint; exited bigint; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
+  perform public.log_admin_farm_access('11111111-1111-1111-1111-111111111111', 'exit');
+  select count(*) into entered from audit_log
+    where entity = 'admin_farm_access' and action = 'impersonate'
+      and farm_id = '11111111-1111-1111-1111-111111111111';
+  select count(*) into exited from audit_log
+    where entity = 'admin_farm_access' and action = 'exit'
+      and farm_id = '11111111-1111-1111-1111-111111111111';
+  if entered <> 1 then raise exception 'ADMIN FAIL: expected 1 impersonate row, got %', entered; end if;
+  if exited  <> 1 then raise exception 'ADMIN FAIL: expected 1 exit row, got %', exited; end if;
+end $$;
+
+-- (f) the exit row stays farm-scoped like every other audit row.
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
+  select count(*) into c from audit_log where entity = 'admin_farm_access' and action = 'exit';
+  if c <> 0 then raise exception 'ADMIN FAIL: Owner B sees % support-exit rows (expected 0)', c; end if;
+end $$;
+
 reset role;
 
 select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;

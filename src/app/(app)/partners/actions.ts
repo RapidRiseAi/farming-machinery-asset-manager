@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
+import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 
 // Who may maintain the partners directory: a farm's owner/manager for their own rows,
 // RR admin for the GLOBAL suggested catalogue. (RLS enforces the same on write.)
@@ -266,7 +267,9 @@ export async function inviteContractor(formData: FormData) {
   if (linkErr || !url) {
     redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(linkErr ?? "Login link unavailable")}`);
   }
-  redirect(`/partners?connected=1&pid=${partnerId}&loginUrl=${encodeURIComponent(url)}`);
+  // The login URL is a bearer credential — it never travels in a query string.
+  await setPartnerLink({ pid: partnerId, url });
+  redirect(`/partners?connected=1&pid=${partnerId}`);
 }
 
 /** Re-issue a fresh magic login URL for an already-connected contractor. */
@@ -293,5 +296,20 @@ export async function sendLoginUrl(formData: FormData) {
   if (error || !url) {
     redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(error ?? "Login link unavailable")}`);
   }
-  redirect(`/partners?connected=1&pid=${partnerId}&loginUrl=${encodeURIComponent(url)}`);
+  // The login URL is a bearer credential — it never travels in a query string.
+  await setPartnerLink({ pid: partnerId, url });
+  redirect(`/partners?connected=1&pid=${partnerId}`);
+}
+
+
+/**
+ * Drop the pending login link once the farmer has passed it on. The cookie expires on
+ * its own after ten minutes; this is the explicit "I'm done with it" path so the
+ * credential is not sitting there while the phone is handed around a workshop.
+ */
+export async function dismissLoginUrl() {
+  await requireRole(["owner", "manager"]);
+  await clearPartnerLink();
+  revalidatePath("/partners");
+  redirect("/partners");
 }

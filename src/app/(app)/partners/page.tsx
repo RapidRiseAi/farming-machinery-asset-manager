@@ -13,13 +13,15 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { buttonVariants } from "@/components/ui/button";
-import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, TrashIcon } from "@/components/ui/icons";
+import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, TrashIcon, WarningIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CopyField } from "./copy-field";
+import { readPartnerLink } from "@/lib/partner-link";
 import {
   createPartner,
   updatePartner,
   deletePartner,
+  dismissLoginUrl,
   adoptSuggested,
   inviteContractor,
   sendLoginUrl,
@@ -48,7 +50,6 @@ type SP = {
   error?: string;
   saved?: string;
   connected?: string;
-  loginUrl?: string;
   linkerror?: string;
   pid?: string;
 };
@@ -119,9 +120,14 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   // user is RR admin. (RLS also enforces this on write.)
   const canEditRow = (p: Partner) => (p.farm_id == null ? isAdmin : canManage);
 
-  // Freshly-issued login URL to hand to a contractor (from invite / send-login).
-  const loginUrl = sp.loginUrl ?? null;
-  const loginPartner = sp.pid ? all.find((p) => p.id === sp.pid) : undefined;
+  /*
+    Freshly-issued login URL to hand to a contractor. It arrives in a short-lived,
+    httpOnly, SameSite=Strict cookie rather than the query string it used to ride in —
+    see lib/partner-link.ts for why a magic `action_link` must never touch a URL.
+  */
+  const pendingLink = await readPartnerLink();
+  const loginUrl = pendingLink?.url ?? null;
+  const loginPartner = pendingLink?.pid ? all.find((p) => p.id === pendingLink.pid) : undefined;
   const loginMsg = t("contact.loginMsg", locale);
   const loginShareText = loginUrl ? `${loginMsg} ${loginUrl}` : "";
 
@@ -146,6 +152,15 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
               {loginPartner ? <span className="text-sand-500"> — {loginPartner.name}</span> : null}
             </CardTitle>
           </CardHeader>
+          <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-status-due/40 bg-amber-50 p-3">
+            <WarningIcon className="mt-0.5 shrink-0 text-[1.15rem] text-status-due" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-sand-900">{t("partners.loginUrlWarnTitle", locale)}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-sand-700">
+                {t("partners.loginUrlWarn", locale).replace("{name}", loginPartner?.name ?? t("partners.thisContractor", locale))}
+              </p>
+            </div>
+          </div>
           <p className="mb-3 text-sm text-sand-600">{t("partners.loginUrlHint", locale)}</p>
           <CopyField value={loginUrl} copyLabel={t("partners.copy", locale)} copiedLabel={t("partners.copied", locale)} />
           <div className="mt-3 flex flex-wrap gap-2">
@@ -167,6 +182,9 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                 <MailIcon className="text-[1.05rem]" /> {t("partners.loginUrlShareEmail", locale)}
               </a>
             ) : null}
+            <form action={dismissLoginUrl}>
+              <SubmitButton variant="ghost">{t("partners.loginUrlDone", locale)}</SubmitButton>
+            </form>
           </div>
         </Card>
       ) : null}

@@ -77,10 +77,37 @@ export async function requireProfile(): Promise<Profile> {
   return profile;
 }
 
-/** Require the profile to hold one of `roles`, else bounce to the dashboard. */
+/**
+ * Where a role belongs when it has nowhere more specific to be.
+ *
+ * `requireRole` used to send EVERY denied user to `/dashboard?error=forbidden`. For an
+ * operator that is the owner's money page — the one surface a farm can explicitly switch
+ * off for operators via `cost_visible_to_operators` — and `error=forbidden` was never
+ * rendered as anything a person could read, so the screen simply changed with no
+ * explanation. Each role now has a home, and this is the only place that decides it.
+ */
+export function homePathFor(role: Role): string {
+  switch (role) {
+    case "workshop":
+      return "/contractor";
+    case "operator":
+      return "/driver";
+    case "rr_admin":
+      return "/admin/farms";
+    default:
+      return "/dashboard";
+  }
+}
+
+/**
+ * Require the profile to hold one of `roles`, else send them to their OWN home with a
+ * flag the destination renders as a plain sentence.
+ */
 export async function requireRole(roles: Role[]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) redirect("/dashboard?error=forbidden");
+  if (!roles.includes(profile.role)) {
+    redirect(`${homePathFor(profile.role)}?denied=1`);
+  }
   return profile;
 }
 
@@ -110,10 +137,41 @@ export async function accessibleFarms(profile?: Profile): Promise<FarmOption[]> 
   return (data as FarmOption[] | null) ?? [];
 }
 
+// ── RR support mode (S10) ────────────────────────────────────────────────────
+// "Act into farm" used to write an audit row and nothing else: no farm context was set
+// and no session state changed, so staff believed they were inside a customer account
+// when they were not, and there was no banner or exit because there was no mode to exit.
+//
+// Support mode is a NARROWING, never a grant. rr_admin already reads every farm through
+// `app.is_rr_admin()` in RLS; pinning a farm only scopes what the UI queries, so the
+// cookie cannot widen access even if forged — the worst a tampered value can do is show
+// an admin an empty screen. The value is validated against a real farm row regardless.
+
+export const SUPPORT_FARM_COOKIE = "fw_support_farm";
+
+/** The farm an RR admin is currently supporting, or null. rr_admin only. */
+export async function supportFarmId(profile?: Profile): Promise<string | null> {
+  const p = profile ?? (await requireProfile());
+  if (p.role !== "rr_admin") return null;
+  const chosen = (await cookies()).get(SUPPORT_FARM_COOKIE)?.value;
+  return chosen && /^[0-9a-f-]{36}$/i.test(chosen) ? chosen : null;
+}
+
+/** The supported farm's name, for the banner. Null when not in support mode. */
+export async function supportFarm(profile?: Profile): Promise<FarmOption | null> {
+  const id = await supportFarmId(profile);
+  if (!id) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.from("farms").select("id, name").eq("id", id).maybeSingle();
+  return (data as FarmOption | null) ?? null;
+}
+
 /** The farm the user is currently acting in: the validated cookie choice, else their
- *  primary farm. Returns null for roles with no single farm (rr_admin/workshop). */
+ *  primary farm. Returns null for roles with no single farm (workshop), and the
+ *  supported farm for an rr_admin in support mode. */
 export async function currentFarmId(profile?: Profile): Promise<string | null> {
   const p = profile ?? (await requireProfile());
+  if (p.role === "rr_admin") return await supportFarmId(p);
   if (!p.farm_id) return null;
   const store = await cookies();
   const chosen = store.get(CURRENT_FARM_COOKIE)?.value;

@@ -499,7 +499,13 @@
     "farms": "Farms",
     "createFarm": "Create farm",
     "tier": "Tier",
-    "status": "Status"
+    "status": "Status",
+    "supportModeTitle": "Support mode",
+    "supportModeBody": "You are looking at {farm}'s data. Everything you open is logged.",
+    "supportModeExit": "Leave this farm",
+    "supportEntered": "You are now looking at this farm. The banner at the top gets you out.",
+    "supportExited": "You have left the farm. The visit is in the log below.",
+    "supportEnter": "Look inside this farm"
   },
   "plan": {
     "essential": "Essential",
@@ -553,7 +559,9 @@
     "staleReadings": "Stale readings",
     "noStaleReadings": "All readings are up to date.",
     "reports": "Reports",
-    "qrLabelsMarked": "Marked — the stickers are on the machines."
+    "qrLabelsMarked": "Marked — the stickers are on the machines.",
+    "deniedTitle": "That part is for the farm office",
+    "deniedBody": "You don't have the keys to that page. Here's what you can do."
   },
   "jobType": {
     "scheduled_service": "Scheduled service",
@@ -1160,7 +1168,11 @@
     "loginUrlShareWa": "Share on WhatsApp",
     "loginUrlShareEmail": "Share by email",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "loginUrlWarnTitle": "This link signs them in",
+    "loginUrlWarn": "Anyone who gets this link can open your farm's work as {name}. Send it straight to them and nobody else. It stops working in 10 minutes.",
+    "loginUrlDone": "Done — hide this link",
+    "thisContractor": "this contractor"
   },
   "checklistField": {
     "checkbox": "Checkbox",

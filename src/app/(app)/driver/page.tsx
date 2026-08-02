@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireProfile, currentFarmId, checkEntitlement } from "@/lib/auth";
+import { requireProfile, currentFarmId, checkEntitlement, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { relativeDate } from "@/lib/format";
@@ -32,15 +32,20 @@ type MachineRow = {
  * machines RLS already scopes to them (F7: an operator sees only machines assigned to
  * them), and the same fault / reading / fuel routes the QR pages post to.
  *
- * NOTE: `requireRole` still sends every denied user to `/dashboard?error=forbidden`, so
- * a driver who taps the wrong tab still lands on the owner's money page. Changing that
- * fallback and the post-login redirect is the second flagged behavioural change and is
- * deliberately not made here.
+ * A denied operator now lands HERE rather than on the owner's money page: `requireRole`
+ * resolves each role's own home (`homePathFor`) and flags the bounce with `?denied=1`,
+ * which this screen renders as a sentence instead of leaving the screen to change
+ * silently.
  */
-export default async function DriverHomePage() {
+export default async function DriverHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ denied?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await requireProfile();
-  // Farm crew with a real dashboard belong there; this screen is for the operator.
-  if (profile.role !== "operator") redirect("/dashboard");
+  // Everyone else belongs on their own home — never assume that is the dashboard.
+  if (profile.role !== "operator") redirect(homePathFor(profile.role));
 
   const locale = profile.language;
   const supabase = await createClient();
@@ -115,6 +120,15 @@ export default async function DriverHomePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      {/* `?error=forbidden` was never rendered as anything a person could read — the
+          screen just changed. */}
+      {sp.denied ? (
+        <p className="rounded-xl border border-sand-200 bg-sand-100 p-3.5 text-sm text-sand-700" role="status">
+          <span className="font-semibold text-sand-900">{t("ui.deniedTitle", locale)}</span>{" "}
+          {t("ui.deniedBody", locale)}
+        </p>
+      ) : null}
+
       <header>
         <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
         <p className="mt-1 text-sand-500">
