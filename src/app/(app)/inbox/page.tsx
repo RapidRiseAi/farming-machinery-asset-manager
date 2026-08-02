@@ -108,20 +108,25 @@ export default async function InboxPage({
     const mail = mailtoHref(ws.email);
     if (!tel && !wa && !mail) return null;
     return (
+      // Icon AND word, never icon-only — three unlabelled glyphs used to sit millimetres
+      // from the button that spends money.
       <div className="flex flex-wrap gap-1.5">
-        {tel ? (
-          <a href={tel} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.call", locale)}>
-            <PhoneIcon className="text-[1.05rem]" />
-          </a>
-        ) : null}
         {wa ? (
-          <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.whatsapp", locale)}>
+          <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "secondary" })}>
             <ChatIcon className="text-[1.05rem]" />
+            {t("contact.whatsapp", locale)}
           </a>
         ) : null}
-        {mail ? (
-          <a href={mail} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={t("contact.email", locale)}>
+        {tel ? (
+          <a href={tel} className={buttonVariants({ variant: "ghost" })}>
+            <PhoneIcon className="text-[1.05rem]" />
+            {t("contact.call", locale)}
+          </a>
+        ) : null}
+        {mail && !wa && !tel ? (
+          <a href={mail} className={buttonVariants({ variant: "ghost" })}>
             <MailIcon className="text-[1.05rem]" />
+            {t("contact.email", locale)}
           </a>
         ) : null}
       </div>
