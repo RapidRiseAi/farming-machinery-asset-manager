@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/service";
-import { t, defaultLocale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
+import { deviceLocale } from "@/lib/locale";
+import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher";
 import { FaultCapture } from "@/components/fault-capture";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { FUEL_ACTIVITIES, activityLabel } from "@/lib/fuel";
@@ -37,13 +39,17 @@ export default async function PublicMachinePage({
   const { token } = await params;
   const sp = await searchParams;
   const machine = await getMachine(token);
-  const locale = defaultLocale;
+  // Nobody is signed in here, so there is no `users.language` to read — the device
+  // decides (cookie → Accept-Language → English). Reads a cookie and a header only:
+  // the zero-anon-DB property of this route is untouched. Audit bug 2.
+  const locale = await deviceLocale();
 
   if (!machine) {
     return (
-      <main className="mx-auto max-w-sm p-6">
-        <h1 className="text-lg font-bold text-sand-900">Machine not found</h1>
-        <p className="mt-1 text-sand-500">This code isn’t recognised.</p>
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-4 p-6">
+        <h1 className="text-lg font-bold text-sand-900">{t("qr.notFoundTitle", locale)}</h1>
+        <p className="mt-1 text-sand-500">{t("qr.notFoundBody", locale)}</p>
+        <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />
       </main>
     );
   }
@@ -56,9 +62,12 @@ export default async function PublicMachinePage({
   const input = "w-full rounded-lg border border-sand-300 px-3 py-2.5 text-base";
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-4 bg-sand-50 p-5">
-      <header className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">🚜</span>
-        <span className="text-sm font-semibold text-sand-500">{t("app.name", locale)}</span>
+      <header className="flex items-center justify-between gap-2.5">
+        <span className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">🚜</span>
+          <span className="text-sm font-semibold text-sand-500">{t("app.name", locale)}</span>
+        </span>
+        <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />
       </header>
       <h1 className="text-2xl font-bold text-sand-900">{machine.name}</h1>
       <p className="-mt-2 text-sm text-sand-500">{t("qr.quickActions", locale)}</p>

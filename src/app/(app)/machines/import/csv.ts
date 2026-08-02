@@ -88,6 +88,8 @@ export type RowResult = {
 
 export type ParseResult = {
   headerError: string | null;
+  /** The header cells we actually read, so a failure can name them back to the user. */
+  headerFound: string[];
   rows: RowResult[];
   validCount: number;
   invalidCount: number;
@@ -100,11 +102,19 @@ const norm = (h: string) => h.trim().toLowerCase().replace(/\s+/g, "_");
 export function validateCsv(text: string): ParseResult {
   const grid = parseCsv(text);
   if (grid.length === 0) {
-    return { headerError: "empty", rows: [], validCount: 0, invalidCount: 0 };
+    return { headerError: "empty", headerFound: [], rows: [], validCount: 0, invalidCount: 0 };
   }
   const header = grid[0].map(norm);
+  // Report the header back in the user's own spelling — the normalised form is ours.
+  const headerFound = grid[0].map((h) => h.trim()).filter((h) => h !== "");
   if (!header.includes("name")) {
-    return { headerError: "missing_name_column", rows: [], validCount: 0, invalidCount: 0 };
+    return {
+      headerError: "missing_name_column",
+      headerFound,
+      rows: [],
+      validCount: 0,
+      invalidCount: 0,
+    };
   }
   const idx = (col: string) => header.indexOf(col);
 
@@ -184,6 +194,7 @@ export function validateCsv(text: string): ParseResult {
 
   return {
     headerError: null,
+    headerFound,
     rows,
     validCount: rows.filter((r) => r.valid).length,
     invalidCount: rows.filter((r) => !r.valid).length,

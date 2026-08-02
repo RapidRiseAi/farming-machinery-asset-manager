@@ -5,27 +5,42 @@ import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Flash } from "@/components/ui/flash";
 import { CheckIcon } from "@/components/ui/icons";
+import { acknowledgeQrLabels } from "./actions";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; saved?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await requireProfile();
   if (profile.role !== "owner" && profile.role !== "manager") redirect("/dashboard");
   const locale = profile.language;
   const supabase = await createClient();
 
-  const [machinesRes, planRes, usersRes] = await Promise.all([
+  const [machinesRes, planRes, usersRes, farmRes] = await Promise.all([
     supabase.from("machines").select("id", { count: "exact", head: true }).is("deleted_at", null),
     supabase.from("service_plan_lines").select("id", { count: "exact", head: true }).is("deleted_at", null),
     supabase.from("users").select("id", { count: "exact", head: true }).eq("active", true),
+    profile.farm_id
+      ? supabase.from("farms").select("settings").eq("id", profile.farm_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const machines = machinesRes.count ?? 0;
   const plans = planRes.count ?? 0;
   const users = usersRes.count ?? 0;
+  // Step 3 has its own condition — it used to reuse `machines > 0`, so adding one
+  // machine ticked "put QR stickers on them" too (audit bug 1).
+  const settings = (farmRes.data as { settings?: Record<string, unknown> } | null)?.settings ?? {};
+  const qrLabelsDone = !!settings.qr_labels_printed_at;
 
   const steps = [
     { key: "step1", done: machines > 0, cta: "/machines/new", ctaKey: "onboarding.step1Cta", alt: "/machines/import", altKey: "onboarding.step1Alt" },
     { key: "step2", done: plans > 0, cta: "/machines", ctaKey: "onboarding.step2Cta" },
-    { key: "step3", done: machines > 0, cta: "/machines", ctaKey: "onboarding.step3Cta" },
+    { key: "step3", done: qrLabelsDone, cta: "/machines", ctaKey: "onboarding.step3Cta", ack: true },
     { key: "step4", done: users > 1, cta: "/team", ctaKey: "onboarding.step4Cta" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -37,6 +52,12 @@ export default async function OnboardingPage() {
         <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("onboarding.title", locale)}</h1>
         <p className="mt-1 text-sand-500">{t("onboarding.subtitle", locale)}</p>
       </div>
+
+      <Flash tone="error" message={sp.error} />
+      <Flash
+        tone="success"
+        message={sp.saved === "qr_labels" ? t("ui.qrLabelsMarked", locale) : undefined}
+      />
 
       <div>
         <div className="mb-1.5 flex justify-between text-sm">
@@ -66,12 +87,23 @@ export default async function OnboardingPage() {
                     </span>
                   </div>
                   <p className="mt-0.5 text-sm text-sand-500">{t(`onboarding.${s.key}Desc`, locale)}</p>
+                  {s.ack && !s.done ? (
+                    <p className="mt-2 text-sm text-sand-500">{t("onboarding.step3Hint", locale)}</p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Link href={s.cta} className={buttonVariants({ variant: s.done ? "secondary" : "primary", size: "sm" })}>
                       {t(s.ctaKey, locale)}
                     </Link>
                     {s.alt ? (
                       <Link href={s.alt} className={buttonVariants({ variant: "ghost", size: "sm" })}>{t(s.altKey!, locale)}</Link>
+                    ) : null}
+                    {s.ack ? (
+                      <form action={acknowledgeQrLabels}>
+                        {s.done ? <input type="hidden" name="undo" value="1" /> : null}
+                        <SubmitButton variant="ghost" size="sm">
+                          {s.done ? t("onboarding.step3Undo", locale) : t("onboarding.step3Ack", locale)}
+                        </SubmitButton>
+                      </form>
                     ) : null}
                   </div>
                 </div>

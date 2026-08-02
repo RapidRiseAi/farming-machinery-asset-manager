@@ -564,4 +564,39 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     (typecheck + lint + build + `db:test`); shared first-load JS flat at **102 kB**.
     Migrations **0360–0361** only.
 
+- **UI/UX redesign — Phase 0: the six code defects** (branch `claude/fleetwise-ui-redesign-l4ng55`;
+  no migration, no backend behaviour change; gates green):
+  - Design handoff committed at `design_handoff_fleetwise_ui_upgrade/` (22-screen redesign +
+    176-finding audit + build order + tokens). Phases 1–3 (shared components, then the five
+    daily-loop screens, then the rest) are **not** started.
+  - **Bug 1** onboarding step 3 ("put QR stickers on") shared step 1's `machines > 0` and ticked
+    itself. It now has its own condition — an explicit acknowledgement stored as
+    `farms.settings.qr_labels_printed_at` through the **existing** owner/manager-guarded
+    `update_farm_settings` RPC (0204, jsonb `||` merge), so no schema/RLS change; undoable.
+  - **Bug 2** every pre-auth `t()` ran with no locale (login, public QR), so a bilingual product
+    opened in English for every Afrikaans farm. New `src/lib/locale.ts` `deviceLocale()`
+    (cookie `fw_lang` → `Accept-Language` → `en`), `setDeviceLanguage` action + visible
+    `DeviceLanguageSwitcher` on login and `/m/[token]`, `<html lang>` now follows it, and the
+    signed-in `setLanguage` mirrors the profile choice into the same cookie. The QR route reads
+    a cookie and a header only — **zero-anon-DB unchanged**.
+  - **Bug 3** `impersonateFarm` writes an audit row and nothing else — no farm context, no
+    session change. Copy now matches behaviour ("Record support access"; the flash says you are
+    still Rapid Rise). **Real support mode (farm-context cookie + `exit` log) awaits sign-off.**
+  - **Bug 4** `acceptQuote`/`approveInvoice` committed real money from a `size="sm"` submit. Now
+    behind the new **`ConfirmDialog`**, naming the amount and comparing quote to bill. Both
+    server actions, their `id` field and their redirects are untouched.
+  - **Bug 5** POPIA `erasePerson` was a ghost link behind `window.confirm()` → a dialog stating
+    what is lost, pointing at the reversible option, **type-the-name to unlock**. There is no
+    machine-delete action in this codebase (audit inaccuracy); the five real one-click deletes on
+    machine detail (service line, kit, kit item, licence, budget) got the same treatment, the
+    icon-only `✕` included. Seven other no-confirm deletes (fines/parts/partners/templates/
+    checklists/job-card lines) are deferred to Phase 1.
+  - **Bug 6** the CSV header failure rendered `name_required — previewTitle` ("Name is required —
+    Preview"). `validateCsv` now returns `headerFound`, and empty-file vs missing-name-column get
+    their own messages naming the columns actually present.
+  - New shared UI: `ConfirmDialog` (bottom sheet on phones, centred modal from `sm`; optional
+    type-to-confirm; 48px targets; icon **and** word) on a new `align="responsive"` in
+    `dialog.tsx`, plus `TrashIcon`. i18n EN/AF at parity (**1203 leaf keys**). Shared first-load
+    JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

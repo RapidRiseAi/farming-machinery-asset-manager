@@ -61,7 +61,9 @@ import {
   PlusIcon,
   ChecklistIcon,
   WorkIcon,
+  TrashIcon,
 } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createWorkRequest } from "@/app/(app)/work/actions";
 import {
   WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
@@ -657,11 +659,30 @@ export default async function MachineDetailPage({
                           <input name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} className={`${inputCls}`} />
                           <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                         </form>
-                        <form action={deleteServiceLine} className="mt-1">
-                          <input type="hidden" name="id" value={l.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <button className="text-xs text-status-overdue">{t("machine.delete", locale)}</button>
-                        </form>
+                        <div className="mt-1">
+                          <ConfirmDialog
+                            action={deleteServiceLine}
+                            triggerVariant="ghost"
+                            triggerSize="sm"
+                            triggerIcon={<TrashIcon />}
+                            triggerLabel={t("machine.delete", locale)}
+                            triggerClassName="text-status-overdue hover:bg-red-50"
+                            title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
+                            intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
+                            consequencesTitle={t("confirm.whatHappens", locale)}
+                            consequences={[
+                              t("confirm.deleteServiceLineEffect1", locale),
+                              t("confirm.deleteServiceLineEffect2", locale),
+                            ]}
+                            footnote={t("confirm.softDeleteNote", locale)}
+                            confirmLabel={t("confirm.deleteServiceLineYes", locale)}
+                            cancelLabel={t("confirm.keepIt", locale)}
+                            closeLabel={t("ui.close", locale)}
+                          >
+                            <input type="hidden" name="id" value={l.id} />
+                            <input type="hidden" name="machine_id" value={machine.id} />
+                          </ConfirmDialog>
+                        </div>
                       </details>
                     ) : null}
                   </li>
@@ -719,11 +740,28 @@ export default async function MachineDetailPage({
                         {kit.notes ? <p className="text-xs text-sand-500">{kit.notes}</p> : null}
                       </div>
                       {canKit ? (
-                        <form action={deleteServiceKit}>
+                        <ConfirmDialog
+                          action={deleteServiceKit}
+                          triggerVariant="ghost"
+                          triggerSize="sm"
+                          triggerIcon={<TrashIcon />}
+                          triggerLabel={t("machine.deleteKit", locale)}
+                          triggerClassName="text-status-overdue hover:bg-red-50"
+                          title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
+                          intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
+                          consequencesTitle={t("confirm.whatHappens", locale)}
+                          consequences={[
+                            t("confirm.deleteKitEffect1", locale).replace("{n}", String(kit.items.length)),
+                            t("confirm.deleteKitEffect2", locale),
+                          ]}
+                          footnote={t("confirm.softDeleteNote", locale)}
+                          confirmLabel={t("confirm.deleteKitYes", locale)}
+                          cancelLabel={t("confirm.keepIt", locale)}
+                          closeLabel={t("ui.close", locale)}
+                        >
                           <input type="hidden" name="id" value={kit.id} />
                           <input type="hidden" name="machine_id" value={machine.id} />
-                          <button className="text-xs text-status-overdue">{t("machine.deleteKit", locale)}</button>
-                        </form>
+                        </ConfirmDialog>
                       ) : null}
                     </div>
                     {kit.items.length === 0 ? (
@@ -741,11 +779,25 @@ export default async function MachineDetailPage({
                               <span className="flex shrink-0 items-center gap-2">
                                 <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
                                 {canKit ? (
-                                  <form action={deleteKitItem}>
+                                  <ConfirmDialog
+                                    action={deleteKitItem}
+                                    triggerVariant="ghost"
+                                    triggerSize="sm"
+                                    triggerIcon={<TrashIcon />}
+                                    triggerLabel={t("machine.removeItem", locale)}
+                                    triggerClassName="text-status-overdue hover:bg-red-50"
+                                    title={t("confirm.deleteKitItemTitle", locale).replace(
+                                      "{part}",
+                                      item.part_no ?? item.description ?? "—",
+                                    )}
+                                    intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
+                                    confirmLabel={t("confirm.deleteKitItemYes", locale)}
+                                    cancelLabel={t("confirm.keepIt", locale)}
+                                    closeLabel={t("ui.close", locale)}
+                                  >
                                     <input type="hidden" name="id" value={item.id} />
                                     <input type="hidden" name="machine_id" value={machine.id} />
-                                    <button className="focus-ring rounded px-1 text-status-overdue" aria-label={t("machine.removeItem", locale)}>✕</button>
-                                  </form>
+                                  </ConfirmDialog>
                                 ) : null}
                               </span>
                             </div>
@@ -871,11 +923,33 @@ export default async function MachineDetailPage({
                               <input name="notes" defaultValue={l.notes ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
                               <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                             </form>
-                            <form action={deleteLicence} className="mt-1">
-                              <input type="hidden" name="id" value={l.id} />
-                              <input type="hidden" name="machine_id" value={machine.id} />
-                              <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                            </form>
+                            <div className="mt-1">
+                              <ConfirmDialog
+                                action={deleteLicence}
+                                triggerVariant="ghost"
+                                triggerSize="sm"
+                                triggerIcon={<TrashIcon />}
+                                triggerLabel={t("common.delete", locale)}
+                                triggerClassName="text-status-overdue hover:bg-red-50"
+                                title={t("confirm.deleteLicenceTitle", locale).replace(
+                                  "{type}",
+                                  licenceTypeLabel(l.type, locale),
+                                )}
+                                intro={t("confirm.deleteLicenceIntro", locale).replace("{machine}", machine.name)}
+                                consequencesTitle={t("confirm.whatHappens", locale)}
+                                consequences={[
+                                  t("confirm.deleteLicenceEffect1", locale),
+                                  t("confirm.deleteLicenceEffect2", locale),
+                                ]}
+                                footnote={t("confirm.softDeleteNote", locale)}
+                                confirmLabel={t("confirm.deleteLicenceYes", locale)}
+                                cancelLabel={t("confirm.keepIt", locale)}
+                                closeLabel={t("ui.close", locale)}
+                              >
+                                <input type="hidden" name="id" value={l.id} />
+                                <input type="hidden" name="machine_id" value={machine.id} />
+                              </ConfirmDialog>
+                            </div>
                           </details>
                         ) : null}
                       </li>
@@ -955,11 +1029,36 @@ export default async function MachineDetailPage({
                           <input name="note" defaultValue={bp.budget.note ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
                           <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                         </form>
-                        <form action={deleteBudget} className="mt-1">
-                          <input type="hidden" name="id" value={bp.budget.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                        </form>
+                        <div className="mt-1">
+                          <ConfirmDialog
+                            action={deleteBudget}
+                            triggerVariant="ghost"
+                            triggerSize="sm"
+                            triggerIcon={<TrashIcon />}
+                            triggerLabel={t("common.delete", locale)}
+                            triggerClassName="text-status-overdue hover:bg-red-50"
+                            title={t("confirm.deleteBudgetTitle", locale)}
+                            intro={t("confirm.deleteBudgetIntro", locale).replace("{machine}", machine.name)}
+                            facts={[
+                              {
+                                label: t("budget.amount", locale),
+                                value: rands(bp.budget.amount_cents),
+                              },
+                            ]}
+                            consequencesTitle={t("confirm.whatHappens", locale)}
+                            consequences={[
+                              t("confirm.deleteBudgetEffect1", locale),
+                              t("confirm.deleteBudgetEffect2", locale),
+                            ]}
+                            footnote={t("confirm.softDeleteNote", locale)}
+                            confirmLabel={t("confirm.deleteBudgetYes", locale)}
+                            cancelLabel={t("confirm.keepIt", locale)}
+                            closeLabel={t("ui.close", locale)}
+                          >
+                            <input type="hidden" name="id" value={bp.budget.id} />
+                            <input type="hidden" name="machine_id" value={machine.id} />
+                          </ConfirmDialog>
+                        </div>
                       </details>
                     ) : null}
                   </li>

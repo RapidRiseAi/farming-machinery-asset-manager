@@ -57,7 +57,8 @@
     "welcome": "Welcome back",
     "welcomeSub": "Sign in to manage your farm's machines.",
     "or": "or",
-    "getStarted": "Sign in to get started"
+    "getStarted": "Sign in to get started",
+    "language": "Language"
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -75,11 +76,15 @@
     "step2Desc": "Apply a service template to each machine so FleetWise knows when a service is due.",
     "step2Cta": "Open machines",
     "step3Title": "Print & stick QR codes",
-    "step3Desc": "Print a QR sticker for each machine so workers can report faults and log readings in seconds.",
+    "step3Desc": "Print a QR sticker for each machine and stick it on. This is the bit that makes the whole thing work — anyone who can hold a phone can then report a problem or write down the hours, with no login.",
     "step3Cta": "Open machines",
     "step4Title": "Invite your team",
     "step4Desc": "Add your manager and mechanic so job cards and faults are captured as work happens.",
-    "step4Cta": "Invite team"
+    "step4Cta": "Invite team",
+    "step3Hint": "Print them on plain paper and tape them somewhere dry — inside the cab door works well.",
+    "step3Ack": "I've done this already",
+    "step3Undo": "Not done yet",
+    "step3Done": "Stickers are on the machines"
   },
   "machines": {
     "title": "Machines",
@@ -140,7 +145,14 @@
       "status_invalid": "Unknown status",
       "year_invalid": "Invalid year",
       "reading_invalid": "Invalid reading",
-      "duplicate_name": "Duplicate name in file"
+      "duplicate_name": "Duplicate name in file",
+      "headerEmptyTitle": "That file is empty",
+      "headerEmptyBody": "We couldn't find any rows in it — not even a heading row.",
+      "headerEmptyFix": "Check you saved it as a CSV, then load it again. Our blank sheet above already has the right headings.",
+      "headerNoNameTitle": "We can't find the machine names",
+      "headerNoNameBody": "Your first row must have a column headed \"name\" — that's the one that tells us what each machine is called. Nothing has been loaded.",
+      "headerFound": "The columns in your file are: {cols}",
+      "headerNoNameFix": "Rename the column holding the machine names to \"name\", or download our blank sheet above and paste your list into it."
     },
     "identityCard": "Details",
     "purchaseDate": "Purchase date",
@@ -221,7 +233,9 @@
     "reissueDesc": "Generate a new code if this sticker is lost, damaged, or may have been copied. The old printed QR stops working immediately — you'll need to reprint and replace it.",
     "reissueBtn": "Re-issue QR code",
     "reissueConfirm": "Re-issue this QR code? The old printed QR will stop working immediately and must be reprinted. This can't be undone.",
-    "reissued": "New QR code issued. The old sticker no longer works — print this sheet and replace it."
+    "reissued": "New QR code issued. The old sticker no longer works — print this sheet and replace it.",
+    "notFoundTitle": "We don't know this sticker",
+    "notFoundBody": "This code isn't one of ours, or the machine has been taken off the farm. Ask the farm office for a new sticker."
   },
   "fuel": {
     "title": "Fuel & diesel",
@@ -462,7 +476,8 @@
     "inWorkshop": "In workshop",
     "staleReadings": "Stale readings",
     "noStaleReadings": "All readings are up to date.",
-    "reports": "Reports"
+    "reports": "Reports",
+    "qrLabelsMarked": "Marked — the stickers are on the machines."
   },
   "jobType": {
     "scheduled_service": "Scheduled service",
@@ -579,7 +594,18 @@
     "erase": "Erase personal data",
     "eraseConfirm": "Erase this person's personal data? Their name, email and phone are cleared and the account is deactivated. Maintenance, cost and AARTO driver-usage history is kept but de-identified. This cannot be undone.",
     "erased": "Personal data erased and the account deactivated.",
-    "retentionNote": "Driver-usage (AARTO) records are retained under a legal obligation even after erasure — see docs/POPIA.md."
+    "retentionNote": "Driver-usage (AARTO) records are retained under a legal obligation even after erasure — see docs/POPIA.md.",
+    "eraseTitle": "Erase everything about {name}?",
+    "eraseIntro": "This is the one thing on the farm you cannot undo. Only do it if {name} has asked you to, in writing.",
+    "eraseWhatHappens": "What happens the moment you press it",
+    "eraseEffect1": "Their name, email and phone number are wiped from every job card, reading and fault",
+    "eraseEffect2": "They can never sign in again",
+    "eraseEffect3": "The work itself stays — it just has no name on it",
+    "eraseTypeLabel": "Type {name} to be sure",
+    "eraseTypePlaceholder": "Type the name here",
+    "eraseConfirmCta": "Erase {name} for good",
+    "eraseCancel": "Never mind",
+    "eraseReversibleHint": "Just want them out of the system? Turn their login off instead — that one you can undo."
   },
   "reports": {
     "title": "Reports",
@@ -1175,7 +1201,22 @@
     "noActiveWorkHint": "Open a vehicle and use \"Get something done\" to send a job to a contractor.",
     "recentActivity": "Recent activity",
     "quoteAccepted": "Quote accepted",
-    "invoiceApproved": "Invoice approved"
+    "invoiceApproved": "Invoice approved",
+    "theContractor": "the contractor",
+    "confirmMachine": "Machine",
+    "confirmQuoted": "They quoted",
+    "confirmBilled": "They're billing",
+    "confirmSameAsQuote": "Same as the price you agreed — no surprises.",
+    "confirmDiffersFromQuote": "That is {diff} away from the price you agreed.",
+    "confirmQuoteTitle": "Say yes to {amount}?",
+    "confirmQuoteIntro": "This tells {contractor} to go ahead with the work. Nothing is paid yet.",
+    "confirmQuoteYes": "Yes, go ahead",
+    "confirmInvoiceTitle": "Approve {amount}?",
+    "confirmInvoiceIntro": "This tells {contractor} the work is accepted and the bill is good to pay.",
+    "confirmInvoiceYes": "Yes, approve it",
+    "confirmNotYet": "Not yet",
+    "confirmQuoteTitleNoAmount": "Say yes to this price?",
+    "confirmInvoiceTitleNoAmount": "Approve this bill?"
   },
   "fineStatus": {
     "received": "Received",
@@ -1262,5 +1303,33 @@
     "utilisation": "Utilisation",
     "idle": "Idle",
     "downtime": "Downtime"
+  },
+  "confirm": {
+    "whatHappens": "What happens when you press it",
+    "keepIt": "Never mind",
+    "softDeleteNote": "Nothing is really erased — it stops showing on this machine and stays in the farm's history.",
+    "deleteServiceLineTitle": "Stop tracking “{task}”?",
+    "deleteServiceLineIntro": "This is one of the service jobs FleetWise watches for on {machine}.",
+    "deleteServiceLineEffect1": "FleetWise stops working out when this job is next due",
+    "deleteServiceLineEffect2": "Nobody gets reminded about it again — not by alert, not on the board",
+    "deleteServiceLineYes": "Yes, stop tracking it",
+    "deleteKitTitle": "Remove the service kit “{kit}”?",
+    "deleteKitIntro": "This is the parts list you apply to a job card on {machine}.",
+    "deleteKitEffect1": "The {n} parts in the kit go with it",
+    "deleteKitEffect2": "Job cards you already made from it keep their lines and their costs",
+    "deleteKitYes": "Yes, remove the kit",
+    "deleteKitItemTitle": "Take “{part}” out of the kit?",
+    "deleteKitItemIntro": "It stays on any job card you've already made from “{kit}”.",
+    "deleteKitItemYes": "Yes, take it out",
+    "deleteLicenceTitle": "Remove this {type}?",
+    "deleteLicenceIntro": "This is one of the papers FleetWise watches the expiry date on for {machine}.",
+    "deleteLicenceEffect1": "You stop being warned before it runs out",
+    "deleteLicenceEffect2": "It disappears from the compliance card and the expiry list",
+    "deleteLicenceYes": "Yes, remove it",
+    "deleteBudgetTitle": "Remove this budget?",
+    "deleteBudgetIntro": "This is the spending target you set for {machine}.",
+    "deleteBudgetEffect1": "The budget-vs-spend comparison for this period goes away",
+    "deleteBudgetEffect2": "What you actually spent is untouched — that comes from the job cards",
+    "deleteBudgetYes": "Yes, remove the budget"
   }
 }

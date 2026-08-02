@@ -15,8 +15,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon,
+  InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon, CheckIcon,
 } from "@/components/ui/icons";
 
 type WorkRequest = {
@@ -192,12 +193,62 @@ export default async function InboxPage({
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {amount != null ? <span className="text-sm font-bold tabular-nums text-sand-900">{rands(amount)}</span> : null}
                     {contactButtons(ws)}
-                    <form action={isQuote ? acceptQuote : approveInvoice}>
+                    {/*
+                      Audit bug 5: both of these commit the farm to real money and used
+                      to fire straight from a `size="sm"` submit, millimetres from a link
+                      and three contact buttons. The server action, its `id` field and its
+                      redirect are unchanged — there is now a step in front of it that
+                      names the amount and, for a bill, compares it to the quote.
+                    */}
+                    <ConfirmDialog
+                      action={isQuote ? acceptQuote : approveInvoice}
+                      tone="brand"
+                      triggerVariant="primary"
+                      triggerSize="md"
+                      triggerLabel={isQuote ? t("inbox.acceptQuote", locale) : t("inbox.approveInvoice", locale)}
+                      triggerIcon={<CheckIcon />}
+                      title={
+                        // A quoted/invoiced request normally carries its amount, but the
+                        // column is nullable — never render "Approve R0.00?".
+                        amount == null
+                          ? isQuote
+                            ? t("inbox.confirmQuoteTitleNoAmount", locale)
+                            : t("inbox.confirmInvoiceTitleNoAmount", locale)
+                          : (isQuote
+                              ? t("inbox.confirmQuoteTitle", locale)
+                              : t("inbox.confirmInvoiceTitle", locale)
+                            ).replace("{amount}", rands(amount))
+                      }
+                      intro={(isQuote ? t("inbox.confirmQuoteIntro", locale) : t("inbox.confirmInvoiceIntro", locale)).replace("{contractor}", ws?.name ?? t("inbox.theContractor", locale))}
+                      facts={[
+                        { label: t("inbox.confirmMachine", locale), value: nameById.get(r.machine_id) ?? "—" },
+                        ...(r.quote_amount_cents != null
+                          ? [{ label: t("inbox.confirmQuoted", locale), value: rands(r.quote_amount_cents) }]
+                          : []),
+                        ...(!isQuote && r.invoice_amount_cents != null
+                          ? [
+                              {
+                                label: t("inbox.confirmBilled", locale),
+                                value: rands(r.invoice_amount_cents),
+                                hint:
+                                  r.quote_amount_cents == null
+                                    ? undefined
+                                    : r.invoice_amount_cents === r.quote_amount_cents
+                                      ? t("inbox.confirmSameAsQuote", locale)
+                                      : t("inbox.confirmDiffersFromQuote", locale).replace(
+                                          "{diff}",
+                                          rands(Math.abs(r.invoice_amount_cents - r.quote_amount_cents)),
+                                        ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                      confirmLabel={isQuote ? t("inbox.confirmQuoteYes", locale) : t("inbox.confirmInvoiceYes", locale)}
+                      cancelLabel={t("inbox.confirmNotYet", locale)}
+                      closeLabel={t("ui.close", locale)}
+                    >
                       <input type="hidden" name="id" value={r.id} />
-                      <SubmitButton variant="primary" size="sm">
-                        {isQuote ? t("inbox.acceptQuote", locale) : t("inbox.approveInvoice", locale)}
-                      </SubmitButton>
-                    </form>
+                    </ConfirmDialog>
                   </div>
                 </li>
               );

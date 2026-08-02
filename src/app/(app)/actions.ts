@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_FARM_COOKIE, accessibleFarms } from "@/lib/auth";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/lib/locale";
 
 export async function signOut() {
   const supabase = await createClient();
@@ -34,6 +35,14 @@ export async function setLanguage(formData: FormData) {
     if (user) {
       await supabase.from("users").update({ language: lang }).eq("id", user.id);
     }
+    // Mirror the choice onto the device so it survives sign-out and greets them in
+    // their own language at the login screen next time (audit bug 2). The profile
+    // remains the source of truth for every signed-in surface.
+    (await cookies()).set(LOCALE_COOKIE, lang, {
+      path: "/",
+      maxAge: LOCALE_COOKIE_MAX_AGE,
+      sameSite: "lax",
+    });
   }
   revalidatePath("/", "layout");
   redirect(next && next.startsWith("/") ? next : "/dashboard");

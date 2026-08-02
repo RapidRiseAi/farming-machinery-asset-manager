@@ -53,9 +53,34 @@ export function ImportClient({ locale }: { locale: Locale }) {
       </Card>
 
       {result && result.headerError ? (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-          {t("machines.err.name_required", locale)} — {t("machines.previewTitle", locale)}
-        </p>
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-800"
+          role="alert"
+        >
+          <p className="text-base font-semibold text-red-900">
+            {result.headerError === "empty"
+              ? t("machines.err.headerEmptyTitle", locale)
+              : t("machines.err.headerNoNameTitle", locale)}
+          </p>
+          <p className="mt-1 leading-relaxed">
+            {result.headerError === "empty"
+              ? t("machines.err.headerEmptyBody", locale)
+              : t("machines.err.headerNoNameBody", locale)}
+          </p>
+          {result.headerError === "missing_name_column" && result.headerFound.length > 0 ? (
+            <p className="mt-2 leading-relaxed">
+              {t("machines.err.headerFound", locale).replace(
+                "{cols}",
+                result.headerFound.join(", "),
+              )}
+            </p>
+          ) : null}
+          <p className="mt-2 leading-relaxed">
+            {result.headerError === "empty"
+              ? t("machines.err.headerEmptyFix", locale)
+              : t("machines.err.headerNoNameFix", locale)}
+          </p>
+        </div>
       ) : null}
 
       {result && !result.headerError ? (

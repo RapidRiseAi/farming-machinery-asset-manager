@@ -12,9 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { ConfirmForm } from "@/components/confirm-form";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TrashIcon } from "@/components/ui/icons";
 
 type TeamUser = { id: string; name: string; role: string; email: string | null; active: boolean };
+
+/**
+ * Something non-empty to name a person by. An already-erased profile has a blank name,
+ * and the erase dialog's type-to-confirm must never resolve to the empty string — that
+ * would leave the irreversible action unlocked from the moment it opens.
+ */
+function personLabel(u: TeamUser): string {
+  return u.name.trim() || u.email?.trim() || u.id.slice(0, 8);
+}
 
 export default async function TeamPage({
   searchParams,
@@ -110,14 +120,41 @@ export default async function TeamPage({
                               <input type="hidden" name="back" value="/team" />
                               <Button type="submit" variant="ghost" size="sm">{u.active ? t("team.deactivate", locale) : t("team.activate", locale)}</Button>
                             </form>
-                            <ConfirmForm
+                            {/*
+                              Audit bug 4: POPIA erasure permanently anonymises a person
+                              and bans their login for a hundred years, and it rendered
+                              as a ghost link behind a browser confirm(). It now states
+                              exactly what happens, points at the reversible option, and
+                              will not unlock until their name is typed. `erasePerson`,
+                              the guarded RPC and the auth scrub are untouched.
+                            */}
+                            <ConfirmDialog
                               action={erasePerson}
-                              message={t("privacy.eraseConfirm", locale)}
-                              label={t("privacy.erase", locale)}
+                              triggerVariant="ghost"
+                              triggerSize="sm"
+                              triggerIcon={<TrashIcon />}
+                              triggerLabel={t("privacy.erase", locale)}
+                              triggerClassName="text-status-overdue hover:bg-red-50"
+                              title={t("privacy.eraseTitle", locale).replace("{name}", personLabel(u))}
+                              intro={t("privacy.eraseIntro", locale).replace("{name}", personLabel(u).split(" ")[0])}
+                              consequencesTitle={t("privacy.eraseWhatHappens", locale)}
+                              consequences={[
+                                t("privacy.eraseEffect1", locale),
+                                t("privacy.eraseEffect2", locale),
+                                t("privacy.eraseEffect3", locale),
+                                t("privacy.retentionNote", locale),
+                              ]}
+                              typeToConfirm={personLabel(u)}
+                              typeToConfirmLabel={t("privacy.eraseTypeLabel", locale).replace("{name}", personLabel(u))}
+                              typeToConfirmPlaceholder={t("privacy.eraseTypePlaceholder", locale)}
+                              confirmLabel={t("privacy.eraseConfirmCta", locale).replace("{name}", personLabel(u))}
+                              cancelLabel={t("privacy.eraseCancel", locale)}
+                              closeLabel={t("ui.close", locale)}
+                              footnote={t("privacy.eraseReversibleHint", locale)}
                             >
                               <input type="hidden" name="id" value={u.id} />
                               <input type="hidden" name="back" value="/team" />
-                            </ConfirmForm>
+                            </ConfirmDialog>
                           </>
                         ) : null}
                       </div>

@@ -80,7 +80,18 @@ export default async function FarmDetailPage({
       </div>
 
       <Flash tone="error" message={sp.error} />
-      <Flash tone="success" message={sp.saved ? "Saved." : sp.invited ? "Invited — they sign in via the magic link." : sp.entered ? "Support access logged." : undefined} />
+      <Flash
+        tone="success"
+        message={
+          sp.saved
+            ? "Saved."
+            : sp.invited
+              ? "Invited — they sign in via the magic link."
+              : sp.entered
+                ? "Support access recorded in this farm's audit log. You are still signed in as Rapid Rise — this does not put you inside the farm's account."
+                : undefined
+        }
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
@@ -88,7 +99,7 @@ export default async function FarmDetailPage({
             action={
               <form action={impersonateFarm}>
                 <input type="hidden" name="id" value={farm.id} />
-                <SubmitButton variant="secondary" size="sm">Act into farm (logged)</SubmitButton>
+                <SubmitButton variant="secondary" size="sm">Record support access</SubmitButton>
               </form>
             }
           >

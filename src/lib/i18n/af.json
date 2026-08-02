@@ -57,7 +57,8 @@
     "welcome": "Welkom terug",
     "welcomeSub": "Teken in om jou plaas se masjiene te bestuur.",
     "or": "of",
-    "getStarted": "Teken in om te begin"
+    "getStarted": "Teken in om te begin",
+    "language": "Taal"
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -75,11 +76,15 @@
     "step2Desc": "Pas 'n diensjabloon op elke masjien toe sodat FleetWise weet wanneer 'n diens verskuldig is.",
     "step2Cta": "Maak masjiene oop",
     "step3Title": "Druk & plak QR-kodes",
-    "step3Desc": "Druk 'n QR-plakker vir elke masjien sodat werkers binne sekondes foute kan rapporteer en lesings kan aanteken.",
+    "step3Desc": "Druk 'n QR-plakker vir elke masjien en plak dit op. Dit is die stukkie wat die hele ding laat werk — enigiemand wat 'n foon kan vashou, kan dan 'n probleem aanmeld of die ure neerskryf, sonder om aan te teken.",
     "step3Cta": "Maak masjiene oop",
     "step4Title": "Nooi jou span",
     "step4Desc": "Voeg jou bestuurder en werktuigkundige by sodat werkkaarte en foute aangeteken word soos werk gebeur.",
-    "step4Cta": "Nooi span"
+    "step4Cta": "Nooi span",
+    "step3Hint": "Druk hulle op gewone papier en plak hulle iewers droog — binne-in die kajuitdeur werk goed.",
+    "step3Ack": "Ek het dit klaar gedoen",
+    "step3Undo": "Nog nie gedoen nie",
+    "step3Done": "Plakkers is op die masjiene"
   },
   "machines": {
     "title": "Masjiene",
@@ -140,7 +145,14 @@
       "status_invalid": "Onbekende status",
       "year_invalid": "Ongeldige jaar",
       "reading_invalid": "Ongeldige lesing",
-      "duplicate_name": "Duplikaatnaam in lêer"
+      "duplicate_name": "Duplikaatnaam in lêer",
+      "headerEmptyTitle": "Daardie lêer is leeg",
+      "headerEmptyBody": "Ons kon geen rye daarin kry nie — nie eens 'n opskrifry nie.",
+      "headerEmptyFix": "Maak seker jy het dit as 'n CSV gestoor en laai dit weer. Ons leë blad hierbo het reeds die regte opskrifte.",
+      "headerNoNameTitle": "Ons kry nie die masjiene se name nie",
+      "headerNoNameBody": "Jou eerste ry moet 'n kolom hê met die opskrif \"name\" — dis die een wat vir ons sê wat elke masjien genoem word. Niks is gelaai nie.",
+      "headerFound": "Die kolomme in jou lêer is: {cols}",
+      "headerNoNameFix": "Hernoem die kolom met die masjiene se name na \"name\", of laai ons leë blad hierbo af en plak jou lys daarin."
     },
     "identityCard": "Besonderhede",
     "purchaseDate": "Aankoopdatum",
@@ -221,7 +233,9 @@
     "reissueDesc": "Skep 'n nuwe kode as hierdie plakker verlore, beskadig of moontlik gekopieer is. Die ou gedrukte QR hou onmiddellik op werk — jy sal dit moet herdruk en vervang.",
     "reissueBtn": "Herreik QR-kode uit",
     "reissueConfirm": "Herreik hierdie QR-kode uit? Die ou gedrukte QR sal onmiddellik ophou werk en moet herdruk word. Dit kan nie ongedaan gemaak word nie.",
-    "reissued": "Nuwe QR-kode uitgereik. Die ou plakker werk nie meer nie — druk hierdie blad en vervang dit."
+    "reissued": "Nuwe QR-kode uitgereik. Die ou plakker werk nie meer nie — druk hierdie blad en vervang dit.",
+    "notFoundTitle": "Ons ken nie hierdie plakker nie",
+    "notFoundBody": "Hierdie kode is nie een van ons s'n nie, of die masjien is van die plaas af weg. Vra die plaaskantoor vir 'n nuwe plakker."
   },
   "fuel": {
     "title": "Brandstof & diesel",
@@ -462,7 +476,8 @@
     "inWorkshop": "In werkswinkel",
     "staleReadings": "Verouderde lesings",
     "noStaleReadings": "Alle lesings is op datum.",
-    "reports": "Verslae"
+    "reports": "Verslae",
+    "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene."
   },
   "jobType": {
     "scheduled_service": "Geskeduleerde diens",
@@ -579,7 +594,18 @@
     "erase": "Wis persoonlike data",
     "eraseConfirm": "Wis hierdie persoon se persoonlike data? Hul naam, e-pos en telefoon word uitgevee en die rekening word gedeaktiveer. Onderhoud-, koste- en AARTO-bestuurdergebruikgeskiedenis word behou maar ge-de-identifiseer. Dit kan nie ongedaan gemaak word nie.",
     "erased": "Persoonlike data uitgewis en die rekening gedeaktiveer.",
-    "retentionNote": "Bestuurdergebruik- (AARTO) rekords word onder 'n wetlike verpligting behou selfs ná opwissing — sien docs/POPIA.md."
+    "retentionNote": "Bestuurdergebruik- (AARTO) rekords word onder 'n wetlike verpligting behou selfs ná opwissing — sien docs/POPIA.md.",
+    "eraseTitle": "Vee alles oor {name} uit?",
+    "eraseIntro": "Dit is die een ding op die plaas wat jy nie kan terugdraai nie. Doen dit net as {name} jou skriftelik daarvoor gevra het.",
+    "eraseWhatHappens": "Wat gebeur die oomblik as jy dit druk",
+    "eraseEffect1": "Hulle naam, e-pos en foonnommer word van elke werkkaart, lesing en fout afgevee",
+    "eraseEffect2": "Hulle kan nooit weer aanteken nie",
+    "eraseEffect3": "Die werk self bly — dit het net nie meer 'n naam daarop nie",
+    "eraseTypeLabel": "Tik {name} om seker te maak",
+    "eraseTypePlaceholder": "Tik die naam hier",
+    "eraseConfirmCta": "Vee {name} vir goed uit",
+    "eraseCancel": "Los maar",
+    "eraseReversibleHint": "Wil jy hulle net uit die stelsel hê? Skakel eerder hulle aanteken af — daardie een kan jy terugdraai."
   },
   "reports": {
     "title": "Verslae",
@@ -1175,7 +1201,22 @@
     "noActiveWorkHint": "Maak 'n voertuig oop en gebruik \"Kry iets gedoen\" om 'n taak na 'n kontrakteur te stuur.",
     "recentActivity": "Onlangse aktiwiteit",
     "quoteAccepted": "Kwotasie aanvaar",
-    "invoiceApproved": "Faktuur goedgekeur"
+    "invoiceApproved": "Faktuur goedgekeur",
+    "theContractor": "die kontrakteur",
+    "confirmMachine": "Masjien",
+    "confirmQuoted": "Hulle het gekwoteer",
+    "confirmBilled": "Hulle faktureer",
+    "confirmSameAsQuote": "Dieselfde as die prys waarop julle ooreengekom het — geen verrassings nie.",
+    "confirmDiffersFromQuote": "Dit is {diff} weg van die prys waarop julle ooreengekom het.",
+    "confirmQuoteTitle": "Sê ja vir {amount}?",
+    "confirmQuoteIntro": "Dit sê vir {contractor} om met die werk voort te gaan. Niks word nou betaal nie.",
+    "confirmQuoteYes": "Ja, gaan voort",
+    "confirmInvoiceTitle": "Keur {amount} goed?",
+    "confirmInvoiceIntro": "Dit sê vir {contractor} die werk is aanvaar en die rekening kan betaal word.",
+    "confirmInvoiceYes": "Ja, keur dit goed",
+    "confirmNotYet": "Nog nie",
+    "confirmQuoteTitleNoAmount": "Sê ja vir hierdie prys?",
+    "confirmInvoiceTitleNoAmount": "Keur hierdie rekening goed?"
   },
   "fineStatus": {
     "received": "Ontvang",
@@ -1262,5 +1303,33 @@
     "utilisation": "Benutting",
     "idle": "Ledig",
     "downtime": "Staantyd"
+  },
+  "confirm": {
+    "whatHappens": "Wat gebeur wanneer jy dit druk",
+    "keepIt": "Los maar",
+    "softDeleteNote": "Niks word regtig uitgevee nie — dit wys net nie meer by hierdie masjien nie en bly in die plaas se geskiedenis.",
+    "deleteServiceLineTitle": "Hou op om “{task}” dop te hou?",
+    "deleteServiceLineIntro": "Dit is een van die dienswerkies wat FleetWise vir {machine} dophou.",
+    "deleteServiceLineEffect1": "FleetWise werk nie meer uit wanneer hierdie werkie volgende verskuldig is nie",
+    "deleteServiceLineEffect2": "Niemand word weer daaraan herinner nie — nie per waarskuwing nie, ook nie op die bord nie",
+    "deleteServiceLineYes": "Ja, hou op dophou",
+    "deleteKitTitle": "Verwyder die dienstel “{kit}”?",
+    "deleteKitIntro": "Dit is die onderdelelys wat jy op 'n werkkaart vir {machine} toepas.",
+    "deleteKitEffect1": "Die {n} onderdele in die stel gaan saam",
+    "deleteKitEffect2": "Werkkaarte wat jy reeds daaruit gemaak het, hou hulle reëls en hulle kostes",
+    "deleteKitYes": "Ja, verwyder die stel",
+    "deleteKitItemTitle": "Haal “{part}” uit die stel?",
+    "deleteKitItemIntro": "Dit bly op enige werkkaart wat jy reeds uit “{kit}” gemaak het.",
+    "deleteKitItemYes": "Ja, haal dit uit",
+    "deleteLicenceTitle": "Verwyder hierdie {type}?",
+    "deleteLicenceIntro": "Dit is een van die papiere waarvan FleetWise die vervaldatum vir {machine} dophou.",
+    "deleteLicenceEffect1": "Jy word nie meer gewaarsku voordat dit verstryk nie",
+    "deleteLicenceEffect2": "Dit verdwyn van die nakomingskaart en die vervallys af",
+    "deleteLicenceYes": "Ja, verwyder dit",
+    "deleteBudgetTitle": "Verwyder hierdie begroting?",
+    "deleteBudgetIntro": "Dit is die bestedingsdoelwit wat jy vir {machine} gestel het.",
+    "deleteBudgetEffect1": "Die begroting-teenoor-besteding vergelyking vir hierdie tydperk val weg",
+    "deleteBudgetEffect2": "Wat jy werklik bestee het, bly onaangeraak — dit kom van die werkkaarte af",
+    "deleteBudgetYes": "Ja, verwyder die begroting"
   }
 }
