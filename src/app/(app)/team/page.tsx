@@ -14,6 +14,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
+import { roleLabel } from "@/lib/format";
 
 type TeamUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 
@@ -100,7 +101,7 @@ export default async function TeamPage({
                     {u.name}
                     {u.id === profile.id ? <span className="ml-1 text-xs text-sand-400">({t("team.you", locale)})</span> : null}
                   </Td>
-                  <Td><Badge tone="neutral" className="capitalize">{u.role}</Badge></Td>
+                  <Td><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
                   <Td className="text-sand-500">{u.email ?? "—"}</Td>
                   <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
                   {canManage ? (

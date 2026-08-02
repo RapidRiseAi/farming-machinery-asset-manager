@@ -1282,7 +1282,7 @@ export default async function MachineDetailPage({
                           <span className="min-w-0 truncate text-sand-800">{c.template_name}</span>
                           <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
                             <Badge tone={c.status === "completed" ? "ok" : "warning"}>{checklistStatusLabel(c.status)}</Badge>
-                            <span className="tabular-nums">{(c.completed_at ?? c.created_at).slice(0, 10)}</span>
+                            <span className="tabular-nums">{relativeDate(c.completed_at ?? c.created_at, locale)}</span>
                           </span>
                         </Link>
                       </li>

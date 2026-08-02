@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ChevronLeftIcon } from "@/components/ui/icons";
+import { dateTime, roleLabel } from "@/lib/format";
 
 type Farm = {
   id: string;
@@ -168,7 +169,7 @@ export default async function FarmDetailPage({
               {access.map((a) => (
                 <li key={a.id} className="flex justify-between py-1.5">
                   <span>{a.user_id ? adminName[a.user_id] ?? "admin" : "admin"} · {a.action}</span>
-                  <span className="text-sand-400">{new Date(a.at).toLocaleString("en-ZA")}</span>
+                  <span className="text-sand-400">{dateTime(a.at, "en")}</span>
                 </li>
               ))}
             </ul>
@@ -214,7 +215,7 @@ export default async function FarmDetailPage({
               {users.map((u) => (
                 <Tr key={u.id}>
                   <Td className="font-medium text-sand-900">{u.name}</Td>
-                  <Td><Badge tone="neutral" className="capitalize">{u.role}</Badge></Td>
+                  <Td><Badge tone="neutral">{roleLabel(u.role, "en")}</Badge></Td>
                   <Td className="text-sand-500">{u.email ?? "—"}</Td>
                   <Td>{u.active ? <Badge tone="ok">yes</Badge> : <Badge tone="danger">no</Badge>}</Td>
                   <Td className="text-right">

@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WorkStatus, PriorityStatus } from "@/components/ui/status";
+import { relativeDate } from "@/lib/format";
 import {
   WorkIcon, MachinesIcon, PartsIcon, InfoIcon, ChevronRightIcon,
   PhoneIcon, ChatIcon, MailIcon,
@@ -272,7 +273,7 @@ export default async function ContractorDashboardPage({
                                         {amountLabel ? <span className="ml-1 text-xs font-normal text-sand-400">{amountLabel}</span> : null}
                                       </span>
                                     ) : null}
-                                    <span className="text-xs tabular-nums text-sand-400">{r.updated_at.slice(0, 10)}</span>
+                                    <span className="text-xs text-sand-400">{relativeDate(r.updated_at, locale)}</span>
                                   </div>
                                 </div>
                               </Card>

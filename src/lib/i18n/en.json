@@ -48,7 +48,8 @@
     "everythingElse": "Everything else",
     "theFleet": "The fleet",
     "reportProblem": "Report",
-    "reportProblemLong": "Report a problem"
+    "reportProblemLong": "Report a problem",
+    "driverHome": "Home"
   },
   "auth": {
     "signIn": "Sign in",
@@ -635,7 +636,8 @@
     "analyticsSection": "Analytics & budgets",
     "repairReplacePct": "Flag repair-vs-replace above (% of price)",
     "utilHoursPerDay": "Available hours per day",
-    "utilKmPerDay": "Available km per day"
+    "utilKmPerDay": "Available km per day",
+    "vatRateHint": "The VAT rate on your invoices. 15% in South Africa."
   },
   "team": {
     "title": "Team",
@@ -1088,7 +1090,12 @@
     "emptyHint": "Add the parts your machines use — oils, filters, belts — with their part numbers.",
     "scope": "Scope",
     "scopeGlobal": "Global",
-    "scopeFarm": "Farm"
+    "scopeFarm": "Farm",
+    "partNoLabel": "Part number",
+    "descriptionLabel": "What is it?",
+    "categoryLabel": "Kind of part",
+    "supplierLabel": "Who sells it",
+    "costLabel": "What it usually costs"
   },
   "partnerKind": {
     "mechanic": "Mechanic",
@@ -1302,7 +1309,10 @@
     "convertToJobCard": "Convert to job card",
     "none": "None",
     "quoteSaved": "Quote recorded",
-    "invoiceSaved": "Invoice recorded"
+    "invoiceSaved": "Invoice recorded",
+    "quoteAmountLabel": "What are you charging?",
+    "invoiceAmountLabel": "What is the bill?",
+    "amountHint": "Rands. Tick below if the price already includes VAT."
   },
   "contractorPlan": {
     "free": "Free",
@@ -1585,5 +1595,29 @@
     "noMatchTitle": "Nothing matches those filters",
     "noMatchHint": "Try clearing a filter — the ones you've set are hiding everything.",
     "clearFilters": "Clear the filters"
+  },
+  "driver": {
+    "greeting": "Morning, {name}",
+    "greetingPm": "Afternoon, {name}",
+    "whatDoYouWant": "What do you want to do?",
+    "tileScan": "Scan a machine",
+    "tileScanHint": "Hold the phone to the sticker on it",
+    "tileFault": "Something is broken",
+    "tileFaultHint": "Tell the workshop what is wrong",
+    "tileHours": "Write down the hours",
+    "tileHoursHint": "Read it off the clock",
+    "tileFuel": "I put in diesel",
+    "tileFuelHint": "How many litres and what for",
+    "whichMachine": "Which machine?",
+    "whichMachineHint": "Press on the picture. The ones you use most are first.",
+    "showAll": "Show all {n} machines",
+    "seenTitle": "Everything you reported has been seen",
+    "seenHint": "Nothing of yours is waiting.",
+    "beingWorkedOn": "Someone is busy with {machine}.",
+    "waitingTitle": "{n} of your reports are still waiting",
+    "oneWaitingTitle": "1 of your reports is still waiting",
+    "nothingReported": "You haven't reported anything yet.",
+    "signOut": "Sign out",
+    "noMachines": "No machine has been given to you yet. Ask the farm office."
   }
 }

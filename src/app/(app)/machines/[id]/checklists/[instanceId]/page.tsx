@@ -11,6 +11,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ChevronLeftIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistInstance } from "../actions";
+import { shortDate } from "@/lib/format";
 
 type Instance = {
   id: string; farm_id: string; machine_id: string; template_name: string; status: string;
@@ -67,7 +68,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   const photoUrlByValueIdx = new Map<number, string | null>();
   values.forEach((_, i) => photoUrlByValueIdx.set(i, signed[i]));
 
-  const dateStr = (instance.completed_at ?? instance.created_at).slice(0, 10);
+  const dateStr = shortDate(instance.completed_at ?? instance.created_at, locale);
 
   return (
     <div className="flex flex-col gap-4">

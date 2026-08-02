@@ -24,6 +24,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FuelIcon } from "@/components/ui/icons";
+import { num } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -258,7 +259,7 @@ export default async function FuelPage({
                 <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span className="font-medium text-sand-900">
                     {tk.name}
-                    {tk.capacity_l ? <span className="ml-1 text-xs text-sand-400">/ {tk.capacity_l.toLocaleString("en-ZA")} {t("fuel.litresShort", locale)}</span> : null}
+                    {tk.capacity_l ? <span className="ml-1 text-xs text-sand-400">/ {num(tk.capacity_l, 0)} {t("fuel.litresShort", locale)}</span> : null}
                   </span>
                   <span className="flex items-center gap-3 tabular-nums text-sand-600">
                     <span>{t("fuel.delivered", locale)}: {b.delivered.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</span>

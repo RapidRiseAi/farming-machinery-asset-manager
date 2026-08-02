@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
-import { meterReading } from "@/lib/format";
+import { meterReading, shortDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -141,7 +141,7 @@ export default async function JobCardDetail({
       {locked ? (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           🔒 {t("jobcards.lockedBanner", locale)}
-          {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${jc.approved_at.slice(0, 10)}` : ""}
+          {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${shortDate(jc.approved_at, locale)}` : ""}
         </div>
       ) : null}
 

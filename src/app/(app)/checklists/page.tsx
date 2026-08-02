@@ -11,6 +11,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistTemplate, duplicateChecklistTemplate } from "./actions";
+import { relativeDate } from "@/lib/format";
 
 type TemplateRow = {
   id: string;
@@ -90,7 +91,7 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                     {tpl.description ? <p className="mt-1 text-sm text-sand-600">{tpl.description}</p> : null}
                     <p className="mt-1 text-xs text-sand-500">
                       {t("checklists.fieldCount", locale).replace("{n}", String(fieldCount))} ·{" "}
-                      {t("checklists.updated", locale)} {tpl.updated_at.slice(0, 10)}
+                      {t("checklists.updated", locale)} {relativeDate(tpl.updated_at, locale)}
                     </p>
                   </div>
                   {canEditRow(tpl) ? (

@@ -13,6 +13,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BellIcon } from "@/components/ui/icons";
+import { relativeDate } from "@/lib/format";
 
 type Note = {
   id: string; template: string; payload: Record<string, unknown>;
@@ -123,7 +124,7 @@ export default async function NotificationsPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className={`text-sm ${unread ? "font-medium text-sand-900" : "text-sand-600"}`}>{message(n)}</p>
-                      <p className="mt-0.5 text-xs text-sand-400">{new Date(n.created_at).toLocaleDateString("en-ZA")}</p>
+                      <p className="mt-0.5 text-xs text-sand-400">{relativeDate(n.created_at, locale)}</p>
                     </div>
                     <span className="flex shrink-0 items-center gap-2">
                       {unread ? <Badge tone="brand">{t("notifications.unread", locale)}</Badge> : null}

@@ -48,7 +48,8 @@
     "everythingElse": "Alles anders",
     "theFleet": "Die vloot",
     "reportProblem": "Meld aan",
-    "reportProblemLong": "Rapporteer 'n probleem"
+    "reportProblemLong": "Rapporteer 'n probleem",
+    "driverHome": "Tuis"
   },
   "auth": {
     "signIn": "Teken in",
@@ -635,7 +636,8 @@
     "analyticsSection": "Analise & begrotings",
     "repairReplacePct": "Vlag herstel-vs-vervang bo (% van prys)",
     "utilHoursPerDay": "Beskikbare ure per dag",
-    "utilKmPerDay": "Beskikbare km per dag"
+    "utilKmPerDay": "Beskikbare km per dag",
+    "vatRateHint": "Die BTW-koers op jou fakture. 15% in Suid-Afrika."
   },
   "team": {
     "title": "Span",
@@ -1088,7 +1090,12 @@
     "emptyHint": "Voeg die onderdele by wat jou masjiene gebruik — olies, filters, bande — met hul onderdeelnommers.",
     "scope": "Omvang",
     "scopeGlobal": "Globaal",
-    "scopeFarm": "Plaas"
+    "scopeFarm": "Plaas",
+    "partNoLabel": "Onderdeelnommer",
+    "descriptionLabel": "Wat is dit?",
+    "categoryLabel": "Soort onderdeel",
+    "supplierLabel": "Wie verkoop dit",
+    "costLabel": "Wat dit gewoonlik kos"
   },
   "partnerKind": {
     "mechanic": "Werktuigkundige",
@@ -1302,7 +1309,10 @@
     "convertToJobCard": "Skakel om na werkkaart",
     "none": "Geen",
     "quoteSaved": "Kwotasie geboek",
-    "invoiceSaved": "Faktuur geboek"
+    "invoiceSaved": "Faktuur geboek",
+    "quoteAmountLabel": "Wat vra jy?",
+    "invoiceAmountLabel": "Wat is die rekening?",
+    "amountHint": "Rand. Merk hieronder as die prys reeds BTW insluit."
   },
   "contractorPlan": {
     "free": "Gratis",
@@ -1585,5 +1595,29 @@
     "noMatchTitle": "Niks pas by daardie filters nie",
     "noMatchHint": "Probeer 'n filter uitvee — dié wat jy gestel het, versteek alles.",
     "clearFilters": "Vee die filters uit"
+  },
+  "driver": {
+    "greeting": "Môre, {name}",
+    "greetingPm": "Middag, {name}",
+    "whatDoYouWant": "Wat wil jy doen?",
+    "tileScan": "Skandeer 'n masjien",
+    "tileScanHint": "Hou die foon by die plakker daarop",
+    "tileFault": "Iets is stukkend",
+    "tileFaultHint": "Sê vir die werkswinkel wat verkeerd is",
+    "tileHours": "Skryf die ure op",
+    "tileHoursHint": "Lees dit van die klok af",
+    "tileFuel": "Diesel ingegooi",
+    "tileFuelHint": "Hoeveel liter en waarvoor",
+    "whichMachine": "Watter masjien?",
+    "whichMachineHint": "Druk op die prent. Dié wat jy meeste gebruik, is eerste.",
+    "showAll": "Wys al {n} masjiene",
+    "seenTitle": "Alles wat jy gemeld het, is gesien",
+    "seenHint": "Niks van jou wag nie.",
+    "beingWorkedOn": "Iemand werk aan {machine}.",
+    "waitingTitle": "{n} van jou meldings wag nog",
+    "oneWaitingTitle": "1 van jou meldings wag nog",
+    "nothingReported": "Jy het nog niks gemeld nie.",
+    "signOut": "Teken uit",
+    "noMachines": "Geen masjien is nog vir jou gegee nie. Vra die plaaskantoor."
   }
 }

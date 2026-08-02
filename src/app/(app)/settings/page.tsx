@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { VatRateField } from "@/components/vat-rate-field";
 
 type Settings = Record<string, unknown>;
 
@@ -55,9 +56,7 @@ export default async function SettingsPage({
 
         <Card>
           <CardHeader><CardTitle>{t("settings.money", locale)}</CardTitle></CardHeader>
-          <Field label={t("settings.vatRate", locale)} htmlFor="vat_rate_bps">
-            <Input id="vat_rate_bps" name="vat_rate_bps" type="number" defaultValue={n("vat_rate_bps", 1500)} />
-          </Field>
+          <VatRateField defaultBps={n("vat_rate_bps", 1500)} locale={locale} />
         </Card>
 
         <Card>

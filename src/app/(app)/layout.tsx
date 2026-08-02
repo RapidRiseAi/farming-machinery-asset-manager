@@ -34,6 +34,7 @@ export default async function AppLayout({
   // Contractors (workshop role) get a tailored, contractor-first shell (F12c): their
   // aggregated dashboard is home, and farm-only surfaces are dropped.
   const isWorkshop = profile.role === "workshop";
+  const isOperator = profile.role === "operator";
   // Parts catalogue & service kits (F9) — maintained by farm crew + RR admin (global lib).
   const canParts = ["owner", "manager", "mechanic", "rr_admin"].includes(profile.role);
   // Partners directory (F12a) — farmer-facing (browse/add/connect contractors) + RR admin
@@ -50,7 +51,7 @@ export default async function AppLayout({
   const finesAllowed = !isWorkshop && has("aarto");
   // Logo/home link must point somewhere the role/plan can actually open. A contractor's
   // home is their aggregated dashboard (F12c).
-  const homeHref = isWorkshop ? "/contractor" : dashAllowed ? "/dashboard" : "/machines";
+  const homeHref = isWorkshop ? "/contractor" : isOperator ? "/driver" : dashAllowed ? "/dashboard" : "/machines";
 
   // Owner/manager activity inbox (F13): unread badge on the nav. Only the two roles that
   // own the inbox pay the extra query; the count runs under RLS (own farm only).
@@ -69,6 +70,7 @@ export default async function AppLayout({
 
   // Nav catalogue (translated once, reused across shells).
   const contractor: NavItemData = { href: "/contractor", label: t("nav.contractor", locale), icon: "dashboard" };
+  const driverHome: NavItemData = { href: "/driver", label: t("nav.driverHome", locale), icon: "dashboard" };
   const dashboard: NavItemData = { href: "/dashboard", label: t("nav.dashboard", locale), icon: "dashboard" };
   const machines: NavItemData = { href: "/machines", label: t("nav.machines", locale), icon: "machines" };
   const jobcards: NavItemData = { href: "/jobcards", label: t("nav.jobcards", locale), icon: "jobcards" };
@@ -90,7 +92,9 @@ export default async function AppLayout({
   // Contractors get a contractor-first tab set; everyone else the farm set.
   const tabItems: NavItemData[] = isWorkshop
     ? [contractor, work, machines, faults]
-    : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
+    : isOperator
+      ? [driverHome, machines, faults]
+      : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
     ? [jobcards, checklists, alerts]
     : [
@@ -114,7 +118,12 @@ export default async function AppLayout({
     ...(isManagerPlus ? [inbox] : []),
     ...(reportsAllowed ? [reports] : []),
   ];
-  const groups: { key: string; label: string; items: NavItemData[] }[] = isWorkshop
+  const groups: { key: string; label: string; items: NavItemData[] }[] = isOperator
+    ? [
+        { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, faults, ...(fuelAllowed ? [fuel] : [])] },
+      ]
+    : isWorkshop
     ? [
         { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, work] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
