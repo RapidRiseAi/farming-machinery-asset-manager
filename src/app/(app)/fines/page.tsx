@@ -21,7 +21,7 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, AllClear } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ExpiryStatus, FineStatus } from "@/components/ui/status";
 import { TrashIcon } from "@/components/ui/icons";
@@ -331,7 +331,7 @@ export default async function FinesPage({
       <Card>
         <CardHeader><CardTitle>{t("fines.pendingTitle", locale)}</CardTitle></CardHeader>
         {pending.length === 0 ? (
-          <EmptyState title={t("fines.noPending", locale)} />
+          <AllClear title={t("fines.noPending", locale)} />
         ) : (
           <ul className="flex flex-col gap-2">{pending.map(renderFineCard)}</ul>
         )}

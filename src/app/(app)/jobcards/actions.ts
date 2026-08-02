@@ -6,12 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
+import { JOB_TYPES, JOB_STATUSES, LINE_KINDS } from "@/lib/job-options";
 
 // Who may work job cards (Scope §2): internal mechanic, manager, owner, external workshop.
 const CREW: Role[] = ["owner", "manager", "mechanic", "workshop"];
-const JOB_TYPES = ["scheduled_service", "repair", "inspection", "other"];
-const JOB_STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed"];
-const LINE_KINDS = ["part", "labour", "other"];
 
 function s(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -29,7 +27,7 @@ export async function createJobCard(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const typeRaw = String(formData.get("type") ?? "repair");
-  const type = JOB_TYPES.includes(typeRaw) ? typeRaw : "repair";
+  const type = (JOB_TYPES as readonly string[]).includes(typeRaw) ? typeRaw : "repair";
   const faultId = s(formData, "fault_id");
   if (!machineId || !farmId) redirect("/machines?error=Missing+machine");
 
@@ -68,7 +66,7 @@ export async function saveJobCard(formData: FormData) {
   if (!id) redirect("/jobcards");
   const supabase = await createClient();
   const statusRaw = String(formData.get("status") ?? "open");
-  const status = JOB_STATUSES.includes(statusRaw) ? statusRaw : "open";
+  const status = (JOB_STATUSES as readonly string[]).includes(statusRaw) ? statusRaw : "open";
   const { error } = await supabase
     .from("job_cards")
     .update({
@@ -92,7 +90,7 @@ export async function addLine(formData: FormData) {
   const jobCardId = String(formData.get("job_card_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const kindRaw = String(formData.get("kind") ?? "part");
-  const kind = LINE_KINDS.includes(kindRaw) ? kindRaw : "part";
+  const kind = (LINE_KINDS as readonly string[]).includes(kindRaw) ? kindRaw : "part";
   if (!jobCardId || !farmId) redirect(`/jobcards/${jobCardId}?error=Missing+ids`);
 
   const supabase = await createClient();

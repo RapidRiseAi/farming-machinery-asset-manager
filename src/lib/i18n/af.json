@@ -64,7 +64,13 @@
     "welcomeSub": "Teken in om jou plaas se masjiene te bestuur.",
     "or": "of",
     "getStarted": "Teken in om te begin",
-    "language": "Taal"
+    "language": "Taal",
+    "noEmailTitle": "Geen werk-e-pos nie?",
+    "noEmailBody": "Jy het nie een nodig nie. Skandeer die QR-plakker op enige masjien om 'n probleem aan te meld of die ure neer te skryf — glad geen aanteken nie.",
+    "errInvalid": "Daardie e-pos of wagwoord is nie reg nie. Kyk na hulle en probeer weer.",
+    "errNotConfirmed": "Hierdie rekening is nog nie oopgemaak nie. Gebruik die skakel in jou uitnodiging-e-pos.",
+    "errRate": "Te veel pogings. Wag 'n minuut en probeer weer.",
+    "errGeneric": "Dit het nie gewerk nie. Probeer weer, of vra die plaaskantoor om jou uitnodiging weer te stuur."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -919,7 +925,11 @@
     "oneLine": "1 reël",
     "priceInclVat": "Hierdie prys sluit BTW in",
     "vatBreakdown": "Dus {ex} vir die onderdeel, {vat} BTW",
-    "exOnly": "{ex} — geen BTW bygevoeg nie"
+    "exOnly": "{ex} — geen BTW bygevoeg nie",
+    "startNew": "Begin 'n werkkaart",
+    "whichMachineLabel": "Watter masjien?",
+    "whatKindLabel": "Watter soort werk?",
+    "createIt": "Maak die werkkaart"
   },
   "dashboard": {
     "kpiOverdue": "Agterstallige diens",

@@ -348,7 +348,7 @@ export default async function InboxPage({
           <CardTitle>{t("inbox.activeWork", locale)}</CardTitle>
         </CardHeader>
         {machineGroups.length === 0 ? (
-          <EmptyState icon={<WorkIcon />} title={t("inbox.noActiveWork", locale)} hint={t("inbox.noActiveWorkHint", locale)} />
+          <AllClear icon={<WorkIcon />} title={t("inbox.noActiveWork", locale)} hint={t("inbox.noActiveWorkHint", locale)} />
         ) : (
           <div className="flex flex-col gap-4">
             {machineGroups.map((g) => (
@@ -399,7 +399,7 @@ export default async function InboxPage({
           <CardTitle>{t("inbox.recentActivity", locale)}</CardTitle>
         </CardHeader>
         {notes.length === 0 ? (
-          <EmptyState icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
+          <AllClear icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
         ) : (
           <ul className="flex flex-col divide-y divide-sand-100">
             {notes.map((n) => {

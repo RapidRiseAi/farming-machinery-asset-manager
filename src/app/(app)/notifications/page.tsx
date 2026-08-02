@@ -11,7 +11,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, AllClear } from "@/components/ui/empty-state";
 import { BellIcon } from "@/components/ui/icons";
 import { relativeDate } from "@/lib/format";
 
@@ -113,7 +113,7 @@ export default async function NotificationsPage({
       </Card>
 
       {notes.length === 0 ? (
-        <EmptyState icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
+        <AllClear icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />
       ) : (
         <ul className="flex flex-col gap-2">
           {notes.map((n) => {
