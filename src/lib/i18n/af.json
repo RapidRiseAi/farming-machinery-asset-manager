@@ -70,7 +70,8 @@
     "errInvalid": "Daardie e-pos of wagwoord is nie reg nie. Kyk na hulle en probeer weer.",
     "errNotConfirmed": "Hierdie rekening is nog nie oopgemaak nie. Gebruik die skakel in jou uitnodiging-e-pos.",
     "errRate": "Te veel pogings. Wag 'n minuut en probeer weer.",
-    "errGeneric": "Dit het nie gewerk nie. Probeer weer, of vra die plaaskantoor om jou uitnodiging weer te stuur."
+    "errGeneric": "Dit het nie gewerk nie. Probeer weer, of vra die plaaskantoor om jou uitnodiging weer te stuur.",
+    "errLinkExpired": "Daardie skakel het verstryk of is reeds gebruik. Vra hieronder vir 'n nuwe een."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -213,7 +214,17 @@
     "firstRunAlt": "Ek het 'n sigblad",
     "firstRunPreview": "So gaan dit lyk",
     "filterType": "Tipe",
-    "filterStatus": "Status"
+    "filterStatus": "Status",
+    "mapTitle": "Ons het jou kolomme met ons s'n gepas",
+    "mapHint": "Verander enige wat ons verkeerd gekry het. Enigiets wat uitgelaat word, word eenvoudig geïgnoreer.",
+    "mapYourColumn": "Jou kolom",
+    "mapOurColumn": "Wat dit is",
+    "mapExample": "Eerste ry",
+    "mapLeaveOut": "Laat dit uit",
+    "mapUnmatched": "{n} van jou kolomme word nie gebruik nie.",
+    "mapNoName": "Kies watter van jou kolomme die masjien se naam hou — ons kan niks sonder dit laai nie.",
+    "mapFileSummary": "{file} · {n} rye",
+    "useDifferentFile": "Gebruik 'n ander lêer"
   },
   "machineType": {
     "tractor": "Trekker",

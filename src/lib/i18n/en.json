@@ -70,7 +70,8 @@
     "errInvalid": "That email or password isn't right. Check them and try again.",
     "errNotConfirmed": "This account hasn't been opened yet. Use the link in your invite email.",
     "errRate": "Too many tries. Wait a minute and try again.",
-    "errGeneric": "That didn't work. Try again, or ask the farm office to re-send your invite."
+    "errGeneric": "That didn't work. Try again, or ask the farm office to re-send your invite.",
+    "errLinkExpired": "That link has expired or has already been used. Ask for a new one below."
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -213,7 +214,17 @@
     "firstRunAlt": "I have a spreadsheet",
     "firstRunPreview": "This is how it will look",
     "filterType": "Type",
-    "filterStatus": "Status"
+    "filterStatus": "Status",
+    "mapTitle": "We matched your columns to ours",
+    "mapHint": "Change any we got wrong. Anything left out is simply ignored.",
+    "mapYourColumn": "Your column",
+    "mapOurColumn": "What it is",
+    "mapExample": "First row",
+    "mapLeaveOut": "Leave it out",
+    "mapUnmatched": "{n} of your columns aren't being used.",
+    "mapNoName": "Pick which of your columns holds the machine name — we can't load anything without it.",
+    "mapFileSummary": "{file} · {n} rows",
+    "useDifferentFile": "Use a different file"
   },
   "machineType": {
     "tractor": "Tractor",

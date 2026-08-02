@@ -24,7 +24,14 @@ export default async function LoginPage({
   const raw = (sp.error ?? "").toLowerCase();
   const errorMessage = !sp.error
     ? undefined
-    : raw.includes("invalid login") || raw.includes("invalid credentials")
+    : // `no-profile` is what the guards append when nobody is signed in yet. That is
+      // not an error the visitor made — showing them "that didn't work" on the login
+      // screen they were simply sent to is the same leak in a different costume.
+      raw === "no-profile"
+      ? undefined
+      : raw === "auth"
+        ? t("auth.errLinkExpired", locale)
+        : raw.includes("invalid login") || raw.includes("invalid credentials")
       ? t("auth.errInvalid", locale)
       : raw.includes("not confirmed")
         ? t("auth.errNotConfirmed", locale)
