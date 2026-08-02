@@ -644,4 +644,53 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Deferred by request to the later backend/security pass: `/partners` rendering a
     contractor login URL as copyable plain text, and CSV **column mapping** on import.
 
+- **Backend & security pass** (branch `claude/fleetwise-ui-redesign-l4ng55`, restarted from
+  the merged `main`; **no migration**; gates green; shared first-load JS flat at **102 kB**):
+  - **Contractor login link was a credential in a query string.** `inviteContractor` /
+    `sendLoginUrl` redirected to `/partners?…&loginUrl=<action_link>`. A Supabase
+    `action_link` is a BEARER credential — whoever holds it signs in as that contractor
+    and reaches every farm they are linked to — and a query string lands in browser
+    history, access logs, the `Referer` header and the address bar. Now a short-lived
+    **httpOnly, SameSite=Strict cookie** scoped to `/partners` (`src/lib/partner-link.ts`,
+    10-min TTL), read once by the server render, cleared by an explicit "done with it"
+    action. The card says plainly that the link signs someone in, names who, and when it
+    dies.
+  - **Open redirect on `/auth/callback`**: `next` was concatenated onto the origin
+    unchecked (`//evil.com`, `/\evil.com`). New **`src/lib/safe-path.ts`** `safePath()` —
+    single leading slash, no scheme-relative form, re-checked after decoding — used by the
+    callback AND by the three `back` form fields in `team/actions.ts` that were also
+    unvalidated redirect targets. 12 cases proved incl. `%2f%2f` / `%5C%5C` bypasses.
+  - **S11 operator landing (was awaiting sign-off).** `requireRole` sent EVERY denied user
+    to `/dashboard?error=forbidden` — for an operator, the owner's money page — and
+    `forbidden` was never rendered. New **`homePathFor(role)`** is the single source of
+    truth; `requireRole` bounces to the role's own home with `?denied=1`, rendered as a
+    sentence on `/driver`. New **`/home`** dispatcher for post-login + magic link (a link
+    minted pre-sign-in cannot know its role). Settings/onboarding bounces follow suit.
+  - **S10 support mode (was awaiting sign-off).** Entering now pins the farm in an
+    httpOnly cookie that `currentFarmId` honours for rr_admin (`SUPPORT_FARM_COOKIE`,
+    `supportFarmId`/`supportFarm`), so every farm-scoped surface narrows to that customer;
+    a **`SupportBanner`** names the farm on every screen and exits in one tap; leaving
+    writes the paired **`exit`** audit row via the existing RPC, so the log shows duration.
+    A NARROWING not a grant — rr_admin already reads all farms via `app.is_rr_admin()`, so
+    a forged cookie cannot widen access (and the id is validated against a real farm).
+    `rls_isolation.sql` §0206 gains 3 assertions (non-admin exit denied, enter+exit pair,
+    exit row farm-scoped).
+  - **CSV column mapping (S21).** Headers were matched against a fixed set, so an
+    Afrikaans/reordered farm sheet failed wholesale. `csv.ts` gains `guessMapping` (alias
+    table, Afrikaans first-class), `applyMapping`, `readHeaders`, `countDataRows`;
+    the import client shows the guessed match + a sample value and lets the user correct
+    it. **Mapping happens in the browser and the CANONICAL sheet is posted**, so
+    `validateCsv`/`importMachines` are untouched. Verified on a full Afrikaans sheet with a
+    junk column and a reordered English one.
+  - **Runtime verification** (the gap flagged at merge): production build booted and driven
+    with Chromium. All 24 routes guard correctly signed-out; public QR handles an unknown
+    token; no uncaught page errors; no horizontal overflow at 1440px or on a phone;
+    `Accept-Language: af-ZA` renders login fully in Afrikaans and the AF button writes
+    `fw_lang`. **Three defects the browser found that reading the code did not:** the login
+    fields were still placeholder-only (3 → 0 unlabelled); the language buttons announced
+    "Afrikaans" while showing "AF" (WCAG 2.5.3 Label in Name); and `?error=no-profile` —
+    what the guards append when nobody is signed in — rendered as "That didn't work."
+  - i18n EN/AF at parity (**1512 leaf keys**). Smoke test kept at
+    `scratchpad` (not committed); re-runnable with a placeholder `.env.local`.
+
 > Update this "current status" block at the end of every session.
