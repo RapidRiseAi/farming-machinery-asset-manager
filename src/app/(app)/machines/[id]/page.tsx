@@ -64,6 +64,8 @@ import {
   TrashIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { meterReading, relativeDate } from "@/lib/format";
+import { Tabs } from "@/components/ui/tabs";
 import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
 import { createWorkRequest } from "@/app/(app)/work/actions";
 import {
@@ -399,59 +401,103 @@ export default async function MachineDetailPage({
         {t("machines.title", locale)}
       </Link>
 
-      {/* Identity card */}
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            {/* Primary vehicle image (0280) — graceful placeholder when unset. */}
-            <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-sand-100 ring-1 ring-sand-200 sm:block">
-              {primaryPhotoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={primaryPhotoUrl} alt={machine.name} className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-sand-300">
-                  <MachinesIcon className="text-[1.4rem]" />
-                </span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight text-sand-900">{machine.name}</h1>
-              <p className="mt-0.5 text-sm text-sand-500">
-                {typeLabel(machine.type, locale)}
-                {machine.make ? ` · ${machine.make} ${machine.model ?? ""}` : ""}
-                {machine.year ? ` · ${machine.year}` : ""}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-sand-600">
-                <Badge tone={isOutOfService ? "danger" : "neutral"} className="capitalize">{statusLabel(machine.status, locale)}</Badge>
-                <span>
-                  {meterLabel(machine.meter_type, locale)}
-                  {machine.current_reading != null ? `: ${machine.current_reading}` : ""}
-                  {machine.current_reading_date ? ` (${machine.current_reading_date})` : ""}
-                </span>
-                {isStale ? <Badge tone="warning">{t("machines.stale", locale)}</Badge> : null}
-              </div>
-              {assignedOperatorName ? (
-                <p className="mt-1.5 text-sm text-sand-600">
-                  {t("machines.assignedOperator", locale)}: <span className="font-medium text-sand-800">{assignedOperatorName}</span>
-                </p>
-              ) : null}
-              {machine.location || machine.cost_centre || machine.department ? (
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-sand-600">
-                  {machine.location ? <span>{t("machines.location", locale)}: <span className="font-medium text-sand-800">{machine.location}</span></span> : null}
-                  {machine.cost_centre ? <span>{t("machines.costCentre", locale)}: <span className="font-medium text-sand-800">{machine.cost_centre}</span></span> : null}
-                  {machine.department ? <span>{t("machines.department", locale)}: <span className="font-medium text-sand-800">{machine.department}</span></span> : null}
-                </div>
-              ) : null}
-            </div>
+      {/*
+        The header answers "what is this and what do I do with it" before any of the
+        twenty sections below. Photo, name, status, the two numbers that matter, and
+        the two things people actually came to do.
+      */}
+      <header className="flex flex-col gap-4 rounded-2xl border border-sand-200 bg-white p-4 shadow-card sm:flex-row sm:items-start sm:gap-5">
+        <div className="h-[132px] w-[132px] shrink-0 self-start overflow-hidden rounded-xl bg-sand-100 ring-1 ring-sand-200 sm:h-24 sm:w-24">
+          {primaryPhotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={primaryPhotoUrl} alt={machine.name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-sand-300" aria-hidden>
+              <MachinesIcon className="text-[2.4rem]" />
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">{machine.name}</h1>
+            <MachineStatus value={machine.status} locale={locale} size="md" />
           </div>
-          <div className="flex flex-col items-end gap-1 text-sm">
-            <Link href={`/machines/${machine.id}/qr`} className="focus-ring rounded-md text-brand-700">{t("machine.qrCode", locale)} →</Link>
-            <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.machineFile", locale)} →</a>
-            <a href={`/machines/${machine.id}/sale-pack.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.salePack", locale)} →</a>
-            <a href={`/machines/${machine.id}/warranty-pack.pdf`} className="focus-ring rounded-md text-brand-700">{t("machine.warrantyPack", locale)} →</a>
+          <p className="mt-1 text-sm text-sand-500">
+            {[
+              typeLabel(machine.type, locale),
+              machine.make ? `${machine.make} ${machine.model ?? ""}`.trim() : null,
+              machine.year ? String(machine.year) : null,
+              machine.serial_no ? `${t("machines.serialNo", locale)} ${machine.serial_no}` : null,
+              machine.location,
+              machine.cost_centre,
+            ].filter(Boolean).join(" · ")}
+          </p>
+          {assignedOperatorName ? (
+            <p className="mt-1 text-sm text-sand-600">
+              {t("machines.assignedOperator", locale)}:{" "}
+              <span className="font-medium text-sand-800">{assignedOperatorName}</span>
+            </p>
+          ) : null}
+
+          {/* The two numbers, said properly — this printed "6412 hours (2026-07-27)". */}
+          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
+            {machine.meter_type !== "none" ? (
+              <div>
+                <dt className="text-xs text-sand-500">{meterLabel(machine.meter_type, locale)}</dt>
+                <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">
+                  {machine.current_reading != null
+                    ? meterReading(machine.current_reading, machine.meter_type, locale)
+                    : "—"}
+                </dd>
+                <dd className={`text-xs ${isStale ? "font-medium text-status-due" : "text-sand-500"}`}>
+                  {machine.current_reading_date
+                    ? t("machine.lastRead", locale).replace("{when}", relativeDate(machine.current_reading_date, locale))
+                    : t("machines.neverRead", locale)}
+                </dd>
+              </div>
+            ) : null}
+            {perMeter != null ? (
+              <div>
+                <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
+                <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
+              </div>
+            ) : null}
+          </dl>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {canJob ? (
+              <form action={createJobCard}>
+                <input type="hidden" name="machine_id" value={machine.id} />
+                <input type="hidden" name="farm_id" value={machine.farm_id} />
+                <input type="hidden" name="type" value="repair" />
+                <SubmitButton variant="primary" leftIcon={<JobCardsIcon />}>
+                  {t("machine.makeJobCard", locale)}
+                </SubmitButton>
+              </form>
+            ) : null}
+            <Link href={`/machines/${machine.id}/qr`} className={buttonVariants({ variant: "secondary" })}>
+              {t("machine.qrCode", locale)}
+            </Link>
+            <details className="relative">
+              <summary className={buttonVariants({ variant: "ghost", className: "cursor-pointer list-none" })}>
+                {t("ui.viewAll", locale)}
+              </summary>
+              <div className="absolute right-0 z-10 mt-1 flex w-56 flex-col rounded-xl border border-sand-200 bg-white p-1.5 shadow-pop">
+                <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
+                  {t("machine.machineFile", locale)}
+                </a>
+                <a href={`/machines/${machine.id}/sale-pack.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
+                  {t("machine.salePack", locale)}
+                </a>
+                <a href={`/machines/${machine.id}/warranty-pack.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
+                  {t("machine.warrantyPack", locale)}
+                </a>
+              </div>
+            </details>
           </div>
         </div>
-      </Card>
+      </header>
 
       {/* Out-of-service banner (active-but-down) — owner/manager can revert. */}
       {isOutOfService ? (
@@ -474,476 +520,301 @@ export default async function MachineDetailPage({
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Main column */}
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          {/* Meter history */}
-          {machine.meter_type !== "none" ? (
-            <Card>
-              <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
-              <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
-              {canAddReading ? (
-                <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="machine_id" value={machine.id} />
-                  <input type="hidden" name="farm_id" value={machine.farm_id} />
-                  <Field label={t("machine.newReading", locale)} htmlFor="reading" className="flex-1">
-                    <Input id="reading" name="reading" type="number" inputMode="decimal" step="0.1" required />
-                  </Field>
-                  <Field label={t("machine.date", locale)} htmlFor="reading_date">
-                    <Input id="reading_date" name="reading_date" type="date" />
-                  </Field>
-                  {operators.length > 0 ? (
-                    <Field label={t("machine.driver", locale)} htmlFor="driver_user_id">
-                      <Select id="driver_user_id" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
-                        <option value="">{t("machines.noOperator", locale)}</option>
-                        {operators.map((op) => (
-                          <option key={op.id} value={op.id}>{op.name}</option>
+      {/*
+        Twenty cards on one scroll, all the same size, all always open, in schema order.
+        Grouped — not removed — into the five things someone actually comes here for.
+        Every section still runs the same query and the same server actions.
+      */}
+      <Tabs
+        className="mt-1"
+        tabs={[
+            {
+              key: "overview",
+              label: t("machine.tabOverview", locale),
+              content: (
+                <div className="flex flex-col gap-4">
+              {/* Meter history */}
+              {machine.meter_type !== "none" ? (
+                <Card>
+                  <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
+                  <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
+                  {canAddReading ? (
+                    <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="machine_id" value={machine.id} />
+                      <input type="hidden" name="farm_id" value={machine.farm_id} />
+                      <Field label={t("machine.newReading", locale)} htmlFor="reading" className="flex-1">
+                        <Input id="reading" name="reading" type="number" inputMode="decimal" step="0.1" required />
+                      </Field>
+                      <Field label={t("machine.date", locale)} htmlFor="reading_date">
+                        <Input id="reading_date" name="reading_date" type="date" />
+                      </Field>
+                      {operators.length > 0 ? (
+                        <Field label={t("machine.driver", locale)} htmlFor="driver_user_id">
+                          <Select id="driver_user_id" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
+                            <option value="">{t("machines.noOperator", locale)}</option>
+                            {operators.map((op) => (
+                              <option key={op.id} value={op.id}>{op.name}</option>
+                            ))}
+                          </Select>
+                        </Field>
+                      ) : null}
+                      <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
+                    </OfflineForm>
+                  ) : null}
+                  {readings.length > 0 ? (
+                    <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
+                      {readings.slice(0, 8).map((r) => (
+                        <li key={r.id} className="flex justify-between py-1.5">
+                          <span>{r.reading} {machine.meter_type}</span>
+                          <span className="text-sand-500">{r.reading_date} · {r.source}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-3 text-sm text-sand-400">{t("machine.noReadings", locale)}</p>}
+                </Card>
+              ) : null}
+
+              {/* Watch items */}
+              {openWatch.length > 0 ? (
+                <Card>
+                  <CardHeader><CardTitle>{t("machine.watchItems", locale)}</CardTitle></CardHeader>
+                  <ul className="flex flex-col gap-2 text-sm">
+                    {openWatch.map((w) => (
+                      <li key={w.id} className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 text-sand-800">{w.text}</span>
+                        {canAddReading ? (
+                          <span className="flex shrink-0 gap-1">
+                            <form action={setWatchStatus}>
+                              <input type="hidden" name="id" value={w.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <input type="hidden" name="status" value="done" />
+                              <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.done", locale)}</button>
+                            </form>
+                            <form action={setWatchStatus}>
+                              <input type="hidden" name="id" value={w.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <input type="hidden" name="status" value="dismissed" />
+                              <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.dismiss", locale)}</button>
+                            </form>
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              ) : null}
+
+              {/* Fuel & consumption (F4) — Professional+ (F5 entitlement gate) */}
+              {fuelAllowed ? (
+              <Card>
+                <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-sand-400">{t("machine.fuelConsumption", locale)}</p>
+                    <p className="text-2xl font-bold tabular-nums text-sand-900">
+                      {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "—"}
+                    </p>
+                    {fuelConsumption.intervals > 0 ? (
+                      <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
+                    ) : (
+                      <p className="text-xs text-sand-400">{t("fuel.needMoreData", locale)}</p>
+                    )}
+                  </div>
+                  {fuelConsumption.trend.length > 1 ? (
+                    <div className="w-40">
+                      <FuelTrend trend={fuelConsumption.trend} unit={machine.meter_type === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)} title={t("fuel.trend", locale)} />
+                    </div>
+                  ) : null}
+                </div>
+
+                {canFuel && fuelTanks.length > 0 ? (
+                  <form action={addFuelIssue} className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
+                    <input type="hidden" name="machine_id" value={machine.id} />
+                    <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
+                    <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
+                      <Select id="f_tank" name="tank_id" required defaultValue={fuelTanks[0]?.id ?? ""}>
+                        {fuelTanks.map((tk) => (
+                          <option key={tk.id} value={tk.id}>{tk.name}</option>
                         ))}
                       </Select>
                     </Field>
-                  ) : null}
-                  <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
-                </OfflineForm>
-              ) : null}
-              {readings.length > 0 ? (
-                <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
-                  {readings.slice(0, 8).map((r) => (
-                    <li key={r.id} className="flex justify-between py-1.5">
-                      <span>{r.reading} {machine.meter_type}</span>
-                      <span className="text-sand-500">{r.reading_date} · {r.source}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : <p className="mt-3 text-sm text-sand-400">{t("machine.noReadings", locale)}</p>}
-            </Card>
-          ) : null}
-
-          {/* Fuel & consumption (F4) — Professional+ (F5 entitlement gate) */}
-          {fuelAllowed ? (
-          <Card>
-            <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-sand-400">{t("machine.fuelConsumption", locale)}</p>
-                <p className="text-2xl font-bold tabular-nums text-sand-900">
-                  {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "—"}
-                </p>
-                {fuelConsumption.intervals > 0 ? (
-                  <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
-                ) : (
-                  <p className="text-xs text-sand-400">{t("fuel.needMoreData", locale)}</p>
-                )}
-              </div>
-              {fuelConsumption.trend.length > 1 ? (
-                <div className="w-40">
-                  <FuelTrend trend={fuelConsumption.trend} unit={machine.meter_type === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)} title={t("fuel.trend", locale)} />
-                </div>
-              ) : null}
-            </div>
-
-            {canFuel && fuelTanks.length > 0 ? (
-              <form action={addFuelIssue} className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
-                <input type="hidden" name="machine_id" value={machine.id} />
-                <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
-                <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
-                  <Select id="f_tank" name="tank_id" required defaultValue={fuelTanks[0]?.id ?? ""}>
-                    {fuelTanks.map((tk) => (
-                      <option key={tk.id} value={tk.id}>{tk.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t("fuel.litres", locale)} htmlFor="f_litres">
-                  <Input id="f_litres" name="litres" type="number" inputMode="decimal" step="0.1" required className="w-24" />
-                </Field>
-                {machine.meter_type !== "none" ? (
-                  <Field label={t("fuel.meter", locale)} htmlFor="f_meter">
-                    <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" className="w-28" defaultValue={machine.current_reading ?? ""} />
-                  </Field>
-                ) : null}
-                <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
-                  <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
-                </Field>
-                <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
-                  <Select id="f_activity" name="activity" defaultValue="">
-                    <option value="">—</option>
-                    {FUEL_ACTIVITIES.map((a) => (
-                      <option key={a} value={a}>{activityLabel(a, locale)}</option>
-                    ))}
-                  </Select>
-                </Field>
-                {operators.length > 0 ? (
-                  <Field label={t("fuel.driver", locale)} htmlFor="f_driver">
-                    <Select id="f_driver" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
-                      <option value="">{t("machines.noOperator", locale)}</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.id}>{op.name}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                ) : null}
-                <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
-              </form>
-            ) : null}
-
-            {fuelDraws.length > 0 ? (
-              <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
-                {fuelDraws.slice(0, 8).map((d) => (
-                  <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="min-w-0 truncate">
-                      <span className="font-medium text-sand-800">{d.litres} {t("fuel.litresShort", locale)}</span>
-                      {d.activity ? <span className="text-sand-500"> · {activityLabel(d.activity, locale)}</span> : null}
-                      {d.meter_reading != null ? <span className="text-sand-400"> · {d.meter_reading} {machine.meter_type}</span> : null}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                      {d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
-                      {d.anomaly_notified_at ? <Badge tone="danger">{t("fuel.flagged", locale)}</Badge> : null}
-                      <span className="tabular-nums">{d.date}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-sand-400">{t("machine.noFuel", locale)}</p>
-            )}
-          </Card>
-          ) : (
-            <Card>
-              <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
-              <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
-            </Card>
-          )}
-
-          {/* Service plan */}
-          <Card>
-            <CardHeader
-              action={canJob ? (
-                <form action={createJobCard} className="flex items-center gap-1">
-                  <input type="hidden" name="machine_id" value={machine.id} />
-                  <input type="hidden" name="farm_id" value={machine.farm_id} />
-                  <input type="hidden" name="type" value="scheduled_service" />
-                  <Button type="submit" variant="ghost" size="sm">{t("machine.newJobCard", locale)}</Button>
-                </form>
-              ) : undefined}
-            >
-              <CardTitle>{t("machine.servicePlan", locale)}</CardTitle>
-            </CardHeader>
-            {planLines.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("machine.noServiceLines", locale)}</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {planLines.map((l) => (
-                  <li key={l.id} className="rounded-lg border border-sand-200 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sand-900">{l.task}</p>
-                        <p className="text-xs text-sand-500">{intervalText(l)}</p>
-                      </div>
-                      <StatusPill status={l.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(l.status)} />
-                    </div>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
-                      <div className={`h-full rounded-full ${statusBar[l.status] ?? "bg-status-ok"}`} style={{ width: `${Math.round(lineProgress(l) * 100)}%` }} />
-                    </div>
-                    <div className="mt-1.5 flex justify-between text-xs text-sand-500">
-                      <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "—"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
-                      <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "—"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
-                    </div>
-                    {canEdit ? (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.editServiceLine", locale)}</summary>
-                        <form action={updateServiceLine} className="mt-2 flex flex-wrap gap-2">
-                          <input type="hidden" name="id" value={l.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input name="task" defaultValue={l.task} placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
-                          <input name="interval_hours" type="number" step="0.1" defaultValue={l.interval_hours ?? ""} placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
-                          <input name="interval_months" type="number" defaultValue={l.interval_months ?? ""} placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
-                          <input name="last_done_reading" type="number" step="0.1" defaultValue={l.last_done_reading ?? ""} placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
-                          <input name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} className={`${inputCls}`} />
-                          <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                        </form>
-                        <div className="mt-1">
-                          <ConfirmDialog
-                            action={deleteServiceLine}
-                            triggerVariant="ghost"
-                            triggerSize="sm"
-                            triggerIcon={<TrashIcon />}
-                            triggerLabel={t("machine.delete", locale)}
-                            triggerClassName="text-status-overdue hover:bg-red-50"
-                            title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
-                            intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
-                            consequencesTitle={t("confirm.whatHappens", locale)}
-                            consequences={[
-                              t("confirm.deleteServiceLineEffect1", locale),
-                              t("confirm.deleteServiceLineEffect2", locale),
-                            ]}
-                            footnote={t("confirm.softDeleteNote", locale)}
-                            confirmLabel={t("confirm.deleteServiceLineYes", locale)}
-                            cancelLabel={t("confirm.keepIt", locale)}
-                            closeLabel={t("ui.close", locale)}
-                          >
-                            <input type="hidden" name="id" value={l.id} />
-                            <input type="hidden" name="machine_id" value={machine.id} />
-                          </ConfirmDialog>
-                        </div>
-                      </details>
+                    <Field label={t("fuel.litres", locale)} htmlFor="f_litres">
+                      <Input id="f_litres" name="litres" type="number" inputMode="decimal" step="0.1" required className="w-24" />
+                    </Field>
+                    {machine.meter_type !== "none" ? (
+                      <Field label={t("fuel.meter", locale)} htmlFor="f_meter">
+                        <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" className="w-28" defaultValue={machine.current_reading ?? ""} />
+                      </Field>
                     ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {canEdit ? (
-              <div className="mt-3 flex flex-col gap-2 border-t border-sand-100 pt-3">
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceLine", locale)}</summary>
-                  <form action={addServiceLine} className="mt-2 flex flex-wrap gap-2">
-                    <input type="hidden" name="machine_id" value={machine.id} />
-                    <input type="hidden" name="farm_id" value={machine.farm_id} />
-                    <input name="task" placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
-                    <input name="interval_hours" type="number" step="0.1" placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
-                    <input name="interval_months" type="number" placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
-                    <input name="last_done_reading" type="number" step="0.1" placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
-                    <input name="last_done_date" type="date" className={`${inputCls}`} />
-                    <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                    <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
+                      <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
+                    </Field>
+                    <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
+                      <Select id="f_activity" name="activity" defaultValue="">
+                        <option value="">—</option>
+                        {FUEL_ACTIVITIES.map((a) => (
+                          <option key={a} value={a}>{activityLabel(a, locale)}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    {operators.length > 0 ? (
+                      <Field label={t("fuel.driver", locale)} htmlFor="f_driver">
+                        <Select id="f_driver" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
+                          <option value="">{t("machines.noOperator", locale)}</option>
+                          {operators.map((op) => (
+                            <option key={op.id} value={op.id}>{op.name}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    ) : null}
+                    <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
                   </form>
-                </details>
-                {templates.length > 0 ? (
-                  <details>
-                    <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.applyTemplate", locale)}</summary>
-                    <form action={applyTemplate} className="mt-2 flex flex-wrap items-end gap-2">
+                ) : null}
+
+                {fuelDraws.length > 0 ? (
+                  <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
+                    {fuelDraws.slice(0, 8).map((d) => (
+                      <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
+                        <span className="min-w-0 truncate">
+                          <span className="font-medium text-sand-800">{d.litres} {t("fuel.litresShort", locale)}</span>
+                          {d.activity ? <span className="text-sand-500"> · {activityLabel(d.activity, locale)}</span> : null}
+                          {d.meter_reading != null ? <span className="text-sand-400"> · {d.meter_reading} {machine.meter_type}</span> : null}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                          {d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
+                          {d.anomaly_notified_at ? <Badge tone="danger">{t("fuel.flagged", locale)}</Badge> : null}
+                          <span className="tabular-nums">{d.date}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-sand-400">{t("machine.noFuel", locale)}</p>
+                )}
+              </Card>
+              ) : (
+                <Card>
+                  <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
+                  <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+                </Card>
+              )}
+
+              {/* Utilisation & downtime (§23) — trailing window. */}
+              <Card>
+                <CardHeader><CardTitle>{t("machine.utilisationTitle", locale)}</CardTitle></CardHeader>
+                <p className="mb-2 text-xs text-sand-500">{t("machine.utilisationWindow", locale).replace("{n}", String(UTILISATION_WINDOW_DAYS))}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Stat
+                    label={t("machine.utilisation", locale)}
+                    value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "—"}
+                  />
+                  <Stat
+                    label={machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}
+                    value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+                  />
+                  <Stat
+                    label={t("machine.idle", locale)}
+                    value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+                  />
+                  <Stat
+                    label={t("machine.downtime", locale)}
+                    value={`${downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} ${t("machine.daysShort", locale)}`}
+                    tone={downtimeDays > 0 ? "overdue" : "default"}
+                  />
+                </div>
+                {utilisation.pct != null ? (
+                  <div className="mt-3">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                      <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, Math.round(utilisation.pct))}%` }} />
+                    </div>
+                    <p className="mt-1 text-xs text-sand-400">
+                      {t("machine.utilisationBasis", locale)
+                        .replace("{cap}", String(machine.meter_type === "km" ? kmPerDay : hoursPerDay))
+                        .replace("{unit}", machine.meter_type === "km" ? t("machine.kmShort", locale) : t("machine.hrs", locale))}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-sand-400">{t("machine.utilisationNoMeter", locale)}</p>
+                )}
+              </Card>
+
+              {/* Photos */}
+              <Card>
+                <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} primaryAttachmentId={machine.primary_attachment_id} locale={locale} />
+              </Card>
+
+                </div>
+              ),
+            },
+            {
+              key: "servicing",
+              label: t("machine.tabServicing", locale),
+              content: (
+                <div className="flex flex-col gap-4">
+              {/* Service plan */}
+              <Card>
+                <CardHeader
+                  action={canJob ? (
+                    <form action={createJobCard} className="flex items-center gap-1">
                       <input type="hidden" name="machine_id" value={machine.id} />
                       <input type="hidden" name="farm_id" value={machine.farm_id} />
-                      <select name="template_id" className={`${inputCls} flex-1`} required defaultValue="">
-                        <option value="" disabled>{t("machine.template", locale)}</option>
-                        {templates.map((tp) => (
-                          <option key={tp.id} value={tp.id}>{tp.name}</option>
-                        ))}
-                      </select>
-                      <SubmitButton variant="secondary" size="sm">{t("machine.apply", locale)}</SubmitButton>
+                      <input type="hidden" name="type" value="scheduled_service" />
+                      <Button type="submit" variant="ghost" size="sm">{t("machine.newJobCard", locale)}</Button>
                     </form>
-                  </details>
-                ) : null}
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Service kit — parts BOM (F9): the exact oils/filters/part numbers a service needs */}
-          <Card>
-            <CardHeader><CardTitle>{t("machine.serviceKit", locale)}</CardTitle></CardHeader>
-            <p className="mb-2 text-xs text-sand-500">{t("machine.serviceKitHint", locale)}</p>
-            {kits.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("machine.noServiceKit", locale)}</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {kits.map((kit) => (
-                  <li key={kit.id} className="rounded-lg border border-sand-200 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sand-900">{kit.name}</p>
-                        {kit.notes ? <p className="text-xs text-sand-500">{kit.notes}</p> : null}
-                      </div>
-                      {canKit ? (
-                        <ConfirmDialog
-                          action={deleteServiceKit}
-                          triggerVariant="ghost"
-                          triggerSize="sm"
-                          triggerIcon={<TrashIcon />}
-                          triggerLabel={t("machine.deleteKit", locale)}
-                          triggerClassName="text-status-overdue hover:bg-red-50"
-                          title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
-                          intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
-                          consequencesTitle={t("confirm.whatHappens", locale)}
-                          consequences={[
-                            t("confirm.deleteKitEffect1", locale).replace("{n}", String(kit.items.length)),
-                            t("confirm.deleteKitEffect2", locale),
-                          ]}
-                          footnote={t("confirm.softDeleteNote", locale)}
-                          confirmLabel={t("confirm.deleteKitYes", locale)}
-                          cancelLabel={t("confirm.keepIt", locale)}
-                          closeLabel={t("ui.close", locale)}
-                        >
-                          <input type="hidden" name="id" value={kit.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                        </ConfirmDialog>
-                      ) : null}
-                    </div>
-                    {kit.items.length === 0 ? (
-                      <p className="mt-2 text-xs text-sand-400">{t("machine.noKitItems", locale)}</p>
-                    ) : (
-                      <ul className="mt-2 flex flex-col divide-y divide-sand-100 text-sm">
-                        {kit.items.map((item) => (
-                          <li key={item.id} className="py-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="min-w-0 truncate">
-                                <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "—"}</span>
-                                {item.part_no && item.description ? <span className="text-sand-500"> · {item.description}</span> : null}
-                                <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
-                              </span>
-                              <span className="flex shrink-0 items-center gap-2">
-                                <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
-                                {canKit ? (
-                                  <ConfirmDialog
-                                    action={deleteKitItem}
-                                    triggerVariant="ghost"
-                                    triggerSize="sm"
-                                    triggerIcon={<TrashIcon />}
-                                    triggerLabel={t("machine.removeItem", locale)}
-                                    triggerClassName="text-status-overdue hover:bg-red-50"
-                                    title={t("confirm.deleteKitItemTitle", locale).replace(
-                                      "{part}",
-                                      item.part_no ?? item.description ?? "—",
-                                    )}
-                                    intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
-                                    confirmLabel={t("confirm.deleteKitItemYes", locale)}
-                                    cancelLabel={t("confirm.keepIt", locale)}
-                                    closeLabel={t("ui.close", locale)}
-                                  >
-                                    <input type="hidden" name="id" value={item.id} />
-                                    <input type="hidden" name="machine_id" value={machine.id} />
-                                  </ConfirmDialog>
-                                ) : null}
-                              </span>
-                            </div>
-                            {canKit ? (
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
-                                <form action={updateKitItem} className="mt-1 flex flex-wrap gap-2">
-                                  <input type="hidden" name="id" value={item.id} />
-                                  <input type="hidden" name="machine_id" value={machine.id} />
-                                  <input name="part_no" defaultValue={item.part_no ?? ""} placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
-                                  <input name="description" defaultValue={item.description ?? ""} placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
-                                  <input name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} className={`${inputCls} w-20`} />
-                                  <input name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
-                                  <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                                </form>
-                              </details>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {canKit ? (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.addKitItem", locale)}</summary>
-                        <form action={addKitItem} className="mt-2 flex flex-wrap gap-2">
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input type="hidden" name="farm_id" value={machine.farm_id} />
-                          <input type="hidden" name="service_kit_id" value={kit.id} />
-                          {catalogue.length > 0 ? (
-                            <select name="part_catalogue_id" defaultValue="" className={`${inputCls} w-full`}>
-                              <option value="">{t("machine.kitFromCatalogue", locale)}</option>
-                              {catalogue.map((c) => (
-                                <option key={c.id} value={c.id}>{c.part_no}{c.description ? ` — ${c.description}` : ""}</option>
-                              ))}
-                            </select>
-                          ) : null}
-                          <input name="part_no" placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
-                          <input name="description" placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
-                          <input name="qty" type="number" step="0.01" defaultValue="1" className={`${inputCls} w-20`} />
-                          <input name="unit_cost" inputMode="decimal" placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
-                          <SubmitButton variant="secondary" size="sm">{t("common.add", locale)}</SubmitButton>
-                        </form>
-                      </details>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {canKit ? (
-              <div className="mt-3 border-t border-sand-100 pt-3">
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceKit", locale)}</summary>
-                  <form action={createServiceKit} className="mt-2 flex flex-wrap gap-2">
-                    <input type="hidden" name="machine_id" value={machine.id} />
-                    <input type="hidden" name="farm_id" value={machine.farm_id} />
-                    <input name="name" placeholder={t("machine.kitName", locale)} className={`${inputCls} flex-1`} required />
-                    <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                    <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
-                  </form>
-                </details>
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Compliance — warranty + licences (F6) */}
-          <Card>
-            <CardHeader><CardTitle>{t("compliance.title", locale)}</CardTitle></CardHeader>
-
-            {/* Warranty (stored on the machine) */}
-            <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.warranty", locale)}</p>
-              {hasWarranty ? (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-sand-700">
-                  {machine.warranty_expiry_date ? (
-                    <span>{t("compliance.warrantyDate", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_date}</span></span>
-                  ) : null}
-                  {machine.warranty_expiry_hours != null ? (
-                    <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_hours}{machine.meter_type === "hours" ? " h" : ""}</span></span>
-                  ) : null}
-                  <ExpiryStatus value={wStatus} locale={locale} />
-                </div>
-              ) : (
-                <p className="text-sm text-sand-400">{t("compliance.noWarranty", locale)}</p>
-              )}
-            </div>
-
-            {/* Licences / renewals */}
-            <div className="mt-4 border-t border-sand-100 pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.licences", locale)}</p>
-              {licences.length === 0 ? (
-                <p className="mt-1 text-sm text-sand-400">{t("compliance.noLicences", locale)}</p>
-              ) : (
-                <ul className="mt-2 flex flex-col gap-2">
-                  {licences.map((l) => {
-                    const s = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
-                    return (
+                  ) : undefined}
+                >
+                  <CardTitle>{t("machine.servicePlan", locale)}</CardTitle>
+                </CardHeader>
+                {planLines.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("machine.noServiceLines", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {planLines.map((l) => (
                       <li key={l.id} className="rounded-lg border border-sand-200 p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="font-medium text-sand-900">
-                              {licenceTypeLabel(l.type, locale)}
-                              {l.number ? <span className="text-sand-500"> · {l.number}</span> : null}
-                            </p>
-                            <p className="text-xs text-sand-500">
-                              {t("compliance.expires", locale)}: <span className="tabular-nums">{l.expiry_date}</span> · {t("compliance.leadDays", locale)}: {l.reminder_lead_days}
-                            </p>
-                            {l.notes ? <p className="mt-0.5 text-xs text-sand-500">{l.notes}</p> : null}
+                            <p className="font-medium text-sand-900">{l.task}</p>
+                            <p className="text-xs text-sand-500">{intervalText(l)}</p>
                           </div>
-                          <ExpiryStatus value={s} locale={locale} />
+                          <StatusPill status={l.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(l.status)} />
+                        </div>
+                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                          <div className={`h-full rounded-full ${statusBar[l.status] ?? "bg-status-ok"}`} style={{ width: `${Math.round(lineProgress(l) * 100)}%` }} />
+                        </div>
+                        <div className="mt-1.5 flex justify-between text-xs text-sand-500">
+                          <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "—"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
+                          <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "—"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
                         </div>
                         {canEdit ? (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
-                            <form action={updateLicence} className="mt-2 flex flex-wrap gap-2">
+                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.editServiceLine", locale)}</summary>
+                            <form action={updateServiceLine} className="mt-2 flex flex-wrap gap-2">
                               <input type="hidden" name="id" value={l.id} />
                               <input type="hidden" name="machine_id" value={machine.id} />
-                              <select name="type" defaultValue={l.type} className={`${inputCls} w-40`}>
-                                {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
-                              </select>
-                              <input name="number" defaultValue={l.number ?? ""} placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
-                              <input name="expiry_date" type="date" defaultValue={l.expiry_date} className={inputCls} required />
-                              <input name="reminder_lead_days" type="number" min={0} defaultValue={l.reminder_lead_days} className={`${inputCls} w-24`} />
-                              <input name="notes" defaultValue={l.notes ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                              <input name="task" defaultValue={l.task} placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
+                              <input name="interval_hours" type="number" step="0.1" defaultValue={l.interval_hours ?? ""} placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
+                              <input name="interval_months" type="number" defaultValue={l.interval_months ?? ""} placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
+                              <input name="last_done_reading" type="number" step="0.1" defaultValue={l.last_done_reading ?? ""} placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
+                              <input name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} className={`${inputCls}`} />
                               <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                             </form>
                             <div className="mt-1">
                               <ConfirmDialog
-                                action={deleteLicence}
+                                action={deleteServiceLine}
                                 triggerVariant="ghost"
                                 triggerSize="sm"
                                 triggerIcon={<TrashIcon />}
-                                triggerLabel={t("common.delete", locale)}
+                                triggerLabel={t("machine.delete", locale)}
                                 triggerClassName="text-status-overdue hover:bg-red-50"
-                                title={t("confirm.deleteLicenceTitle", locale).replace(
-                                  "{type}",
-                                  licenceTypeLabel(l.type, locale),
-                                )}
-                                intro={t("confirm.deleteLicenceIntro", locale).replace("{machine}", machine.name)}
+                                title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
+                                intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
                                 consequencesTitle={t("confirm.whatHappens", locale)}
                                 consequences={[
-                                  t("confirm.deleteLicenceEffect1", locale),
-                                  t("confirm.deleteLicenceEffect2", locale),
+                                  t("confirm.deleteServiceLineEffect1", locale),
+                                  t("confirm.deleteServiceLineEffect2", locale),
                                 ]}
                                 footnote={t("confirm.softDeleteNote", locale)}
-                                confirmLabel={t("confirm.deleteLicenceYes", locale)}
+                                confirmLabel={t("confirm.deleteServiceLineYes", locale)}
                                 cancelLabel={t("confirm.keepIt", locale)}
                                 closeLabel={t("ui.close", locale)}
                               >
@@ -954,570 +825,786 @@ export default async function MachineDetailPage({
                           </details>
                         ) : null}
                       </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {canEdit ? (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("compliance.addLicence", locale)}</summary>
-                  <form action={addLicence} className="mt-2 flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="machine_id" value={machine.id} />
-                    <input type="hidden" name="farm_id" value={machine.farm_id} />
-                    <select name="type" defaultValue="vehicle_licence" className={`${inputCls} w-40`}>
-                      {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
-                    </select>
-                    <input name="number" placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
-                    <input name="expiry_date" type="date" className={inputCls} required />
-                    <input name="reminder_lead_days" type="number" min={0} defaultValue={30} className={`${inputCls} w-24`} />
-                    <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                    <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
-                  </form>
-                </details>
-              ) : null}
-            </div>
-          </Card>
-
-          {/* Budgets & budget-vs-actual (FR-10.4) */}
-          <Card>
-            <CardHeader><CardTitle>{t("budget.title", locale)}</CardTitle></CardHeader>
-            <p className="mb-2 text-xs text-sand-500">{t("budget.hint", locale)}</p>
-            {budgetRows.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("budget.none", locale)}</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {budgetRows.map((bp) => (
-                  <li key={bp.budget.id} className="rounded-lg border border-sand-200 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sand-900">
-                          {budgetCategoryLabel(bp.budget.category, locale)}
-                          <span className="text-sand-500"> · {budgetPeriodLabel(bp.budget.period_type, locale)}</span>
-                        </p>
-                        <p className="text-xs tabular-nums text-sand-500">{bp.budget.period_start} → {bp.budget.period_end}</p>
-                        {bp.budget.note ? <p className="mt-0.5 text-xs text-sand-500">{bp.budget.note}</p> : null}
-                      </div>
-                      <Badge tone={budgetTone(bp.status)}>{bp.status === "over" ? t("budget.over", locale) : t("budget.under", locale)}</Badge>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-sm">
-                      <span className="text-sand-600">{t("budget.actual", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.actual)}</span></span>
-                      <span className="text-sand-600">{t("budget.budget", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.budget.amount_cents)}</span></span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
-                      <div className={`h-full rounded-full ${bp.status === "over" ? "bg-status-overdue" : bp.status === "warning" ? "bg-status-due" : "bg-status-ok"}`} style={{ width: `${bp.pct != null ? Math.min(100, Math.round(bp.pct)) : 0}%` }} />
-                    </div>
-                    <p className="mt-1 text-xs tabular-nums text-sand-500">
-                      {bp.variance > 0
-                        ? t("budget.overBy", locale).replace("{amt}", rands(bp.variance))
-                        : t("budget.remaining", locale).replace("{amt}", rands(bp.remaining))}
-                      {bp.pct != null ? ` · ${bp.pct.toFixed(0)}%` : ""}
-                    </p>
-                    {canBudget ? (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
-                        <form action={updateBudget} className="mt-2 flex flex-wrap gap-2">
-                          <input type="hidden" name="id" value={bp.budget.id} />
+                    ))}
+                  </ul>
+                )}
+                {canEdit ? (
+                  <div className="mt-3 flex flex-col gap-2 border-t border-sand-100 pt-3">
+                    <details>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceLine", locale)}</summary>
+                      <form action={addServiceLine} className="mt-2 flex flex-wrap gap-2">
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <input name="task" placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
+                        <input name="interval_hours" type="number" step="0.1" placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
+                        <input name="interval_months" type="number" placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
+                        <input name="last_done_reading" type="number" step="0.1" placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
+                        <input name="last_done_date" type="date" className={`${inputCls}`} />
+                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                      </form>
+                    </details>
+                    {templates.length > 0 ? (
+                      <details>
+                        <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.applyTemplate", locale)}</summary>
+                        <form action={applyTemplate} className="mt-2 flex flex-wrap items-end gap-2">
                           <input type="hidden" name="machine_id" value={machine.id} />
-                          <select name="category" defaultValue={bp.budget.category ?? ""} className={`${inputCls} w-32`}>
-                            <option value="">{t("budget.allCategories", locale)}</option>
-                            {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <select name="template_id" className={`${inputCls} flex-1`} required defaultValue="">
+                            <option value="" disabled>{t("machine.template", locale)}</option>
+                            {templates.map((tp) => (
+                              <option key={tp.id} value={tp.id}>{tp.name}</option>
+                            ))}
                           </select>
-                          <select name="period_type" defaultValue={bp.budget.period_type} className={`${inputCls} w-28`}>
-                            {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
-                          </select>
-                          <input name="anchor" type="date" defaultValue={bp.budget.period_start} className={inputCls} />
-                          <input name="amount" inputMode="decimal" defaultValue={(bp.budget.amount_cents / 100).toFixed(2)} placeholder={t("budget.amount", locale)} className={`${inputCls} w-28`} />
-                          <input name="note" defaultValue={bp.budget.note ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                          <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                          <SubmitButton variant="secondary" size="sm">{t("machine.apply", locale)}</SubmitButton>
                         </form>
-                        <div className="mt-1">
-                          <ConfirmDialog
-                            action={deleteBudget}
-                            triggerVariant="ghost"
-                            triggerSize="sm"
-                            triggerIcon={<TrashIcon />}
-                            triggerLabel={t("common.delete", locale)}
-                            triggerClassName="text-status-overdue hover:bg-red-50"
-                            title={t("confirm.deleteBudgetTitle", locale)}
-                            intro={t("confirm.deleteBudgetIntro", locale).replace("{machine}", machine.name)}
-                            facts={[
-                              {
-                                label: t("budget.amount", locale),
-                                value: rands(bp.budget.amount_cents),
-                              },
-                            ]}
-                            consequencesTitle={t("confirm.whatHappens", locale)}
-                            consequences={[
-                              t("confirm.deleteBudgetEffect1", locale),
-                              t("confirm.deleteBudgetEffect2", locale),
-                            ]}
-                            footnote={t("confirm.softDeleteNote", locale)}
-                            confirmLabel={t("confirm.deleteBudgetYes", locale)}
-                            cancelLabel={t("confirm.keepIt", locale)}
-                            closeLabel={t("ui.close", locale)}
-                          >
-                            <input type="hidden" name="id" value={bp.budget.id} />
-                            <input type="hidden" name="machine_id" value={machine.id} />
-                          </ConfirmDialog>
-                        </div>
                       </details>
                     ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {canBudget ? (
-              <details className="mt-3 border-t border-sand-100 pt-3">
-                <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("budget.add", locale)}</summary>
-                <form action={addBudget} className="mt-2 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="machine_id" value={machine.id} />
-                  <input type="hidden" name="farm_id" value={machine.farm_id} />
-                  <Field label={t("budget.category", locale)} htmlFor="b_category">
-                    <Select id="b_category" name="category" defaultValue="">
-                      <option value="">{t("budget.allCategories", locale)}</option>
-                      {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label={t("budget.period", locale)} htmlFor="b_period">
-                    <Select id="b_period" name="period_type" defaultValue="month">
-                      {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label={t("budget.anchor", locale)} htmlFor="b_anchor">
-                    <Input id="b_anchor" name="anchor" type="date" defaultValue={todayYmd} />
-                  </Field>
-                  <Field label={t("budget.amount", locale)} htmlFor="b_amount">
-                    <Input id="b_amount" name="amount" inputMode="decimal" placeholder="R" className="w-28" />
-                  </Field>
-                  <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
-                </form>
-              </details>
-            ) : null}
-          </Card>
-
-          {/* Timeline */}
-          <Card>
-            <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
-            {events.length === 0 ? (
-              <EmptyState title={t("machine.noTimeline", locale)} />
-            ) : (
-              <ol className="flex flex-col">
-                {events.map((e, i) => {
-                  const body = (
-                    <div className="flex gap-3 py-2.5">
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-[1.05rem] text-sand-500">
-                        {evIcon(e.kind)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-sand-900">{e.title}</span>
-                          <span className="shrink-0 text-xs tabular-nums text-sand-400">{e.date}</span>
-                        </div>
-                        {e.sub ? <p className="truncate text-sm text-sand-500">{e.sub}</p> : null}
-                      </div>
-                    </div>
-                  );
-                  return (
-                    <li key={i} className="border-b border-sand-100 last:border-0">
-                      {e.href ? <Link href={e.href} className="focus-ring block rounded-md">{body}</Link> : body}
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </Card>
-
-          {/* Who operated / when — AARTO driver-usage log (FR-13.1) — Complete+ (F5 gate) */}
-          {aartoAllowed ? (
-          <Card>
-            <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
-
-            {/* Driver-on-date lookup (the AARTO nomination question). */}
-            <form method="get" className="mb-3 flex flex-wrap items-end gap-2">
-              <Field label={t("machine.driverOnDate", locale)} htmlFor="usageDate">
-                <Input id="usageDate" name="usageDate" type="date" defaultValue={usageDate ?? ""} />
-              </Field>
-              <SubmitButton variant="secondary" size="sm">{t("machine.check", locale)}</SubmitButton>
-            </form>
-            {usageDate ? (
-              usageOnDate.length > 0 ? (
-                <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-800">
-                  {t("machine.operatedBy", locale)}:{" "}
-                  <span className="font-medium">{usageOnDate.map(driverLabel).join(", ")}</span>
-                  <span className="text-sand-400"> · {usageDate}</span>
-                </p>
-              ) : (
-                <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-500">{t("machine.noDriverOn", locale)}</p>
-              )
-            ) : null}
-
-            {usage.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("machine.noUsage", locale)}</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
-                {usage.slice(0, 12).map((u) => (
-                  <li key={u.id} className="flex items-center justify-between gap-3 py-1.5">
-                    <span className="min-w-0 truncate font-medium text-sand-800">{driverLabel(u)}</span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                      {u.meter_reading != null ? <span className="tabular-nums">{u.meter_reading} {machine.meter_type !== "none" ? machine.meter_type : ""}</span> : null}
-                      <span>{t(`meterSource.${u.source}`, locale)}</span>
-                      <span className="tabular-nums">{u.occurred_on}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* AARTO fines on this vehicle (FR-13.2) — capture lives on the fines workflow,
-                pre-selecting this vehicle. */}
-            <div className="mt-4 border-t border-sand-100 pt-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("machine.finesTitle", locale)}</p>
-                {canEdit ? (
-                  <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-700">
-                    {t("machine.recordFine", locale)} →
-                  </Link>
-                ) : null}
-              </div>
-              {machineFines.length === 0 ? (
-                <p className="text-sm text-sand-400">{t("machine.noFines", locale)}</p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {machineFines.map((f) => {
-                    const ds = nominationDeadlineStatus(f.nomination_deadline, f.status, aartoLeadDays);
-                    return (
-                      <li key={f.id} className="rounded-lg border border-sand-200 p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-sand-800">
-                              {f.offence || t("fines.noOffence", locale)}
-                              {f.notice_number ? <span className="text-sand-400"> · {f.notice_number}</span> : null}
-                            </p>
-                            <p className="text-xs text-sand-500">
-                              {t("fines.driver", locale)}: {fineDriverLabel(f)}
-                              {f.offence_date ? <span className="text-sand-400"> · {f.offence_date}</span> : null}
-                              {f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
-                            </p>
-                            {f.nomination_deadline && nominationPending(f.status) ? (
-                              <p className="text-xs text-sand-500">
-                                {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
-                                {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
-                              </p>
-                            ) : null}
-                          </div>
-                          <FineStatus value={f.status} locale={locale} />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </Card>
-          ) : (
-            <Card>
-              <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
-              <UpgradeNotice feature="aarto" requiredPlan={requiredPlan("aarto")} currentPlan={plan} locale={locale} compact />
-            </Card>
-          )}
-        </div>
-
-        {/* Sidebar */}
-        <div className="flex flex-col gap-4">
-          {/* Lifetime stats */}
-          <Card>
-            <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
-            <div className="grid grid-cols-2 gap-3">
-              <Stat label={t("machine.tco", locale)} value={rands(tco)} />
-              <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "—"} />
-              <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} />
-              <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
-              <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
-            </div>
-            {tco > 0 ? (
-              <ul className="mt-3 flex flex-col divide-y divide-sand-100 border-t border-sand-100 pt-3 text-sm">
-                {COST_TYPES.filter((ct) => breakdown[ct] > 0).map((ct) => (
-                  <li key={ct} className="flex justify-between py-1">
-                    <span className="text-sand-600">{t(`costType.${ct}`, locale)}</span>
-                    <span className="font-medium tabular-nums text-sand-900">{rands(breakdown[ct])}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            {/* Repair-vs-replace indicator (FR-10.5): lifetime repair spend ÷ purchase price. */}
-            {repair.ratioPct != null ? (
-              <div className="mt-3 border-t border-sand-100 pt-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-sand-600">{t("machine.repairRatio", locale)}</span>
-                  <span className={`text-sm font-semibold tabular-nums ${repair.flagged ? "text-status-overdue" : "text-sand-900"}`}>
-                    {repair.ratioPct.toFixed(0)}%
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-sand-400">{t("machine.repairRatioHint", locale).replace("{pct}", String(repair.thresholdPct))}</p>
-                {repair.flagged ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 p-2.5">
-                    <Badge tone="danger">{t("machine.considerReplacing", locale)}</Badge>
-                    <span className="text-xs text-sand-600">{t("machine.considerReplacingHint", locale)}</span>
                   </div>
                 ) : null}
-              </div>
-            ) : null}
-          </Card>
+              </Card>
 
-          {/* Utilisation & downtime (§23) — trailing window. */}
-          <Card>
-            <CardHeader><CardTitle>{t("machine.utilisationTitle", locale)}</CardTitle></CardHeader>
-            <p className="mb-2 text-xs text-sand-500">{t("machine.utilisationWindow", locale).replace("{n}", String(UTILISATION_WINDOW_DAYS))}</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Stat
-                label={t("machine.utilisation", locale)}
-                value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "—"}
-              />
-              <Stat
-                label={machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}
-                value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
-              />
-              <Stat
-                label={t("machine.idle", locale)}
-                value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
-              />
-              <Stat
-                label={t("machine.downtime", locale)}
-                value={`${downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} ${t("machine.daysShort", locale)}`}
-                tone={downtimeDays > 0 ? "overdue" : "default"}
-              />
-            </div>
-            {utilisation.pct != null ? (
-              <div className="mt-3">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
-                  <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, Math.round(utilisation.pct))}%` }} />
-                </div>
-                <p className="mt-1 text-xs text-sand-400">
-                  {t("machine.utilisationBasis", locale)
-                    .replace("{cap}", String(machine.meter_type === "km" ? kmPerDay : hoursPerDay))
-                    .replace("{unit}", machine.meter_type === "km" ? t("machine.kmShort", locale) : t("machine.hrs", locale))}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-sand-400">{t("machine.utilisationNoMeter", locale)}</p>
-            )}
-          </Card>
-
-          {/* Finance */}
-          {hasFinance ? (
-            <Card>
-              <CardHeader><CardTitle>{t("machine.finance", locale)}</CardTitle></CardHeader>
-              <dl className="grid grid-cols-2 gap-3 text-sm">
-                {machine.finance_provider ? (
-                  <div className="col-span-2"><dt className="text-sand-500">{t("machines.financeProvider", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_provider}</dd></div>
-                ) : null}
-                {machine.finance_total_cents != null ? (
-                  <div><dt className="text-sand-500">{t("machines.financeTotal", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_total_cents)}</dd></div>
-                ) : null}
-                {machine.finance_monthly_cents != null ? (
-                  <div><dt className="text-sand-500">{t("machines.financeMonthly", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_monthly_cents)}</dd></div>
-                ) : null}
-                {machine.finance_term_months != null ? (
-                  <div><dt className="text-sand-500">{t("machines.financeTerm", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_term_months}</dd></div>
-                ) : null}
-                {machine.finance_interest_bps != null ? (
-                  <div><dt className="text-sand-500">{t("machines.financeInterest", locale)}</dt><dd className="font-medium text-sand-900">{(machine.finance_interest_bps / 100).toFixed(2)}%</dd></div>
-                ) : null}
-              </dl>
-            </Card>
-          ) : null}
-
-          {/* Watch items */}
-          {openWatch.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>{t("machine.watchItems", locale)}</CardTitle></CardHeader>
-              <ul className="flex flex-col gap-2 text-sm">
-                {openWatch.map((w) => (
-                  <li key={w.id} className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 text-sand-800">{w.text}</span>
-                    {canAddReading ? (
-                      <span className="flex shrink-0 gap-1">
-                        <form action={setWatchStatus}>
-                          <input type="hidden" name="id" value={w.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input type="hidden" name="status" value="done" />
-                          <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.done", locale)}</button>
-                        </form>
-                        <form action={setWatchStatus}>
-                          <input type="hidden" name="id" value={w.id} />
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input type="hidden" name="status" value="dismissed" />
-                          <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.dismiss", locale)}</button>
-                        </form>
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ) : null}
-
-          {/* Job cards */}
-          <Card>
-            <CardHeader
-              action={canJob ? (
-                <form action={createJobCard} className="flex items-center gap-1">
-                  <input type="hidden" name="machine_id" value={machine.id} />
-                  <input type="hidden" name="farm_id" value={machine.farm_id} />
-                  <input type="hidden" name="type" value="repair" />
-                  <Button type="submit" variant="ghost" size="sm"><PlusIcon className="text-[1rem]" />{t("machine.newJobCard", locale)}</Button>
-                </form>
-              ) : undefined}
-            >
-              <CardTitle>{t("machine.jobCards", locale)}</CardTitle>
-            </CardHeader>
-            {jobCards.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("machine.none", locale)}</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
-                {jobCards.slice(0, 6).map((j) => (
-                  <li key={j.id}>
-                    <Link href={`/jobcards/${j.id}`} className="focus-ring flex items-center justify-between rounded-md py-1.5">
-                      <span>{t(`jobType.${j.type}`, locale)}</span>
-                      <span className="text-sand-500">{rands(j.total_cents)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          {/* Vehicle checklists (F11) — pre-use inspections, service sign-offs, condition reports */}
-          <Card>
-            <CardHeader
-              action={canFill ? (
-                <Link href={`/machines/${machine.id}/checklists/new`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-700">
-                  <PlusIcon className="text-[1rem]" />{t("checklists.newChecklist", locale)}
-                </Link>
-              ) : undefined}
-            >
-              <CardTitle>{t("machine.checklists", locale)}</CardTitle>
-            </CardHeader>
-            {checklists.length === 0 ? (
-              <p className="text-sm text-sand-500">{t("machine.noChecklists", locale)}</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-sand-100 text-sm">
-                {checklists.slice(0, 6).map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/machines/${machine.id}/checklists/${c.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
-                      <span className="min-w-0 truncate text-sand-800">{c.template_name}</span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                        <Badge tone={c.status === "completed" ? "ok" : "warning"}>{checklistStatusLabel(c.status)}</Badge>
-                        <span className="tabular-nums">{(c.completed_at ?? c.created_at).slice(0, 10)}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          {/* Get something done — contractor work requests (F12b) */}
-          <Card>
-            <CardHeader><CardTitle>{t("work.getSomethingDone", locale)}</CardTitle></CardHeader>
-            {workRequests.length > 0 ? (
-              <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
-                {workRequests.slice(0, 6).map((w) => (
-                  <li key={w.id}>
-                    <Link href={`/work/${w.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
-                      <span className="min-w-0 truncate">
-                        <span className="font-medium text-sand-800">{w.title || workKindLabel(w.kind, locale)}</span>
-                        {w.workshop_id ? <span className="text-sand-400"> · {workshopNameById.get(w.workshop_id) ?? ""}</span> : null}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        {(w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
-                          <span className="tabular-nums text-sand-500">{rands(w.invoice_amount_cents ?? w.quote_amount_cents)}</span>
+              {/* Service kit — parts BOM (F9): the exact oils/filters/part numbers a service needs */}
+              <Card>
+                <CardHeader><CardTitle>{t("machine.serviceKit", locale)}</CardTitle></CardHeader>
+                <p className="mb-2 text-xs text-sand-500">{t("machine.serviceKitHint", locale)}</p>
+                {kits.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("machine.noServiceKit", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {kits.map((kit) => (
+                      <li key={kit.id} className="rounded-lg border border-sand-200 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sand-900">{kit.name}</p>
+                            {kit.notes ? <p className="text-xs text-sand-500">{kit.notes}</p> : null}
+                          </div>
+                          {canKit ? (
+                            <ConfirmDialog
+                              action={deleteServiceKit}
+                              triggerVariant="ghost"
+                              triggerSize="sm"
+                              triggerIcon={<TrashIcon />}
+                              triggerLabel={t("machine.deleteKit", locale)}
+                              triggerClassName="text-status-overdue hover:bg-red-50"
+                              title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
+                              intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
+                              consequencesTitle={t("confirm.whatHappens", locale)}
+                              consequences={[
+                                t("confirm.deleteKitEffect1", locale).replace("{n}", String(kit.items.length)),
+                                t("confirm.deleteKitEffect2", locale),
+                              ]}
+                              footnote={t("confirm.softDeleteNote", locale)}
+                              confirmLabel={t("confirm.deleteKitYes", locale)}
+                              cancelLabel={t("confirm.keepIt", locale)}
+                              closeLabel={t("ui.close", locale)}
+                            >
+                              <input type="hidden" name="id" value={kit.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                            </ConfirmDialog>
+                          ) : null}
+                        </div>
+                        {kit.items.length === 0 ? (
+                          <p className="mt-2 text-xs text-sand-400">{t("machine.noKitItems", locale)}</p>
+                        ) : (
+                          <ul className="mt-2 flex flex-col divide-y divide-sand-100 text-sm">
+                            {kit.items.map((item) => (
+                              <li key={item.id} className="py-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="min-w-0 truncate">
+                                    <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "—"}</span>
+                                    {item.part_no && item.description ? <span className="text-sand-500"> · {item.description}</span> : null}
+                                    <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
+                                    {canKit ? (
+                                      <ConfirmDialog
+                                        action={deleteKitItem}
+                                        triggerVariant="ghost"
+                                        triggerSize="sm"
+                                        triggerIcon={<TrashIcon />}
+                                        triggerLabel={t("machine.removeItem", locale)}
+                                        triggerClassName="text-status-overdue hover:bg-red-50"
+                                        title={t("confirm.deleteKitItemTitle", locale).replace(
+                                          "{part}",
+                                          item.part_no ?? item.description ?? "—",
+                                        )}
+                                        intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
+                                        confirmLabel={t("confirm.deleteKitItemYes", locale)}
+                                        cancelLabel={t("confirm.keepIt", locale)}
+                                        closeLabel={t("ui.close", locale)}
+                                      >
+                                        <input type="hidden" name="id" value={item.id} />
+                                        <input type="hidden" name="machine_id" value={machine.id} />
+                                      </ConfirmDialog>
+                                    ) : null}
+                                  </span>
+                                </div>
+                                {canKit ? (
+                                  <details className="mt-1">
+                                    <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                                    <form action={updateKitItem} className="mt-1 flex flex-wrap gap-2">
+                                      <input type="hidden" name="id" value={item.id} />
+                                      <input type="hidden" name="machine_id" value={machine.id} />
+                                      <input name="part_no" defaultValue={item.part_no ?? ""} placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
+                                      <input name="description" defaultValue={item.description ?? ""} placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
+                                      <input name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} className={`${inputCls} w-20`} />
+                                      <input name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
+                                      <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                                    </form>
+                                  </details>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {canKit ? (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.addKitItem", locale)}</summary>
+                            <form action={addKitItem} className="mt-2 flex flex-wrap gap-2">
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <input type="hidden" name="farm_id" value={machine.farm_id} />
+                              <input type="hidden" name="service_kit_id" value={kit.id} />
+                              {catalogue.length > 0 ? (
+                                <select name="part_catalogue_id" defaultValue="" className={`${inputCls} w-full`}>
+                                  <option value="">{t("machine.kitFromCatalogue", locale)}</option>
+                                  {catalogue.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.part_no}{c.description ? ` — ${c.description}` : ""}</option>
+                                  ))}
+                                </select>
+                              ) : null}
+                              <input name="part_no" placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
+                              <input name="description" placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
+                              <input name="qty" type="number" step="0.01" defaultValue="1" className={`${inputCls} w-20`} />
+                              <input name="unit_cost" inputMode="decimal" placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
+                              <SubmitButton variant="secondary" size="sm">{t("common.add", locale)}</SubmitButton>
+                            </form>
+                          </details>
                         ) : null}
-                        <WorkStatus value={w.status} locale={locale} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canKit ? (
+                  <div className="mt-3 border-t border-sand-100 pt-3">
+                    <details>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceKit", locale)}</summary>
+                      <form action={createServiceKit} className="mt-2 flex flex-wrap gap-2">
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <input name="name" placeholder={t("machine.kitName", locale)} className={`${inputCls} flex-1`} required />
+                        <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                      </form>
+                    </details>
+                  </div>
+                ) : null}
+              </Card>
+
+                </div>
+              ),
+            },
+            {
+              key: "costs",
+              label: t("machine.tabCosts", locale),
+              content: (
+                <div className="flex flex-col gap-4">
+              {/* Lifetime stats */}
+              <Card>
+                <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
+                <div className="grid grid-cols-2 gap-3">
+                  <Stat label={t("machine.tco", locale)} value={rands(tco)} />
+                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "—"} />
+                  <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} />
+                  <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
+                  <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
+                </div>
+                {tco > 0 ? (
+                  <ul className="mt-3 flex flex-col divide-y divide-sand-100 border-t border-sand-100 pt-3 text-sm">
+                    {COST_TYPES.filter((ct) => breakdown[ct] > 0).map((ct) => (
+                      <li key={ct} className="flex justify-between py-1">
+                        <span className="text-sand-600">{t(`costType.${ct}`, locale)}</span>
+                        <span className="font-medium tabular-nums text-sand-900">{rands(breakdown[ct])}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {/* Repair-vs-replace indicator (FR-10.5): lifetime repair spend ÷ purchase price. */}
+                {repair.ratioPct != null ? (
+                  <div className="mt-3 border-t border-sand-100 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-sand-600">{t("machine.repairRatio", locale)}</span>
+                      <span className={`text-sm font-semibold tabular-nums ${repair.flagged ? "text-status-overdue" : "text-sand-900"}`}>
+                        {repair.ratioPct.toFixed(0)}%
                       </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mb-2 text-sm text-sand-500">{t("work.machineNone", locale)}</p>
-            )}
-            {canWorkReq ? (
-              linkedWorkshops.length > 0 ? (
-                <details className="border-t border-sand-100 pt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("work.getSomethingDone", locale)}</summary>
-                  <form action={createWorkRequest} className="mt-2 flex flex-col gap-2">
-                    <input type="hidden" name="machine_id" value={machine.id} />
-                    <input type="hidden" name="farm_id" value={machine.farm_id} />
-                    <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
-                      <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
-                        {linkedWorkshops.map((w) => (
-                          <option key={w.id} value={w.id}>{w.name}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <div className="flex flex-wrap gap-2">
-                      <Field label={t("work.kind", locale)} htmlFor="wr_kind">
-                        <Select id="wr_kind" name="kind" defaultValue="repair">
-                          {WORK_KINDS.map((k) => (
-                            <option key={k} value={k}>{workKindLabel(k, locale)}</option>
-                          ))}
-                        </Select>
-                      </Field>
-                      <Field label={t("work.priority", locale)} htmlFor="wr_priority">
-                        <Select id="wr_priority" name="priority" defaultValue="normal">
-                          {WORK_PRIORITIES.map((p) => (
-                            <option key={p} value={p}>{workPriorityLabel(p, locale)}</option>
-                          ))}
-                        </Select>
-                      </Field>
                     </div>
-                    <Field label={t("work.titleField", locale)} htmlFor="wr_title">
-                      <Input id="wr_title" name="title" placeholder={t("work.titlePlaceholder", locale)} />
-                    </Field>
-                    <Field label={t("work.description", locale)} htmlFor="wr_desc">
-                      <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
-                    </Field>
-                    <SubmitButton variant="primary" size="sm">{t("work.send", locale)}</SubmitButton>
-                  </form>
-                </details>
-              ) : (
-                <p className="border-t border-sand-100 pt-3 text-sm text-sand-500">
-                  {t("work.noContractors", locale)}{" "}
-                  <Link href="/partners" className="focus-ring rounded text-brand-700">{t("nav.partners", locale)} →</Link>
-                </p>
-              )
-            ) : null}
-          </Card>
+                    <p className="mt-0.5 text-xs text-sand-400">{t("machine.repairRatioHint", locale).replace("{pct}", String(repair.thresholdPct))}</p>
+                    {repair.flagged ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 p-2.5">
+                        <Badge tone="danger">{t("machine.considerReplacing", locale)}</Badge>
+                        <span className="text-xs text-sand-600">{t("machine.considerReplacingHint", locale)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </Card>
 
-          {/* Photos */}
-          <Card>
-            <MachinePhotos farmId={machine.farm_id} machineId={machine.id} canEdit={canEdit} primaryAttachmentId={machine.primary_attachment_id} locale={locale} />
-          </Card>
+              {/* Finance */}
+              {hasFinance ? (
+                <Card>
+                  <CardHeader><CardTitle>{t("machine.finance", locale)}</CardTitle></CardHeader>
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    {machine.finance_provider ? (
+                      <div className="col-span-2"><dt className="text-sand-500">{t("machines.financeProvider", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_provider}</dd></div>
+                    ) : null}
+                    {machine.finance_total_cents != null ? (
+                      <div><dt className="text-sand-500">{t("machines.financeTotal", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_total_cents)}</dd></div>
+                    ) : null}
+                    {machine.finance_monthly_cents != null ? (
+                      <div><dt className="text-sand-500">{t("machines.financeMonthly", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_monthly_cents)}</dd></div>
+                    ) : null}
+                    {machine.finance_term_months != null ? (
+                      <div><dt className="text-sand-500">{t("machines.financeTerm", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_term_months}</dd></div>
+                    ) : null}
+                    {machine.finance_interest_bps != null ? (
+                      <div><dt className="text-sand-500">{t("machines.financeInterest", locale)}</dt><dd className="font-medium text-sand-900">{(machine.finance_interest_bps / 100).toFixed(2)}%</dd></div>
+                    ) : null}
+                  </dl>
+                </Card>
+              ) : null}
 
-          {/* Edit */}
-          {canEdit ? (
-            <Card>
-              <details>
-                <summary className="cursor-pointer font-semibold text-sand-900">{t("machine.editMachine", locale)}</summary>
-                <form action={updateMachine} className="mt-3 flex flex-col gap-4">
-                  <input type="hidden" name="id" value={machine.id} />
-                  <MachineFields machine={machine} operators={operators} locale={locale} />
-                  <Field label={t("machines.status", locale)} htmlFor="status">
-                    <Select id="status" name="status" defaultValue={machine.status}>
-                      {MACHINE_STATUSES.map((s) => (
-                        <option key={s} value={s}>{statusLabel(s, locale)}</option>
-                      ))}
-                    </Select>
+              {/* Budgets & budget-vs-actual (FR-10.4) */}
+              <Card>
+                <CardHeader><CardTitle>{t("budget.title", locale)}</CardTitle></CardHeader>
+                <p className="mb-2 text-xs text-sand-500">{t("budget.hint", locale)}</p>
+                {budgetRows.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("budget.none", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {budgetRows.map((bp) => (
+                      <li key={bp.budget.id} className="rounded-lg border border-sand-200 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sand-900">
+                              {budgetCategoryLabel(bp.budget.category, locale)}
+                              <span className="text-sand-500"> · {budgetPeriodLabel(bp.budget.period_type, locale)}</span>
+                            </p>
+                            <p className="text-xs tabular-nums text-sand-500">{bp.budget.period_start} → {bp.budget.period_end}</p>
+                            {bp.budget.note ? <p className="mt-0.5 text-xs text-sand-500">{bp.budget.note}</p> : null}
+                          </div>
+                          <Badge tone={budgetTone(bp.status)}>{bp.status === "over" ? t("budget.over", locale) : t("budget.under", locale)}</Badge>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-sm">
+                          <span className="text-sand-600">{t("budget.actual", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.actual)}</span></span>
+                          <span className="text-sand-600">{t("budget.budget", locale)}: <span className="font-medium tabular-nums text-sand-900">{rands(bp.budget.amount_cents)}</span></span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                          <div className={`h-full rounded-full ${bp.status === "over" ? "bg-status-overdue" : bp.status === "warning" ? "bg-status-due" : "bg-status-ok"}`} style={{ width: `${bp.pct != null ? Math.min(100, Math.round(bp.pct)) : 0}%` }} />
+                        </div>
+                        <p className="mt-1 text-xs tabular-nums text-sand-500">
+                          {bp.variance > 0
+                            ? t("budget.overBy", locale).replace("{amt}", rands(bp.variance))
+                            : t("budget.remaining", locale).replace("{amt}", rands(bp.remaining))}
+                          {bp.pct != null ? ` · ${bp.pct.toFixed(0)}%` : ""}
+                        </p>
+                        {canBudget ? (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                            <form action={updateBudget} className="mt-2 flex flex-wrap gap-2">
+                              <input type="hidden" name="id" value={bp.budget.id} />
+                              <input type="hidden" name="machine_id" value={machine.id} />
+                              <select name="category" defaultValue={bp.budget.category ?? ""} className={`${inputCls} w-32`}>
+                                <option value="">{t("budget.allCategories", locale)}</option>
+                                {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                              </select>
+                              <select name="period_type" defaultValue={bp.budget.period_type} className={`${inputCls} w-28`}>
+                                {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                              </select>
+                              <input name="anchor" type="date" defaultValue={bp.budget.period_start} className={inputCls} />
+                              <input name="amount" inputMode="decimal" defaultValue={(bp.budget.amount_cents / 100).toFixed(2)} placeholder={t("budget.amount", locale)} className={`${inputCls} w-28`} />
+                              <input name="note" defaultValue={bp.budget.note ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                              <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                            </form>
+                            <div className="mt-1">
+                              <ConfirmDialog
+                                action={deleteBudget}
+                                triggerVariant="ghost"
+                                triggerSize="sm"
+                                triggerIcon={<TrashIcon />}
+                                triggerLabel={t("common.delete", locale)}
+                                triggerClassName="text-status-overdue hover:bg-red-50"
+                                title={t("confirm.deleteBudgetTitle", locale)}
+                                intro={t("confirm.deleteBudgetIntro", locale).replace("{machine}", machine.name)}
+                                facts={[
+                                  {
+                                    label: t("budget.amount", locale),
+                                    value: rands(bp.budget.amount_cents),
+                                  },
+                                ]}
+                                consequencesTitle={t("confirm.whatHappens", locale)}
+                                consequences={[
+                                  t("confirm.deleteBudgetEffect1", locale),
+                                  t("confirm.deleteBudgetEffect2", locale),
+                                ]}
+                                footnote={t("confirm.softDeleteNote", locale)}
+                                confirmLabel={t("confirm.deleteBudgetYes", locale)}
+                                cancelLabel={t("confirm.keepIt", locale)}
+                                closeLabel={t("ui.close", locale)}
+                              >
+                                <input type="hidden" name="id" value={bp.budget.id} />
+                                <input type="hidden" name="machine_id" value={machine.id} />
+                              </ConfirmDialog>
+                            </div>
+                          </details>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canBudget ? (
+                  <details className="mt-3 border-t border-sand-100 pt-3">
+                    <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("budget.add", locale)}</summary>
+                    <form action={addBudget} className="mt-2 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="machine_id" value={machine.id} />
+                      <input type="hidden" name="farm_id" value={machine.farm_id} />
+                      <Field label={t("budget.category", locale)} htmlFor="b_category">
+                        <Select id="b_category" name="category" defaultValue="">
+                          <option value="">{t("budget.allCategories", locale)}</option>
+                          {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label={t("budget.period", locale)} htmlFor="b_period">
+                        <Select id="b_period" name="period_type" defaultValue="month">
+                          {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label={t("budget.anchor", locale)} htmlFor="b_anchor">
+                        <Input id="b_anchor" name="anchor" type="date" defaultValue={todayYmd} />
+                      </Field>
+                      <Field label={t("budget.amount", locale)} htmlFor="b_amount">
+                        <Input id="b_amount" name="amount" inputMode="decimal" placeholder="R" className="w-28" />
+                      </Field>
+                      <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                    </form>
+                  </details>
+                ) : null}
+              </Card>
+
+                </div>
+              ),
+            },
+            {
+              key: "history",
+              label: t("machine.tabHistory", locale),
+              content: (
+                <div className="flex flex-col gap-4">
+              {/* Timeline */}
+              <Card>
+                <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
+                {events.length === 0 ? (
+                  <EmptyState title={t("machine.noTimeline", locale)} />
+                ) : (
+                  <ol className="flex flex-col">
+                    {events.map((e, i) => {
+                      const body = (
+                        <div className="flex gap-3 py-2.5">
+                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-[1.05rem] text-sand-500">
+                            {evIcon(e.kind)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="truncate text-sm font-medium text-sand-900">{e.title}</span>
+                              <span className="shrink-0 text-xs tabular-nums text-sand-400">{e.date}</span>
+                            </div>
+                            {e.sub ? <p className="truncate text-sm text-sand-500">{e.sub}</p> : null}
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <li key={i} className="border-b border-sand-100 last:border-0">
+                          {e.href ? <Link href={e.href} className="focus-ring block rounded-md">{body}</Link> : body}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </Card>
+
+              {/* Job cards */}
+              <Card>
+                <CardHeader
+                  action={canJob ? (
+                    <form action={createJobCard} className="flex items-center gap-1">
+                      <input type="hidden" name="machine_id" value={machine.id} />
+                      <input type="hidden" name="farm_id" value={machine.farm_id} />
+                      <input type="hidden" name="type" value="repair" />
+                      <Button type="submit" variant="ghost" size="sm"><PlusIcon className="text-[1rem]" />{t("machine.newJobCard", locale)}</Button>
+                    </form>
+                  ) : undefined}
+                >
+                  <CardTitle>{t("machine.jobCards", locale)}</CardTitle>
+                </CardHeader>
+                {jobCards.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("machine.none", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                    {jobCards.slice(0, 6).map((j) => (
+                      <li key={j.id}>
+                        <Link href={`/jobcards/${j.id}`} className="focus-ring flex items-center justify-between rounded-md py-1.5">
+                          <span>{t(`jobType.${j.type}`, locale)}</span>
+                          <span className="text-sand-500">{rands(j.total_cents)}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              {/* Vehicle checklists (F11) — pre-use inspections, service sign-offs, condition reports */}
+              <Card>
+                <CardHeader
+                  action={canFill ? (
+                    <Link href={`/machines/${machine.id}/checklists/new`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-700">
+                      <PlusIcon className="text-[1rem]" />{t("checklists.newChecklist", locale)}
+                    </Link>
+                  ) : undefined}
+                >
+                  <CardTitle>{t("machine.checklists", locale)}</CardTitle>
+                </CardHeader>
+                {checklists.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("machine.noChecklists", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                    {checklists.slice(0, 6).map((c) => (
+                      <li key={c.id}>
+                        <Link href={`/machines/${machine.id}/checklists/${c.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
+                          <span className="min-w-0 truncate text-sand-800">{c.template_name}</span>
+                          <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                            <Badge tone={c.status === "completed" ? "ok" : "warning"}>{checklistStatusLabel(c.status)}</Badge>
+                            <span className="tabular-nums">{(c.completed_at ?? c.created_at).slice(0, 10)}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              {/* Get something done — contractor work requests (F12b) */}
+              <Card>
+                <CardHeader><CardTitle>{t("work.getSomethingDone", locale)}</CardTitle></CardHeader>
+                {workRequests.length > 0 ? (
+                  <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
+                    {workRequests.slice(0, 6).map((w) => (
+                      <li key={w.id}>
+                        <Link href={`/work/${w.id}`} className="focus-ring flex items-center justify-between gap-2 rounded-md py-1.5">
+                          <span className="min-w-0 truncate">
+                            <span className="font-medium text-sand-800">{w.title || workKindLabel(w.kind, locale)}</span>
+                            {w.workshop_id ? <span className="text-sand-400"> · {workshopNameById.get(w.workshop_id) ?? ""}</span> : null}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {(w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
+                              <span className="tabular-nums text-sand-500">{rands(w.invoice_amount_cents ?? w.quote_amount_cents)}</span>
+                            ) : null}
+                            <WorkStatus value={w.status} locale={locale} />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mb-2 text-sm text-sand-500">{t("work.machineNone", locale)}</p>
+                )}
+                {canWorkReq ? (
+                  linkedWorkshops.length > 0 ? (
+                    <details className="border-t border-sand-100 pt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("work.getSomethingDone", locale)}</summary>
+                      <form action={createWorkRequest} className="mt-2 flex flex-col gap-2">
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
+                          <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
+                            {linkedWorkshops.map((w) => (
+                              <option key={w.id} value={w.id}>{w.name}</option>
+                            ))}
+                          </Select>
+                        </Field>
+                        <div className="flex flex-wrap gap-2">
+                          <Field label={t("work.kind", locale)} htmlFor="wr_kind">
+                            <Select id="wr_kind" name="kind" defaultValue="repair">
+                              {WORK_KINDS.map((k) => (
+                                <option key={k} value={k}>{workKindLabel(k, locale)}</option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label={t("work.priority", locale)} htmlFor="wr_priority">
+                            <Select id="wr_priority" name="priority" defaultValue="normal">
+                              {WORK_PRIORITIES.map((p) => (
+                                <option key={p} value={p}>{workPriorityLabel(p, locale)}</option>
+                              ))}
+                            </Select>
+                          </Field>
+                        </div>
+                        <Field label={t("work.titleField", locale)} htmlFor="wr_title">
+                          <Input id="wr_title" name="title" placeholder={t("work.titlePlaceholder", locale)} />
+                        </Field>
+                        <Field label={t("work.description", locale)} htmlFor="wr_desc">
+                          <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
+                        </Field>
+                        <SubmitButton variant="primary" size="sm">{t("work.send", locale)}</SubmitButton>
+                      </form>
+                    </details>
+                  ) : (
+                    <p className="border-t border-sand-100 pt-3 text-sm text-sand-500">
+                      {t("work.noContractors", locale)}{" "}
+                      <Link href="/partners" className="focus-ring rounded text-brand-700">{t("nav.partners", locale)} →</Link>
+                    </p>
+                  )
+                ) : null}
+              </Card>
+
+              {/* Who operated / when — AARTO driver-usage log (FR-13.1) — Complete+ (F5 gate) */}
+              {aartoAllowed ? (
+              <Card>
+                <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
+
+                {/* Driver-on-date lookup (the AARTO nomination question). */}
+                <form method="get" className="mb-3 flex flex-wrap items-end gap-2">
+                  <Field label={t("machine.driverOnDate", locale)} htmlFor="usageDate">
+                    <Input id="usageDate" name="usageDate" type="date" defaultValue={usageDate ?? ""} />
                   </Field>
-                  <SubmitButton variant="primary" fullWidth>{t("common.save", locale)}</SubmitButton>
+                  <SubmitButton variant="secondary" size="sm">{t("machine.check", locale)}</SubmitButton>
                 </form>
-              </details>
-            </Card>
-          ) : null}
-        </div>
-      </div>
+                {usageDate ? (
+                  usageOnDate.length > 0 ? (
+                    <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-800">
+                      {t("machine.operatedBy", locale)}:{" "}
+                      <span className="font-medium">{usageOnDate.map(driverLabel).join(", ")}</span>
+                      <span className="text-sand-400"> · {usageDate}</span>
+                    </p>
+                  ) : (
+                    <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-500">{t("machine.noDriverOn", locale)}</p>
+                  )
+                ) : null}
+
+                {usage.length === 0 ? (
+                  <p className="text-sm text-sand-500">{t("machine.noUsage", locale)}</p>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-sand-100 text-sm">
+                    {usage.slice(0, 12).map((u) => (
+                      <li key={u.id} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="min-w-0 truncate font-medium text-sand-800">{driverLabel(u)}</span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
+                          {u.meter_reading != null ? <span className="tabular-nums">{u.meter_reading} {machine.meter_type !== "none" ? machine.meter_type : ""}</span> : null}
+                          <span>{t(`meterSource.${u.source}`, locale)}</span>
+                          <span className="tabular-nums">{u.occurred_on}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* AARTO fines on this vehicle (FR-13.2) — capture lives on the fines workflow,
+                    pre-selecting this vehicle. */}
+                <div className="mt-4 border-t border-sand-100 pt-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("machine.finesTitle", locale)}</p>
+                    {canEdit ? (
+                      <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-700">
+                        {t("machine.recordFine", locale)} →
+                      </Link>
+                    ) : null}
+                  </div>
+                  {machineFines.length === 0 ? (
+                    <p className="text-sm text-sand-400">{t("machine.noFines", locale)}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {machineFines.map((f) => {
+                        const ds = nominationDeadlineStatus(f.nomination_deadline, f.status, aartoLeadDays);
+                        return (
+                          <li key={f.id} className="rounded-lg border border-sand-200 p-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-sand-800">
+                                  {f.offence || t("fines.noOffence", locale)}
+                                  {f.notice_number ? <span className="text-sand-400"> · {f.notice_number}</span> : null}
+                                </p>
+                                <p className="text-xs text-sand-500">
+                                  {t("fines.driver", locale)}: {fineDriverLabel(f)}
+                                  {f.offence_date ? <span className="text-sand-400"> · {f.offence_date}</span> : null}
+                                  {f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
+                                </p>
+                                {f.nomination_deadline && nominationPending(f.status) ? (
+                                  <p className="text-xs text-sand-500">
+                                    {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
+                                    {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <FineStatus value={f.status} locale={locale} />
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </Card>
+              ) : (
+                <Card>
+                  <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
+                  <UpgradeNotice feature="aarto" requiredPlan={requiredPlan("aarto")} currentPlan={plan} locale={locale} compact />
+                </Card>
+              )}
+                </div>
+              ),
+            },
+            {
+              key: "papers",
+              label: t("machine.tabPapers", locale),
+              content: (
+                <div className="flex flex-col gap-4">
+              {/* Compliance — warranty + licences (F6) */}
+              <Card>
+                <CardHeader><CardTitle>{t("compliance.title", locale)}</CardTitle></CardHeader>
+
+                {/* Warranty (stored on the machine) */}
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.warranty", locale)}</p>
+                  {hasWarranty ? (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-sand-700">
+                      {machine.warranty_expiry_date ? (
+                        <span>{t("compliance.warrantyDate", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_date}</span></span>
+                      ) : null}
+                      {machine.warranty_expiry_hours != null ? (
+                        <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_hours}{machine.meter_type === "hours" ? " h" : ""}</span></span>
+                      ) : null}
+                      <ExpiryStatus value={wStatus} locale={locale} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-sand-400">{t("compliance.noWarranty", locale)}</p>
+                  )}
+                </div>
+
+                {/* Licences / renewals */}
+                <div className="mt-4 border-t border-sand-100 pt-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.licences", locale)}</p>
+                  {licences.length === 0 ? (
+                    <p className="mt-1 text-sm text-sand-400">{t("compliance.noLicences", locale)}</p>
+                  ) : (
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {licences.map((l) => {
+                        const s = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
+                        return (
+                          <li key={l.id} className="rounded-lg border border-sand-200 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-medium text-sand-900">
+                                  {licenceTypeLabel(l.type, locale)}
+                                  {l.number ? <span className="text-sand-500"> · {l.number}</span> : null}
+                                </p>
+                                <p className="text-xs text-sand-500">
+                                  {t("compliance.expires", locale)}: <span className="tabular-nums">{l.expiry_date}</span> · {t("compliance.leadDays", locale)}: {l.reminder_lead_days}
+                                </p>
+                                {l.notes ? <p className="mt-0.5 text-xs text-sand-500">{l.notes}</p> : null}
+                              </div>
+                              <ExpiryStatus value={s} locale={locale} />
+                            </div>
+                            {canEdit ? (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                                <form action={updateLicence} className="mt-2 flex flex-wrap gap-2">
+                                  <input type="hidden" name="id" value={l.id} />
+                                  <input type="hidden" name="machine_id" value={machine.id} />
+                                  <select name="type" defaultValue={l.type} className={`${inputCls} w-40`}>
+                                    {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                  </select>
+                                  <input name="number" defaultValue={l.number ?? ""} placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
+                                  <input name="expiry_date" type="date" defaultValue={l.expiry_date} className={inputCls} required />
+                                  <input name="reminder_lead_days" type="number" min={0} defaultValue={l.reminder_lead_days} className={`${inputCls} w-24`} />
+                                  <input name="notes" defaultValue={l.notes ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                                  <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
+                                </form>
+                                <div className="mt-1">
+                                  <ConfirmDialog
+                                    action={deleteLicence}
+                                    triggerVariant="ghost"
+                                    triggerSize="sm"
+                                    triggerIcon={<TrashIcon />}
+                                    triggerLabel={t("common.delete", locale)}
+                                    triggerClassName="text-status-overdue hover:bg-red-50"
+                                    title={t("confirm.deleteLicenceTitle", locale).replace(
+                                      "{type}",
+                                      licenceTypeLabel(l.type, locale),
+                                    )}
+                                    intro={t("confirm.deleteLicenceIntro", locale).replace("{machine}", machine.name)}
+                                    consequencesTitle={t("confirm.whatHappens", locale)}
+                                    consequences={[
+                                      t("confirm.deleteLicenceEffect1", locale),
+                                      t("confirm.deleteLicenceEffect2", locale),
+                                    ]}
+                                    footnote={t("confirm.softDeleteNote", locale)}
+                                    confirmLabel={t("confirm.deleteLicenceYes", locale)}
+                                    cancelLabel={t("confirm.keepIt", locale)}
+                                    closeLabel={t("ui.close", locale)}
+                                  >
+                                    <input type="hidden" name="id" value={l.id} />
+                                    <input type="hidden" name="machine_id" value={machine.id} />
+                                  </ConfirmDialog>
+                                </div>
+                              </details>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {canEdit ? (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("compliance.addLicence", locale)}</summary>
+                      <form action={addLicence} className="mt-2 flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <select name="type" defaultValue="vehicle_licence" className={`${inputCls} w-40`}>
+                          {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                        </select>
+                        <input name="number" placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
+                        <input name="expiry_date" type="date" className={inputCls} required />
+                        <input name="reminder_lead_days" type="number" min={0} defaultValue={30} className={`${inputCls} w-24`} />
+                        <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
+                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                      </form>
+                    </details>
+                  ) : null}
+                </div>
+              </Card>
+
+              {/* Edit */}
+              {canEdit ? (
+                <Card>
+                  <details>
+                    <summary className="cursor-pointer font-semibold text-sand-900">{t("machine.editMachine", locale)}</summary>
+                    <form action={updateMachine} className="mt-3 flex flex-col gap-4">
+                      <input type="hidden" name="id" value={machine.id} />
+                      <MachineFields machine={machine} operators={operators} locale={locale} />
+                      <Field label={t("machines.status", locale)} htmlFor="status">
+                        <Select id="status" name="status" defaultValue={machine.status}>
+                          {MACHINE_STATUSES.map((s) => (
+                            <option key={s} value={s}>{statusLabel(s, locale)}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <SubmitButton variant="primary" fullWidth>{t("common.save", locale)}</SubmitButton>
+                    </form>
+                  </details>
+                </Card>
+              ) : null}
+                </div>
+              ),
+            },
+        ]}
+      />
     </div>
   );
 }

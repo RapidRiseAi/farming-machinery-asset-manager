@@ -9,7 +9,7 @@ import { signOut } from "./actions";
 // interactivity — the barrel would pull the kit's full client chunk (see
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
-import { BellIcon, MachinesIcon, SignOutIcon } from "@/components/ui/icons";
+import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
@@ -90,11 +90,12 @@ export default async function AppLayout({
   // Contractors get a contractor-first tab set; everyone else the farm set.
   const tabItems: NavItemData[] = isWorkshop
     ? [contractor, work, machines, faults]
-    : [...(dashAllowed ? [dashboard] : []), machines, jobcards, faults];
+    : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
     ? [jobcards, checklists, alerts]
     : [
         ...(isManagerPlus ? [inbox] : []),
+        faults,
         work,
         ...(fuelAllowed ? [fuel] : []),
         ...(canParts ? [parts] : []),
@@ -121,13 +122,32 @@ export default async function AppLayout({
       ]
     : [
         ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, work, ...(fuelAllowed ? [fuel] : []), ...(canParts ? [parts] : []), ...(canPartners ? [partners] : []), checklists] },
+        {
+          key: "fleet",
+          label: t("nav.theFleet", locale),
+          items: [machines, faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+        },
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: [...(finesAllowed ? [fines] : []), alerts, ...(isManagerPlus ? [team, settings] : [])],
+          items: [...(isManagerPlus ? [team] : []), alerts],
         },
-        ...(isAdmin ? [{ key: "admin", label: t("nav.groupAdmin", locale), items: [admin] }] : []),
+      ];
+
+  /*
+    The long tail. There were 14 nav items with 11 of them behind "More", all at the
+    same weight — so the things people use daily competed with the ones they touch twice
+    a year. Three short groups stay open; everything else collapses.
+  */
+  const tailItems: NavItemData[] = isWorkshop
+    ? []
+    : [
+        ...(canParts ? [parts] : []),
+        ...(canPartners ? [partners] : []),
+        checklists,
+        ...(finesAllowed ? [fines] : []),
+        ...(isManagerPlus ? [settings] : []),
+        ...(isAdmin ? [admin] : []),
       ];
 
   const appName = t("app.name", locale);
@@ -204,6 +224,18 @@ export default async function AppLayout({
               ))}
             </div>
           ))}
+          {tailItems.length > 0 ? (
+            <details className="space-y-1">
+              <summary className="focus-ring cursor-pointer list-none rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sand-400 hover:bg-sand-50 hover:text-sand-600">
+                {t("nav.everythingElse", locale)}
+              </summary>
+              <div className="space-y-1 pt-1">
+                {tailItems.map((item) => (
+                  <NavLink key={item.href} item={item} variant="sidebar" />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </nav>
         <div className="border-t border-sand-200 p-3">
           <div className="mb-2 flex items-center justify-between gap-2 px-1">
@@ -274,6 +306,18 @@ export default async function AppLayout({
           {tabItems.map((item) => (
             <NavLink key={item.href} item={item} variant="tab" />
           ))}
+          {/* The daily action — report a problem — was nowhere in the chrome. It is
+              now a permanent green target, not an item buried in "More". */}
+          {!isWorkshop ? (
+            <Link
+              href="/faults"
+              className="focus-ring flex min-w-[64px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand-600 text-white"
+              aria-label={t("nav.reportProblemLong", locale)}
+            >
+              <FaultsIcon className="text-[1.35rem]" />
+              <span className="text-[0.7rem] font-semibold leading-none">{t("nav.reportProblem", locale)}</span>
+            </Link>
+          ) : null}
           <MoreMenu
             label={t("nav.more", locale)}
             title={t("nav.menu", locale)}

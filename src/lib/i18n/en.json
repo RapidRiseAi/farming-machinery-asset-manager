@@ -44,7 +44,11 @@
     "inbox": "Inbox",
     "switchFarm": "Switch farm",
     "language": "Language",
-    "fines": "Fines"
+    "fines": "Fines",
+    "everythingElse": "Everything else",
+    "theFleet": "The fleet",
+    "reportProblem": "Report",
+    "reportProblemLong": "Report a problem"
   },
   "auth": {
     "signIn": "Sign in",
@@ -471,7 +475,18 @@
     "daysShort": "days",
     "kmShort": "km",
     "utilisationBasis": "Based on {cap} {unit}/day capacity",
-    "utilisationNoMeter": "No meter — utilisation not tracked."
+    "utilisationNoMeter": "No meter — utilisation not tracked.",
+    "tabOverview": "Overview",
+    "tabServicing": "Servicing",
+    "tabCosts": "What it costs",
+    "tabHistory": "History",
+    "tabPapers": "Papers & licence",
+    "logHours": "Log hours",
+    "makeJobCard": "Make a job card",
+    "editDetails": "Edit details",
+    "lastRead": "read {when}",
+    "costPerHourWindow": "Cost / hour",
+    "costPerKmWindow": "Cost / km"
   },
   "admin": {
     "farms": "Farms",

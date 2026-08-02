@@ -44,7 +44,11 @@
     "inbox": "Inmandjie",
     "switchFarm": "Wissel plaas",
     "language": "Taal",
-    "fines": "Boetes"
+    "fines": "Boetes",
+    "everythingElse": "Alles anders",
+    "theFleet": "Die vloot",
+    "reportProblem": "Meld aan",
+    "reportProblemLong": "Rapporteer 'n probleem"
   },
   "auth": {
     "signIn": "Teken in",
@@ -471,7 +475,18 @@
     "daysShort": "dae",
     "kmShort": "km",
     "utilisationBasis": "Gebaseer op {cap} {unit}/dag kapasiteit",
-    "utilisationNoMeter": "Geen meter — benutting nie bygehou nie."
+    "utilisationNoMeter": "Geen meter — benutting nie bygehou nie.",
+    "tabOverview": "Oorsig",
+    "tabServicing": "Dienste",
+    "tabCosts": "Wat dit kos",
+    "tabHistory": "Geskiedenis",
+    "tabPapers": "Papiere & lisensie",
+    "logHours": "Teken ure aan",
+    "makeJobCard": "Maak 'n werkkaart",
+    "editDetails": "Wysig besonderhede",
+    "lastRead": "{when} gelees",
+    "costPerHourWindow": "Koste / uur",
+    "costPerKmWindow": "Koste / km"
   },
   "admin": {
     "farms": "Plase",
