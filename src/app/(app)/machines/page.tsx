@@ -11,6 +11,8 @@ import {
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusPill, Badge } from "@/components/ui/badge";
+import { MachineStatus } from "@/components/ui/status";
+import { meterReading } from "@/lib/format";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -275,14 +277,14 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                           </p>
                         </div>
                       </div>
-                      <Badge tone="neutral" className="shrink-0 capitalize">{statusLabel(m.status, locale)}</Badge>
+                      <MachineStatus value={m.status} locale={locale} className="shrink-0" />
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2 text-sm">
                       <span className="text-sand-600">
                         {m.meter_type === "none"
                           ? "—"
                           : m.current_reading != null
-                            ? `${m.current_reading} ${m.meter_type}`
+                            ? meterReading(m.current_reading, m.meter_type, locale)
                             : t("machines.noReading", locale)}
                         {isStale(m) ? <Badge tone="warning" className="ml-2">{t("machines.stale", locale)}</Badge> : null}
                       </span>
@@ -331,12 +333,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                       {m.meter_type === "none"
                         ? "—"
                         : m.current_reading != null
-                          ? `${m.current_reading} ${m.meter_type}`
+                          ? meterReading(m.current_reading, m.meter_type, locale)
                           : t("machines.noReading", locale)}
                       {isStale(m) ? <Badge tone="warning" className="ml-2">{t("machines.stale", locale)}</Badge> : null}
                     </Td>
                     <Td>{svcPill(m.id)}</Td>
-                    <Td><Badge tone="neutral" className="capitalize">{statusLabel(m.status, locale)}</Badge></Td>
+                    <Td><MachineStatus value={m.status} locale={locale} /></Td>
                   </Tr>
                 ))}
               </Tbody>

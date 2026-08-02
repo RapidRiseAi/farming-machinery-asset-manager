@@ -1288,7 +1288,12 @@
     "reportNone": "No budgets set. Add budgets on a machine to track spend against target.",
     "scope": "Scope",
     "periodCol": "Period",
-    "variance": "Variance"
+    "variance": "Variance",
+    "status": {
+      "under": "Within budget",
+      "near": "Close to the limit",
+      "over": "Over budget"
+    }
   },
   "budgetPeriod": {
     "month": "Monthly",
@@ -1330,6 +1335,76 @@
     "deleteBudgetIntro": "This is the spending target you set for {machine}.",
     "deleteBudgetEffect1": "The budget-vs-spend comparison for this period goes away",
     "deleteBudgetEffect2": "What you actually spent is untouched — that comes from the job cards",
-    "deleteBudgetYes": "Yes, remove the budget"
+    "deleteBudgetYes": "Yes, remove the budget",
+    "deleteFineTitle": "Remove this traffic fine?",
+    "deleteFineIntro": "Notice {notice} on {machine}.",
+    "deleteFineEffect1": "The nomination deadline stops being tracked — miss it and the fine stays with the farm",
+    "deleteFineEffect2": "It comes off the fines list and the compliance report",
+    "deleteFineYes": "Yes, remove the fine",
+    "deletePartTitle": "Remove “{part}” from the parts list?",
+    "deletePartIntro": "Job cards that already use this part keep their lines and their costs.",
+    "deletePartEffect1": "Nobody can pick it when adding a line to a job card",
+    "deletePartYes": "Yes, remove the part",
+    "deletePartnerTitle": "Remove {partner} from your list?",
+    "deletePartnerIntro": "This only takes them off your list — it does not cancel work they are busy with.",
+    "deletePartnerEffect1": "They stop appearing when you send work out",
+    "deletePartnerEffect2": "If they have a login, it keeps working until you say otherwise",
+    "deletePartnerYes": "Yes, remove them",
+    "deleteTemplateTitle": "Delete the “{template}” service template?",
+    "deleteTemplateIntro": "This is a Rapid Rise template every farm can apply.",
+    "deleteTemplateEffect1": "No farm can apply it to a machine again",
+    "deleteTemplateEffect2": "Machines that already use it keep their service plans",
+    "deleteTemplateYes": "Yes, delete the template",
+    "deleteChecklistTemplateTitle": "Delete the “{template}” checklist?",
+    "deleteChecklistTemplateIntro": "This is the list of questions people answer when they check a machine.",
+    "deleteChecklistTemplateEffect1": "Nobody can start a new check from it",
+    "deleteChecklistTemplateEffect2": "Checks already done keep every answer exactly as it was saved",
+    "deleteChecklistTemplateYes": "Yes, delete the checklist",
+    "deleteChecklistInstanceTitle": "Remove this check?",
+    "deleteChecklistInstanceIntro": "The answers and photos from {date} go with it.",
+    "deleteChecklistInstanceYes": "Yes, remove the check",
+    "removeLineTitle": "Take “{line}” off this job card?",
+    "removeLineIntro": "The job card total goes down by {amount}.",
+    "removeLineYes": "Yes, take it off"
+  },
+  "format": {
+    "unit": {
+      "hours": "hours",
+      "km": "km"
+    },
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "daysAgo": "{n} days ago",
+    "lastWeek": "Last week",
+    "weeksAgo": "{n} weeks ago",
+    "inDays": "in {n} days",
+    "nextWeek": "next week",
+    "inWeeks": "in {n} weeks"
+  },
+  "role": {
+    "owner": "Owner",
+    "manager": "Farm manager",
+    "mechanic": "Mechanic",
+    "operator": "Driver",
+    "workshop": "Contractor",
+    "rr_admin": "Rapid Rise staff"
+  },
+  "filters": {
+    "all": "All",
+    "clear": "Clear filters",
+    "showing": "Showing {n} of {total}",
+    "status": "Status",
+    "type": "Type",
+    "kind": "Kind",
+    "site": "Site",
+    "costCentre": "Cost centre",
+    "department": "Department",
+    "period": "Period"
+  },
+  "empty": {
+    "noMatchTitle": "Nothing matches those filters",
+    "noMatchHint": "Try clearing a filter — the ones you've set are hiding everything.",
+    "clearFilters": "Clear the filters"
   }
 }

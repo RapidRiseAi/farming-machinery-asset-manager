@@ -12,6 +12,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { FaultsIcon } from "@/components/ui/icons";
+import { UrgencyStatus, FaultStatus } from "@/components/ui/status";
 
 type Fault = {
   id: string; machine_id: string; farm_id: string; description: string | null;
@@ -20,9 +21,6 @@ type Fault = {
   assigned_to: string | null; lat: number | null; lng: number | null;
 };
 type Attach = { id: string; parent_id: string; kind: string; storage_path: string | null };
-
-const urgencyTone = (u: string | null): BadgeTone =>
-  (u ?? "").includes("stop") ? "danger" : (u ?? "").includes("limp") ? "warning" : "neutral";
 
 export default async function FaultsPage({
   searchParams,
@@ -122,7 +120,7 @@ export default async function FaultsPage({
                         </a>
                       ) : null}
                     </div>
-                    {f.urgency ? <Badge tone={urgencyTone(f.urgency)} className="shrink-0">{t(`urgency.${f.urgency}`, locale)}</Badge> : null}
+                    {f.urgency ? <UrgencyStatus value={f.urgency} locale={locale} className="shrink-0" /> : null}
                   </div>
 
                   {media.length > 0 ? (

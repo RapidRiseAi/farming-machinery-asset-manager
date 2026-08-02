@@ -1288,7 +1288,12 @@
     "reportNone": "Geen begrotings gestel nie. Voeg begrotings op 'n masjien by om besteding teen teiken te volg.",
     "scope": "Bestek",
     "periodCol": "Tydperk",
-    "variance": "Afwyking"
+    "variance": "Afwyking",
+    "status": {
+      "under": "Binne begroting",
+      "near": "Naby die perk",
+      "over": "Oor begroting"
+    }
   },
   "budgetPeriod": {
     "month": "Maandeliks",
@@ -1330,6 +1335,76 @@
     "deleteBudgetIntro": "Dit is die bestedingsdoelwit wat jy vir {machine} gestel het.",
     "deleteBudgetEffect1": "Die begroting-teenoor-besteding vergelyking vir hierdie tydperk val weg",
     "deleteBudgetEffect2": "Wat jy werklik bestee het, bly onaangeraak — dit kom van die werkkaarte af",
-    "deleteBudgetYes": "Ja, verwyder die begroting"
+    "deleteBudgetYes": "Ja, verwyder die begroting",
+    "deleteFineTitle": "Verwyder hierdie verkeersboete?",
+    "deleteFineIntro": "Kennisgewing {notice} op {machine}.",
+    "deleteFineEffect1": "Die benoemingsperk word nie meer dopgehou nie — mis dit en die boete bly by die plaas",
+    "deleteFineEffect2": "Dit val van die boetelys en die nakomingsverslag af",
+    "deleteFineYes": "Ja, verwyder die boete",
+    "deletePartTitle": "Verwyder “{part}” van die onderdelelys?",
+    "deletePartIntro": "Werkkaarte wat hierdie onderdeel reeds gebruik, hou hulle reëls en hulle kostes.",
+    "deletePartEffect1": "Niemand kan dit kies wanneer 'n reël by 'n werkkaart gevoeg word nie",
+    "deletePartYes": "Ja, verwyder die onderdeel",
+    "deletePartnerTitle": "Verwyder {partner} van jou lys?",
+    "deletePartnerIntro": "Dit haal hulle net van jou lys af — dit kanselleer nie werk waarmee hulle besig is nie.",
+    "deletePartnerEffect1": "Hulle verskyn nie meer wanneer jy werk uitstuur nie",
+    "deletePartnerEffect2": "As hulle 'n aanteken het, werk dit voort totdat jy anders sê",
+    "deletePartnerYes": "Ja, verwyder hulle",
+    "deleteTemplateTitle": "Skrap die “{template}” diensjabloon?",
+    "deleteTemplateIntro": "Dit is 'n Rapid Rise-jabloon wat elke plaas kan toepas.",
+    "deleteTemplateEffect1": "Geen plaas kan dit weer op 'n masjien toepas nie",
+    "deleteTemplateEffect2": "Masjiene wat dit reeds gebruik, hou hulle diensplanne",
+    "deleteTemplateYes": "Ja, skrap die jabloon",
+    "deleteChecklistTemplateTitle": "Skrap die “{template}” kontrolelys?",
+    "deleteChecklistTemplateIntro": "Dit is die lys vrae wat mense beantwoord wanneer hulle 'n masjien nagaan.",
+    "deleteChecklistTemplateEffect1": "Niemand kan 'n nuwe kontrole daaruit begin nie",
+    "deleteChecklistTemplateEffect2": "Kontroles wat reeds gedoen is, hou elke antwoord presies soos dit gestoor is",
+    "deleteChecklistTemplateYes": "Ja, skrap die kontrolelys",
+    "deleteChecklistInstanceTitle": "Verwyder hierdie kontrole?",
+    "deleteChecklistInstanceIntro": "Die antwoorde en foto's van {date} gaan saam.",
+    "deleteChecklistInstanceYes": "Ja, verwyder die kontrole",
+    "removeLineTitle": "Haal “{line}” van hierdie werkkaart af?",
+    "removeLineIntro": "Die werkkaart se totaal gaan met {amount} af.",
+    "removeLineYes": "Ja, haal dit af"
+  },
+  "format": {
+    "unit": {
+      "hours": "uur",
+      "km": "km"
+    },
+    "today": "Vandag",
+    "yesterday": "Gister",
+    "tomorrow": "Môre",
+    "daysAgo": "{n} dae gelede",
+    "lastWeek": "Verlede week",
+    "weeksAgo": "{n} weke gelede",
+    "inDays": "oor {n} dae",
+    "nextWeek": "volgende week",
+    "inWeeks": "oor {n} weke"
+  },
+  "role": {
+    "owner": "Eienaar",
+    "manager": "Plaasbestuurder",
+    "mechanic": "Werktuigkundige",
+    "operator": "Bestuurder",
+    "workshop": "Kontrakteur",
+    "rr_admin": "Rapid Rise-personeel"
+  },
+  "filters": {
+    "all": "Almal",
+    "clear": "Vee filters uit",
+    "showing": "Wys {n} van {total}",
+    "status": "Status",
+    "type": "Tipe",
+    "kind": "Soort",
+    "site": "Terrein",
+    "costCentre": "Kostesentrum",
+    "department": "Afdeling",
+    "period": "Tydperk"
+  },
+  "empty": {
+    "noMatchTitle": "Niks pas by daardie filters nie",
+    "noMatchHint": "Probeer 'n filter uitvee — dié wat jy gestel het, versteek alles.",
+    "clearFilters": "Vee die filters uit"
   }
 }

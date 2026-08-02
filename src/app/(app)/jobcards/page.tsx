@@ -12,15 +12,13 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { JobCardsIcon, PlusIcon } from "@/components/ui/icons";
 import { createJobCard } from "./actions";
+import { JobStatus } from "@/components/ui/status";
 
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
 
 type JobCard = {
   id: string; type: string; status: string; date_in: string | null; total_cents: number; machine_id: string;
 };
-
-const statusTone = (s: string): BadgeTone =>
-  s === "approved" || s === "completed" ? "ok" : s === "waiting_parts" ? "warning" : "info";
 
 export default async function JobCardsPage({
   searchParams,
@@ -106,7 +104,7 @@ export default async function JobCardsPage({
                         <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "—"}</p>
                         <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? ` · ${c.date_in}` : ""}</p>
                       </div>
-                      <Badge tone={statusTone(c.status)}>{t(`jobStatus.${c.status}`, locale)}</Badge>
+                      <JobStatus value={c.status} locale={locale} />
                     </div>
                     <p className="mt-2 text-right text-sm font-medium text-sand-900">{rands(c.total_cents)}</p>
                   </Card>
@@ -137,7 +135,7 @@ export default async function JobCardsPage({
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
                     <Td className="text-sand-600">{c.date_in ?? "—"}</Td>
-                    <Td><Badge tone={statusTone(c.status)}>{t(`jobStatus.${c.status}`, locale)}</Badge></Td>
+                    <Td><JobStatus value={c.status} locale={locale} /></Td>
                     <Td className="text-right font-medium">{rands(c.total_cents)}</Td>
                   </Tr>
                 ))}

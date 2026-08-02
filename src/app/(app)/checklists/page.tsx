@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistTemplate, duplicateChecklistTemplate } from "./actions";
 
 type TemplateRow = {
@@ -104,12 +105,27 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                         <input type="hidden" name="id" value={tpl.id} />
                         <SubmitButton variant="secondary" size="sm">{t("checklists.duplicate", locale)}</SubmitButton>
                       </form>
-                      <form action={deleteChecklistTemplate}>
+                      <ConfirmDialog
+                        action={deleteChecklistTemplate}
+                        triggerVariant="ghost"
+                        triggerSize="sm"
+                        triggerIcon={<TrashIcon />}
+                        triggerLabel={t("common.delete", locale)}
+                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        title={t("confirm.deleteChecklistTemplateTitle", locale).replace("{template}", tpl.name)}
+                        intro={t("confirm.deleteChecklistTemplateIntro", locale)}
+                        consequencesTitle={t("confirm.whatHappens", locale)}
+                        consequences={[
+                          t("confirm.deleteChecklistTemplateEffect1", locale),
+                          t("confirm.deleteChecklistTemplateEffect2", locale),
+                        ]}
+                        footnote={t("confirm.softDeleteNote", locale)}
+                        confirmLabel={t("confirm.deleteChecklistTemplateYes", locale)}
+                        cancelLabel={t("confirm.keepIt", locale)}
+                        closeLabel={t("ui.close", locale)}
+                      >
                         <input type="hidden" name="id" value={tpl.id} />
-                        <button className="focus-ring rounded-lg px-2 py-1.5 text-status-overdue hover:bg-red-50">
-                          {t("common.delete", locale)}
-                        </button>
-                      </form>
+                      </ConfirmDialog>
                     </div>
                   ) : (
                     <span className="flex items-center text-sand-300"><ChevronRightIcon /></span>

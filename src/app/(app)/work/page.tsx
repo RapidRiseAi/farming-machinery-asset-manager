@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PartnersIcon } from "@/components/ui/icons";
+import { WorkStatus, PriorityStatus } from "@/components/ui/status";
 
 type WorkRequest = {
   id: string; machine_id: string; workshop_id: string | null; kind: string; status: string;
@@ -108,7 +109,7 @@ export default async function WorkListPage({
             return (
               <section key={status} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge tone={workStatusTone(status)}>{workStatusLabel(status, locale)}</Badge>
+                  <WorkStatus value={status} locale={locale} />
                   <span className="text-sm text-sand-400">{list.length}</span>
                 </div>
                 <ul className="flex flex-col gap-2">

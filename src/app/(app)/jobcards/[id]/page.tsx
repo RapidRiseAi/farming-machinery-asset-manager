@@ -7,7 +7,9 @@ import { t } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { JobStatus } from "@/components/ui/status";
 import { removeLine, toggleServiceLine, applyServiceKit } from "../actions";
 import { LineEntry, type CataloguePart } from "../line-entry";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -91,8 +93,6 @@ export default async function JobCardDetail({
   const canApprove = profile.role === "owner" || profile.role === "manager";
   const locked = jc.locked;
 
-  const statusTone = (s: string): BadgeTone =>
-    s === "approved" || s === "completed" ? "ok" : s === "waiting_parts" ? "warning" : "info";
   const lineDetail = (l: Line) =>
     l.kind === "part"
       ? `${l.qty ?? 0} × ${rands(l.unit_cost_cents)}`
@@ -112,7 +112,7 @@ export default async function JobCardDetail({
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{machine?.name ?? t("jobcards.title", locale)}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{t(`jobType.${jc.type}`, locale)}</Badge>
-            <Badge tone={statusTone(jc.status)}>{t(`jobStatus.${jc.status}`, locale)}</Badge>
+            <JobStatus value={jc.status} locale={locale} size="md" />
           </div>
         </div>
         <a href={`/jobcards/${jc.id}/pdf`} className="focus-ring rounded-md text-sm text-brand-700">PDF →</a>
@@ -154,11 +154,25 @@ export default async function JobCardDetail({
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="font-medium">{rands(l.total_cents)}</span>
                   {!locked ? (
-                    <form action={removeLine}>
+                    <ConfirmDialog
+                      action={removeLine}
+                      triggerVariant="ghost"
+                      triggerSize="sm"
+                      triggerIcon={<TrashIcon />}
+                      triggerLabel={t("jobcards.remove", locale)}
+                      triggerClassName="text-status-overdue hover:bg-red-50"
+                      title={t("confirm.removeLineTitle", locale).replace(
+                        "{line}",
+                        l.description ?? l.part_no ?? "—",
+                      )}
+                      intro={t("confirm.removeLineIntro", locale).replace("{amount}", rands(l.total_cents))}
+                      confirmLabel={t("confirm.removeLineYes", locale)}
+                      cancelLabel={t("confirm.keepIt", locale)}
+                      closeLabel={t("ui.close", locale)}
+                    >
                       <input type="hidden" name="line_id" value={l.id} />
                       <input type="hidden" name="job_card_id" value={jc.id} />
-                      <button className="focus-ring rounded px-1 text-status-overdue" aria-label={t("jobcards.remove", locale)}>✕</button>
-                    </form>
+                    </ConfirmDialog>
                   ) : null}
                 </span>
               </li>

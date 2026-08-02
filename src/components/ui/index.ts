@@ -15,14 +15,23 @@ export { Select } from "./select";
 export type { SelectProps } from "./select";
 export { Textarea } from "./textarea";
 export type { TextareaProps } from "./textarea";
-export { Field } from "./field";
-export type { FieldProps } from "./field";
+export { Field, TextField, SelectField, TextareaField } from "./field";
+export type { FieldProps, TextFieldProps, SelectFieldProps, TextareaFieldProps } from "./field";
+export { FilterChips, ActiveFilters } from "./filter-chips";
+export type { ChipOption } from "./filter-chips";
 export { Card, CardHeader, CardTitle } from "./card";
 export type { CardProps, CardHeaderProps, CardTitleProps } from "./card";
 export { Table, Thead, Tbody, Tr, Th, Td } from "./table";
 export type { ThProps } from "./table";
-export { Badge, StatusPill } from "./badge";
-export type { BadgeProps, BadgeTone, StatusPillProps, ServiceStatus } from "./badge";
+export {
+  Badge, StatusPill, StatusBadge, look,
+  SERVICE_LOOK, MACHINE_LOOK, JOB_LOOK, FAULT_LOOK, URGENCY_LOOK,
+  WORK_LOOK, PRIORITY_LOOK, EXPIRY_LOOK, BUDGET_LOOK, FINE_LOOK,
+} from "./badge";
+export type {
+  BadgeProps, BadgeTone, StatusPillProps, ServiceStatus,
+  StatusBadgeProps, StatusShape, StatusLook,
+} from "./badge";
 export { Stat } from "./stat";
 export type { StatProps, StatTone } from "./stat";
 export { Modal, Sheet, Overlay } from "./dialog";
@@ -35,7 +44,7 @@ export { Toast } from "./toast";
 export type { ToastProps } from "./toast";
 export { Tabs } from "./tabs";
 export type { TabsProps, TabItem } from "./tabs";
-export { EmptyState } from "./empty-state";
+export { EmptyState, AllClear, GetStarted, NoMatches } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 export { Skeleton, SkeletonText } from "./skeleton";
 export type { SkeletonProps } from "./skeleton";

@@ -16,6 +16,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { WorkStatus } from "@/components/ui/status";
 import {
   InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon, CheckIcon,
 } from "@/components/ui/icons";
@@ -182,7 +183,7 @@ export default async function InboxPage({
                       <Link href={`/work/${r.id}`} className="focus-ring truncate rounded font-semibold text-sand-900 hover:underline">
                         {nameById.get(r.machine_id) ?? "—"}
                       </Link>
-                      <Badge tone={workStatusTone(r.status)}>{workStatusLabel(r.status, locale)}</Badge>
+                      <WorkStatus value={r.status} locale={locale} />
                     </div>
                     <p className="mt-0.5 text-sm text-sand-500">
                       {workKindLabel(r.kind, locale)}
@@ -289,7 +290,7 @@ export default async function InboxPage({
                         <span className="flex shrink-0 items-center gap-2">
                           {r.priority !== "normal" ? <Badge tone={workPriorityTone(r.priority)}>{workPriorityLabel(r.priority, locale)}</Badge> : null}
                           {amount != null ? <span className="text-xs font-medium tabular-nums text-sand-500">{rands(amount)}</span> : null}
-                          <Badge tone={workStatusTone(r.status)}>{workStatusLabel(r.status, locale)}</Badge>
+                          <WorkStatus value={r.status} locale={locale} />
                         </span>
                       </li>
                     );

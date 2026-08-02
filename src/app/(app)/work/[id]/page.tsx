@@ -23,6 +23,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   ChevronLeftIcon, PhoneIcon, ChatIcon, MailIcon, JobCardsIcon, MachinesIcon,
 } from "@/components/ui/icons";
+import { WorkStatus, PriorityStatus } from "@/components/ui/status";
 import {
   updateWorkRequestStatus, addWorkRequestNote, setWorkRequestQuote,
   setWorkRequestInvoice, convertToJobCard,
@@ -120,7 +121,7 @@ export default async function WorkRequestDetailPage({
               <h1 className="text-2xl font-bold tracking-tight text-sand-900">
                 {wr.title || workKindLabel(wr.kind, locale)}
               </h1>
-              <Badge tone={workStatusTone(wr.status)}>{workStatusLabel(wr.status, locale)}</Badge>
+              <WorkStatus value={wr.status} locale={locale} size="md" />
               {wr.priority !== "normal" ? <Badge tone={workPriorityTone(wr.priority)}>{workPriorityLabel(wr.priority, locale)}</Badge> : null}
             </div>
             <p className="mt-1 text-sm text-sand-500">

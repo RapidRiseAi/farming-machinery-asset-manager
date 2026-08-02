@@ -64,6 +64,7 @@ import {
   TrashIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
 import { createWorkRequest } from "@/app/(app)/work/actions";
 import {
   WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
@@ -877,7 +878,7 @@ export default async function MachineDetailPage({
                   {machine.warranty_expiry_hours != null ? (
                     <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_hours}{machine.meter_type === "hours" ? " h" : ""}</span></span>
                   ) : null}
-                  <Badge tone={expiryTone(wStatus)}>{expiryLabel(wStatus, locale)}</Badge>
+                  <ExpiryStatus value={wStatus} locale={locale} />
                 </div>
               ) : (
                 <p className="text-sm text-sand-400">{t("compliance.noWarranty", locale)}</p>
@@ -906,7 +907,7 @@ export default async function MachineDetailPage({
                             </p>
                             {l.notes ? <p className="mt-0.5 text-xs text-sand-500">{l.notes}</p> : null}
                           </div>
-                          <Badge tone={expiryTone(s)}>{expiryLabel(s, locale)}</Badge>
+                          <ExpiryStatus value={s} locale={locale} />
                         </div>
                         {canEdit ? (
                           <details className="mt-2">
@@ -1200,11 +1201,11 @@ export default async function MachineDetailPage({
                             {f.nomination_deadline && nominationPending(f.status) ? (
                               <p className="text-xs text-sand-500">
                                 {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
-                                {ds ? <> · <Badge tone={expiryTone(ds)}>{expiryLabel(ds, locale)}</Badge></> : null}
+                                {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
                               </p>
                             ) : null}
                           </div>
-                          <Badge tone={fineStatusTone(f.status)}>{fineStatusLabel(f.status, locale)}</Badge>
+                          <FineStatus value={f.status} locale={locale} />
                         </div>
                       </li>
                     );
@@ -1433,7 +1434,7 @@ export default async function MachineDetailPage({
                         {(w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
                           <span className="tabular-nums text-sand-500">{rands(w.invoice_amount_cents ?? w.quote_amount_cents)}</span>
                         ) : null}
-                        <Badge tone={workStatusTone(w.status)}>{workStatusLabel(w.status, locale)}</Badge>
+                        <WorkStatus value={w.status} locale={locale} />
                       </span>
                     </Link>
                   </li>

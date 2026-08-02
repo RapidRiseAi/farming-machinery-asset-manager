@@ -16,6 +16,7 @@ import { FaultsIcon, ReportsIcon, ChevronRightIcon, MachinesIcon, WarningIcon } 
 import { SpendTrend, HBars } from "./charts";
 import { warrantyStatus, dateExpiryStatus, expiryTone, expiryLabel, licenceTypeLabel } from "@/lib/compliance";
 import { fineStatusLabel, fineStatusTone, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
+import { ExpiryStatus, FineStatus } from "@/components/ui/status";
 
 type Machine = {
   id: string;
@@ -334,7 +335,7 @@ export default async function DashboardPage() {
                     <span className="block truncate text-sm font-medium text-sand-900">{e.machineName}</span>
                     <span className="block truncate text-sm text-sand-500">{e.label}{e.date ? ` · ${e.date}` : ""}</span>
                   </span>
-                  <Badge tone={expiryTone(e.status)}>{expiryLabel(e.status, locale)}</Badge>
+                  <ExpiryStatus value={e.status} locale={locale} />
                 </Link>
               </li>
             ))}
@@ -372,8 +373,8 @@ export default async function DashboardPage() {
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        {ds ? <Badge tone={expiryTone(ds)}>{expiryLabel(ds, locale)}</Badge> : null}
-                        <Badge tone={fineStatusTone(f.status)}>{fineStatusLabel(f.status, locale)}</Badge>
+                        {ds ? <ExpiryStatus value={ds} locale={locale} /> : null}
+                        <FineStatus value={f.status} locale={locale} />
                       </span>
                     </Link>
                   </li>

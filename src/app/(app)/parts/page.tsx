@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { SearchIcon } from "@/components/ui/icons";
+import { SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPart, updatePart, deletePart } from "./actions";
 
 type Part = {
@@ -139,10 +140,29 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                           <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
                           <span className="w-full" />
                         </form>
-                        <form action={deletePart} className="mt-1">
-                          <input type="hidden" name="id" value={p.id} />
-                          <button className="text-xs text-status-overdue">{t("common.delete", locale)}</button>
-                        </form>
+                        <div className="mt-1">
+                          <ConfirmDialog
+                            action={deletePart}
+                            triggerVariant="ghost"
+                            triggerSize="sm"
+                            triggerIcon={<TrashIcon />}
+                            triggerLabel={t("common.delete", locale)}
+                            triggerClassName="text-status-overdue hover:bg-red-50"
+                            title={t("confirm.deletePartTitle", locale).replace(
+                              "{part}",
+                              p.part_no ?? p.description ?? "—",
+                            )}
+                            intro={t("confirm.deletePartIntro", locale)}
+                            consequencesTitle={t("confirm.whatHappens", locale)}
+                            consequences={[t("confirm.deletePartEffect1", locale)]}
+                            footnote={t("confirm.softDeleteNote", locale)}
+                            confirmLabel={t("confirm.deletePartYes", locale)}
+                            cancelLabel={t("confirm.keepIt", locale)}
+                            closeLabel={t("ui.close", locale)}
+                          >
+                            <input type="hidden" name="id" value={p.id} />
+                          </ConfirmDialog>
+                        </div>
                       </details>
                     ) : null}
                   </Td>

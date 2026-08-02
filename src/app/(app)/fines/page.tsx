@@ -22,6 +22,9 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ExpiryStatus, FineStatus } from "@/components/ui/status";
+import { TrashIcon } from "@/components/ui/icons";
 
 type MachineRow = { id: string; farm_id: string; name: string; reg_no: string | null; status: string };
 type OperatorRow = { id: string; name: string };
@@ -146,12 +149,12 @@ export default async function FinesPage({
             {f.nomination_deadline ? (
               <p className="mt-0.5 text-xs text-sand-500">
                 {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
-                {ds ? <> · <Badge tone={expiryTone(ds)}>{expiryLabel(ds, locale)}</Badge></> : null}
+                {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
               </p>
             ) : null}
             {f.notes ? <p className="mt-0.5 text-xs text-sand-500">{f.notes}</p> : null}
           </div>
-          <Badge tone={fineStatusTone(f.status)}>{fineStatusLabel(f.status, locale)}</Badge>
+          <FineStatus value={f.status} locale={locale} />
         </div>
 
         {canManage ? (
@@ -189,10 +192,31 @@ export default async function FinesPage({
               </details>
             ) : null}
 
-            <form action={deleteFine} className="ml-auto">
-              <input type="hidden" name="id" value={f.id} />
-              <button className="focus-ring rounded px-1 text-xs text-status-overdue">{t("common.delete", locale)}</button>
-            </form>
+            <div className="ml-auto">
+              <ConfirmDialog
+                action={deleteFine}
+                triggerVariant="ghost"
+                triggerSize="sm"
+                triggerIcon={<TrashIcon />}
+                triggerLabel={t("common.delete", locale)}
+                triggerClassName="text-status-overdue hover:bg-red-50"
+                title={t("confirm.deleteFineTitle", locale)}
+                intro={t("confirm.deleteFineIntro", locale)
+                  .replace("{notice}", f.notice_number ?? "—")
+                  .replace("{machine}", machineById.get(f.machine_id)?.name ?? "—")}
+                consequencesTitle={t("confirm.whatHappens", locale)}
+                consequences={[
+                  t("confirm.deleteFineEffect1", locale),
+                  t("confirm.deleteFineEffect2", locale),
+                ]}
+                footnote={t("confirm.softDeleteNote", locale)}
+                confirmLabel={t("confirm.deleteFineYes", locale)}
+                cancelLabel={t("confirm.keepIt", locale)}
+                closeLabel={t("ui.close", locale)}
+              >
+                <input type="hidden" name="id" value={f.id} />
+              </ConfirmDialog>
+            </div>
           </div>
         ) : null}
       </li>

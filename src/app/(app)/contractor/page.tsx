@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { WorkStatus, PriorityStatus } from "@/components/ui/status";
 import {
   WorkIcon, MachinesIcon, PartsIcon, InfoIcon, ChevronRightIcon,
   PhoneIcon, ChatIcon, MailIcon,
@@ -239,7 +240,7 @@ export default async function ContractorDashboardPage({
                 return (
                   <section key={status} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <Badge tone={workStatusTone(status)}>{workStatusLabel(status, locale)}</Badge>
+                      <WorkStatus value={status} locale={locale} />
                       <span className="text-sm text-sand-400">{list.length}</span>
                     </div>
                     <ul className="flex flex-col gap-2">
