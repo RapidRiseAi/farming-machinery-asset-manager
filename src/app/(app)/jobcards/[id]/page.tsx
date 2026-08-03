@@ -20,6 +20,7 @@ import { Field } from "@/components/ui/field";
 import { JobCardEditor } from "../job-card-editor";
 import { LifecycleActions } from "../lifecycle-actions";
 import { JobCardMedia } from "@/components/jobcard-media";
+import { LockIcon, SquareIcon, CheckIcon } from "@/components/ui/icons";
 
 type JobCard = {
   id: string; farm_id: string; machine_id: string; type: string; status: string;
@@ -140,7 +141,7 @@ export default async function JobCardDetail({
 
       {locked ? (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
-          🔒 {t("jobcards.lockedBanner", locale)}
+          <LockIcon /> {t("jobcards.lockedBanner", locale)}
           {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${shortDate(jc.approved_at, locale)}` : ""}
         </div>
       ) : null}
@@ -303,7 +304,7 @@ export default async function JobCardDetail({
                   <input type="hidden" name="service_plan_line_id" value={pl.id} />
                   <input type="hidden" name="on" value={covered.has(pl.id) ? "0" : "1"} />
                   <button className={`focus-ring rounded ${covered.has(pl.id) ? "text-status-ok" : "text-sand-400"}`}>
-                    {covered.has(pl.id) ? "☑" : "☐"}
+                    {covered.has(pl.id) ? <CheckIcon /> : <SquareIcon />}
                   </button>
                   <span>{pl.task}</span>
                 </form>

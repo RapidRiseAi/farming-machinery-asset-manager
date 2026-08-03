@@ -186,10 +186,11 @@ export default async function AppLayout({
   const bellLink = (
     <Link
       href="/notifications"
-      aria-label={t("nav.notifications", locale)}
-      className="focus-ring flex h-11 w-11 items-center justify-center rounded-lg text-[1.4rem] text-sand-600 hover:bg-sand-100"
+      className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg px-2 text-[1.4rem] text-sand-600 hover:bg-sand-100 sm:min-h-[44px]"
     >
       <BellIcon />
+      {/* Icon and word. A bell alone is guessable; "Alerts" is not. */}
+      <span className="text-sm font-medium">{t("nav.notifications", locale)}</span>
     </Link>
   );
 

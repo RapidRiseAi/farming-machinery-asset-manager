@@ -46,7 +46,7 @@ export function DeviceLanguageSwitcher({
           value={lng}
           aria-pressed={current === lng}
           className={cn(
-            "focus-ring min-h-[44px] rounded-lg px-4 text-sm font-semibold transition-colors",
+            "focus-ring min-h-[48px] rounded-lg px-4 text-sm font-semibold transition-colors",
             current === lng
               ? "bg-brand-600 text-white shadow-xs"
               : "text-sand-600 hover:bg-sand-100 hover:text-sand-900",

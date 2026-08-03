@@ -105,7 +105,7 @@ export default async function ReportsPage({
             <Link
               key={p.key}
               href={presetHref(p)}
-              className={`focus-ring rounded-full px-3 py-1.5 text-sm font-medium ${activePreset === p.key ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`}
+              className={`focus-ring min-h-[48px] rounded-full px-3 text-sm font-medium sm:min-h-[36px] ${activePreset === p.key ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`}
             >
               {t(`reports.${p.key}`, locale)}
             </Link>
@@ -126,7 +126,7 @@ export default async function ReportsPage({
             <select
               name="group"
               defaultValue={filters.group ?? ""}
-              className="focus-ring rounded-lg border border-sand-300 px-3 py-1.5 text-sm"
+              className="focus-ring min-h-[48px] rounded-lg border border-sand-300 px-3 text-sm sm:min-h-[40px]"
             >
               <option value="">{t("reports.allGroups", locale)}</option>
               {data.groups.map((g) => (

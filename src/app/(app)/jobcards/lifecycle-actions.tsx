@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Modal } from "@/components/ui/dialog";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import { completeJobCard, approveJobCard } from "./actions";
+import { CheckIcon } from "@/components/ui/icons";
 
 export function LifecycleActions({
   id,
@@ -63,7 +64,7 @@ export function LifecycleActions({
           </Button>
         ) : null}
         {queued ? (
-          <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
+          <p role="status" className="text-sm font-medium text-status-due"><CheckIcon /> {t("offline.savedOffline", locale)}</p>
         ) : null}
       </div>
 

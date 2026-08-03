@@ -4,6 +4,7 @@ import { useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import type { MutationScope, MutationType } from "@/lib/offline/types";
+import { CheckIcon } from "@/components/ui/icons";
 
 /**
  * Wraps a server-action form so that, when offline, the submit is intercepted and queued
@@ -50,7 +51,7 @@ export function OfflineForm({
       {children}
       {queued ? (
         <p role="status" className="mt-1 text-sm font-medium text-status-due">
-          ✓ {t("offline.savedOffline", locale)}
+          <CheckIcon /> {t("offline.savedOffline", locale)}
         </p>
       ) : null}
     </form>

@@ -64,13 +64,15 @@ export function Toast({
         {s.icon}
       </span>
       <span className="min-w-0 flex-1">{message}</span>
+      {/* Icon AND word, at the 48px floor — a toast close is still a thing a dusty
+          thumb has to hit, and a lone ✕ is the one glyph this product does not use. */}
       <button
         type="button"
         onClick={() => setOpen(false)}
-        aria-label={closeLabel}
-        className="focus-ring -my-1 -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[1.1rem] opacity-70 hover:opacity-100"
+        className="focus-ring -my-1 -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium opacity-70 hover:opacity-100 sm:min-h-[36px]"
       >
         <CloseIcon />
+        {closeLabel}
       </button>
     </div>
   );

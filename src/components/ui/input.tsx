@@ -1,9 +1,10 @@
 import type { InputHTMLAttributes } from "react";
 import { cn } from "./cn";
 
-// text-base (16px) avoids the iOS zoom-on-focus; min-h clears 44px tap target.
+// text-base (16px) avoids the iOS zoom-on-focus. 48px is the floor on a phone — the
+// same floor the buttons hold — stepping down to 44px once there is a mouse.
 export const controlBase =
-  "block w-full min-h-[44px] rounded-lg border border-sand-300 bg-white px-3 text-base text-sand-900 " +
+  "block w-full min-h-[48px] sm:min-h-[44px] rounded-lg border border-sand-300 bg-white px-3 text-base text-sand-900 " +
   "placeholder:text-sand-400 shadow-xs transition-colors " +
   "focus:border-brand-500 focus-ring disabled:cursor-not-allowed disabled:bg-sand-100 disabled:opacity-70 " +
   "aria-[invalid=true]:border-status-overdue";

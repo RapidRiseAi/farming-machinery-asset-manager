@@ -62,6 +62,8 @@ import {
   ChecklistIcon,
   WorkIcon,
   TrashIcon,
+  CheckIcon,
+  CloseIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { meterReading, relativeDate } from "@/lib/format";
@@ -588,13 +590,19 @@ export default async function MachineDetailPage({
                               <input type="hidden" name="id" value={w.id} />
                               <input type="hidden" name="machine_id" value={machine.id} />
                               <input type="hidden" name="status" value="done" />
-                              <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.done", locale)}</button>
+                              <SubmitButton variant="secondary" size="sm">
+                                <CheckIcon />
+                                {t("machine.done", locale)}
+                              </SubmitButton>
                             </form>
                             <form action={setWatchStatus}>
                               <input type="hidden" name="id" value={w.id} />
                               <input type="hidden" name="machine_id" value={machine.id} />
                               <input type="hidden" name="status" value="dismissed" />
-                              <button className="rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("machine.dismiss", locale)}</button>
+                              <SubmitButton variant="ghost" size="sm">
+                                <CloseIcon />
+                                {t("machine.dismiss", locale)}
+                              </SubmitButton>
                             </form>
                           </span>
                         ) : null}

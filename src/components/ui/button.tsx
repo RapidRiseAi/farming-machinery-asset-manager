@@ -21,8 +21,14 @@ const VARIANTS: Record<ButtonVariant, string> = {
  * outdoors, in sunlight, often with dirty or gloved hands — the mobile figure is the
  * one that matters, so every size steps DOWN at `sm`, never up.
  */
+/**
+ * 48px is the floor on a phone, for every size — a dense secondary action is still
+ * pressed by the same thumb, in the same sunlight, with the same dust on the glass.
+ * `sm` therefore differs from `md` only once there is a mouse: the sizes step DOWN at
+ * `sm:`, they never step down on the device that needs them big.
+ */
 const SIZES: Record<ButtonSize, string> = {
-  sm: "min-h-[44px] sm:min-h-[36px] px-3 text-sm gap-1.5",
+  sm: "min-h-[48px] sm:min-h-[36px] px-3 text-sm gap-1.5",
   md: "min-h-[48px] sm:min-h-[40px] px-4 text-sm gap-2",
   lg: "min-h-[52px] sm:min-h-[44px] px-5 text-base gap-2",
 };

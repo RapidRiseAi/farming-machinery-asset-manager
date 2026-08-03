@@ -289,6 +289,52 @@ export const TrashIcon = (p: IconProps) => (
   </Svg>
 );
 
+/**
+ * The fault form and the job card used emoji for these — 📷 🎤 ⏹ 📍 🔒 ☑ — which render
+ * differently on every Android skin, ignore `currentColor`, and read aloud as their
+ * unicode name. Same line weight as the rest of the set, so they inherit tone and size.
+ */
+export const CameraIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.1-2h8.4l1.1 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+    <circle cx="12" cy="13" r="3.4" />
+  </Svg>
+);
+
+export const MicIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 18v3M9 21h6" />
+  </Svg>
+);
+
+export const StopIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
+export const PinIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 21s6.5-6.1 6.5-10.5a6.5 6.5 0 0 0-13 0C5.5 14.9 12 21 12 21z" />
+    <circle cx="12" cy="10.5" r="2.4" />
+  </Svg>
+);
+
+export const LockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
+    <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" />
+  </Svg>
+);
+
+export const SquareIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4.5" y="4.5" width="15" height="15" rx="3" />
+  </Svg>
+);
+
 export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 24 24"
@@ -332,6 +378,12 @@ export const iconByName = {
   more: MoreIcon,
   close: CloseIcon,
   plus: PlusIcon,
+  camera: CameraIcon,
+  mic: MicIcon,
+  stop: StopIcon,
+  pin: PinIcon,
+  lock: LockIcon,
+  square: SquareIcon,
   search: SearchIcon,
   check: CheckIcon,
   warning: WarningIcon,

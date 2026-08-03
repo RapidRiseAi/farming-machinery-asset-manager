@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
+import { CloseIcon, PlusIcon, ChevronUpIcon } from "@/components/ui/icons";
 import {
   createChecklistInstance,
   type ChecklistInstanceInput,
@@ -180,9 +181,10 @@ export function ChecklistForm({
                 </span>
                 <button
                   type="button"
-                  className="focus-ring rounded-md border border-sand-300 px-2 py-0.5 text-xs text-sand-600"
+                  className="focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-300 px-3 text-xs font-medium text-sand-600 sm:min-h-[36px]"
                   onClick={() => setOpenNotes((cur) => ({ ...cur, [field.id]: !noteOpen }))}
                 >
+                  {noteOpen ? <ChevronUpIcon /> : <PlusIcon />}
                   {noteOpen ? t("checklists.hideNote", locale) : t("checklists.addNote", locale)}
                 </button>
               </div>
@@ -246,17 +248,19 @@ export function ChecklistForm({
                     <span className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={photos[field.id].preview} alt={field.label} className="h-20 w-20 rounded-lg object-cover ring-1 ring-sand-200" />
+                      {/* Was a 24px icon-only "✕". Both halves of the house rule were
+                          broken: under the 48px floor, and a glyph with no word. */}
                       <button
                         type="button"
-                        aria-label={t("checklists.removePhoto", locale)}
-                        className="focus-ring absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-sand-800 text-xs text-white"
+                        className="focus-ring absolute -right-1 -top-1 inline-flex min-h-[48px] items-center gap-1 rounded-full bg-sand-800 px-3 text-xs font-medium text-white sm:min-h-[32px]"
                         onClick={() => setPhotos((cur) => { const n = { ...cur }; delete n[field.id]; return n; })}
                       >
-                        ✕
+                        <CloseIcon />
+                        {t("checklists.removePhoto", locale)}
                       </button>
                     </span>
                   ) : null}
-                  <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
+                  <label className="focus-ring inline-flex min-h-[48px] cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
                     {photos[field.id] ? t("checklists.retakePhoto", locale) : t("checklists.takePhoto", locale)}
                     <input
                       type="file"

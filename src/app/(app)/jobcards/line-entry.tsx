@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import { addLine } from "./actions";
+import { CheckIcon } from "@/components/ui/icons";
 
 export type CataloguePart = {
   id: string;
@@ -157,7 +158,7 @@ export function LineEntry({
 
       <SubmitButton variant="secondary" className="self-start">{t("jobcards.add", locale)}</SubmitButton>
       {queued ? (
-        <p role="status" className="text-sm font-medium text-status-due">✓ {t("offline.savedOffline", locale)}</p>
+        <p role="status" className="text-sm font-medium text-status-due"><CheckIcon /> {t("offline.savedOffline", locale)}</p>
       ) : null}
     </form>
   );
