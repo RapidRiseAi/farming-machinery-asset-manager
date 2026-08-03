@@ -692,5 +692,31 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     what the guards append when nobody is signed in — rendered as "That didn't work."
   - i18n EN/AF at parity (**1512 leaf keys**). Smoke test kept at
     `scratchpad` (not committed); re-runnable with a placeholder `.env.local`.
+  - **Live click-through against the hosted demo project** (`nmqtcvdwtyggxjjgtnzm`; the
+    last remaining gap — every earlier run used placeholder env, so no query, no RLS
+    decision and no role dispatch had ever actually executed). Demo logins are in
+    `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` (password `FleetWise!demo1`). Signed in as
+    owner / operator / contractor / rr_admin and drove the built app:
+    - **Role dispatch** — `/home` forwards owner→`/dashboard`, operator→`/driver`,
+      workshop→`/contractor`, rr_admin→`/admin/farms`. An operator opening `/settings`
+      lands on `/driver?denied=1` and reads a sentence, not the owner's money page (S11).
+    - **Support mode (S10) end to end** — entering narrows the machine list from **15
+      (all farms) to 3** (Rooikoppies), the banner names the customer and follows across
+      screens, exit clears it, and `audit_log` holds a farm-scoped `impersonate`/`exit`
+      **pair** seconds apart, so the log shows duration. A garbage `fw_support_farm`
+      cookie falls back to the un-narrowed rr_admin view — it is a narrowing, not a grant.
+    - **CSV mapping (S21)** on a real Afrikaans sheet (reordered, one junk column):
+      6/6 canonical columns guessed, junk left unmapped. Stopped before writing.
+    - Dashboard ranked-attention rows deep-link to the machines they name (10 of them);
+      5 distinct status tones on the machines list; machine detail exactly 5 tabs.
+    - **One defect the live run found that reading the code did not:** the mobile machine
+      card nested an `<a>` ("Set up a plan") inside the card's own `<a>`. Invalid HTML →
+      the browser un-nests it → hydration mismatch (React #418) → the list was thrown away
+      and re-rendered client-side on every load. Fixed; the prompt is a span inside the
+      card, still a link in the desktop table. A sweep of **30 route loads across 4 roles,
+      desktop and phone**, is now clean of nesting warnings, hydration failures, uncaught
+      errors and horizontal overflow.
+    - Nothing was written to demo data beyond the two support-mode audit rows; `.env.local`
+      was removed afterwards.
 
 > Update this "current status" block at the end of every session.
