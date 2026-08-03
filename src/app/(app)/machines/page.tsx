@@ -194,18 +194,32 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   const hasFilter = !!(sp.type || sp.status || sp.q || sp.cc || sp.dept);
 
-  /** The service cell — a status, or a tappable "set up a plan" when there is no plan. */
-  const serviceCell = (m: MachineRow) => {
+  /**
+   * The service cell — a status, or a "set up a plan" prompt when there is no plan.
+   *
+   * `linked` is false inside the mobile card, whose whole surface is already a link to
+   * the same machine. An `<a>` inside an `<a>` is invalid HTML: the browser lifts the
+   * inner one out of the card, the DOM stops matching what the server sent, and React
+   * throws the list away and re-renders it on the client.
+   */
+  const serviceCell = (m: MachineRow, linked = true) => {
     const s = svcByMachine.get(m.id);
     if (!s) {
-      return (
+      const look =
+        "inline-flex items-center gap-1 rounded-full border border-dashed border-sand-300 px-2.5 py-1 text-xs font-medium text-brand-700";
+      return linked ? (
         <Link
           href={`/machines/${m.id}`}
-          className="focus-ring inline-flex items-center gap-1 rounded-full border border-dashed border-sand-300 px-2.5 py-1 text-xs font-medium text-brand-700 hover:border-brand-300 hover:bg-brand-50"
+          className={`focus-ring ${look} hover:border-brand-300 hover:bg-brand-50`}
         >
           <PlusIcon className="text-[0.9rem]" />
           {t("machines.setUpPlan", locale)}
         </Link>
+      ) : (
+        <span className={look}>
+          <PlusIcon className="text-[0.9rem]" />
+          {t("machines.setUpPlan", locale)}
+        </span>
       );
     }
     return <ServiceStatus value={s} locale={locale} />;
@@ -434,7 +448,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                       <div className="mt-2 text-sm">{readingCell(m)}</div>
                       <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2.5">
                         <MachineStatus value={m.status} locale={locale} />
-                        {serviceCell(m)}
+                        {serviceCell(m, false)}
                       </div>
                     </div>
                   </Link>
