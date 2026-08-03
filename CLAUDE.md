@@ -719,4 +719,34 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     - Nothing was written to demo data beyond the two support-mode audit rows; `.env.local`
       was removed afterwards.
 
+- **Accessibility pass — the 48px floor and icon+word, measured not asserted** (same
+  branch; no migration; gates green; shared first-load JS flat at **102 kB**):
+  - **How it was found.** A Playwright pass measured the *rendered* height of every
+    `button`/`select`/`[role=tab]` on a Pixel 5 across all four roles (25 route loads).
+    Grepping Tailwind classes had said the floor held; measuring said **155 controls were
+    under 48px**. The floor lived in `button.tsx` alone — every other primitive was still
+    44px, so the rule was true of buttons and false of everything beside them.
+  - **Raised at the source**, each stepping down only at `sm:` (where there is a mouse):
+    `input.tsx` `controlBase` (→ Input/Select/Textarea, the biggest single win),
+    `filter-chips`, `nav`, `tabs`, `device-language-switcher`, `site-switcher`,
+    `print-button`, `fault-capture`, the `/reports` period + site controls. `Button`'s
+    `sm` no longer steps down on a phone at all (48px), only on desktop.
+  - **Emoji were standing in for icons** in 5 files (`📷 🎤 ⏹ 📍 🔒 ☑ ✓`) — they render
+    differently per Android skin, ignore `currentColor`, and read aloud as their unicode
+    name. Added **CameraIcon/MicIcon/StopIcon/PinIcon/LockIcon/SquareIcon** at the set's
+    1.75 line weight and replaced every one.
+  - **Icon-only controls eliminated**: dialog close, toast dismiss and the alerts bell all
+    carry their word now. The **offline pill** showed its label only from `sm:` up — on a
+    phone "are we offline?" was answered by a coloured dot alone.
+  - **S22 (checklist template builder) had never been through the redesign** — raw markup,
+    ~26px buttons, no icons, every input labelled only by its placeholder. Rebuilt on the
+    kit (Field/Input/Select/Button/Flash), real labels, icons + words, sticky save.
+  - Also fixed: inbox still rendered one date as `en-ZA` digits; the faults page had an
+    `eslint-disable` one line above the element it was meant to cover (the repo's only
+    lint warning); `machineType.implement` was the last untranslated AF string (→
+    "Werktuig"). i18n EN/AF at parity (**1512 leaf keys**).
+  - **Re-measured, not re-read: 0 controls under 48px, 0 icon-only.** Hydration/nesting/
+    overflow sweep clean; the three live suites (role dispatch + support-mode narrowing +
+    Afrikaans CSV mapping) still pass; `db:test` green.
+
 > Update this "current status" block at the end of every session.
