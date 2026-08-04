@@ -1,7 +1,7 @@
 "use client";
 
 import { signInWithPassword, signInWithMagicLink } from "./actions";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -16,7 +16,7 @@ export function LoginForm({
   error?: string;
   sent?: string;
   /** Device language (cookie → Accept-Language) — there is no profile yet. Audit bug 2. */
-  locale: Locale;
+  locale: Lang;
 }) {
   return (
     <div className="flex flex-col gap-4">

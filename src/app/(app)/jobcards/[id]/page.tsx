@@ -50,7 +50,7 @@ export default async function JobCardDetail({
   const profile = await requireProfile();
   const { id } = await params;
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
 
   const supabase = await createClient();
   const { data } = await supabase.from("job_cards").select("*").eq("id", id).is("deleted_at", null).maybeSingle();

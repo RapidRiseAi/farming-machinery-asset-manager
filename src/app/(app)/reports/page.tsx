@@ -24,7 +24,7 @@ export default async function ReportsPage({
   // under-plan farms — report data is never computed; an upgrade prompt shows instead.
   const gate = await checkEntitlement("advanced_reports");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">

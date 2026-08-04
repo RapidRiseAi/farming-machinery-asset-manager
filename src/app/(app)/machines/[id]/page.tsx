@@ -128,7 +128,7 @@ export default async function MachineDetailPage({
   const aartoAllowed = plan == null ? true : planAllows(plan, "aarto"); // Complete+
   const { id } = await params;
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canEdit = profile.role === "owner" || profile.role === "manager";
   const canAddReading = ["owner", "manager", "mechanic"].includes(profile.role);
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);

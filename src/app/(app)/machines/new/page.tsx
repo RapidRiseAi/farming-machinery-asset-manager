@@ -16,7 +16,7 @@ export default async function NewMachinePage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const profile = await requireRole(["owner", "manager"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
 
   const supabase = await createClient();

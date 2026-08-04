@@ -36,7 +36,7 @@ export default async function JobCardsPage({
   const search = new URLSearchParams(
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
-  const locale = profile.language;
+  const locale = profile.lang;
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();

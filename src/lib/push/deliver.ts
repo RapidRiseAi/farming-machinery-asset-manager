@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVapidConfig, sendWebPush } from "./webpush";
 import { formatNotification, notificationTitle, notificationUrl } from "@/lib/notifications/format";
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 
 type NotifRow = {
   id: string;
@@ -85,7 +85,7 @@ export async function deliverPush(supabase: SupabaseClient): Promise<DeliverResu
     const subs = subsByUser.get(user.id) ?? [];
     if (subs.length === 0) continue;
 
-    const locale: Locale = user.language ?? "en";
+    const locale: Lang = user.language ?? "en";
     const payload = n.payload ?? {};
     const mName = machineName.get(payload.machine_id as string);
     const message = {

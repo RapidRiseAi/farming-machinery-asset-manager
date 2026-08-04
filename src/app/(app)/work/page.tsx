@@ -32,7 +32,7 @@ export default async function WorkListPage({
   const search = new URLSearchParams(
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
-  const locale = profile.language;
+  const locale = profile.lang;
   const isContractor = profile.role === "workshop";
 
   const supabase = await createClient();

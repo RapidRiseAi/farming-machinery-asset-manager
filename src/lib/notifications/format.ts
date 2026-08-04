@@ -3,13 +3,13 @@
  * by the in-app centre (src/app/(app)/notifications/page.tsx) and the Web-Push delivery
  * path (src/lib/push/deliver.ts) so both channels read identically.
  */
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 
 export type NotePayload = Record<string, unknown>;
 
-function fill(key: string, locale: Locale, vars: Record<string, string>): string {
+function fill(key: string, locale: Lang, vars: Record<string, string>): string {
   let s = t(key, locale);
   for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, v);
   return s;
@@ -22,7 +22,7 @@ function fill(key: string, locale: Locale, vars: Record<string, string>): string
 export function formatNotification(
   template: string,
   payload: NotePayload,
-  locale: Locale,
+  locale: Lang,
   machineName?: string
 ): string {
   const p = payload ?? {};
@@ -100,7 +100,7 @@ export function formatNotification(
 }
 
 /** Short category title for a push notification. */
-export function notificationTitle(template: string, locale: Locale): string {
+export function notificationTitle(template: string, locale: Lang): string {
   const family = template.startsWith("service_")
     ? "service"
     : template.startsWith("warranty_")

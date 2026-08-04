@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { t } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import type { Plan } from "@/lib/entitlements";
 import { planNameKey } from "@/lib/entitlements";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,7 +22,7 @@ export function UpgradeNotice({
   feature: string;
   requiredPlan: Plan;
   currentPlan: Plan | null;
-  locale: "en" | "af";
+  locale: Lang;
   /** Inline (within an allowed page) vs full-page treatment. */
   compact?: boolean;
 }) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import type { MutationScope, MutationType } from "@/lib/offline/types";
 import { CheckIcon } from "@/components/ui/icons";
@@ -25,7 +25,7 @@ export function OfflineForm({
   action: (formData: FormData) => void | Promise<void>;
   type: MutationType;
   scope?: MutationScope;
-  locale: Locale;
+  locale: Lang;
   className?: string;
   children: React.ReactNode;
   onQueued?: () => void;

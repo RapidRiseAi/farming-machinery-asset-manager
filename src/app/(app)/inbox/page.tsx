@@ -42,7 +42,7 @@ export default async function InboxPage({
 }) {
   // Owner/manager cockpit (spec §4). Other roles are bounced to their own home.
   const profile = await requireRole(["owner", "manager"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
   const supabase = await createClient();
   const nowIso = new Date().toISOString();

@@ -4,7 +4,7 @@
  * The status lifecycle mirrors migration 0310:
  *   requested → viewed → quoted → accepted → in_progress → completed → invoiced → closed
  */
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 export const WORK_KINDS = ["repair", "quote", "inspection", "parts", "other"] as const;
 export const WORK_STATUSES = [
@@ -27,9 +27,9 @@ export function isWorkPriority(v: string): v is WorkPriority {
   return (WORK_PRIORITIES as readonly string[]).includes(v);
 }
 
-export const workKindLabel = (k: string, locale: Locale) => t(`workKind.${k}`, locale);
-export const workStatusLabel = (s: string, locale: Locale) => t(`workStatus.${s}`, locale);
-export const workPriorityLabel = (p: string, locale: Locale) => t(`workPriority.${p}`, locale);
+export const workKindLabel = (k: string, locale: Lang) => t(`workKind.${k}`, locale);
+export const workStatusLabel = (s: string, locale: Lang) => t(`workStatus.${s}`, locale);
+export const workPriorityLabel = (p: string, locale: Lang) => t(`workPriority.${p}`, locale);
 
 /** 0-based index of a status along the lifecycle (for the stepper). -1 if unknown. */
 export function workStatusStep(s: string): number {

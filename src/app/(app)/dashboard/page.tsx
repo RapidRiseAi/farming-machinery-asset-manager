@@ -42,7 +42,7 @@ export default async function DashboardPage() {
   // farms — the KPI data below is never fetched or rendered; an upgrade prompt shows.
   const gate = await checkEntitlement("dashboard");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   // A contractor (workshop role) has no single "farm" — their home is the aggregated
   // contractor dashboard (F12c), not this farm-centric one.
   if (profile.role === "workshop") redirect("/contractor");

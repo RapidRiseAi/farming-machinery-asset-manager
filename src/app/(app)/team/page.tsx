@@ -34,7 +34,7 @@ export default async function TeamPage({
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
 
   const supabase = await createClient();

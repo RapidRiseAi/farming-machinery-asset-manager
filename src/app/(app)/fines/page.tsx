@@ -47,7 +47,7 @@ export default async function FinesPage({
   // farms — fine data is never fetched; an upgrade prompt shows instead.
   const gate = await checkEntitlement("aarto");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">

@@ -20,7 +20,7 @@ export default async function NewMachineChecklistPage({
   searchParams: Promise<{ template?: string }>;
 }) {
   const profile = await requireRole(["owner", "manager", "mechanic", "workshop", "operator"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const { id } = await params;
   const sp = await searchParams;
 

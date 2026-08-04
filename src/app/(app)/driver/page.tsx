@@ -47,7 +47,7 @@ export default async function DriverHomePage({
   // Everyone else belongs on their own home — never assume that is the dashboard.
   if (profile.role !== "operator") redirect(homePathFor(profile.role));
 
-  const locale = profile.language;
+  const locale = profile.lang;
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
 

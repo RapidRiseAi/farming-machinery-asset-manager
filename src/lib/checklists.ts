@@ -2,7 +2,7 @@
 // imports — so it is safe in both server pages and client islands (the template
 // builder + the fill renderer), keeping the SQL field-type model and the UI in step.
 
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /** The field types a checklist template supports (matches the SQL check in 0290). */
 export const CHECKLIST_FIELD_TYPES = [
@@ -52,7 +52,7 @@ export function ratingMax(config: Record<string, unknown> | null | undefined): n
 }
 
 /** Translated label for a field type (checklistField.* keys). */
-export function fieldTypeLabel(ft: ChecklistFieldType, locale: Locale): string {
+export function fieldTypeLabel(ft: ChecklistFieldType, locale: Lang): string {
   return t(`checklistField.${ft}`, locale);
 }
 
@@ -63,7 +63,7 @@ export function fieldTypeLabel(ft: ChecklistFieldType, locale: Locale): string {
 export function formatChecklistValue(
   fieldType: ChecklistFieldType,
   valueText: string | null,
-  locale: Locale,
+  locale: Lang,
 ): string {
   if (fieldType === "section_break" || fieldType === "photo") return "";
   if (valueText == null || valueText === "") return "—";

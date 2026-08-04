@@ -7,7 +7,7 @@ import { ChecklistTemplateBuilder } from "@/components/checklists/template-build
 
 export default async function NewChecklistTemplatePage() {
   const profile = await requireRole(["owner", "manager", "mechanic", "rr_admin"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const isGlobal = profile.role === "rr_admin";
 
   return (

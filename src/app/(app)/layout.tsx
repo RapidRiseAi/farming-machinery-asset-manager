@@ -29,7 +29,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { profile, plan } = await currentPlan();
-  const locale = profile.language;
+  const locale = profile.lang;
+  // The EN/AF control shows the LANGUAGE choice, which is independent of tone — a
+  // professional-tone Afrikaans user must still see AF selected, not "af-pro".
+  const languageChoice = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
   const isAdmin = profile.role === "rr_admin";
   // Contractors (workshop role) get a tailored, contractor-first shell (F12c): their
@@ -200,7 +203,7 @@ export default async function AppLayout({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 px-3 py-1">
         <span className="text-[0.95rem] font-medium text-sand-800">{languageLabel}</span>
-        <LanguageSwitcher current={locale} label={languageLabel} />
+        <LanguageSwitcher current={languageChoice} label={languageLabel} />
       </div>
       <form action={signOut}>
         <button
@@ -258,7 +261,7 @@ export default async function AppLayout({
             <span className="text-xs font-semibold uppercase tracking-wider text-sand-400">
               {languageLabel}
             </span>
-            <LanguageSwitcher current={locale} label={languageLabel} />
+            <LanguageSwitcher current={languageChoice} label={languageLabel} />
           </div>
           <div className="mb-1 flex items-center gap-2.5 px-1">
             {avatar}

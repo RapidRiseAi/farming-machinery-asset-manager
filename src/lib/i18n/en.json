@@ -664,7 +664,15 @@
     "utilKmPerDay": "Available km per day",
     "vatRateHint": "The VAT rate on your invoices. 15% in South Africa.",
     "jumpTo": "Jump to",
-    "stickySave": "You have unsaved changes"
+    "stickySave": "You have unsaved changes",
+    "toneSection": "How the app talks to you",
+    "toneHint": "Choose the wording you prefer. This is yours alone — it does not change anyone else's screens.",
+    "toneFriendly": "Friendly",
+    "toneProfessional": "Professional",
+    "toneFriendlyEg": "“Nothing needs you today”",
+    "toneProfessionalEg": "“No outstanding items”",
+    "yourLanguage": "Your language",
+    "yourLanguageHint": "Changes every screen for you. The farm default below only sets the language new people start in."
   },
   "team": {
     "title": "Team",

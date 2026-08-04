@@ -11,7 +11,7 @@
  * The `contractor_kind` labels reuse the existing `partnerKind.*` i18n keys (0300/F12a) —
  * no new label keys. The work-request kinds themselves live in `src/lib/work.ts`.
  */
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import type { WorkKind } from "@/lib/work";
 
 export const CONTRACTOR_KINDS = [
@@ -31,7 +31,7 @@ export function isContractorKind(v: string): v is ContractorKind {
 }
 
 /** Display label for a contractor kind — reuses F12a's `partnerKind.*` keys. */
-export const contractorKindLabel = (kind: string, locale: Locale) =>
+export const contractorKindLabel = (kind: string, locale: Lang) =>
   t(`partnerKind.${kind}`, locale);
 
 /**

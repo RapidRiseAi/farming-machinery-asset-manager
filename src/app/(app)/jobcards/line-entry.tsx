@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { rands, parseRandsToCents, exVatCents } from "@/lib/money";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ export function LineEntry({
   jobCardId: string;
   farmId: string;
   vatRateBps: number;
-  locale: Locale;
+  locale: Lang;
   catalogue?: CataloguePart[];
 }) {
   const [kind, setKind] = useState<"part" | "labour" | "other">("part");

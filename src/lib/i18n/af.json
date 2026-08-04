@@ -664,7 +664,15 @@
     "utilKmPerDay": "Beskikbare km per dag",
     "vatRateHint": "Die BTW-koers op jou fakture. 15% in Suid-Afrika.",
     "jumpTo": "Spring na",
-    "stickySave": "Jy het ongestoorde veranderinge"
+    "stickySave": "Jy het ongestoorde veranderinge",
+    "toneSection": "Hoe die program met jou praat",
+    "toneHint": "Kies die bewoording wat jy verkies. Dit is net joune — dit verander niemand anders se skerms nie.",
+    "toneFriendly": "Vriendelik",
+    "toneProfessional": "Professioneel",
+    "toneFriendlyEg": "“Niks vra vandag jou aandag nie”",
+    "toneProfessionalEg": "“Geen uitstaande items nie”",
+    "yourLanguage": "Jou taal",
+    "yourLanguageHint": "Verander elke skerm vir jou. Die plaas se verstek hieronder bepaal net in watter taal nuwe mense begin."
   },
   "team": {
     "title": "Span",

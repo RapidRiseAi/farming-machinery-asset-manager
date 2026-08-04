@@ -29,7 +29,7 @@ type SP = { q?: string; error?: string; saved?: string };
 export default async function PartsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   // Farm crew maintain their own catalogue; RR admin maintains the GLOBAL library.
   const canManageFarm = ["owner", "manager", "mechanic"].includes(profile.role);
   const isAdmin = profile.role === "rr_admin";

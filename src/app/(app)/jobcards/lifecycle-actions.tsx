@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Modal } from "@/components/ui/dialog";
@@ -18,7 +18,7 @@ export function LifecycleActions({
   id: string;
   meterReading: number | null;
   canApprove: boolean;
-  locale: Locale;
+  locale: Lang;
 }) {
   const [confirm, setConfirm] = useState<null | "complete" | "approve">(null);
   const [queued, setQueued] = useState(false);

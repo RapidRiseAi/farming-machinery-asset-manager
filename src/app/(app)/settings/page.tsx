@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { updateSettings } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToneSwitcher } from "@/components/ui/tone-switcher";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -20,7 +21,7 @@ export default async function SettingsPage({
 }) {
   const profile = await requireProfile();
   if (profile.role !== "owner" && profile.role !== "manager") redirect(`${homePathFor(profile.role)}?denied=1`);
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
 
   const supabase = await createClient();
@@ -49,6 +50,7 @@ export default async function SettingsPage({
           ["set-expiry", "settings.expirySection"],
           ["set-fuel", "settings.fuelSection"],
           ["set-analytics", "settings.analyticsSection"],
+          ["set-tone", "settings.toneSection"],
           ["set-language", "settings.language"],
         ] as const).map(([anchor, key]) => (
           <a
@@ -60,6 +62,32 @@ export default async function SettingsPage({
           </a>
         ))}
       </nav>
+
+      {/*
+        Personal, not farm-wide, and therefore deliberately OUTSIDE the settings form:
+        it saves on tap and belongs to this person, whereas everything in the form below
+        is the farm's configuration and is saved together.
+      */}
+      <Card id="set-tone">
+        <CardHeader><CardTitle>{t("settings.toneSection", locale)}</CardTitle></CardHeader>
+        <p className="mb-3 text-sm text-sand-600">{t("settings.toneHint", locale)}</p>
+        <ToneSwitcher
+          current={profile.tone}
+          label={t("settings.toneSection", locale)}
+          friendlyLabel={t("settings.toneFriendly", locale)}
+          professionalLabel={t("settings.toneProfessional", locale)}
+        />
+        <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-lg bg-sand-50 px-3 py-2">
+            <dt className="font-medium text-sand-700">{t("settings.toneFriendly", locale)}</dt>
+            <dd className="text-sand-500">{t("settings.toneFriendlyEg", locale)}</dd>
+          </div>
+          <div className="rounded-lg bg-sand-50 px-3 py-2">
+            <dt className="font-medium text-sand-700">{t("settings.toneProfessional", locale)}</dt>
+            <dd className="text-sand-500">{t("settings.toneProfessionalEg", locale)}</dd>
+          </div>
+        </dl>
+      </Card>
 
       <form action={updateSettings} className="flex flex-col gap-4 pb-20">
         <Card id="set-thresholds">

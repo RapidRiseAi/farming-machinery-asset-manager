@@ -30,7 +30,7 @@ export default async function FaultsPage({
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const supabase = await createClient();
 
   const { data: fData } = await supabase

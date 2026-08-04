@@ -1,4 +1,4 @@
-import { t, type Locale } from "./i18n";
+import { t, type Locale, type Lang, localeOf } from "./i18n";
 
 /**
  * The formatting layer that sits between a query and the screen.
@@ -39,7 +39,7 @@ export function num(value: number | null | undefined, maxFractionDigits = 1): st
 export function meterReading(
   value: number | null | undefined,
   meterType: string | null | undefined,
-  locale: Locale,
+  locale: Lang,
 ): string {
   if (value == null || !Number.isFinite(value)) return "—";
   if (meterType === "none" || !meterType) return num(value);
@@ -48,7 +48,7 @@ export function meterReading(
 }
 
 /** Just the unit word for a meter type ("hours" / "km"), for column headings. */
-export function meterUnit(meterType: string | null | undefined, locale: Locale): string {
+export function meterUnit(meterType: string | null | undefined, locale: Lang): string {
   if (!meterType || meterType === "none") return "";
   return t(`format.unit.${meterType}`, locale);
 }
@@ -78,7 +78,7 @@ export function daysAgo(value: string | Date | null | undefined, now = new Date(
  */
 export function relativeDate(
   value: string | Date | null | undefined,
-  locale: Locale,
+  locale: Lang,
   now = new Date(),
 ): string {
   const days = daysAgo(value, now);
@@ -110,10 +110,10 @@ export function relativeDate(
 }
 
 /** "12 Mar 2026" — a date a person reads, never the ISO string. */
-export function shortDate(value: string | Date | null | undefined, locale: Locale): string {
+export function shortDate(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
   if (!d) return "—";
-  return d.toLocaleDateString(locale === "af" ? "af-ZA" : "en-ZA", {
+  return d.toLocaleDateString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -121,10 +121,10 @@ export function shortDate(value: string | Date | null | undefined, locale: Local
 }
 
 /** "12 Mar 2026, 14:30" — for an audit trail, where the time matters. */
-export function dateTime(value: string | Date | null | undefined, locale: Locale): string {
+export function dateTime(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
   if (!d) return "—";
-  return `${shortDate(d, locale)}, ${d.toLocaleTimeString(locale === "af" ? "af-ZA" : "en-ZA", {
+  return `${shortDate(d, locale)}, ${d.toLocaleTimeString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -132,10 +132,10 @@ export function dateTime(value: string | Date | null | undefined, locale: Locale
 }
 
 /** "Mar 2026" — for a period heading. */
-export function monthLabel(value: string | Date | null | undefined, locale: Locale): string {
+export function monthLabel(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
   if (!d) return "—";
-  return d.toLocaleDateString(locale === "af" ? "af-ZA" : "en-ZA", {
+  return d.toLocaleDateString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     month: "short",
     year: "numeric",
   });
@@ -165,7 +165,7 @@ export function percentToBps(input: string | null | undefined): number | null {
 // as "Rr_admin".
 
 /** A person's role in words — "Rapid Rise staff", not "Rr_admin". */
-export function roleLabel(role: string | null | undefined, locale: Locale): string {
+export function roleLabel(role: string | null | undefined, locale: Lang): string {
   if (!role) return "—";
   return t(`role.${role}`, locale);
 }
@@ -174,7 +174,7 @@ export function roleLabel(role: string | null | undefined, locale: Locale): stri
 export function enumLabel(
   group: string,
   value: string | null | undefined,
-  locale: Locale,
+  locale: Lang,
 ): string {
   if (!value) return "—";
   const key = `${group}.${value}`;
@@ -188,7 +188,7 @@ export function countLabel(
   n: number,
   singularKey: string,
   pluralKey: string,
-  locale: Locale,
+  locale: Lang,
 ): string {
   return t(n === 1 ? singularKey : pluralKey, locale).replace("{n}", num(n, 0));
 }

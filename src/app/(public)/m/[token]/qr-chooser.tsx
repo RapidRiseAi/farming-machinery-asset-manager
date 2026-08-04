@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { cn } from "@/components/ui/cn";
 import { FaultsIcon, MachinesIcon, FuelIcon, JobCardsIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 
@@ -25,7 +25,7 @@ export function QrChooser({
   tiles,
   panels,
 }: {
-  locale: Locale;
+  locale: Lang;
   tiles: { task: QrTask; title: string; hint: string }[];
   panels: Partial<Record<QrTask, ReactNode>>;
 }) {

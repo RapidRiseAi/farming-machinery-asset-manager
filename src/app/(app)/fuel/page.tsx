@@ -47,7 +47,7 @@ export default async function FuelPage({
   // farms — fuel data is never fetched; an upgrade prompt shows instead.
   const gate = await checkEntitlement("fuel");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">

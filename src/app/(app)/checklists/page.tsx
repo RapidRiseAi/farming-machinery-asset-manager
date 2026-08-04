@@ -28,7 +28,7 @@ type SP = { error?: string; saved?: string };
 export default async function ChecklistsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canManageFarm = ["owner", "manager", "mechanic"].includes(profile.role);
   const isAdmin = profile.role === "rr_admin";
   const canCreate = canManageFarm || isAdmin;

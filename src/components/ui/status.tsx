@@ -1,4 +1,4 @@
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { enumLabel } from "@/lib/format";
 import {
   StatusBadge,
@@ -27,7 +27,7 @@ import {
  */
 type Props = {
   value: string | null | undefined;
-  locale: Locale;
+  locale: Lang;
   size?: "sm" | "md";
   className?: string;
 };

@@ -44,7 +44,7 @@ export default async function ContractorDashboardPage({
   searchParams: Promise<{ kind?: string; status?: string; farm?: string; sort?: string }>;
 }) {
   const profile = await requireProfile();
-  const locale = profile.language;
+  const locale = profile.lang;
   // This dashboard belongs to the contractor (workshop) role. Everyone else has their own
   // home — send them there rather than render an empty portal.
   if (profile.role !== "workshop" || !profile.workshop_id) redirect("/machines");

@@ -18,7 +18,7 @@ export default async function OnboardingPage({
   const sp = await searchParams;
   const profile = await requireProfile();
   if (profile.role !== "owner" && profile.role !== "manager") redirect(`${homePathFor(profile.role)}?denied=1`);
-  const locale = profile.language;
+  const locale = profile.lang;
   const supabase = await createClient();
 
   const [machinesRes, planRes, usersRes, farmRes] = await Promise.all([

@@ -30,7 +30,7 @@ export default async function NotificationsPage({
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const profile = await requireProfile();
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
   const supabase = await createClient();
   const nowIso = new Date().toISOString();

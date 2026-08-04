@@ -6,6 +6,28 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_FARM_COOKIE, accessibleFarms } from "@/lib/auth";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/lib/locale";
+import { isTone } from "@/lib/i18n";
+
+/**
+ * Switch this person's wording register between friendly and professional.
+ *
+ * Language and tone are deliberately independent: an Afrikaans user may want formal
+ * wording, an English one may not. Tone needs no cookie — it never renders before
+ * sign-in, because the QR and login screens are written for whoever picks up the phone.
+ */
+export async function setTone(formData: FormData) {
+  const tone = String(formData.get("tone") ?? "").trim();
+  const next = String(formData.get("next") ?? "").trim();
+  if (isTone(tone)) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) await supabase.from("users").update({ tone }).eq("id", user.id);
+  }
+  revalidatePath("/", "layout");
+  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+}
 
 export async function signOut() {
   const supabase = await createClient();
@@ -33,7 +55,13 @@ export async function setLanguage(formData: FormData) {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from("users").update({ language: lang }).eq("id", user.id);
+      // Stamping the choice is what stops the next sign-in from treating this as an
+      // unconfigured default and adopting whatever the device cookie happens to say
+      // (migration 0370). A deliberate choice must outlive a shared computer.
+      await supabase
+        .from("users")
+        .update({ language: lang, language_set_at: new Date().toISOString() })
+        .eq("id", user.id);
     }
     // Mirror the choice onto the device so it survives sign-out and greets them in
     // their own language at the login screen next time (audit bug 2). The profile

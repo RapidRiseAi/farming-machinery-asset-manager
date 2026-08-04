@@ -55,7 +55,7 @@ export default async function WorkRequestDetailPage({
   const profile = await requireProfile();
   const { id } = await params;
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canWork = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();

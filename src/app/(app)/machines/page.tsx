@@ -48,7 +48,7 @@ const worst = (a: string, b: string) => {
 export default async function MachinesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canEdit = profile.role === "owner" || profile.role === "manager";
 
   const sort = sp.sort === "reading" ? "current_reading" : "name";

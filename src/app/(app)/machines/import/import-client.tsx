@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -14,7 +14,7 @@ import {
 } from "./csv";
 import { importMachines } from "../actions";
 
-export function ImportClient({ locale }: { locale: Locale }) {
+export function ImportClient({ locale }: { locale: Lang }) {
   const [raw, setRaw] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [sample, setSample] = useState<string[]>([]);

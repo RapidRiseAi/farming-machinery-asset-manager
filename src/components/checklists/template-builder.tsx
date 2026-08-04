@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import {
   CHECKLIST_FIELD_TYPES,
   fieldTypeLabel,
@@ -53,7 +53,7 @@ export function ChecklistTemplateBuilder({
   initialFields,
 }: {
   mode: "create" | "edit";
-  locale: Locale;
+  locale: Lang;
   templateId?: string;
   isGlobal?: boolean;
   initialName?: string;
