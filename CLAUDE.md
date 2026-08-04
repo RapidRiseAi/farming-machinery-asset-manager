@@ -749,4 +749,50 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     overflow sweep clean; the three live suites (role dispatch + support-mode narrowing +
     Afrikaans CSV mapping) still pass; `db:test` green.
 
+- **Language fix, tone, page help, filters, loading, install & walkthrough**
+  (migration `0370`; branch `claude/fleetwise-ui-redesign-l4ng55`; gates green; shared
+  first-load JS flat at **102 kB**; i18n EN/AF at parity **1,648 leaf keys**):
+  - **The language bug, reproduced then fixed.** Choosing Afrikaans on the login screen
+    and signing in gave you an English app: `users.language` is `not null default 'en'`,
+    so "I chose English" and "nobody ever asked me" were the same value and the untouched
+    default outranked the only real choice. `<html lang>` meanwhile read the cookie, so
+    the page announced Afrikaans while rendering English. `0370` adds `language_set_at`;
+    `syncLocaleOnSignIn` (`src/lib/locale-sync.ts`) reconciles at the only two places a
+    session begins — the password action and the magic-link callback, both of which may
+    set cookies, which a Server Component may not. A deliberate choice always wins and
+    corrects the cookie; an unconfigured profile adopts the device choice and stamps it,
+    which is what stops a shared farm-office PC re-languaging the next person.
+  - **Tone (friendly vs professional)**, per person, independent of language. An OVERLAY
+    (`en.professional.json`/`af.professional.json`, 141 keys each) over the one dictionary
+    — no third and fourth translation to keep at parity, and a professional-tone user
+    cannot hit an untranslated string. `Lang` widens `Locale` (`"en"|"af"|"en-pro"|"af-pro"`)
+    so **`t(key, locale)` is unchanged at every call site**; pages read the composed
+    `profile.lang`, the EN/AF control reads `profile.language`. `format.ts` compares
+    `localeOf(locale)` — otherwise an af-pro user's dates format in English.
+  - **"What is this?" on every page** (`PageInfo`/`PageInfoButton`, `pageInfo.*`): what the
+    screen is for, what you can do, and a note where it matters. Also the tour's re-entry.
+  - **Filters**: the machines list stacked 4 unlabelled chip rows (~200px before the first
+    machine, group names only in `aria-label`). New `FilterBar` — one control with a count,
+    named removable pills, groups behind a disclosure with visible headings; same URL
+    params. Applied to machines/jobcards/work. **Found doing it: `router.push` was silently
+    no-op'ing, so the old chips never filtered at all.** Chips are `<Link>`s now, which also
+    work before hydration.
+  - **Loading**: only 3 of 31 route segments had a `loading.tsx`; all do now, from a shared
+    `PageSkeleton`. Plus a top `RouteProgress` bar (links + server-action submits) and the
+    app's first `error.tsx`.
+  - **/install**: the PWA install path, honest that there is no file — real button via
+    `beforeinstallprompt`, spelled-out iOS steps, already-installed state; says what works
+    with no signal. Reachable from nav for every role.
+  - **Walkthrough** (`src/lib/tour.ts` + `src/components/tour.tsx`): cards, not DOM
+    spotlights — each ends in a link to the real screen, progress saved per step in
+    localStorage so leaving resumes. Role-aware (owner 8 / driver 6 / contractor 5 /
+    mechanic 6). Auto-opens on the role's home only; Skip on card one; re-openable from
+    any page's info panel.
+  - Verified live against the demo project on a phone viewport: pre-login language choice
+    survives sign-in with `<html lang>` agreeing; a switch changes all 7 pages walked;
+    af+professional resolve together; 15 pages carry the info button; no chip rows on
+    first paint and filtering writes `type=tractor` as before; the tour opens/advances/
+    resumes/stays-skipped/restarts and drivers get driver copy. Hydration, tap-target
+    (0 under 48px, 0 icon-only), role-dispatch, support-mode suites all still pass.
+
 > Update this "current status" block at the end of every session.
