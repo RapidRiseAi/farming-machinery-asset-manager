@@ -150,10 +150,11 @@ function DialogHeader({
       <button
         type="button"
         onClick={onClose}
-        aria-label={closeLabel}
-        className="focus-ring -mr-1 flex h-10 w-10 items-center justify-center rounded-lg text-[1.35rem] text-sand-500 hover:bg-sand-100"
+        className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-[1.35rem] text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
       >
         <CloseIcon />
+        {/* Icon and word — the lone ✕ is the one glyph this product does not rely on. */}
+        <span className="text-sm font-medium">{closeLabel}</span>
       </button>
     </div>
   );

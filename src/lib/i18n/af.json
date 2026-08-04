@@ -70,7 +70,8 @@
     "errInvalid": "Daardie e-pos of wagwoord is nie reg nie. Kyk na hulle en probeer weer.",
     "errNotConfirmed": "Hierdie rekening is nog nie oopgemaak nie. Gebruik die skakel in jou uitnodiging-e-pos.",
     "errRate": "Te veel pogings. Wag 'n minuut en probeer weer.",
-    "errGeneric": "Dit het nie gewerk nie. Probeer weer, of vra die plaaskantoor om jou uitnodiging weer te stuur."
+    "errGeneric": "Dit het nie gewerk nie. Probeer weer, of vra die plaaskantoor om jou uitnodiging weer te stuur.",
+    "errLinkExpired": "Daardie skakel het verstryk of is reeds gebruik. Vra hieronder vir 'n nuwe een."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -213,14 +214,24 @@
     "firstRunAlt": "Ek het 'n sigblad",
     "firstRunPreview": "So gaan dit lyk",
     "filterType": "Tipe",
-    "filterStatus": "Status"
+    "filterStatus": "Status",
+    "mapTitle": "Ons het jou kolomme met ons s'n gepas",
+    "mapHint": "Verander enige wat ons verkeerd gekry het. Enigiets wat uitgelaat word, word eenvoudig geïgnoreer.",
+    "mapYourColumn": "Jou kolom",
+    "mapOurColumn": "Wat dit is",
+    "mapExample": "Eerste ry",
+    "mapLeaveOut": "Laat dit uit",
+    "mapUnmatched": "{n} van jou kolomme word nie gebruik nie.",
+    "mapNoName": "Kies watter van jou kolomme die masjien se naam hou — ons kan niks sonder dit laai nie.",
+    "mapFileSummary": "{file} · {n} rye",
+    "useDifferentFile": "Gebruik 'n ander lêer"
   },
   "machineType": {
     "tractor": "Trekker",
     "harvester": "Stroper / Combine",
     "bakkie": "Bakkie / LDV",
     "truck": "Vragmotor",
-    "implement": "Implement",
+    "implement": "Werktuig",
     "pump_generator": "Pomp / Kragopwekker",
     "atv_other": "ATV / Ander"
   },
@@ -499,7 +510,13 @@
     "farms": "Plase",
     "createFarm": "Skep plaas",
     "tier": "Vlak",
-    "status": "Status"
+    "status": "Status",
+    "supportModeTitle": "Ondersteuningsmodus",
+    "supportModeBody": "Jy kyk na {farm} se data. Alles wat jy oopmaak, word aangeteken.",
+    "supportModeExit": "Verlaat hierdie plaas",
+    "supportEntered": "Jy kyk nou na hierdie plaas. Die baniertjie bo kry jou uit.",
+    "supportExited": "Jy het die plaas verlaat. Die besoek is in die log hieronder.",
+    "supportEnter": "Kyk binne hierdie plaas"
   },
   "plan": {
     "essential": "Essensieel",
@@ -553,7 +570,9 @@
     "staleReadings": "Verouderde lesings",
     "noStaleReadings": "Alle lesings is op datum.",
     "reports": "Verslae",
-    "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene."
+    "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene.",
+    "deniedTitle": "Daardie deel is vir die plaaskantoor",
+    "deniedBody": "Jy het nie die sleutels vir daardie bladsy nie. Hier is wat jy kan doen."
   },
   "jobType": {
     "scheduled_service": "Geskeduleerde diens",
@@ -1160,7 +1179,11 @@
     "loginUrlShareWa": "Deel op WhatsApp",
     "loginUrlShareEmail": "Deel per e-pos",
     "copy": "Kopieer",
-    "copied": "Gekopieer"
+    "copied": "Gekopieer",
+    "loginUrlWarnTitle": "Hierdie skakel teken hulle aan",
+    "loginUrlWarn": "Enigiemand wat hierdie skakel kry, kan jou plaas se werk as {name} oopmaak. Stuur dit reguit vir hulle en vir niemand anders nie. Dit werk oor 10 minute nie meer nie.",
+    "loginUrlDone": "Klaar — versteek hierdie skakel",
+    "thisContractor": "hierdie kontrakteur"
   },
   "checklistField": {
     "checkbox": "Merkblokkie",

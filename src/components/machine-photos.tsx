@@ -136,7 +136,7 @@ export function MachinePhotos({
                   {isPrimary ? (
                     <form action={clearPrimaryPhoto}>
                       <input type="hidden" name="machine_id" value={machineId} />
-                      <button type="submit" className="focus-ring rounded bg-white/90 px-2 py-0.5 text-[0.7rem] font-medium text-sand-800 hover:bg-white">
+                      <button type="submit" className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg bg-white/90 px-3 text-xs font-medium text-sand-800 hover:bg-white sm:min-h-[32px]">
                         {t("machine.unsetPrimary", locale)}
                       </button>
                     </form>
@@ -144,7 +144,7 @@ export function MachinePhotos({
                     <form action={setPrimaryPhoto}>
                       <input type="hidden" name="machine_id" value={machineId} />
                       <input type="hidden" name="attachment_id" value={p.id} />
-                      <button type="submit" className="focus-ring rounded bg-white/90 px-2 py-0.5 text-[0.7rem] font-medium text-sand-800 hover:bg-white">
+                      <button type="submit" className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg bg-white/90 px-3 text-xs font-medium text-sand-800 hover:bg-white sm:min-h-[32px]">
                         {t("machine.setPrimary", locale)}
                       </button>
                     </form>

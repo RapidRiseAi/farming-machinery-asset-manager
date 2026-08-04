@@ -1,9 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requireRole, SUPPORT_FARM_COOKIE } from "@/lib/auth";
 import { isPlan, isBillingPeriod } from "@/lib/entitlements";
 import { getBillingAdapter } from "@/lib/billing";
 
@@ -45,26 +46,72 @@ export async function updateFarm(formData: FormData) {
 }
 
 /**
- * Record RR-admin support access to a farm (Scope §4.9). Writes one append-only
- * audit_log row via the guarded RPC, and nothing else.
+ * Enter support mode for a farm (Scope §4.9 — impersonate for support, logged).
  *
- * This does NOT enter the farm: no farm context is set and no session state changes.
- * The button used to read "Act into farm", which staff reasonably took to mean they
- * were inside the customer's account — they were not, and there was no banner or exit
- * because there was no mode to exit (audit bug 3). The copy now matches the behaviour.
+ * This used to write an audit row and nothing else — no farm context, no session state —
+ * while the button read "Act into farm", so staff believed they were inside a customer
+ * account when they were not, and there was no banner or exit because there was no mode
+ * to exit.
  *
- * Real support mode — a farm-context cookie set on enter and cleared on leave, plus a
- * second `log_admin_farm_access(…, 'exit')` call so the log shows duration — is a
- * behavioural change awaiting sign-off (handoff README, "Two decisions"). The function
- * name is kept so nothing that references it has to move.
+ * What it does now: writes the `impersonate` audit row exactly as before, AND pins the
+ * farm in a cookie so every farm-scoped surface narrows to that one customer, with a
+ * banner naming them and a way out. Leaving writes a matching `exit` row, so the log
+ * shows how long an admin was in a farm rather than only that they looked.
+ *
+ * This is a NARROWING, not a grant: rr_admin already reads every farm through
+ * `app.is_rr_admin()` in RLS. The cookie only scopes what the UI asks for, so it cannot
+ * widen access — see `supportFarmId` in lib/auth.ts.
  */
 export async function impersonateFarm(formData: FormData) {
   await requireRole(["rr_admin"]);
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/admin/farms?error=Missing+farm");
   const supabase = await createClient();
+
+  // Only ever pin a farm that exists — a forged cookie is harmless but a real id keeps
+  // the banner and the audit trail honest.
+  const { data: farm } = await supabase.from("farms").select("id").eq("id", id).maybeSingle();
+  if (!farm) redirect("/admin/farms?error=Farm+not+found");
+
   const { error } = await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "impersonate" });
   if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
-  revalidatePath(`/admin/farms/${id}`);
-  redirect(`/admin/farms/${id}?entered=1`);
+
+  (await cookies()).set(SUPPORT_FARM_COOKIE, id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 4,
+  });
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
+/**
+ * Leave support mode: clear the farm context and write the paired `exit` audit row, so
+ * the log shows duration rather than a bare list of entries.
+ */
+export async function exitSupportMode() {
+  await requireRole(["rr_admin"]);
+  const store = await cookies();
+  const id = store.get(SUPPORT_FARM_COOKIE)?.value;
+
+  if (id) {
+    const supabase = await createClient();
+    // Best-effort: the exit must clear the cookie even if the log write fails, or an
+    // admin could be stuck in a farm by a transient error.
+    await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "exit" });
+  }
+
+  store.set(SUPPORT_FARM_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+
+  revalidatePath("/", "layout");
+  redirect(id ? `/admin/farms/${id}?exited=1` : "/admin/farms");
 }

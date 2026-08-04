@@ -2,6 +2,7 @@
 
 import { signInWithPassword, signInWithMagicLink } from "./actions";
 import { t, type Locale } from "@/lib/i18n";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -22,9 +23,15 @@ export function LoginForm({
       <Flash tone="error" message={error} />
       <Flash tone="success" message={sent ? t("auth.checkEmail", locale) : undefined} />
 
-      <form action={signInWithPassword} className="flex flex-col gap-2.5">
-        <Input name="email" type="email" required autoComplete="email" placeholder={t("auth.email", locale)} />
-        <PasswordInput name="password" required autoComplete="current-password" placeholder={t("auth.password", locale)} revealLabel={t("auth.showPassword", locale)} />
+      {/* Real labels that stay put. These were placeholder-only — the question vanishes
+          the moment you type, which hurts exactly the people this product is for. */}
+      <form action={signInWithPassword} className="flex flex-col gap-3">
+        <Field label={t("auth.email", locale)} htmlFor="signin-email">
+          <Input id="signin-email" name="email" type="email" required autoComplete="email" />
+        </Field>
+        <Field label={t("auth.password", locale)} htmlFor="signin-password">
+          <PasswordInput id="signin-password" name="password" required autoComplete="current-password" revealLabel={t("auth.showPassword", locale)} />
+        </Field>
         <SubmitButton variant="primary" fullWidth>{t("auth.signIn", locale)}</SubmitButton>
       </form>
 
@@ -34,8 +41,10 @@ export function LoginForm({
         <span className="h-px flex-1 bg-sand-200" />
       </div>
 
-      <form action={signInWithMagicLink} className="flex flex-col gap-2.5">
-        <Input name="email" type="email" required autoComplete="email" placeholder={t("auth.email", locale)} />
+      <form action={signInWithMagicLink} className="flex flex-col gap-3">
+        <Field label={t("auth.email", locale)} htmlFor="link-email">
+          <Input id="link-email" name="email" type="email" required autoComplete="email" />
+        </Field>
         <SubmitButton variant="secondary" fullWidth>{t("auth.magicLink", locale)}</SubmitButton>
       </form>
     </div>

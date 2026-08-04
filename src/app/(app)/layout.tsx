@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { currentPlan, accessibleFarms, currentFarmId } from "@/lib/auth";
+import { currentPlan, accessibleFarms, currentFarmId, supportFarm } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { countInboxUnread } from "@/lib/inbox";
@@ -10,6 +10,7 @@ import { signOut } from "./actions";
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
+import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
@@ -63,6 +64,9 @@ export default async function AppLayout({
 
   // Multi-site switcher (F7): only for farm roles that can reach more than one farm.
   // Contractors (workshop) and rr_admin get [] from accessibleFarms and no switcher.
+  // Support mode (S10): when an RR admin has pinned a farm, say so on every screen.
+  const supporting = await supportFarm(profile);
+
   const farms = await accessibleFarms(profile);
   const currentFarm = farms.length > 1 ? (await currentFarmId(profile)) ?? "" : profile.farm_id ?? "";
   const showSwitcher = farms.length > 1 && currentFarm !== "";
@@ -182,10 +186,11 @@ export default async function AppLayout({
   const bellLink = (
     <Link
       href="/notifications"
-      aria-label={t("nav.notifications", locale)}
-      className="focus-ring flex h-11 w-11 items-center justify-center rounded-lg text-[1.4rem] text-sand-600 hover:bg-sand-100"
+      className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg px-2 text-[1.4rem] text-sand-600 hover:bg-sand-100 sm:min-h-[44px]"
     >
       <BellIcon />
+      {/* Icon and word. A bell alone is guessable; "Alerts" is not. */}
+      <span className="text-sm font-medium">{t("nav.notifications", locale)}</span>
     </Link>
   );
 
@@ -211,6 +216,8 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-dvh">
+      {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
+
       {/* ---- Desktop sidebar (>=1024px) ---- */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sand-200 bg-white lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-4">

@@ -12,7 +12,8 @@ export async function signInWithPassword(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  // /home dispatches by role — a driver must not land on the owner's money page.
+  redirect("/home");
 }
 
 export async function signInWithMagicLink(formData: FormData) {
@@ -24,7 +25,7 @@ export async function signInWithMagicLink(formData: FormData) {
     "";
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` },
+    options: { emailRedirectTo: `${origin}/auth/callback?next=/home` },
   });
   if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
   redirect("/login?sent=1");

@@ -70,7 +70,8 @@
     "errInvalid": "That email or password isn't right. Check them and try again.",
     "errNotConfirmed": "This account hasn't been opened yet. Use the link in your invite email.",
     "errRate": "Too many tries. Wait a minute and try again.",
-    "errGeneric": "That didn't work. Try again, or ask the farm office to re-send your invite."
+    "errGeneric": "That didn't work. Try again, or ask the farm office to re-send your invite.",
+    "errLinkExpired": "That link has expired or has already been used. Ask for a new one below."
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -213,7 +214,17 @@
     "firstRunAlt": "I have a spreadsheet",
     "firstRunPreview": "This is how it will look",
     "filterType": "Type",
-    "filterStatus": "Status"
+    "filterStatus": "Status",
+    "mapTitle": "We matched your columns to ours",
+    "mapHint": "Change any we got wrong. Anything left out is simply ignored.",
+    "mapYourColumn": "Your column",
+    "mapOurColumn": "What it is",
+    "mapExample": "First row",
+    "mapLeaveOut": "Leave it out",
+    "mapUnmatched": "{n} of your columns aren't being used.",
+    "mapNoName": "Pick which of your columns holds the machine name — we can't load anything without it.",
+    "mapFileSummary": "{file} · {n} rows",
+    "useDifferentFile": "Use a different file"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -499,7 +510,13 @@
     "farms": "Farms",
     "createFarm": "Create farm",
     "tier": "Tier",
-    "status": "Status"
+    "status": "Status",
+    "supportModeTitle": "Support mode",
+    "supportModeBody": "You are looking at {farm}'s data. Everything you open is logged.",
+    "supportModeExit": "Leave this farm",
+    "supportEntered": "You are now looking at this farm. The banner at the top gets you out.",
+    "supportExited": "You have left the farm. The visit is in the log below.",
+    "supportEnter": "Look inside this farm"
   },
   "plan": {
     "essential": "Essential",
@@ -553,7 +570,9 @@
     "staleReadings": "Stale readings",
     "noStaleReadings": "All readings are up to date.",
     "reports": "Reports",
-    "qrLabelsMarked": "Marked — the stickers are on the machines."
+    "qrLabelsMarked": "Marked — the stickers are on the machines.",
+    "deniedTitle": "That part is for the farm office",
+    "deniedBody": "You don't have the keys to that page. Here's what you can do."
   },
   "jobType": {
     "scheduled_service": "Scheduled service",
@@ -1160,7 +1179,11 @@
     "loginUrlShareWa": "Share on WhatsApp",
     "loginUrlShareEmail": "Share by email",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "loginUrlWarnTitle": "This link signs them in",
+    "loginUrlWarn": "Anyone who gets this link can open your farm's work as {name}. Send it straight to them and nobody else. It stops working in 10 minutes.",
+    "loginUrlDone": "Done — hide this link",
+    "thisContractor": "this contractor"
   },
   "checklistField": {
     "checkbox": "Checkbox",

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
+import { CameraIcon, MicIcon, StopIcon, PinIcon, CheckIcon } from "@/components/ui/icons";
 
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
 const URGENCIES = ["can_work", "limping", "stopped"] as const;
@@ -182,7 +183,7 @@ export function FaultCapture({
     setBusy(false);
   };
 
-  const input = "w-full rounded-lg border border-sand-300 px-3 py-2.5 text-base";
+  const input = "w-full min-h-[48px] rounded-lg border border-sand-300 px-3 py-2.5 text-base";
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       {variant === "app" && machines ? (
@@ -201,7 +202,7 @@ export function FaultCapture({
               key={c}
               type="button"
               onClick={() => { setCategory(c); if (!description.trim()) setDescription(t(`faults.common.${c}`, locale)); }}
-              className={`focus-ring min-h-[44px] rounded-full border px-3 text-sm ${category === c ? "border-brand-600 bg-brand-50 text-brand-700" : "border-sand-300 text-sand-700"}`}
+              className={`focus-ring min-h-[48px] rounded-full border px-3 text-sm ${category === c ? "border-brand-600 bg-brand-50 text-brand-700" : "border-sand-300 text-sand-700"}`}
             >
               {t(`faults.common.${c}`, locale)}
             </button>
@@ -223,8 +224,9 @@ export function FaultCapture({
 
       {/* Photo */}
       <div className="flex items-center gap-3">
-        <label className="focus-ring inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
-          📷 {t("faults.addPhoto", locale)}
+        <label className="focus-ring inline-flex min-h-[48px] cursor-pointer items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
+          <CameraIcon />
+          {t("faults.addPhoto", locale)}
           <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
         </label>
         {photo ? <span className="truncate text-sm text-sand-500">{photo.name}</span> : null}
@@ -233,12 +235,14 @@ export function FaultCapture({
       {/* Voice note */}
       <div className="flex flex-wrap items-center gap-3">
         {!recording ? (
-          <button type="button" onClick={startRec} className="focus-ring inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
-            🎤 {voice ? t("faults.reRecord", locale) : t("faults.record", locale)}
+          <button type="button" onClick={startRec} className="focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
+            <MicIcon />{" "}
+            {voice ? t("faults.reRecord", locale) : t("faults.record", locale)}
           </button>
         ) : (
-          <button type="button" onClick={stopRec} className="focus-ring inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-status-overdue bg-red-50 px-4 text-sm font-medium text-status-overdue">
-            ⏹ {t("faults.recording", locale)}
+          <button type="button" onClick={stopRec} className="focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-status-overdue bg-red-50 px-4 text-sm font-medium text-status-overdue">
+            <StopIcon />{" "}
+            {t("faults.recording", locale)}
           </button>
         )}
         {voice && !recording ? (
@@ -251,8 +255,9 @@ export function FaultCapture({
 
       {/* Location (permission-gated, silent fallback) */}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={captureLocation} className="focus-ring inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
-          📍 {coords ? t("faults.locationAdded", locale) : t("faults.addLocation", locale)}
+        <button type="button" onClick={captureLocation} className="focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700">
+          <PinIcon />{" "}
+          {coords ? t("faults.locationAdded", locale) : t("faults.addLocation", locale)}
         </button>
         {coords ? (
           <span className="text-sm tabular-nums text-sand-500">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>
@@ -261,7 +266,7 @@ export function FaultCapture({
         ) : null}
       </div>
 
-      {queued ? <p className="text-sm font-medium text-status-due" role="status">✓ {t("offline.savedOffline", locale)}</p> : null}
+      {queued ? <p className="text-sm font-medium text-status-due" role="status"><CheckIcon /> {t("offline.savedOffline", locale)}</p> : null}
       {error ? <p className="text-sm text-status-overdue" role="alert">{error}</p> : null}
 
       <button

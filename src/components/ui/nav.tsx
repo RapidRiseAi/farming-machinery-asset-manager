@@ -72,7 +72,7 @@ export function NavLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-ring flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+        "focus-ring flex min-h-[48px] items-center gap-3 rounded-lg px-3 sm:min-h-[44px] text-sm font-medium transition-colors",
         active
           ? "bg-brand-50 text-brand-700"
           : "text-sand-700 hover:bg-sand-100 hover:text-sand-900",

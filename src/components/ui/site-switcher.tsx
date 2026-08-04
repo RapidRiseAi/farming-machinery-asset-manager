@@ -31,7 +31,7 @@ export function SiteSwitcher({
         aria-label={label}
         defaultValue={current}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="focus-ring w-full truncate rounded-lg border border-sand-200 bg-sand-50 px-2.5 py-1.5 text-sm font-medium text-sand-800 hover:bg-sand-100"
+        className="focus-ring min-h-[48px] w-full truncate rounded-lg border border-sand-200 bg-sand-50 px-2.5 text-sm font-medium text-sand-800 hover:bg-sand-100 sm:min-h-[40px]"
       >
         {farms.map((f) => (
           <option key={f.id} value={f.id}>

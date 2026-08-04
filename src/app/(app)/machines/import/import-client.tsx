@@ -1,19 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { validateCsv, templateCsv, MAX_IMPORT_ROWS, type ParseResult } from "./csv";
+import {
+  validateCsv, templateCsv, MAX_IMPORT_ROWS, IMPORT_COLUMNS, SKIP_COLUMN,
+  guessMapping, applyMapping, readHeaders, parseCsv, countDataRows, type ParseResult,
+} from "./csv";
 import { importMachines } from "../actions";
 
 export function ImportClient({ locale }: { locale: Locale }) {
   const [raw, setRaw] = useState("");
-  const [result, setResult] = useState<ParseResult | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [sample, setSample] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
+
+  /*
+    Column mapping happens here, in the browser, and the CANONICAL sheet is what gets
+    validated and posted — so `validateCsv` and `importMachines` still see exactly the
+    shape they always did. Headers used to be matched against a fixed set, so a real
+    farm's spreadsheet (Afrikaans headings, a different order, an extra column the
+    office added) failed wholesale.
+  */
+  const canonical = useMemo(
+    () => (raw && mapping.length ? applyMapping(raw, mapping) : ""),
+    [raw, mapping],
+  );
+  const result: ParseResult | null = useMemo(
+    () => (canonical ? validateCsv(canonical) : null),
+    [canonical],
+  );
+  const dataRows = useMemo(() => (raw ? countDataRows(raw) : 0), [raw]);
+  const mappedName = mapping.includes("name");
+  const unmatched = mapping.filter((m) => m === SKIP_COLUMN).length;
 
   const download = () => {
     const blob = new Blob([templateCsv()], { type: "text/csv" });
@@ -28,10 +53,34 @@ export function ImportClient({ locale }: { locale: Locale }) {
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileName(file.name);
     const text = await file.text();
+    const found = readHeaders(text);
+    const grid = parseCsv(text);
+    setFileName(file.name);
     setRaw(text);
-    setResult(validateCsv(text));
+    setHeaders(found);
+    setSample(grid[1] ?? []);
+    setMapping(guessMapping(found));
+  };
+
+  const setColumn = (i: number, col: string) =>
+    setMapping((m) => {
+      const next = [...m];
+      // A canonical column can only come from one source column — picking it here
+      // releases it wherever it was.
+      if (col !== SKIP_COLUMN) {
+        for (let j = 0; j < next.length; j++) if (j !== i && next[j] === col) next[j] = SKIP_COLUMN;
+      }
+      next[i] = col;
+      return next;
+    });
+
+  const reset = () => {
+    setRaw("");
+    setHeaders([]);
+    setSample([]);
+    setMapping([]);
+    setFileName(null);
   };
 
   const tooMany = result && result.rows.length > MAX_IMPORT_ROWS;
@@ -51,6 +100,64 @@ export function ImportClient({ locale }: { locale: Locale }) {
           {fileName ? <span className="text-sm text-sand-500">{fileName}</span> : null}
         </div>
       </Card>
+
+      {/* Step: your columns, matched to ours. */}
+      {headers.length > 0 ? (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-sand-900">{t("machines.mapTitle", locale)}</h2>
+              <p className="mt-0.5 text-sm text-sand-500">{t("machines.mapHint", locale)}</p>
+              <p className="mt-1 text-sm text-sand-500">
+                {t("machines.mapFileSummary", locale)
+                  .replace("{file}", fileName ?? "")
+                  .replace("{n}", String(dataRows))}
+              </p>
+            </div>
+            <Button type="button" variant="ghost" onClick={reset}>
+              {t("machines.useDifferentFile", locale)}
+            </Button>
+          </div>
+
+          {!mappedName ? (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm font-medium text-status-due" role="alert">
+              {t("machines.mapNoName", locale)}
+            </p>
+          ) : null}
+
+          <ul className="mt-4 flex flex-col divide-y divide-sand-100">
+            {headers.map((h, i) => (
+              <li key={`${h}-${i}`} className="flex flex-wrap items-end gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-sand-900">{h}</p>
+                  <p className="truncate text-sm text-sand-500">
+                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-300">—</span>}
+                  </p>
+                </div>
+                <label className="w-full sm:w-56">
+                  <span className="sr-only">
+                    {t("machines.mapOurColumn", locale)} — {h}
+                  </span>
+                  <Select value={mapping[i] ?? SKIP_COLUMN} onChange={(e) => setColumn(i, e.target.value)}>
+                    <option value={SKIP_COLUMN}>{t("machines.mapLeaveOut", locale)}</option>
+                    {IMPORT_COLUMNS.map((c) => (
+                      <option key={c} value={c}>
+                        {t(`machines.${c === "serial_no" ? "serialNo" : c === "reg_no" ? "regNo" : c === "meter_type" ? "meterType" : c === "current_reading" ? "reading" : c}`, locale)}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </li>
+            ))}
+          </ul>
+
+          {unmatched > 0 ? (
+            <p className="mt-2 text-sm text-sand-500">
+              {t("machines.mapUnmatched", locale).replace("{n}", String(unmatched))}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
 
       {result && result.headerError ? (
         <div
@@ -134,7 +241,7 @@ export function ImportClient({ locale }: { locale: Locale }) {
 
       {result && !result.headerError ? (
         <form action={importMachines} className="flex flex-col gap-2">
-          <input type="hidden" name="csv" value={raw} />
+          <input type="hidden" name="csv" value={canonical} />
           {tooMany ? (
             <p className="text-sm text-status-overdue">
               {t("machines.tooManyRows", locale).replace("{n}", String(MAX_IMPORT_ROWS))}

@@ -78,7 +78,7 @@ export function FilterChips({
             aria-pressed={active}
             onClick={() => apply(active && o.value ? "" : o.value)}
             className={cn(
-              "focus-ring inline-flex min-h-[44px] shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors",
+              "focus-ring inline-flex min-h-[48px] sm:min-h-[40px] shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors",
               active
                 ? "border-brand-600 bg-brand-600 text-white shadow-xs"
                 : "border-sand-200 bg-white text-sand-700 hover:border-sand-300 hover:bg-sand-50",
@@ -133,7 +133,7 @@ export function ActiveFilters({
       <button
         type="button"
         onClick={() => router.push(path)}
-        className="focus-ring inline-flex min-h-[44px] items-center gap-1 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+        className="focus-ring inline-flex min-h-[48px] items-center gap-1 rounded-lg px-2 sm:min-h-[40px] text-sm font-medium text-brand-700 hover:bg-brand-50"
       >
         <CloseIcon className="text-[1rem]" />
         {clearLabel}

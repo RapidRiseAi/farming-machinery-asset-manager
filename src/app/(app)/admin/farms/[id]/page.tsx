@@ -44,7 +44,7 @@ export default async function FarmDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; invited?: string; entered?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; invited?: string; exited?: string }>;
 }) {
   await requireRole(["rr_admin"]);
   const { id } = await params;
@@ -88,8 +88,8 @@ export default async function FarmDetailPage({
             ? "Saved."
             : sp.invited
               ? "Invited — they sign in via the magic link."
-              : sp.entered
-                ? "Support access recorded in this farm's audit log. You are still signed in as Rapid Rise — this does not put you inside the farm's account."
+              : sp.exited
+                ? "You have left the farm. The visit is in the log below, with the time you left."
                 : undefined
         }
       />
@@ -100,7 +100,7 @@ export default async function FarmDetailPage({
             action={
               <form action={impersonateFarm}>
                 <input type="hidden" name="id" value={farm.id} />
-                <SubmitButton variant="secondary" size="sm">Record support access</SubmitButton>
+                <SubmitButton variant="secondary" size="sm">Look inside this farm</SubmitButton>
               </form>
             }
           >

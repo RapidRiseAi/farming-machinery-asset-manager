@@ -419,13 +419,16 @@ export default async function InboxPage({
                       <span className={`block text-sm ${unread ? "font-medium text-sand-900" : "text-sand-600"}`}>
                         {formatNotification(n.template, n.payload ?? {}, locale, machineName)}
                       </span>
-                      <span className="block text-xs text-sand-400">{new Date(n.created_at).toLocaleDateString("en-ZA")}</span>
+                      <span className="block text-xs text-sand-400">{relativeDate(n.created_at, locale)}</span>
                     </span>
                   </Link>
                   {unread ? (
                     <form action={markInboxRead}>
                       <input type="hidden" name="id" value={n.id} />
-                      <button className="focus-ring shrink-0 rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("notifications.read", locale)}</button>
+                      <SubmitButton variant="secondary" size="sm" className="shrink-0">
+                        <CheckIcon />
+                        {t("notifications.read", locale)}
+                      </SubmitButton>
                     </form>
                   ) : null}
                 </li>

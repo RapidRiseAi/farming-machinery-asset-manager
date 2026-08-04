@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
@@ -17,7 +17,7 @@ export default async function OnboardingPage({
 }) {
   const sp = await searchParams;
   const profile = await requireProfile();
-  if (profile.role !== "owner" && profile.role !== "manager") redirect("/dashboard");
+  if (profile.role !== "owner" && profile.role !== "manager") redirect(`${homePathFor(profile.role)}?denied=1`);
   const locale = profile.language;
   const supabase = await createClient();
 

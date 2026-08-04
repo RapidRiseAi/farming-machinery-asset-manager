@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState, AllClear } from "@/components/ui/empty-state";
-import { BellIcon } from "@/components/ui/icons";
+import { BellIcon, CheckIcon } from "@/components/ui/icons";
 import { relativeDate } from "@/lib/format";
 
 type Note = {
@@ -131,7 +131,10 @@ export default async function NotificationsPage({
                       {unread ? (
                         <form action={markRead}>
                           <input type="hidden" name="id" value={n.id} />
-                          <button className="focus-ring rounded border border-sand-300 px-2 py-0.5 text-xs hover:bg-sand-50">{t("notifications.read", locale)}</button>
+                          <SubmitButton variant="secondary" size="sm">
+                            <CheckIcon />
+                            {t("notifications.read", locale)}
+                          </SubmitButton>
                         </form>
                       ) : null}
                     </span>

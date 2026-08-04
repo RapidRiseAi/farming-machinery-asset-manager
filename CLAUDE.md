@@ -644,4 +644,109 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Deferred by request to the later backend/security pass: `/partners` rendering a
     contractor login URL as copyable plain text, and CSV **column mapping** on import.
 
+- **Backend & security pass** (branch `claude/fleetwise-ui-redesign-l4ng55`, restarted from
+  the merged `main`; **no migration**; gates green; shared first-load JS flat at **102 kB**):
+  - **Contractor login link was a credential in a query string.** `inviteContractor` /
+    `sendLoginUrl` redirected to `/partners?…&loginUrl=<action_link>`. A Supabase
+    `action_link` is a BEARER credential — whoever holds it signs in as that contractor
+    and reaches every farm they are linked to — and a query string lands in browser
+    history, access logs, the `Referer` header and the address bar. Now a short-lived
+    **httpOnly, SameSite=Strict cookie** scoped to `/partners` (`src/lib/partner-link.ts`,
+    10-min TTL), read once by the server render, cleared by an explicit "done with it"
+    action. The card says plainly that the link signs someone in, names who, and when it
+    dies.
+  - **Open redirect on `/auth/callback`**: `next` was concatenated onto the origin
+    unchecked (`//evil.com`, `/\evil.com`). New **`src/lib/safe-path.ts`** `safePath()` —
+    single leading slash, no scheme-relative form, re-checked after decoding — used by the
+    callback AND by the three `back` form fields in `team/actions.ts` that were also
+    unvalidated redirect targets. 12 cases proved incl. `%2f%2f` / `%5C%5C` bypasses.
+  - **S11 operator landing (was awaiting sign-off).** `requireRole` sent EVERY denied user
+    to `/dashboard?error=forbidden` — for an operator, the owner's money page — and
+    `forbidden` was never rendered. New **`homePathFor(role)`** is the single source of
+    truth; `requireRole` bounces to the role's own home with `?denied=1`, rendered as a
+    sentence on `/driver`. New **`/home`** dispatcher for post-login + magic link (a link
+    minted pre-sign-in cannot know its role). Settings/onboarding bounces follow suit.
+  - **S10 support mode (was awaiting sign-off).** Entering now pins the farm in an
+    httpOnly cookie that `currentFarmId` honours for rr_admin (`SUPPORT_FARM_COOKIE`,
+    `supportFarmId`/`supportFarm`), so every farm-scoped surface narrows to that customer;
+    a **`SupportBanner`** names the farm on every screen and exits in one tap; leaving
+    writes the paired **`exit`** audit row via the existing RPC, so the log shows duration.
+    A NARROWING not a grant — rr_admin already reads all farms via `app.is_rr_admin()`, so
+    a forged cookie cannot widen access (and the id is validated against a real farm).
+    `rls_isolation.sql` §0206 gains 3 assertions (non-admin exit denied, enter+exit pair,
+    exit row farm-scoped).
+  - **CSV column mapping (S21).** Headers were matched against a fixed set, so an
+    Afrikaans/reordered farm sheet failed wholesale. `csv.ts` gains `guessMapping` (alias
+    table, Afrikaans first-class), `applyMapping`, `readHeaders`, `countDataRows`;
+    the import client shows the guessed match + a sample value and lets the user correct
+    it. **Mapping happens in the browser and the CANONICAL sheet is posted**, so
+    `validateCsv`/`importMachines` are untouched. Verified on a full Afrikaans sheet with a
+    junk column and a reordered English one.
+  - **Runtime verification** (the gap flagged at merge): production build booted and driven
+    with Chromium. All 24 routes guard correctly signed-out; public QR handles an unknown
+    token; no uncaught page errors; no horizontal overflow at 1440px or on a phone;
+    `Accept-Language: af-ZA` renders login fully in Afrikaans and the AF button writes
+    `fw_lang`. **Three defects the browser found that reading the code did not:** the login
+    fields were still placeholder-only (3 → 0 unlabelled); the language buttons announced
+    "Afrikaans" while showing "AF" (WCAG 2.5.3 Label in Name); and `?error=no-profile` —
+    what the guards append when nobody is signed in — rendered as "That didn't work."
+  - i18n EN/AF at parity (**1512 leaf keys**). Smoke test kept at
+    `scratchpad` (not committed); re-runnable with a placeholder `.env.local`.
+  - **Live click-through against the hosted demo project** (`nmqtcvdwtyggxjjgtnzm`; the
+    last remaining gap — every earlier run used placeholder env, so no query, no RLS
+    decision and no role dispatch had ever actually executed). Demo logins are in
+    `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` (password `FleetWise!demo1`). Signed in as
+    owner / operator / contractor / rr_admin and drove the built app:
+    - **Role dispatch** — `/home` forwards owner→`/dashboard`, operator→`/driver`,
+      workshop→`/contractor`, rr_admin→`/admin/farms`. An operator opening `/settings`
+      lands on `/driver?denied=1` and reads a sentence, not the owner's money page (S11).
+    - **Support mode (S10) end to end** — entering narrows the machine list from **15
+      (all farms) to 3** (Rooikoppies), the banner names the customer and follows across
+      screens, exit clears it, and `audit_log` holds a farm-scoped `impersonate`/`exit`
+      **pair** seconds apart, so the log shows duration. A garbage `fw_support_farm`
+      cookie falls back to the un-narrowed rr_admin view — it is a narrowing, not a grant.
+    - **CSV mapping (S21)** on a real Afrikaans sheet (reordered, one junk column):
+      6/6 canonical columns guessed, junk left unmapped. Stopped before writing.
+    - Dashboard ranked-attention rows deep-link to the machines they name (10 of them);
+      5 distinct status tones on the machines list; machine detail exactly 5 tabs.
+    - **One defect the live run found that reading the code did not:** the mobile machine
+      card nested an `<a>` ("Set up a plan") inside the card's own `<a>`. Invalid HTML →
+      the browser un-nests it → hydration mismatch (React #418) → the list was thrown away
+      and re-rendered client-side on every load. Fixed; the prompt is a span inside the
+      card, still a link in the desktop table. A sweep of **30 route loads across 4 roles,
+      desktop and phone**, is now clean of nesting warnings, hydration failures, uncaught
+      errors and horizontal overflow.
+    - Nothing was written to demo data beyond the two support-mode audit rows; `.env.local`
+      was removed afterwards.
+
+- **Accessibility pass — the 48px floor and icon+word, measured not asserted** (same
+  branch; no migration; gates green; shared first-load JS flat at **102 kB**):
+  - **How it was found.** A Playwright pass measured the *rendered* height of every
+    `button`/`select`/`[role=tab]` on a Pixel 5 across all four roles (25 route loads).
+    Grepping Tailwind classes had said the floor held; measuring said **155 controls were
+    under 48px**. The floor lived in `button.tsx` alone — every other primitive was still
+    44px, so the rule was true of buttons and false of everything beside them.
+  - **Raised at the source**, each stepping down only at `sm:` (where there is a mouse):
+    `input.tsx` `controlBase` (→ Input/Select/Textarea, the biggest single win),
+    `filter-chips`, `nav`, `tabs`, `device-language-switcher`, `site-switcher`,
+    `print-button`, `fault-capture`, the `/reports` period + site controls. `Button`'s
+    `sm` no longer steps down on a phone at all (48px), only on desktop.
+  - **Emoji were standing in for icons** in 5 files (`📷 🎤 ⏹ 📍 🔒 ☑ ✓`) — they render
+    differently per Android skin, ignore `currentColor`, and read aloud as their unicode
+    name. Added **CameraIcon/MicIcon/StopIcon/PinIcon/LockIcon/SquareIcon** at the set's
+    1.75 line weight and replaced every one.
+  - **Icon-only controls eliminated**: dialog close, toast dismiss and the alerts bell all
+    carry their word now. The **offline pill** showed its label only from `sm:` up — on a
+    phone "are we offline?" was answered by a coloured dot alone.
+  - **S22 (checklist template builder) had never been through the redesign** — raw markup,
+    ~26px buttons, no icons, every input labelled only by its placeholder. Rebuilt on the
+    kit (Field/Input/Select/Button/Flash), real labels, icons + words, sticky save.
+  - Also fixed: inbox still rendered one date as `en-ZA` digits; the faults page had an
+    `eslint-disable` one line above the element it was meant to cover (the repo's only
+    lint warning); `machineType.implement` was the last untranslated AF string (→
+    "Werktuig"). i18n EN/AF at parity (**1512 leaf keys**).
+  - **Re-measured, not re-read: 0 controls under 48px, 0 icon-only.** Hydration/nesting/
+    overflow sweep clean; the three live suites (role dispatch + support-mode narrowing +
+    Afrikaans CSV mapping) still pass; `db:test` green.
+
 > Update this "current status" block at the end of every session.

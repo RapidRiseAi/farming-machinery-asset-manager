@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { updateSettings } from "./actions";
@@ -19,7 +19,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const profile = await requireProfile();
-  if (profile.role !== "owner" && profile.role !== "manager") redirect("/dashboard");
+  if (profile.role !== "owner" && profile.role !== "manager") redirect(`${homePathFor(profile.role)}?denied=1`);
   const locale = profile.language;
   const sp = await searchParams;
 

@@ -45,15 +45,18 @@ export function DeviceLanguageSwitcher({
           name="lang"
           value={lng}
           aria-pressed={current === lng}
-          aria-label={LABELS[lng]}
           className={cn(
-            "focus-ring min-h-[44px] rounded-lg px-4 text-sm font-semibold uppercase transition-colors",
+            "focus-ring min-h-[48px] rounded-lg px-4 text-sm font-semibold transition-colors",
             current === lng
               ? "bg-brand-600 text-white shadow-xs"
               : "text-sand-600 hover:bg-sand-100 hover:text-sand-900",
           )}
         >
-          {lng}
+          {lng.toUpperCase()}
+          {/* The accessible name must CONTAIN the visible text (WCAG 2.5.3): an
+              aria-label of "Afrikaans" on a button that reads "AF" leaves a
+              speech-input user unable to activate what they can see. */}
+          <span className="sr-only"> — {LABELS[lng]}</span>
         </button>
       ))}
     </form>

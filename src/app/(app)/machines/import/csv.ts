@@ -211,3 +211,118 @@ export function templateCsv(): string {
   ].join("\n");
   return `${header}\n${example}\n`;
 }
+
+// ── Column mapping ───────────────────────────────────────────────────────────
+//
+// Headers used to be validated against a fixed set, so a real farm's spreadsheet —
+// Afrikaans headings, columns in a different order, an extra column the office added —
+// failed wholesale. Every farm already has a machine list; making them retype it into
+// our template is why import did not get used.
+//
+// Mapping happens entirely in the BROWSER: the user's grid is re-serialised into the
+// canonical column order before it is posted, so `importMachines` and `validateCsv`
+// still receive exactly the sheet they always did. Nothing server-side changes.
+
+/** "Leave this column out" — a real choice, not an absent one. */
+export const SKIP_COLUMN = "";
+
+/**
+ * What a farm is likely to call each of our columns. Afrikaans first-class, because
+ * invites default to `af` and these sheets are usually written by the farm office.
+ */
+const ALIASES: Record<(typeof IMPORT_COLUMNS)[number], string[]> = {
+  name: ["name", "naam", "machine", "masjien", "voertuig", "vehicle", "asset", "bate", "beskrywing", "description", "item"],
+  type: ["type", "tipe", "soort", "kind", "category", "kategorie", "klas", "class"],
+  make: ["make", "merk", "brand", "handelsmerk", "manufacturer", "vervaardiger"],
+  model: ["model", "modelnommer", "modelno", "variant"],
+  year: ["year", "jaar", "modelyear", "jaarmodel", "yearmodel"],
+  serial_no: ["serialno", "serial", "serialnumber", "serienommer", "serienr", "vin", "chassis", "chassisno", "engineno"],
+  reg_no: ["regno", "reg", "registration", "registrasie", "registrasienommer", "numberplate", "nommerplaat", "licenceplate", "licenseplate", "plate"],
+  meter_type: ["metertype", "meter", "metertipe", "unit", "eenheid", "measure"],
+  current_reading: ["currentreading", "reading", "lesing", "hours", "ure", "uur", "hourmeter", "uurmeter", "km", "kilometers", "kilometres", "odometer", "odo", "mileage"],
+  status: ["status", "toestand", "state", "condition"],
+  notes: ["notes", "note", "notas", "nota", "opmerkings", "comment", "comments", "kommentaar", "remarks"],
+};
+
+/** Strip everything that varies between spellings: case, spaces, punctuation. */
+const key = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Guess which canonical column each of the user's headings means. Returns one entry per
+ * header in the file, in file order; `SKIP_COLUMN` means "leave it out". A canonical
+ * column is never guessed twice — the first, best match wins and later look-alikes fall
+ * through to skip, so the user resolves the ambiguity rather than us silently picking.
+ */
+export function guessMapping(headers: string[]): string[] {
+  const taken = new Set<string>();
+  const exact: string[] = headers.map(() => SKIP_COLUMN);
+
+  // Pass 1: exact alias hits, which are the confident ones.
+  headers.forEach((h, i) => {
+    const k = key(h);
+    for (const col of IMPORT_COLUMNS) {
+      if (taken.has(col)) continue;
+      if (ALIASES[col].some((a) => key(a) === k)) {
+        exact[i] = col;
+        taken.add(col);
+        return;
+      }
+    }
+  });
+
+  // Pass 2: substring hits for the ones still unclaimed ("hours worked", "reg nr").
+  headers.forEach((h, i) => {
+    if (exact[i] !== SKIP_COLUMN) return;
+    const k = key(h);
+    if (!k) return;
+    for (const col of IMPORT_COLUMNS) {
+      if (taken.has(col)) continue;
+      if (ALIASES[col].some((a) => k.includes(key(a)) || key(a).includes(k))) {
+        exact[i] = col;
+        taken.add(col);
+        return;
+      }
+    }
+  });
+
+  return exact;
+}
+
+/**
+ * Re-serialise the user's sheet into our canonical column order using `mapping`
+ * (one entry per source column). The result is an ordinary CSV that `validateCsv` and
+ * `importMachines` read exactly as if the farm had used our template.
+ */
+export function applyMapping(text: string, mapping: string[]): string {
+  const grid = parseCsv(text);
+  if (grid.length === 0) return "";
+
+  const sourceFor = new Map<string, number>();
+  mapping.forEach((col, i) => {
+    if (col && !sourceFor.has(col)) sourceFor.set(col, i);
+  });
+
+  const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const out: string[] = [IMPORT_COLUMNS.join(",")];
+  for (let r = 1; r < grid.length; r++) {
+    const row = grid[r];
+    out.push(
+      IMPORT_COLUMNS.map((col) => {
+        const i = sourceFor.get(col);
+        return i == null ? "" : esc((row[i] ?? "").trim());
+      }).join(","),
+    );
+  }
+  return out.join("\n") + "\n";
+}
+
+/** The header row as the file spells it — what the mapping UI shows on the left. */
+export function readHeaders(text: string): string[] {
+  const grid = parseCsv(text);
+  return grid.length === 0 ? [] : grid[0].map((h) => h.trim());
+}
+
+/** How many data rows the file has, for "31 of your 34 rows are ready". */
+export function countDataRows(text: string): number {
+  return Math.max(0, parseCsv(text).length - 1);
+}

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { safePath } from "@/lib/safe-path";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
 const ALL_ROLES = ["owner", "manager", "mechanic", "operator", "workshop", "rr_admin"];
@@ -23,7 +24,8 @@ export async function inviteUser(formData: FormData) {
   const farmId = String(formData.get("farm_id") ?? "").trim() || null;
   const workshopId = String(formData.get("workshop_id") ?? "").trim() || null;
   const language = String(formData.get("language") ?? "en") === "af" ? "af" : "en";
-  const back = String(formData.get("back") ?? "/team");
+  // `back` comes from a form field — never redirect to it unvalidated.
+  const back = safePath(String(formData.get("back") ?? ""), "/team");
 
   const isAdmin = inviter.role === "rr_admin";
   const isFarmBoss =
@@ -74,7 +76,8 @@ export async function inviteUser(formData: FormData) {
 export async function erasePerson(formData: FormData) {
   const actor = await requireProfile();
   const id = String(formData.get("id") ?? "").trim();
-  const back = String(formData.get("back") ?? "/team");
+  // `back` comes from a form field — never redirect to it unvalidated.
+  const back = safePath(String(formData.get("back") ?? ""), "/team");
   const reason = String(formData.get("reason") ?? "").trim() || "data-subject request";
   if (!id) redirect(`${back}?error=${encodeURIComponent("Missing person")}`);
   if (id === actor.id) redirect(`${back}?error=${encodeURIComponent("You cannot erase your own account.")}`);
@@ -105,7 +108,8 @@ export async function setUserActive(formData: FormData) {
   await requireProfile();
   const id = String(formData.get("id") ?? "");
   const active = String(formData.get("active") ?? "true") === "true";
-  const back = String(formData.get("back") ?? "/team");
+  // `back` comes from a form field — never redirect to it unvalidated.
+  const back = safePath(String(formData.get("back") ?? ""), "/team");
   const supabase = await createClient();
   const { error } = await supabase.from("users").update({ active }).eq("id", id);
   if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);

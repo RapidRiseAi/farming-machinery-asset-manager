@@ -86,13 +86,14 @@ export function SyncStatus({ locale }: { locale: Locale }) {
       type="button"
       onClick={canFlush ? () => void flush() : undefined}
       aria-live="polite"
-      aria-label={label}
       title={label}
-      className={`focus-ring inline-flex h-9 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium ${tone[mode]} ${canFlush ? "cursor-pointer" : "cursor-default"}`}
+      className={`focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium sm:min-h-[36px] ${tone[mode]} ${canFlush ? "cursor-pointer" : "cursor-default"}`}
     >
       <span className={`h-2 w-2 rounded-full ${dot[mode]}`} aria-hidden />
-      <span className="hidden sm:inline">{label}</span>
-      {count > 0 ? <span className="sm:hidden">{count}</span> : null}
+      {/* The word used to appear only from `sm:` up, so on a phone this was a coloured
+          dot and nothing else — the one device where "am I offline?" actually matters. */}
+      <span>{label}</span>
+      {count > 0 ? <span>({count})</span> : null}
     </button>
   );
 }

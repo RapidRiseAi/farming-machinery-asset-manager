@@ -183,8 +183,8 @@ export default async function FaultsPage({
                   {media.length > 0 ? (
                     <div className="mt-3 flex flex-wrap items-start gap-3">
                       {media.filter((m) => m.kind === "photo").map((m, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="focus-ring rounded-xl">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={m.url}
                             alt={t("faults.viewPhoto", locale)}

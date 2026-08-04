@@ -10,6 +10,14 @@ import {
   type ChecklistFieldType,
 } from "@/lib/checklists";
 import { MACHINE_TYPES, typeLabel } from "@/lib/machine-options";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Flash } from "@/components/ui/flash";
+import {
+  PlusIcon, CheckIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon,
+} from "@/components/ui/icons";
 import { saveChecklistTemplate, type TemplatePayload } from "@/app/(app)/checklists/actions";
 
 type BuilderField = {
@@ -62,8 +70,6 @@ export function ChecklistTemplateBuilder({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const inputCls = "rounded-lg border border-sand-300 px-3 py-2 text-sm";
 
   function patch(index: number, next: Partial<BuilderField>) {
     setFields((cur) => cur.map((f, i) => (i === index ? { ...f, ...next } : f)));
@@ -126,42 +132,40 @@ export function ChecklistTemplateBuilder({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-sand-700">
-          {t("checklists.name", locale)}
-          <input
-            className={`mt-1 w-full ${inputCls}`}
+        <Field label={t("checklists.name", locale)} htmlFor="tpl-name">
+          <Input
+            id="tpl-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             spellCheck
             autoCapitalize="sentences"
           />
-        </label>
-        <label className="block text-sm font-medium text-sand-700">
-          {t("checklists.machineType", locale)}
-          <select
-            className={`mt-1 w-full ${inputCls}`}
-            value={machineType}
-            onChange={(e) => setMachineType(e.target.value)}
-          >
+        </Field>
+        <Field label={t("checklists.machineType", locale)} htmlFor="tpl-type">
+          <Select id="tpl-type" value={machineType} onChange={(e) => setMachineType(e.target.value)}>
             <option value="">{t("checklists.anyType", locale)}</option>
             {MACHINE_TYPES.map((mt) => (
               <option key={mt} value={mt}>
                 {typeLabel(mt, locale)}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium text-sand-700 sm:col-span-2">
-          {t("checklists.description", locale)}
-          <input
-            className={`mt-1 w-full ${inputCls}`}
+          </Select>
+        </Field>
+        {/* The hint was the placeholder, so it vanished the moment anyone typed. */}
+        <Field
+          label={t("checklists.description", locale)}
+          htmlFor="tpl-desc"
+          hint={t("checklists.descriptionHint", locale)}
+          className="sm:col-span-2"
+        >
+          <Input
+            id="tpl-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={t("checklists.descriptionHint", locale)}
             spellCheck
             autoCapitalize="sentences"
           />
-        </label>
+        </Field>
       </div>
 
       {isGlobal ? (
@@ -174,35 +178,41 @@ export function ChecklistTemplateBuilder({
         {fields.map((field, index) => (
           <div key={index} className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-sand-50/60 p-3">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr_auto]">
-              <select
-                className={inputCls}
-                value={field.field_type}
-                onChange={(e) => patch(index, { field_type: e.target.value as ChecklistFieldType })}
-                aria-label={t("checklists.fieldType", locale)}
-              >
-                {CHECKLIST_FIELD_TYPES.map((ft) => (
-                  <option key={ft} value={ft}>
-                    {fieldTypeLabel(ft, locale)}
-                  </option>
-                ))}
-              </select>
-              <input
-                className={inputCls}
-                value={field.label}
-                onChange={(e) => patch(index, { label: e.target.value })}
-                placeholder={
+              <Field label={t("checklists.fieldType", locale)} htmlFor={`f${index}-type`}>
+                <Select
+                  id={`f${index}-type`}
+                  value={field.field_type}
+                  onChange={(e) => patch(index, { field_type: e.target.value as ChecklistFieldType })}
+                >
+                  {CHECKLIST_FIELD_TYPES.map((ft) => (
+                    <option key={ft} value={ft}>
+                      {fieldTypeLabel(ft, locale)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {/* Every input on this screen was labelled only by its placeholder. */}
+              <Field
+                label={
                   field.field_type === "section_break"
                     ? t("checklists.sectionHeading", locale)
                     : t("checklists.fieldLabel", locale)
                 }
-                spellCheck
-                autoCapitalize="sentences"
-              />
+                htmlFor={`f${index}-label`}
+              >
+                <Input
+                  id={`f${index}-label`}
+                  value={field.label}
+                  onChange={(e) => patch(index, { label: e.target.value })}
+                  spellCheck
+                  autoCapitalize="sentences"
+                />
+              </Field>
               {field.field_type !== "section_break" ? (
-                <label className="flex items-center gap-2 rounded-lg border border-sand-300 px-3 py-2 text-sm text-sand-700">
+                <label className="flex min-h-[48px] items-center gap-2 self-end rounded-lg border border-sand-300 px-3 text-sm text-sand-700">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-sand-300"
+                    className="h-5 w-5 rounded border-sand-300"
                     checked={field.required}
                     onChange={(e) => patch(index, { required: e.target.checked })}
                   />
@@ -215,86 +225,91 @@ export function ChecklistTemplateBuilder({
 
             {field.field_type !== "section_break" ? (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                <input
-                  className={inputCls}
-                  value={field.help_text}
-                  onChange={(e) => patch(index, { help_text: e.target.value })}
-                  placeholder={t("checklists.helpTextHint", locale)}
-                  spellCheck
-                />
+                <Field label={t("checklists.helpTextHint", locale)} htmlFor={`f${index}-help`}>
+                  <Input
+                    id={`f${index}-help`}
+                    value={field.help_text}
+                    onChange={(e) => patch(index, { help_text: e.target.value })}
+                    spellCheck
+                  />
+                </Field>
                 {field.field_type === "rating" ? (
-                  <label className="flex items-center gap-2 text-sm text-sand-700">
-                    {t("checklists.ratingMax", locale)}
-                    <input
+                  <Field label={t("checklists.ratingMax", locale)} htmlFor={`f${index}-max`}>
+                    <Input
+                      id={`f${index}-max`}
                       type="number"
                       min={2}
                       max={10}
-                      className={`${inputCls} w-20`}
+                      className="w-24"
                       value={field.rating_max}
                       onChange={(e) => patch(index, { rating_max: Number(e.target.value) || DEFAULT_RATING_MAX })}
                     />
-                  </label>
+                  </Field>
                 ) : null}
               </div>
             ) : null}
 
-            <div className="flex items-center gap-2">
-              <button
+            {/* Was three ~26px text-only buttons. Same three actions, at the size the
+                thumb this product is built for actually needs, each with its glyph. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
                 type="button"
-                className="focus-ring rounded-md border border-sand-300 px-2 py-1 text-xs text-sand-700 disabled:opacity-40"
+                variant="secondary"
+                size="sm"
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
               >
+                <ChevronUpIcon />
                 {t("checklists.moveUp", locale)}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="focus-ring rounded-md border border-sand-300 px-2 py-1 text-xs text-sand-700 disabled:opacity-40"
+                variant="secondary"
+                size="sm"
                 disabled={index === fields.length - 1}
                 onClick={() => move(index, 1)}
               >
+                <ChevronDownIcon />
                 {t("checklists.moveDown", locale)}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="focus-ring ml-auto rounded-md px-2 py-1 text-xs text-status-overdue"
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-status-overdue"
                 onClick={() => setFields((cur) => cur.filter((_, i) => i !== index))}
               >
+                <TrashIcon />
                 {t("checklists.removeField", locale)}
-              </button>
+              </Button>
             </div>
           </div>
         ))}
       </div>
 
       <div>
-        <button
+        <Button
           type="button"
-          className="focus-ring rounded-lg border border-sand-300 px-3 py-2 text-sm font-medium text-sand-700 hover:bg-sand-50"
+          variant="secondary"
           onClick={() => setFields((cur) => [...cur, { ...EMPTY_FIELD }])}
         >
-          + {t("checklists.addField", locale)}
-        </button>
+          <PlusIcon />
+          {t("checklists.addField", locale)}
+        </Button>
       </div>
 
-      {error ? <p className="text-sm text-status-overdue">{error}</p> : null}
+      {error ? <Flash tone="error" message={error} /> : null}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void onSave()}
-          className="focus-ring rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-        >
+      {/* Sticky on a phone: the questions list is long, and the way out of a long
+          form should not require scrolling back to find it. */}
+      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-sand-200 bg-white/95 px-1 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:backdrop-blur-none">
+        <Button type="button" variant="primary" disabled={saving} onClick={() => void onSave()}>
+          <CheckIcon />
           {saving ? t("checklists.saving", locale) : t("checklists.saveTemplate", locale)}
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/checklists")}
-          className="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-sand-600 hover:text-sand-900"
-        >
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => router.push("/checklists")}>
           {t("common.cancel", locale)}
-        </button>
+        </Button>
       </div>
     </div>
   );

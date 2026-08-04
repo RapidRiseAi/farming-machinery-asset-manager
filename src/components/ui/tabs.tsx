@@ -63,7 +63,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(t.key)}
               className={cn(
-                "focus-ring -mb-px min-h-[44px] border-b-2 px-3.5 text-sm font-medium transition-colors",
+                "focus-ring -mb-px min-h-[48px] sm:min-h-[44px] border-b-2 px-3.5 text-sm font-medium transition-colors",
                 selected
                   ? "border-brand-600 text-brand-700"
                   : "border-transparent text-sand-500 hover:text-sand-800",
