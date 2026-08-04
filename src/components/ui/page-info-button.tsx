@@ -24,6 +24,7 @@ export function PageInfoButton({ infoKey, locale }: { infoKey: string; locale: L
       }}
       buttonLabel={t("pageInfo.button", locale)}
       closeLabel={t("pageInfo.close", locale)}
+      tourLabel={t("tour.restart", locale)}
       headingId={`info-${infoKey}`}
     />
   );

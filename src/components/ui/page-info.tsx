@@ -30,11 +30,14 @@ export function PageInfo({
   content,
   buttonLabel,
   closeLabel,
+  tourLabel,
   headingId = "page-info-title",
 }: {
   content: PageInfoContent;
   buttonLabel: string;
   closeLabel: string;
+  /** Re-entry to the walkthrough. Somewhere findable beats a one-time-only tour. */
+  tourLabel?: string;
   headingId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -76,9 +79,24 @@ export function PageInfo({
             <p className="rounded-lg bg-sand-50 px-3 py-2.5 text-sm text-sand-600">{content.note}</p>
           ) : null}
 
-          <Button type="button" variant="primary" onClick={() => setOpen(false)} fullWidth>
-            {closeLabel}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="primary" onClick={() => setOpen(false)} fullWidth>
+              {closeLabel}
+            </Button>
+            {tourLabel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                fullWidth
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new Event("fleetwise:start-tour"));
+                }}
+              >
+                {tourLabel}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </Overlay>
     </>
