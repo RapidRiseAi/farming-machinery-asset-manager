@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { updateSettings } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToneSwitcher } from "@/components/ui/tone-switcher";
@@ -35,7 +36,10 @@ export default async function SettingsPage({
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("settings.title", locale)} — {farm?.name}</h1>
+      <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("settings.title", locale)} — {farm?.name}</h1>
+          <PageInfoButton infoKey="settings" locale={locale} />
+        </div>
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 

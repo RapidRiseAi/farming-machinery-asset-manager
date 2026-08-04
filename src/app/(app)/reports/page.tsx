@@ -3,6 +3,7 @@ import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { getReportData, parseFilters } from "./data";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
@@ -28,7 +29,10 @@ export default async function ReportsPage({
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+          <PageInfoButton infoKey="reports" locale={locale} />
+        </div>
         <UpgradeNotice
           feature="advanced_reports"
           requiredPlan={gate.requiredPlan}
@@ -83,7 +87,10 @@ export default async function ReportsPage({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+          <PageInfoButton infoKey="reports" locale={locale} />
+        </div>
         <div className="flex items-center gap-2">
           {/* Single multi-sheet Excel workbook covering every report family (FR-11.4). */}
           <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>

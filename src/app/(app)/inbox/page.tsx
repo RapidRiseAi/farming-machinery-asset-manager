@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { formatNotification, notificationUrl } from "@/lib/notifications/format";
 import { INBOX_ACTION_STATUSES } from "@/lib/inbox";
@@ -140,9 +141,12 @@ export default async function InboxPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
             {t("inbox.waitingForYou", locale)}
           </h1>
+          <PageInfoButton infoKey="inbox" locale={locale} />
+        </div>
           <p className="mt-1 text-sm text-sand-500">
             {actionItems.length === 0
               ? t("inbox.subtitle", locale)

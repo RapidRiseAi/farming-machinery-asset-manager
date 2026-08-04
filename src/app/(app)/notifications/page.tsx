@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { formatNotification } from "@/lib/notifications/format";
 import { markRead, markAllRead, setNotificationPrefs } from "./actions";
 import { PushToggle } from "@/components/push/push-toggle";
@@ -67,7 +68,10 @@ export default async function NotificationsPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("notifications.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("notifications.title", locale)}</h1>
+          <PageInfoButton infoKey="notifications" locale={locale} />
+        </div>
         {hasUnread ? (
           <form action={markAllRead}>
             <Button type="submit" variant="ghost" size="sm">{t("notifications.markAllRead", locale)}</Button>

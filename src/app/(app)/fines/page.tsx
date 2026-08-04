@@ -3,6 +3,7 @@ import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import {
   FINE_STATUSES,
   fineStatusLabel,
@@ -51,7 +52,10 @@ export default async function FinesPage({
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fines.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fines.title", locale)}</h1>
+          <PageInfoButton infoKey="fines" locale={locale} />
+        </div>
         <UpgradeNotice feature="aarto" requiredPlan={gate.requiredPlan} currentPlan={gate.plan} locale={locale} />
       </div>
     );
@@ -227,7 +231,10 @@ export default async function FinesPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fines.title", locale)}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fines.title", locale)}</h1>
+            <PageInfoButton infoKey="fines" locale={locale} />
+          </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("fines.subtitle", locale)}</p>
         </div>
         {pending.length > 0 ? (
