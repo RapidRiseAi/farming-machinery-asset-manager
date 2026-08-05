@@ -161,5 +161,61 @@
   },
   "work": {
     "getSomethingDone": "Request work"
+  },
+  "doc": {
+    "leadPartner": "All quotations and invoices issued, across every client account.",
+    "leadFarm": "Quotations and invoices received from your contractors.",
+    "newSubject": "Description",
+    "newSubjectHint": "A short reference line the client will recognise.",
+    "newCreate": "Create",
+    "outstanding": "Outstanding",
+    "awaitingDecision": "Awaiting approval",
+    "needsYouPartner": "Requires action",
+    "needsYouFarm": "Requires your approval",
+    "emptyPartnerBody": "Create one against a client account, or attach a document produced in your own system.",
+    "emptyFarmBody": "Quotations and invoices from your contractors will appear here.",
+    "lineDescription": "Description",
+    "sendExplains": "Once issued, the wording and totals are fixed — the document becomes a formal record.",
+    "sentFlash": "Issued. The client can now view it.",
+    "deleteDraftBody": "The draft was never issued, so no record is lost. Its line items are removed with it.",
+    "convertToInvoice": "Convert to invoice",
+    "decideTitle": "Approve this quotation?",
+    "decideBody": "The quotation total is",
+    "accept": "Approve",
+    "acceptBody": "The contractor will be notified of your approval. No payment is due until they invoice.",
+    "acceptedFlash": "Approved. The contractor has been notified.",
+    "decline": "Decline",
+    "declineReason": "Reason for declining",
+    "declineReasonHint": "The reason determines the contractor's next step — please be specific.",
+    "uploadTitle": "Produced in another system?",
+    "uploadBody": "Attach the quotation or invoice your accounting system produced. Your client can view it and it is reflected in their costs; your existing invoicing process is unchanged.",
+    "upgradeBody": "The Managed plan adds itemised quotations and invoices, quote-to-invoice conversion, and payment recording.",
+    "upgradeKeep": "Existing functionality is retained — attaching your own documents remains part of your plan."
+  },
+  "partnerSettings": {
+    "lead": "These details appear on every quotation and invoice you issue.",
+    "identity": "Business details",
+    "contact": "Contact details",
+    "banking": "Banking details",
+    "letterhead": "Letterhead",
+    "preview": "Preview",
+    "bankingHint": "Printed on your invoices so clients can settle without contacting you.",
+    "brandPrimaryHint": "Used for the document header.",
+    "poweredByHint": "Disable to show only your business name on documents.",
+    "termsHint": "Printed at the foot of every document.",
+    "logoHint": "PNG, JPEG or SVG. Displayed at the head of every document.",
+    "quoteValidity": "Quotation validity (days)",
+    "invoiceTerms": "Payment terms (days)"
+  },
+  "pageInfo": {
+    "documentsWhat": "All quotations and invoices received from your contractors.",
+    "documentsNote": "Approving a quotation does not initiate payment — the contractor must still invoice.",
+    "documentsPartnerWhat": "All quotations and invoices issued, across every client account.",
+    "documentsPartnerNote": "Attaching externally produced documents is available on all plans. Creating them here requires Managed.",
+    "partnerSettingsNote": "Changes apply to new documents. Previously issued documents retain their original presentation."
+  },
+  "tour": {
+    "contractorDocumentsBody": "Create itemised quotations and invoices, convert an approved quotation to an invoice, and record payments as they are received. If you invoice elsewhere, attach that document instead — available on all plans.",
+    "contractorBrandBody": "Your business name, registration and VAT numbers, banking details, logo and colours. Every document is issued on your letterhead."
   }
 }

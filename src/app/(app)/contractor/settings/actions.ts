@@ -1,0 +1,116 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { requireRole } from "@/lib/auth";
+import { normaliseHex, DEFAULT_BRAND_PRIMARY, DEFAULT_BRAND_SECONDARY } from "@/lib/branding";
+import { percentToBps } from "@/lib/format";
+
+/**
+ * A partner maintaining its own business profile and letterhead (F14a).
+ *
+ * Writes go through the RLS-bound client and land on the partner's OWN workshop row —
+ * the `workshops_upd_self` policy (0380) allows exactly that row and no other, and the
+ * `workshops_guard_plan` trigger rejects any attempt to change the paid product from
+ * here. So there is nothing to check about which workshop is being edited: the database
+ * will not let this action touch another one. We still pin `.eq("id", workshop_id)` so a
+ * mistake surfaces as "no rows updated" rather than a silent broad update.
+ */
+
+function s(fd: FormData, k: string): string | null {
+  const v = String(fd.get(k) ?? "").trim();
+  return v === "" ? null : v;
+}
+
+function intIn(fd: FormData, k: string, min: number, max: number, fallback: number): number {
+  const n = Number.parseInt(String(fd.get(k) ?? ""), 10);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}
+
+export async function updatePartnerProfile(formData: FormData) {
+  const profile = await requireRole(["workshop"]);
+  if (!profile.workshop_id) redirect("/contractor?error=no-workshop");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("workshops")
+    .update({
+      name: String(formData.get("name") ?? "").trim() || undefined,
+      trading_name: s(formData, "trading_name"),
+      reg_number: s(formData, "reg_number"),
+      vat_number: s(formData, "vat_number"),
+      address: s(formData, "address"),
+      phone: s(formData, "phone"),
+      whatsapp: s(formData, "whatsapp"),
+      email: s(formData, "email"),
+      website: s(formData, "website"),
+      area: s(formData, "area"),
+      bank_name: s(formData, "bank_name"),
+      bank_account_name: s(formData, "bank_account_name"),
+      bank_account_number: s(formData, "bank_account_number"),
+      bank_branch_code: s(formData, "bank_branch_code"),
+      bank_account_type: s(formData, "bank_account_type"),
+      brand_primary: normaliseHex(String(formData.get("brand_primary") ?? "")) ?? DEFAULT_BRAND_PRIMARY,
+      brand_secondary: normaliseHex(String(formData.get("brand_secondary") ?? "")) ?? DEFAULT_BRAND_SECONDARY,
+      show_powered_by: formData.get("show_powered_by") != null,
+      doc_prefix_quote: (s(formData, "doc_prefix_quote") ?? "QTE").slice(0, 8).toUpperCase(),
+      doc_prefix_invoice: (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
+      quote_validity_days: intIn(formData, "quote_validity_days", 0, 365, 14),
+      invoice_terms_days: intIn(formData, "invoice_terms_days", 0, 365, 30),
+      default_vat_rate_bps: percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500,
+      doc_terms: s(formData, "doc_terms"),
+      doc_footer: s(formData, "doc_footer"),
+    })
+    .eq("id", profile.workshop_id);
+
+  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/contractor/settings");
+  redirect("/contractor/settings?saved=1");
+}
+
+/**
+ * Upload the partner's logo. The file arrives base64-encoded through the form (the same
+ * ferry the machine-photo and checklist-photo flows use, so there is one upload story in
+ * the codebase rather than three), is written under `{workshop_id}/…` in the
+ * `partner-branding` bucket, and the object key is stored on the workshop row.
+ *
+ * The service client does the write. The bucket's own policy (0382) already restricts a
+ * partner to their own prefix, but this action derives the prefix from the SESSION's
+ * workshop id rather than anything the form said — so the path cannot be steered.
+ */
+export async function uploadPartnerLogo(formData: FormData) {
+  const profile = await requireRole(["workshop"]);
+  if (!profile.workshop_id) redirect("/contractor?error=no-workshop");
+
+  const dataUrl = String(formData.get("logo") ?? "");
+  const match = /^data:(image\/(png|jpeg|webp|svg\+xml));base64,(.+)$/.exec(dataUrl);
+  if (!match) redirect("/contractor/settings?error=logo-format");
+
+  const [, contentType, , b64] = match;
+  const bytes = Buffer.from(b64, "base64");
+  if (bytes.byteLength > 2_000_000) redirect("/contractor/settings?error=logo-too-big");
+
+  const ext = contentType === "image/svg+xml" ? "svg" : contentType.split("/")[1];
+  const path = `${profile.workshop_id}/logo-${Date.now()}.${ext}`;
+
+  const service = createServiceClient();
+  const { error } = await service.storage.from("partner-branding").upload(path, bytes, { contentType, upsert: true });
+  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+
+  const supabase = await createClient();
+  await supabase.from("workshops").update({ logo_path: path }).eq("id", profile.workshop_id);
+  revalidatePath("/contractor/settings");
+  redirect("/contractor/settings?saved=1");
+}
+
+/** Drop the logo back to the wordmark. The stored object is left for the storage sweep. */
+export async function removePartnerLogo() {
+  const profile = await requireRole(["workshop"]);
+  if (!profile.workshop_id) redirect("/contractor?error=no-workshop");
+  const supabase = await createClient();
+  await supabase.from("workshops").update({ logo_path: null }).eq("id", profile.workshop_id);
+  revalidatePath("/contractor/settings");
+  redirect("/contractor/settings?saved=1");
+}

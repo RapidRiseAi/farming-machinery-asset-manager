@@ -1864,14 +1864,14 @@ select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;
 --   (d) the `workshops.plan` gating column reads back with its default.
 -- Fresh fixtures (Farm E, Workshop X, distinct request ids) leave earlier counts intact.
 
--- Farm E + a machine on it; a SECOND workshop X (plan 'pro'); X's staff user. Link W to
+-- Farm E + a machine on it; a SECOND workshop X (plan 'managed'); X's staff user. Link W to
 -- Farm E (so W is linked to Farm A AND Farm E) and link X to Farm A (shared with W).
 insert into farms (id, name) values
   ('e1000000-0000-0000-0000-0000000000e1', 'Farm E');
 insert into machines (id, farm_id, name, type) values
   ('ee100000-0000-0000-0000-0000000000e1', 'e1000000-0000-0000-0000-0000000000e1', 'Machine E1', 'tractor');
 insert into workshops (id, name, kind, plan) values
-  ('e3000000-0000-0000-0000-0000000000e3', 'Workshop X', 'parts_supplier', 'pro');
+  ('e3000000-0000-0000-0000-0000000000e3', 'Workshop X', 'parts_supplier', 'managed');
 insert into workshop_links (workshop_id, farm_id, status) values
   ('33333333-3333-3333-3333-333333333333', 'e1000000-0000-0000-0000-0000000000e1', 'active'),  -- W → Farm E
   ('e3000000-0000-0000-0000-0000000000e3', '11111111-1111-1111-1111-111111111111', 'active');  -- X → Farm A
@@ -1936,9 +1936,9 @@ reset role;
 -- ── (d) the contractor-plan gating column reads back with its default ──
 do $$ declare p workshop_plan; begin
   select plan into p from workshops where id = '33333333-3333-3333-3333-333333333333';  -- W (top fixture, no plan set)
-  if p <> 'free' then raise exception 'F12c FAIL [plan default]: Workshop W plan=% (expected free)', p; end if;
-  select plan into p from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';  -- X (set 'pro')
-  if p <> 'pro' then raise exception 'F12c FAIL [plan set]: Workshop X plan=% (expected pro)', p; end if;
+  if p <> 'portal' then raise exception 'F12c FAIL [plan default]: Workshop W plan=% (expected portal)', p; end if;
+  select plan into p from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';  -- X (set 'managed')
+  if p <> 'managed' then raise exception 'F12c FAIL [plan set]: Workshop X plan=% (expected managed)', p; end if;
 end $$;
 
 select 'ALL F12c CONTRACTOR-DASHBOARD TESTS PASSED' as result;
@@ -2630,3 +2630,300 @@ end $$;
 reset role;
 
 select 'ALL G1 BUDGETS & ANALYTICS TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F14 — PARTNER DOCUMENTS (quotes & invoices, branding, plans)
+-- ═════════════════════════════════════════════════════════════════
+-- What this section has to prove, because the app relies on all of it:
+--   (a) a farm sees the documents raised against IT and nobody else's;
+--   (b) two contractors serving the SAME farm never see each other's pricing;
+--   (c) an operator sees no documents at all — a driver is not in the payables;
+--   (d) an invoice reaches the cost ledger EXACTLY ONCE, and a quote never does;
+--   (e) a partner invoice document standing over a work request's own amount does not
+--       double-count that job;
+--   (f) totals are derived, not typed — lines roll up, payments roll up, status follows;
+--   (g) anon can do nothing, and cannot allocate a document number;
+--   (h) a partner cannot promote its own plan, and cannot burn another partner's
+--       numbering sequence;
+--   (i) a partner may edit its OWN letterhead and no other workshop's.
+--
+-- Reuses the F12c fixtures: Workshop W (portal, linked to Farm A + Farm E) and
+-- Workshop X (managed, linked to the SHARED Farm A).
+
+-- Documents: W bills Farm A; X quotes Farm A (the shared-farm privacy case); W quotes
+-- Farm E. The W→Farm A invoice is attached to X's… no: to W's own Farm A request, so the
+-- double-count rule has something real to stand over.
+insert into partner_documents
+  (id, farm_id, workshop_id, machine_id, work_request_id, kind, status, source, number, subject, vat_rate_bps, created_by)
+values
+  ('f1400000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '33333333-3333-3333-3333-333333333333', 'aa111111-1111-1111-1111-111111111111',
+   'd1000000-0000-0000-0000-0000000000a1', 'invoice', 'draft', 'built', 'INV-9001', 'W bills Farm A', 1500, null),
+  ('f1400000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+   'e3000000-0000-0000-0000-0000000000e3', null, null,
+   'quote', 'sent', 'built', 'QTE-9002', 'X quotes Farm A', 1500, null),
+  ('f1400000-0000-0000-0000-000000000003', 'e1000000-0000-0000-0000-0000000000e1',
+   '33333333-3333-3333-3333-333333333333', 'ee100000-0000-0000-0000-0000000000e1', null,
+   'quote', 'sent', 'built', 'QTE-9003', 'W quotes Farm E', 1500, null);
+
+-- (f) Lines roll up: 2 × R500 + 3.5h × R400 = R1000 + R1400 = R2400 ex-VAT, R2760 incl.
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values
+  ('11111111-1111-1111-1111-111111111111', 'f1400000-0000-0000-0000-000000000001', 0, 'part',   'Filter kit', 2,   50000),
+  ('11111111-1111-1111-1111-111111111111', 'f1400000-0000-0000-0000-000000000001', 1, 'labour', 'Workshop hours', 3.5, 40000);
+
+do $$ declare sub bigint; vat bigint; tot bigint; begin
+  select subtotal_cents, vat_cents, total_cents into sub, vat, tot
+    from partner_documents where id = 'f1400000-0000-0000-0000-000000000001';
+  if sub <> 240000 then raise exception 'F14 FAIL [subtotal]: % (expected 240000)', sub; end if;
+  if vat <> 36000  then raise exception 'F14 FAIL [vat]: % (expected 36000)', vat; end if;
+  if tot <> 276000 then raise exception 'F14 FAIL [total]: % (expected 276000)', tot; end if;
+end $$;
+
+-- (d) A DRAFT invoice is not money owed — nothing in the ledger yet.
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if c <> 0 then raise exception 'F14 FAIL [draft costed]: % ledger rows for a draft invoice (expected 0)', c; end if;
+end $$;
+
+-- (d) A sent QUOTE is never costed either.
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000002' and deleted_at is null;
+  if c <> 0 then raise exception 'F14 FAIL [quote costed]: a quote reached the cost ledger'; end if;
+end $$;
+
+-- (e) Set the work request's own invoice amount FIRST, so 0311 books an entry — then
+-- issue the partner invoice over the top and prove the job is costed exactly once.
+update work_requests set invoice_amount_cents = 999900, vat_rate_bps = 1500
+  where id = 'd1000000-0000-0000-0000-0000000000a1';
+
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'work_request' and source_id = 'd1000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  if c <> 1 then raise exception 'F14 FAIL [precondition]: work-request entry count=% (expected 1)', c; end if;
+end $$;
+
+update partner_documents set status = 'sent', sent_at = now()
+  where id = 'f1400000-0000-0000-0000-000000000001';
+
+do $$ declare wr bigint; pd bigint; amt bigint; begin
+  select count(*) into wr from cost_entries
+   where source_type = 'work_request' and source_id = 'd1000000-0000-0000-0000-0000000000a1' and deleted_at is null;
+  select count(*) into pd from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if wr <> 0 then raise exception 'F14 FAIL [double count]: the work-request entry survived (%) alongside the invoice document', wr; end if;
+  if pd <> 1 then raise exception 'F14 FAIL [invoice once]: partner-document entries=% (expected 1)', pd; end if;
+
+  -- Booked EX-VAT, like every other entry in the ledger.
+  select amount_cents into amt from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if amt <> 240000 then raise exception 'F14 FAIL [ex-VAT]: booked % (expected 240000 ex-VAT)', amt; end if;
+end $$;
+
+-- Re-firing the trigger must not duplicate.
+update partner_documents set subject = 'W bills Farm A (edited)' where id = 'f1400000-0000-0000-0000-000000000001';
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F14 FAIL [idempotent]: % ledger rows after re-fire (expected 1)', c; end if;
+end $$;
+
+-- (f) Payments roll up and move the status; a part payment is part_paid, the rest paid.
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
+values ('11111111-1111-1111-1111-111111111111', 'f1400000-0000-0000-0000-000000000001', 100000, current_date, 'eft');
+do $$ declare s text; paid bigint; begin
+  select status, amount_paid_cents into s, paid from partner_documents where id = 'f1400000-0000-0000-0000-000000000001';
+  if s <> 'part_paid' then raise exception 'F14 FAIL [part_paid]: status=% (expected part_paid)', s; end if;
+  if paid <> 100000 then raise exception 'F14 FAIL [paid rollup]: % (expected 100000)', paid; end if;
+end $$;
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
+values ('11111111-1111-1111-1111-111111111111', 'f1400000-0000-0000-0000-000000000001', 176000, current_date, 'eft');
+do $$ declare s text; begin
+  select status into s from partner_documents where id = 'f1400000-0000-0000-0000-000000000001';
+  if s <> 'paid' then raise exception 'F14 FAIL [paid]: status=% (expected paid)', s; end if;
+end $$;
+-- Paid in full is still a cost — it does not vanish from the ledger once settled.
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if c <> 1 then raise exception 'F14 FAIL [paid still costed]: % (expected 1)', c; end if;
+end $$;
+
+-- Cancelling stands the ledger entry down without erasing the document.
+update partner_documents set status = 'cancelled' where id = 'f1400000-0000-0000-0000-000000000001';
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if c <> 0 then raise exception 'F14 FAIL [cancel]: cancelled invoice still costed'; end if;
+end $$;
+update partner_documents set status = 'sent' where id = 'f1400000-0000-0000-0000-000000000001';  -- restore
+
+-- ── (a)(b)(c) visibility ──────────────────────────────────────────
+set role authenticated;
+
+-- Farm A's owner sees BOTH documents raised against Farm A (W's invoice + X's quote) and
+-- neither of Farm E's.
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
+  select count(*) into c from partner_documents;
+  if c <> 2 then raise exception 'F14 FAIL [ownerA]: sees % documents (expected 2)', c; end if;
+end $$;
+
+-- Farm B's owner sees none of them.
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  select count(*) into c from partner_documents;
+  if c <> 0 then raise exception 'F14 FAIL [ownerB cross-tenant]: sees % documents (expected 0)', c; end if;
+end $$;
+
+-- (b) THE PRIVACY CASE. Workshop W is linked to Farm A, and so is Workshop X. W must see
+-- its OWN two documents (Farm A invoice + Farm E quote) and NOT X's Farm A quote — even
+-- though W has full farm access to Farm A.
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into c from partner_documents;
+  if c <> 2 then raise exception 'F14 FAIL [W scope]: sees % documents (expected its own 2)', c; end if;
+  select count(*) into c from partner_documents where id = 'f1400000-0000-0000-0000-000000000002';
+  if c <> 0 then raise exception 'F14 FAIL [PRICING LEAK]: Workshop W can see Workshop X''s quote on a shared farm';
+  end if;
+end $$;
+
+-- X sees only its own, on the one farm it serves.
+do $$ declare c bigint; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
+  select count(*) into c from partner_documents;
+  if c <> 1 then raise exception 'F14 FAIL [X scope]: sees % documents (expected 1)', c; end if;
+end $$;
+
+-- (c) An operator on Farm A sees no documents at all.
+do $$ declare c bigint; begin
+  perform _t_login('a0000000-0000-0000-0000-0000000000a9');            -- Operator A
+  select count(*) into c from partner_documents;
+  if c <> 0 then raise exception 'F14 FAIL [operator]: a driver sees % documents (expected 0)', c; end if;
+  select count(*) into c from partner_document_lines;
+  if c <> 0 then raise exception 'F14 FAIL [operator lines]: a driver sees % lines (expected 0)', c; end if;
+  select count(*) into c from partner_payments;
+  if c <> 0 then raise exception 'F14 FAIL [operator payments]: a driver sees % payments (expected 0)', c; end if;
+end $$;
+
+-- Child rows follow the parent: Owner A sees the invoice's 2 lines; Workshop X sees none
+-- of them (they belong to W's document).
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  select count(*) into c from partner_document_lines;
+  if c <> 2 then raise exception 'F14 FAIL [ownerA lines]: % (expected 2)', c; end if;
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
+  select count(*) into c from partner_document_lines;
+  if c <> 0 then raise exception 'F14 FAIL [X lines leak]: % (expected 0)', c; end if;
+end $$;
+
+-- ── Cross-tenant writes are rejected ──────────────────────────────
+do $$ begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  begin
+    insert into partner_documents (farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
+    values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+            'invoice', 'draft', 'built', 'INV-HACK', 1500);
+    raise exception 'F14 FAIL [cross-tenant insert]: Owner B raised a document on Farm A';
+  exception
+    when insufficient_privilege then null;
+    when others then if sqlstate <> '42501' then raise; end if;
+  end;
+end $$;
+
+-- An operator cannot raise one on their own farm either.
+do $$ begin
+  perform _t_login('a0000000-0000-0000-0000-0000000000a9');            -- Operator A
+  begin
+    insert into partner_documents (farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
+    values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+            'invoice', 'draft', 'built', 'INV-OP', 1500);
+    raise exception 'F14 FAIL [operator insert]: a driver raised an invoice';
+  exception
+    when insufficient_privilege then null;
+    when others then if sqlstate <> '42501' then raise; end if;
+  end;
+end $$;
+
+-- (h) A partner cannot promote its own plan (the 0380/0382 guard trigger).
+do $$ begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  begin
+    update workshops set plan = 'managed' where id = '33333333-3333-3333-3333-333333333333';
+    raise exception 'F14 FAIL [self-upgrade]: a partner set its own plan';
+  exception
+    when raise_exception then
+      if position('set by Rapid Rise' in sqlerrm) = 0 then raise; end if;
+  end;
+end $$;
+
+-- (i) …but it MAY maintain its own letterhead, and only its own.
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  update workshops set trading_name = 'W Diesel & Turbo', brand_primary = '#0f3d2e'
+    where id = '33333333-3333-3333-3333-333333333333';
+  select count(*) into c from workshops
+   where id = '33333333-3333-3333-3333-333333333333' and trading_name = 'W Diesel & Turbo';
+  if c <> 1 then raise exception 'F14 FAIL [own branding]: a partner could not set its own letterhead'; end if;
+
+  -- Workshop X's row is not W's to touch. RLS makes it invisible to the UPDATE, so the
+  -- statement affects zero rows rather than raising — assert the value did not move.
+  update workshops set trading_name = 'HACKED' where id = 'e3000000-0000-0000-0000-0000000000e3';
+end $$;
+reset role;
+do $$ declare n text; begin
+  select trading_name into n from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if n is not distinct from 'HACKED' then
+    raise exception 'F14 FAIL [BRANDING LEAK]: Workshop W rewrote Workshop X''s letterhead';
+  end if;
+end $$;
+
+-- (h) A partner cannot burn another partner's numbering sequence.
+set role authenticated;
+do $$ declare v text; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  v := public.next_document_number('33333333-3333-3333-3333-333333333333', 'invoice');
+  if v is null or v = '' then raise exception 'F14 FAIL [own numbering]: W could not allocate its own number'; end if;
+  begin
+    v := public.next_document_number('e3000000-0000-0000-0000-0000000000e3', 'invoice');
+    raise exception 'F14 FAIL [numbering leak]: W allocated a number on X''s sequence';
+  exception
+    when raise_exception then
+      if position('not your numbering' in sqlerrm) = 0 then raise; end if;
+  end;
+end $$;
+
+-- Numbers are per-partner and never repeat.
+do $$ declare a text; b text; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  a := public.next_document_number('33333333-3333-3333-3333-333333333333', 'quote');
+  b := public.next_document_number('33333333-3333-3333-3333-333333333333', 'quote');
+  if a = b then raise exception 'F14 FAIL [numbering repeat]: two allocations both returned %', a; end if;
+end $$;
+reset role;
+
+-- ── (g) anon can do nothing ───────────────────────────────────────
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin
+    select count(*) into c from partner_documents;
+    if c <> 0 then raise exception 'F14 FAIL [anon read]: anon saw % documents', c; end if;
+  exception
+    when insufficient_privilege then null;                              -- also acceptable
+  end;
+end $$;
+do $$ begin
+  begin
+    perform public.next_document_number('33333333-3333-3333-3333-333333333333', 'invoice');
+    raise exception 'F14 FAIL [anon numbering]: anon allocated a document number';
+  exception
+    when insufficient_privilege then null;                              -- expected
+    when others then if sqlstate = 'P0001' then raise; end if;
+  end;
+end $$;
+reset role;
+
+select 'ALL F14 PARTNER-DOCUMENT TESTS PASSED' as result;

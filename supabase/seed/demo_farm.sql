@@ -40,10 +40,23 @@ begin
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
 
   -- ── External workshop + link (classified contractor, F12a) ─────
-  -- Pro contractor plan (F12c) so the demo shows the gated client-analytics panel.
-  insert into workshops (id, name, contact, kind, plan, phone, whatsapp, email, area) values
-    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'pro',
-     '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville');
+  -- Managed product (F14e) so the demo shows document building, payments and the gated
+  -- client-analytics panel — plus a full letterhead (F14a), so every quote and invoice
+  -- in the demo comes out in TJ's own colours rather than ours.
+  insert into workshops (id, name, contact, kind, plan, phone, whatsapp, email, area,
+                         trading_name, reg_number, vat_number, address, website,
+                         bank_name, bank_account_name, bank_account_number, bank_branch_code, bank_account_type,
+                         brand_primary, brand_secondary, doc_prefix_quote, doc_prefix_invoice,
+                         quote_validity_days, invoice_terms_days, doc_terms, doc_footer) values
+    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'managed',
+     '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville',
+     'TJ Service & Repairs', '2016/447123/07', '4820291847',
+     E'12 Voortrekkerstraat\nBothaville 9660\nVrystaat', 'www.tjrepairs.example',
+     'FNB', 'TJ Service & Repairs', '62841937201', '250655', 'Cheque',
+     '#b91c1c', '#1f2937', 'TJQ', 'TJI', 14, 30,
+     'Payment strictly 30 days from invoice date. Parts carry the manufacturer''s warranty only. '
+     'Vehicles not collected within 14 days of completion incur storage fees.',
+     'E&OE');
   insert into workshop_links (workshop_id, farm_id, status) values
     (v_workshop, v_farm, 'active');
 
@@ -332,7 +345,7 @@ begin
   update work_requests set invoice_amount_cents = 180000
    where id = '72000000-0000-0000-0000-000000000002';
 
-  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners + work requests';
+  raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners + work requests + branded quotes/invoices';
 
   -- ── Budgets (G1 · FR-10.4) — this-year spend targets so budget-vs-actual has colour ──
   -- A whole-farm all-category budget (comfortably under) + a tight JD parts budget (goes
@@ -341,6 +354,45 @@ begin
     (v_farm, null,                                     null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date, 200000000, v_owner),
     (v_farm, '20000000-0000-0000-0000-000000000001',  'parts', 'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,    100000, v_owner),
     (v_farm, '20000000-0000-0000-0000-000000000007',  null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,   3000000, v_manager);
+
+  -- ── Partner documents (F14) — TJ's own paperwork, on TJ's letterhead ──────
+  -- Three states so every screen in the flow has something real to show:
+  --   * a QUOTE waiting on the owner's yes (the farmer's "needs your decision" card);
+  --   * an INVOICE part-paid (the balance-due path, and a payment already recorded);
+  --   * a DRAFT invoice TJ has not sent yet (the partner's own workspace).
+  -- The part-paid invoice is attached to work request 2, which already carries its own
+  -- invoice amount — so this also demonstrates the no-double-count rule live: the
+  -- document takes over and the work-request ledger entry stands down (0381).
+  insert into partner_documents
+    (id, farm_id, workshop_id, machine_id, work_request_id, kind, status, source, number, subject,
+     issue_date, due_date, vat_rate_bps, notes, terms, created_by, sent_at) values
+    ('74000000-0000-0000-0000-000000000001', v_farm, v_workshop, '20000000-0000-0000-0000-000000000004',
+     '72000000-0000-0000-0000-000000000001', 'quote', 'sent', 'built', 'TJQ-0001',
+     'Hidrouliese lek — New Holland', current_date - 2, current_date + 12, 1500,
+     'Ons het die pyp voorraad. Kan Donderdag begin as julle ja sê.',
+     'Payment strictly 30 days from invoice date.', v_wstaff, now() - interval '2 days'),
+    ('74000000-0000-0000-0000-000000000002', v_farm, v_workshop, '20000000-0000-0000-0000-000000000005',
+     '72000000-0000-0000-0000-000000000002', 'invoice', 'sent', 'built', 'TJI-0001',
+     'Voor-seisoen inspeksie', current_date - 9, current_date + 21, 1500,
+     'Dankie vir die werk.', 'Payment strictly 30 days from invoice date.', v_wstaff, now() - interval '9 days'),
+    ('74000000-0000-0000-0000-000000000003', v_farm, v_workshop, '20000000-0000-0000-0000-000000000001',
+     null, 'invoice', 'draft', 'built', 'TJI-0002',
+     '500-uur diens — John Deere', current_date, current_date + 30, 1500,
+     null, 'Payment strictly 30 days from invoice date.', v_wstaff, null);
+
+  -- Lines. Totals are NEVER typed — the 0381 triggers roll them up from these rows.
+  insert into partner_document_lines (farm_id, document_id, sort_order, kind, part_no, description, qty, unit_price_cents) values
+    (v_farm, '74000000-0000-0000-0000-000000000001', 0, 'part',   'HYD-3341', 'Hidrouliese hoëdrukpyp',      1,   142000),
+    (v_farm, '74000000-0000-0000-0000-000000000001', 1, 'part',   'SEAL-88',  'Seëlstel',                     2,    18500),
+    (v_farm, '74000000-0000-0000-0000-000000000001', 2, 'labour', null,       'Arbeid — uitbou en inbou',   4.5,    52000),
+    (v_farm, '74000000-0000-0000-0000-000000000002', 0, 'labour', null,       'Volledige inspeksie',          6,    52000),
+    (v_farm, '74000000-0000-0000-0000-000000000002', 1, 'other',  null,       'Reiskoste — Bothaville',       1,    45000),
+    (v_farm, '74000000-0000-0000-0000-000000000003', 0, 'part',   'JD-500SVC','500-uur dienstel',             1,   238000),
+    (v_farm, '74000000-0000-0000-0000-000000000003', 1, 'labour', null,       'Arbeid — 500-uur diens',       5,    52000);
+
+  -- A part payment on the sent invoice, so the balance-due path is live.
+  insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, reference, recorded_by) values
+    (v_farm, '74000000-0000-0000-0000-000000000002', 200000, current_date - 3, 'eft', 'TJI-0001', v_owner);
 
   -- ── Downtime (G1 · §23) — the New Holland went into the workshop 12 days ago. The
   --    downtime engine (0361) reconstructs days-down from this status-change audit row.

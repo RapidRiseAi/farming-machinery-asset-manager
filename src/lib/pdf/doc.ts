@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 
 // A4 in points.
 const PAGE_W = 595.28;
@@ -29,6 +29,35 @@ export function sanitize(s: string | null | undefined): string {
 
 type TextOpts = { size?: number; bold?: boolean; color?: RGB; gap?: number };
 
+/**
+ * Whose document this is (F14a).
+ *
+ * A partner's quote or invoice must leave here on THEIR letterhead — their name, their
+ * colour, their logo, their footer — not ours. Passing no brand keeps the FleetWise
+ * wordmark and green, which is what the job-card and machine-file PDFs still want.
+ */
+export type PdfBrand = {
+  /** Wordmark text — the partner's trading name, or "FleetWise". */
+  name: string;
+  /** Header colour as `#RRGGBB`. */
+  primary?: string | null;
+  /** PNG or JPEG bytes for a logo; anything else is skipped rather than crashing. */
+  logo?: { bytes: Uint8Array; contentType: string } | null;
+  /** Replaces the generated-on footer stamp when set. */
+  footer?: string | null;
+  /** Append the FleetWise credit to the footer. */
+  poweredBy?: boolean;
+};
+
+function hexRgb(hex: string | null | undefined, fallback: RGB): RGB {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return fallback;
+  return rgb(
+    parseInt(hex.slice(1, 3), 16) / 255,
+    parseInt(hex.slice(3, 5), 16) / 255,
+    parseInt(hex.slice(5, 7), 16) / 255,
+  );
+}
+
 /** Tiny cursor-based layout engine over pdf-lib: wrapped text, key/value rows,
  *  paginated tables, and a repeating footer with page numbers. */
 export class Pdf {
@@ -38,16 +67,32 @@ export class Pdf {
   private page!: PDFPage;
   private y = 0;
   private title: string;
+  private brand: PdfBrand;
+  private accent: RGB;
+  private logo: PDFImage | null = null;
 
-  private constructor(title: string) {
+  private constructor(title: string, brand: PdfBrand) {
     this.title = title;
+    this.brand = brand;
+    this.accent = hexRgb(brand.primary, BRAND);
   }
 
-  static async create(title: string): Promise<Pdf> {
-    const p = new Pdf(title);
+  static async create(title: string, brand?: PdfBrand): Promise<Pdf> {
+    const p = new Pdf(title, brand ?? { name: "FleetWise", poweredBy: false });
     p.doc = await PDFDocument.create();
     p.font = await p.doc.embedFont(StandardFonts.Helvetica);
     p.bold = await p.doc.embedFont(StandardFonts.HelveticaBold);
+    if (p.brand.logo) {
+      try {
+        p.logo = /png/i.test(p.brand.logo.contentType)
+          ? await p.doc.embedPng(p.brand.logo.bytes)
+          : await p.doc.embedJpg(p.brand.logo.bytes);
+      } catch {
+        // A logo that pdf-lib will not embed must never stop a partner sending an
+        // invoice — fall back to the wordmark alone.
+        p.logo = null;
+      }
+    }
     p.addPage();
     return p;
   }
@@ -80,10 +125,20 @@ export class Pdf {
     return lines;
   }
 
-  /** Document title block with the FleetWise wordmark. */
+  /** Document title block with the issuer's wordmark (and logo, when they have one). */
   header(subtitle?: string) {
-    this.page.drawText("FleetWise", { x: MARGIN, y: this.y, size: 12, font: this.bold, color: BRAND });
-    this.y -= 24;
+    if (this.logo) {
+      const h = 28;
+      const w = Math.min(90, (this.logo.width / this.logo.height) * h);
+      this.page.drawImage(this.logo, { x: MARGIN, y: this.y - h + 10, width: w, height: h });
+      this.page.drawText(sanitize(this.brand.name), {
+        x: MARGIN + w + 10, y: this.y, size: 12, font: this.bold, color: this.accent,
+      });
+      this.y -= 34;
+    } else {
+      this.page.drawText(sanitize(this.brand.name), { x: MARGIN, y: this.y, size: 12, font: this.bold, color: this.accent });
+      this.y -= 24;
+    }
     this.page.drawText(sanitize(this.title), { x: MARGIN, y: this.y, size: 20, font: this.bold, color: INK });
     this.y -= 18;
     if (subtitle) {
@@ -162,7 +217,10 @@ export class Pdf {
   private footers() {
     const pages = this.doc.getPages();
     const total = pages.length;
-    const stamp = `FleetWise · generated ${new Date().toISOString().slice(0, 10)}`;
+    const credit = this.brand.poweredBy ? " · powered by FleetWise" : "";
+    const stamp = this.brand.footer
+      ? `${this.brand.footer}${credit}`
+      : `${this.brand.name} · generated ${new Date().toISOString().slice(0, 10)}${credit}`;
     pages.forEach((pg, i) => {
       pg.drawText(sanitize(stamp), { x: MARGIN, y: MARGIN - 16, size: 8, font: this.font, color: MUTED });
       const label = `${i + 1} / ${total}`;

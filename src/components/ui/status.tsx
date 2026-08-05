@@ -13,6 +13,7 @@ import {
   EXPIRY_LOOK,
   BUDGET_LOOK,
   FINE_LOOK,
+  DOC_LOOK,
   type StatusLook,
 } from "./badge";
 
@@ -68,6 +69,9 @@ export const PriorityStatus = make(PRIORITY_LOOK, "workPriority");
 
 /** Traffic-fine (AARTO) lifecycle. */
 export const FineStatus = make(FINE_LOOK, "fineStatus");
+
+/** Partner quote/invoice lifecycle. */
+export const DocStatus = make(DOC_LOOK, "docStatus");
 
 /** Service due state — the traffic light the product turns on. */
 export function ServiceStatus({ value, locale, size = "sm", className }: Props) {

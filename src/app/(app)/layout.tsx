@@ -89,6 +89,10 @@ export default async function AppLayout({
   const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
   const checklists: NavItemData = { href: "/checklists", label: t("nav.checklists", locale), icon: "checklists" };
   const work: NavItemData = { href: "/work", label: t("nav.work", locale), icon: "work" };
+  // Quotes & invoices (F14). Both sides of the same route: what a partner has issued,
+  // what a farm has been sent. Never shown to operators — the RLS policy excludes them.
+  const documents: NavItemData = { href: "/documents", label: t("nav.documents", locale), icon: "documents" };
+  const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
   const fines: NavItemData = { href: "/fines", label: t("nav.fines", locale), icon: "fines" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
@@ -103,16 +107,17 @@ export default async function AppLayout({
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
   // Contractors get a contractor-first tab set; everyone else the farm set.
   const tabItems: NavItemData[] = isWorkshop
-    ? [contractor, work, machines, faults]
+    ? [contractor, work, documents, machines]
     : isOperator
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [jobcards, checklists, alerts, install]
+    ? [documents, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
         work,
+        ...(isManagerPlus ? [documents] : []),
         ...(fuelAllowed ? [fuel] : []),
         ...(canParts ? [parts] : []),
         ...(canPartners ? [partners] : []),
@@ -138,9 +143,9 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, work] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, work, documents] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
-        { key: "farm", label: t("nav.groupFarm", locale), items: [alerts] },
+        { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]
     : [
         ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
@@ -152,7 +157,7 @@ export default async function AppLayout({
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: [...(isManagerPlus ? [team] : []), alerts],
+          items: [...(isManagerPlus ? [documents, team] : []), alerts],
         },
       ];
 
