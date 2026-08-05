@@ -9,7 +9,7 @@
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/* — mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v1";
+const VERSION = "fleetwise-v2";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -52,15 +52,34 @@ async function cacheFirst(request, cacheName) {
   return res;
 }
 
+/*
+ * Pages the app can fall back to when a launch happens with no signal and the exact URL
+ * asked for was never cached — in role order, most-specific first. Landing on the last
+ * real screen we have beats a dead end.
+ */
+const APP_FALLBACKS = ["/dashboard", "/driver", "/contractor", "/machines"];
+
 async function networkFirstNav(request) {
   const cache = await caches.open(DATA_CACHE);
   try {
     const res = await fetch(request);
-    if (res && res.ok) cache.put(request, res.clone());
+    /*
+     * Never cache a REDIRECTED response against the URL that was asked for. A single
+     * auth hiccup redirects /dashboard to /login; caching that would pin the login page
+     * under /dashboard and serve it offline forever, which looks exactly like "the app
+     * logged me out and now it won't let me back in".
+     */
+    if (res && res.ok && !res.redirected) cache.put(request, res.clone());
     return res;
   } catch (err) {
     const cached = await cache.match(request);
     if (cached) return cached;
+    // Opening the installed app with no signal: show the last screen we actually have
+    // rather than the offline notice.
+    for (const path of APP_FALLBACKS) {
+      const alt = await cache.match(path);
+      if (alt) return alt;
+    }
     const offline = await caches.match("/offline");
     if (offline) return offline;
     throw err;
