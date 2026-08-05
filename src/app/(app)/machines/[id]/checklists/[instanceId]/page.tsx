@@ -25,7 +25,7 @@ type ValueRow = {
 
 export default async function ChecklistInstancePage({ params }: { params: Promise<{ id: string; instanceId: string }> }) {
   const profile = await requireProfile();
-  const locale = profile.language;
+  const locale = profile.lang;
   const { id: machineId, instanceId } = await params;
   const canEdit = ["owner", "manager", "mechanic"].includes(profile.role);
 

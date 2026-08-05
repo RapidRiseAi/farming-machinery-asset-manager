@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
@@ -10,7 +10,7 @@ import { t, type Locale } from "@/lib/i18n";
  * double-count). Posts multipart form data to /api/work/media, then refreshes the
  * server component so the new attachment / status / cost appear.
  */
-export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequestId: string; locale?: Locale }) {
+export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequestId: string; locale?: Lang }) {
   const router = useRouter();
   const [kind, setKind] = useState<"photo" | "quote" | "invoice">("invoice");
   const [busy, setBusy] = useState(false);

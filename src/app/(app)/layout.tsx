@@ -14,6 +14,8 @@ import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
+import { Tour } from "@/components/tour";
+import { tourFor } from "@/lib/tour";
 
 /** Two-letter initials from a display name, for the avatar chip. */
 function initials(name: string): string {
@@ -29,7 +31,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { profile, plan } = await currentPlan();
-  const locale = profile.language;
+  const locale = profile.lang;
+  // The EN/AF control shows the LANGUAGE choice, which is independent of tone — a
+  // professional-tone Afrikaans user must still see AF selected, not "af-pro".
+  const languageChoice = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
   const isAdmin = profile.role === "rr_admin";
   // Contractors (workshop role) get a tailored, contractor-first shell (F12c): their
@@ -90,6 +95,9 @@ export default async function AppLayout({
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
   const settings: NavItemData = { href: "/settings", label: t("nav.settings", locale), icon: "settings" };
+  // Every role, including drivers and contractors: putting it on the phone is the
+  // point of an offline-first product, and it was reachable from nowhere.
+  const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
@@ -100,7 +108,7 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [jobcards, checklists, alerts]
+    ? [jobcards, checklists, alerts, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -114,6 +122,7 @@ export default async function AppLayout({
         alerts,
         ...(isManagerPlus ? [team, settings] : []),
         ...(isAdmin ? [admin] : []),
+        install,
       ];
 
   // Desktop: grouped sidebar sections (gated items dropped).
@@ -161,6 +170,7 @@ export default async function AppLayout({
         ...(finesAllowed ? [fines] : []),
         ...(isManagerPlus ? [settings] : []),
         ...(isAdmin ? [admin] : []),
+        install,
       ];
 
   const appName = t("app.name", locale);
@@ -200,7 +210,7 @@ export default async function AppLayout({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 px-3 py-1">
         <span className="text-[0.95rem] font-medium text-sand-800">{languageLabel}</span>
-        <LanguageSwitcher current={locale} label={languageLabel} />
+        <LanguageSwitcher current={languageChoice} label={languageLabel} />
       </div>
       <form action={signOut}>
         <button
@@ -258,7 +268,7 @@ export default async function AppLayout({
             <span className="text-xs font-semibold uppercase tracking-wider text-sand-400">
               {languageLabel}
             </span>
-            <LanguageSwitcher current={locale} label={languageLabel} />
+            <LanguageSwitcher current={languageChoice} label={languageLabel} />
           </div>
           <div className="mb-1 flex items-center gap-2.5 px-1">
             {avatar}
@@ -309,7 +319,8 @@ export default async function AppLayout({
         </header>
 
         <main className="mx-auto w-full max-w-screen-2xl flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-10">
-          {children}
+          <Tour steps={tourFor(profile.role)} locale={locale} homePath={homeHref} />
+        {children}
         </main>
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 
 /** VAPID public key → bytes for PushManager.subscribe(applicationServerKey). */
@@ -22,7 +22,7 @@ type State = "loading" | "unsupported" | "unconfigured" | "denied" | "off" | "on
  * explicit click. Registers the browser PushSubscription with the server; the per-user
  * `notify_push` toggle (separate, in the prefs form) decides whether we actually push.
  */
-export function PushToggle({ locale }: { locale: Locale }) {
+export function PushToggle({ locale }: { locale: Lang }) {
   const [state, setState] = useState<State>("loading");
   const [error, setError] = useState<string | null>(null);
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;

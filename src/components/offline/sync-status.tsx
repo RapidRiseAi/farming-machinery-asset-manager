@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { isOnline, pendingCount, subscribe } from "@/lib/offline/capture";
 import { flush } from "@/lib/offline/sync";
 
@@ -13,7 +13,7 @@ type Mode = "online" | "offline" | "syncing" | "pending";
  * online with items queued forces a flush. After a flush that applied anything, the current
  * route is refreshed so dependent metrics (service-due, spend) recompute.
  */
-export function SyncStatus({ locale }: { locale: Locale }) {
+export function SyncStatus({ locale }: { locale: Lang }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [online, setOnline] = useState(true);

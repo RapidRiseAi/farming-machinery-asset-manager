@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
 import { CloseIcon, PlusIcon, ChevronUpIcon } from "@/components/ui/icons";
@@ -48,7 +48,7 @@ export function ChecklistForm({
   currentReading: number | null;
   templates: FormTemplate[];
   initialTemplateId?: string;
-  locale: Locale;
+  locale: Lang;
 }) {
   const router = useRouter();
   const [templateId, setTemplateId] = useState(initialTemplateId ?? templates[0]?.id ?? "");

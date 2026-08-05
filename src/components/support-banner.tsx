@@ -1,4 +1,4 @@
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { WarningIcon } from "@/components/ui/icons";
 import { exitSupportMode } from "@/app/(app)/admin/farms/[id]/actions";
@@ -12,7 +12,7 @@ import { exitSupportMode } from "@/app/(app)/admin/farms/[id]/actions";
  * so it can never claim a mode that isn't real, which was the original defect in
  * reverse.
  */
-export function SupportBanner({ farmName, locale }: { farmName: string; locale: Locale }) {
+export function SupportBanner({ farmName, locale }: { farmName: string; locale: Lang }) {
   return (
     <div
       role="status"

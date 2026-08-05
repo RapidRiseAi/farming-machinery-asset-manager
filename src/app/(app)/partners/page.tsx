@@ -1,7 +1,8 @@
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import type { Locale } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
+import type { Locale, Lang } from "@/lib/i18n";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +56,7 @@ type SP = {
 };
 
 /** Provider-free quick-contact button row (tel / wa.me / mailto). */
-function ContactButtons({ p, locale }: { p: Partner; locale: Locale }) {
+function ContactButtons({ p, locale }: { p: Partner; locale: Lang }) {
   const tel = telHref(p.phone);
   const wa = waHref(p.whatsapp ?? p.phone, t("contact.waPrefill", locale));
   const mail = mailtoHref(p.email);
@@ -85,7 +86,7 @@ function ContactButtons({ p, locale }: { p: Partner; locale: Locale }) {
 }
 
 /** The add / edit form fields (shared markup). */
-function KindSelect({ locale, value }: { locale: Locale; value?: string }) {
+function KindSelect({ locale, value }: { locale: Lang; value?: string }) {
   return (
     <Select name="kind" defaultValue={value ?? "other"}>
       {KINDS.map((k) => (
@@ -100,7 +101,7 @@ function KindSelect({ locale, value }: { locale: Locale; value?: string }) {
 export default async function PartnersPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
 
   const isAdmin = profile.role === "rr_admin";
   const canManage = profile.role === "owner" || profile.role === "manager";
@@ -134,7 +135,10 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("partners.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("partners.title", locale)}</h1>
+          <PageInfoButton infoKey="partners" locale={locale} />
+        </div>
         <p className="mt-0.5 text-sm text-sand-500">{t("partners.subtitle", locale)}</p>
       </div>
 

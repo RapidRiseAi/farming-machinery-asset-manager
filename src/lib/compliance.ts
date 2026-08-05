@@ -9,7 +9,7 @@
  *   - "ok"       — comfortably in date
  *   - null       — no expiry recorded on this basis
  */
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 
 export type ExpiryStatus = "ok" | "expiring" | "expired";
@@ -83,7 +83,7 @@ export function expiryTone(s: ExpiryStatus | null): "ok" | "warning" | "danger" 
 }
 
 /** Localised label for a status. */
-export function expiryLabel(s: ExpiryStatus | null, locale: Locale): string {
+export function expiryLabel(s: ExpiryStatus | null, locale: Lang): string {
   if (s == null) return t("compliance.statusNone", locale);
   return t(`compliance.status.${s}`, locale);
 }
@@ -98,6 +98,6 @@ export const LICENCE_TYPES = [
 ] as const;
 export type LicenceType = (typeof LICENCE_TYPES)[number];
 
-export function licenceTypeLabel(type: string, locale: Locale): string {
+export function licenceTypeLabel(type: string, locale: Lang): string {
   return t(`licenceType.${type}`, locale);
 }

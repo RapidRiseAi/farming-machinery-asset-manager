@@ -1,5 +1,5 @@
 import { MACHINE_TYPES, METER_TYPES } from "@/lib/machine-options";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -46,7 +46,7 @@ export function MachineFields({
 }: {
   machine?: Defaults;
   operators?: OperatorOption[];
-  locale?: Locale;
+  locale?: Lang;
 }) {
   const m = machine ?? {};
   const price =

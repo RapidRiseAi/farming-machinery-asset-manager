@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { inviteUser, setUserActive, erasePerson } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
@@ -34,7 +35,7 @@ export default async function TeamPage({
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
 
   const supabase = await createClient();
@@ -44,7 +45,10 @@ export default async function TeamPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
+      <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
+          <PageInfoButton infoKey="team" locale={locale} />
+        </div>
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
 

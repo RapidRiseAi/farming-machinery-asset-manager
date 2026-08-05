@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter } from "@/lib/cost";
 import { meterReading, relativeDate, num } from "@/lib/format";
@@ -18,7 +19,7 @@ import { MachineStatus, ServiceStatus } from "@/components/ui/status";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { GetStarted, NoMatches } from "@/components/ui/empty-state";
-import { FilterChips, type ChipOption } from "@/components/ui/filter-chips";
+import { FilterBar, type ChipOption } from "@/components/ui/filter-bar";
 import { Flash } from "@/components/ui/flash";
 import { MachinesIcon, PlusIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, ChevronRightIcon } from "@/components/ui/icons";
 
@@ -48,7 +49,7 @@ const worst = (a: string, b: string) => {
 export default async function MachinesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canEdit = profile.role === "owner" || profile.role === "manager";
 
   const sort = sp.sort === "reading" ? "current_reading" : "name";
@@ -274,9 +275,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
           never did before. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
             {t("machines.title", locale)}
           </h1>
+          <PageInfoButton infoKey="machines" locale={locale} />
+        </div>
           <p className="mt-1 text-sm text-sand-500">
             {t("machines.headerCount", locale).replace("{n}", num(fleetTotal, 0))}
             {fleetNeedService > 0 ? (
@@ -314,73 +318,66 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
       <Flash tone="success" message={sp.imported ? t("machines.importedN", locale).replace("{n}", sp.imported) : undefined} />
 
-      {/* Search stays a form (it needs a keyboard), but the five dropdowns and the
-          Search button that ate the first screen on a phone are now chips that apply
-          on tap and write the same URL params. */}
-      <div className="flex flex-col gap-3">
-        <form className="flex gap-2">
-          <div className="relative flex-1">
-            <label htmlFor="q" className="sr-only">{t("machines.search", locale)}</label>
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
-            <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
-          </div>
-          {sp.type ? <input type="hidden" name="type" value={sp.type} /> : null}
-          {sp.status ? <input type="hidden" name="status" value={sp.status} /> : null}
-          {sp.cc ? <input type="hidden" name="cc" value={sp.cc} /> : null}
-          {sp.dept ? <input type="hidden" name="dept" value={sp.dept} /> : null}
-          {showRetired ? <input type="hidden" name="retired" value="1" /> : null}
-          <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
-        </form>
-
-        <FilterChips
-          paramName="type"
-          current={sp.type}
-          options={typeOptions}
-          path="/machines"
-          search={search}
-          label={t("machines.filterType", locale)}
-        />
-        <FilterChips
-          paramName="status"
-          current={sp.status}
-          options={statusOptions}
-          path="/machines"
-          search={search}
-          label={t("machines.filterStatus", locale)}
-        />
-        {costCentres.length > 0 ? (
-          <FilterChips
-            paramName="cc"
-            current={sp.cc}
-            options={[{ value: "", label: t("filters.all", locale) }, ...costCentres.map((c) => ({ value: c, label: c }))]}
-            path="/machines"
-            search={search}
-            label={t("machines.costCentre", locale)}
-          />
-        ) : null}
-        {departments.length > 0 ? (
-          <FilterChips
-            paramName="dept"
-            current={sp.dept}
-            options={[{ value: "", label: t("filters.all", locale) }, ...departments.map((d) => ({ value: d, label: d }))]}
-            path="/machines"
-            search={search}
-            label={t("machines.department", locale)}
-          />
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-3 text-sm text-sand-500">
-          <span className="tabular-nums">
-            {t("machines.showingOf", locale).replace("{n}", String(machines.length)).replace("{total}", String(fleetTotal))}
-          </span>
-          <Link
-            href={showRetired ? "/machines" : "/machines?retired=1"}
-            className="focus-ring rounded-md font-medium text-brand-700"
-          >
-            {showRetired ? t("machines.hideRetired", locale) : t("machines.showRetired", locale)}
-          </Link>
-        </div>
-      </div>
+      {/*
+        Four unlabelled chip rows used to stack here — type, status, cost centre,
+        department — roughly 200px of identical-looking controls before the first
+        machine, with the group names present only as `aria-label`. One filter control
+        now, with what is actually filtering shown in words above the list.
+      */}
+      <FilterBar
+        path="/machines"
+        search={search}
+        filtersLabel={t("filters.filters", locale)}
+        clearLabel={t("filters.clearAll", locale)}
+        groups={[
+          { paramName: "type", label: t("machines.filterType", locale), current: sp.type, options: typeOptions },
+          { paramName: "status", label: t("machines.filterStatus", locale), current: sp.status, options: statusOptions },
+          ...(costCentres.length > 0
+            ? [{
+                paramName: "cc",
+                label: t("machines.costCentre", locale),
+                current: sp.cc,
+                options: [{ value: "", label: t("filters.all", locale) }, ...costCentres.map((c) => ({ value: c, label: c }))],
+              }]
+            : []),
+          ...(departments.length > 0
+            ? [{
+                paramName: "dept",
+                label: t("machines.department", locale),
+                current: sp.dept,
+                options: [{ value: "", label: t("filters.all", locale) }, ...departments.map((d) => ({ value: d, label: d }))],
+              }]
+            : []),
+        ]}
+        searchSlot={
+          <form className="flex gap-2">
+            <div className="relative flex-1">
+              <label htmlFor="q" className="sr-only">{t("machines.search", locale)}</label>
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
+              <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
+            </div>
+            {sp.type ? <input type="hidden" name="type" value={sp.type} /> : null}
+            {sp.status ? <input type="hidden" name="status" value={sp.status} /> : null}
+            {sp.cc ? <input type="hidden" name="cc" value={sp.cc} /> : null}
+            {sp.dept ? <input type="hidden" name="dept" value={sp.dept} /> : null}
+            {showRetired ? <input type="hidden" name="retired" value="1" /> : null}
+            <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
+          </form>
+        }
+        extra={
+          <>
+            <span className="tabular-nums">
+              {t("machines.showingOf", locale).replace("{n}", String(machines.length)).replace("{total}", String(fleetTotal))}
+            </span>
+            <Link
+              href={showRetired ? "/machines" : "/machines?retired=1"}
+              className="focus-ring rounded-md font-medium text-brand-700"
+            >
+              {showRetired ? t("machines.hideRetired", locale) : t("machines.showRetired", locale)}
+            </Link>
+          </>
+        }
+      />
 
       {machines.length === 0 && !hasFilter ? (
         /* Nothing on the farm yet — a warm first run, with a ghost of the filled list. */

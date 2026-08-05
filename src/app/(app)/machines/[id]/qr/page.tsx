@@ -18,7 +18,7 @@ export default async function MachineQrPage({
   searchParams: Promise<{ reissued?: string; error?: string }>;
 }) {
   const profile = await requireProfile();
-  const locale = profile.language;
+  const locale = profile.lang;
   const { id } = await params;
   const sp = await searchParams;
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -18,7 +19,7 @@ export default async function OnboardingPage({
   const sp = await searchParams;
   const profile = await requireProfile();
   if (profile.role !== "owner" && profile.role !== "manager") redirect(`${homePathFor(profile.role)}?denied=1`);
-  const locale = profile.language;
+  const locale = profile.lang;
   const supabase = await createClient();
 
   const [machinesRes, planRes, usersRes, farmRes] = await Promise.all([
@@ -49,7 +50,10 @@ export default async function OnboardingPage({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("onboarding.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("onboarding.title", locale)}</h1>
+          <PageInfoButton infoKey="onboarding" locale={locale} />
+        </div>
         <p className="mt-1 text-sand-500">{t("onboarding.subtitle", locale)}</p>
       </div>
 

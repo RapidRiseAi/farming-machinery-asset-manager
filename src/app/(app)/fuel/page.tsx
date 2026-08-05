@@ -3,6 +3,7 @@ import { checkEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { meterLabel } from "@/lib/machine-options";
 import {
@@ -47,11 +48,14 @@ export default async function FuelPage({
   // farms — fuel data is never fetched; an upgrade prompt shows instead.
   const gate = await checkEntitlement("fuel");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.fuel", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.fuel", locale)}</h1>
+          <PageInfoButton infoKey="fuel" locale={locale} />
+        </div>
         <UpgradeNotice
           feature="fuel"
           requiredPlan={gate.requiredPlan}
@@ -128,7 +132,10 @@ export default async function FuelPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fuel.title", locale)}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fuel.title", locale)}</h1>
+            <PageInfoButton infoKey="fuel" locale={locale} />
+          </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("fuel.subtitle", locale)}</p>
         </div>
       </div>

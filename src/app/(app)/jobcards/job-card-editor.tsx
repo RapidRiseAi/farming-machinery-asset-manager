@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +21,7 @@ type Draft = {
 
 /** Shows the save state honestly — the page autosaved to the device every 500ms and
  *  never said so, while a Save button sat there implying the opposite. */
-function SaveBar({ dirty, locale }: { dirty: boolean; locale: Locale }) {
+function SaveBar({ dirty, locale }: { dirty: boolean; locale: Lang }) {
   const { pending } = useFormStatus();
   return (
     <div className="sticky bottom-0 -mx-4 mt-1 flex items-center justify-between gap-3 border-t border-sand-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-b-xl">
@@ -48,7 +48,7 @@ export function JobCardEditor({
 }: {
   id: string;
   meterType: string;
-  locale: Locale;
+  locale: Lang;
   initial: Draft;
 }) {
   const key = `farmgear:jobcard-draft:${id}`;

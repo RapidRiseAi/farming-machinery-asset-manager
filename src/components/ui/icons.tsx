@@ -329,6 +329,14 @@ export const LockIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const DownloadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3.5v11" />
+    <path d="M7.5 10.5 12 15l4.5-4.5" />
+    <path d="M4.5 17.5v1A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5v-1" />
+  </Svg>
+);
+
 export const SquareIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="4.5" y="4.5" width="15" height="15" rx="3" />
@@ -384,6 +392,7 @@ export const iconByName = {
   pin: PinIcon,
   lock: LockIcon,
   square: SquareIcon,
+  download: DownloadIcon,
   search: SearchIcon,
   check: CheckIcon,
   warning: WarningIcon,

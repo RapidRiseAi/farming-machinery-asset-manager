@@ -27,7 +27,7 @@ type TemplateRow = {
 
 export default async function EditChecklistTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole(["owner", "manager", "mechanic", "rr_admin"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const { id } = await params;
 
   const supabase = await createClient();

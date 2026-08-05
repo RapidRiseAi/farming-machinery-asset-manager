@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
 import { CameraIcon, MicIcon, StopIcon, PinIcon, CheckIcon } from "@/components/ui/icons";
 
@@ -44,7 +44,7 @@ export function FaultCapture({
   token?: string;
   machines?: { id: string; name: string }[];
   redirectTo: string;
-  locale: Locale;
+  locale: Lang;
   variant?: "app" | "public";
 }) {
   const [description, setDescription] = useState("");

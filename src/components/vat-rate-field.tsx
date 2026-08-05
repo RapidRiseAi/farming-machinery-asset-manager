@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { percentToBps } from "@/lib/format";
@@ -14,7 +14,7 @@ import { percentToBps } from "@/lib/format";
  * now speaks percent; a hidden field posts the same `vat_rate_bps` name with the same
  * basis-point units, so `updateSettings` is untouched.
  */
-export function VatRateField({ defaultBps, locale }: { defaultBps: number; locale: Locale }) {
+export function VatRateField({ defaultBps, locale }: { defaultBps: number; locale: Lang }) {
   const [percent, setPercent] = useState(String(defaultBps / 100));
   const bps = percentToBps(percent);
 

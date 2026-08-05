@@ -4,6 +4,7 @@ import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import {
   WORK_STATUSES, WORK_KINDS, WORK_PRIORITIES,
@@ -44,7 +45,7 @@ export default async function ContractorDashboardPage({
   searchParams: Promise<{ kind?: string; status?: string; farm?: string; sort?: string }>;
 }) {
   const profile = await requireProfile();
-  const locale = profile.language;
+  const locale = profile.lang;
   // This dashboard belongs to the contractor (workshop) role. Everyone else has their own
   // home — send them there rather than render an empty portal.
   if (profile.role !== "workshop" || !profile.workshop_id) redirect("/machines");
@@ -166,7 +167,10 @@ export default async function ContractorDashboardPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("contractor.title", locale)}</h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("contractor.title", locale)}</h1>
+          <PageInfoButton infoKey="contractor" locale={locale} />
+        </div>
             <Badge tone="brand">{contractorKindLabel(workshop.kind, locale)}</Badge>
           </div>
           <p className="mt-0.5 text-sm text-sand-500">{t(view.taglineKey, locale)}</p>

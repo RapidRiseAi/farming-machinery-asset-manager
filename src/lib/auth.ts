@@ -16,6 +16,16 @@ import {
   workshopPlanAllows,
   workshopRequiredPlan,
 } from "@/lib/contractor-plan";
+import {
+  type Locale,
+  type Tone,
+  type Lang,
+  langOf,
+  defaultLocale,
+  defaultTone,
+  isTone,
+} from "@/lib/i18n";
+import { isLocale } from "@/lib/locale";
 
 export type Role =
   | "rr_admin"
@@ -32,12 +42,27 @@ export type Profile = {
   role: Role;
   name: string;
   email: string | null;
-  language: "en" | "af";
+  /** The person's language choice on its own — what the EN/AF switch shows as current. */
+  language: Locale;
+  /** Their wording register on its own — what the tone switch shows as current. */
+  tone: Tone;
+  /**
+   * What to render in: language and tone composed into the single value `t()` takes.
+   *
+   * Pages read THIS, never `language`, so a page cannot accidentally render one of the
+   * two choices and ignore the other — which is exactly how the old bug worked, with
+   * `<html lang>` reading the cookie while the body read the profile.
+   */
+  lang: Lang;
+  /** Null until the person chooses a language themselves. See migration 0370. */
+  language_set_at: string | null;
   active: boolean;
 };
 
+type ProfileRow = Omit<Profile, "lang"> & { language: Locale; tone: Tone };
+
 const PROFILE_COLUMNS =
-  "id, farm_id, workshop_id, role, name, email, language, active";
+  "id, farm_id, workshop_id, role, name, email, language, tone, language_set_at, active";
 
 /** The authenticated Supabase auth user, or null. */
 export async function getUser(): Promise<User | null> {
@@ -57,7 +82,11 @@ export async function getProfile(): Promise<Profile | null> {
     .select(PROFILE_COLUMNS)
     .eq("id", uid)
     .maybeSingle();
-  return (data as Profile | null) ?? null;
+  const row = data as ProfileRow | null;
+  if (!row) return null;
+  const language: Locale = isLocale(row.language) ? row.language : defaultLocale;
+  const tone: Tone = isTone(row.tone) ? row.tone : defaultTone;
+  return { ...row, language, tone, lang: langOf(language, tone) };
 }
 
 /** Redirect to /login unless authenticated. */

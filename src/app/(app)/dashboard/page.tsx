@@ -4,6 +4,7 @@ import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 // Import from specific modules (not the barrel) so this Server Component stays
 // free of the kit's client chunk — see src/components/ui/README.md.
@@ -42,14 +43,17 @@ export default async function DashboardPage() {
   // farms — the KPI data below is never fetched or rendered; an upgrade prompt shows.
   const gate = await checkEntitlement("dashboard");
   const profile = gate.profile;
-  const locale = profile.language;
+  const locale = profile.lang;
   // A contractor (workshop role) has no single "farm" — their home is the aggregated
   // contractor dashboard (F12c), not this farm-centric one.
   if (profile.role === "workshop") redirect("/contractor");
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.dashboard", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.dashboard", locale)}</h1>
+          <PageInfoButton infoKey="dashboard" locale={locale} />
+        </div>
         <UpgradeNotice
           feature="dashboard"
           requiredPlan={gate.requiredPlan}
@@ -327,9 +331,12 @@ export default async function DashboardPage() {
       {/* Greeting — replaces the "Dashboard" heading, which told a multi-farm user
           nothing about which farm they were looking at. */}
       <header>
-        <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950 sm:text-[1.75rem]">
-          {t(greetKey, locale).replace("{name}", firstName)}
-        </h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950 sm:text-[1.75rem]">
+            {t(greetKey, locale).replace("{name}", firstName)}
+          </h1>
+          <PageInfoButton infoKey="dashboard" locale={locale} />
+        </div>
         <p className="mt-1 text-sm text-sand-500">
           <span className="capitalize">{todayLine}</span>
           {farmName ? <> · {farmName}</> : null}

@@ -5,7 +5,7 @@
  * thresholds (0371) so the UI and the nightly engine agree. A fine is captured against a
  * VEHICLE; the driver is nominated from the usage log before a statutory deadline.
  */
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { BadgeTone } from "@/components/ui/badge";
 import { dateExpiryStatus, type ExpiryStatus } from "@/lib/compliance";
@@ -44,7 +44,7 @@ export function nominationPending(status: string): boolean {
   return (PENDING_NOMINATION_STATUSES as readonly string[]).includes(status);
 }
 
-export function fineStatusLabel(status: string, locale: Locale): string {
+export function fineStatusLabel(status: string, locale: Lang): string {
   return t(`fineStatus.${status}`, locale);
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /**
  * Add-vehicle primary-photo picker. The machine's storage path only exists after
@@ -10,7 +10,7 @@ import { t, type Locale } from "@/lib/i18n";
  * `createMachine` server action as a base64 `data:` URL in a hidden field; the action
  * uploads it and marks it primary. Keeps the add flow one submit.
  */
-export function MachinePhotoNew({ locale = "en" }: { locale?: Locale }) {
+export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
   const [busy, setBusy] = useState(false);

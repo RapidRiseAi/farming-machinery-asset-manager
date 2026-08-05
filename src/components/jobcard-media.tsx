@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /**
  * Uploader for job-card quote / invoice / photo attachments. Recording an invoice with
@@ -10,7 +10,7 @@ import { t, type Locale } from "@/lib/i18n";
  * Posts multipart form data to /api/jobcards/media, then refreshes the server component
  * so the new attachment / cost appears.
  */
-export function JobCardMedia({ jobCardId, locale = "en" }: { jobCardId: string; locale?: Locale }) {
+export function JobCardMedia({ jobCardId, locale = "en" }: { jobCardId: string; locale?: Lang }) {
   const router = useRouter();
   const [kind, setKind] = useState<"photo" | "quote" | "invoice">("invoice");
   const [busy, setBusy] = useState(false);

@@ -11,7 +11,7 @@ export default async function ImportMachinesPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const profile = await requireRole(["owner", "manager"]);
-  const locale = profile.language;
+  const locale = profile.lang;
   const sp = await searchParams;
 
   return (

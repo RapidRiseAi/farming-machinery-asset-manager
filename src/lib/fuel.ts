@@ -6,7 +6,7 @@
  * LATER draw's litres to that interval. Lifetime consumption = Σ interval litres ÷ Σ meter
  * delta — L/hr for hours meters, L/100km for km meters (Scope §23).
  */
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /** Qualifying diesel activities (SARS-style dropdown, Scope §9). */
 export const FUEL_ACTIVITIES = [
@@ -21,7 +21,7 @@ export const FUEL_ACTIVITIES = [
   "other",
 ] as const;
 export type FuelActivity = (typeof FUEL_ACTIVITIES)[number];
-export const activityLabel = (key: string, locale: Locale) => t(`fuel.activity.${key}`, locale);
+export const activityLabel = (key: string, locale: Lang) => t(`fuel.activity.${key}`, locale);
 
 export type FuelIssueRow = {
   id: string;
@@ -85,7 +85,7 @@ export function computeConsumption(issues: FuelIssueRow[], meterType: string): F
 }
 
 /** Format a consumption figure with its unit, e.g. "0.63 L/hr" or "18.5 L/100km". */
-export function formatConsumption(c: FuelConsumption, locale: Locale): string {
+export function formatConsumption(c: FuelConsumption, locale: Lang): string {
   if (c.display == null) return "—";
   const unit = c.meterType === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale);
   const v = c.display.toLocaleString("en-ZA", { maximumFractionDigits: 2 });

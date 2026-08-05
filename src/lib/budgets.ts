@@ -8,7 +8,7 @@
  * a budget and its actual can never drift. The SQL mirror is the `budgets` table (0360) —
  * the period bounds are stored, so this file only has to sum, never re-derive them.
  */
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { CostType } from "@/lib/cost";
 
@@ -115,18 +115,18 @@ export function budgetTone(s: BudgetStatus): "ok" | "warning" | "danger" {
 }
 
 // ── Localised labels ──────────────────────────────────────────────────────────
-export function budgetPeriodLabel(type: string, locale: Locale): string {
+export function budgetPeriodLabel(type: string, locale: Lang): string {
   return t(`budgetPeriod.${type}`, locale);
 }
 
-export function budgetCategoryLabel(category: string | null, locale: Locale): string {
+export function budgetCategoryLabel(category: string | null, locale: Lang): string {
   return category ? t(`costType.${category}`, locale) : t("budget.allCategories", locale);
 }
 
 export function budgetScopeLabel(
   b: Pick<Budget, "machine_id">,
   machineName: string | null,
-  locale: Locale,
+  locale: Lang,
 ): string {
   return b.machine_id ? machineName ?? t("budget.thisMachine", locale) : t("budget.wholeFarm", locale);
 }

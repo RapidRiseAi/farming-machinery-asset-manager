@@ -3,6 +3,7 @@ import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import { JobCardsIcon, PlusIcon } from "@/components/ui/icons";
 import { createJobCard } from "./actions";
 import { JOB_TYPES } from "@/lib/job-options";
 import { JobStatus } from "@/components/ui/status";
-import { FilterChips } from "@/components/ui/filter-chips";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { Field } from "@/components/ui/field";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -36,7 +37,7 @@ export default async function JobCardsPage({
   const search = new URLSearchParams(
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
-  const locale = profile.language;
+  const locale = profile.lang;
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();
@@ -59,7 +60,10 @@ export default async function JobCardsPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("jobcards.title", locale)}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("jobcards.title", locale)}</h1>
+          <PageInfoButton infoKey="jobcards" locale={locale} />
+        </div>
         {/*
           Pick a machine, press New, and a record existed — with `type` hardcoded to
           "repair", so every job was a repair and a mis-tap created a card you then had
@@ -102,30 +106,32 @@ export default async function JobCardsPage({
       {/* Chips apply on tap and write the same `status` / `machine` params the form
           did — the card of dropdowns plus a Search button ate the first screen on a
           phone and did nothing at all until submitted. */}
-      <div className="flex flex-col gap-2.5">
-        <FilterChips
-          paramName="status"
-          current={sp.status}
-          options={[
-            { value: "", label: t("jobcards.allStatuses", locale) },
-            ...STATUSES.map((s) => ({ value: s, label: t(`jobStatus.${s}`, locale) })),
-          ]}
-          path="/jobcards"
-          search={search}
-          label={t("machines.status", locale)}
-        />
-        <FilterChips
-          paramName="machine"
-          current={sp.machine}
-          options={[
-            { value: "", label: t("jobcards.allMachines", locale) },
-            ...machines.map((m) => ({ value: m.id, label: m.name })),
-          ]}
-          path="/jobcards"
-          search={search}
-          label={t("jobcards.machine", locale)}
-        />
-      </div>
+      <FilterBar
+        path="/jobcards"
+        search={search}
+        filtersLabel={t("filters.filters", locale)}
+        clearLabel={t("filters.clearAll", locale)}
+        groups={[
+          {
+            paramName: "status",
+            label: t("machines.status", locale),
+            current: sp.status,
+            options: [
+              { value: "", label: t("jobcards.allStatuses", locale) },
+              ...STATUSES.map((s) => ({ value: s, label: t(`jobStatus.${s}`, locale) })),
+            ],
+          },
+          {
+            paramName: "machine",
+            label: t("jobcards.machine", locale),
+            current: sp.machine,
+            options: [
+              { value: "", label: t("jobcards.allMachines", locale) },
+              ...machines.map((m) => ({ value: m.id, label: m.name })),
+            ],
+          },
+        ]}
+      />
 
       {cards.length === 0 ? (
         <EmptyState icon={<JobCardsIcon />} title={t("jobcards.empty", locale)} hint={t("jobcards.emptyHint", locale)} />

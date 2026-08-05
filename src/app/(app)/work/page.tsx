@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import {
   WORK_STATUSES, workStatusLabel, workKindLabel, workStatusTone, workPriorityLabel, workPriorityTone,
 } from "@/lib/work";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PartnersIcon } from "@/components/ui/icons";
 import { WorkStatus, PriorityStatus } from "@/components/ui/status";
-import { FilterChips } from "@/components/ui/filter-chips";
+import { FilterBar } from "@/components/ui/filter-bar";
 
 type WorkRequest = {
   id: string; machine_id: string; workshop_id: string | null; kind: string; status: string;
@@ -32,7 +33,7 @@ export default async function WorkListPage({
   const search = new URLSearchParams(
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
-  const locale = profile.language;
+  const locale = profile.lang;
   const isContractor = profile.role === "workshop";
 
   const supabase = await createClient();
@@ -68,39 +69,48 @@ export default async function WorkListPage({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">
           {isContractor ? t("work.contractorTitle", locale) : t("work.title", locale)}
         </h1>
+          <PageInfoButton infoKey="work" locale={locale} />
+        </div>
         <p className="mt-0.5 text-sm text-sand-500">
           {isContractor ? t("work.contractorSubtitle", locale) : t("work.subtitle", locale)}
         </p>
       </div>
 
-      {/* Same `status` / `machine` params, applied on tap. */}
-      <div className="flex flex-col gap-2.5">
-        <FilterChips
-          paramName="status"
-          current={sp.status}
-          options={[
-            { value: "", label: t("work.allStatuses", locale) },
-            ...WORK_STATUSES.map((s) => ({ value: s, label: workStatusLabel(s, locale) })),
-          ]}
-          path="/work"
-          search={search}
-          label={t("work.status", locale)}
-        />
-        <FilterChips
-          paramName="machine"
-          current={sp.machine}
-          options={[
-            { value: "", label: t("work.allMachines", locale) },
-            ...machines.map((m) => ({ value: m.id, label: m.name })),
-          ]}
-          path="/work"
-          search={search}
-          label={t("work.machine", locale)}
-        />
-      </div>
+      {/*
+        Same `status` / `machine` params. Two unlabelled scrollers became one named
+        control — the machine row in particular was a horizontal list of 15 names with
+        nothing saying it was a filter.
+      */}
+      <FilterBar
+        path="/work"
+        search={search}
+        filtersLabel={t("filters.filters", locale)}
+        clearLabel={t("filters.clearAll", locale)}
+        groups={[
+          {
+            paramName: "status",
+            label: t("work.status", locale),
+            current: sp.status,
+            options: [
+              { value: "", label: t("work.allStatuses", locale) },
+              ...WORK_STATUSES.map((s) => ({ value: s, label: workStatusLabel(s, locale) })),
+            ],
+          },
+          {
+            paramName: "machine",
+            label: t("work.machine", locale),
+            current: sp.machine,
+            options: [
+              { value: "", label: t("work.allMachines", locale) },
+              ...machines.map((m) => ({ value: m.id, label: m.name })),
+            ],
+          },
+        ]}
+      />
 
       {rows.length === 0 ? (
         <EmptyState

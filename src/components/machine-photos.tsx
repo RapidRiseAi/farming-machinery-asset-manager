@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image-compress";
-import { t, type Locale } from "@/lib/i18n";
+import { t, type Locale, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
 
 type Photo = { id: string; url: string | null };
@@ -25,7 +25,7 @@ export function MachinePhotos({
   machineId: string;
   canEdit: boolean;
   primaryAttachmentId?: string | null;
-  locale?: Locale;
+  locale?: Lang;
 }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [busy, setBusy] = useState(false);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { typeLabel } from "@/lib/machine-options";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ type SP = { error?: string; saved?: string };
 export default async function ChecklistsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  const locale = profile.language;
+  const locale = profile.lang;
   const canManageFarm = ["owner", "manager", "mechanic"].includes(profile.role);
   const isAdmin = profile.role === "rr_admin";
   const canCreate = canManageFarm || isAdmin;
@@ -49,7 +50,10 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("checklists.title", locale)}</h1>
+          <PageInfoButton infoKey="checklists" locale={locale} />
+        </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("checklists.subtitle", locale)}</p>
         </div>
         {canCreate ? (

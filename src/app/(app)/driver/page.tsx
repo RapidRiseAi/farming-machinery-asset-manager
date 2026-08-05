@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentFarmId, checkEntitlement, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
+import { PageInfoButton } from "@/components/ui/page-info-button";
 import { relativeDate } from "@/lib/format";
 import { signOut } from "../actions";
 import { AllClear } from "@/components/ui/empty-state";
@@ -47,7 +48,7 @@ export default async function DriverHomePage({
   // Everyone else belongs on their own home — never assume that is the dashboard.
   if (profile.role !== "operator") redirect(homePathFor(profile.role));
 
-  const locale = profile.language;
+  const locale = profile.lang;
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
 
@@ -130,7 +131,10 @@ export default async function DriverHomePage({
       ) : null}
 
       <header>
-        <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
+          <PageInfoButton infoKey="driver" locale={locale} />
+        </div>
         <p className="mt-1 text-sand-500">
           <span className="capitalize">{today}</span>
         </p>
