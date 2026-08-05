@@ -774,9 +774,11 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Filters**: the machines list stacked 4 unlabelled chip rows (~200px before the first
     machine, group names only in `aria-label`). New `FilterBar` — one control with a count,
     named removable pills, groups behind a disclosure with visible headings; same URL
-    params. Applied to machines/jobcards/work. **Found doing it: `router.push` was silently
-    no-op'ing, so the old chips never filtered at all.** Chips are `<Link>`s now, which also
-    work before hydration.
+    params. Applied to machines/jobcards/work. Chips are `<Link>`s now, which navigate
+    before hydration and prefetch. (They replaced a `router.push` version observed not
+    navigating; the cause was never established — `router.push` works everywhere else,
+    including same-route query changes on a segment with a `loading.tsx` — so treat it as
+    unexplained, not a known Next defect.) Dead `filter-chips.tsx` removed.
   - **Loading**: only 3 of 31 route segments had a `loading.tsx`; all do now, from a shared
     `PageSkeleton`. Plus a top `RouteProgress` bar (links + server-action submits) and the
     app's first `error.tsx`.

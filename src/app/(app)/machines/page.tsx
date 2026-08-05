@@ -19,8 +19,7 @@ import { MachineStatus, ServiceStatus } from "@/components/ui/status";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { GetStarted, NoMatches } from "@/components/ui/empty-state";
-import { type ChipOption } from "@/components/ui/filter-chips";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, type ChipOption } from "@/components/ui/filter-bar";
 import { Flash } from "@/components/ui/flash";
 import { MachinesIcon, PlusIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, ChevronRightIcon } from "@/components/ui/icons";
 

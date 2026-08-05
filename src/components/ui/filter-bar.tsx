@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { cn } from "./cn";
 import { CloseIcon, ChevronDownIcon, ChevronUpIcon, SearchIcon } from "./icons";
-import type { ChipOption } from "./filter-chips";
+/** One chip. Empty `value` clears the param. */
+export type ChipOption = {
+  value: string;
+  label: string;
+  /** Optional count shown after the label ("In workshop 2"). */
+  count?: number;
+};
 
 export type FilterGroup = {
   /** URL param this group writes — unchanged from the original form. */
@@ -57,12 +63,15 @@ export function FilterBar({
   /**
    * Every chip is a real `<Link>`, not a button calling `router.push`.
    *
-   * Two reasons, one of which was a live bug found by driving the built app: the
-   * router call was silently doing nothing here — the handler ran, the target was
-   * correct, and the URL never changed. A link cannot fail that way; the browser
-   * navigates whether or not our JavaScript has run. On a mid-range Android that
-   * pre-hydration window is long enough to matter, and it is exactly when an impatient
-   * thumb hits a filter.
+   * A link cannot fail the way a router call can: the browser navigates whether or not
+   * our JavaScript has loaded or hydrated. On a mid-range Android that pre-hydration
+   * window is long enough to matter, and it is exactly when an impatient thumb hits a
+   * filter. It also prefetches, and it survives being opened in a new tab.
+   *
+   * (This replaced a `router.push` version that was observed not navigating. The cause
+   * was never established — `router.push` behaves correctly everywhere else in this
+   * app, including same-route query changes on a segment with a `loading.tsx` — so
+   * treat that as unexplained rather than as a known Next.js defect.)
    */
   const hrefWith = (changes: Record<string, string>) => {
     const params = new URLSearchParams(search);
