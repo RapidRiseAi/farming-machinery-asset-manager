@@ -9,7 +9,7 @@
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/* — mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v2";
+const VERSION = "fleetwise-v3";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -40,7 +40,15 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data === "skip-waiting") self.skipWaiting();
+  if (event.data === "skip-waiting") {
+    self.skipWaiting();
+    return;
+  }
+  // The app tells us which routes this person can actually reach, so they are there
+  // when the signal is not.
+  if (event.data && event.data.type === "warm" && Array.isArray(event.data.paths)) {
+    event.waitUntil(warmPaths(event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))));
+  }
 });
 
 async function cacheFirst(request, cacheName) {
@@ -53,13 +61,41 @@ async function cacheFirst(request, cacheName) {
 }
 
 /*
- * Pages the app can fall back to when a launch happens with no signal and the exact URL
- * asked for was never cached — in role order, most-specific first. Landing on the last
- * real screen we have beats a dead end.
+ * Where a LAUNCH with no signal can land — the installed app opening at `/` or `/home`,
+ * which are dispatchers rather than screens, so there is nothing meaningful to show for
+ * them. Role order, most-specific first.
+ *
+ * This list used to be applied to EVERY uncached navigation, which is why the app
+ * behaved the way it did offline: tapping Reports with no signal silently rendered the
+ * dashboard while the address bar still said /reports. Showing someone a different page
+ * than the one they asked for, with no indication, is worse than saying "not available
+ * offline" — they read the dashboard's numbers believing they are looking at reports.
+ * Fallbacks now apply ONLY to a launch.
  */
+const LAUNCH_PATHS = ["/", "/home"];
 const APP_FALLBACKS = ["/dashboard", "/driver", "/contractor", "/machines"];
 
-async function networkFirstNav(request) {
+/*
+ * Pages the app asks us to keep ready for offline use. The page posts its own nav list
+ * once it is up (see `warm` in the message handler below), so what is available offline
+ * is exactly what that person's role can actually reach — a driver warms the driver's
+ * screens, a contractor warms theirs — rather than a hardcoded guess.
+ */
+async function warmPaths(paths) {
+  const cache = await caches.open(DATA_CACHE);
+  for (const path of paths) {
+    try {
+      // Skip anything already held: warming is a background nicety, not a refresh.
+      if (await cache.match(path)) continue;
+      const res = await fetch(path, { credentials: "same-origin" });
+      if (res && res.ok && !res.redirected) await cache.put(path, res.clone());
+    } catch {
+      /* no signal, or the route declined — try again next time the app opens */
+    }
+  }
+}
+
+async function networkFirstNav(request, url) {
   const cache = await caches.open(DATA_CACHE);
   try {
     const res = await fetch(request);
@@ -72,16 +108,29 @@ async function networkFirstNav(request) {
     if (res && res.ok && !res.redirected) cache.put(request, res.clone());
     return res;
   } catch (err) {
-    const cached = await cache.match(request);
+    // Exact URL first, then the same path without its query — a filtered list offline is
+    // better served by the unfiltered one it was reached from than by nothing.
+    const cached = (await cache.match(request)) || (await cache.match(url.pathname));
     if (cached) return cached;
-    // Opening the installed app with no signal: show the last screen we actually have
-    // rather than the offline notice.
-    for (const path of APP_FALLBACKS) {
-      const alt = await cache.match(path);
-      if (alt) return alt;
+
+    // A launch with no signal has no screen of its own to show, so hand over the last
+    // real one we hold.
+    if (LAUNCH_PATHS.includes(url.pathname)) {
+      for (const path of APP_FALLBACKS) {
+        const alt = await cache.match(path);
+        if (alt) return alt;
+      }
     }
+
+    // Anything else: say so honestly, and name the page they asked for so the offline
+    // screen can offer what IS available.
     const offline = await caches.match("/offline");
-    if (offline) return offline;
+    if (offline) {
+      return new Response(await offline.text(), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
     throw err;
   }
 }
@@ -116,7 +165,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (request.mode === "navigate") {
-    event.respondWith(networkFirstNav(request));
+    event.respondWith(networkFirstNav(request, url));
     return;
   }
   event.respondWith(staleWhileRevalidate(request, DATA_CACHE));

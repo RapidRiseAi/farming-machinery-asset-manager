@@ -212,7 +212,9 @@
     "documentsNote": "Approving a quotation does not initiate payment — the contractor must still invoice.",
     "documentsPartnerWhat": "All quotations and invoices issued, across every client account.",
     "documentsPartnerNote": "Attaching externally produced documents is available on all plans. Creating them here requires Managed.",
-    "partnerSettingsNote": "Changes apply to new documents. Previously issued documents retain their original presentation."
+    "partnerSettingsNote": "Changes apply to new documents. Previously issued documents retain their original presentation.",
+    "clientsWhat": "Your complete customer register — not only the accounts that found you on FleetWise.",
+    "clientsNote": "Adding an account here grants no access to their data. Access follows only from an approved connection."
   },
   "tour": {
     "contractorDocumentsBody": "Create itemised quotations and invoices, convert an approved quotation to an invoice, and record payments as they are received. If you invoice elsewhere, attach that document instead — available on all plans.",
@@ -221,5 +223,19 @@
   "notifications": {
     "tplPartnerQuote": "Quotation {number} received — {amount}",
     "tplPartnerInvoice": "Invoice {number} received — {amount}"
+  },
+  "clients": {
+    "lead": "Your complete customer register — accounts already connected on FleetWise, and those that are not.",
+    "addHint": "Any customer you service. If they use FleetWise you can request a connection afterwards.",
+    "notConnectedBody": "This account is not connected to you on FleetWise, so their details are maintained here.",
+    "askedBody": "A connection request has been sent. Only the customer can accept it.",
+    "syncConfirmBody": "{n} vehicles will be added to {farm}'s fleet.",
+    "syncConsequence": "They become assets on the customer's fleet, visible to everyone at that account.",
+    "vehiclesHint": "Your own records of what they operate, maintained here until the account is connected."
+  },
+  "partners": {
+    "requestsHint": "They have your account in their client register. Approving grants them access to your vehicles.",
+    "approveConsequence1": "They can view your vehicles, faults, job cards and service history.",
+    "approveConsequence2": "They can issue quotations and invoices, and update the work you assign them."
   }
 }

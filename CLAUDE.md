@@ -878,4 +878,54 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     the same class of mistake. **0 stuck in 12** afterwards, on new and pre-existing pages
     alike.
 
+- **FleetWise F15 — Offline that tells the truth, a sidebar that hides nothing, and the
+  partner's own client book** (migrations `0390–0391`; isolation-tested, `db:test` green;
+  verified live against the demo project):
+  - **Offline was lying.** `sw.js`'s `APP_FALLBACKS` applied to EVERY uncached navigation,
+    so tapping Reports with no signal silently rendered the DASHBOARD while the address
+    bar still said `/reports` — someone reads the dashboard's numbers believing they are
+    looking at reports. Fallbacks now apply only to a cold LAUNCH (`/`, `/home`), which
+    are dispatchers with no screen of their own; anything else uncached says so.
+    Additionally the app now **pre-warms the routes this ROLE can reach**
+    (`WarmRoutes` → `sw.js` `warm` message), so a driver warms the driver's screens and an
+    owner theirs, instead of "whatever you happened to visit". Cache version → `v3`.
+    Measured live: 12+ pages cached without visiting them; machines/faults/jobcards each
+    render themselves offline; an uncached page shows the offline notice, not the dashboard.
+  - **Sidebar**: the "Everything else" `<details>` hid parts, partners, checklists, fines,
+    settings, admin and install behind a summary — invisible to anyone who never found it.
+    Now a named group like any other, inside a new **`ScrollArea`**: measured edge fades
+    (only when there is genuinely more), a visible thin scrollbar rather than the overlay
+    one, and a keyboard-reachable `role="region"`. **17 nav items on screen for an owner,
+    0 disclosures.**
+  - **`0390` partner client book** — the first tables scoped to a WORKSHOP rather than a
+    farm. `partner_clients` (the partner's own customer record) + `partner_client_vehicles`
+    (a mechanic's notebook: make/model/reg, free text, before the customer is on FleetWise).
+    **A client row carries no authority**: setting `farm_id` on one does NOT grant access —
+    that still comes solely from an ACTIVE `workshop_link`, and `app.has_farm_access` is
+    untouched. Proven: the F15 suite writes a Farm B id onto a client row as a partner with
+    no link and asserts it still sees 0 of that farm's machines.
+  - **The handshake, both directions.** `workshop_link_status` already had `pending` and
+    `has_farm_access` counts only `active`, so a request needed no new table: 0390 adds one
+    narrow policy letting a partner raise a **pending** link for its own workshop, and
+    approval stays with the farm's owner/manager (`wl_upd` never covered workshops). A
+    partner therefore cannot connect itself to anybody, cannot raise an ACTIVE link, and
+    cannot raise one on another workshop's behalf — all asserted. The farm decides on
+    `/partners` behind a confirmation that states exactly what access is granted.
+  - **`0391`** — found by driving it: the request rendered as an empty row with no name,
+    because `workshops_sel` (0101) let a farm read a workshop only through an ACTIVE link.
+    You cannot approve a contractor you are not allowed to see. Widened to `pending`, which
+    discloses the business card they are holding out, to the one farm they asked, and
+    nothing else.
+  - **Sync**: once linked, `syncClientVehicles` copies the notebook vehicles into the farm's
+    real fleet through the RLS client (so it works because the link is active, and stops the
+    moment it is revoked), records the `machine_id` each became, and `synced_at` closes the
+    offer so a fleet cannot be duplicated by a second press.
+  - The connect request **never tells a partner whether an address has a FleetWise account**
+    — the action resolves it with the service role and says the same thing either way.
+  - New `/contractor/clients` (+ detail) and a Clients nav item; contractor nav gains
+    machines back. i18n EN/AF at parity (**1,937 leaf keys**) with professional-tone
+    overlays. Demo seed gains three clients (linked / asked / not on FleetWise) with
+    notebook vehicles, and a live pending request to the second farm. Gates green; shared
+    first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

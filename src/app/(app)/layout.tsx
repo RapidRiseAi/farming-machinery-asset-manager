@@ -10,6 +10,8 @@ import { signOut } from "./actions";
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { WarmRoutes } from "@/components/offline/warm-routes";
 import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
@@ -93,6 +95,9 @@ export default async function AppLayout({
   // what a farm has been sent. Never shown to operators — the RLS policy excludes them.
   const documents: NavItemData = { href: "/documents", label: t("nav.documents", locale), icon: "documents" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
+  // A partner's own client book (F15) — their whole customer list, not only the farms
+  // that happened to find them.
+  const clients: NavItemData = { href: "/contractor/clients", label: t("nav.clients", locale), icon: "team" };
   const fines: NavItemData = { href: "/fines", label: t("nav.fines", locale), icon: "fines" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
@@ -107,12 +112,12 @@ export default async function AppLayout({
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
   // Contractors get a contractor-first tab set; everyone else the farm set.
   const tabItems: NavItemData[] = isWorkshop
-    ? [contractor, work, documents, machines]
+    ? [contractor, clients, work, documents]
     : isOperator
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [documents, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -143,7 +148,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, work, documents] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]
@@ -162,12 +167,17 @@ export default async function AppLayout({
       ];
 
   /*
-    The long tail. There were 14 nav items with 11 of them behind "More", all at the
-    same weight — so the things people use daily competed with the ones they touch twice
-    a year. Three short groups stay open; everything else collapses.
+    The long tail. It used to sit behind an "Everything else" disclosure in the sidebar,
+    which meant parts, partners, checklists, fines, settings, admin and install were
+    invisible until you found and opened a summary — a person who never did had no way
+    to know those screens existed.
+
+    They are now a named group like any other, and the whole panel scrolls with a visible
+    scrollbar and an edge fade (see ScrollArea). Nothing in the nav is hidden from anyone
+    who is allowed to reach it.
   */
   const tailItems: NavItemData[] = isWorkshop
-    ? []
+    ? [partnerSettings, parts, install]
     : [
         ...(canParts ? [parts] : []),
         ...(canPartners ? [partners] : []),
@@ -229,8 +239,17 @@ export default async function AppLayout({
     </div>
   );
 
+  // Everything this role can reach, deduped — handed to the service worker so those
+  // screens are there when the signal is not (see WarmRoutes / sw.js).
+  const warmPaths = [
+    ...new Set(
+      [...groups.flatMap((g) => g.items), ...tailItems, ...tabItems, ...moreItems].map((i) => i.href),
+    ),
+  ];
+
   return (
     <div className="min-h-dvh">
+      <WarmRoutes paths={warmPaths} />
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}
@@ -244,30 +263,30 @@ export default async function AppLayout({
             <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
           </div>
         )}
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
-          {groups.map((g) => (
-            <div key={g.key} className="space-y-1">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sand-400">
-                {g.label}
-              </p>
-              {g.items.map((item) => (
-                <NavLink key={item.href} item={item} variant="sidebar" />
-              ))}
-            </div>
-          ))}
-          {tailItems.length > 0 ? (
-            <details className="space-y-1">
-              <summary className="focus-ring cursor-pointer list-none rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sand-400 hover:bg-sand-50 hover:text-sand-600">
-                {t("nav.everythingElse", locale)}
-              </summary>
-              <div className="space-y-1 pt-1">
+        <ScrollArea label={t("nav.menu", locale)} className="px-3 py-2" fadeClassName="from-white">
+          <nav className="space-y-5">
+            {groups.map((g) => (
+              <div key={g.key} className="space-y-1">
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sand-400">
+                  {g.label}
+                </p>
+                {g.items.map((item) => (
+                  <NavLink key={item.href} item={item} variant="sidebar" />
+                ))}
+              </div>
+            ))}
+            {tailItems.length > 0 ? (
+              <div className="space-y-1">
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sand-400">
+                  {t("nav.everythingElse", locale)}
+                </p>
                 {tailItems.map((item) => (
                   <NavLink key={item.href} item={item} variant="sidebar" />
                 ))}
               </div>
-            </details>
-          ) : null}
-        </nav>
+            ) : null}
+          </nav>
+        </ScrollArea>
         <div className="border-t border-sand-200 p-3">
           <div className="mb-2 flex items-center justify-between gap-2 px-1">
             <span className="text-xs font-semibold uppercase tracking-wider text-sand-400">

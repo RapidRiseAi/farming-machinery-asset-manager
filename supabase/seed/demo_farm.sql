@@ -394,6 +394,29 @@ begin
   insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, reference, recorded_by) values
     (v_farm, '74000000-0000-0000-0000-000000000002', 200000, current_date - 3, 'eft', 'TJI-0001', v_owner);
 
+  -- ── The partner's own client book (F15) ─────────────────────────────────
+  -- Three states so the whole flow demos: a farm already connected, one that has been
+  -- asked and has not answered, and one that is not on FleetWise at all (with the
+  -- notebook vehicles that would be copied across if they ever joined).
+  insert into partner_clients (id, workshop_id, name, contact_name, phone, whatsapp, email, link_status, farm_id, linked_at, notes) values
+    ('76000000-0000-0000-0000-000000000001', v_workshop, 'Weltevrede Boerdery', 'Oom Danie',
+     '+27823334455', '+27823334455', 'danie@weltevrede.example', 'linked', v_farm, now() - interval '4 months',
+     'Groot kliënt. Diens al hul trekkers.'),
+    ('76000000-0000-0000-0000-000000000002', v_workshop, 'Kleinfontein Trust', 'Marius',
+     '+27824445566', '+27824445566', 'marius@kleinfontein.example', 'requested', null, null,
+     'Gevra om te koppel — wag nog.'),
+    ('76000000-0000-0000-0000-000000000003', v_workshop, 'Van Wyk Vervoer', 'Hennie',
+     '+27825556677', '+27825556677', null, 'unlinked', null, null,
+     'Nie op FleetWise nie. Ons hou hul rekords hier.');
+
+  update partner_clients set requested_at = now() - interval '6 days'
+   where id = '76000000-0000-0000-0000-000000000002';
+
+  insert into partner_client_vehicles (workshop_id, client_id, name, make, model, reg_no, year, notes) values
+    (v_workshop, '76000000-0000-0000-0000-000000000003', 'Hennie se Hilux', 'Toyota', 'Hilux 2.8 GD-6', 'JXR 118 FS', 2019, 'Diens elke 10 000 km'),
+    (v_workshop, '76000000-0000-0000-0000-000000000003', 'Wit Isuzu trok',  'Isuzu',  'FTR 850',        'KLM 442 FS', 2016, 'Rem-probleem in Maart reggemaak'),
+    (v_workshop, '76000000-0000-0000-0000-000000000002', 'Kleinfontein JD', 'John Deere', '6110M',      null,         2020, null);
+
   -- ── Downtime (G1 · §23) — the New Holland went into the workshop 12 days ago. The
   --    downtime engine (0361) reconstructs days-down from this status-change audit row.
   insert into audit_log (farm_id, entity, entity_id, action, diff, at) values

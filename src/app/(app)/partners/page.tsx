@@ -26,7 +26,20 @@ import {
   adoptSuggested,
   inviteContractor,
   sendLoginUrl,
+  approveLinkRequest,
+  declineLinkRequest,
 } from "./actions";
+
+type WorkshopBrief = {
+  id: string;
+  name: string;
+  trading_name: string | null;
+  kind: string;
+  phone: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  area: string | null;
+};
 
 const KINDS = [
   "mechanic", "auto_electrician", "parts_supplier",
@@ -128,6 +141,31 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   */
   const pendingLink = await readPartnerLink();
   const loginUrl = pendingLink?.url ?? null;
+
+  /*
+    Contractors asking to be connected (F15). A partner who has this farm in their own
+    client book can raise a PENDING workshop_link; pending grants nothing — every access
+    helper counts only 'active' — so this list is the farm deciding, not being told.
+  */
+  const { data: reqData } = canManage
+    ? await supabase
+        .from("workshop_links")
+        .select("workshop_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
+        .eq("status", "pending")
+        .is("deleted_at", null)
+    : { data: null };
+
+  const requests = ((reqData ?? []) as unknown as {
+    workshop_id: string;
+    created_at: string;
+    workshops: WorkshopBrief | WorkshopBrief[] | null;
+  }[])
+    .map((r) => ({
+      workshop_id: r.workshop_id,
+      created_at: r.created_at,
+      shop: Array.isArray(r.workshops) ? (r.workshops[0] ?? null) : r.workshops,
+    }))
+    .filter((r) => r.shop);
   const loginPartner = pendingLink?.pid ? all.find((p) => p.id === pendingLink.pid) : undefined;
   const loginMsg = t("contact.loginMsg", locale);
   const loginShareText = loginUrl ? `${loginMsg} ${loginUrl}` : "";
@@ -190,6 +228,54 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
               <SubmitButton variant="ghost">{t("partners.loginUrlDone", locale)}</SubmitButton>
             </form>
           </div>
+        </Card>
+      ) : null}
+
+      {/* A contractor is asking to be connected (F15). Approving hands them real access
+          to this farm's vehicles and jobs, so it is stated plainly and confirmed. */}
+      {requests.length > 0 ? (
+        <Card>
+          <CardHeader><CardTitle>{t("partners.requestsTitle", locale)}</CardTitle></CardHeader>
+          <p className="mb-3 text-sm text-sand-600">{t("partners.requestsHint", locale)}</p>
+          <ul className="flex flex-col gap-3">
+            {requests.map((r) => (
+              <li key={r.workshop_id} className="flex flex-col gap-2 rounded-xl border border-sand-200 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-sand-900">{r.shop!.trading_name || r.shop!.name}</span>
+                  <Badge tone="neutral">{t(`partnerKind.${r.shop!.kind}`, locale)}</Badge>
+                  {r.shop!.area ? <span className="text-sm text-sand-500">{r.shop!.area}</span> : null}
+                </div>
+                <p className="text-sm text-sand-600">
+                  {[r.shop!.phone ?? r.shop!.whatsapp, r.shop!.email].filter(Boolean).join(" · ")}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <ConfirmDialog
+                    action={approveLinkRequest}
+                    triggerLabel={t("partners.approveRequest", locale)}
+                    triggerVariant="primary"
+                    triggerSize="sm"
+                    title={t("partners.approveTitle", locale)}
+                    intro={t("partners.approveBody", locale).replace("{name}", r.shop!.trading_name || r.shop!.name)}
+                    consequences={[
+                      t("partners.approveConsequence1", locale),
+                      t("partners.approveConsequence2", locale),
+                    ]}
+                    footnote={t("partners.approveFootnote", locale)}
+                    confirmLabel={t("partners.approveRequest", locale)}
+                    cancelLabel={t("common.cancel", locale)}
+                    closeLabel={t("ui.close", locale)}
+                    tone="brand"
+                  >
+                    <input type="hidden" name="workshop_id" value={r.workshop_id} />
+                  </ConfirmDialog>
+                  <form action={declineLinkRequest}>
+                    <input type="hidden" name="workshop_id" value={r.workshop_id} />
+                    <SubmitButton variant="secondary" size="sm">{t("partners.declineRequest", locale)}</SubmitButton>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
         </Card>
       ) : null}
 
