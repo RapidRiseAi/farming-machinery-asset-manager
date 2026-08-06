@@ -1,4 +1,4 @@
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -147,21 +147,32 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     client book can raise a PENDING workshop_link; pending grants nothing — every access
     helper counts only 'active' — so this list is the farm deciding, not being told.
   */
-  const { data: reqData } = canManage
+  /*
+    Scoped to the farm being VIEWED, not the primary one. With multi-site (F7) an
+    owner may be looking at a second farm while `profile.farm_id` still points at their
+    first; RLS returns pending links for every farm they can reach, so without this
+    filter a request for another site would render as actionable here and the approval
+    would write against the wrong farm.
+  */
+  const viewingFarmId = canManage ? await currentFarmId(profile) : null;
+  const { data: reqData } = canManage && viewingFarmId
     ? await supabase
         .from("workshop_links")
-        .select("workshop_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
+        .select("workshop_id, farm_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
         .eq("status", "pending")
+        .eq("farm_id", viewingFarmId)
         .is("deleted_at", null)
     : { data: null };
 
   const requests = ((reqData ?? []) as unknown as {
     workshop_id: string;
+    farm_id: string;
     created_at: string;
     workshops: WorkshopBrief | WorkshopBrief[] | null;
   }[])
     .map((r) => ({
       workshop_id: r.workshop_id,
+      farm_id: r.farm_id,
       created_at: r.created_at,
       shop: Array.isArray(r.workshops) ? (r.workshops[0] ?? null) : r.workshops,
     }))
@@ -267,9 +278,11 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                     tone="brand"
                   >
                     <input type="hidden" name="workshop_id" value={r.workshop_id} />
+                    <input type="hidden" name="farm_id" value={r.farm_id} />
                   </ConfirmDialog>
                   <form action={declineLinkRequest}>
                     <input type="hidden" name="workshop_id" value={r.workshop_id} />
+                    <input type="hidden" name="farm_id" value={r.farm_id} />
                     <SubmitButton variant="secondary" size="sm">{t("partners.declineRequest", locale)}</SubmitButton>
                   </form>
                 </div>

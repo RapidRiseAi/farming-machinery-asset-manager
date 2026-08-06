@@ -3188,4 +3188,56 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
+-- (h) 0392: a contractor must NOT be able to read a competitor's card.
+--     `app.has_farm_access` returns true for a workshop with an active link, so the
+--     workshops_sel link clause had to be gated on being farm-side. Both W and X are
+--     linked to Farm A, which is exactly the shape that leaked.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if c <> 0 then
+    raise exception 'F15 FAIL [COMPETITOR CARD LEAK]: W can read X''s card on their shared farm';
+  end if;
+
+  -- …while still reading its OWN row, which the portal depends on.
+  select count(*) into c from workshops where id = '33333333-3333-3333-3333-333333333333';
+  if c <> 1 then raise exception 'F15 FAIL [own card]: a partner cannot read its own workshop row'; end if;
+end $$;
+
+-- The farm side still sees the contractors it works with — that must not have broken.
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
+  select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if c <> 1 then raise exception 'F15 FAIL [farm blinded]: Owner A cannot read a contractor linked to Farm A'; end if;
+end $$;
+reset role;
+
+-- (i) 0392: an approval binds EXACTLY the client the request was aimed at. Two
+--     outstanding requests from one workshop used to collide on (workshop_id, farm_id)
+--     and abort the whole update after the link had already gone active.
+insert into partner_clients (id, workshop_id, name, link_status, requested_farm_id, requested_at) values
+  ('f1500000-0000-0000-0000-00000000000a', '33333333-3333-3333-3333-333333333333',
+   'W asks Farm A', 'requested', '11111111-1111-1111-1111-111111111111', now()),
+  ('f1500000-0000-0000-0000-00000000000b', '33333333-3333-3333-3333-333333333333',
+   'W asks Farm E', 'requested', 'e1000000-0000-0000-0000-0000000000e1', now());
+
+-- What approveLinkRequest does for Farm A: bind only the row aimed at Farm A.
+update partner_clients
+   set farm_id = '11111111-1111-1111-1111-111111111111', link_status = 'linked', linked_at = now()
+ where workshop_id = '33333333-3333-3333-3333-333333333333'
+   and requested_farm_id = '11111111-1111-1111-1111-111111111111'
+   and farm_id is null;
+
+do $$ declare a text; b text; begin
+  select link_status into a from partner_clients where id = 'f1500000-0000-0000-0000-00000000000a';
+  select link_status into b from partner_clients where id = 'f1500000-0000-0000-0000-00000000000b';
+  if a <> 'linked' then
+    raise exception 'F15 FAIL [approval bound nothing]: the client aimed at Farm A is still %', a;
+  end if;
+  if b <> 'requested' then
+    raise exception 'F15 FAIL [approval bound the wrong client]: the Farm E request became %', b;
+  end if;
+end $$;
+
 select 'ALL F15 PARTNER-CLIENT-BOOK TESTS PASSED' as result;

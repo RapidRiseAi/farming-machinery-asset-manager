@@ -249,7 +249,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-dvh">
-      <WarmRoutes paths={warmPaths} />
+      <WarmRoutes paths={warmPaths} contextKey={`${profile.id}:${currentFarm || profile.farm_id || ""}`} />
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}

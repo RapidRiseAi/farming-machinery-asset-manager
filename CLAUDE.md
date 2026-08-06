@@ -927,5 +927,29 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     overlays. Demo seed gains three clients (linked / asked / not on FleetWise) with
     notebook vehicles, and a live pending request to the second farm. Gates green; shared
     first-load JS flat at **102 kB**.
+  - **`0392` + app fixes, from automated review of the PR — all seven findings were real:**
+    (1) **a contractor could read its competitors' business cards.** The `workshops_sel`
+    link clause is guarded by `app.has_farm_access`, which deliberately admits a WORKSHOP
+    with an active link — so any contractor on a shared farm could read every other
+    contractor's name, trade, phone and email. NOT new in 0391: the pre-existing `active`
+    clause had the same hole. Both closed by gating the clause on a new `app.is_farm_side()`.
+    (2) **an approval bound the wrong client, or none** — it matched every unbound
+    `requested` row for the workshop and set them all to the approving farm, colliding on
+    `(workshop_id, farm_id)` and aborting *after* the link had gone active, with the error
+    swallowed. New `partner_clients.requested_farm_id` records what each request was aimed
+    at. (3) **multi-site**: the request list showed pending links for every accessible farm
+    while approve wrote to `profile.farm_id` — now scoped to `currentFarmId` and the farm
+    carried through the action, re-validated against `accessibleFarms()`. (4) **`synced_at`
+    was set even when copies failed**, permanently hiding the retry; now only on a clean
+    run, with a partial result reported as a warning. (5) **`ignoreDuplicates` hid an
+    existing link** so a revoked relationship could never be reopened; the existing row is
+    now read and handled by status. (6) **"add to my book"** on an already-connected farm
+    created an *unlinked* record; it now carries the farm id, verified against a live active
+    link. (7) **the offline cache was not partitioned by account** — Cache Storage is
+    origin-wide and keyed by URL alone, so on a shared farm-office browser one person's
+    cached screens could be served offline to the next; `WarmRoutes` now carries a
+    `contextKey` (user + current farm) and posts `clear-data` when it changes, and warming
+    always re-fetches instead of skipping on a hit. Isolation suite gains the
+    competitor-card and bind-exactly-one-client assertions.
 
 > Update this "current status" block at the end of every session.

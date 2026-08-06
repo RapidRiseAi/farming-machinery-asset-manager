@@ -96,9 +96,16 @@ export default async function PartnerClientPage({
       <Flash tone="error" message={sp.error === "already-synced" ? t("clients.alreadySynced", locale) : sp.error} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.asked ? t("clients.askedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.connected ? t("clients.connectedFlash", locale) : undefined} />
+      {/* A partial copy is a warning, not a success: the offer stays open and the rest
+          are still waiting, so saying "done" would be a lie. */}
       <Flash
-        tone="success"
-        message={sp.synced ? t("clients.syncedFlash", locale).replace("{n}", sp.synced) : undefined}
+        tone={sp.failed ? "warning" : "success"}
+        message={
+          sp.synced
+            ? (sp.failed ? t("clients.syncPartial", locale) : t("clients.syncedFlash", locale)).replace("{n}", sp.synced)
+            : undefined
+        }
       />
 
       {/* ── Where this client stands ─────────────────────────────── */}

@@ -2096,6 +2096,8 @@
     "removeClient": "Remove this client",
     "removeClientTitle": "Remove this client from your book?",
     "removeClientConsequence": "Your notes and their vehicle list go with it.",
-    "removeClientKeepsLink": "You stay connected to their farm — this only removes your own record."
+    "removeClientKeepsLink": "You stay connected to their farm — this only removes your own record.",
+    "connectedFlash": "Already connected — this client is now linked to their farm.",
+    "syncPartial": "{n} copied. Some could not be added — try again, the rest are still waiting."
   }
 }

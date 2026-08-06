@@ -231,7 +231,8 @@
     "askedBody": "’n Koppelingsversoek is gestuur. Net die klant kan dit aanvaar.",
     "syncConfirmBody": "{n} voertuie word by {farm} se vloot gevoeg.",
     "syncConsequence": "Hulle word bates op die klant se vloot, sigbaar vir almal by daardie rekening.",
-    "vehiclesHint": "U eie rekords van wat hulle bedryf, hier onderhou tot die rekening gekoppel is."
+    "vehiclesHint": "U eie rekords van wat hulle bedryf, hier onderhou tot die rekening gekoppel is.",
+    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende — probeer weer."
   },
   "partners": {
     "requestsHint": "Hulle het u rekening in hul kliënteregister. Goedkeuring gee hulle toegang tot u voertuie.",

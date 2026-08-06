@@ -2096,6 +2096,8 @@
     "removeClient": "Verwyder hierdie kliënt",
     "removeClientTitle": "Verwyder hierdie kliënt uit jou boek?",
     "removeClientConsequence": "Jou notas en hul voertuiglys gaan saam.",
-    "removeClientKeepsLink": "Jy bly aan hul plaas gekoppel — dit verwyder net jou eie rekord."
+    "removeClientKeepsLink": "Jy bly aan hul plaas gekoppel — dit verwyder net jou eie rekord.",
+    "connectedFlash": "Reeds gekoppel — hierdie kliënt is nou aan hul plaas gekoppel.",
+    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie — probeer weer, die res wag nog."
   }
 }

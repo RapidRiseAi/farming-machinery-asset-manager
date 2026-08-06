@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { requireRole } from "@/lib/auth";
+import { requireRole, accessibleFarms } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 
@@ -326,32 +326,63 @@ export async function dismissLoginUrl() {
 // confirmation that names them, and this action re-checks the role rather than trusting
 // the screen.
 
+/*
+ * Which farm this decision is about.
+ *
+ * NOT `profile.farm_id`: with multi-site (F7) an owner may be looking at their second
+ * farm while their primary is still something else, so approving a request shown on
+ * screen would have written against the wrong farm — updating nothing, and then running
+ * the service-role client mutation against a farm that never approved anything.
+ *
+ * The form carries the farm the request was listed under; this re-derives access rather
+ * than trusting it, so a hand-edited value cannot approve a link on a farm the caller
+ * has no business in. RLS would refuse the write in any case; failing here makes it a
+ * clear error rather than a silent no-op.
+ */
+async function decidingFarmId(formData: FormData, profile: { farm_id: string | null }): Promise<string> {
+  const claimed = String(formData.get("farm_id") ?? "").trim();
+  const farms = await accessibleFarms();
+  const allowed = new Set(farms.map((f) => f.id));
+  if (claimed && allowed.has(claimed)) return claimed;
+  if (claimed && !allowed.has(claimed)) redirect("/partners?error=forbidden");
+  if (profile.farm_id) return profile.farm_id;
+  redirect("/partners?error=missing");
+}
+
 /** Approve a contractor's connection request: their pending link becomes active. */
 export async function approveLinkRequest(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
   const workshopId = String(formData.get("workshop_id") ?? "");
-  if (!workshopId || !profile.farm_id) redirect("/partners?error=missing");
+  if (!workshopId) redirect("/partners?error=missing");
+  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("workshop_links")
     .update({ status: "active" })
     .eq("workshop_id", workshopId)
-    .eq("farm_id", profile.farm_id)
+    .eq("farm_id", farmId)
     .eq("status", "pending");
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
 
-  // Bind the partner's own client record to this farm so their notes and their notebook
-  // vehicles follow the link through. Service role: `partner_clients` is the partner's
-  // table and a farm user cannot write it — but this farm's approval is precisely the
-  // event that makes the binding true.
+  /*
+   * Bind the partner's own client record so their notes and notebook vehicles follow the
+   * link through. Keyed on `requested_farm_id` (0392) — the farm the request was actually
+   * aimed at. Before that column existed this matched EVERY unbound `requested` row for
+   * the workshop and set them all to this farm, which violates the (workshop_id, farm_id)
+   * unique index the moment a partner has two requests outstanding: the statement failed
+   * as a whole, after the link had already gone active, and the error was swallowed.
+   *
+   * Service role because `partner_clients` is the partner's table and a farm user cannot
+   * write it — but this farm's approval is precisely the event that makes the binding true.
+   */
   const svc = createServiceClient();
   await svc
     .from("partner_clients")
-    .update({ farm_id: profile.farm_id, link_status: "linked", linked_at: new Date().toISOString() })
+    .update({ farm_id: farmId, link_status: "linked", linked_at: new Date().toISOString() })
     .eq("workshop_id", workshopId)
-    .is("farm_id", null)
-    .eq("link_status", "requested");
+    .eq("requested_farm_id", farmId)
+    .is("farm_id", null);
 
   revalidatePath("/partners");
   redirect("/partners?connected=1");
@@ -361,14 +392,15 @@ export async function approveLinkRequest(formData: FormData) {
 export async function declineLinkRequest(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
   const workshopId = String(formData.get("workshop_id") ?? "");
-  if (!workshopId || !profile.farm_id) redirect("/partners?error=missing");
+  if (!workshopId) redirect("/partners?error=missing");
+  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   await supabase
     .from("workshop_links")
     .update({ status: "revoked" })
     .eq("workshop_id", workshopId)
-    .eq("farm_id", profile.farm_id)
+    .eq("farm_id", farmId)
     .eq("status", "pending");
 
   const svc = createServiceClient();
@@ -376,8 +408,8 @@ export async function declineLinkRequest(formData: FormData) {
     .from("partner_clients")
     .update({ link_status: "declined" })
     .eq("workshop_id", workshopId)
-    .is("farm_id", null)
-    .eq("link_status", "requested");
+    .eq("requested_farm_id", farmId)
+    .is("farm_id", null);
 
   revalidatePath("/partners");
   redirect("/partners?declined=1");

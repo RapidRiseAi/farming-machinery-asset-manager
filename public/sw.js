@@ -46,6 +46,15 @@ self.addEventListener("message", (event) => {
   }
   // The app tells us which routes this person can actually reach, so they are there
   // when the signal is not.
+  if (event.data && event.data.type === "clear-data") {
+    // A different person, or a different farm — nothing cached for the last one may be
+    // shown to this one. Warm again afterwards so offline still works for them.
+    const paths = Array.isArray(event.data.paths)
+      ? event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))
+      : [];
+    event.waitUntil(clearData().then(() => (paths.length ? warmPaths(paths) : undefined)));
+    return;
+  }
   if (event.data && event.data.type === "warm" && Array.isArray(event.data.paths)) {
     event.waitUntil(warmPaths(event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))));
   }
@@ -85,14 +94,38 @@ async function warmPaths(paths) {
   const cache = await caches.open(DATA_CACHE);
   for (const path of paths) {
     try {
-      // Skip anything already held: warming is a background nicety, not a refresh.
-      if (await cache.match(path)) continue;
+      /*
+       * Always re-fetch rather than skipping what is already held. Cache Storage is
+       * ORIGIN-wide: the key is a URL, with nothing in it about who was signed in or
+       * which farm they were looking at. Skipping on a hit meant a page cached for one
+       * account could sit there unrefreshed and be served, offline, to the next person
+       * on a shared farm-office browser. Replacing it every warm keeps what is stored
+       * belonging to whoever is signed in now.
+       *
+       * A context change also drops the whole cache outright — see the `clear-data`
+       * message below, which the app sends when the signed-in user or the current farm
+       * changes. This is the second line of defence, not the only one.
+       */
       const res = await fetch(path, { credentials: "same-origin" });
       if (res && res.ok && !res.redirected) await cache.put(path, res.clone());
     } catch {
       /* no signal, or the route declined — try again next time the app opens */
     }
   }
+}
+
+/*
+ * Forget everything cached for the previous context.
+ *
+ * Cached HTML is somebody's data — their vehicles, their costs, their people. Because
+ * the cache is keyed only by URL, the moment a different person signs in (or the same
+ * person switches farm) every stored page is potentially the wrong one to show. The app
+ * posts `clear-data` when it notices that change; we drop the data cache and let the
+ * warm refill it for whoever is here now. The shell cache (build assets, the offline
+ * page) is impersonal and stays.
+ */
+async function clearData() {
+  await caches.delete(DATA_CACHE);
 }
 
 async function networkFirstNav(request, url) {

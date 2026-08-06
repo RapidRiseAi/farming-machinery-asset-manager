@@ -45,11 +45,36 @@ export async function createClientRecord(formData: FormData) {
   if (!name) redirect("/contractor/clients?error=need-name");
 
   const supabase = await createClient();
+
+  /*
+   * "Add to my book" on a farm this partner is ALREADY connected to must produce a
+   * connected record, not a stray unlinked one filed under "everyone else" — that was
+   * the whole point of the control. The farm id is taken from the form but VERIFIED
+   * against a live active link before it is used, so a hand-edited value cannot bind a
+   * record to a farm the partner does not serve.
+   */
+  const claimedFarm = String(formData.get("farm_id") ?? "").trim();
+  let linkedFarmId: string | null = null;
+  if (claimedFarm) {
+    const { data: link } = await supabase
+      .from("workshop_links")
+      .select("farm_id")
+      .eq("workshop_id", workshopId)
+      .eq("farm_id", claimedFarm)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .maybeSingle();
+    linkedFarmId = (link as { farm_id: string } | null)?.farm_id ?? null;
+  }
+
   const { data, error } = await supabase
     .from("partner_clients")
     .insert({
       workshop_id: workshopId,
       name,
+      farm_id: linkedFarmId,
+      link_status: linkedFarmId ? "linked" : "unlinked",
+      linked_at: linkedFarmId ? new Date().toISOString() : null,
       contact_name: s(formData, "contact_name"),
       phone: s(formData, "phone"),
       whatsapp: s(formData, "whatsapp"),
@@ -186,20 +211,59 @@ export async function requestClientLink(formData: FormData) {
   const match = ((userData ?? []) as { farm_id: string | null }[])[0];
 
   if (match?.farm_id) {
-    // A pending link. `has_farm_access` ignores pending, so this grants nothing until
-    // the farm's owner or manager approves it on their Partners screen.
-    const { error } = await supabase
+    /*
+     * There may already be a row for this pair, and its status decides what happens.
+     * An earlier version upserted with `ignoreDuplicates`, which meant a REVOKED
+     * relationship could never be reopened: the insert silently did nothing while the
+     * screen said "asked", and no request ever reached the farm.
+     */
+    const { data: existing } = await supabase
       .from("workshop_links")
-      .upsert(
-        { workshop_id: workshopId, farm_id: match.farm_id, status: "pending" },
-        { onConflict: "workshop_id,farm_id", ignoreDuplicates: true },
-      );
-    if (!error) {
+      .select("status")
+      .eq("workshop_id", workshopId)
+      .eq("farm_id", match.farm_id)
+      .maybeSingle();
+    const current = (existing as { status: string } | null)?.status ?? null;
+
+    if (current === "active") {
+      // Already connected — the request is moot; bind the record and say so.
       await supabase
         .from("partner_clients")
-        .update({ link_status: "requested", requested_at: new Date().toISOString() })
+        .update({
+          farm_id: match.farm_id,
+          link_status: "linked",
+          linked_at: new Date().toISOString(),
+        })
         .eq("id", clientId);
+      revalidatePath(`/contractor/clients/${clientId}`);
+      redirect(`/contractor/clients/${clientId}?connected=1`);
     }
+
+    // Pending grants nothing — `has_farm_access` counts only active — so raising or
+    // reopening one is safe. A revoked row is set back to pending so a relationship can
+    // be restarted; the farm still has to approve it.
+    if (current === null) {
+      await supabase
+        .from("workshop_links")
+        .insert({ workshop_id: workshopId, farm_id: match.farm_id, status: "pending" });
+    } else if (current === "revoked") {
+      await supabase
+        .from("workshop_links")
+        .update({ status: "pending" })
+        .eq("workshop_id", workshopId)
+        .eq("farm_id", match.farm_id);
+    }
+
+    await supabase
+      .from("partner_clients")
+      .update({
+        link_status: "requested",
+        requested_at: new Date().toISOString(),
+        // Which farm this request is aimed at, so an approval binds exactly this record
+        // and not another of the workshop's outstanding requests (0392).
+        requested_farm_id: match.farm_id,
+      })
+      .eq("id", clientId);
   } else {
     // Not on FleetWise (or not an owner/manager). Record that we asked, so the partner's
     // own list shows they have chased it, and hand them a link to share.
@@ -251,6 +315,7 @@ export async function syncClientVehicles(formData: FormData) {
   }[];
 
   let copied = 0;
+  let failed = 0;
   for (const v of vehicles) {
     const { data: created, error } = await supabase
       .from("machines")
@@ -273,7 +338,10 @@ export async function syncClientVehicles(formData: FormData) {
       .select("id")
       .single();
 
-    if (error || !created) continue;
+    if (error || !created) {
+      failed += 1;
+      continue;
+    }
     await supabase
       .from("partner_client_vehicles")
       .update({ machine_id: (created as { id: string }).id })
@@ -281,12 +349,24 @@ export async function syncClientVehicles(formData: FormData) {
     copied += 1;
   }
 
-  await supabase
-    .from("partner_clients")
-    .update({ synced_at: new Date().toISOString() })
-    .eq("id", clientId);
+  /*
+   * Only close the offer when everything intended actually landed. `synced_at` hides the
+   * "copy them across" button for good, so setting it after a partial copy would strand
+   * the rest — a revoked link, a rejected row or a dropped connection would silently cost
+   * the partner vehicles they believed they had moved, with no way back to the button.
+   */
+  if (failed === 0) {
+    await supabase
+      .from("partner_clients")
+      .update({ synced_at: new Date().toISOString() })
+      .eq("id", clientId);
+  }
 
   revalidatePath(`/contractor/clients/${clientId}`);
   revalidatePath("/machines");
-  redirect(`/contractor/clients/${clientId}?synced=${copied}`);
+  redirect(
+    failed === 0
+      ? `/contractor/clients/${clientId}?synced=${copied}`
+      : `/contractor/clients/${clientId}?synced=${copied}&failed=${failed}`,
+  );
 }

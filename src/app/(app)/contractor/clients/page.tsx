@@ -167,6 +167,10 @@ export default async function PartnerClientsPage({
                 <Badge tone="ok">{t("clients.connected", locale)}</Badge>
                 <form action={createClientRecord} className="ml-auto">
                   <input type="hidden" name="name" value={l.farm?.name ?? ""} />
+                  {/* The farm id, so the new record is created CONNECTED rather than
+                      filed under "everyone else". The action re-checks it against a live
+                      active link before trusting it. */}
+                  <input type="hidden" name="farm_id" value={l.farm_id} />
                   <SubmitButton variant="secondary" size="sm">{t("clients.addToBook", locale)}</SubmitButton>
                 </form>
               </li>
