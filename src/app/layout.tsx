@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Suspense } from "react";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 import { RouteProgress } from "@/components/ui/route-progress";
 import { deviceLocale } from "@/lib/locale";
@@ -41,9 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-dvh bg-sand-50 font-sans text-sand-900 antialiased">
         {/* Acknowledges a tap immediately, on every screen including the public QR
             pages — every route here is dynamic, so there is always a wait to cover. */}
-        <Suspense fallback={null}>
-          <RouteProgress />
-        </Suspense>
+        <RouteProgress />
         {children}
         <ServiceWorkerRegister />
       </body>

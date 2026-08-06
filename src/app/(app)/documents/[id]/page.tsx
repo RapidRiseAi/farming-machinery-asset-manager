@@ -257,7 +257,7 @@ export default async function DocumentPage({
               </>
             ) : null}
             <dt className="text-sand-500">
-              {t("doc.vat", locale)} ({vatPercent(doc.vat_rate_bps)}%)
+              {t("doc.vat", locale)} ({vatPercent(doc.vat_rate_bps)})
             </dt>
             <dd className="text-right tabular-nums text-sand-800">{rands(doc.vat_cents)}</dd>
             <dt className="mt-1 border-t border-sand-200 pt-1 font-semibold text-sand-900">{t("doc.total", locale)}</dt>

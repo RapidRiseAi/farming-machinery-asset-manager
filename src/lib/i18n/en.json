@@ -634,7 +634,9 @@
     "tplQuoteAwaiting": "{machine}: quote awaiting your approval — {amount}",
     "tplInvoiceAwaiting": "{machine}: invoice awaiting your approval — {amount}",
     "tplAartoNominationDue": "{machine}: nominate the driver for fine {notice} before {deadline}",
-    "tplAartoNominationOverdue": "{machine}: driver nomination for fine {notice} is overdue (was due {deadline})"
+    "tplAartoNominationOverdue": "{machine}: driver nomination for fine {notice} is overdue (was due {deadline})",
+    "tplPartnerQuote": "New quote {number} — {amount}",
+    "tplPartnerInvoice": "New invoice {number} — {amount}"
   },
   "settings": {
     "title": "Settings",
@@ -1090,7 +1092,8 @@
     "weekly_digest": "Weekly digest",
     "stale_meter": "Meter readings",
     "work": "Contractor update",
-    "aarto": "AARTO fine"
+    "aarto": "AARTO fine",
+    "documents": "Quotes & invoices"
   },
   "prefs": {
     "title": "Your alert preferences",

@@ -258,7 +258,7 @@ export default async function PartnerSettingsPage({
             </div>
           </div>
             <p className="mt-2 text-xs text-sand-500">
-            {t("partnerSettings.vatDefaultHint", locale)} {vatPercent(b.defaultVatRateBps)}%
+            {t("partnerSettings.vatDefaultHint", locale)} {vatPercent(b.defaultVatRateBps)}
           </p>
         </Card>
 

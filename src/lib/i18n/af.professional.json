@@ -217,5 +217,9 @@
   "tour": {
     "contractorDocumentsBody": "Skep geïtemiseerde kwotasies en fakture, skakel ’n goedgekeurde kwotasie na ’n faktuur om, en teken betalings aan soos dit ontvang word. As u elders faktureer, heg eerder daardie dokument aan — op alle planne beskikbaar.",
     "contractorBrandBody": "U besigheidsnaam, registrasie- en BTW-nommers, bankbesonderhede, logo en kleure. Elke dokument word op u briefhoof uitgereik."
+  },
+  "notifications": {
+    "tplPartnerQuote": "Kwotasie {number} ontvang — {amount}",
+    "tplPartnerInvoice": "Faktuur {number} ontvang — {amount}"
   }
 }

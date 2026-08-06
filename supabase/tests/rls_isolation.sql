@@ -2771,6 +2771,33 @@ do $$ declare c bigint; begin
   if c <> 2 then raise exception 'F14 FAIL [ownerA]: sees % documents (expected 2)', c; end if;
 end $$;
 
+-- A partner's DRAFT is their working copy, not correspondence (0383). Found by driving
+-- the built app: an unsent draft was showing in the farmer's list while the partner was
+-- still pricing it.
+reset role;
+insert into partner_documents
+  (id, farm_id, workshop_id, kind, status, source, number, subject, vat_rate_bps)
+values
+  ('f1400000-0000-0000-0000-00000000000d', '11111111-1111-1111-1111-111111111111',
+   '33333333-3333-3333-3333-333333333333', 'invoice', 'draft', 'built', 'INV-9004',
+   'W still pricing this', 1500);
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('11111111-1111-1111-1111-111111111111', 'f1400000-0000-0000-0000-00000000000d', 0, 'part', 'Secret pricing', 1, 99999);
+set role authenticated;
+
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
+  select count(*) into c from partner_documents where id = 'f1400000-0000-0000-0000-00000000000d';
+  if c <> 0 then raise exception 'F14 FAIL [DRAFT LEAK]: the farmer can see the partner''s unsent draft'; end if;
+  -- …and not its line items either, which is the number that actually matters.
+  select count(*) into c from partner_document_lines where description = 'Secret pricing';
+  if c <> 0 then raise exception 'F14 FAIL [DRAFT LINE LEAK]: the farmer can see an unsent draft''s pricing'; end if;
+
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into c from partner_documents where id = 'f1400000-0000-0000-0000-00000000000d';
+  if c <> 1 then raise exception 'F14 FAIL [own draft]: the issuing partner cannot see its own draft'; end if;
+end $$;
+
 -- Farm B's owner sees none of them.
 do $$ declare c bigint; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
@@ -2784,7 +2811,8 @@ end $$;
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
   select count(*) into c from partner_documents;
-  if c <> 2 then raise exception 'F14 FAIL [W scope]: sees % documents (expected its own 2)', c; end if;
+  -- Its Farm A invoice, its Farm E quote, and its own unsent draft.
+  if c <> 3 then raise exception 'F14 FAIL [W scope]: sees % documents (expected its own 3)', c; end if;
   select count(*) into c from partner_documents where id = 'f1400000-0000-0000-0000-000000000002';
   if c <> 0 then raise exception 'F14 FAIL [PRICING LEAK]: Workshop W can see Workshop X''s quote on a shared farm';
   end if;
@@ -2902,6 +2930,32 @@ do $$ declare a text; b text; begin
   b := public.next_document_number('33333333-3333-3333-3333-333333333333', 'quote');
   if a = b then raise exception 'F14 FAIL [numbering repeat]: two allocations both returned %', a; end if;
 end $$;
+
+-- 0384: the allocator SKIPS a number already in use. Found by driving the built app —
+-- the counter and the rows had drifted apart (demo rows inserted directly; the same
+-- happens after a restore or an import), and pressing "Start it" failed with a raw
+-- Postgres unique-violation and created nothing.
+reset role;
+-- Park a document on the number the counter is about to hand out.
+do $$ declare v_next int; v_prefix text; begin
+  select next_invoice_no, doc_prefix_invoice into v_next, v_prefix
+    from workshops where id = '33333333-3333-3333-3333-333333333333';
+  insert into partner_documents (farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333',
+          'invoice', 'draft', 'built', v_prefix || '-' || lpad(v_next::text, 4, '0'), 1500);
+end $$;
+set role authenticated;
+do $$ declare v text; c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  v := public.next_document_number('33333333-3333-3333-3333-333333333333', 'invoice');
+  select count(*) into c from partner_documents
+   where workshop_id = '33333333-3333-3333-3333-333333333333' and kind = 'invoice' and number = v;
+  if c <> 0 then
+    raise exception 'F14 FAIL [numbering collision]: allocator returned %, which is already in use', v;
+  end if;
+end $$;
+reset role;
+set role authenticated;
 reset role;
 
 -- ── (g) anon can do nothing ───────────────────────────────────────

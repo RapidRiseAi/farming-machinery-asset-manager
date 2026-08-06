@@ -634,7 +634,9 @@
     "tplQuoteAwaiting": "{machine}: kwotasie wag op jou goedkeuring — {amount}",
     "tplInvoiceAwaiting": "{machine}: faktuur wag op jou goedkeuring — {amount}",
     "tplAartoNominationDue": "{machine}: nomineer die bestuurder vir boete {notice} voor {deadline}",
-    "tplAartoNominationOverdue": "{machine}: bestuurdernominasie vir boete {notice} is agterstallig (was verskuldig {deadline})"
+    "tplAartoNominationOverdue": "{machine}: bestuurdernominasie vir boete {notice} is agterstallig (was verskuldig {deadline})",
+    "tplPartnerQuote": "Nuwe kwotasie {number} — {amount}",
+    "tplPartnerInvoice": "Nuwe faktuur {number} — {amount}"
   },
   "settings": {
     "title": "Instellings",
@@ -1090,7 +1092,8 @@
     "weekly_digest": "Weeklikse opsomming",
     "stale_meter": "Meterlesings",
     "work": "Kontrakteur-opdatering",
-    "aarto": "AARTO-boete"
+    "aarto": "AARTO-boete",
+    "documents": "Kwotasies & fakture"
   },
   "prefs": {
     "title": "Jou waarskuwingvoorkeure",

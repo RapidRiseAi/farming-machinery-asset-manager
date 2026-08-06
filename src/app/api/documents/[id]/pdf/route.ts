@@ -112,7 +112,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   pdf.heading("Totals");
   pdf.kv("Subtotal (ex VAT)", rands(Number(doc.subtotal_cents)));
   if (Number(doc.discount_cents) > 0) pdf.kv("Discount", `-${rands(Number(doc.discount_cents))}`);
-  pdf.kv(`VAT (${vatPercent(Number(doc.vat_rate_bps))}%)`, rands(Number(doc.vat_cents)));
+  pdf.kv(`VAT (${vatPercent(Number(doc.vat_rate_bps))})`, rands(Number(doc.vat_cents)));
   pdf.kv("Total", rands(Number(doc.total_cents)));
   if (isInvoice && Number(doc.amount_paid_cents) > 0) {
     pdf.kv("Paid so far", `-${rands(Number(doc.amount_paid_cents))}`);

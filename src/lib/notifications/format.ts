@@ -82,6 +82,18 @@ export function formatNotification(
       return fill("notifications.tplWorkQuoted", locale, { machine: m, amount: rands(p.amount_cents as number) });
     case "work_request_invoiced":
       return fill("notifications.tplWorkInvoiced", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    // A partner sent a quote or an invoice (F14, 0381 notify trigger). The amount is the
+    // VAT-INCLUSIVE total, because that is what the farmer is being asked to agree to.
+    case "partner_quote_received":
+      return fill("notifications.tplPartnerQuote", locale, {
+        number: String(p.number ?? ""),
+        amount: rands(p.amount_cents as number),
+      });
+    case "partner_invoice_received":
+      return fill("notifications.tplPartnerInvoice", locale, {
+        number: String(p.number ?? ""),
+        amount: rands(p.amount_cents as number),
+      });
     // Outstanding-action reminders (F13 engine 0330).
     case "quote_awaiting":
       return fill("notifications.tplQuoteAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
@@ -117,6 +129,8 @@ export function notificationTitle(template: string, locale: Lang): string {
                   template === "quote_awaiting" ||
                   template === "invoice_awaiting"
                 ? "work"
+                : template.startsWith("partner_")
+                  ? "documents"
                 : template.startsWith("aarto_")
                   ? "aarto"
                   : template;
@@ -134,6 +148,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
     p.work_request_id
   )
     return `/work/${p.work_request_id}`;
+  // A quote or invoice from a partner opens the document itself.
+  if (template.startsWith("partner_") && p.document_id) return `/documents/${p.document_id}`;
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
   if (p.machine_id) return `/machines/${p.machine_id}`;

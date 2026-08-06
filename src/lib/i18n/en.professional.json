@@ -217,5 +217,9 @@
   "tour": {
     "contractorDocumentsBody": "Create itemised quotations and invoices, convert an approved quotation to an invoice, and record payments as they are received. If you invoice elsewhere, attach that document instead — available on all plans.",
     "contractorBrandBody": "Your business name, registration and VAT numbers, banking details, logo and colours. Every document is issued on your letterhead."
+  },
+  "notifications": {
+    "tplPartnerQuote": "Quotation {number} received — {amount}",
+    "tplPartnerInvoice": "Invoice {number} received — {amount}"
   }
 }

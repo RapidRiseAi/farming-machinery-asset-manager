@@ -67,10 +67,13 @@ export function LogoUpload({
         </div>
 
         <div className="flex flex-1 flex-wrap items-center gap-2">
+          {/* Visually replaced by the button below, but a screen reader still lands on
+              it — so it carries its own name rather than being an unlabelled control. */}
           <input
             ref={fileRef}
             type="file"
             accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            aria-label={t("partnerSettings.chooseLogo", locale)}
             className="sr-only"
             onChange={(e) => pick(e.target.files?.[0] ?? null)}
           />
