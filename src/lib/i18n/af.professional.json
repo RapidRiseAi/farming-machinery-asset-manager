@@ -212,7 +212,9 @@
     "documentsNote": "Goedkeuring van ’n kwotasie inisieer nie betaling nie — die kontrakteur moet steeds faktureer.",
     "documentsPartnerWhat": "Alle kwotasies en fakture uitgereik, oor alle kliëntrekeninge.",
     "documentsPartnerNote": "Ekstern geproduseerde dokumente aanheg is op alle planne beskikbaar. Om hulle hier te skep vereis Bestuur.",
-    "partnerSettingsNote": "Veranderinge geld vir nuwe dokumente. Voorheen uitgereikte dokumente behou hul oorspronklike voorstelling."
+    "partnerSettingsNote": "Veranderinge geld vir nuwe dokumente. Voorheen uitgereikte dokumente behou hul oorspronklike voorstelling.",
+    "clientsWhat": "U volledige klanteregister — nie net die rekeninge wat u op FleetWise gevind het nie.",
+    "clientsNote": "Om ’n rekening hier by te voeg gee geen toegang tot hul data nie. Toegang volg slegs uit ’n goedgekeurde koppeling."
   },
   "tour": {
     "contractorDocumentsBody": "Skep geïtemiseerde kwotasies en fakture, skakel ’n goedgekeurde kwotasie na ’n faktuur om, en teken betalings aan soos dit ontvang word. As u elders faktureer, heg eerder daardie dokument aan — op alle planne beskikbaar.",
@@ -221,5 +223,20 @@
   "notifications": {
     "tplPartnerQuote": "Kwotasie {number} ontvang — {amount}",
     "tplPartnerInvoice": "Faktuur {number} ontvang — {amount}"
+  },
+  "clients": {
+    "lead": "U volledige klanteregister — rekeninge wat reeds op FleetWise gekoppel is, en dié wat nie is nie.",
+    "addHint": "Enige klant wat u diens. As hulle FleetWise gebruik, kan u daarna ’n koppeling versoek.",
+    "notConnectedBody": "Hierdie rekening is nie op FleetWise aan u gekoppel nie, dus word hul besonderhede hier onderhou.",
+    "askedBody": "’n Koppelingsversoek is gestuur. Net die klant kan dit aanvaar.",
+    "syncConfirmBody": "{n} voertuie word by {farm} se vloot gevoeg.",
+    "syncConsequence": "Hulle word bates op die klant se vloot, sigbaar vir almal by daardie rekening.",
+    "vehiclesHint": "U eie rekords van wat hulle bedryf, hier onderhou tot die rekening gekoppel is.",
+    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende — probeer weer."
+  },
+  "partners": {
+    "requestsHint": "Hulle het u rekening in hul kliënteregister. Goedkeuring gee hulle toegang tot u voertuie.",
+    "approveConsequence1": "Hulle kan u voertuie, foute, werkkaarte en diensgeskiedenis besigtig.",
+    "approveConsequence2": "Hulle kan kwotasies en fakture uitreik, en die werk wat u toewys bywerk."
   }
 }

@@ -2981,3 +2981,263 @@ end $$;
 reset role;
 
 select 'ALL F14 PARTNER-DOCUMENT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F15 — PARTNER CLIENT BOOK + the connect handshake
+-- ═════════════════════════════════════════════════════════════════
+-- `partner_clients` / `partner_client_vehicles` are the FIRST tables scoped to a
+-- WORKSHOP rather than a farm, so the claims that matter are:
+--   (a) a partner sees only its own book — not another partner's;
+--   (b) a FARM user cannot read a partner's private notes about them;
+--   (c) writing a client row grants NOTHING: setting farm_id on one does not let the
+--       partner read that farm;
+--   (d) a partner may RAISE a pending link, and pending grants nothing;
+--   (e) a partner CANNOT promote its own request to active — only the farm can;
+--   (f) anon sees nothing.
+--
+-- Reuses Workshop W (linked to Farm A + Farm E) and Workshop X (linked to Farm A).
+
+insert into partner_clients (id, workshop_id, name, email) values
+  ('f1500000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'W''s client — Farm B', 'ownerB@test'),
+  ('f1500000-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333', 'W''s offline client', null),
+  ('f1500000-0000-0000-0000-000000000003', 'e3000000-0000-0000-0000-0000000000e3', 'X''s own client', null);
+
+insert into partner_client_vehicles (id, workshop_id, client_id, name, reg_no) values
+  ('f1510000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333',
+   'f1500000-0000-0000-0000-000000000002', 'Blue Hilux', 'ADT 441 FS');
+
+set role authenticated;
+
+-- (a) Each partner sees only its own book.
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into c from partner_clients;
+  if c <> 2 then raise exception 'F15 FAIL [W book]: sees % clients (expected its own 2)', c; end if;
+  select count(*) into c from partner_client_vehicles;
+  if c <> 1 then raise exception 'F15 FAIL [W vehicles]: sees % (expected 1)', c; end if;
+
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
+  select count(*) into c from partner_clients;
+  if c <> 1 then raise exception 'F15 FAIL [X book]: sees % clients (expected its own 1)', c; end if;
+  select count(*) into c from partner_client_vehicles;
+  if c <> 0 then raise exception 'F15 FAIL [BOOK LEAK]: X sees W''s notebook vehicles'; end if;
+end $$;
+
+-- (b) A farm user cannot read a partner's private notes about them — including the
+--     farm that is literally the subject of the row.
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B (the subject)
+  select count(*) into c from partner_clients;
+  if c <> 0 then raise exception 'F15 FAIL [farm reads partner notes]: sees % rows (expected 0)', c; end if;
+
+  perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
+  select count(*) into c from partner_clients;
+  if c <> 0 then raise exception 'F15 FAIL [farm reads partner notes]: Owner A sees % rows', c; end if;
+end $$;
+
+-- A partner cannot write into another partner's book.
+do $$ begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
+  begin
+    insert into partner_clients (workshop_id, name)
+    values ('33333333-3333-3333-3333-333333333333', 'planted by X');
+    raise exception 'F15 FAIL [cross-partner write]: X wrote into W''s book';
+  exception
+    when insufficient_privilege then null;
+    when others then if sqlstate <> '42501' then raise; end if;
+  end;
+end $$;
+
+-- (c) THE LOAD-BEARING ONE. A partner setting farm_id on its own client row must gain
+--     nothing: access comes from an ACTIVE workshop_link and nowhere else.
+do $$ declare c bigint; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X (NOT linked to Farm B)
+  update partner_clients set farm_id = '22222222-2222-2222-2222-222222222222'
+    where id = 'f1500000-0000-0000-0000-000000000003';
+
+  select count(*) into c from machines where farm_id = '22222222-2222-2222-2222-222222222222';
+  if c <> 0 then
+    raise exception 'F15 FAIL [PRIVILEGE ESCALATION]: pointing a client row at Farm B let X see % of its machines', c;
+  end if;
+  if app.has_farm_access('22222222-2222-2222-2222-222222222222') then
+    raise exception 'F15 FAIL [PRIVILEGE ESCALATION]: has_farm_access true for a farm X only wrote a note about';
+  end if;
+end $$;
+reset role;
+update partner_clients set farm_id = null where id = 'f1500000-0000-0000-0000-000000000003';
+set role authenticated;
+
+-- (d) A partner may RAISE a pending link — and pending grants nothing.
+do $$ declare c bigint; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
+  insert into workshop_links (workshop_id, farm_id, status)
+  values ('e3000000-0000-0000-0000-0000000000e3', '22222222-2222-2222-2222-222222222222', 'pending');
+
+  if app.has_farm_access('22222222-2222-2222-2222-222222222222') then
+    raise exception 'F15 FAIL [pending grants access]: a pending link opened Farm B to X';
+  end if;
+  select count(*) into c from machines where farm_id = '22222222-2222-2222-2222-222222222222';
+  if c <> 0 then raise exception 'F15 FAIL [pending grants access]: X sees % Farm B machines', c; end if;
+end $$;
+
+-- …and cannot raise an ACTIVE one, nor one for somebody else's workshop.
+do $$ begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');
+  begin
+    insert into workshop_links (workshop_id, farm_id, status)
+    values ('e3000000-0000-0000-0000-0000000000e3', 'e1000000-0000-0000-0000-0000000000e1', 'active');
+    raise exception 'F15 FAIL [self-grant]: a partner inserted an ACTIVE link';
+  exception
+    when insufficient_privilege then null;
+    when others then if sqlstate <> '42501' then raise; end if;
+  end;
+
+  begin
+    insert into workshop_links (workshop_id, farm_id, status)
+    values ('33333333-3333-3333-3333-333333333333', 'e1000000-0000-0000-0000-0000000000e1', 'pending');
+    raise exception 'F15 FAIL [impersonation]: X raised a request on behalf of W';
+  exception
+    when insufficient_privilege then null;
+    when others then if sqlstate <> '42501' then raise; end if;
+  end;
+end $$;
+
+-- (e) A partner cannot PROMOTE its own pending request. Only the farm can. RLS makes the
+--     row invisible to X's UPDATE rather than raising, so assert the value did not move.
+do $$ begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');
+  update workshop_links set status = 'active'
+    where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+      and farm_id = '22222222-2222-2222-2222-222222222222';
+end $$;
+reset role;
+do $$ declare s text; begin
+  select status into s from workshop_links
+   where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+     and farm_id = '22222222-2222-2222-2222-222222222222';
+  if s <> 'pending' then
+    raise exception 'F15 FAIL [SELF-APPROVAL]: a partner promoted its own request to %', s;
+  end if;
+end $$;
+
+-- The FARM can, and that is what actually opens the door.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  update workshop_links set status = 'active'
+    where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+      and farm_id = '22222222-2222-2222-2222-222222222222';
+
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X again
+  if not app.has_farm_access('22222222-2222-2222-2222-222222222222') then
+    raise exception 'F15 FAIL [approval]: the farm approved but X still has no access';
+  end if;
+  select count(*) into c from machines where farm_id = '22222222-2222-2222-2222-222222222222';
+  if c < 1 then raise exception 'F15 FAIL [approval]: X sees % Farm B machines after approval', c; end if;
+end $$;
+reset role;
+-- Put Farm B back as it was, so later sections keep their counts.
+update workshop_links set status = 'revoked'
+  where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+    and farm_id = '22222222-2222-2222-2222-222222222222';
+
+-- (g) 0391: a farm can READ the card of a contractor asking to connect — otherwise the
+--     request renders as an empty row and cannot be decided. It is the contractor's own
+--     business card, offered to the one farm they asked, and it grants nothing.
+-- X's request to Farm B was revoked above; put it back to pending for this check.
+update workshop_links set status = 'pending'
+  where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+    and farm_id = '22222222-2222-2222-2222-222222222222';
+
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if c <> 1 then
+    raise exception 'F15 FAIL [nameless request]: the farm cannot see who is asking to connect';
+  end if;
+  -- …and reading the card still grants nothing.
+  if app.has_farm_access('e1000000-0000-0000-0000-0000000000e1') then
+    raise exception 'F15 FAIL [card grants access]: reading a contractor card widened farm access';
+  end if;
+end $$;
+
+-- The negative: a farm with NO link of any status to a contractor still cannot see them.
+-- Farm B has never been linked to Workshop W.
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  select count(*) into c from workshops where id = '33333333-3333-3333-3333-333333333333';
+  if c <> 0 then
+    raise exception 'F15 FAIL [card leak]: Farm B can read Workshop W, which never asked it';
+  end if;
+end $$;
+reset role;
+update workshop_links set status = 'revoked'
+  where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+    and farm_id = '22222222-2222-2222-2222-222222222222';
+
+-- (f) anon sees nothing.
+set role anon;
+do $$ declare c bigint; begin
+  perform set_config('request.jwt.claims', '', false);
+  begin
+    select count(*) into c from partner_clients;
+    if c <> 0 then raise exception 'F15 FAIL [anon]: anon saw % client rows', c; end if;
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- (h) 0392: a contractor must NOT be able to read a competitor's card.
+--     `app.has_farm_access` returns true for a workshop with an active link, so the
+--     workshops_sel link clause had to be gated on being farm-side. Both W and X are
+--     linked to Farm A, which is exactly the shape that leaked.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if c <> 0 then
+    raise exception 'F15 FAIL [COMPETITOR CARD LEAK]: W can read X''s card on their shared farm';
+  end if;
+
+  -- …while still reading its OWN row, which the portal depends on.
+  select count(*) into c from workshops where id = '33333333-3333-3333-3333-333333333333';
+  if c <> 1 then raise exception 'F15 FAIL [own card]: a partner cannot read its own workshop row'; end if;
+end $$;
+
+-- The farm side still sees the contractors it works with — that must not have broken.
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
+  select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
+  if c <> 1 then raise exception 'F15 FAIL [farm blinded]: Owner A cannot read a contractor linked to Farm A'; end if;
+end $$;
+reset role;
+
+-- (i) 0392: an approval binds EXACTLY the client the request was aimed at. Two
+--     outstanding requests from one workshop used to collide on (workshop_id, farm_id)
+--     and abort the whole update after the link had already gone active.
+insert into partner_clients (id, workshop_id, name, link_status, requested_farm_id, requested_at) values
+  ('f1500000-0000-0000-0000-00000000000a', '33333333-3333-3333-3333-333333333333',
+   'W asks Farm A', 'requested', '11111111-1111-1111-1111-111111111111', now()),
+  ('f1500000-0000-0000-0000-00000000000b', '33333333-3333-3333-3333-333333333333',
+   'W asks Farm E', 'requested', 'e1000000-0000-0000-0000-0000000000e1', now());
+
+-- What approveLinkRequest does for Farm A: bind only the row aimed at Farm A.
+update partner_clients
+   set farm_id = '11111111-1111-1111-1111-111111111111', link_status = 'linked', linked_at = now()
+ where workshop_id = '33333333-3333-3333-3333-333333333333'
+   and requested_farm_id = '11111111-1111-1111-1111-111111111111'
+   and farm_id is null;
+
+do $$ declare a text; b text; begin
+  select link_status into a from partner_clients where id = 'f1500000-0000-0000-0000-00000000000a';
+  select link_status into b from partner_clients where id = 'f1500000-0000-0000-0000-00000000000b';
+  if a <> 'linked' then
+    raise exception 'F15 FAIL [approval bound nothing]: the client aimed at Farm A is still %', a;
+  end if;
+  if b <> 'requested' then
+    raise exception 'F15 FAIL [approval bound the wrong client]: the Farm E request became %', b;
+  end if;
+end $$;
+
+select 'ALL F15 PARTNER-CLIENT-BOOK TESTS PASSED' as result;
