@@ -952,4 +952,51 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     always re-fetches instead of skipping on a hit. Isolation suite gains the
     competitor-card and bind-exactly-one-client assertions.
 
+- **FleetWise F16 — Partner access scope + VAT registration** (migrations `0400–0402`;
+  isolation-tested, `db:test` green; verified live against the demo project):
+  - **What was actually happening.** An active `workshop_link` granted
+    `app.has_farm_access` — the SAME predicate the farm's own staff are judged by.
+    Measured on the demo farm, one contractor could read **12 machines, 32 cost entries
+    (the farm's whole spend, including other contractors' invoices), 3 budgets, 11 fuel
+    draws, 50 meter readings, the 5 other contractors with their phone numbers, and all 6
+    farm users with names and emails**. A farmer connecting a tyre fitter to change two
+    tyres was handing over their supplier list, staff directory and financials.
+  - **`0400` — access is now a per-link CHOICE by the farm, defaulting to the minimum.**
+    Baseline = the vehicles this partner is actually working on (a work request or a
+    document of theirs against it) plus the faults/jobs on those vehicles and the requests
+    sent to them. Four grants open exactly their own slice: `see_all_vehicles`,
+    `see_service_history`, `see_costs`, `see_team`. **`partners` has NO grant** — a
+    contractor never reads the farm's other contractors, because that is a competitor list
+    with phone numbers and no consent makes it part of fixing a tractor.
+    Implemented as `app.partner_scope(farm, key)` + `app.partner_machine_visible(farm,
+    machine)`, folded into the existing `app.row_visible_to_role` so nine machine-keyed
+    tables narrow at once and the rule lives in one place. **Existing links tighten** —
+    the safe direction for a permission nobody consciously granted.
+  - **`0402`** fuel draws carry `cost_cents`, so they follow the money grant too (found by
+    measuring production after 0400: 6 rows still visible).
+  - **`0401` VAT registration.** The document model assumed VAT always applies; for a
+    partner below the SARS threshold that is a document claiming a tax they cannot
+    collect. `workshops.vat_registered` → no VAT line anywhere (screen, PDF, totals), with
+    a DB trigger forcing the rate to zero so a stale form or an import cannot issue VAT
+    on a non-registered partner's behalf. The **rate stays editable either way** (SA went
+    14%→15% in 2018; a 2025 rise was gazetted then withdrawn).
+  - App: farm-side **"What they can see"** card per connected contractor on `/partners`
+    (four plain sentences, not permission names; states the baseline so "all off" does
+    not read as "they see nothing"; says outright that other contractors are never
+    visible) + **disconnect** behind a confirmation. Partner settings gain the VAT-
+    registration switch.
+  - `rls_isolation.sql` **F16/F16b sections**: the default scope, each grant opening only
+    its own slice (vehicles grant leaks no costs, costs grant leaks no people), all-grants
+    still hiding the competitor list, a contractor unable to grant itself anything, the
+    farm side completely unaffected, and the VAT guard forcing zero for a non-registered
+    issuer while leaving a registered one alone. Every pre-existing workshop persona count
+    was re-derived to the new model rather than relaxed. **Live proof**: contractor went
+    12→4 machines, 32→0 costs, 5→0 competitors, 6→0 farm users, 50→0 readings, 6→0 fuel,
+    while keeping its own 3 work requests and 3 documents; farm owner unchanged at 15/35/8/6.
+  - i18n EN/AF at parity (**1,964 leaf keys**). Gates green; shared first-load JS flat at
+    **102 kB**.
+  - **Not built** (next tranche): the document TEMPLATE BUILDER (upload/compose your own
+    layout) — the current customisation is letterhead + colours + terms + numbering +
+    per-document editing; and the email layer, still the biggest gap against AutoVault.
+
 > Update this "current status" block at the end of every session.

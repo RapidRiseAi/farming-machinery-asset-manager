@@ -414,3 +414,55 @@ export async function declineLinkRequest(formData: FormData) {
   revalidatePath("/partners");
   redirect("/partners?declined=1");
 }
+
+// ── What a connected contractor may see (F16 / 0400) ─────────────────────────
+//
+// An active link is permission to do a JOB, not a key to the farm. These four grants
+// are the farm's to give, they default to off, and each opens exactly its own slice —
+// the database enforces that (app.partner_scope / app.partner_machine_visible), so this
+// action only has to record the choice.
+//
+// There is deliberately NO grant for the farm's other contractors. A partner reading
+// that list is reading a competitor directory with phone numbers, and no amount of
+// consent makes it part of fixing a tractor.
+export async function setPartnerAccess(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  const workshopId = String(formData.get("workshop_id") ?? "");
+  if (!workshopId) redirect("/partners?error=missing");
+  const farmId = await decidingFarmId(formData, profile);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("workshop_links")
+    .update({
+      see_all_vehicles: formData.get("see_all_vehicles") != null,
+      see_service_history: formData.get("see_service_history") != null,
+      see_costs: formData.get("see_costs") != null,
+      see_team: formData.get("see_team") != null,
+    })
+    .eq("workshop_id", workshopId)
+    .eq("farm_id", farmId)
+    .eq("status", "active");
+
+  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/partners");
+  redirect("/partners?access=1");
+}
+
+/** Disconnect a contractor. The link is revoked, so access stops immediately. */
+export async function revokePartnerAccess(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  const workshopId = String(formData.get("workshop_id") ?? "");
+  if (!workshopId) redirect("/partners?error=missing");
+  const farmId = await decidingFarmId(formData, profile);
+
+  const supabase = await createClient();
+  await supabase
+    .from("workshop_links")
+    .update({ status: "revoked" })
+    .eq("workshop_id", workshopId)
+    .eq("farm_id", farmId);
+
+  revalidatePath("/partners");
+  redirect("/partners?disconnected=1");
+}

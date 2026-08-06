@@ -1770,7 +1770,8 @@
     "clientsTitle": "My clients",
     "clientsWhat": "Your whole customer book — not only the farms that found you on FleetWise.",
     "clientsDoes": "Add any customer, whether or not they use FleetWise\nKeep their vehicles written down before they join\nAsk a customer to connect their farm to you\nCopy your vehicle list into their fleet once they connect\nCall, WhatsApp or email straight from the list",
-    "clientsNote": "Adding someone here gives you no access to their data. That only comes when they connect and say yes."
+    "clientsNote": "Adding someone here gives you no access to their data. That only comes when they connect and say yes.",
+    "partnersNote": "You choose what each connected contractor can see. They never see your other contractors."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -1963,7 +1964,8 @@
       "missing_fields": "Pick who it is for.",
       "upload_failed": "The file would not upload. Try a smaller one.",
       "forbidden": "You are not allowed to do that."
-    }
+    },
+    "subtotalNoVat": "Subtotal"
   },
   "partnerSettings": {
     "title": "My business",
@@ -2018,7 +2020,10 @@
     "prefixHint": "So your first quote is QTE-0001.",
     "quoteValidity": "A quote stands for (days)",
     "invoiceTerms": "You give (days) to pay",
-    "vatDefaultHint": "New documents start at"
+    "vatDefaultHint": "New documents start at",
+    "vatRegistered": "We are registered for VAT",
+    "vatRegisteredHint": "Turn this off if you are below the threshold. Your documents will show no VAT at all.",
+    "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later."
   },
   "clients": {
     "title": "My clients",
@@ -2099,5 +2104,27 @@
     "removeClientKeepsLink": "You stay connected to their farm — this only removes your own record.",
     "connectedFlash": "Already connected — this client is now linked to their farm.",
     "syncPartial": "{n} copied. Some could not be added — try again, the rest are still waiting."
+  },
+  "access": {
+    "title": "What they can see",
+    "minimum": "Minimum",
+    "nGranted": "{n} extra",
+    "baseline": "Without any of these, they can see the vehicles they are working on for you, the faults and jobs on those vehicles, and the requests you send them. Nothing else.",
+    "vehicles": "Your whole fleet",
+    "vehiclesHint": "Every vehicle, not only the ones they are working on. Useful for someone who services everything.",
+    "history": "Service history",
+    "historyHint": "Past readings and service plans on the vehicles they can see.",
+    "costs": "What things cost",
+    "costsHint": "Prices, budgets, fuel and job-card amounts — including what you paid other people.",
+    "team": "Your people",
+    "teamHint": "The names, emails and phone numbers of everyone on your farm.",
+    "neverPartners": "Your other contractors are never visible to them, whatever you choose here.",
+    "save": "Save what they can see",
+    "saved": "Saved. It applies immediately.",
+    "disconnect": "Disconnect them",
+    "disconnectTitle": "Disconnect this contractor?",
+    "disconnectBody": "{name} will lose access to this farm straight away.",
+    "disconnectConsequence": "They keep the quotes and invoices they already sent you, and you keep yours.",
+    "disconnectFootnote": "You can connect them again later."
   }
 }

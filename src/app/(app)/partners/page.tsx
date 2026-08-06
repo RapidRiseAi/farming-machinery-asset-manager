@@ -17,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, TrashIcon, WarningIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CopyField } from "./copy-field";
+import { PartnerAccessCard, type PartnerAccess } from "@/components/partners/access-card";
 import { readPartnerLink } from "@/lib/partner-link";
 import {
   createPartner,
@@ -66,6 +67,9 @@ type SP = {
   connected?: string;
   linkerror?: string;
   pid?: string;
+  access?: string;
+  declined?: string;
+  disconnected?: string;
 };
 
 /** Provider-free quick-contact button row (tel / wa.me / mailto). */
@@ -164,6 +168,34 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         .is("deleted_at", null)
     : { data: null };
 
+  // Connected contractors and what each may see (F16). Same farm scoping as the
+  // requests above — this is a decision about the site you are looking at.
+  const { data: accessData } = canManage && viewingFarmId
+    ? await supabase
+        .from("workshop_links")
+        .select("workshop_id, farm_id, see_all_vehicles, see_service_history, see_costs, see_team, workshops(id, name, trading_name)")
+        .eq("status", "active")
+        .eq("farm_id", viewingFarmId)
+        .is("deleted_at", null)
+    : { data: null };
+
+  const accessRows: PartnerAccess[] = ((accessData ?? []) as unknown as {
+    workshop_id: string; farm_id: string;
+    see_all_vehicles: boolean; see_service_history: boolean; see_costs: boolean; see_team: boolean;
+    workshops: { name: string; trading_name: string | null } | { name: string; trading_name: string | null }[] | null;
+  }[]).map((r) => {
+    const w = Array.isArray(r.workshops) ? (r.workshops[0] ?? null) : r.workshops;
+    return {
+      workshop_id: r.workshop_id,
+      farm_id: r.farm_id,
+      name: w?.trading_name || w?.name || "",
+      see_all_vehicles: r.see_all_vehicles,
+      see_service_history: r.see_service_history,
+      see_costs: r.see_costs,
+      see_team: r.see_team,
+    };
+  }).filter((r) => r.name);
+
   const requests = ((reqData ?? []) as unknown as {
     workshop_id: string;
     farm_id: string;
@@ -195,6 +227,8 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
       <Flash tone="error" message={sp.linkerror} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.connected ? t("partners.connectedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.access ? t("access.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.disconnected ? t("access.disconnect", locale) : undefined} />
 
       {/* Freshly generated login URL */}
       {loginUrl ? (
@@ -290,6 +324,16 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
             ))}
           </ul>
         </Card>
+      ) : null}
+
+      {/* What each connected contractor can see (F16). Placed above the directory
+          because it is the decision with consequences on this screen. */}
+      {accessRows.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {accessRows.map((a) => (
+            <PartnerAccessCard key={a.workshop_id} access={a} locale={locale} />
+          ))}
+        </div>
       ) : null}
 
       {/* Add a partner (owner/manager for their farm; RR admin for the global catalogue) */}
