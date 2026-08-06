@@ -258,6 +258,18 @@ export const FINE_LOOK: Record<string, StatusLook> = {
   closed: { tone: "neutral", shape: "dash" },
 };
 
+/** Partner quote/invoice lifecycle (F14). One vocabulary across both kinds. */
+export const DOC_LOOK: Record<string, StatusLook> = {
+  draft: { tone: "neutral", shape: "ring" },
+  sent: { tone: "info", shape: "clock" },
+  accepted: { tone: "ok", shape: "check" },
+  declined: { tone: "danger", shape: "square" },
+  part_paid: { tone: "warning", shape: "half" },
+  paid: { tone: "ok", shape: "check" },
+  cancelled: { tone: "neutral", shape: "dash" },
+  expired: { tone: "warning", shape: "triangle" },
+};
+
 /** Look up a state's look in a map, falling back to a neutral ring. */
 export function look(map: Record<string, StatusLook>, value: string | null | undefined): StatusLook {
   return (value && map[value]) || NEUTRAL;

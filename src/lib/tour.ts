@@ -58,6 +58,8 @@ const CONTRACTOR: TourStep[] = [
   { id: "contractorWelcome", href: null, icon: "dashboard" },
   { id: "contractorWork", href: "/work", icon: "work" },
   { id: "contractorQuote", href: "/work", icon: "work" },
+  { id: "contractorDocuments", href: "/documents", icon: "documents" },
+  { id: "contractorBrand", href: "/contractor/settings", icon: "settings" },
   { id: "install", href: "/install", icon: "download" },
   { id: "help", href: null, icon: "info" },
 ];

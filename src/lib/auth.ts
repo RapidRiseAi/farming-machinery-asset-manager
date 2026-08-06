@@ -16,6 +16,7 @@ import {
   workshopPlanAllows,
   workshopRequiredPlan,
 } from "@/lib/contractor-plan";
+import { BRANDING_COLUMNS, type WorkshopBrandingRow } from "@/lib/branding";
 import {
   type Locale,
   type Tone,
@@ -274,9 +275,9 @@ export async function requireEntitlement(
   return profile;
 }
 
-// ── Contractor-plan gating (F12c) ────────────────────────────────────────────
-// The two-sided twin of the farm entitlement above: this governs the CONTRACTOR's
-// portal extras by the workshop's own plan (`workshops.plan`, 0320), NOT tenancy —
+// ── Partner-plan gating (F12c, reshaped in F14e) ─────────────────────────────
+// The two-sided twin of the farm entitlement above: this governs the PARTNER's portal
+// by the product they bought (`workshops.plan`, 0382 — portal | managed), NOT tenancy —
 // isolation stays with RLS + workshop_links. Map lives in src/lib/contractor-plan.ts.
 
 export type WorkshopEntitlementCheck = {
@@ -289,9 +290,10 @@ export type WorkshopEntitlementCheck = {
 };
 
 /**
- * The current workshop user's contractor plan, or null when the user is not a workshop.
- * Defaults to `free` if the row is somehow unreadable. Reads the real `workshops.plan`
- * column — this is not a stub; the map in contractor-plan.ts is the entitlement authority.
+ * The current partner user's product, or null when the user is not a workshop.
+ * Falls back to `portal` if the row is somehow unreadable — the safe direction, since
+ * `portal` is the one every partner is entitled to. Reads the real `workshops.plan`
+ * column; the map in contractor-plan.ts is the entitlement authority.
  */
 export async function workshopPlan(
   profile?: Profile
@@ -305,7 +307,29 @@ export async function workshopPlan(
     .eq("id", p.workshop_id)
     .maybeSingle();
   const plan = (data as { plan: string } | null)?.plan;
-  return { profile: p, plan: plan && isWorkshopPlan(plan) ? plan : "free" };
+  return { profile: p, plan: plan && isWorkshopPlan(plan) ? plan : "portal" };
+}
+
+/**
+ * The current partner's full account row — letterhead, business details, document
+ * defaults and product — in one read. Returns null for anyone who is not a workshop
+ * user. Used by the partner's settings screen, the document builder and the PDF route,
+ * all of which need the same row and must not each invent their own column list.
+ */
+export async function currentWorkshop(
+  profile?: Profile
+): Promise<{ profile: Profile; workshop: WorkshopBrandingRow | null; plan: WorkshopPlan | null }> {
+  const p = profile ?? (await requireProfile());
+  if (p.role !== "workshop" || !p.workshop_id) return { profile: p, workshop: null, plan: null };
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("workshops")
+    .select(`${BRANDING_COLUMNS}, kind, area, plan`)
+    .eq("id", p.workshop_id)
+    .maybeSingle();
+  const row = data as (WorkshopBrandingRow & { plan?: string }) | null;
+  const plan = row?.plan;
+  return { profile: p, workshop: row, plan: plan && isWorkshopPlan(plan) ? plan : "portal" };
 }
 
 /** Evaluate a contractor-plan entitlement without redirecting (for inline panels/nav). */

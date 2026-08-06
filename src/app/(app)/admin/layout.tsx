@@ -11,6 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <p className="text-xs font-semibold uppercase tracking-wide text-sand-400">Rapid Rise admin</p>
         <nav className="flex items-center gap-1 text-sm">
           <Link href="/admin/farms" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Farms</Link>
+          <Link href="/admin/partners" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Partners</Link>
           <Link href="/admin/templates" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Templates</Link>
         </nav>
       </div>

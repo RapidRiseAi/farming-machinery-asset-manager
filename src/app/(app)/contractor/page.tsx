@@ -337,12 +337,12 @@ export default async function ContractorDashboardPage({
               </Card>
             ) : null}
 
-            {/* Cross-client analytics — a Pro contractor extra (gated example, F12c seam) */}
+            {/* Cross-client analytics — part of the Managed product (F14e gating seam) */}
             <Card>
               <CardHeader>
                 <CardTitle>
                   {t("contractor.analytics", locale)}
-                  {!analyticsAllowed ? <Badge tone="brand" className="ml-2 align-middle">{t("contractorPlan.pro", locale)}</Badge> : null}
+                  {!analyticsAllowed ? <Badge tone="brand" className="ml-2 align-middle">{t("contractorPlan.managed", locale)}</Badge> : null}
                 </CardTitle>
               </CardHeader>
               {analyticsAllowed ? (

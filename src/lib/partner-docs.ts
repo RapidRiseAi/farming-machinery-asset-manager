@@ -1,0 +1,170 @@
+/**
+ * Partner documents — quotes and invoices (F14b, migration 0381).
+ *
+ * The shared model both sides read: the partner building or uploading the document, and
+ * the farmer receiving it. Totals are mirrored from the SQL triggers so a line edited in
+ * the browser shows the same number the database will store — the same discipline
+ * `src/lib/fuel.ts` keeps with the consumption engine.
+ *
+ * Money throughout is integer cents. LINES ARE EX-VAT; the document total is
+ * VAT-inclusive, because that is the number a farmer actually pays. Never introduce a
+ * float here.
+ */
+
+export const DOC_KINDS = ["quote", "invoice"] as const;
+export type DocKind = (typeof DOC_KINDS)[number];
+
+export const DOC_SOURCES = ["built", "uploaded"] as const;
+export type DocSource = (typeof DOC_SOURCES)[number];
+
+export const DOC_STATUSES = [
+  "draft", "sent", "accepted", "declined", "part_paid", "paid", "cancelled", "expired",
+] as const;
+export type DocStatus = (typeof DOC_STATUSES)[number];
+
+export const DOC_LINE_KINDS = ["part", "labour", "other"] as const;
+export type DocLineKind = (typeof DOC_LINE_KINDS)[number];
+
+export type DocLine = {
+  id?: string;
+  sort_order: number;
+  kind: DocLineKind;
+  part_no: string | null;
+  description: string;
+  qty: number;
+  unit_price_cents: number;
+  discount_cents: number;
+  line_total_cents: number;
+};
+
+export type PartnerDocument = {
+  id: string;
+  farm_id: string;
+  workshop_id: string;
+  machine_id: string | null;
+  work_request_id: string | null;
+  quote_id: string | null;
+  kind: DocKind;
+  status: DocStatus;
+  source: DocSource;
+  number: string;
+  subject: string | null;
+  issue_date: string;
+  due_date: string | null;
+  subtotal_cents: number;
+  discount_cents: number;
+  vat_cents: number;
+  total_cents: number;
+  vat_rate_bps: number;
+  amount_paid_cents: number;
+  notes: string | null;
+  terms: string | null;
+  declined_reason: string | null;
+  upload_path: string | null;
+  issuer_snapshot: IssuerSnapshot | null;
+  created_at: string;
+};
+
+/** The letterhead frozen onto a document when it was issued (0381 `issuer_snapshot`). */
+export type IssuerSnapshot = {
+  name: string;
+  reg_number?: string | null;
+  vat_number?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_branch_code?: string | null;
+  bank_account_type?: string | null;
+  brand_primary?: string | null;
+  brand_secondary?: string | null;
+  logo_path?: string | null;
+  terms?: string | null;
+  footer?: string | null;
+  show_powered_by?: boolean;
+};
+
+// ── Totals, mirroring the 0381 triggers ────────────────────────────
+
+/** qty × unit price − line discount, ex-VAT, floored at zero. */
+export function lineTotalCents(line: Pick<DocLine, "qty" | "unit_price_cents" | "discount_cents">): number {
+  return Math.max(0, Math.round(line.qty * line.unit_price_cents) - (line.discount_cents || 0));
+}
+
+export type DocTotals = {
+  /** Sum of the lines, ex-VAT, before the whole-document discount. */
+  subtotalCents: number;
+  /** The whole-document discount actually applied (never more than the subtotal). */
+  discountCents: number;
+  /** Ex-VAT after discount — the figure that reaches the cost ledger. */
+  netCents: number;
+  vatCents: number;
+  /** VAT-inclusive: what the farmer pays. */
+  totalCents: number;
+};
+
+export function documentTotals(
+  lines: readonly Pick<DocLine, "qty" | "unit_price_cents" | "discount_cents">[],
+  vatRateBps: number,
+  documentDiscountCents = 0,
+): DocTotals {
+  const subtotalCents = lines.reduce((sum, l) => sum + lineTotalCents(l), 0);
+  const discountCents = Math.min(Math.max(0, documentDiscountCents), subtotalCents);
+  const netCents = subtotalCents - discountCents;
+  const vatCents = Math.round((netCents * vatRateBps) / 10000);
+  return { subtotalCents, discountCents, netCents, vatCents, totalCents: netCents + vatCents };
+}
+
+/** What is still owed on an invoice, VAT-inclusive. Never negative. */
+export function balanceDueCents(doc: Pick<PartnerDocument, "total_cents" | "amount_paid_cents">): number {
+  return Math.max(0, doc.total_cents - (doc.amount_paid_cents || 0));
+}
+
+// ── Status vocabulary ──────────────────────────────────────────────
+
+/** The statuses a document of this kind can actually be in, in lifecycle order. */
+export function statusesFor(kind: DocKind): DocStatus[] {
+  return kind === "quote"
+    ? ["draft", "sent", "accepted", "declined", "expired", "cancelled"]
+    : ["draft", "sent", "part_paid", "paid", "cancelled"];
+}
+
+/** Is this document still awaiting the farmer? Drives the "needs you" lists. */
+export function awaitsCustomer(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
+  return doc.kind === "quote" ? doc.status === "sent" : doc.status === "sent" || doc.status === "part_paid";
+}
+
+/** A document that is settled needs no further action from anyone. */
+export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
+  return ["paid", "declined", "cancelled", "expired"].includes(doc.status);
+}
+
+/**
+ * Is this document counted in the farm's cost ledger? Mirrors the 0381 trigger exactly:
+ * an INVOICE that has actually been issued and is not cancelled. A quote is never a
+ * cost — it is not money owed.
+ */
+export function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
+  return doc.kind === "invoice" && ["sent", "part_paid", "paid"].includes(doc.status);
+}
+
+/** Only a draft can still be edited by its issuer; anything sent is a record. */
+export function isEditable(doc: Pick<PartnerDocument, "status" | "source">): boolean {
+  return doc.status === "draft";
+}
+
+/** i18n key for a document status label (`docStatus.*`). */
+export function docStatusKey(status: DocStatus): string {
+  return `docStatus.${status}`;
+}
+
+/** Default due date: today + the partner's terms (invoice) or validity (quote) window. */
+export function defaultDueDate(kind: DocKind, from: Date, quoteValidityDays: number, invoiceTermsDays: number): string {
+  const days = kind === "quote" ? quoteValidityDays : invoiceTermsDays;
+  const d = new Date(from);
+  d.setDate(d.getDate() + Math.max(0, days));
+  return d.toISOString().slice(0, 10);
+}

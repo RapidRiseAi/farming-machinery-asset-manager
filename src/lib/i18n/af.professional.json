@@ -161,5 +161,65 @@
   },
   "work": {
     "getSomethingDone": "Werk aanvra"
+  },
+  "doc": {
+    "leadPartner": "Alle kwotasies en fakture uitgereik, oor alle kliëntrekeninge.",
+    "leadFarm": "Kwotasies en fakture ontvang van u kontrakteurs.",
+    "newSubject": "Beskrywing",
+    "newSubjectHint": "’n Kort verwysingsreël wat die kliënt sal herken.",
+    "newCreate": "Skep",
+    "outstanding": "Uitstaande",
+    "awaitingDecision": "Wag vir goedkeuring",
+    "needsYouPartner": "Vereis aksie",
+    "needsYouFarm": "Vereis u goedkeuring",
+    "emptyPartnerBody": "Skep een teen ’n kliëntrekening, of heg ’n dokument aan wat in u eie stelsel geproduseer is.",
+    "emptyFarmBody": "Kwotasies en fakture van u kontrakteurs sal hier verskyn.",
+    "lineDescription": "Beskrywing",
+    "sendExplains": "Sodra dit uitgereik is, is die bewoording en totale vas — die dokument word ’n formele rekord.",
+    "sentFlash": "Uitgereik. Die kliënt kan dit nou besigtig.",
+    "deleteDraftBody": "Die konsep is nooit uitgereik nie, dus gaan geen rekord verlore nie. Die reëlitems word saam verwyder.",
+    "convertToInvoice": "Skakel om na faktuur",
+    "decideTitle": "Keur hierdie kwotasie goed?",
+    "decideBody": "Die kwotasietotaal is",
+    "accept": "Keur goed",
+    "acceptBody": "Die kontrakteur sal van u goedkeuring verwittig word. Geen betaling is verskuldig voor hulle faktureer nie.",
+    "acceptedFlash": "Goedgekeur. Die kontrakteur is verwittig.",
+    "decline": "Wys af",
+    "declineReason": "Rede vir afwysing",
+    "declineReasonHint": "Die rede bepaal die kontrakteur se volgende stap — wees asseblief spesifiek.",
+    "uploadTitle": "In ’n ander stelsel geproduseer?",
+    "uploadBody": "Heg die kwotasie of faktuur aan wat u rekeningkundige stelsel geproduseer het. U kliënt kan dit besigtig en dit word in hul kostes weerspieël; u bestaande faktureringsproses bly onveranderd.",
+    "upgradeBody": "Die Bestuur-plan voeg geïtemiseerde kwotasies en fakture by, kwotasie-na-faktuur omskakeling, en betalingsaantekening.",
+    "upgradeKeep": "Bestaande funksionaliteit word behou — u eie dokumente aanheg bly deel van u plan."
+  },
+  "partnerSettings": {
+    "lead": "Hierdie besonderhede verskyn op elke kwotasie en faktuur wat u uitreik.",
+    "identity": "Besigheidsbesonderhede",
+    "contact": "Kontakbesonderhede",
+    "banking": "Bankbesonderhede",
+    "letterhead": "Briefhoof",
+    "preview": "Voorskou",
+    "bankingHint": "Word op u fakture gedruk sodat kliënte kan vereffen sonder om u te kontak.",
+    "brandPrimaryHint": "Word vir die dokumentkop gebruik.",
+    "poweredByHint": "Skakel af om slegs u besigheidsnaam op dokumente te wys.",
+    "termsHint": "Word onderaan elke dokument gedruk.",
+    "logoHint": "PNG, JPEG of SVG. Word bo-aan elke dokument vertoon.",
+    "quoteValidity": "Kwotasiegeldigheid (dae)",
+    "invoiceTerms": "Betalingsterme (dae)"
+  },
+  "pageInfo": {
+    "documentsWhat": "Alle kwotasies en fakture ontvang van u kontrakteurs.",
+    "documentsNote": "Goedkeuring van ’n kwotasie inisieer nie betaling nie — die kontrakteur moet steeds faktureer.",
+    "documentsPartnerWhat": "Alle kwotasies en fakture uitgereik, oor alle kliëntrekeninge.",
+    "documentsPartnerNote": "Ekstern geproduseerde dokumente aanheg is op alle planne beskikbaar. Om hulle hier te skep vereis Bestuur.",
+    "partnerSettingsNote": "Veranderinge geld vir nuwe dokumente. Voorheen uitgereikte dokumente behou hul oorspronklike voorstelling."
+  },
+  "tour": {
+    "contractorDocumentsBody": "Skep geïtemiseerde kwotasies en fakture, skakel ’n goedgekeurde kwotasie na ’n faktuur om, en teken betalings aan soos dit ontvang word. As u elders faktureer, heg eerder daardie dokument aan — op alle planne beskikbaar.",
+    "contractorBrandBody": "U besigheidsnaam, registrasie- en BTW-nommers, bankbesonderhede, logo en kleure. Elke dokument word op u briefhoof uitgereik."
+  },
+  "notifications": {
+    "tplPartnerQuote": "Kwotasie {number} ontvang — {amount}",
+    "tplPartnerInvoice": "Faktuur {number} ontvang — {amount}"
   }
 }

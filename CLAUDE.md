@@ -797,4 +797,85 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     resumes/stays-skipped/restarts and drivers get driver copy. Hydration, tap-target
     (0 under 48px, 0 icon-only), role-dispatch, support-mode suites all still pass.
 
+- **FleetWise F14 — Partner commercial suite: branded quotes, invoices & payments**
+  (migrations `0380–0384`; branch `claude/fleetwise-ui-redesign-l4ng55`; isolation-tested,
+  `db:test` green; verified live against the demo project):
+  - Brings **TJ-AutoVault's commercial layer** onto the FleetWise spine, reshaped for how
+    this product is sold. AutoVault's tenant is a workshop and its customers get their own
+    login; ours is a farm, and partners reach in through `workshop_links` + RLS. So the
+    documents live on the farm's side of the fence and are scoped to the issuing partner.
+  - **`0380` partner business profile** on `workshops` (not a parallel branding table —
+    a workshop already IS the partner account, so RLS/audit/grants come along): trading
+    name, company reg, VAT number, address, banking, logo, two brand colours, standing
+    terms + footer, numbering prefixes and per-partner counters.
+    `app.next_document_number` allocates under a row lock (two staff issuing at the same
+    second get 0007 and 0008); the `public.` wrapper refuses another partner's sequence.
+    New `workshops_upd_self` policy lets a partner maintain its OWN letterhead, and a
+    guard trigger rejects a plan change from anyone but RR — no self-upgrade.
+  - **`0381` `partner_documents` + `_lines` + `partner_payments`.** ONE table with a
+    `kind`, not AutoVault's separate quote/invoice pairs (which it then spent five
+    migrations dragging back into step) — converting a quote to an invoice is a copy, not
+    a translation between schemas. Money ex-VAT integer cents; **lines roll up by
+    trigger, payments roll up by trigger, status follows** — no total is ever typed.
+    `source='uploaded'` is the load-bearing case: a partner on Sage/Xero/a receipt book
+    attaches the finished PDF and types the total, so **they are never dependent on our
+    invoicing**. **Invoice → ledger exactly once**: an issued partner invoice OWNS the
+    cost for its work request and `0311` is replaced to stand down; a quote is never
+    costed. Visibility (`app.partner_doc_visible`): a partner sees only what IT issued on
+    farms it is linked to — **two contractors on one farm never see each other's
+    pricing** — and operators see none at all.
+  - **`0382` plans reshaped free/pro → portal/managed**, because partners choose between
+    two different products, not two rungs. *Portal*: their customers see the fleet with
+    them in it, their letterhead, their own uploaded paperwork. *Managed*: building
+    quotes/invoices here, payments, cross-client analytics. Uploading stays core on every
+    plan. Payments still deferred. Two Storage buckets (workshop-scoped branding,
+    farm-scoped documents).
+  - **`0383` a partner's DRAFT is private** — found by driving the built app: an unsent
+    draft was showing in the farmer's list while the partner was still pricing it.
+  - **`0384` the number allocator skips numbers already in use** — found the same way:
+    pressing "Start it" failed with a raw Postgres unique-violation and created nothing
+    once the counter and the rows had drifted (as they do after a restore or an import).
+  - App: **/documents** (one route, two audiences — partner sees what it issued across
+    every farm; farmer sees what was sent, decision-first), **/documents/[id]** (the
+    document renders identically for both sides; the actions beneath differ),
+    **/contractor/settings** (business profile, letterhead previewed as a document above
+    the fields that change it), **/admin/partners** (RR sets the product; indicative price
+    shown, display only). The **PDF engine is brandable** — partner wordmark, logo, colour,
+    footer — with the letterhead **frozen onto the document at send time**, so a rebrand
+    next year cannot restate last year's invoice.
+  - i18n EN/AF at parity (**1,847 leaf keys**) plus professional-tone overlays for the new
+    surfaces. Demo seed gains TJ's full letterhead and three documents (sent quote,
+    part-paid invoice, draft). Gates green; shared first-load JS flat at **102 kB**.
+  - **Verified live** against the hosted demo project as four roles: partner sees its own
+    3 documents and not the other partner's on a shared farm; owner sees all 4 raised
+    against the farm and not the unsent draft; other farm's owner and the operator see 0;
+    letterhead renders in the partner's own red; branded PDF generates; a Portal partner
+    is refused the builder but keeps the upload path. Write path driven end to end:
+    build → VAT-inclusive price stored ex-VAT → send → farmer accepts.
+
+- **THE FREEZE: `useSearchParams` in the root layout** (same branch; no migration):
+  - Chasing why a newly-added document line never appeared, the browser showed the router
+    fetching the redirect's RSC payload (200, ~52 KB, under a second) and then **never
+    committing the transition** — the screen sat on its loading skeleton indefinitely,
+    still stuck at 40 seconds. Measured **9 stuck out of 10**.
+  - It reproduced just as hard on the **pre-existing** work-request page, so this was not
+    new: **every server action in the product** — every save, every status change, every
+    note — could leave someone staring at a frozen screen. It is almost certainly the same
+    fault as the earlier, never-established report of a same-route `router.push` that
+    appeared not to navigate.
+  - Cause: `RouteProgress` (root layout) called `useSearchParams()` to notice a query-only
+    navigation. Server actions redirect to the same path with a new query (`?saved=1`,
+    `?added=1`, `?error=…`) — exactly the case that subscription governs. The layout
+    ALREADY wrapped it in `<Suspense>`, the documented remedy, and it froze anyway
+    (re-measured: still 1 in 4). Ruled out by measurement first: the service worker
+    (A/B, no change), `loading.tsx` (removed, no change), and the server itself (RSC
+    payloads fetched directly — complete and fast).
+  - Fix: drop the subscription. Completion now comes from `usePathname()` plus an 8-second
+    hard stop. A query-only navigation rides the hard stop rather than finishing on
+    arrival — deliberate: the obvious improvement (sampling `window.location.href` from
+    the tick) was built and measured and **brought the freeze straight back, 4 of 4**,
+    because setting state in a root-layout component while the transition is committing is
+    the same class of mistake. **0 stuck in 12** afterwards, on new and pre-existing pages
+    alike.
+
 > Update this "current status" block at the end of every session.
