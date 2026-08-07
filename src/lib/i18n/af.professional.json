@@ -205,7 +205,9 @@
     "termsHint": "Word onderaan elke dokument gedruk.",
     "logoHint": "PNG, JPEG of SVG. Word bo-aan elke dokument vertoon.",
     "quoteValidity": "Kwotasiegeldigheid (dae)",
-    "invoiceTerms": "Betalingsterme (dae)"
+    "invoiceTerms": "Betalingsterme (dae)",
+    "vatRegisteredHint": "Skakel af indien u onder die registrasiedrempel is. Dokumente word sonder BTW uitgereik.",
+    "vatNotRegisteredNote": "Dokumente word sonder BTW uitgereik. Die koers word behou indien u later registreer."
   },
   "pageInfo": {
     "documentsWhat": "Alle kwotasies en fakture ontvang van u kontrakteurs.",
@@ -238,5 +240,20 @@
     "requestsHint": "Hulle het u rekening in hul kliënteregister. Goedkeuring gee hulle toegang tot u voertuie.",
     "approveConsequence1": "Hulle kan u voertuie, foute, werkkaarte en diensgeskiedenis besigtig.",
     "approveConsequence2": "Hulle kan kwotasies en fakture uitreik, en die werk wat u toewys bywerk."
+  },
+  "access": {
+    "title": "Toegang",
+    "minimum": "Minimum toegang",
+    "nGranted": "{n} bykomend",
+    "baseline": "Sonder enige hiervan het hulle toegang tot die voertuie wat aan hulle toegewys is, die foute en werk daarop, en die versoeke wat u uitreik. Niks verder nie.",
+    "vehicles": "Volle vloottoegang",
+    "history": "Diensgeskiedenis",
+    "costs": "Koste-inligting",
+    "team": "Personeelgids",
+    "costsHint": "Prysinligting, begrotings, brandstof en werkkaartbedrae, insluitend bedrae aan ander verskaffers betaal.",
+    "teamHint": "Name, e-posadresse en telefoonnommers van alle plaaspersoneel.",
+    "neverPartners": "U ander verskaffers word nooit aan hulle bekend gemaak nie, ongeag die instellings hierbo.",
+    "save": "Stoor toegangsinstellings",
+    "disconnectBody": "{name} sal onmiddellik toegang tot hierdie plaas verloor."
   }
 }

@@ -205,7 +205,9 @@
     "termsHint": "Printed at the foot of every document.",
     "logoHint": "PNG, JPEG or SVG. Displayed at the head of every document.",
     "quoteValidity": "Quotation validity (days)",
-    "invoiceTerms": "Payment terms (days)"
+    "invoiceTerms": "Payment terms (days)",
+    "vatRegisteredHint": "Disable if you are below the registration threshold. Documents will be issued without VAT.",
+    "vatNotRegisteredNote": "Documents are issued without VAT. The rate is retained should you register later."
   },
   "pageInfo": {
     "documentsWhat": "All quotations and invoices received from your contractors.",
@@ -238,5 +240,20 @@
     "requestsHint": "They have your account in their client register. Approving grants them access to your vehicles.",
     "approveConsequence1": "They can view your vehicles, faults, job cards and service history.",
     "approveConsequence2": "They can issue quotations and invoices, and update the work you assign them."
+  },
+  "access": {
+    "title": "Access",
+    "minimum": "Minimum access",
+    "nGranted": "{n} additional",
+    "baseline": "Without any of these they can access the vehicles assigned to them, the faults and jobs on those vehicles, and the requests you issue. Nothing further.",
+    "vehicles": "Full fleet access",
+    "history": "Service history",
+    "costs": "Cost information",
+    "team": "Staff directory",
+    "costsHint": "Pricing, budgets, fuel and job-card amounts, including amounts paid to other suppliers.",
+    "teamHint": "Names, email addresses and telephone numbers of all farm personnel.",
+    "neverPartners": "Your other suppliers are never disclosed to them, regardless of the settings above.",
+    "save": "Save access settings",
+    "disconnectBody": "{name} will lose access to this farm immediately."
   }
 }

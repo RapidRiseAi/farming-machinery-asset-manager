@@ -206,31 +206,45 @@ end $$;
 reset role;
 
 -- ═════════════════════════════════════════════════════════════════
--- Persona: WORKSHOP W → only its linked farm (A), never Farm B
+-- Persona: WORKSHOP W → only its linked farm (A), never Farm B —
+-- and, since F16 (0400), only the part of Farm A it is working on.
 -- ═════════════════════════════════════════════════════════════════
+--
+-- Until 0400 an active link handed a contractor the same view as the farm's own staff:
+-- every vehicle, every cost entry, the whole team directory and the farm's other
+-- contractors. The counts below encode the NEW default — the minimum needed to do a job
+-- — and the F16 section further down proves each grant turns its own slice back on.
+--
+-- W has no work request and no document against Farm A's machine, so at this point it is
+-- working on nothing there: it can see the farm exists and that it is linked, and that
+-- is all.
 set role authenticated;
 do $$ begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');
   perform _t_assert('farms',              1, 'workshopW');  -- Farm A only
-  perform _t_assert('machines',           1, 'workshopW');
-  perform _t_assert('meter_readings',     1, 'workshopW');
-  perform _t_assert('service_plan_lines', 1, 'workshopW');
-  perform _t_assert('service_templates',  2, 'workshopW');  -- Farm A + GLOBAL
-  perform _t_assert('faults',             1, 'workshopW');
-  perform _t_assert('job_cards',          1, 'workshopW');
-  perform _t_assert('job_card_lines',     1, 'workshopW');
+  perform _t_assert('machines',           0, 'workshopW');  -- none of them are its work
+  perform _t_assert('meter_readings',     0, 'workshopW');  -- history not granted
+  perform _t_assert('service_plan_lines', 0, 'workshopW');
+  perform _t_assert('service_templates',  2, 'workshopW');  -- Farm A + GLOBAL (unchanged)
+  perform _t_assert('faults',             0, 'workshopW');
+  perform _t_assert('job_cards',          0, 'workshopW');
+  perform _t_assert('job_card_lines',     0, 'workshopW');  -- costs not granted
   perform _t_assert('job_card_service_lines', 1, 'workshopW');
-  perform _t_assert('watch_items',        1, 'workshopW');
+  perform _t_assert('watch_items',        0, 'workshopW');
   perform _t_assert('attachments',        1, 'workshopW');
-  perform _t_assert('notifications',      1, 'workshopW');
-  perform _t_assert('fuel_tanks',         1, 'workshopW');
-  perform _t_assert('fuel_deliveries',    1, 'workshopW');
-  perform _t_assert('fuel_issues',        1, 'workshopW');
-  perform _t_assert('users',              2, 'workshopW');  -- self + Owner A (linked farm)
+  -- 0403: a notification is addressed to a PERSON, and these are addressed to Farm A's
+  -- owner. Before 0403 the policy was farm-wide, so the contractor could read the
+  -- payloads — quote totals, fault descriptions, fuel anomalies — of everything 0400
+  -- had just gated. The narrower rule applies to everyone, not only contractors.
+  perform _t_assert('notifications',      0, 'workshopW');
+  perform _t_assert('fuel_tanks',         0, 'workshopW');  -- costs not granted
+  perform _t_assert('fuel_deliveries',    0, 'workshopW');
+  perform _t_assert('fuel_issues',        0, 'workshopW');
+  perform _t_assert('users',              1, 'workshopW');  -- itself only; team not granted
   perform _t_assert('workshops',          1, 'workshopW');  -- self
   perform _t_assert('workshop_links',     1, 'workshopW');
   perform _t_assert('sync_log',           1, 'workshopW');  -- Farm A only
-  perform _t_assert('usage_logs',         1, 'workshopW');
+  perform _t_assert('usage_logs',         0, 'workshopW');
 end $$;
 reset role;
 
@@ -675,7 +689,9 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'COST ISOLATION FAIL [ownerA]: sees % non-Farm-A cost rows', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('cost_entries', 1, 'ownerB');   end $$;
-do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('cost_entries', 1, 'workshopW'); end $$;
+-- A contractor sees no costs at all by default (F16 / 0400): what the farm paid is not
+-- job information. The F16 section proves `see_costs` turns it back on.
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('cost_entries', 0, 'workshopW'); end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('cost_entries', 2, 'rrAdmin');   end $$;
 reset role;
 
@@ -1194,7 +1210,9 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'LICENCE ISOLATION FAIL [ownerA]: sees % non-Farm-A licences', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('licences', 1, 'ownerB');    end $$;
-do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('licences', 2, 'workshopW'); end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); -- Compliance paperwork rides the same vehicle-scope rule now (F16 / 0400): W is not
+-- working on Farm A's machine, so it sees none of its licences either.
+  perform _t_assert('licences', 0, 'workshopW'); end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('licences', 3, 'rrAdmin');   end $$;
 reset role;
 
@@ -1541,7 +1559,17 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'PARTNERS ISOLATION FAIL [ownerA]: sees % Farm B partners', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('partners', 2, 'ownerB');    end $$;  -- Farm B + GLOBAL
-do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('partners', 2, 'workshopW'); end $$;  -- Farm A + GLOBAL (link holds)
+-- A contractor sees ONLY the global suggested rows — never the farm's own partner list
+-- (F16 / 0400). That list is a competitor directory with phone numbers, and there is no
+-- setting that makes it part of fixing a tractor.
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  perform _t_assert('partners', 1, 'workshopW');                    -- GLOBAL only
+  execute $q$ select count(*) from partners where farm_id is not null $q$ into c;
+  if c <> 0 then
+    raise exception 'COMPETITOR-LIST LEAK: a contractor sees % of the farm''s own partners', c;
+  end if;
+end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('partners', 3, 'rrAdmin');   end $$;  -- A + B + GLOBAL
 
 -- ── (b) cross-tenant write denied (Owner A → a Farm B partner) ────
@@ -2422,7 +2450,10 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'FINES ISOLATION FAIL [ownerA]: sees % non-Farm-A fines', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('fines', 1, 'ownerB');    end $$;
-do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('fines', 3, 'workshopW'); end $$;
+-- Fines name a DRIVER (the AARTO nomination), so a contractor seeing the farm's fines
+-- was personal data with no job attached to it. They ride the vehicle-scope rule now
+-- (F16 / 0400): W is working on none of Farm A's machines, so it sees none.
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('fines', 0, 'workshopW'); end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('fines', 4, 'rrAdmin');   end $$;
 reset role;
 
@@ -2548,7 +2579,9 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'BUDGET ISOLATION FAIL [ownerA]: sees % non-Farm-A budgets', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('budgets', 1, 'ownerB');    end $$;
-do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('budgets', 2, 'workshopW'); end $$;
+do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); -- Budgets are the farm's spending targets. A contractor seeing them could price against
+-- what the farm has left in the year — off by default (F16 / 0400).
+  perform _t_assert('budgets', 0, 'workshopW'); end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('budgets', 3, 'rrAdmin');   end $$;
 reset role;
 
@@ -3132,9 +3165,33 @@ do $$ declare c bigint; begin
   if not app.has_farm_access('22222222-2222-2222-2222-222222222222') then
     raise exception 'F15 FAIL [approval]: the farm approved but X still has no access';
   end if;
+  -- …but approval alone is not a key to the whole farm (F16 / 0400). X is working on
+  -- nothing there yet, and the farm granted no extra scope, so the fleet stays closed.
   select count(*) into c from machines where farm_id = '22222222-2222-2222-2222-222222222222';
-  if c < 1 then raise exception 'F15 FAIL [approval]: X sees % Farm B machines after approval', c; end if;
+  if c <> 0 then
+    raise exception 'F16 FAIL [approval too broad]: a bare approval showed X % machines', c;
+  end if;
 end $$;
+
+-- The farm turning ON "see the whole fleet" is what opens it — and only that.
+reset role;
+update workshop_links set see_all_vehicles = true
+  where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+    and farm_id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('e4000000-0000-0000-0000-0000000000e4');
+  select count(*) into c from machines where farm_id = '22222222-2222-2222-2222-222222222222';
+  if c < 1 then raise exception 'F16 FAIL [grant ignored]: see_all_vehicles did not open the fleet'; end if;
+  -- Costs are a separate grant and were NOT given.
+  select count(*) into c from cost_entries where farm_id = '22222222-2222-2222-2222-222222222222';
+  if c <> 0 then raise exception 'F16 FAIL [grant bleed]: the vehicles grant also exposed % cost rows', c; end if;
+end $$;
+reset role;
+update workshop_links set see_all_vehicles = false
+  where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
+    and farm_id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
 reset role;
 -- Put Farm B back as it was, so later sections keep their counts.
 update workshop_links set status = 'revoked'
@@ -3241,3 +3298,563 @@ do $$ declare a text; b text; begin
 end $$;
 
 select 'ALL F15 PARTNER-CLIENT-BOOK TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F16 — PARTNER ACCESS SCOPE (0400)
+-- ═════════════════════════════════════════════════════════════════
+-- The claim: an active link is permission to do a JOB, not a key to the farm. What a
+-- contractor sees is the farm's choice, defaulting to the minimum, and each grant opens
+-- exactly its own slice and nothing else.
+--
+-- Fresh fixtures so the personas above keep their counts: Farm P, two machines, a
+-- contractor (Workshop Y) linked to it with a work request on ONE of them.
+
+insert into farms (id, name) values ('f1600000-0000-0000-0000-000000000001', 'Farm P');
+insert into machines (id, farm_id, name, type) values
+  ('f1610000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'P — theirs',     'tractor'),
+  ('f1610000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001', 'P — not theirs', 'bakkie');
+insert into workshops (id, name, kind) values
+  ('f1620000-0000-0000-0000-000000000001', 'Workshop Y', 'mechanic');
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('f1620000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'active');
+insert into auth.users (id, email) values ('f1630000-0000-0000-0000-000000000001', 'workshopY@test');
+insert into users (id, farm_id, workshop_id, role, name, email, phone) values
+  ('f1630000-0000-0000-0000-000000000001', null, 'f1620000-0000-0000-0000-000000000001', 'workshop', 'Y Staff', 'y@test', '+27820000009');
+-- Farm P's own people, whose contact details are not the contractor's business.
+insert into auth.users (id, email) values ('f1640000-0000-0000-0000-000000000001', 'ownerP@test');
+insert into users (id, farm_id, role, name, email, phone) values
+  ('f1640000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'owner', 'Owner P', 'ownerp@test', '+27820000010');
+-- Y is assigned ONE machine.
+insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title) values
+  ('f1650000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
+   'f1610000-0000-0000-0000-000000000001', 'f1620000-0000-0000-0000-000000000001',
+   'repair', 'requested', 'normal', 'Y works on this one');
+-- Things the contractor must not see by default.
+insert into cost_entries (farm_id, machine_id, type, amount_cents) values
+  ('f1600000-0000-0000-0000-000000000001', 'f1610000-0000-0000-0000-000000000001', 'parts', 123400);
+insert into meter_readings (farm_id, machine_id, reading, source) values
+  ('f1600000-0000-0000-0000-000000000001', 'f1610000-0000-0000-0000-000000000001', 100, 'manual');
+insert into partners (farm_id, is_suggested, name, kind, phone) values
+  ('f1600000-0000-0000-0000-000000000001', false, 'A COMPETITOR', 'tyre', '+27820000011');
+
+set role authenticated;
+
+-- ── (a) The default: only the vehicle they were given ────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y
+  select count(*) into c from machines where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [default vehicles]: sees % (expected only the 1 it works on)', c; end if;
+
+  select count(*) into c from machines where id = 'f1610000-0000-0000-0000-000000000002';
+  if c <> 0 then raise exception 'F16 FAIL [default vehicles]: the machine it has no work on is visible'; end if;
+
+  select count(*) into c from cost_entries where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [default costs]: sees % cost rows (expected 0)', c; end if;
+
+  select count(*) into c from meter_readings where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [default history]: sees % meter readings (expected 0)', c; end if;
+
+  -- Fuel draws carry a price, so they follow the money grant too (0402).
+  select count(*) into c from fuel_issues where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [default fuel]: sees % fuel draws (expected 0)', c; end if;
+
+  select count(*) into c from users where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [default team]: sees % of the farm''s people (expected 0)', c; end if;
+
+  select count(*) into c from partners where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [COMPETITOR LEAK]: sees % of the farm''s other contractors', c; end if;
+
+  -- It can still do its job: its own work request is right there.
+  select count(*) into c from work_requests where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [too tight]: a contractor cannot see its own work request'; end if;
+end $$;
+
+-- ── (b) Each grant opens exactly its own slice ───────────────────────────────
+reset role;
+update workshop_links set see_all_vehicles = true
+  where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  select count(*) into c from machines where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 2 then raise exception 'F16 FAIL [vehicles grant]: sees % (expected the whole fleet, 2)', c; end if;
+  select count(*) into c from cost_entries where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [bleed]: the vehicles grant leaked % cost rows', c; end if;
+  select count(*) into c from users where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [bleed]: the vehicles grant leaked % people', c; end if;
+end $$;
+
+reset role;
+update workshop_links set see_costs = true
+  where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  select count(*) into c from cost_entries where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [costs grant]: sees % cost rows (expected 1)', c; end if;
+  select count(*) into c from users where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16 FAIL [bleed]: the costs grant leaked % people', c; end if;
+end $$;
+
+reset role;
+update workshop_links set see_team = true, see_service_history = true
+  where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  select count(*) into c from users where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [team grant]: sees % of the farm''s people (expected 1)', c; end if;
+  select count(*) into c from meter_readings where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [history grant]: sees % readings (expected 1)', c; end if;
+  -- Even with EVERY grant on, the farm's other contractors stay invisible. There is no
+  -- setting for it, by design.
+  select count(*) into c from partners where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'F16 FAIL [COMPETITOR LEAK]: with all grants on, a contractor sees % of the farm''s partners', c;
+  end if;
+end $$;
+
+-- ── (c) A contractor cannot grant itself anything ────────────────────────────
+do $$ begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  update workshop_links set see_costs = true, see_team = true
+    where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+end $$;
+reset role;
+update workshop_links set see_costs = false, see_team = false, see_service_history = false, see_all_vehicles = false
+  where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  -- Re-granting itself must not work: wl_upd covers rr_admin and the farm, never a
+  -- workshop, so the write above affected nothing and this stays shut.
+  update workshop_links set see_costs = true where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+  select count(*) into c from cost_entries where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'F16 FAIL [SELF-GRANT]: a contractor granted itself cost visibility';
+  end if;
+end $$;
+reset role;
+
+-- ── (d) The farm side is completely unaffected ───────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  select count(*) into c from machines where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 2 then raise exception 'F16 FAIL [farm narrowed]: Owner P sees % of their own machines', c; end if;
+  select count(*) into c from cost_entries where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [farm narrowed]: Owner P sees % of their own costs', c; end if;
+  select count(*) into c from partners where farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16 FAIL [farm narrowed]: Owner P sees % of their own partners', c; end if;
+end $$;
+reset role;
+
+select 'ALL F16 PARTNER-ACCESS-SCOPE TESTS PASSED' as result;
+
+-- ── F16b: a partner who is not VAT registered cannot issue VAT (0401) ────────
+insert into workshops (id, name, kind, vat_registered) values
+  ('f1660000-0000-0000-0000-000000000001', 'Small Operator', 'mechanic', false);
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('f1660000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'active');
+
+-- Try to issue at 15% anyway — the guard forces it to zero.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
+values ('f1670000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
+        'f1660000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'SO-0001', 1500);
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('f1600000-0000-0000-0000-000000000001', 'f1670000-0000-0000-0000-000000000001', 0, 'labour', 'Two hours', 2, 50000);
+
+do $$ declare r int; v bigint; tot bigint; sub bigint; begin
+  select vat_rate_bps, vat_cents, total_cents, subtotal_cents into r, v, tot, sub
+    from partner_documents where id = 'f1670000-0000-0000-0000-000000000001';
+  if r <> 0 then raise exception 'F16b FAIL [vat forced]: a non-registered partner issued at % bps', r; end if;
+  if v <> 0 then raise exception 'F16b FAIL [vat charged]: vat_cents = % on a non-registered partner''s invoice', v; end if;
+  if tot <> sub then
+    raise exception 'F16b FAIL [total]: total % <> subtotal % with no VAT', tot, sub;
+  end if;
+end $$;
+
+-- A registered partner is untouched.
+do $$ declare r int; begin
+  update partner_documents set vat_rate_bps = 1500 where id = 'f1400000-0000-0000-0000-000000000001';
+  select vat_rate_bps into r from partner_documents where id = 'f1400000-0000-0000-0000-000000000001';
+  if r <> 1500 then raise exception 'F16b FAIL [registered partner]: rate forced to % on a VAT-registered issuer', r; end if;
+end $$;
+
+select 'ALL F16b VAT-REGISTRATION TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F16c — THE SIDE DOORS (0403)
+-- ═════════════════════════════════════════════════════════════════
+-- Five ways round the F16 scope, all found by review of 0400–0402. The lesson is the
+-- same in each: narrowing the tables a contractor can READ is not the same as narrowing
+-- what they can REACH. These assertions exist so the doors stay shut.
+
+-- ── (a) A notification is addressed to a person ──────────────────────────────
+--
+-- `notifications_sel` was farm-wide, so a linked contractor could read the payloads of
+-- everything 0400 had just gated: quote and invoice totals, fault descriptions, fuel
+-- anomalies, whole-farm weekly digests. One row per recipient is how they are written,
+-- so the recipient is who may read them.
+insert into notifications (farm_id, user_id, channel, template, payload) values
+  ('f1600000-0000-0000-0000-000000000001', 'f1640000-0000-0000-0000-000000000001',
+   'inapp', 'fuel_anomaly', '{"amount":"R12 340","machine":"P — not theirs"}'),
+  ('f1600000-0000-0000-0000-000000000001', 'f1630000-0000-0000-0000-000000000001',
+   'inapp', 'work_request_status', '{"title":"Y works on this one"}');
+
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y
+  select count(*) into c from notifications
+   where farm_id = 'f1600000-0000-0000-0000-000000000001'
+     and user_id <> 'f1630000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'F16c FAIL [PAYLOAD LEAK]: a contractor reads % notifications addressed to the farm', c;
+  end if;
+
+  -- Its own alerts still arrive, or the contractor dashboard goes blank.
+  select count(*) into c from notifications where user_id = 'f1630000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16c FAIL [too tight]: a contractor sees % of its own alerts (expected 1)', c; end if;
+end $$;
+
+do $$ declare c bigint; begin
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  select count(*) into c from notifications where user_id = 'f1640000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'F16c FAIL [own alerts]: Owner P sees % of their own alerts', c; end if;
+  select count(*) into c from notifications where user_id <> 'f1640000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16c FAIL: Owner P reads % alerts addressed to someone else', c; end if;
+end $$;
+reset role;
+
+-- ── (b) Storage resolves to the same decision the tables make ────────────────
+--
+-- 0382's object policies were farm-scoped only, so a contractor could list and download
+-- every file under a farm they were linked to: other contractors' invoice PDFs out of
+-- `partner-docs`, photos of vehicles they have nothing to do with, fault voice notes.
+--
+-- The local test Postgres has no `storage` schema, so 0403 skipped the policies. The
+-- DECISION function is what carries the rule, and it is testable here with a two-line
+-- stand-in for `storage.foldername` (which splits an object key into its folder path).
+create schema if not exists storage;
+create or replace function storage.foldername(name text) returns text[]
+language sql immutable as $$
+  select (string_to_array(name, '/'))[1 : greatest(array_length(string_to_array(name, '/'), 1) - 1, 0)];
+$$;
+
+-- A photo of the vehicle Y works on, and one of the vehicle it does not.
+insert into attachments (id, farm_id, parent_type, parent_id, kind, url) values
+  ('f16a0000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
+   'machine', 'f1610000-0000-0000-0000-000000000001', 'photo', 'x'),
+  ('f16a0000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001',
+   'machine', 'f1610000-0000-0000-0000-000000000002', 'photo', 'x');
+
+set role authenticated;
+do $$
+declare
+  ok_key   text := 'f1600000-0000-0000-0000-000000000001/f1610000-0000-0000-0000-000000000001/p.jpg';
+  bad_key  text := 'f1600000-0000-0000-0000-000000000001/f1610000-0000-0000-0000-000000000002/p.jpg';
+  far_key  text := '11111111-1111-1111-1111-111111111111/aa111111-1111-1111-1111-111111111111/p.jpg';
+  mine_doc text;
+  theirs   text;
+begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y
+
+  if not app.storage_object_visible('machine-photos', ok_key) then
+    raise exception 'F16c FAIL [too tight]: a contractor cannot open a photo of the vehicle it is working on';
+  end if;
+  if app.storage_object_visible('machine-photos', bad_key) then
+    raise exception 'F16c FAIL [STORAGE LEAK]: a contractor can open a photo of a vehicle it has no work on';
+  end if;
+  if app.storage_object_visible('machine-photos', far_key) then
+    raise exception 'F16c FAIL [STORAGE LEAK]: a contractor can open a file on a farm it is not linked to';
+  end if;
+  if app.storage_object_visible('machine-photos', 'not-a-uuid/whatever.jpg') then
+    raise exception 'F16c FAIL: an unrecognised object key was judged readable';
+  end if;
+
+  -- partner-docs: a contractor reaches the PDFs of documents it issued, and no others.
+  -- 'Small Operator' (F16b) issued SO-0001 on this same farm; Y must not reach it.
+  theirs := 'f1600000-0000-0000-0000-000000000001/f1670000-0000-0000-0000-000000000001/invoice.pdf';
+  if app.storage_object_visible('partner-docs', theirs) then
+    raise exception 'F16c FAIL [STORAGE LEAK]: a contractor can download another contractor''s invoice PDF';
+  end if;
+
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  mine_doc := 'f1600000-0000-0000-0000-000000000001/f1670000-0000-0000-0000-000000000001/invoice.pdf';
+  if app.storage_object_visible('machine-photos', bad_key) is not true then
+    raise exception 'F16c FAIL [farm narrowed]: the farm''s own owner cannot open their own vehicle photo';
+  end if;
+  if app.storage_object_visible('partner-docs', mine_doc) is not true then
+    raise exception 'F16c FAIL [farm narrowed]: the farm''s owner cannot open an invoice raised against them';
+  end if;
+end $$;
+reset role;
+
+-- ── (c) The VAT guard fires on the update that matters ───────────────────────
+--
+-- 0401 fired only when `vat_rate_bps` or `workshop_id` was in the UPDATE. Sending a draft
+-- touches `status` and `sent_at` — so a document priced at 15% while the partner was
+-- registered went OUT at 15% after they deregistered. And because trigger order is
+-- alphabetical, the totals trigger ran first: the money was computed WITH VAT and only
+-- the rate was zeroed, leaving a row that shows no VAT line while still charging it.
+insert into workshops (id, name, kind, vat_registered) values
+  ('f16b0000-0000-0000-0000-000000000001', 'Was Registered', 'mechanic', true);
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('f16b0000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'active');
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
+values ('f16c0000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
+        'f16b0000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'WR-0001', 1500);
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('f1600000-0000-0000-0000-000000000001', 'f16c0000-0000-0000-0000-000000000001',
+        0, 'labour', 'Two hours', 2, 50000);
+
+do $$ declare v bigint; begin
+  select vat_cents into v from partner_documents where id = 'f16c0000-0000-0000-0000-000000000001';
+  if v <= 0 then raise exception 'F16c FAIL [fixture]: a registered partner''s draft carries no VAT (%)', v; end if;
+end $$;
+
+-- They deregister, then send the draft. Sending touches neither the rate nor the workshop.
+update workshops set vat_registered = false where id = 'f16b0000-0000-0000-0000-000000000001';
+update partner_documents set status = 'sent', sent_at = now()
+  where id = 'f16c0000-0000-0000-0000-000000000001';
+
+do $$ declare r int; v bigint; tot bigint; sub bigint; begin
+  select vat_rate_bps, vat_cents, total_cents, subtotal_cents into r, v, tot, sub
+    from partner_documents where id = 'f16c0000-0000-0000-0000-000000000001';
+  if r <> 0 or v <> 0 then
+    raise exception 'F16c FAIL [VAT ON SEND]: sent at % bps charging % cents of VAT the partner may not collect', r, v;
+  end if;
+  if tot <> sub then
+    raise exception 'F16c FAIL [VAT IN THE TOTAL]: total % <> subtotal % — the VAT line is hidden but still billed', tot, sub;
+  end if;
+end $$;
+
+-- An `uploaded` document's totals are typed by hand, not derived, so the guard has to
+-- correct those too — this is the case where a stray vat_cents simply survived.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, upload_path,
+                               vat_rate_bps, subtotal_cents, vat_cents, total_cents)
+values ('f16c0000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001',
+        'f16b0000-0000-0000-0000-000000000001', 'invoice', 'sent', 'uploaded', 'WR-0002',
+        'f1600000-0000-0000-0000-000000000001/f16c0000-0000-0000-0000-000000000002/inv.pdf',
+        1500, 100000, 15000, 115000);
+do $$ declare r int; v bigint; tot bigint; begin
+  select vat_rate_bps, vat_cents, total_cents into r, v, tot
+    from partner_documents where id = 'f16c0000-0000-0000-0000-000000000002';
+  if r <> 0 or v <> 0 or tot <> 100000 then
+    raise exception 'F16c FAIL [uploaded]: typed totals kept VAT — % bps, % cents, total %', r, v, tot;
+  end if;
+end $$;
+
+-- ── (d) An owner looking at a second site can actually change it ─────────────
+--
+-- `wl_upd` (0101) allowed an update only on the PRIMARY farm. Since F7 an owner can be
+-- looking at a second site through `user_farm_memberships`, and both the access card and
+-- the disconnect button write against the farm being VIEWED. On a secondary farm that
+-- update matched zero rows, raised nothing, and redirected saying it had worked — so an
+-- owner could be told a contractor was disconnected while their access carried on.
+insert into farms (id, name) values ('f16d0000-0000-0000-0000-000000000001', 'Farm Q');
+insert into auth.users (id, email) values ('f16d0000-0000-0000-0000-000000000002', 'ownerQ@test');
+insert into users (id, farm_id, role, name, email) values
+  ('f16d0000-0000-0000-0000-000000000002', 'f16d0000-0000-0000-0000-000000000001', 'owner', 'Owner Q', 'ownerq@test');
+-- Q also runs Farm P as a second site.
+insert into user_farm_memberships (user_id, farm_id, role) values
+  ('f16d0000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001', 'owner');
+
+set role authenticated;
+do $$ declare st text; begin
+  perform _t_login('f16d0000-0000-0000-0000-000000000002');            -- Owner Q, on site P
+  update workshop_links set status = 'revoked'
+   where workshop_id = 'f1620000-0000-0000-0000-000000000001'
+     and farm_id = 'f1600000-0000-0000-0000-000000000001';
+  select status into st from workshop_links
+   where workshop_id = 'f1620000-0000-0000-0000-000000000001'
+     and farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if st <> 'revoked' then
+    raise exception 'F16c FAIL [SILENT NO-OP]: disconnecting on a second site left the link %', st;
+  end if;
+end $$;
+
+-- And the disconnection actually took: Y loses the farm entirely.
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y
+  select count(*) into c from farms where id = 'f1600000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'F16c FAIL: a revoked contractor still reaches the farm'; end if;
+end $$;
+reset role;
+
+-- A contractor still cannot re-scope or re-activate itself under the widened policy.
+set role authenticated;
+do $$ declare st text; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  update workshop_links set status = 'active', see_costs = true
+   where workshop_id = 'f1620000-0000-0000-0000-000000000001';
+  perform _t_login('d4444444-4444-4444-4444-444444444444');            -- rr_admin reads the truth
+  select status into st from workshop_links
+   where workshop_id = 'f1620000-0000-0000-0000-000000000001'
+     and farm_id = 'f1600000-0000-0000-0000-000000000001';
+  if st <> 'revoked' then
+    raise exception 'F16c FAIL [SELF-REACTIVATE]: a contractor turned its own link back %', st;
+  end if;
+end $$;
+reset role;
+
+select 'ALL F16c SIDE-DOOR TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- F16d — NOBODY PROMOTES THEMSELVES (0404)
+-- ═════════════════════════════════════════════════════════════════
+-- The row that decides what you may read was writable by you. `users_upd` (0101) lets a
+-- person edit their own row, `role` sits on that row, and `app.is_rr_admin()` is defined
+-- as that column. One UPDATE and an ordinary login read every tenant in the system.
+--
+-- `users_scope_ck` blocks the naive version (an rr_admin holds no farm and no workshop),
+-- so the exploit nulls both columns in the same statement — which is why this was not
+-- obvious from reading the policy.
+
+-- A farm-side person for Owner P to administer. (A contractor's staff account belongs to
+-- the workshop, not to any farm, so no farmer may touch it — asserted below.)
+insert into auth.users (id, email) values ('f16f0000-0000-0000-0000-000000000001', 'driverR@test');
+insert into users (id, farm_id, role, name, email) values
+  ('f16f0000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'operator', 'Driver R', 'driverr@test');
+
+set role authenticated;
+
+-- ── (a) A contractor cannot promote itself ───────────────────────────────────
+do $$ declare r text; c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y staff
+  begin
+    update users set role = 'rr_admin', farm_id = null, workshop_id = null
+     where id = 'f1630000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then null;                     -- expected
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');            -- rr_admin reads the truth
+  select role into r from users where id = 'f1630000-0000-0000-0000-000000000001';
+  if r <> 'workshop' then
+    raise exception 'F16d FAIL [PRIVILEGE ESCALATION]: a contractor made itself %', r;
+  end if;
+end $$;
+
+-- ── (b) Nor can a farm owner, an operator, or anyone else ────────────────────
+do $$ declare r text; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  begin
+    update users set role = 'rr_admin', farm_id = null
+     where id = 'b2222222-2222-2222-2222-222222222222';
+  exception when insufficient_privilege then null;
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select role into r from users where id = 'b2222222-2222-2222-2222-222222222222';
+  if r <> 'owner' then
+    raise exception 'F16d FAIL [PRIVILEGE ESCALATION]: a farm owner made themselves %', r;
+  end if;
+end $$;
+
+-- ── (c) You cannot quietly reassign yourself to another farm either ──────────
+do $$ declare f uuid; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  begin
+    update users set farm_id = '11111111-1111-1111-1111-111111111111'
+     where id = 'b2222222-2222-2222-2222-222222222222';
+  exception when insufficient_privilege then null;
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select farm_id into f from users where id = 'b2222222-2222-2222-2222-222222222222';
+  if f <> '22222222-2222-2222-2222-222222222222' then
+    raise exception 'F16d FAIL [FARM HOP]: Owner B moved themselves to %', f;
+  end if;
+end $$;
+
+-- ── (d) The profile edits the app actually makes still work ──────────────────
+do $$ declare n text; l text; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  update users set name = 'Owner B (renamed)', language = 'af', phone = '+27820001234'
+   where id = 'b2222222-2222-2222-2222-222222222222';
+  select name, language into n, l from users where id = 'b2222222-2222-2222-2222-222222222222';
+  if n <> 'Owner B (renamed)' or l <> 'af' then
+    raise exception 'F16d FAIL [too tight]: a person can no longer edit their own profile (% / %)', n, l;
+  end if;
+end $$;
+
+-- ── (e) An owner can still deactivate someone on their own farm ──────────────
+-- This is the one administrative write the app makes (`/team`), and the POPIA erasure
+-- RPC depends on it too.
+do $$ declare a boolean; begin
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  update users set active = false where id = 'f16f0000-0000-0000-0000-000000000001';
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select active into a from users where id = 'f16f0000-0000-0000-0000-000000000001';
+  if a is not false then
+    raise exception 'F16d FAIL [too tight]: an owner can no longer deactivate a person on their farm';
+  end if;
+end $$;
+reset role;
+update users set active = true where id = 'f16f0000-0000-0000-0000-000000000001';
+set role authenticated;
+
+-- ── (f) …but not mint an rr_admin, not reach another farm's people, and not ──
+--        touch a contractor's staff account, which belongs to the workshop ───
+do $$ declare r text; begin
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  begin
+    update users set role = 'rr_admin', farm_id = null
+     where id = 'f16f0000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then null;
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select role into r from users where id = 'f16f0000-0000-0000-0000-000000000001';
+  if r <> 'operator' then
+    raise exception 'F16d FAIL [MINTED ADMIN]: a farm owner created an rr_admin (%)', r;
+  end if;
+end $$;
+
+do $$ declare a boolean; begin
+  perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
+  begin
+    update users set active = false where id = 'f1630000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then null;
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select active into a from users where id = 'f1630000-0000-0000-0000-000000000001';
+  if a is not true then
+    raise exception 'F16d FAIL: a farmer disabled a contractor''s own staff account';
+  end if;
+end $$;
+
+do $$ declare a boolean; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
+  begin
+    update users set active = false where id = 'a1111111-1111-1111-1111-111111111111';
+  exception when insufficient_privilege then null;
+  end;
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select active into a from users where id = 'a1111111-1111-1111-1111-111111111111';
+  if a is not true then
+    raise exception 'F16d FAIL [CROSS-TENANT]: Owner B deactivated Farm A''s owner';
+  end if;
+end $$;
+
+-- ── (g) rr_admin is unaffected ───────────────────────────────────────────────
+do $$ declare a boolean; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  update users set active = false where id = 'b2222222-2222-2222-2222-222222222222';
+  select active into a from users where id = 'b2222222-2222-2222-2222-222222222222';
+  if a is not false then raise exception 'F16d FAIL: rr_admin can no longer administer a user'; end if;
+  update users set active = true where id = 'b2222222-2222-2222-2222-222222222222';
+end $$;
+
+-- ── (h) A contractor cannot mark the farm's alerts read ──────────────────────
+-- `notifications_upd` was farm-wide, and an UPDATE naming no columns in its WHERE clause
+-- never consults the SELECT policy — so 0403's narrowing did not cover this by itself.
+do $$ declare c bigint; begin
+  perform _t_login('f1630000-0000-0000-0000-000000000001');
+  update notifications set read_at = now();
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  select count(*) into c from notifications
+   where user_id = 'f1640000-0000-0000-0000-000000000001' and read_at is not null;
+  if c <> 0 then
+    raise exception 'F16d FAIL: a contractor marked % of the farm owner''s alerts read', c;
+  end if;
+end $$;
+reset role;
+
+select 'ALL F16d PRIVILEGE-ESCALATION TESTS PASSED' as result;

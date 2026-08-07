@@ -19,7 +19,7 @@ export const BRANDING_COLUMNS =
   "id, name, trading_name, reg_number, vat_number, address, phone, whatsapp, email, website, " +
   "bank_name, bank_account_name, bank_account_number, bank_branch_code, bank_account_type, " +
   "logo_path, brand_primary, brand_secondary, show_powered_by, doc_prefix_quote, doc_prefix_invoice, " +
-  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, doc_terms, doc_footer";
+  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, vat_registered, doc_terms, doc_footer";
 
 export type WorkshopBrandingRow = {
   id: string;
@@ -48,6 +48,7 @@ export type WorkshopBrandingRow = {
   quote_validity_days?: number | null;
   invoice_terms_days?: number | null;
   default_vat_rate_bps?: number | null;
+  vat_registered?: boolean | null;
   doc_terms?: string | null;
   doc_footer?: string | null;
 };
@@ -56,6 +57,8 @@ export type Branding = Required<Pick<IssuerSnapshot, "name">> & IssuerSnapshot &
   quoteValidityDays: number;
   invoiceTermsDays: number;
   defaultVatRateBps: number;
+  /** Does this partner charge VAT at all? False → documents carry no VAT line. */
+  vatRegistered: boolean;
 };
 
 /** Resolve a workshop row into the letterhead, filling every gap with a sane default. */
@@ -81,13 +84,16 @@ export function brandingFrom(w: WorkshopBrandingRow | null | undefined): Brandin
     show_powered_by: w?.show_powered_by ?? true,
     quoteValidityDays: w?.quote_validity_days ?? 14,
     invoiceTermsDays: w?.invoice_terms_days ?? 30,
-    defaultVatRateBps: w?.default_vat_rate_bps ?? 1500,
+    // A partner below the registration threshold issues at zero, whatever the
+    // stored rate says — the rate is kept so turning registration on restores it.
+    defaultVatRateBps: w?.vat_registered === false ? 0 : (w?.default_vat_rate_bps ?? 1500),
+    vatRegistered: w?.vat_registered !== false,
   };
 }
 
 /** The letterhead as stored on a document, so a rebrand never restates an old invoice. */
 export function snapshotOf(b: Branding): IssuerSnapshot {
-  const { quoteValidityDays: _q, invoiceTermsDays: _i, defaultVatRateBps: _v, ...snapshot } = b;
+  const { quoteValidityDays: _q, invoiceTermsDays: _i, defaultVatRateBps: _v, vatRegistered: _r, ...snapshot } = b;
   return snapshot;
 }
 

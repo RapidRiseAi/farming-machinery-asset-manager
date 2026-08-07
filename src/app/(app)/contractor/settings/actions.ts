@@ -59,6 +59,7 @@ export async function updatePartnerProfile(formData: FormData) {
       doc_prefix_invoice: (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
       quote_validity_days: intIn(formData, "quote_validity_days", 0, 365, 14),
       invoice_terms_days: intIn(formData, "invoice_terms_days", 0, 365, 30),
+      vat_registered: formData.get("vat_registered") != null,
       default_vat_rate_bps: percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500,
       doc_terms: s(formData, "doc_terms"),
       doc_footer: s(formData, "doc_footer"),

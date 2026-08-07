@@ -248,7 +248,7 @@ export default async function DocumentPage({
         {/* Totals — ex-VAT, VAT, then the number the farmer actually pays. */}
         <div className="border-t border-sand-100 px-4 py-4">
           <dl className="ml-auto grid max-w-xs grid-cols-2 gap-y-1 text-sm">
-            <dt className="text-sand-500">{t("doc.subtotal", locale)}</dt>
+            <dt className="text-sand-500">{doc.vat_rate_bps > 0 ? t("doc.subtotal", locale) : t("doc.subtotalNoVat", locale)}</dt>
             <dd className="text-right tabular-nums text-sand-800">{rands(doc.subtotal_cents)}</dd>
             {doc.discount_cents > 0 ? (
               <>
@@ -256,10 +256,16 @@ export default async function DocumentPage({
                 <dd className="text-right tabular-nums text-sand-800">−{rands(doc.discount_cents)}</dd>
               </>
             ) : null}
-            <dt className="text-sand-500">
-              {t("doc.vat", locale)} ({vatPercent(doc.vat_rate_bps)})
-            </dt>
-            <dd className="text-right tabular-nums text-sand-800">{rands(doc.vat_cents)}</dd>
+            {/* A partner who is not VAT registered issues no VAT line at all — showing
+                "VAT 0%" would still be a claim about tax they do not charge. */}
+            {doc.vat_rate_bps > 0 ? (
+              <>
+                <dt className="text-sand-500">
+                  {t("doc.vat", locale)} ({vatPercent(doc.vat_rate_bps)})
+                </dt>
+                <dd className="text-right tabular-nums text-sand-800">{rands(doc.vat_cents)}</dd>
+              </>
+            ) : null}
             <dt className="mt-1 border-t border-sand-200 pt-1 font-semibold text-sand-900">{t("doc.total", locale)}</dt>
             <dd className="mt-1 border-t border-sand-200 pt-1 text-right text-lg font-bold tabular-nums text-sand-900">
               {rands(doc.total_cents)}

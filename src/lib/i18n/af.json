@@ -1770,7 +1770,8 @@
     "clientsTitle": "My kliënte",
     "clientsWhat": "Jou hele klanteboek — nie net die plase wat jou op FleetWise gevind het nie.",
     "clientsDoes": "Voeg enige klant by, of hulle FleetWise gebruik of nie\nHou hul voertuie neergeskryf voor hulle aansluit\nVra ’n klant om hul plaas aan jou te koppel\nKopieer jou voertuiglys na hul vloot sodra hulle koppel\nBel, WhatsApp of e-pos direk vanaf die lys",
-    "clientsNote": "Om iemand hier by te voeg gee jou geen toegang tot hul data nie. Dit kom eers wanneer hulle koppel en ja sê."
+    "clientsNote": "Om iemand hier by te voeg gee jou geen toegang tot hul data nie. Dit kom eers wanneer hulle koppel en ja sê.",
+    "partnersNote": "Jy kies wat elke gekoppelde kontrakteur kan sien. Hulle sien nooit jou ander kontrakteurs nie."
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -1963,7 +1964,8 @@
       "missing_fields": "Kies vir wie dit is.",
       "upload_failed": "Die lêer wou nie oplaai nie. Probeer ’n kleiner een.",
       "forbidden": "Jy mag dit nie doen nie."
-    }
+    },
+    "subtotalNoVat": "Subtotaal"
   },
   "partnerSettings": {
     "title": "My besigheid",
@@ -2018,7 +2020,10 @@
     "prefixHint": "So jou eerste kwotasie is QTE-0001.",
     "quoteValidity": "’n Kwotasie staan vir (dae)",
     "invoiceTerms": "Jy gee (dae) om te betaal",
-    "vatDefaultHint": "Nuwe dokumente begin op"
+    "vatDefaultHint": "Nuwe dokumente begin op",
+    "vatRegistered": "Ons is vir BTW geregistreer",
+    "vatRegisteredHint": "Skakel dit af as jy onder die drempel is. Jou dokumente sal glad geen BTW wys nie.",
+    "vatNotRegisteredNote": "Jou dokumente wys geen BTW nie. Die koers word gehou indien jy later registreer."
   },
   "clients": {
     "title": "My kliënte",
@@ -2099,5 +2104,27 @@
     "removeClientKeepsLink": "Jy bly aan hul plaas gekoppel — dit verwyder net jou eie rekord.",
     "connectedFlash": "Reeds gekoppel — hierdie kliënt is nou aan hul plaas gekoppel.",
     "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie — probeer weer, die res wag nog."
+  },
+  "access": {
+    "title": "Wat hulle kan sien",
+    "minimum": "Minimum",
+    "nGranted": "{n} ekstra",
+    "baseline": "Sonder enige van hierdie kan hulle die voertuie sien waaraan hulle vir jou werk, die foute en werk op daardie voertuie, en die versoeke wat jy hulle stuur. Niks anders nie.",
+    "vehicles": "Jou hele vloot",
+    "vehiclesHint": "Elke voertuig, nie net dié waaraan hulle werk nie. Handig vir iemand wat alles diens.",
+    "history": "Diensgeskiedenis",
+    "historyHint": "Vorige lesings en diensplanne op die voertuie wat hulle kan sien.",
+    "costs": "Wat dinge kos",
+    "costsHint": "Pryse, begrotings, brandstof en werkkaartbedrae — insluitend wat jy ander mense betaal het.",
+    "team": "Jou mense",
+    "teamHint": "Die name, e-posse en telefoonnommers van almal op jou plaas.",
+    "neverPartners": "Jou ander kontrakteurs is nooit vir hulle sigbaar nie, maak nie saak wat jy hier kies nie.",
+    "save": "Stoor wat hulle kan sien",
+    "saved": "Gestoor. Dit geld onmiddellik.",
+    "disconnect": "Ontkoppel hulle",
+    "disconnectTitle": "Ontkoppel hierdie kontrakteur?",
+    "disconnectBody": "{name} sal dadelik toegang tot hierdie plaas verloor.",
+    "disconnectConsequence": "Hulle hou die kwotasies en fakture wat hulle reeds gestuur het, en jy hou joune.",
+    "disconnectFootnote": "Jy kan hulle later weer koppel."
   }
 }

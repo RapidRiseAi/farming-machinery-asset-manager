@@ -253,12 +253,28 @@ export default async function PartnerSettingsPage({
               label={t("partnerSettings.invoiceTerms", locale)}
               defaultValue={String(b.invoiceTermsDays)}
             />
+            {/* Registration first, then the rate — because "do you charge VAT at all"
+                decides whether the rate matters, and most one-van operations do not. */}
+            <label className="flex items-start gap-3 text-sm text-sand-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                name="vat_registered"
+                defaultChecked={b.vatRegistered}
+                className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+              />
+              <span>
+                {t("partnerSettings.vatRegistered", locale)}
+                <span className="block text-sand-500">{t("partnerSettings.vatRegisteredHint", locale)}</span>
+              </span>
+            </label>
             <div className="sm:col-span-2">
-              <VatRateField defaultBps={b.defaultVatRateBps} locale={locale} />
+              <VatRateField defaultBps={workshop?.default_vat_rate_bps ?? 1500} locale={locale} />
             </div>
           </div>
             <p className="mt-2 text-xs text-sand-500">
-            {t("partnerSettings.vatDefaultHint", locale)} {vatPercent(b.defaultVatRateBps)}
+            {b.vatRegistered
+              ? `${t("partnerSettings.vatDefaultHint", locale)} ${vatPercent(b.defaultVatRateBps)}`
+              : t("partnerSettings.vatNotRegisteredNote", locale)}
           </p>
         </Card>
 

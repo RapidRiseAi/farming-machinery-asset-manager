@@ -61,6 +61,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
   const isInvoice = doc.kind === "invoice";
   const label = isInvoice ? "Invoice" : "Quote";
+  // A partner who is not VAT registered issues no VAT line anywhere on the document.
+  // Printing "VAT 0.00" would still assert they charge it — the claim they must not make.
+  const charging = Number(doc.vat_rate_bps) > 0;
 
   const pdf = await Pdf.create(`${label} ${doc.number as string}`, {
     name: brand.name,
@@ -94,7 +97,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (lines.length > 0) {
     pdf.heading("Items");
     pdf.table(
-      ["Description", "Qty", "Unit (ex VAT)", "Total (ex VAT)"],
+      charging
+        ? ["Description", "Qty", "Unit (ex VAT)", "Total (ex VAT)"]
+        : ["Description", "Qty", "Unit", "Total"],
       lines.map((l) => [
         l.part_no ? `${l.description} (${l.part_no})` : l.description,
         String(l.qty),
@@ -110,9 +115,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   pdf.heading("Totals");
-  pdf.kv("Subtotal (ex VAT)", rands(Number(doc.subtotal_cents)));
+  pdf.kv(charging ? "Subtotal (ex VAT)" : "Subtotal", rands(Number(doc.subtotal_cents)));
   if (Number(doc.discount_cents) > 0) pdf.kv("Discount", `-${rands(Number(doc.discount_cents))}`);
-  pdf.kv(`VAT (${vatPercent(Number(doc.vat_rate_bps))})`, rands(Number(doc.vat_cents)));
+  if (charging) pdf.kv(`VAT (${vatPercent(Number(doc.vat_rate_bps))})`, rands(Number(doc.vat_cents)));
   pdf.kv("Total", rands(Number(doc.total_cents)));
   if (isInvoice && Number(doc.amount_paid_cents) > 0) {
     pdf.kv("Paid so far", `-${rands(Number(doc.amount_paid_cents))}`);
