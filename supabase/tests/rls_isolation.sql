@@ -4457,4 +4457,54 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
+-- ── (j) A correction cannot slip under the credits already issued ───────────
+-- The cap in 0412 only ever ran when a NOTE was written. 0417 made the INVOICE editable,
+-- which reopened the same hole from the other side: shrink the invoice under its credits
+-- and the customer's balance goes negative with nothing to explain it. Reproduced locally
+-- before it was fixed; it did NOT show on the demo project only because that invoice had
+-- a payment and the "below what has been paid" guard caught it first — luck, not cover.
+set role authenticated;
+do $$
+declare v_inv uuid; v_cn uuid; ok boolean := false; v_after bigint; v_credits bigint;
+begin
+  reset role;
+  -- A clean invoice with NO payments, most of it credited back.
+  insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, due_date)
+  values ('63000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+          '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'GAP-0001',
+          current_date, current_date + 30) returning id into v_inv;
+  insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+  values ('62000000-0000-0000-0000-000000000001', v_inv, 0, 'labour', 'Big job', 1, 1000000);
+  update partner_documents set status = 'sent', sent_at = now() where id = v_inv;
+
+  insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                                 corrects_document_id, issue_date, vat_rate_bps)
+  values ('63000000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001',
+          '62100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'GAPCN-0001',
+          v_inv, current_date, 1500) returning id into v_cn;
+  insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+  values ('62000000-0000-0000-0000-000000000001', v_cn, 0, 'other', 'Credited back', 1, 900000);
+  update partner_documents set status = 'sent', sent_at = now() where id = v_cn;
+
+  set role authenticated;
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    perform public.revise_document(v_inv, 'Shrink it under the credit', '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('kind','labour','description','Tiny','qty',1,'unit_price_cents',10000)));
+  exception when others then ok := true; end;
+
+  if not ok then
+    select total_cents into v_after from partner_documents where id = v_inv;
+    select coalesce(sum(total_cents),0) into v_credits from partner_documents
+     where corrects_document_id = v_inv and kind = 'credit_note' and status not in ('draft','void');
+    raise exception 'G3 FAIL [NEGATIVE BALANCE]: invoice corrected to % under % of credits — the customer''s balance is %',
+      v_after, v_credits, v_after - v_credits;
+  end if;
+
+  -- Raising it, or leaving it alone, is still fine.
+  perform public.revise_document(v_inv, 'Put it up instead', '{}'::jsonb,
+    jsonb_build_array(jsonb_build_object('kind','labour','description','Bigger','qty',1,'unit_price_cents',1200000)));
+end $$;
+reset role;
+
 select 'ALL G3 REVISION & DEBIT-NOTE TESTS PASSED' as result;
