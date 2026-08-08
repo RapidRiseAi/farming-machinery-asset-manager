@@ -2011,7 +2011,8 @@
     "changeBilling": "Hul besonderhede is hierdie keer anders",
     "theirReference": "Hul bestelnommer",
     "theirReferenceHint": "Opsioneel — wat hulle hierdie werk aan hul kant noem.",
-    "kindCredit": "Kredietnota"
+    "kindCredit": "Kredietnota",
+    "kindDebit": "Debietnota"
   },
   "partnerSettings": {
     "title": "My besigheid",
@@ -2188,8 +2189,6 @@
     "intro": "'n Dokument wat uit is bly soos dit is — dis wat dit 'n rekord maak. Hier is hoe jy 'n fout regmaak sonder om voor te gee dit het nooit gebeur nie.",
     "creditedTitle": "Teruggegee",
     "remaining": "Steeds gehef",
-    "amountWrong": "Die bedrag is verkeerd",
-    "amountWrongHint": "Gee dit terug met 'n kredietnota en stuur 'n nuwe faktuur vir die regte bedrag. Jou klant se rekening wys albei — wat presies is wat gebeur het.",
     "reason": "Wat het verkeerd geloop?",
     "reasonHint": "Word op die kredietnota gewys, sodat jou klant weet hoekom.",
     "startCredit": "Begin 'n kredietnota",
@@ -2201,7 +2200,12 @@
     "voidConsequence1": "Dit val weg van wat die klant jou skuld.",
     "voidConsequence2": "As 'n kopie reeds daar buite is, sal dit steeds sê dis gekanselleer wanneer hulle die skakel oopmaak.",
     "voidReason": "Hoekom kanselleer jy dit?",
-    "voidReasonHint": "'n Paar woorde is genoeg. Dis wat jy oor ses maande gaan lees."
+    "voidReasonHint": "'n Paar woorde is genoeg. Dis wat jy oor ses maande gaan lees.",
+    "overcharged": "Jy het te veel gehef",
+    "overchargedHint": "'n Kredietnota gee die geld terug. Gebruik dit as hulle reeds betaal het — die terugbetaling moet as sy eie ding wys.",
+    "undercharged": "Jy het te min gehef",
+    "underchargedHint": "'n Debietnota voeg die verskil by dieselfde werk, sodat dit as deel van daardie faktuur op hul staat lees in plaas van as 'n raaiselheffing op te daag.",
+    "startDebit": "Begin 'n debietnota"
   },
   "email": {
     "title": "Stuur dit vir hulle",
@@ -2298,6 +2302,35 @@
     "whatThisMeans": "Wat dit beteken",
     "creditExplains": "Hierdie kredietnota haal {amount} af van faktuur {number}. Daar is niks op hierdie dokument om te betaal nie.",
     "download": "Laai die PDF af",
-    "questions": "Vrae? Bel"
+    "questions": "Vrae? Bel",
+    "extraDue": "Ekstra bedrag verskuldig"
+  },
+  "revise": {
+    "title": "Verander hierdie dokument",
+    "intro": "Jy kan regmaak wat daarop is. Elke weergawe word gehou, met jou rede, sodat jy en jou klant altyd kan sien wat dit voorheen gesê het.",
+    "open": "Verander dit",
+    "versionN": "Weergawe {n}",
+    "reason": "Wat verander jy, en hoekom?",
+    "reasonHint": "Jou klant kan dit lees. 'n Paar eenvoudige woorde is genoeg.",
+    "items": "Waarvoor hulle gehef word",
+    "description": "Beskrywing",
+    "partNo": "Onderdeelnommer",
+    "qty": "Hoeveel",
+    "priceEx": "Prys elk (voor BTW)",
+    "priceIncl": "Prys elk (BTW ingesluit)",
+    "lineKind": "Tipe",
+    "addLine": "Voeg nog 'n reël by",
+    "removeLine": "Verwyder hierdie reël",
+    "inclVat": "Die pryse wat ek getik het sluit reeds BTW teen {pct} in",
+    "wasTotal": "Dit het gesê",
+    "willBeTotal": "Dit gaan sê",
+    "alreadyPaid": "Reeds betaal",
+    "belowPaid": "Dit is minder as wat hulle reeds betaal het. Gebruik eerder 'n kredietnota, sodat die geld wat teruggaan op sy eie wys.",
+    "keptOnFile": "Die huidige weergawe van {number} word gestoor voordat hierdie dit vervang.",
+    "save": "Stoor die verandering",
+    "historyTitle": "Hoe hierdie dokument verander het",
+    "historyIntro": "Elke weergawe, met wie dit verander het en hoekom.",
+    "sameTotal": "Totaal onveranderd op {amount}",
+    "whatItSaid": "Wat dit toe gesê het"
   }
 }

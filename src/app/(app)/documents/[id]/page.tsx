@@ -6,6 +6,8 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { CorrectionPanel, type CreditNoteRef } from "@/components/documents/correction-panel";
 import { EmailDocument, type EmailAttempt } from "@/components/documents/email-document";
+import { ReviseDocument } from "@/components/documents/revise-document";
+import { RevisionHistory, type Revision } from "@/components/documents/revision-history";
 import { shortDate, vatPercent } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
@@ -42,7 +44,7 @@ import { DeclineQuote } from "@/components/partner/decline-quote";
 
 type Doc = BillTo & {
   id: string; farm_id: string | null; partner_client_id: string | null;
-  corrects_document_id: string | null; void_reason: string | null;
+  corrects_document_id: string | null; void_reason: string | null; revision: number;
   workshop_id: string; machine_id: string | null;
   work_request_id: string | null; quote_id: string | null;
   kind: DocKind; status: DocStatus; source: DocSource; number: string; subject: string | null;
@@ -84,7 +86,7 @@ export default async function DocumentPage({
 
   const [
     { data: lineData }, { data: payData }, { data: farmData }, { data: shopData },
-    { data: machineData }, { data: creditData }, { data: emailData },
+    { data: machineData }, { data: creditData }, { data: emailData }, { data: revisionData },
   ] = await Promise.all([
       supabase
         .from("partner_document_lines")
@@ -121,6 +123,13 @@ export default async function DocumentPage({
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(10),
+      // Every earlier version. Read through RLS, so the customer sees how an invoice they
+      // were sent has changed — which is the other half of allowing it to change at all.
+      supabase
+        .from("partner_document_revisions")
+        .select("id, version, reason, total_cents_before, total_cents_after, edited_at, snapshot, edited_by")
+        .eq("document_id", id)
+        .order("version", { ascending: false }),
     ]);
 
   const lines = (lineData ?? []) as DocLine[];
@@ -130,6 +139,19 @@ export default async function DocumentPage({
   const machine = machineData as { id: string; name: string; reg_no: string | null } | null;
   const creditNotes = (creditData ?? []) as CreditNoteRef[];
   const emailHistory = (emailData ?? []) as EmailAttempt[];
+
+  // Name the editor where we can. One extra query, only when there is history to show.
+  const revisionRows = (revisionData ?? []) as (Omit<Revision, "editor_name"> & { edited_by: string | null })[];
+  const editorIds = [...new Set(revisionRows.map((r) => r.edited_by).filter((v): v is string => !!v))];
+  const editorName = new Map<string, string>();
+  if (editorIds.length > 0) {
+    const { data: editors } = await supabase.from("users").select("id, name").in("id", editorIds);
+    for (const u of (editors ?? []) as { id: string; name: string }[]) editorName.set(u.id, u.name);
+  }
+  const revisions: Revision[] = revisionRows.map((r) => ({
+    ...r,
+    editor_name: r.edited_by ? (editorName.get(r.edited_by) ?? null) : null,
+  }));
 
   const isPartner = profile.role === "workshop";
   const isFarmDecider = profile.role === "owner" || profile.role === "manager";
@@ -438,6 +460,30 @@ export default async function DocumentPage({
           locale={locale}
         />
       ) : null}
+
+      {/* Correcting it in place, keeping the version it replaced. Offered before the
+          credit-note route because for a customer who pays off a monthly statement, one
+          corrected line reads better than three lines that net to the same number. */}
+      {isPartner && canBuild && doc.status !== "draft" && doc.status !== "void" && doc.source === "built" ? (
+        <ReviseDocument
+          documentId={doc.id}
+          number={doc.number}
+          lines={lines.map((l) => ({
+            kind: l.kind,
+            part_no: l.part_no,
+            description: l.description,
+            qty: l.qty,
+            unit_price_cents: l.unit_price_cents,
+          }))}
+          vatRateBps={doc.vat_rate_bps}
+          totalCents={doc.total_cents}
+          amountPaidCents={doc.amount_paid_cents}
+          revision={doc.revision ?? 1}
+          locale={locale}
+        />
+      ) : null}
+
+      <RevisionHistory revisions={revisions} locale={locale} />
 
       {isPartner ? (
         <CorrectionPanel

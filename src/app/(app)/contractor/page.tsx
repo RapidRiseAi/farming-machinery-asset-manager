@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
+import { ledgerSign, isNote } from "@/lib/partner-docs";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
@@ -36,7 +37,7 @@ type Machine = { id: string; name: string; type: string };
 type Farm = { id: string; name: string };
 type FarmUser = { id: string; name: string; farm_id: string; role: string; phone: string | null; email: string | null };
 type PartnerDoc = {
-  id: string; kind: "quote" | "invoice" | "credit_note"; status: string;
+  id: string; kind: "quote" | "invoice" | "credit_note" | "debit_note"; status: string;
   farm_id: string | null; partner_client_id: string | null; bill_to_name: string | null;
   number: string; total_cents: number; amount_paid_cents: number; due_date: string | null;
 };
@@ -172,8 +173,12 @@ export default async function ContractorDashboardPage({
   const today = new Date().toISOString().slice(0, 10);
   const owedOf = (d: PartnerDoc) =>
     d.kind === "invoice" ? Math.max(0, d.total_cents - (d.amount_paid_cents ?? 0)) : 0;
-  const creditedTotal = docs.filter((d) => d.kind === "credit_note").reduce((s, d) => s + d.total_cents, 0);
-  const outstanding = Math.max(0, docs.reduce((s, d) => s + owedOf(d), 0) - creditedTotal);
+  // Notes move the balance both ways: a credit takes money off what is owed, a debit adds
+  // it on. Summing only credits would have a partner under-chasing an under-billed job.
+  const notesTotal = docs
+    .filter((d) => d.kind === "credit_note" || d.kind === "debit_note")
+    .reduce((s, d) => s + ledgerSign(d.kind) * d.total_cents, 0);
+  const outstanding = Math.max(0, docs.reduce((s, d) => s + owedOf(d), 0) + notesTotal);
   const overdue = docs
     .filter((d) => d.kind === "invoice" && d.due_date != null && d.due_date < today)
     .reduce((s, d) => s + owedOf(d), 0);
@@ -187,7 +192,7 @@ export default async function ContractorDashboardPage({
     const key = d.farm_id ? `farm:${d.farm_id}` : d.partner_client_id ? `client:${d.partner_client_id}` : `name:${d.bill_to_name}`;
     const name = (d.farm_id ? farmById.get(d.farm_id)?.name : null) ?? d.bill_to_name ?? "—";
     const cur = byCustomer.get(key) ?? { name, owed: 0, billed: 0, open: 0 };
-    cur.owed += owedOf(d) - (d.kind === "credit_note" ? d.total_cents : 0);
+    cur.owed += owedOf(d) + (isNote(d.kind) ? ledgerSign(d.kind) * d.total_cents : 0);
     if (d.kind === "invoice") cur.billed += d.total_cents;
     byCustomer.set(key, cur);
   }

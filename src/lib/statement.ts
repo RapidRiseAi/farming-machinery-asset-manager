@@ -15,7 +15,7 @@
  * Keeping the definition in one SQL function is the fix, not a stylistic preference.
  */
 
-export type StatementKind = "opening" | "invoice" | "credit_note" | "payment";
+export type StatementKind = "opening" | "invoice" | "credit_note" | "debit_note" | "payment";
 
 export type StatementRow = {
   entry_date: string;
@@ -64,7 +64,9 @@ export function statementTotals(rows: readonly StatementRow[]) {
   const opening = rows.find((r) => r.kind === "opening");
   return {
     openingCents: (opening?.debit_cents ?? 0) - (opening?.credit_cents ?? 0),
-    invoicedCents: rows.filter((r) => r.kind === "invoice").reduce((s, r) => s + r.debit_cents, 0),
+    invoicedCents: rows
+      .filter((r) => r.kind === "invoice" || r.kind === "debit_note")
+      .reduce((s, r) => s + r.debit_cents, 0),
     creditedCents: rows.filter((r) => r.kind === "credit_note").reduce((s, r) => s + r.credit_cents, 0),
     paidCents: rows.filter((r) => r.kind === "payment").reduce((s, r) => s + r.credit_cents, 0),
     closingCents: closingBalanceCents(rows),

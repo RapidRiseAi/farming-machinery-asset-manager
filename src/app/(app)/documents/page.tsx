@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
-import { awaitsCustomer, balanceDueCents, type DocKind, type DocStatus } from "@/lib/partner-docs";
+import { awaitsCustomer, balanceDueCents, isNote, ledgerSign, type DocKind, type DocStatus } from "@/lib/partner-docs";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -18,6 +18,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { FilterBar, type FilterGroup } from "@/components/ui/filter-bar";
 import { NewDocument } from "@/components/partner/new-document";
 import { UploadDocument } from "@/components/partner/upload-document";
+
+/** i18n key suffix per document kind — one map beats a ternary that forgets a kind. */
+const KIND_KEY: Record<DocKind, string> = {
+  quote: "Quote", invoice: "Invoice", credit_note: "Credit", debit_note: "Debit",
+};
 
 /**
  * Quotes and invoices — one route, two audiences (F14c/F14d).
@@ -130,10 +135,10 @@ export default async function DocumentsPage({
   // it — a credit issued but not yet reflected here would have the partner chasing money
   // they have already given back.
   const openInvoices = rows.filter((r) => r.kind === "invoice" && ["sent", "part_paid"].includes(r.status));
-  const credited = rows
-    .filter((r) => r.kind === "credit_note" && !["draft", "void"].includes(r.status))
-    .reduce((sum, r) => sum + r.total_cents, 0);
-  const outstanding = Math.max(0, openInvoices.reduce((sum, r) => sum + balanceDueCents(r), 0) - credited);
+  const noted = rows
+    .filter((r) => isNote(r.kind) && !["draft", "void"].includes(r.status))
+    .reduce((sum, r) => sum + ledgerSign(r.kind) * r.total_cents, 0);
+  const outstanding = Math.max(0, openInvoices.reduce((sum, r) => sum + balanceDueCents(r), 0) + noted);
   const openQuotes = rows.filter((r) => r.kind === "quote" && r.status === "sent");
   const quoted = openQuotes.reduce((sum, r) => sum + r.total_cents, 0);
   const drafts = rows.filter((r) => r.status === "draft");
@@ -151,6 +156,7 @@ export default async function DocumentsPage({
         { value: "quote", label: t("doc.kindQuote", locale) },
         { value: "invoice", label: t("doc.kindInvoice", locale) },
         { value: "credit_note", label: t("doc.kindCredit", locale) },
+        { value: "debit_note", label: t("doc.kindDebit", locale) },
       ],
     },
     {
@@ -178,7 +184,7 @@ export default async function DocumentsPage({
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={r.kind === "invoice" ? "brand" : "neutral"}>
-              {t(`doc.kind${r.kind === "invoice" ? "Invoice" : r.kind === "credit_note" ? "Credit" : "Quote"}`, locale)}
+              {t(`doc.kind${KIND_KEY[r.kind]}`, locale)}
             </Badge>
             <span className="font-mono text-sm font-medium tabular-nums text-sand-700">{r.number}</span>
             <DocStatusBadge value={r.status} locale={locale} />

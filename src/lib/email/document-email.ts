@@ -34,6 +34,7 @@ const LABEL: Record<DocKind, string> = {
   quote: "Quote",
   invoice: "Invoice",
   credit_note: "Credit note",
+  debit_note: "Debit note",
 };
 
 function esc(v: string): string {
@@ -54,7 +55,9 @@ export function documentEmailText(input: DocumentEmailInput): string {
       ? `${brand.name} has sent you a quote.`
       : kind === "credit_note"
         ? `${brand.name} has issued you a credit note.`
-        : `${brand.name} has sent you an invoice.`,
+        : kind === "debit_note"
+          ? `${brand.name} has sent you an extra charge on an earlier invoice.`
+          : `${brand.name} has sent you an invoice.`,
     "",
     `${LABEL[kind]} number: ${number}`,
     vehicle ? `Vehicle: ${vehicle}` : null,
@@ -105,7 +108,9 @@ export function documentEmailHtml(input: DocumentEmailInput): string {
             ? `${esc(brand.name)} has sent you a quote.`
             : kind === "credit_note"
               ? `${esc(brand.name)} has issued you a credit note.`
-              : `${esc(brand.name)} has sent you an invoice.`}
+              : kind === "debit_note"
+                ? `${esc(brand.name)} has sent you an extra charge on an earlier invoice.`
+                : `${esc(brand.name)} has sent you an invoice.`}
         </p>
 
         ${message ? `<p style="margin:0 0 18px;padding:12px 14px;background:#f4f2ee;border-radius:8px;color:#26221c;font-size:14px;line-height:1.55;">${esc(message)}</p>` : ""}
