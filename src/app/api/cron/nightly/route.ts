@@ -13,7 +13,8 @@ import { deliverPush } from "@/lib/push/deliver";
  *   5. cron_enqueue_expiry_notifications  — warranty/licence expiry reminders (deduped, F6)
  *   6. cron_enqueue_work_request_reminders — outstanding quote/invoice chasers (deduped, F13)
  *   7. cron_enqueue_aarto_nominations     — AARTO nomination-deadline reminders (deduped, G2)
- *   8. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
+ *   9. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
  *   9. push delivery                      — Web Push for the freshly-queued rows (F6)
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
   await run("expiry_notifications", "cron_enqueue_expiry_notifications");
   await run("work_request_reminders", "cron_enqueue_work_request_reminders");
   await run("aarto_nominations", "cron_enqueue_aarto_nominations");
+  await run("document_reminders", "cron_enqueue_document_reminders");
 
   // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {

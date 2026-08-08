@@ -32,6 +32,8 @@ type ClientRow = {
   id: string; name: string; contact_name: string | null;
   phone: string | null; whatsapp: string | null; email: string | null;
   address: string | null; notes: string | null;
+  trading_name: string | null; reg_number: string | null; vat_number: string | null;
+  payment_terms_days: number | null; credit_limit_cents: number | null;
   farm_id: string | null; link_status: string;
   requested_at: string | null; linked_at: string | null; synced_at: string | null;
 };
@@ -229,6 +231,41 @@ export default async function PartnerClientPage({
             <TextField name="email" type="email" label={t("clients.email", locale)} defaultValue={client.email ?? ""} />
           </div>
           <TextareaField name="address" rows={2} label={t("clients.address", locale)} defaultValue={client.address ?? ""} />
+
+          {/* Billing identity (0410). Held on the client so it is not retyped — and so it
+              is right on the invoice, where a missing VAT number costs them the claim. */}
+          <fieldset className="flex flex-col gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3">
+            <legend className="px-1 text-sm font-semibold text-sand-900">{t("clients.billing", locale)}</legend>
+            <p className="-mt-1 text-sm text-sand-600">{t("clients.billingHint", locale)}</p>
+            <TextField name="trading_name" label={t("clients.tradingName", locale)} defaultValue={client.trading_name ?? ""} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextField
+                name="vat_number"
+                label={t("clients.vatNo", locale)}
+                hint={t("clients.vatNoHint", locale)}
+                defaultValue={client.vat_number ?? ""}
+              />
+              <TextField name="reg_number" label={t("clients.regNo", locale)} defaultValue={client.reg_number ?? ""} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextField
+                name="payment_terms_days"
+                type="number"
+                min={0}
+                max={365}
+                label={t("clients.terms", locale)}
+                hint={t("clients.termsHint", locale)}
+                defaultValue={client.payment_terms_days != null ? String(client.payment_terms_days) : ""}
+              />
+              <TextField
+                name="credit_limit"
+                label={t("clients.creditLimit", locale)}
+                hint={t("clients.creditLimitHint", locale)}
+                defaultValue={client.credit_limit_cents != null ? (client.credit_limit_cents / 100).toFixed(2) : ""}
+              />
+            </div>
+          </fieldset>
+
           <TextareaField name="notes" rows={3} label={t("clients.notes", locale)} defaultValue={client.notes ?? ""} />
           <SubmitButton variant="secondary">{t("common.save", locale)}</SubmitButton>
         </form>

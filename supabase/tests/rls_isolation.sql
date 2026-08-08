@@ -3858,3 +3858,365 @@ end $$;
 reset role;
 
 select 'ALL F16d PRIVILEGE-ESCALATION TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G2 — CORRECTIONS, RECIPIENTS AND STATEMENTS (0410–0414)
+-- ═════════════════════════════════════════════════════════════════
+-- The claim: a mistake can be fixed without pretending it never happened, a partner can
+-- bill someone who is not on FleetWise, and a statement of account adds up.
+--
+-- Fresh fixtures: Workshop Z, one linked farm (S), one client-book customer, and a
+-- walk-in with no record at all.
+
+insert into farms (id, name, vat_number, billing_address) values
+  ('62000000-0000-0000-0000-000000000001', 'Farm S', '4123456789', '12 Mill Rd, Bethlehem');
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps) values
+  ('62100000-0000-0000-0000-000000000001', 'Workshop Z', 'mechanic', true, 1500);
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('62100000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'active');
+insert into auth.users (id, email) values ('62200000-0000-0000-0000-000000000001', 'zstaff@test');
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('62200000-0000-0000-0000-000000000001', null, '62100000-0000-0000-0000-000000000001', 'workshop', 'Z Staff', 'z@test');
+insert into auth.users (id, email) values ('62300000-0000-0000-0000-000000000001', 'ownerS@test');
+insert into users (id, farm_id, role, name, email) values
+  ('62300000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'owner', 'Owner S', 'owners@test');
+insert into partner_clients (id, workshop_id, name, vat_number, payment_terms_days) values
+  ('62400000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001', 'Off-grid Farming CC', '4987654321', 7);
+
+-- ── (a) The bill-to seeds itself, which is what makes it a tax invoice ────────
+-- Before 0410 the recipient block was `farm.name` and nothing else, so a supply over
+-- R5 000 was not a full tax invoice under VAT Act s20(4) and the farmer could not claim.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, due_date)
+values ('62500000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZI-0001',
+        current_date - 40, current_date - 10);
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('62000000-0000-0000-0000-000000000001', '62500000-0000-0000-0000-000000000001', 0, 'labour', 'Gearbox', 1, 1000000);
+
+do $$ declare n text; v text; a text; begin
+  select bill_to_name, bill_to_vat_number, bill_to_address into n, v, a
+    from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  if n is null then raise exception 'G2 FAIL [addressee]: no bill-to name was seeded'; end if;
+  if v <> '4123456789' then
+    raise exception 'G2 FAIL [TAX INVOICE]: the recipient VAT number is % — without it the farmer cannot claim', coalesce(v, 'missing');
+  end if;
+  if a is null then raise exception 'G2 FAIL [TAX INVOICE]: no recipient address on the document'; end if;
+end $$;
+
+-- ── (b) A partner can bill someone who is not on FleetWise ───────────────────
+-- `farm_id` was `not null`, so a partner could only invoice a FleetWise tenant — they
+-- could record a client-book customer, phone them, and not bill them.
+-- Built as a draft, then sent — the same order the app enforces, because 0412 freezes
+-- the items the moment a document is issued.
+insert into partner_documents (id, farm_id, partner_client_id, workshop_id, kind, status, source, number, issue_date, due_date)
+values ('62500000-0000-0000-0000-000000000002', null, '62400000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZI-0002',
+        current_date - 20, current_date - 5);
+insert into partner_document_lines (document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('62500000-0000-0000-0000-000000000002', 0, 'part', 'Belt', 2, 25000);
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '62500000-0000-0000-0000-000000000002';
+
+-- And a walk-in, with no record anywhere.
+insert into partner_documents (id, farm_id, partner_client_id, workshop_id, kind, status, source,
+                               number, issue_date, due_date, bill_to_name)
+values ('62500000-0000-0000-0000-000000000003', null, null,
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZI-0003',
+        current_date - 3, current_date + 27, 'Cash customer');
+insert into partner_document_lines (document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('62500000-0000-0000-0000-000000000003', 0, 'labour', 'Roadside', 1, 60000);
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '62500000-0000-0000-0000-000000000003';
+
+do $$ declare c bigint; begin
+  select count(*) into c from partner_documents
+   where workshop_id = '62100000-0000-0000-0000-000000000001' and farm_id is null;
+  if c <> 2 then raise exception 'G2 FAIL [recipients]: % documents with no farm (expected 2)', c; end if;
+  -- A document with no farm books NO farm cost — that money is the partner's revenue.
+  select count(*) into c from cost_entries
+   where source_type = 'partner_document'
+     and source_id in ('62500000-0000-0000-0000-000000000002', '62500000-0000-0000-0000-000000000003');
+  if c <> 0 then raise exception 'G2 FAIL [ledger]: a farmless document booked % farm costs', c; end if;
+end $$;
+
+-- ── (c) Nothing issued can be deleted or quietly re-priced ───────────────────
+-- AutoVault HARD DELETES an invoice with the service-role client
+-- (`admin.from('invoices').delete()`), so a statement printed last month and one printed
+-- today disagree with nothing to explain why.
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '62500000-0000-0000-0000-000000000001';
+
+do $$ declare ok boolean := false; begin
+  begin
+    delete from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL [ERASURE]: an issued invoice was deleted outright'; end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  begin
+    update partner_documents set deleted_at = now() where id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL [ERASURE]: an issued invoice was soft-deleted'; end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  begin
+    update partner_documents set subtotal_cents = 1 where id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL [RE-PRICE]: an issued invoice was re-priced in place'; end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  begin
+    update partner_document_lines set unit_price_cents = 1
+     where document_id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL [RE-PRICE]: the items on an issued invoice were changed'; end if;
+end $$;
+
+-- ── (d) A credit note is the correction, and it nets off the ledger ──────────
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               corrects_document_id, issue_date)
+values ('62600000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'ZC-0001',
+        '62500000-0000-0000-0000-000000000001', current_date - 30);
+insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+values ('62000000-0000-0000-0000-000000000001', '62600000-0000-0000-0000-000000000001', 0, 'labour', 'Overcharge', 1, 200000);
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '62600000-0000-0000-0000-000000000001';
+
+do $$ declare inv bigint; cred bigint; begin
+  select amount_cents into inv from cost_entries
+   where source_type = 'partner_document' and source_id = '62500000-0000-0000-0000-000000000001' and deleted_at is null;
+  select amount_cents into cred from cost_entries
+   where source_type = 'partner_document' and source_id = '62600000-0000-0000-0000-000000000001' and deleted_at is null;
+  if inv is null or inv <= 0 then raise exception 'G2 FAIL: the invoice is not in the farm ledger (%)', inv; end if;
+  if cred is null or cred >= 0 then
+    raise exception 'G2 FAIL [CREDIT]: a credit note booked % — it must be NEGATIVE so the correction nets out of TCO instead of erasing it', cred;
+  end if;
+end $$;
+
+-- A credit note must name what it corrects, and credits cannot exceed the invoice.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_documents (farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name)
+    values ('62000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+            'credit_note', 'draft', 'built', 'ZC-ORPHAN', current_date, 'Farm S');
+  exception when check_violation then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL: a credit note was issued against nothing'; end if;
+end $$;
+
+do $$ declare ok boolean := false; v_total bigint; begin
+  select total_cents into v_total from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  begin
+    insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                                   corrects_document_id, issue_date, subtotal_cents, total_cents)
+    values ('62600000-0000-0000-0000-000000000009', '62000000-0000-0000-0000-000000000001',
+            '62100000-0000-0000-0000-000000000001', 'credit_note', 'sent', 'uploaded', 'ZC-TOOBIG',
+            '62500000-0000-0000-0000-000000000001', current_date, v_total, v_total);
+  exception when others then ok := true;
+  end;
+  if not ok then
+    raise exception 'G2 FAIL [OVER-CREDIT]: credits against this invoice were allowed to exceed it';
+  end if;
+end $$;
+
+-- ── (e) A void keeps the record and stands the money down ────────────────────
+do $$ declare ok boolean := false; begin
+  begin
+    update partner_documents set status = 'void' where id = '62500000-0000-0000-0000-000000000003';
+  exception when check_violation then ok := true;
+  end;
+  if not ok then raise exception 'G2 FAIL: a document was voided with no reason recorded'; end if;
+end $$;
+
+update partner_documents
+   set status = 'void', void_reason = 'Raised against the wrong customer', voided_at = now()
+ where id = '62500000-0000-0000-0000-000000000003';
+
+do $$ declare st text; c bigint; begin
+  select status into st from partner_documents where id = '62500000-0000-0000-0000-000000000003';
+  if st <> 'void' then raise exception 'G2 FAIL: the void did not take (%)', st; end if;
+  -- The row is still there. That is the whole point: AutoVault deletes it.
+  select count(*) into c from partner_documents
+   where id = '62500000-0000-0000-0000-000000000003' and deleted_at is null;
+  if c <> 1 then raise exception 'G2 FAIL: voiding destroyed the record instead of keeping it'; end if;
+end $$;
+
+-- ── (f) The statement adds up, and carries a balance forward ─────────────────
+-- Payments: two part-payments against the Farm S invoice, one in each period.
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method) values
+  ('62000000-0000-0000-0000-000000000001', '62500000-0000-0000-0000-000000000001', 300000, current_date - 35, 'eft'),
+  ('62000000-0000-0000-0000-000000000001', '62500000-0000-0000-0000-000000000001', 100000, current_date - 2,  'eft');
+
+set role authenticated;
+do $$
+declare
+  v_open   bigint;
+  v_close  bigint;
+  v_rows   bigint;
+  v_quotes bigint;
+begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+
+  -- A window that starts AFTER the invoice: everything before it must arrive as an
+  -- opening balance. AutoVault starts the running balance at zero here, so its closing
+  -- figure is what the customer was billed in the period, not what they owe.
+  select debit_cents - credit_cents into v_open
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 7, current_date)
+   where kind = 'opening';
+  if v_open is null then
+    raise exception 'G2 FAIL [NO OPENING BALANCE]: a statement that starts mid-account showed nothing brought forward';
+  end if;
+
+  -- Closing balance = invoice − credit note − payments, whatever window we ask for.
+  select coalesce(sum(debit_cents - credit_cents), 0) into v_close
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 7, current_date);
+  if v_close is distinct from (
+    select d.total_cents - c.total_cents - 400000
+      from partner_documents d, partner_documents c
+     where d.id = '62500000-0000-0000-0000-000000000001'
+       and c.id = '62600000-0000-0000-0000-000000000001'
+  ) then
+    raise exception 'G2 FAIL [STATEMENT]: closing balance is % — it must equal invoice minus credits minus payments', v_close;
+  end if;
+
+  -- A part-payment appears. AutoVault only emits a payment row when the invoice is FULLY
+  -- paid, so a half-paid invoice shows its whole debit and no credit.
+  select count(*) into v_rows
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'payment';
+  if v_rows <> 2 then
+    raise exception 'G2 FAIL [PART PAYMENTS]: % payment rows (expected 2) — a part-paid invoice must show what was received', v_rows;
+  end if;
+
+  -- A quote is not a financial event and has no place on a statement of account.
+  select count(*) into v_quotes
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'quote';
+  if v_quotes <> 0 then raise exception 'G2 FAIL: % quotes on a statement of account', v_quotes; end if;
+end $$;
+
+-- ── (g) Ageing measures from the DUE date, and nets credits off ──────────────
+do $$ declare cur bigint; over bigint; tot bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select current_cents, d30_cents + d60_cents + d90_cents, total_cents into cur, over, tot
+    from app.partner_ageing('62100000-0000-0000-0000-000000000001',
+                            '62000000-0000-0000-0000-000000000001', null, current_date);
+  if over <= 0 then
+    raise exception 'G2 FAIL [AGEING]: an invoice due % days ago is not showing as overdue', 10;
+  end if;
+  if cur <> 0 then raise exception 'G2 FAIL [AGEING]: % in the not-yet-due bucket', cur; end if;
+  if tot <> over then raise exception 'G2 FAIL [AGEING]: buckets (%) do not sum to the total (%)', over, tot; end if;
+end $$;
+
+-- ── (h) A statement is still farm-isolated ───────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');        -- Owner A, another farm
+  select count(*) into c
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date);
+  if c <> 0 then
+    raise exception 'G2 FAIL [CROSS-TENANT]: another farm''s owner read % rows of Farm S''s account', c;
+  end if;
+end $$;
+
+-- The farm the account belongs to reads its own.
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Owner S
+  select count(*) into c
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date);
+  if c = 0 then raise exception 'G2 FAIL: a farm cannot read the account a partner keeps for them'; end if;
+end $$;
+reset role;
+
+-- ── (i) Anon reaches none of it ──────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_statement(null, null, null, current_date, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G2 FAIL: anon executed the statement engine'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.notify_workshop_document(null, null, 'x', '{}'::jsonb);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G2 FAIL: anon queued a notification into a partner''s feed'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.cron_enqueue_document_reminders();
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G2 FAIL: anon ran the reminder engine'; end if;
+end $$;
+reset role;
+
+-- ── (j) Quotes expire, and overdue invoices get chased ───────────────────────
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, due_date)
+values ('62700000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'quote', 'sent', 'built', 'ZQ-0001',
+        current_date - 30, current_date - 1);
+
+do $$ begin perform app.expire_partner_quotes(); end $$;
+do $$ declare st text; begin
+  select status into st from partner_documents where id = '62700000-0000-0000-0000-000000000001';
+  if st <> 'expired' then
+    raise exception 'G2 FAIL: a quote past its validity date is still % — `expired` has been in the enum since 0381 with nothing ever setting it', st;
+  end if;
+end $$;
+
+do $$ begin perform app.enqueue_document_reminders(); end $$;
+do $$ declare c_farm bigint; c_shop bigint; begin
+  select count(*) into c_farm from notifications
+   where template = 'invoice_overdue'
+     and payload->>'document_id' = '62500000-0000-0000-0000-000000000001'
+     and user_id = '62300000-0000-0000-0000-000000000001';
+  if c_farm = 0 then raise exception 'G2 FAIL: the farm was not told about an overdue invoice'; end if;
+
+  select count(*) into c_shop from notifications
+   where template = 'invoice_overdue_partner'
+     and payload->>'document_id' = '62500000-0000-0000-0000-000000000001'
+     and user_id = '62200000-0000-0000-0000-000000000001';
+  if c_shop = 0 then raise exception 'G2 FAIL: the partner was not told their invoice is overdue'; end if;
+end $$;
+
+-- Twice in one week is once. (0330's dedupe pattern, read from the queue itself.)
+do $$ declare before_c bigint; after_c bigint; begin
+  select count(*) into before_c from notifications where template like 'invoice_overdue%';
+  perform app.enqueue_document_reminders();
+  select count(*) into after_c from notifications where template like 'invoice_overdue%';
+  if after_c <> before_c then
+    raise exception 'G2 FAIL [DEDUPE]: a second run added % more reminders', after_c - before_c;
+  end if;
+end $$;
+
+-- ── (k) A partner never sees another partner's account ───────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W, unrelated
+  select count(*) into c
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date);
+  if c <> 0 then
+    raise exception 'G2 FAIL [COMPETITOR]: another partner read % rows of Workshop Z''s account with Farm S', c;
+  end if;
+end $$;
+reset role;
+
+select 'ALL G2 CORRECTION & STATEMENT TESTS PASSED' as result;

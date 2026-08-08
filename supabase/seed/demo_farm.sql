@@ -347,6 +347,17 @@ begin
 
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners + work requests + branded quotes/invoices';
 
+  -- The farm's own billing identity (G2 · 0410). Without a VAT number and an address,
+  -- an invoice raised against them over R5 000 is not a full tax invoice under VAT Act
+  -- s20(4) and they cannot claim the input VAT back.
+  update farms set
+    trading_name    = 'Weltevrede Boerdery (Edms) Bpk',
+    reg_number      = '2009/114872/07',
+    vat_number      = '4310271884',
+    billing_address = 'Plaas Weltevrede, Distrik Bothaville, Vrystaat 9660',
+    billing_email   = 'rekeninge@weltevrede.example'
+  where id = v_farm;
+
   -- ── Budgets (G1 · FR-10.4) — this-year spend targets so budget-vs-actual has colour ──
   -- A whole-farm all-category budget (comfortably under) + a tight JD parts budget (goes
   -- over from the completed 500h service) + a bakkie all-category budget.
@@ -355,29 +366,38 @@ begin
     (v_farm, '20000000-0000-0000-0000-000000000001',  'parts', 'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,    100000, v_owner),
     (v_farm, '20000000-0000-0000-0000-000000000007',  null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,   3000000, v_manager);
 
-  -- ── Partner documents (F14) — TJ's own paperwork, on TJ's letterhead ──────
-  -- Three states so every screen in the flow has something real to show:
+  -- ── Partner documents (F14/G2) — TJ's own paperwork, on TJ's letterhead ──
+  -- Six states, so every screen in the flow has something real:
   --   * a QUOTE waiting on the owner's yes (the farmer's "needs your decision" card);
-  --   * an INVOICE part-paid (the balance-due path, and a payment already recorded);
-  --   * a DRAFT invoice TJ has not sent yet (the partner's own workspace).
-  -- The part-paid invoice is attached to work request 2, which already carries its own
-  -- invoice amount — so this also demonstrates the no-double-count rule live: the
-  -- document takes over and the work-request ledger entry stands down (0381).
+  --   * an INVOICE part-paid (balance due, with a payment already recorded);
+  --   * a DRAFT invoice TJ has not sent (the partner's own workspace);
+  --   * an OLDER invoice, fully paid, so a statement has a balance to bring forward;
+  --   * a CREDIT NOTE correcting an overcharge — the path AutoVault never had;
+  --   * an invoice to a CLIENT-BOOK customer who is not on FleetWise at all.
+  --
+  -- Every one is built as a draft and then sent, because 0412 freezes the items the
+  -- moment a document is issued — the same order the app enforces.
   insert into partner_documents
     (id, farm_id, workshop_id, machine_id, work_request_id, kind, status, source, number, subject,
-     issue_date, due_date, vat_rate_bps, notes, terms, created_by, sent_at) values
+     issue_date, due_date, vat_rate_bps, notes, terms, created_by, bill_to_reference) values
     ('74000000-0000-0000-0000-000000000001', v_farm, v_workshop, '20000000-0000-0000-0000-000000000004',
-     '72000000-0000-0000-0000-000000000001', 'quote', 'sent', 'built', 'TJQ-0001',
+     '72000000-0000-0000-0000-000000000001', 'quote', 'draft', 'built', 'TJQ-0001',
      'Hidrouliese lek — New Holland', current_date - 2, current_date + 12, 1500,
      'Ons het die pyp voorraad. Kan Donderdag begin as julle ja sê.',
-     'Payment strictly 30 days from invoice date.', v_wstaff, now() - interval '2 days'),
+     'Payment strictly 30 days from invoice date.', v_wstaff, 'WB-2291'),
     ('74000000-0000-0000-0000-000000000002', v_farm, v_workshop, '20000000-0000-0000-0000-000000000005',
-     '72000000-0000-0000-0000-000000000002', 'invoice', 'sent', 'built', 'TJI-0001',
+     '72000000-0000-0000-0000-000000000002', 'invoice', 'draft', 'built', 'TJI-0001',
      'Voor-seisoen inspeksie', current_date - 9, current_date + 21, 1500,
-     'Dankie vir die werk.', 'Payment strictly 30 days from invoice date.', v_wstaff, now() - interval '9 days'),
+     'Dankie vir die werk.', 'Payment strictly 30 days from invoice date.', v_wstaff, null),
     ('74000000-0000-0000-0000-000000000003', v_farm, v_workshop, '20000000-0000-0000-0000-000000000001',
      null, 'invoice', 'draft', 'built', 'TJI-0002',
      '500-uur diens — John Deere', current_date, current_date + 30, 1500,
+     null, 'Payment strictly 30 days from invoice date.', v_wstaff, null),
+    -- Last month, settled in full: this is what makes the statement's opening balance
+    -- and its "received" line demonstrate anything.
+    ('74000000-0000-0000-0000-000000000004', v_farm, v_workshop, '20000000-0000-0000-0000-000000000002',
+     null, 'invoice', 'draft', 'built', 'TJI-0000',
+     'Battery en kabels', current_date - 55, current_date - 25, 1500,
      null, 'Payment strictly 30 days from invoice date.', v_wstaff, null);
 
   -- Lines. Totals are NEVER typed — the 0381 triggers roll them up from these rows.
@@ -388,11 +408,39 @@ begin
     (v_farm, '74000000-0000-0000-0000-000000000002', 0, 'labour', null,       'Volledige inspeksie',          6,    52000),
     (v_farm, '74000000-0000-0000-0000-000000000002', 1, 'other',  null,       'Reiskoste — Bothaville',       1,    45000),
     (v_farm, '74000000-0000-0000-0000-000000000003', 0, 'part',   'JD-500SVC','500-uur dienstel',             1,   238000),
-    (v_farm, '74000000-0000-0000-0000-000000000003', 1, 'labour', null,       'Arbeid — 500-uur diens',       5,    52000);
+    (v_farm, '74000000-0000-0000-0000-000000000003', 1, 'labour', null,       'Arbeid — 500-uur diens',       5,    52000),
+    (v_farm, '74000000-0000-0000-0000-000000000004', 0, 'part',   'BAT-650',  'Battery 650CCA',               1,   185000),
+    (v_farm, '74000000-0000-0000-0000-000000000004', 1, 'labour', null,       'Arbeid — inbou',               1,    52000);
 
-  -- A part payment on the sent invoice, so the balance-due path is live.
+  -- Now issue them. (TJI-0002 stays a draft: a partner pricing a job in private.)
+  update partner_documents set status = 'sent', sent_at = now() - interval '2 days'
+   where id = '74000000-0000-0000-0000-000000000001';
+  update partner_documents set status = 'sent', sent_at = now() - interval '9 days'
+   where id = '74000000-0000-0000-0000-000000000002';
+  update partner_documents set status = 'sent', sent_at = now() - interval '55 days'
+   where id = '74000000-0000-0000-0000-000000000004';
+
+  -- A part payment on TJI-0001 (balance due), and TJI-0000 settled in full.
   insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, reference, recorded_by) values
     (v_farm, '74000000-0000-0000-0000-000000000002', 200000, current_date - 3, 'eft', 'TJI-0001', v_owner);
+  insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, reference, recorded_by)
+  select v_farm, '74000000-0000-0000-0000-000000000004', total_cents, current_date - 30, 'eft', 'TJI-0000', v_owner
+    from partner_documents where id = '74000000-0000-0000-0000-000000000004';
+
+  -- ── A correction, done properly (G2) ─────────────────────────────────────
+  -- TJ over-billed the travel on TJI-0001 and credits it back. The invoice is untouched
+  -- — it is a record of what the farmer was told they owed — and the farm's cost ledger
+  -- carries BOTH entries, so the history shows what was billed and what came off.
+  insert into partner_documents
+    (id, farm_id, workshop_id, machine_id, kind, status, source, number, subject,
+     corrects_document_id, issue_date, vat_rate_bps, created_by) values
+    ('74000000-0000-0000-0000-000000000005', v_farm, v_workshop, '20000000-0000-0000-0000-000000000005',
+     'credit_note', 'draft', 'built', 'TJC-0001', 'Reiskoste dubbel gehef',
+     '74000000-0000-0000-0000-000000000002', current_date - 4, 1500, v_wstaff);
+  insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents) values
+    (v_farm, '74000000-0000-0000-0000-000000000005', 0, 'other', 'Reiskoste — dubbel gehef', 1, 45000);
+  update partner_documents set status = 'sent', sent_at = now() - interval '4 days'
+   where id = '74000000-0000-0000-0000-000000000005';
 
   -- ── The partner's own client book (F15) ─────────────────────────────────
   -- Three states so the whole flow demos: a farm already connected, one that has been
@@ -406,8 +454,46 @@ begin
      '+27824445566', '+27824445566', 'marius@kleinfontein.example', 'requested', null, null,
      'Gevra om te koppel — wag nog.'),
     ('76000000-0000-0000-0000-000000000003', v_workshop, 'Van Wyk Vervoer', 'Hennie',
-     '+27825556677', '+27825556677', null, 'unlinked', null, null,
+     '+27825556677', '+27825556677', 'hennie@vanwyk.example', 'unlinked', null, null,
      'Nie op FleetWise nie. Ons hou hul rekords hier.');
+
+  -- Billing details on the client who is not on FleetWise, so the invoice below is a
+  -- proper tax invoice and their agreed terms are not retyped every time (G2 · 0410).
+  update partner_clients set
+    trading_name       = 'Van Wyk Vervoer BK',
+    reg_number         = '2014/220398/23',
+    vat_number         = '4550118826',
+    address            = 'Hoofstraat 41, Bothaville 9660',
+    payment_terms_days = 14
+  where id = '76000000-0000-0000-0000-000000000003';
+
+  -- An invoice to that customer. `farm_id` is null: nobody on FleetWise is a party to it,
+  -- it books no farm cost, and before 0410 a partner simply could not raise it — which is
+  -- what forced them to keep a second system running alongside ours.
+  insert into partner_documents
+    (id, farm_id, partner_client_id, workshop_id, kind, status, source, number, subject,
+     issue_date, due_date, vat_rate_bps, terms, created_by) values
+    ('74000000-0000-0000-0000-000000000006', null, '76000000-0000-0000-0000-000000000003',
+     v_workshop, 'invoice', 'draft', 'built', 'TJI-0003', 'Remstelsel — Isuzu sleepwa',
+     current_date - 21, current_date - 7, 1500, 'Payment strictly 14 days from invoice date.', v_wstaff);
+  insert into partner_document_lines (document_id, sort_order, kind, part_no, description, qty, unit_price_cents) values
+    ('74000000-0000-0000-0000-000000000006', 0, 'part',   'BRK-2200', 'Remvoerstel',       2,  67500),
+    ('74000000-0000-0000-0000-000000000006', 1, 'labour', null,       'Arbeid — remwerk',  3,  52000);
+  update partner_documents set status = 'sent', sent_at = now() - interval '21 days'
+   where id = '74000000-0000-0000-0000-000000000006';
+
+  -- A one-time customer, with no record anywhere. This is the walk-in job: type who it
+  -- is for and bill it, without filing a customer first.
+  insert into partner_documents
+    (id, farm_id, partner_client_id, workshop_id, kind, status, source, number, subject,
+     issue_date, due_date, vat_rate_bps, bill_to_name, bill_to_phone, created_by) values
+    ('74000000-0000-0000-0000-000000000007', null, null, v_workshop, 'invoice', 'draft', 'built',
+     'TJI-0004', 'Noodherstel langs die pad', current_date - 1, current_date + 13, 1500,
+     'JP Nel', '+27829998877', v_wstaff);
+  insert into partner_document_lines (document_id, sort_order, kind, description, qty, unit_price_cents) values
+    ('74000000-0000-0000-0000-000000000007', 0, 'labour', 'Uitroep en herstel', 2, 65000);
+  update partner_documents set status = 'sent', sent_at = now() - interval '1 day'
+   where id = '74000000-0000-0000-0000-000000000007';
 
   update partner_clients set requested_at = now() - interval '6 days'
    where id = '76000000-0000-0000-0000-000000000002';

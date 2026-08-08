@@ -35,6 +35,11 @@ type WorkRequest = {
 type Machine = { id: string; name: string; type: string };
 type Farm = { id: string; name: string };
 type FarmUser = { id: string; name: string; farm_id: string; role: string; phone: string | null; email: string | null };
+type PartnerDoc = {
+  id: string; kind: "quote" | "invoice" | "credit_note"; status: string;
+  farm_id: string | null; partner_client_id: string | null; bill_to_name: string | null;
+  number: string; total_cents: number; amount_paid_cents: number; due_date: string | null;
+};
 
 /** urgent → 3 … low → 0 (for descending priority sort). */
 const prioRank = (p: string) => Math.max(0, WORK_PRIORITIES.indexOf(p as (typeof WORK_PRIORITIES)[number]));
@@ -80,7 +85,7 @@ export default async function ContractorDashboardPage({
   const farmIds = [...new Set(all.map((r) => r.farm_id))];
   const machineIds = [...new Set(all.map((r) => r.machine_id))];
 
-  const [{ data: msData }, { data: fmData }, { data: usData }] = await Promise.all([
+  const [{ data: msData }, { data: fmData }, { data: usData }, { data: docData }] = await Promise.all([
     machineIds.length
       ? supabase.from("machines").select("id, name, type").in("id", machineIds)
       : Promise.resolve({ data: [] }),
@@ -90,7 +95,18 @@ export default async function ContractorDashboardPage({
     farmIds.length
       ? supabase.from("users").select("id, name, farm_id, role, phone, email").in("farm_id", farmIds).in("role", ["owner", "manager"]).is("deleted_at", null)
       : Promise.resolve({ data: [] }),
+    // Real money, from the documents that carry it. The analytics used to sum
+    // `work_requests.invoice_amount_cents` — the field from before documents existed —
+    // so a partner billing entirely through FleetWise documents saw R0 in the panel they
+    // were paying for.
+    supabase
+      .from("partner_documents")
+      .select("id, kind, status, farm_id, partner_client_id, bill_to_name, number, total_cents, amount_paid_cents, due_date")
+      .eq("workshop_id", workshop.id)
+      .is("deleted_at", null)
+      .not("status", "in", "(draft,void,cancelled,declined,expired)"),
   ]);
+  const docs = (docData as PartnerDoc[] | null) ?? [];
   const machineById = new Map(((msData as Machine[] | null) ?? []).map((m) => [m.id, m]));
   const farmById = new Map(((fmData as Farm[] | null) ?? []).map((f) => [f.id, f]));
   const farmUsers = (usData as FarmUser[] | null) ?? [];
@@ -150,16 +166,41 @@ export default async function ContractorDashboardPage({
   const chip = (active: boolean) =>
     `focus-ring rounded-full px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`;
 
-  // Per-farm rollup for the (gated) analytics panel.
-  const farmStats = farmIds
-    .map((fid) => {
-      const reqs = all.filter((r) => r.farm_id === fid);
-      const open = reqs.filter((r) => r.status !== "closed").length;
-      const invoiced = reqs.reduce((s, r) => s + (r.invoice_amount_cents ?? 0), 0);
-      return { fid, name: farmById.get(fid)?.name ?? "—", total: reqs.length, open, invoiced };
-    })
-    .sort((a, b) => b.open - a.open || b.invoiced - a.invoiced);
-  const totalInvoiced = all.reduce((s, r) => s + (r.invoice_amount_cents ?? 0), 0);
+  // ── The money, from partner_documents ─────────────────────────────
+  // An invoice owes what has not been paid; a credit note takes it back off. Anything
+  // still owed past its due date is overdue — the number a partner actually needs.
+  const today = new Date().toISOString().slice(0, 10);
+  const owedOf = (d: PartnerDoc) =>
+    d.kind === "invoice" ? Math.max(0, d.total_cents - (d.amount_paid_cents ?? 0)) : 0;
+  const creditedTotal = docs.filter((d) => d.kind === "credit_note").reduce((s, d) => s + d.total_cents, 0);
+  const outstanding = Math.max(0, docs.reduce((s, d) => s + owedOf(d), 0) - creditedTotal);
+  const overdue = docs
+    .filter((d) => d.kind === "invoice" && d.due_date != null && d.due_date < today)
+    .reduce((s, d) => s + owedOf(d), 0);
+  const quotedOut = docs.filter((d) => d.kind === "quote" && d.status === "sent")
+    .reduce((s, d) => s + d.total_cents, 0);
+
+  // Per-customer rollup for the (gated) analytics panel — farms AND client-book
+  // customers, because a partner's book is not only the farms that found them.
+  const byCustomer = new Map<string, { name: string; owed: number; billed: number; open: number }>();
+  for (const d of docs) {
+    const key = d.farm_id ? `farm:${d.farm_id}` : d.partner_client_id ? `client:${d.partner_client_id}` : `name:${d.bill_to_name}`;
+    const name = (d.farm_id ? farmById.get(d.farm_id)?.name : null) ?? d.bill_to_name ?? "—";
+    const cur = byCustomer.get(key) ?? { name, owed: 0, billed: 0, open: 0 };
+    cur.owed += owedOf(d) - (d.kind === "credit_note" ? d.total_cents : 0);
+    if (d.kind === "invoice") cur.billed += d.total_cents;
+    byCustomer.set(key, cur);
+  }
+  for (const r of all) {
+    if (r.status === "closed" || !r.farm_id) continue;
+    const cur = byCustomer.get(`farm:${r.farm_id}`) ?? { name: farmById.get(r.farm_id)?.name ?? "—", owed: 0, billed: 0, open: 0 };
+    cur.open += 1;
+    byCustomer.set(`farm:${r.farm_id}`, cur);
+  }
+  const farmStats = [...byCustomer.entries()]
+    .map(([key, v]) => ({ fid: key, name: v.name, total: v.billed, open: v.open, invoiced: Math.max(0, v.owed) }))
+    .sort((a, b) => b.invoiced - a.invoiced || b.open - a.open);
+  const totalInvoiced = outstanding;
 
   return (
     <div className="flex flex-col gap-4">
@@ -186,6 +227,23 @@ export default async function ContractorDashboardPage({
         <Stat label={t("contractor.kpiInProgress", locale)} value={kpiInProgress} icon={<MachinesIcon />} href={hrefWith({ kind: "all", status: "in_progress" })} />
         <Stat label={t("contractor.kpiToInvoice", locale)} value={kpiToInvoice} tone={kpiToInvoice > 0 ? "due" : "default"} href={hrefWith({ kind: "all", status: "completed" })} />
         <Stat label={t("contractor.kpiOpen", locale)} value={openReqs.length} />
+      </div>
+
+      {/* What is owed — the question a partner asks before any other. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat
+          label={t("contractor.owed", locale)}
+          value={rands(outstanding)}
+          tone={outstanding > 0 ? "brand" : "ok"}
+          href="/statements"
+        />
+        <Stat
+          label={t("contractor.overdue", locale)}
+          value={rands(overdue)}
+          tone={overdue > 0 ? "due" : "ok"}
+          href="/statements"
+        />
+        <Stat label={t("contractor.quotedOut", locale)} value={rands(quotedOut)} href="/documents" />
       </div>
 
       {all.length === 0 ? (

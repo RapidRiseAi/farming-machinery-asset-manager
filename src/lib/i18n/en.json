@@ -54,7 +54,8 @@
     "install": "Install app",
     "documents": "Quotes & invoices",
     "partnerSettings": "My business",
-    "clients": "My clients"
+    "clients": "My clients",
+    "statements": "Statements"
   },
   "auth": {
     "signIn": "Sign in",
@@ -577,7 +578,8 @@
     "reports": "Reports",
     "qrLabelsMarked": "Marked — the stickers are on the machines.",
     "deniedTitle": "That part is for the farm office",
-    "deniedBody": "You don't have the keys to that page. Here's what you can do."
+    "deniedBody": "You don't have the keys to that page. Here's what you can do.",
+    "language": "Language"
   },
   "jobType": {
     "scheduled_service": "Scheduled service",
@@ -637,7 +639,15 @@
     "tplAartoNominationDue": "{machine}: nominate the driver for fine {notice} before {deadline}",
     "tplAartoNominationOverdue": "{machine}: driver nomination for fine {notice} is overdue (was due {deadline})",
     "tplPartnerQuote": "New quote {number} — {amount}",
-    "tplPartnerInvoice": "New invoice {number} — {amount}"
+    "tplPartnerInvoice": "New invoice {number} — {amount}",
+    "tplQuoteExpiring": "Quote {number} runs out on {due}. Let them know either way.",
+    "tplQuoteExpiringPartner": "Your quote {number} to {customer} runs out on {due}. Worth a phone call.",
+    "tplInvoiceDueSoon": "Invoice {number} for {amount} is due on {due}.",
+    "tplInvoiceOverdue": "Invoice {number} for {amount} was due on {due}.",
+    "tplInvoiceOverduePartner": "{customer} still owes {amount} on invoice {number}.",
+    "tplQuoteAcceptedPartner": "{by} accepted quote {number} ({amount}). You can start.",
+    "tplQuoteDeclinedPartner": "Quote {number} was declined. {reason}",
+    "tplPaymentClaimedPartner": "Someone says they have paid invoice {number} ({amount}), reference {reference}. Worth checking your bank."
   },
   "settings": {
     "title": "Settings",
@@ -679,7 +689,17 @@
     "toneFriendlyEg": "“Nothing needs you today”",
     "toneProfessionalEg": "“No outstanding items”",
     "yourLanguage": "Your language",
-    "yourLanguageHint": "Changes every screen for you. The farm default below only sets the language new people start in."
+    "yourLanguageHint": "Changes every screen for you. The farm default below only sets the language new people start in.",
+    "billingSection": "Your business details",
+    "billingHint": "These print on any invoice a contractor sends you. Without your VAT number, an invoice over R5 000 is not a valid tax invoice and you cannot claim the VAT back.",
+    "tradingName": "Trading name",
+    "regNo": "Company registration",
+    "vatNo": "VAT number",
+    "vatNoHint": "Leave blank if you are not VAT registered.",
+    "billingAddress": "Business address",
+    "billingAddressHint": "Required on a tax invoice over R5 000.",
+    "billingEmail": "Where invoices should be sent",
+    "billingEmailHint": "Contractors will use this by default."
   },
   "team": {
     "title": "Team",
@@ -1416,7 +1436,10 @@
     "invoicedTotal": "Invoiced total",
     "analyticsLocked": "Cross-client analytics",
     "analyticsLockedHint": "See per-client volumes, invoiced totals and trends across every farm you serve.",
-    "contactRr": "Upgrade to Pro to unlock — contact RapidRise."
+    "contactRr": "Upgrade to Pro to unlock — contact RapidRise.",
+    "owed": "Owed to you",
+    "overdue": "Overdue",
+    "quotedOut": "Quotes out"
   },
   "inbox": {
     "title": "Activity inbox",
@@ -1771,7 +1794,11 @@
     "clientsWhat": "Your whole customer book — not only the farms that found you on FleetWise.",
     "clientsDoes": "Add any customer, whether or not they use FleetWise\nKeep their vehicles written down before they join\nAsk a customer to connect their farm to you\nCopy your vehicle list into their fleet once they connect\nCall, WhatsApp or email straight from the list",
     "clientsNote": "Adding someone here gives you no access to their data. That only comes when they connect and say yes.",
-    "partnersNote": "You choose what each connected contractor can see. They never see your other contractors."
+    "partnersNote": "You choose what each connected contractor can see. They never see your other contractors.",
+    "statementsTitle": "Statements",
+    "statementsWhat": "One customer's account: what they owe you right now, and every invoice, credit and payment that got it there.",
+    "statementsDoes": "Pick a customer and a period\nSee how much is overdue, and by how long\nSend the statement as a PDF on your letterhead\nDownload it as a spreadsheet for your bookkeeper",
+    "statementsNote": "The balance carries forward — anything owed before the period starts shows as the first line, so the closing figure really is what they owe."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -1849,7 +1876,8 @@
     "part_paid": "Part paid",
     "paid": "Paid",
     "cancelled": "Cancelled",
-    "expired": "Expired"
+    "expired": "Expired",
+    "void": "Voided"
   },
   "doc": {
     "title": "Quotes & invoices",
@@ -1965,7 +1993,25 @@
       "upload_failed": "The file would not upload. Try a smaller one.",
       "forbidden": "You are not allowed to do that."
     },
-    "subtotalNoVat": "Subtotal"
+    "subtotalNoVat": "Subtotal",
+    "whoFor": "Who is it for?",
+    "whoFarm": "A farm on FleetWise",
+    "whoClient": "Someone in my client book",
+    "whoOneOff": "A one-time customer",
+    "oneOffHint": "Nothing gets saved to your client book. Just type who it is for and carry on.",
+    "billToName": "Business or person",
+    "billToContact": "Who to address it to",
+    "billToEmail": "Email",
+    "billToPhone": "Phone",
+    "billToAddress": "Address",
+    "billToAddressHint": "Needed on a tax invoice over R5 000.",
+    "billToVat": "Their VAT number",
+    "billToVatHint": "Without this they cannot claim the VAT back.",
+    "billToReg": "Company registration",
+    "changeBilling": "Their details are different this time",
+    "theirReference": "Their order number",
+    "theirReferenceHint": "Optional — what they call this job on their side.",
+    "kindCredit": "Credit note"
   },
   "partnerSettings": {
     "title": "My business",
@@ -2023,7 +2069,8 @@
     "vatDefaultHint": "New documents start at",
     "vatRegistered": "We are registered for VAT",
     "vatRegisteredHint": "Turn this off if you are below the threshold. Your documents will show no VAT at all.",
-    "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later."
+    "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later.",
+    "prefixCredit": "Credit note prefix"
   },
   "clients": {
     "title": "My clients",
@@ -2092,7 +2139,7 @@
     "vehicleNameHint": "“Danie's blue Hilux” works fine.",
     "make": "Make",
     "model": "Model",
-    "regNo": "Registration",
+    "regNo": "Company registration",
     "year": "Year",
     "serialNo": "Serial / VIN",
     "addVehicle": "Add vehicle",
@@ -2103,7 +2150,16 @@
     "removeClientConsequence": "Your notes and their vehicle list go with it.",
     "removeClientKeepsLink": "You stay connected to their farm — this only removes your own record.",
     "connectedFlash": "Already connected — this client is now linked to their farm.",
-    "syncPartial": "{n} copied. Some could not be added — try again, the rest are still waiting."
+    "syncPartial": "{n} copied. Some could not be added — try again, the rest are still waiting.",
+    "billing": "Billing details",
+    "billingHint": "Used on every quote and invoice you raise for them, so you never retype it.",
+    "tradingName": "Trading name",
+    "vatNo": "VAT number",
+    "vatNoHint": "Without this they cannot claim the VAT back on your invoices.",
+    "terms": "Payment terms (days)",
+    "termsHint": "Leave blank to use your own default.",
+    "creditLimit": "Credit limit (R)",
+    "creditLimitHint": "Optional — just a note to yourself."
   },
   "access": {
     "title": "What they can see",
@@ -2126,5 +2182,122 @@
     "disconnectBody": "{name} will lose access to this farm straight away.",
     "disconnectConsequence": "They keep the quotes and invoices they already sent you, and you keep yours.",
     "disconnectFootnote": "You can connect them again later."
+  },
+  "correct": {
+    "title": "Something wrong with this one?",
+    "intro": "Sent documents stay as they are — that is what makes them a record. Here is how you fix a mistake without pretending it never happened.",
+    "creditedTitle": "Credited back",
+    "remaining": "Still charged",
+    "amountWrong": "The amount is wrong",
+    "amountWrongHint": "Credit it back and send a new invoice for the right amount. Your customer's account will show both, which is what actually happened.",
+    "reason": "What went wrong?",
+    "reasonHint": "Shown on the credit note, so your customer knows why.",
+    "startCredit": "Start a credit note",
+    "shouldNotExist": "It should never have gone out",
+    "shouldNotExistHint": "Wrong customer, or a duplicate. The document and its number stay on file; the money comes off.",
+    "void": "Cancel this document",
+    "voidTitle": "Cancel {number}?",
+    "voidBody": "This stops the money counting. The document stays on file with your reason on it, so anyone looking later can see what happened.",
+    "voidConsequence1": "It comes off what the customer owes you.",
+    "voidConsequence2": "If a copy is already out there, it will still say cancelled when they open the link.",
+    "voidReason": "Why are you cancelling it?",
+    "voidReasonHint": "A few words is enough. This is what you will read in six months."
+  },
+  "email": {
+    "title": "Send it to them",
+    "sentBadge": "Sent",
+    "lastSent": "Last sent to {to}, {when}.",
+    "never": "{name} has not been emailed this yet.",
+    "send": "Email it",
+    "sendAgain": "Send it again",
+    "sendNow": "Send now",
+    "sending": "Sending…",
+    "to": "Email address",
+    "cc": "Copy to",
+    "ccHint": "Optional — a second address that should also get it.",
+    "message": "Add a note",
+    "messageHint": "Optional. It goes at the top of the email.",
+    "wentTo": "On its way to {to}.",
+    "failed": "That did not send. Try again in a moment.",
+    "notConfigured": "Email is not switched on for this system yet. Download the PDF and send it yourself for now.",
+    "badAddress": "That does not look like an email address.",
+    "history": "Everything we have sent ({n})"
+  },
+  "statement": {
+    "title": "Statements",
+    "tagline": "What each customer owes you, and how it got there.",
+    "customer": "Customer",
+    "from": "From",
+    "to": "To",
+    "show": "Show",
+    "pdf": "PDF",
+    "csv": "Spreadsheet",
+    "owedNow": "Owed right now",
+    "totalOwed": "Total owed",
+    "ageingHint": "Counted from the day each invoice fell due, oldest first.",
+    "age": {
+      "current": "Not yet due",
+      "d30": "1–30 days",
+      "d60": "31–60 days",
+      "d90": "60+ days late"
+    },
+    "date": "Date",
+    "what": "What happened",
+    "charged": "Charged",
+    "paidOff": "Paid off",
+    "balance": "Balance",
+    "opening": "Brought forward",
+    "invoiced": "Invoiced",
+    "credited": "Credited back",
+    "received": "Received",
+    "closing": "Balance due",
+    "emptyTitle": "Nothing happened in this period",
+    "emptyBody": "No invoices, credits or payments between these dates. Try a wider window.",
+    "noneTitle": "No customers yet",
+    "noneBody": "Statements are per customer. Add someone to your client book, or connect to a farm, and their account will build itself as you invoice them.",
+    "addClient": "Go to my clients"
+  },
+  "pubDoc": {
+    "vatNo": "VAT",
+    "for": "Made out to",
+    "total": "Total",
+    "totalCredited": "Credited back",
+    "stillOwing": "Still owing",
+    "validUntil": "Valid until",
+    "dueBy": "Due by",
+    "decide": "What would you like to do?",
+    "decideHint": "Accepting tells them to go ahead with the work.",
+    "yourName": "Your name",
+    "yourNameHint": "So they know who said yes.",
+    "accept": "Accept this quote",
+    "ratherNot": "I would rather not",
+    "declineReason": "Anything you want to tell them?",
+    "decline": "Decline it",
+    "acceptedFlash": "Accepted. They have been told.",
+    "declinedFlash": "Declined. They have been told.",
+    "toldFlash": "They have been told to look out for it.",
+    "closedFlash": "This one has already been dealt with.",
+    "nameFlash": "Please put your name in so they know who accepted.",
+    "voided": "This {label} has been cancelled and is not payable.",
+    "howToPay": "How to pay",
+    "accountName": "Account name",
+    "bank": "Bank",
+    "accountNo": "Account number",
+    "branchCode": "Branch code",
+    "reference": "Use this reference",
+    "askThem": "Ask them how they would like to be paid.",
+    "paidRef": "Your payment reference",
+    "paidRefHint": "Optional — it helps them find it on their bank statement.",
+    "tellThem": "Tell them I have paid",
+    "items": "What this is for",
+    "subtotal": "Subtotal",
+    "subtotalEx": "Subtotal before VAT",
+    "discount": "Discount",
+    "vat": "VAT at {pct}",
+    "paidSoFar": "Paid so far",
+    "whatThisMeans": "What this means",
+    "creditExplains": "This credit note takes {amount} off invoice {number}. There is nothing to pay on this document.",
+    "download": "Download the PDF",
+    "questions": "Questions? Call"
   }
 }

@@ -99,6 +99,41 @@ export function formatNotification(
       return fill("notifications.tplQuoteAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
     case "invoice_awaiting":
       return fill("notifications.tplInvoiceAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
+    // The money clock (G2 engine 0414). Each of these has a partner-side twin — the same
+    // fact told to the person who can act on it, which for an overdue invoice is both
+    // sides at once.
+    case "quote_expiring":
+      return fill("notifications.tplQuoteExpiring", locale, { number: String(p.number ?? ""), due: String(p.due_date ?? "") });
+    case "quote_expiring_partner":
+      return fill("notifications.tplQuoteExpiringPartner", locale, {
+        number: String(p.number ?? ""), customer: String(p.customer ?? ""), due: String(p.due_date ?? ""),
+      });
+    case "invoice_due_soon":
+      return fill("notifications.tplInvoiceDueSoon", locale, {
+        number: String(p.number ?? ""), amount: rands(p.amount as number), due: String(p.due_date ?? ""),
+      });
+    case "invoice_overdue":
+      return fill("notifications.tplInvoiceOverdue", locale, {
+        number: String(p.number ?? ""), amount: rands(p.amount as number), due: String(p.due_date ?? ""),
+      });
+    case "invoice_overdue_partner":
+      return fill("notifications.tplInvoiceOverduePartner", locale, {
+        number: String(p.number ?? ""), customer: String(p.customer ?? ""), amount: rands(p.amount as number),
+      });
+    // Answers from the customer's emailed link (G2). The partner is not watching the
+    // screen when someone accepts at 9pm, which is exactly why these exist.
+    case "quote_accepted_partner":
+      return fill("notifications.tplQuoteAcceptedPartner", locale, {
+        number: String(p.number ?? ""), by: String(p.by ?? ""), amount: rands(p.amount as number),
+      });
+    case "quote_declined_partner":
+      return fill("notifications.tplQuoteDeclinedPartner", locale, {
+        number: String(p.number ?? ""), reason: String(p.reason ?? ""),
+      });
+    case "payment_claimed_partner":
+      return fill("notifications.tplPaymentClaimedPartner", locale, {
+        number: String(p.number ?? ""), reference: String(p.reference ?? ""), amount: rands(p.amount as number),
+      });
     // AARTO nomination-deadline reminder (G2 engine 0371). `status` = expiring | expired.
     case "aarto_nomination_due":
       return fill(
@@ -129,7 +164,10 @@ export function notificationTitle(template: string, locale: Lang): string {
                   template === "quote_awaiting" ||
                   template === "invoice_awaiting"
                 ? "work"
-                : template.startsWith("partner_")
+                : template.startsWith("partner_") ||
+                    template.startsWith("quote_") ||
+                    template.startsWith("invoice_") ||
+                    template.startsWith("payment_")
                   ? "documents"
                 : template.startsWith("aarto_")
                   ? "aarto"
@@ -148,8 +186,9 @@ export function notificationUrl(template: string, payload: NotePayload): string 
     p.work_request_id
   )
     return `/work/${p.work_request_id}`;
-  // A quote or invoice from a partner opens the document itself.
-  if (template.startsWith("partner_") && p.document_id) return `/documents/${p.document_id}`;
+  // Anything that names a document opens that document — the partner-side reminders and
+  // the customer's answers from the emailed link included.
+  if (p.document_id) return `/documents/${p.document_id}`;
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
   if (p.machine_id) return `/machines/${p.machine_id}`;

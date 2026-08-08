@@ -4,11 +4,13 @@ import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
+import { CorrectionPanel, type CreditNoteRef } from "@/components/documents/correction-panel";
+import { EmailDocument, type EmailAttempt } from "@/components/documents/email-document";
 import { shortDate, vatPercent } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
 import { signedBrandingUrl, signedDocUrl } from "@/lib/partner-media";
-import { balanceDueCents, isEditable, type DocKind, type DocStatus, type DocSource, type DocLine } from "@/lib/partner-docs";
+import { balanceDueCents, isEditable, type BillTo, type DocKind, type DocStatus, type DocSource, type DocLine } from "@/lib/partner-docs";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, TextareaField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -22,7 +24,7 @@ import { TrashIcon, DownloadIcon } from "@/components/ui/icons";
 import {
   addDocumentLine, removeDocumentLine, updateDocument, sendDocument,
   convertQuoteToInvoice, acceptDocument, declineDocument, recordPayment,
-  removePayment, cancelDocument, deleteDraft,
+  removePayment, deleteDraft,
 } from "../actions";
 import { DeclineQuote } from "@/components/partner/decline-quote";
 
@@ -38,8 +40,10 @@ import { DeclineQuote } from "@/components/partner/decline-quote";
  * RLS decides visibility; this page only decides what to offer.
  */
 
-type Doc = {
-  id: string; farm_id: string; workshop_id: string; machine_id: string | null;
+type Doc = BillTo & {
+  id: string; farm_id: string | null; partner_client_id: string | null;
+  corrects_document_id: string | null; void_reason: string | null;
+  workshop_id: string; machine_id: string | null;
   work_request_id: string | null; quote_id: string | null;
   kind: DocKind; status: DocStatus; source: DocSource; number: string; subject: string | null;
   issue_date: string; due_date: string | null;
@@ -78,8 +82,10 @@ export default async function DocumentPage({
   const doc = data as Doc | null;
   if (!doc) notFound();
 
-  const [{ data: lineData }, { data: payData }, { data: farmData }, { data: shopData }, { data: machineData }] =
-    await Promise.all([
+  const [
+    { data: lineData }, { data: payData }, { data: farmData }, { data: shopData },
+    { data: machineData }, { data: creditData }, { data: emailData },
+  ] = await Promise.all([
       supabase
         .from("partner_document_lines")
         .select("id, sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents, line_total_cents")
@@ -92,18 +98,38 @@ export default async function DocumentPage({
         .eq("document_id", id)
         .is("deleted_at", null)
         .order("paid_on", { ascending: false }),
-      supabase.from("farms").select("id, name").eq("id", doc.farm_id).maybeSingle(),
+      doc.farm_id
+        ? supabase.from("farms").select("id, name").eq("id", doc.farm_id).maybeSingle()
+        : Promise.resolve({ data: null }),
       supabase.from("workshops").select("id, name, trading_name, phone, whatsapp, email").eq("id", doc.workshop_id).maybeSingle(),
       doc.machine_id
-        ? supabase.from("machines").select("id, name, reg_number").eq("id", doc.machine_id).maybeSingle()
+        ? supabase.from("machines").select("id, name, reg_no").eq("id", doc.machine_id).maybeSingle()
         : Promise.resolve({ data: null }),
+      // Credit notes raised against this invoice, and what we have emailed. Both read
+      // through RLS, so a farmer sees the corrections to their own invoice and a partner
+      // sees theirs.
+      supabase
+        .from("partner_documents")
+        .select("id, number, total_cents, status")
+        .eq("corrects_document_id", id)
+        .is("deleted_at", null)
+        .order("issue_date"),
+      supabase
+        .from("document_emails")
+        .select("id, to_email, status, error, created_at")
+        .eq("document_id", id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
 
   const lines = (lineData ?? []) as DocLine[];
   const payments = (payData ?? []) as Payment[];
   const farm = farmData as { id: string; name: string } | null;
   const shop = shopData as { id: string; name: string; trading_name: string | null; phone: string | null; whatsapp: string | null; email: string | null } | null;
-  const machine = machineData as { id: string; name: string; reg_number: string | null } | null;
+  const machine = machineData as { id: string; name: string; reg_no: string | null } | null;
+  const creditNotes = (creditData ?? []) as CreditNoteRef[];
+  const emailHistory = (emailData ?? []) as EmailAttempt[];
 
   const isPartner = profile.role === "workshop";
   const isFarmDecider = profile.role === "owner" || profile.role === "manager";
@@ -168,7 +194,7 @@ export default async function DocumentPage({
             {machine ? (
               <p className="text-sand-600">
                 {machine.name}
-                {machine.reg_number ? ` · ${machine.reg_number}` : ""}
+                {machine.reg_no ? ` · ${machine.reg_no}` : ""}
               </p>
             ) : null}
             {doc.subject ? <p className="mt-1 text-sand-700">{doc.subject}</p> : null}
@@ -398,22 +424,34 @@ export default async function DocumentPage({
               <SubmitButton>{t("doc.convertToInvoice", locale)}</SubmitButton>
             </form>
           ) : null}
-          {!["cancelled", "paid"].includes(doc.status) ? (
-            <ConfirmDialog
-              action={cancelDocument}
-              triggerLabel={t("doc.cancel", locale)}
-              triggerVariant="ghost"
-              triggerSize="sm"
-              title={t("doc.cancelTitle", locale)}
-              intro={t("doc.cancelBody", locale)}
-              confirmLabel={t("doc.cancel", locale)}
-              cancelLabel={t("common.cancel", locale)}
-              closeLabel={t("ui.close", locale)}
-            >
-              <input type="hidden" name="document_id" value={doc.id} />
-            </ConfirmDialog>
-          ) : null}
         </div>
+      ) : null}
+
+      {/* Emailing it is the point of sending it — before this, "send" set a status and
+          the customer had to log in to find out they had been invoiced. */}
+      {doc.status !== "draft" ? (
+        <EmailDocument
+          documentId={doc.id}
+          defaultTo={doc.bill_to_email ?? ""}
+          customerName={doc.bill_to_name ?? ""}
+          history={emailHistory}
+          locale={locale}
+        />
+      ) : null}
+
+      {isPartner ? (
+        <CorrectionPanel
+          doc={{
+            id: doc.id,
+            kind: doc.kind,
+            status: doc.status,
+            number: doc.number,
+            total_cents: doc.total_cents,
+            void_reason: doc.void_reason ?? null,
+          }}
+          credits={creditNotes}
+          locale={locale}
+        />
       ) : null}
 
       {/* ── The farmer's decision ─────────────────────────────────── */}

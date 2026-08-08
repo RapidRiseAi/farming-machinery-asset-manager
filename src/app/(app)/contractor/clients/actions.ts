@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
 
@@ -25,6 +26,14 @@ import { requireRole } from "@/lib/auth";
  *     link is active; a revoked partner writing to a farm they no longer serve is
  *     rejected by the same policy that governs every other machine insert.
  */
+
+/** A bounded integer from the form, or null when it was left blank. */
+function intOrNull(fd: FormData, k: string, min: number, max: number): number | null {
+  const raw = String(fd.get(k) ?? "").trim();
+  if (raw === "") return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null;
+}
 
 function s(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -104,6 +113,13 @@ export async function updateClientRecord(formData: FormData) {
       whatsapp: s(formData, "whatsapp"),
       email: s(formData, "email"),
       address: s(formData, "address"),
+      // Billing identity (0410). A client record was an address-book entry; commercial
+      // terms were retyped on every document, which is how they drift.
+      trading_name: s(formData, "trading_name"),
+      reg_number: s(formData, "reg_number"),
+      vat_number: s(formData, "vat_number"),
+      payment_terms_days: intOrNull(formData, "payment_terms_days", 0, 365),
+      credit_limit_cents: parseRandsToCents(String(formData.get("credit_limit") ?? "")),
       notes: s(formData, "notes"),
       updated_at: new Date().toISOString(),
     })

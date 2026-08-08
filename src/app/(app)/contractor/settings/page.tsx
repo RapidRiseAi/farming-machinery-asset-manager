@@ -237,6 +237,14 @@ export default async function PartnerSettingsPage({
               defaultValue={workshop?.doc_prefix_invoice ?? "INV"}
               maxLength={8}
             />
+            {/* Its own series: a credit note is a different kind of document under
+                s21, and sharing the invoice counter makes both unreadable. */}
+            <TextField
+              name="doc_prefix_credit"
+              label={t("partnerSettings.prefixCredit", locale)}
+              defaultValue={workshop?.doc_prefix_credit ?? "CN"}
+              maxLength={8}
+            />
             <TextField
               name="quote_validity_days"
               type="number"
