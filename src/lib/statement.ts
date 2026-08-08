@@ -71,12 +71,20 @@ export function statementTotals(rows: readonly StatementRow[]) {
   };
 }
 
-/** The default window: this calendar month to date, which is what a statement usually covers. */
+/**
+ * The default window: the last 90 days.
+ *
+ * Not the calendar month, which is the obvious choice and the wrong one — an invoice on
+ * 30-day terms issued last month is exactly what the screen exists to chase, and a
+ * month-to-date window opens on an empty table for the first days of every month. Ninety
+ * days covers the terms a farm workshop actually gives, and the opening balance carries
+ * everything older.
+ */
 export function defaultStatementPeriod(today = new Date()): { from: string; to: string } {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: iso(new Date(Date.UTC(y, m, 1))), to: iso(today) };
+  const from = new Date(today);
+  from.setUTCDate(from.getUTCDate() - 90);
+  return { from: iso(from), to: iso(today) };
 }
 
 /** i18n key for an ageing bucket. */

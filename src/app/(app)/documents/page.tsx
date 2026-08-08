@@ -126,9 +126,14 @@ export default async function DocumentsPage({
         ).values(),
       ];
 
-  // What is actually outstanding, in money rather than in counts.
+  // What is actually outstanding, in money rather than in counts. Credit notes come OFF
+  // it — a credit issued but not yet reflected here would have the partner chasing money
+  // they have already given back.
   const openInvoices = rows.filter((r) => r.kind === "invoice" && ["sent", "part_paid"].includes(r.status));
-  const outstanding = openInvoices.reduce((sum, r) => sum + balanceDueCents(r), 0);
+  const credited = rows
+    .filter((r) => r.kind === "credit_note" && !["draft", "void"].includes(r.status))
+    .reduce((sum, r) => sum + r.total_cents, 0);
+  const outstanding = Math.max(0, openInvoices.reduce((sum, r) => sum + balanceDueCents(r), 0) - credited);
   const openQuotes = rows.filter((r) => r.kind === "quote" && r.status === "sent");
   const quoted = openQuotes.reduce((sum, r) => sum + r.total_cents, 0);
   const drafts = rows.filter((r) => r.status === "draft");
@@ -145,6 +150,7 @@ export default async function DocumentsPage({
       options: [
         { value: "quote", label: t("doc.kindQuote", locale) },
         { value: "invoice", label: t("doc.kindInvoice", locale) },
+        { value: "credit_note", label: t("doc.kindCredit", locale) },
       ],
     },
     {
@@ -172,7 +178,7 @@ export default async function DocumentsPage({
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={r.kind === "invoice" ? "brand" : "neutral"}>
-              {t(r.kind === "invoice" ? "doc.kindInvoice" : "doc.kindQuote", locale)}
+              {t(`doc.kind${r.kind === "invoice" ? "Invoice" : r.kind === "credit_note" ? "Credit" : "Quote"}`, locale)}
             </Badge>
             <span className="font-mono text-sm font-medium tabular-nums text-sand-700">{r.number}</span>
             <DocStatusBadge value={r.status} locale={locale} />

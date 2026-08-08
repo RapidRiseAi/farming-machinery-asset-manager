@@ -155,9 +155,17 @@ export function statusesFor(kind: DocKind): DocStatus[] {
   return ["draft", "sent", "part_paid", "paid", "void"];
 }
 
-/** Is this document still awaiting the farmer? Drives the "needs you" lists. */
+/**
+ * Is this document still awaiting the customer? Drives the "needs a decision" lists.
+ *
+ * A credit note awaits nobody — it is money going back, not a bill and not an offer.
+ * Before this it fell through the `else` branch and sat in the partner's "waiting on a
+ * yes" pile forever, which is the sort of thing that makes a dashboard stop being read.
+ */
 export function awaitsCustomer(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
-  return doc.kind === "quote" ? doc.status === "sent" : doc.status === "sent" || doc.status === "part_paid";
+  if (doc.kind === "credit_note") return false;
+  if (doc.kind === "quote") return doc.status === "sent";
+  return doc.status === "sent" || doc.status === "part_paid";
 }
 
 /** A document that is settled needs no further action from anyone. */

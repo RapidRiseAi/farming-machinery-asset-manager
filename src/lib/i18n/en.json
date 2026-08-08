@@ -2010,7 +2010,8 @@
     "billToReg": "Company registration",
     "changeBilling": "Their details are different this time",
     "theirReference": "Their order number",
-    "theirReferenceHint": "Optional — what they call this job on their side."
+    "theirReferenceHint": "Optional — what they call this job on their side.",
+    "kindCredit": "Credit note"
   },
   "partnerSettings": {
     "title": "My business",

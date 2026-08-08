@@ -2010,7 +2010,8 @@
     "billToReg": "Maatskappyregistrasie",
     "changeBilling": "Hul besonderhede is hierdie keer anders",
     "theirReference": "Hul bestelnommer",
-    "theirReferenceHint": "Opsioneel — wat hulle hierdie werk aan hul kant noem."
+    "theirReferenceHint": "Opsioneel — wat hulle hierdie werk aan hul kant noem.",
+    "kindCredit": "Kredietnota"
   },
   "partnerSettings": {
     "title": "My besigheid",

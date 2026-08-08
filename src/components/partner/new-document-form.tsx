@@ -123,7 +123,7 @@ export function NewDocumentForm({
           <button
             type="button"
             onClick={() => setShowBilling(true)}
-            className="focus-ring self-start rounded text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
+            className="focus-ring inline-flex min-h-[48px] items-center self-start rounded text-sm font-medium text-brand-700 underline-offset-2 hover:underline sm:min-h-[40px]"
           >
             {t("doc.changeBilling", locale)}
           </button>

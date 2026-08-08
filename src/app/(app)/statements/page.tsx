@@ -50,6 +50,9 @@ export default async function StatementsPage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
+  // Default to the last 90 days rather than the calendar month: a farm invoice on 30-day
+  // terms issued last month is the whole point of the screen, and a month-to-date window
+  // opens on an empty table for most of every month.
   const period = defaultStatementPeriod();
   const from = sp.from || period.from;
   const to = sp.to || period.to;
@@ -65,7 +68,7 @@ export default async function StatementsPage({
       .is("deleted_at", null),
     supabase
       .from("partner_clients")
-      .select("id, name")
+      .select("id, name, farm_id")
       .eq("workshop_id", workshop.id)
       .is("deleted_at", null)
       .order("name"),
@@ -80,15 +83,31 @@ export default async function StatementsPage({
     const f = Array.isArray(l.farms) ? l.farms[0] : l.farms;
     if (f) farmParties.push({ key: `farm:${f.id}`, label: f.name, farm_id: f.id, client_id: null });
   }
-  const clientParties: Party[] = ((clientData ?? []) as { id: string; name: string }[]).map((c) => ({
-    key: `client:${c.id}`,
-    label: c.name,
-    farm_id: null,
-    client_id: c.id,
-  }));
+  // A client-book row that has been LINKED to a farm is that farm — the documents are
+  // addressed to the farm, not to the client record. Listing both put the same customer
+  // in the picker twice, and choosing the second one showed R0 owed by somebody who owes
+  // you money. Found by opening the page, not by reading it.
+  const clientParties: Party[] = ((clientData ?? []) as { id: string; name: string; farm_id: string | null }[])
+    .filter((c) => c.farm_id == null)
+    .map((c) => ({ key: `client:${c.id}`, label: c.name, farm_id: null, client_id: c.id }));
+
   const parties: Party[] = [...farmParties, ...clientParties].sort((a, b) => a.label.localeCompare(b.label));
 
-  const selected = parties.find((p) => p.key === sp.party) ?? parties[0] ?? null;
+  // Default to whoever owes the most rather than whoever is first alphabetically. Opening
+  // on a customer with a zero balance makes the whole screen look broken.
+  let selected: Party | null = parties.find((p) => p.key === sp.party) ?? null;
+  if (!selected && parties.length > 0) {
+    const owed = await Promise.all(
+      parties.map(async (p) => {
+        const { data } = await supabase.rpc("partner_ageing", {
+          p_workshop: workshop.id, p_farm: p.farm_id, p_client: p.client_id,
+        });
+        return { p, cents: ((data ?? []) as Ageing[])[0]?.total_cents ?? 0 };
+      }),
+    );
+    owed.sort((a, b) => b.cents - a.cents);
+    selected = owed[0].p;
+  }
 
   let rows: StatementRow[] = [];
   let ageing: Ageing = EMPTY_AGEING;
