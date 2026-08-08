@@ -190,7 +190,11 @@
     "uploadTitle": "In ’n ander stelsel geproduseer?",
     "uploadBody": "Heg die kwotasie of faktuur aan wat u rekeningkundige stelsel geproduseer het. U kliënt kan dit besigtig en dit word in hul kostes weerspieël; u bestaande faktureringsproses bly onveranderd.",
     "upgradeBody": "Die Bestuur-plan voeg geïtemiseerde kwotasies en fakture by, kwotasie-na-faktuur omskakeling, en betalingsaantekening.",
-    "upgradeKeep": "Bestaande funksionaliteit word behou — u eie dokumente aanheg bly deel van u plan."
+    "upgradeKeep": "Bestaande funksionaliteit word behou — u eie dokumente aanheg bly deel van u plan.",
+    "whoOneOff": "Eenmalige klant",
+    "oneOffHint": "Geen klanterekord word geskep nie. Voer die rekeningbesonderhede op die dokument self in.",
+    "billToVatHint": "Vereis sodat die klant insetBTW kan eis.",
+    "changeBilling": "Gebruik ander rekeningbesonderhede"
   },
   "partnerSettings": {
     "lead": "Hierdie besonderhede verskyn op elke kwotasie en faktuur wat u uitreik.",
@@ -255,5 +259,53 @@
     "neverPartners": "U ander verskaffers word nooit aan hulle bekend gemaak nie, ongeag die instellings hierbo.",
     "save": "Stoor toegangsinstellings",
     "disconnectBody": "{name} sal onmiddellik toegang tot hierdie plaas verloor."
+  },
+  "correct": {
+    "title": "Regstellings",
+    "intro": "Uitgereikte dokumente is onveranderlik. Gebruik 'n kredietnota om 'n bedrag aan te pas, of kanselleer die dokument as dit nie uitgereik moes gewees het nie.",
+    "amountWrong": "Verkeerde bedrag",
+    "amountWrongHint": "Reik 'n kredietnota uit en stel 'n vervangingsfaktuur op. Albei verskyn op die klant se rekening, soos vereis.",
+    "shouldNotExist": "Foutief uitgereik",
+    "shouldNotExistHint": "Verkeerde klant, of 'n duplikaat. Die dokument en sy nommer word behou; die bedrag word teruggekeer.",
+    "void": "Kanselleer hierdie dokument",
+    "voidTitle": "Kanselleer {number}?",
+    "voidBody": "Die bedrag word teruggekeer. Die dokument word behou met die rede daarteen aangeteken.",
+    "voidReason": "Rede vir kansellasie",
+    "voidReasonHint": "Word permanent teen die dokument aangeteken.",
+    "startCredit": "Stel 'n kredietnota op",
+    "reason": "Rede vir die krediet"
+  },
+  "email": {
+    "title": "Stuur aan klant",
+    "send": "Stuur per e-pos",
+    "sendAgain": "Herstuur",
+    "never": "{name} het hierdie dokument nog nie ontvang nie.",
+    "notConfigured": "E-posaflewering is nie gekonfigureer nie. Laai die PDF af en stuur dit direk.",
+    "failed": "Aflewering het misluk. Probeer asseblief weer."
+  },
+  "statement": {
+    "tagline": "Klanterekeninge: uitstaande saldo's en die transaksies daaragter.",
+    "owedNow": "Uitstaande saldo",
+    "totalOwed": "Totaal uitstaande",
+    "what": "Transaksie",
+    "charged": "Debiet",
+    "paidOff": "Krediet",
+    "opening": "Saldo oorgedra",
+    "closing": "Saldo uitstaande",
+    "ageingHint": "Verouder vanaf elke faktuur se vervaldatum, oudste eerste."
+  },
+  "pubDoc": {
+    "decide": "U reaksie",
+    "decideHint": "Aanvaarding magtig die werk om voort te gaan.",
+    "yourName": "Naam",
+    "yourNameHint": "Word teen u aanvaarding aangeteken.",
+    "accept": "Aanvaar kwotasie",
+    "ratherNot": "Wys hierdie kwotasie af",
+    "tellThem": "Stel die verskaffer in kennis van betaling"
+  },
+  "contractor": {
+    "owed": "Uitstaande",
+    "overdue": "Agterstallig",
+    "quotedOut": "Kwotasies uitgereik"
   }
 }

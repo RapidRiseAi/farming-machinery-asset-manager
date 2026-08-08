@@ -190,7 +190,11 @@
     "uploadTitle": "Produced in another system?",
     "uploadBody": "Attach the quotation or invoice your accounting system produced. Your client can view it and it is reflected in their costs; your existing invoicing process is unchanged.",
     "upgradeBody": "The Managed plan adds itemised quotations and invoices, quote-to-invoice conversion, and payment recording.",
-    "upgradeKeep": "Existing functionality is retained — attaching your own documents remains part of your plan."
+    "upgradeKeep": "Existing functionality is retained — attaching your own documents remains part of your plan.",
+    "whoOneOff": "One-off customer",
+    "oneOffHint": "No customer record is created. Enter the billing details on the document itself.",
+    "billToVatHint": "Required for the customer to claim input VAT.",
+    "changeBilling": "Use different billing details"
   },
   "partnerSettings": {
     "lead": "These details appear on every quotation and invoice you issue.",
@@ -255,5 +259,53 @@
     "neverPartners": "Your other suppliers are never disclosed to them, regardless of the settings above.",
     "save": "Save access settings",
     "disconnectBody": "{name} will lose access to this farm immediately."
+  },
+  "correct": {
+    "title": "Corrections",
+    "intro": "Issued documents are immutable. Use a credit note to adjust an amount, or void the document if it should not have been issued.",
+    "amountWrong": "Incorrect amount",
+    "amountWrongHint": "Issue a credit note and raise a replacement invoice. Both appear on the customer's account, as required.",
+    "shouldNotExist": "Issued in error",
+    "shouldNotExistHint": "Wrong customer, or a duplicate. The document and its number are retained; the amount is reversed.",
+    "void": "Void this document",
+    "voidTitle": "Void {number}?",
+    "voidBody": "The amount is reversed. The document is retained with the reason recorded against it.",
+    "voidReason": "Reason for voiding",
+    "voidReasonHint": "Recorded permanently against the document.",
+    "startCredit": "Raise a credit note",
+    "reason": "Reason for the credit"
+  },
+  "email": {
+    "title": "Send to customer",
+    "send": "Send by email",
+    "sendAgain": "Resend",
+    "never": "{name} has not yet been sent this document.",
+    "notConfigured": "Email delivery is not configured. Download the PDF and send it directly.",
+    "failed": "Delivery failed. Please retry."
+  },
+  "statement": {
+    "tagline": "Customer accounts: balances outstanding and the transactions behind them.",
+    "owedNow": "Outstanding balance",
+    "totalOwed": "Total outstanding",
+    "what": "Transaction",
+    "charged": "Debit",
+    "paidOff": "Credit",
+    "opening": "Balance brought forward",
+    "closing": "Balance outstanding",
+    "ageingHint": "Aged from each invoice's due date, oldest first."
+  },
+  "pubDoc": {
+    "decide": "Your response",
+    "decideHint": "Accepting authorises the work to proceed.",
+    "yourName": "Name",
+    "yourNameHint": "Recorded against your acceptance.",
+    "accept": "Accept quotation",
+    "ratherNot": "Decline this quotation",
+    "tellThem": "Notify the supplier of payment"
+  },
+  "contractor": {
+    "owed": "Outstanding",
+    "overdue": "Overdue",
+    "quotedOut": "Quotations issued"
   }
 }

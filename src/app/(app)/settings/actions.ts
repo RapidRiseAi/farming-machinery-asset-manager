@@ -36,6 +36,22 @@ export async function updateSettings(formData: FormData) {
   };
 
   const supabase = await createClient();
+  // The farm's billing identity lives in real columns, not the settings blob — it goes on
+  // a tax invoice, and a jsonb key is the wrong home for something a partner's PDF reads.
+  // `farms_upd` is rr_admin only by design (the row carries the plan), so the owner writes
+  // these through a narrow SECURITY DEFINER RPC (0410) that can touch nothing else.
+  const billingError = (
+    await supabase.rpc("update_farm_billing", {
+      p_farm: profile.farm_id,
+      p_trading: String(formData.get("trading_name") ?? ""),
+      p_reg: String(formData.get("reg_number") ?? ""),
+      p_vat: String(formData.get("vat_number") ?? ""),
+      p_address: String(formData.get("billing_address") ?? ""),
+      p_email: String(formData.get("billing_email") ?? ""),
+    })
+  ).error;
+  if (billingError) redirect(`/settings?error=${encodeURIComponent(billingError.message)}`);
+
   const { error } = await supabase.rpc("update_farm_settings", { p_farm: profile.farm_id, p_settings: settings });
   if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/settings");

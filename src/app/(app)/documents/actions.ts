@@ -8,6 +8,7 @@ import type { Role } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { defaultDueDate, type DocKind, type DocLineKind } from "@/lib/partner-docs";
+import { safePath } from "@/lib/safe-path";
 
 /**
  * Quotes and invoices (F14b/F14c).
@@ -40,7 +41,13 @@ function back(fd: FormData, fallback: string): string {
 
 type DocRow = {
   id: string;
-  farm_id: string;
+  farm_id: string | null;
+  partner_client_id: string | null;
+  corrects_document_id: string | null;
+  bill_to_name: string | null;
+  bill_to_email: string | null;
+  due_date: string | null;
+  subject: string | null;
   workshop_id: string;
   kind: DocKind;
   status: string;
@@ -59,7 +66,11 @@ async function loadDoc(
 ): Promise<DocRow | null> {
   const { data } = await supabase
     .from("partner_documents")
-    .select("id, farm_id, workshop_id, kind, status, source, number, total_cents, vat_rate_bps, machine_id, work_request_id")
+    .select(
+      "id, farm_id, partner_client_id, corrects_document_id, workshop_id, kind, status, source, " +
+      "number, total_cents, vat_rate_bps, machine_id, work_request_id, subject, due_date, " +
+      "bill_to_name, bill_to_email",
+    )
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -73,18 +84,95 @@ async function loadDoc(
  * (0380), which increments the partner's own counter under a row lock — so two staff
  * pressing "New invoice" at the same second get INV-0007 and INV-0008, never two 0007s.
  */
+/**
+ * Who this document is for (0410). Exactly one of three, and the third is the point:
+ * a walk-in job should not require filing a customer before you can bill it.
+ */
+type Recipient =
+  | { farm_id: string; partner_client_id: null }
+  | { farm_id: null; partner_client_id: string }
+  | { farm_id: null; partner_client_id: null };
+
+/**
+ * Resolve the recipient from the form, and REFUSE one the caller cannot reach.
+ *
+ * A farm must be one this partner is actually linked to, and a client must be one in
+ * their own book. Both are re-derived from the database rather than trusted from the
+ * form — otherwise a partner could raise an invoice against any farm id they could
+ * guess, and the farmer would find it in their costs.
+ */
+async function resolveRecipient(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workshopId: string,
+  formData: FormData,
+): Promise<Recipient | null> {
+  const kind = String(formData.get("recipient_kind") ?? "farm");
+
+  if (kind === "farm") {
+    const farmId = s(formData, "farm_id");
+    if (!farmId) return null;
+    // `workshop_links` is the relationship; an inactive or absent link is a refusal.
+    const { data } = await supabase
+      .from("workshop_links")
+      .select("farm_id")
+      .eq("workshop_id", workshopId)
+      .eq("farm_id", farmId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .maybeSingle();
+    return data ? { farm_id: farmId, partner_client_id: null } : null;
+  }
+
+  if (kind === "client") {
+    const clientId = s(formData, "partner_client_id");
+    if (!clientId) return null;
+    const { data } = await supabase
+      .from("partner_clients")
+      .select("id")
+      .eq("id", clientId)
+      .eq("workshop_id", workshopId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    return data ? { farm_id: null, partner_client_id: clientId } : null;
+  }
+
+  // A one-time customer. Nothing to verify — there is no record; the name on the
+  // document is the whole of it.
+  return { farm_id: null, partner_client_id: null };
+}
+
+/** The bill-to block off the form. Blank fields fall through to the 0410 seed trigger. */
+function billToFields(formData: FormData) {
+  return {
+    bill_to_name: s(formData, "bill_to_name"),
+    bill_to_contact: s(formData, "bill_to_contact"),
+    bill_to_email: s(formData, "bill_to_email"),
+    bill_to_phone: s(formData, "bill_to_phone"),
+    bill_to_address: s(formData, "bill_to_address"),
+    bill_to_vat_number: s(formData, "bill_to_vat_number"),
+    bill_to_reg_number: s(formData, "bill_to_reg_number"),
+    bill_to_reference: s(formData, "bill_to_reference"),
+  };
+}
+
 export async function createDocument(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const gate = await checkWorkshopEntitlement("build_documents", profile);
   if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const farmId = String(formData.get("farm_id") ?? "");
   const kind: DocKind = String(formData.get("kind") ?? "quote") === "invoice" ? "invoice" : "quote";
-  if (!farmId) redirect("/documents?error=missing-farm");
-
   const { workshop } = await currentWorkshop(profile);
   const branding = brandingFrom(workshop);
   const supabase = await createClient();
+
+  const recipient = await resolveRecipient(supabase, profile.workshop_id!, formData);
+  if (!recipient) redirect("/documents?error=missing-recipient");
+
+  const bill = billToFields(formData);
+  // A one-time customer has nothing to seed from, so the name has to be typed.
+  if (!recipient.farm_id && !recipient.partner_client_id && !bill.bill_to_name) {
+    redirect("/documents?error=missing-name");
+  }
 
   const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
     p_workshop: profile.workshop_id,
@@ -92,20 +180,34 @@ export async function createDocument(formData: FormData) {
   });
   if (numErr) redirect(`/documents?error=${encodeURIComponent(numErr.message)}`);
 
+  // A client's own payment terms beat the partner's default — that is what agreeing terms
+  // with a customer means, and retyping them on every invoice is how they drift.
+  let termsDays = kind === "quote" ? branding.quoteValidityDays : branding.invoiceTermsDays;
+  if (recipient.partner_client_id && kind === "invoice") {
+    const { data: client } = await supabase
+      .from("partner_clients")
+      .select("payment_terms_days")
+      .eq("id", recipient.partner_client_id)
+      .maybeSingle();
+    const days = (client as { payment_terms_days: number | null } | null)?.payment_terms_days;
+    if (days != null) termsDays = days;
+  }
+
   const { data, error } = await supabase
     .from("partner_documents")
     .insert({
-      farm_id: farmId,
+      ...recipient,
+      ...bill,
       workshop_id: profile.workshop_id,
-      machine_id: s(formData, "machine_id"),
-      work_request_id: s(formData, "work_request_id"),
+      machine_id: recipient.farm_id ? s(formData, "machine_id") : null,
+      work_request_id: recipient.farm_id ? s(formData, "work_request_id") : null,
       kind,
       status: "draft",
       source: "built",
       number: String(numData),
       subject: s(formData, "subject"),
       issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate(kind, new Date(), branding.quoteValidityDays, branding.invoiceTermsDays),
+      due_date: defaultDueDate(kind, new Date(), termsDays, termsDays),
       vat_rate_bps: branding.defaultVatRateBps,
       terms: branding.terms,
       created_by: profile.id,
@@ -433,20 +535,134 @@ export async function removePayment(formData: FormData) {
  * the cost trigger stands the ledger entry down — so a mistaken invoice stops counting
  * against the farm's TCO without erasing the fact that it was sent.
  */
-export async function cancelDocument(formData: FormData) {
+/**
+ * Void a document, with a reason.
+ *
+ * This replaces `cancelDocument`, which was available at ANY status including `paid`,
+ * recorded no reason, asked for no confirmation and silently soft-deleted the farm's cost
+ * entry. A partner who typed R12 000 instead of R1 200 could erase the invoice from the
+ * farmer's costs with no explanation of why the number moved.
+ *
+ * Voiding keeps the document, its number and its history; it stands the money down and
+ * says why. That is what VAT Act s21 wants — the cancellation documented, not the
+ * paperwork destroyed — and it is the difference between an audit trail with a gap in it
+ * and an audit trail that lies.
+ *
+ * For a WRONG AMOUNT this is the wrong tool: issue a credit note and a fresh invoice, so
+ * the customer's account shows what was billed and what was credited back. The UI offers
+ * that first for an invoice; this is here for the document that should not exist at all.
+ */
+export async function voidDocument(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const id = String(formData.get("document_id") ?? "");
+  const reason = String(formData.get("void_reason") ?? "").trim();
+  if (reason.length < 3) redirect(`/documents/${id}?error=void-reason`);
+
   const supabase = await createClient();
   const doc = await loadDoc(supabase, id);
   if (!doc) redirect("/documents?error=not-found");
+  if (doc.status === "void") redirect(`/documents/${id}?error=already-void`);
 
-  await supabase
+  const { error } = await supabase
     .from("partner_documents")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .update({
+      status: "void",
+      void_reason: reason.slice(0, 500),
+      voided_at: new Date().toISOString(),
+      voided_by: profile.id,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
 
+  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/documents");
-  redirect(`/documents/${id}?cancelled=1`);
+  revalidatePath(`/documents/${id}`);
+  redirect(`/documents/${id}?voided=1`);
+}
+
+/**
+ * Raise a credit note against an issued invoice.
+ *
+ * The correction path proper. It starts as a DRAFT with the invoice's own lines copied
+ * in, because the common case is crediting the whole thing — a partner crediting part of
+ * it deletes the lines that were right and keeps the ones that were not, which is the
+ * same motion as building any other document and needs no separate screen.
+ *
+ * The link is a COLUMN (`corrects_document_id`), not a sentence in a description. That is
+ * the difference between this and AutoVault, where the statement finds credits by
+ * matching `/\b(CN-[A-Z0-9-]{4,})\b/i` against free text and a customer's account
+ * therefore depends on how somebody worded a field.
+ *
+ * The database enforces the rest: 0412 refuses a credit note with no target, and refuses
+ * credits that together come to more than the invoice they correct.
+ */
+export async function createCreditNote(formData: FormData) {
+  const profile = await requireRole(["workshop"]);
+  const gate = await checkWorkshopEntitlement("build_documents", profile);
+  if (!gate.allowed) redirect("/documents?error=upgrade");
+
+  const id = String(formData.get("document_id") ?? "");
+  const supabase = await createClient();
+  const invoice = await loadDoc(supabase, id);
+  if (!invoice || invoice.kind !== "invoice") redirect("/documents?error=not-found");
+  if (invoice.status === "draft") redirect(`/documents/${id}?error=not-issued`);
+
+  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+    p_workshop: profile.workshop_id,
+    p_kind: "credit_note",
+  });
+  if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
+
+  const { data: full } = await supabase
+    .from("partner_documents")
+    .select(
+      "farm_id, partner_client_id, machine_id, terms, vat_rate_bps, subject, " +
+      "bill_to_name, bill_to_contact, bill_to_email, bill_to_phone, bill_to_address, " +
+      "bill_to_vat_number, bill_to_reg_number, bill_to_reference",
+    )
+    .eq("id", id)
+    .single();
+  const src = (full ?? {}) as unknown as Record<string, unknown>;
+
+  const { data: created, error } = await supabase
+    .from("partner_documents")
+    .insert({
+      ...src,
+      workshop_id: profile.workshop_id,
+      corrects_document_id: id,
+      kind: "credit_note",
+      status: "draft",
+      source: "built",
+      number: String(numData),
+      subject: String(formData.get("reason") ?? "").trim() || `Correction to ${invoice.number}`,
+      issue_date: new Date().toISOString().slice(0, 10),
+      due_date: null,
+      created_by: profile.id,
+    })
+    .select("id")
+    .single();
+
+  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  const newId = (created as { id: string }).id;
+
+  // Copy the invoice's lines in. Crediting the whole invoice is the common case, and
+  // trimming what was actually right is quicker than retyping what was wrong.
+  const { data: lines } = await supabase
+    .from("partner_document_lines")
+    .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
+    .eq("document_id", id)
+    .is("deleted_at", null)
+    .order("sort_order");
+
+  const rows = (lines ?? []) as Record<string, unknown>[];
+  if (rows.length > 0) {
+    await supabase.from("partner_document_lines").insert(
+      rows.map((l) => ({ ...l, document_id: newId, farm_id: src.farm_id })),
+    );
+  }
+
+  revalidatePath("/documents");
+  redirect(`/documents/${newId}?credit=1`);
 }
 
 /** Delete a draft outright — nothing was ever sent, so there is no record to preserve. */

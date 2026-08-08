@@ -94,6 +94,9 @@ export default async function AppLayout({
   // Quotes & invoices (F14). Both sides of the same route: what a partner has issued,
   // what a farm has been sent. Never shown to operators — the RLS policy excludes them.
   const documents: NavItemData = { href: "/documents", label: t("nav.documents", locale), icon: "documents" };
+  // A customer's account: what they owe and how it got there (G2). Partner-only — a farm
+  // reads the same ledger from the other side, on the documents they were sent.
+  const statements: NavItemData = { href: "/statements", label: t("nav.statements", locale), icon: "reports" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
   // A partner's own client book (F15) — their whole customer list, not only the farms
   // that happened to find them.
@@ -117,7 +120,7 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -148,7 +151,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]

@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToneSwitcher } from "@/components/ui/tone-switcher";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
@@ -26,8 +27,16 @@ export default async function SettingsPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase.from("farms").select("name, settings").eq("id", profile.farm_id ?? "").maybeSingle();
-  const farm = data as { name: string; settings: Settings } | null;
+  const { data } = await supabase
+    .from("farms")
+    .select("name, settings, trading_name, reg_number, vat_number, billing_address, billing_email")
+    .eq("id", profile.farm_id ?? "")
+    .maybeSingle();
+  const farm = data as {
+    name: string; settings: Settings;
+    trading_name: string | null; reg_number: string | null; vat_number: string | null;
+    billing_address: string | null; billing_email: string | null;
+  } | null;
   const s = (farm?.settings ?? {}) as Record<string, unknown>;
   const n = (k: string, d: number) => (typeof s[k] === "number" ? (s[k] as number) : d);
   const b = (k: string) => s[k] === true;
@@ -47,6 +56,7 @@ export default async function SettingsPage({
           cards are now named groups you can jump between, and the save follows you. */}
       <nav aria-label={t("settings.jumpTo", locale)} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([
+          ["set-billing", "settings.billingSection"],
           ["set-thresholds", "settings.thresholds"],
           ["set-money", "settings.money"],
           ["set-workflow", "settings.workflow"],
@@ -183,6 +193,40 @@ export default async function SettingsPage({
               <Input id="utilisation_km_per_day" name="utilisation_km_per_day" type="number" min={1} defaultValue={n("utilisation_km_per_day", 200)} />
             </Field>
           </div>
+        </Card>
+
+        <Card id="set-billing">
+          <CardHeader><CardTitle>{t("settings.billingSection", locale)}</CardTitle></CardHeader>
+          {/* Without these, an invoice a contractor raises against this farm is not a
+              full tax invoice over R5 000 (VAT Act s20(4)) and the farm cannot claim the
+              input VAT back. They go on the document, not in a settings blob. */}
+          <p className="mb-3 text-sm text-sand-600">{t("settings.billingHint", locale)}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={t("settings.tradingName", locale)} htmlFor="trading_name">
+              <Input id="trading_name" name="trading_name" defaultValue={farm?.trading_name ?? ""} />
+            </Field>
+            <Field label={t("settings.regNo", locale)} htmlFor="reg_number">
+              <Input id="reg_number" name="reg_number" defaultValue={farm?.reg_number ?? ""} />
+            </Field>
+            <Field
+              label={t("settings.vatNo", locale)}
+              hint={t("settings.vatNoHint", locale)}
+              htmlFor="vat_number"
+            >
+              <Input id="vat_number" name="vat_number" defaultValue={farm?.vat_number ?? ""} />
+            </Field>
+            <Field label={t("settings.billingEmail", locale)} hint={t("settings.billingEmailHint", locale)} htmlFor="billing_email">
+              <Input id="billing_email" name="billing_email" type="email" defaultValue={farm?.billing_email ?? ""} />
+            </Field>
+          </div>
+          <Field
+            label={t("settings.billingAddress", locale)}
+            hint={t("settings.billingAddressHint", locale)}
+            htmlFor="billing_address"
+            className="mt-3"
+          >
+            <Textarea id="billing_address" name="billing_address" rows={2} defaultValue={farm?.billing_address ?? ""} />
+          </Field>
         </Card>
 
         <Card id="set-language">
