@@ -2068,7 +2068,8 @@
     "vatDefaultHint": "New documents start at",
     "vatRegistered": "We are registered for VAT",
     "vatRegisteredHint": "Turn this off if you are below the threshold. Your documents will show no VAT at all.",
-    "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later."
+    "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later.",
+    "prefixCredit": "Credit note prefix"
   },
   "clients": {
     "title": "My clients",

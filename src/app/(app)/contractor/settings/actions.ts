@@ -57,6 +57,9 @@ export async function updatePartnerProfile(formData: FormData) {
       show_powered_by: formData.get("show_powered_by") != null,
       doc_prefix_quote: (s(formData, "doc_prefix_quote") ?? "QTE").slice(0, 8).toUpperCase(),
       doc_prefix_invoice: (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
+      // A credit note is its own kind of document under VAT Act s21, so it gets its own
+      // series — sharing the invoice counter makes both unreadable in a partner's books.
+      doc_prefix_credit: (s(formData, "doc_prefix_credit") ?? "CN").slice(0, 8).toUpperCase(),
       quote_validity_days: intIn(formData, "quote_validity_days", 0, 365, 14),
       invoice_terms_days: intIn(formData, "invoice_terms_days", 0, 365, 30),
       vat_registered: formData.get("vat_registered") != null,

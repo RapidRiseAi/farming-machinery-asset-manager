@@ -19,7 +19,7 @@ export const BRANDING_COLUMNS =
   "id, name, trading_name, reg_number, vat_number, address, phone, whatsapp, email, website, " +
   "bank_name, bank_account_name, bank_account_number, bank_branch_code, bank_account_type, " +
   "logo_path, brand_primary, brand_secondary, show_powered_by, doc_prefix_quote, doc_prefix_invoice, " +
-  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, vat_registered, doc_terms, doc_footer";
+  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, vat_registered, doc_terms, doc_footer, doc_prefix_credit";
 
 export type WorkshopBrandingRow = {
   id: string;
@@ -45,6 +45,7 @@ export type WorkshopBrandingRow = {
   show_powered_by?: boolean | null;
   doc_prefix_quote?: string | null;
   doc_prefix_invoice?: string | null;
+  doc_prefix_credit?: string | null;
   quote_validity_days?: number | null;
   invoice_terms_days?: number | null;
   default_vat_rate_bps?: number | null;

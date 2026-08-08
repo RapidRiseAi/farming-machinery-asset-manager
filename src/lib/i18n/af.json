@@ -2068,7 +2068,8 @@
     "vatDefaultHint": "Nuwe dokumente begin op",
     "vatRegistered": "Ons is vir BTW geregistreer",
     "vatRegisteredHint": "Skakel dit af as jy onder die drempel is. Jou dokumente sal glad geen BTW wys nie.",
-    "vatNotRegisteredNote": "Jou dokumente wys geen BTW nie. Die koers word gehou indien jy later registreer."
+    "vatNotRegisteredNote": "Jou dokumente wys geen BTW nie. Die koers word gehou indien jy later registreer.",
+    "prefixCredit": "Kredietnota-voorvoegsel"
   },
   "clients": {
     "title": "My kliënte",
