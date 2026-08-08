@@ -41,6 +41,8 @@ export type PdfDocRow = {
   notes: string | null;
   terms: string | null;
   void_reason: string | null;
+  revision?: number;
+  last_revision_reason?: string | null;
   bill_to_name: string | null;
   bill_to_contact: string | null;
   bill_to_email: string | null;
@@ -73,6 +75,7 @@ const LABEL: Record<DocKind, string> = {
   quote: "Quote",
   invoice: "Invoice",
   credit_note: "Credit note",
+  debit_note: "Debit note",
 };
 
 export function documentLabel(kind: DocKind): string {
@@ -91,6 +94,8 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   const label = documentLabel(doc.kind);
   const isInvoice = doc.kind === "invoice";
   const isCredit = doc.kind === "credit_note";
+  const isDebit = doc.kind === "debit_note";
+  const isNoteKind = isCredit || isDebit;
   // A partner who is not VAT registered issues no VAT line anywhere on the document.
   // Printing "VAT 0.00" would still assert they charge it — the claim they must not make.
   const charging = Number(doc.vat_rate_bps) > 0;
@@ -136,9 +141,15 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   pdf.kv(`${label} number`, doc.number);
   pdf.kv("Issued", doc.issue_date);
   if (doc.bill_to_reference) pdf.kv("Your reference", doc.bill_to_reference);
-  if (doc.due_date && !isCredit) pdf.kv(isInvoice ? "Due by" : "Valid until", doc.due_date);
-  // A credit note that does not name the invoice it corrects is not a credit note.
-  if (isCredit && corrects) pdf.kv("Corrects invoice", `${corrects.number} of ${corrects.issue_date}`);
+  if (doc.due_date && !isNoteKind) pdf.kv(isInvoice ? "Due by" : "Valid until", doc.due_date);
+  // A note that does not name the invoice it adjusts is not a note.
+  if (isNoteKind && corrects) pdf.kv("Adjusts invoice", `${corrects.number} of ${corrects.issue_date}`);
+  // A corrected document says so on its face, so a copy saved to somebody's desktop
+  // cannot quietly outlive the version that replaced it.
+  if ((doc.revision ?? 1) > 1) {
+    pdf.kv("Version", String(doc.revision));
+    if (doc.last_revision_reason) pdf.kv("Last corrected", doc.last_revision_reason);
+  }
 
   if (lines.length > 0) {
     pdf.heading("Items");
@@ -164,7 +175,7 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   pdf.kv(charging ? "Subtotal (ex VAT)" : "Subtotal", rands(doc.subtotal_cents));
   if (doc.discount_cents > 0) pdf.kv("Discount", `-${rands(doc.discount_cents)}`);
   if (charging) pdf.kv(`VAT (${vatPercent(doc.vat_rate_bps)})`, rands(doc.vat_cents));
-  pdf.kv(isCredit ? "Total credited" : "Total", rands(doc.total_cents));
+  pdf.kv(isCredit ? "Total credited" : isDebit ? "Additional amount due" : "Total", rands(doc.total_cents));
   if (isInvoice && doc.amount_paid_cents > 0) {
     pdf.kv("Paid so far", `-${rands(doc.amount_paid_cents)}`);
     pdf.kv("Balance due", rands(balanceDueCents(doc as never)));
@@ -180,12 +191,16 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
     pdf.kv("Reference", doc.number);
   }
 
-  if (isCredit) {
+  if (isNoteKind) {
     pdf.heading("What this means");
     pdf.text(
-      corrects
-        ? `This credit note reduces invoice ${corrects.number} by ${rands(doc.total_cents)}. Nothing is payable on this document.`
-        : "Nothing is payable on this document.",
+      isCredit
+        ? corrects
+          ? `This credit note reduces invoice ${corrects.number} by ${rands(doc.total_cents)}. Nothing is payable on this document.`
+          : "Nothing is payable on this document."
+        : corrects
+          ? `This debit note adds ${rands(doc.total_cents)} to invoice ${corrects.number}. Pay it with that invoice, using the same reference.`
+          : `This debit note adds ${rands(doc.total_cents)} to an earlier invoice.`,
     );
   }
 

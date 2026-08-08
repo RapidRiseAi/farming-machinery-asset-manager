@@ -263,8 +263,6 @@
   "correct": {
     "title": "Corrections",
     "intro": "Issued documents are immutable. Use a credit note to adjust an amount, or void the document if it should not have been issued.",
-    "amountWrong": "Incorrect amount",
-    "amountWrongHint": "Issue a credit note and raise a replacement invoice. Both appear on the customer's account, as required.",
     "shouldNotExist": "Issued in error",
     "shouldNotExistHint": "Wrong customer, or a duplicate. The document and its number are retained; the amount is reversed.",
     "void": "Void this document",

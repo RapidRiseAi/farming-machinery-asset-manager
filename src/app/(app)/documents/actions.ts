@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
+import { percentToBps } from "@/lib/format";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { defaultDueDate, type DocKind, type DocLineKind } from "@/lib/partner-docs";
 import { safePath } from "@/lib/safe-path";
@@ -597,6 +598,22 @@ export async function voidDocument(formData: FormData) {
  * credits that together come to more than the invoice they correct.
  */
 export async function createCreditNote(formData: FormData) {
+  return createNote(formData, "credit_note");
+}
+
+/**
+ * A DEBIT note: the invoice went out for too little.
+ *
+ * The mirror of a credit note and the half AutoVault has that we did not — a partner who
+ * left a part off an invoice could previously only raise a second invoice, which reads on
+ * the customer's statement as an unrelated charge rather than as a correction to a job
+ * they already know about.
+ */
+export async function createDebitNote(formData: FormData) {
+  return createNote(formData, "debit_note");
+}
+
+async function createNote(formData: FormData, noteKind: "credit_note" | "debit_note") {
   const profile = await requireRole(["workshop"]);
   const gate = await checkWorkshopEntitlement("build_documents", profile);
   if (!gate.allowed) redirect("/documents?error=upgrade");
@@ -609,7 +626,7 @@ export async function createCreditNote(formData: FormData) {
 
   const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
     p_workshop: profile.workshop_id,
-    p_kind: "credit_note",
+    p_kind: noteKind,
   });
   if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
 
@@ -630,7 +647,7 @@ export async function createCreditNote(formData: FormData) {
       ...src,
       workshop_id: profile.workshop_id,
       corrects_document_id: id,
-      kind: "credit_note",
+      kind: noteKind,
       status: "draft",
       source: "built",
       number: String(numData),
@@ -645,8 +662,15 @@ export async function createCreditNote(formData: FormData) {
   if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
   const newId = (created as { id: string }).id;
 
-  // Copy the invoice's lines in. Crediting the whole invoice is the common case, and
-  // trimming what was actually right is quicker than retyping what was wrong.
+  // A CREDIT note copies the invoice's lines in, because crediting the whole thing is the
+  // common case and trimming what was actually right is quicker than retyping what was
+  // wrong. A DEBIT note starts empty — it is the bit that was LEFT OFF, so there is
+  // nothing on the invoice to copy.
+  if (noteKind === "debit_note") {
+    revalidatePath("/documents");
+    redirect(`/documents/${newId}?credit=1`);
+  }
+
   const { data: lines } = await supabase
     .from("partner_document_lines")
     .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
@@ -681,4 +705,90 @@ export async function deleteDraft(formData: FormData) {
 
   revalidatePath("/documents");
   redirect("/documents?deleted=1");
+}
+
+// ── Correcting an issued document ────────────────────────────────────────────
+
+/**
+ * Edit a document that has already gone out, keeping the version it replaced.
+ *
+ * The whole edit is one RPC (`revise_document`, 0417) rather than a snapshot followed by
+ * an update, because two calls are two transactions and the second one can fail. Doing it
+ * in the database means a correction and its history are the same act — there is no state
+ * of the world where a document changed and nobody recorded what it said before.
+ *
+ * The freeze triggers still refuse every other route, so this action is not the guard;
+ * it is just the form's end of the one door that exists.
+ */
+export async function reviseDocument(formData: FormData) {
+  await requireRole(["workshop"]);
+  const id = String(formData.get("document_id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (reason.length < 3) redirect(`/documents/${id}?error=revise-reason`);
+
+  const supabase = await createClient();
+
+  // Only the fields the form actually offered. An absent key means "leave it alone", so a
+  // form that edits the due date does not blank the notes.
+  const patch: Record<string, unknown> = {};
+  const put = (key: string, value: unknown) => {
+    if (value !== undefined) patch[key] = value;
+  };
+  for (const key of ["subject", "issue_date", "due_date", "notes", "terms",
+                     "bill_to_name", "bill_to_contact", "bill_to_email", "bill_to_phone",
+                     "bill_to_address", "bill_to_vat_number", "bill_to_reg_number",
+                     "bill_to_reference"]) {
+    if (formData.has(key)) put(key, String(formData.get(key) ?? "").trim());
+  }
+  if (formData.has("discount")) {
+    put("discount_cents", parseRandsToCents(String(formData.get("discount") ?? "")) ?? 0);
+  }
+  if (formData.has("vat_percent")) {
+    put("vat_rate_bps", percentToBps(String(formData.get("vat_percent") ?? "")) ?? undefined);
+  }
+
+  // Lines arrive as parallel arrays from the repeated form fields, and are sent only when
+  // the form was the one that edits them.
+  let lines: Record<string, unknown>[] | null = null;
+  if (formData.has("line_description")) {
+    const descriptions = formData.getAll("line_description").map(String);
+    const kinds = formData.getAll("line_kind").map(String);
+    const partNos = formData.getAll("line_part_no").map(String);
+    const qtys = formData.getAll("line_qty").map(String);
+    const prices = formData.getAll("line_price").map(String);
+    const inclusive = formData.get("prices_incl_vat") != null;
+    const rateBps = (patch.vat_rate_bps as number | undefined)
+      ?? Number(formData.get("current_vat_rate_bps") ?? 1500);
+
+    lines = descriptions
+      .map((description, i) => {
+        const typed = parseRandsToCents(prices[i] ?? "") ?? 0;
+        return {
+          kind: (kinds[i] ?? "part") as DocLineKind,
+          part_no: (partNos[i] ?? "").trim() || null,
+          description: description.trim(),
+          qty: Number(qtys[i] ?? 1) || 0,
+          // Prices are typed the way the partner quotes them and stored ex-VAT, exactly as
+          // on the draft line form — otherwise a correction would silently change the
+          // basis of every figure on the document.
+          unit_price_cents: inclusive ? exVatCents(typed, rateBps) : typed,
+          discount_cents: 0,
+        };
+      })
+      .filter((l) => l.description !== "");
+
+    if (lines.length === 0) redirect(`/documents/${id}?error=revise-empty`);
+  }
+
+  const { error } = await supabase.rpc("revise_document", {
+    p_document: id,
+    p_reason: reason,
+    p_patch: patch,
+    p_lines: lines,
+  });
+
+  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  revalidatePath(`/documents/${id}`);
+  revalidatePath("/documents");
+  redirect(`/documents/${id}?revised=1`);
 }

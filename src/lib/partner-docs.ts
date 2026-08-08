@@ -11,10 +11,10 @@
  * float here.
  */
 
-export const DOC_KINDS = ["quote", "invoice", "credit_note"] as const;
+export const DOC_KINDS = ["quote", "invoice", "credit_note", "debit_note"] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
-/** The kinds a partner starts from scratch. A credit note is always raised AGAINST an invoice. */
+/** The kinds a partner starts from scratch. Both notes are always raised AGAINST an invoice. */
 export const NEW_DOC_KINDS = ["quote", "invoice"] as const;
 
 export const DOC_SOURCES = ["built", "uploaded"] as const;
@@ -148,10 +148,15 @@ export function balanceDueCents(doc: Pick<PartnerDocument, "total_cents" | "amou
 
 // ── Status vocabulary ──────────────────────────────────────────────
 
+/** A note is never started from scratch — it always corrects an invoice. */
+export function isNote(kind: DocKind): boolean {
+  return kind === "credit_note" || kind === "debit_note";
+}
+
 /** The statuses a document of this kind can actually be in, in lifecycle order. */
 export function statusesFor(kind: DocKind): DocStatus[] {
   if (kind === "quote") return ["draft", "sent", "accepted", "declined", "expired", "cancelled"];
-  if (kind === "credit_note") return ["draft", "sent", "void"];
+  if (kind === "credit_note" || kind === "debit_note") return ["draft", "sent", "void"];
   return ["draft", "sent", "part_paid", "paid", "void"];
 }
 
@@ -163,7 +168,10 @@ export function statusesFor(kind: DocKind): DocStatus[] {
  * yes" pile forever, which is the sort of thing that makes a dashboard stop being read.
  */
 export function awaitsCustomer(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
-  if (doc.kind === "credit_note") return false;
+  // Neither note awaits anybody: a credit is money going back, and a debit is chased
+  // through the invoice it belongs to. Before this a note fell through the invoice branch
+  // and sat in the partner's "waiting on a yes" pile forever.
+  if (isNote(doc.kind)) return false;
   if (doc.kind === "quote") return doc.status === "sent";
   return doc.status === "sent" || doc.status === "part_paid";
 }
@@ -179,13 +187,16 @@ export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
  * is not money owed — and a void document is not one either.
  */
 export function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
-  return (doc.kind === "invoice" || doc.kind === "credit_note")
+  return (doc.kind === "invoice" || isNote(doc.kind))
     && ["sent", "part_paid", "paid"].includes(doc.status);
 }
 
-/** Signed contribution to the customer's balance: an invoice owes, a credit note repays. */
+/**
+ * Signed contribution to the customer's balance. An invoice and a DEBIT note both add to
+ * what is owed; a CREDIT note takes it back off. Mirrors the 0418 ledger trigger.
+ */
 export function ledgerSign(kind: DocKind): 1 | -1 | 0 {
-  if (kind === "invoice") return 1;
+  if (kind === "invoice" || kind === "debit_note") return 1;
   if (kind === "credit_note") return -1;
   return 0;
 }
@@ -210,9 +221,13 @@ export type Correction = "delete" | "void" | "credit";
 export function correctionsFor(doc: Pick<PartnerDocument, "kind" | "status">): Correction[] {
   if (doc.status === "draft") return ["delete"];
   if (doc.status === "void" || doc.status === "cancelled") return [];
+  // Notes attach to an INVOICE. A note on a note would be unreadable on a statement, and
+  // the thing being corrected is always the invoice underneath.
   if (doc.kind === "invoice") return ["credit", "void"];
   return ["void"];
 }
+
+
 
 /** What is still owed once payments AND credit notes are taken off. Never negative. */
 export function outstandingCents(

@@ -2011,7 +2011,8 @@
     "changeBilling": "Their details are different this time",
     "theirReference": "Their order number",
     "theirReferenceHint": "Optional — what they call this job on their side.",
-    "kindCredit": "Credit note"
+    "kindCredit": "Credit note",
+    "kindDebit": "Debit note"
   },
   "partnerSettings": {
     "title": "My business",
@@ -2188,8 +2189,6 @@
     "intro": "Sent documents stay as they are — that is what makes them a record. Here is how you fix a mistake without pretending it never happened.",
     "creditedTitle": "Credited back",
     "remaining": "Still charged",
-    "amountWrong": "The amount is wrong",
-    "amountWrongHint": "Credit it back and send a new invoice for the right amount. Your customer's account will show both, which is what actually happened.",
     "reason": "What went wrong?",
     "reasonHint": "Shown on the credit note, so your customer knows why.",
     "startCredit": "Start a credit note",
@@ -2201,7 +2200,12 @@
     "voidConsequence1": "It comes off what the customer owes you.",
     "voidConsequence2": "If a copy is already out there, it will still say cancelled when they open the link.",
     "voidReason": "Why are you cancelling it?",
-    "voidReasonHint": "A few words is enough. This is what you will read in six months."
+    "voidReasonHint": "A few words is enough. This is what you will read in six months.",
+    "overcharged": "You charged too much",
+    "overchargedHint": "A credit note puts the money back. Use this when they have already paid — the refund needs to show as its own thing.",
+    "undercharged": "You charged too little",
+    "underchargedHint": "A debit note adds the difference to the same job, so it reads as part of that invoice on their statement instead of turning up as a mystery charge.",
+    "startDebit": "Start a debit note"
   },
   "email": {
     "title": "Send it to them",
@@ -2298,6 +2302,35 @@
     "whatThisMeans": "What this means",
     "creditExplains": "This credit note takes {amount} off invoice {number}. There is nothing to pay on this document.",
     "download": "Download the PDF",
-    "questions": "Questions? Call"
+    "questions": "Questions? Call",
+    "extraDue": "Extra amount due"
+  },
+  "revise": {
+    "title": "Change this document",
+    "intro": "You can fix what is on it. Every version is kept, with your reason, so you and your customer can always see what it said before.",
+    "open": "Change it",
+    "versionN": "Version {n}",
+    "reason": "What are you changing, and why?",
+    "reasonHint": "Your customer can read this. A few plain words is enough.",
+    "items": "What they are being charged for",
+    "description": "Description",
+    "partNo": "Part number",
+    "qty": "How many",
+    "priceEx": "Price each (ex VAT)",
+    "priceIncl": "Price each (incl VAT)",
+    "lineKind": "Type",
+    "addLine": "Add another line",
+    "removeLine": "Remove this line",
+    "inclVat": "The prices I typed already include VAT at {pct}",
+    "wasTotal": "It said",
+    "willBeTotal": "It will say",
+    "alreadyPaid": "Already paid",
+    "belowPaid": "That is less than they have already paid. Use a credit note instead, so the money going back shows up on its own.",
+    "keptOnFile": "The current version of {number} is saved before this replaces it.",
+    "save": "Save the change",
+    "historyTitle": "How this document has changed",
+    "historyIntro": "Every version, with who changed it and why.",
+    "sameTotal": "Total unchanged at {amount}",
+    "whatItSaid": "What it said then"
   }
 }

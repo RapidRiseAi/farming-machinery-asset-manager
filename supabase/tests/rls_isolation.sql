@@ -4220,3 +4220,241 @@ end $$;
 reset role;
 
 select 'ALL G2 CORRECTION & STATEMENT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G3 — EDITS WITH HISTORY, AND DEBIT NOTES (0416–0418)
+-- ═════════════════════════════════════════════════════════════════
+-- The claim: an issued document can be CORRECTED, and cannot be corrected quietly.
+-- The guarantee moved from "it cannot change" to "it cannot change without leaving the
+-- version it replaced" — so every assertion here is about the door being single.
+
+set role authenticated;
+
+-- ── (a) The correction works, and the old version survives ───────────────────
+do $$
+declare v_before bigint; v_after bigint; v_rev int; v_snapshot jsonb;
+begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+
+  select total_cents into v_before from partner_documents
+   where id = '62500000-0000-0000-0000-000000000001';
+
+  perform public.revise_document(
+    '62500000-0000-0000-0000-000000000001',
+    'Charged for a gearbox we did not fit',
+    jsonb_build_object('subject', 'Gearbox — corrected'),
+    jsonb_build_array(jsonb_build_object(
+      'kind', 'labour', 'description', 'Gearbox (corrected)', 'qty', 1, 'unit_price_cents', 600000
+    ))
+  );
+
+  select total_cents, revision into v_after, v_rev from partner_documents
+   where id = '62500000-0000-0000-0000-000000000001';
+
+  if v_after = v_before then
+    raise exception 'G3 FAIL: the correction did not change the total (still %)', v_after;
+  end if;
+  if v_rev <> 2 then raise exception 'G3 FAIL: revision is % (expected 2)', v_rev; end if;
+
+  -- The version it replaced is on file, lines and all.
+  select snapshot into v_snapshot from partner_document_revisions
+   where document_id = '62500000-0000-0000-0000-000000000001' and version = 1;
+  if v_snapshot is null then
+    raise exception 'G3 FAIL [NO HISTORY]: the document was corrected with no record of what it said';
+  end if;
+  if (v_snapshot->'document'->>'total_cents')::bigint <> v_before then
+    raise exception 'G3 FAIL: the snapshot total is % but the document was %',
+      v_snapshot->'document'->>'total_cents', v_before;
+  end if;
+  if jsonb_array_length(v_snapshot->'lines') = 0 then
+    raise exception 'G3 FAIL: the snapshot kept no lines, so the old document cannot be reproduced';
+  end if;
+end $$;
+
+-- ── (b) There is no second door ──────────────────────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    update partner_documents set subtotal_cents = 1
+     where id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G3 FAIL [BACK DOOR]: an issued invoice was re-priced directly, with no version kept';
+  end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    update partner_document_lines set unit_price_cents = 1
+     where document_id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G3 FAIL [BACK DOOR]: the lines of an issued invoice were changed directly';
+  end if;
+end $$;
+
+-- Deleting an issued document is STILL refused. This is the one thing that stays shut:
+-- it is what makes AutoVault's statements disagree between two printings.
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    delete from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G3 FAIL [ERASURE]: an issued invoice was deleted'; end if;
+end $$;
+
+-- ── (c) A correction has to say what it is ───────────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    perform public.revise_document('62500000-0000-0000-0000-000000000001', '  ', '{}'::jsonb, null);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G3 FAIL: a document was corrected with no reason given'; end if;
+end $$;
+
+-- ── (d) You cannot correct an invoice below what has been paid ───────────────
+-- That is a refund, and a refund has to be visible as its own event.
+do $$ declare ok boolean := false; v_total bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    perform public.revise_document(
+      '62500000-0000-0000-0000-000000000001', 'Try to go below the payments',
+      '{}'::jsonb,
+      jsonb_build_array(jsonb_build_object('kind','labour','description','Tiny','qty',1,'unit_price_cents',100))
+    );
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G3 FAIL [REFUND BY STEALTH]: an invoice was corrected below what the customer already paid';
+  end if;
+  -- and the failed attempt left nothing behind
+  select total_cents into v_total from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  if v_total < 400000 then
+    raise exception 'G3 FAIL: the refused correction was applied anyway (total %)', v_total;
+  end if;
+end $$;
+
+-- ── (e) Another partner cannot correct your paperwork ────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  begin
+    perform public.revise_document('62500000-0000-0000-0000-000000000001', 'Not mine to touch', '{}'::jsonb, null);
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G3 FAIL [CROSS-PARTNER]: another workshop corrected Workshop Z''s invoice';
+  end if;
+end $$;
+
+-- ── (f) The customer can see how it changed ──────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Owner S, the customer
+  select count(*) into c from partner_document_revisions
+   where document_id = '62500000-0000-0000-0000-000000000001';
+  if c = 0 then
+    raise exception 'G3 FAIL: the customer cannot see that an invoice sent to them was changed';
+  end if;
+end $$;
+
+do $$ declare c bigint; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');        -- another farm
+  select count(*) into c from partner_document_revisions;
+  if c <> 0 then
+    raise exception 'G3 FAIL [CROSS-TENANT]: another farm read % revision rows', c;
+  end if;
+end $$;
+reset role;
+
+-- ── (g) A debit note adds, where a credit note subtracts ─────────────────────
+do $$ declare v_num text; v_id uuid; v_ledger bigint; begin
+  select app.next_document_number('62100000-0000-0000-0000-000000000001', 'debit_note') into v_num;
+  insert into partner_documents
+    (id, farm_id, workshop_id, kind, status, source, number, subject,
+     corrects_document_id, issue_date, vat_rate_bps)
+  values ('62800000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+          '62100000-0000-0000-0000-000000000001', 'debit_note', 'draft', 'built', v_num,
+          'Part left off the invoice', '62500000-0000-0000-0000-000000000001', current_date - 1, 1500)
+  returning id into v_id;
+  insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents)
+  values ('62000000-0000-0000-0000-000000000001', v_id, 0, 'part', 'Seal kit', 1, 80000);
+  update partner_documents set status = 'sent', sent_at = now() where id = v_id;
+
+  select amount_cents into v_ledger from cost_entries
+   where source_type = 'partner_document' and source_id = v_id and deleted_at is null;
+  if v_ledger is null or v_ledger <= 0 then
+    raise exception 'G3 FAIL [DEBIT NOTE]: booked % — a debit note must ADD to the farm''s costs', v_ledger;
+  end if;
+end $$;
+
+-- A note of either kind must say what it adjusts.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_documents (farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name)
+    values ('62000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+            'debit_note', 'draft', 'built', 'DN-ORPHAN', current_date, 'Farm S');
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G3 FAIL: a debit note was issued against nothing'; end if;
+end $$;
+
+-- ── (h) The statement still adds up, with both notes and a correction ────────
+set role authenticated;
+do $$
+declare v_close bigint; v_indep bigint; v_debits bigint;
+begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+
+  select coalesce(sum(debit_cents - credit_cents), 0) into v_close
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date);
+
+  select coalesce(sum(case when kind = 'credit_note' then -total_cents else total_cents end), 0)
+       - coalesce((select sum(p.amount_cents) from partner_payments p
+                    join partner_documents d2 on d2.id = p.document_id
+                   where d2.workshop_id = '62100000-0000-0000-0000-000000000001'
+                     and d2.farm_id = '62000000-0000-0000-0000-000000000001'
+                     and p.deleted_at is null), 0)
+    into v_indep
+    from partner_documents
+   where workshop_id = '62100000-0000-0000-0000-000000000001'
+     and farm_id = '62000000-0000-0000-0000-000000000001'
+     and deleted_at is null
+     and kind in ('invoice','credit_note','debit_note')
+     and status not in ('draft','void','cancelled');
+
+  if v_close is distinct from v_indep then
+    raise exception 'G3 FAIL [STATEMENT]: closing % <> independent % after a correction and a debit note',
+      v_close, v_indep;
+  end if;
+
+  -- The corrected invoice appears ONCE, at its current value — not once per version.
+  select count(*) into v_debits
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where document_id = '62500000-0000-0000-0000-000000000001' and kind = 'invoice';
+  if v_debits <> 1 then
+    raise exception 'G3 FAIL: a corrected invoice appears % times on the statement (expected 1)', v_debits;
+  end if;
+
+  -- The debit note is a DEBIT.
+  select coalesce(sum(debit_cents), 0) into v_debits
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'debit_note';
+  if v_debits <= 0 then
+    raise exception 'G3 FAIL: a debit note is not charged on the statement';
+  end if;
+end $$;
+
+-- ── (i) Anon reaches none of it ──────────────────────────────────────────────
+reset role;
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform public.revise_document('62500000-0000-0000-0000-000000000001', 'anon edit', '{}'::jsonb, null);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G3 FAIL: anon corrected an invoice'; end if;
+end $$;
+reset role;
+
+select 'ALL G3 REVISION & DEBIT-NOTE TESTS PASSED' as result;

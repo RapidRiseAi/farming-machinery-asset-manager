@@ -62,6 +62,7 @@ export default async function PublicDocumentPage({
   const isQuote = doc.kind === "quote";
   const isInvoice = doc.kind === "invoice";
   const isCredit = doc.kind === "credit_note";
+  const isDebit = doc.kind === "debit_note";
   const charging = doc.vat_rate_bps > 0;
   const owed = balanceDueCents(doc);
   const open = isQuote && doc.status === "sent";
@@ -112,7 +113,7 @@ export default async function PublicDocumentPage({
         <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-sand-100 pt-4">
           <div>
             <p className="text-sm text-sand-500">
-              {isCredit ? t("pubDoc.totalCredited", locale) : isInvoice && owed !== doc.total_cents ? t("pubDoc.stillOwing", locale) : t("pubDoc.total", locale)}
+              {isCredit ? t("pubDoc.totalCredited", locale) : isDebit ? t("pubDoc.extraDue", locale) : isInvoice && owed !== doc.total_cents ? t("pubDoc.stillOwing", locale) : t("pubDoc.total", locale)}
             </p>
             <p className="text-3xl font-bold tabular-nums text-sand-900">
               {rands(isInvoice ? owed : doc.total_cents)}

@@ -263,8 +263,6 @@
   "correct": {
     "title": "Regstellings",
     "intro": "Uitgereikte dokumente is onveranderlik. Gebruik 'n kredietnota om 'n bedrag aan te pas, of kanselleer die dokument as dit nie uitgereik moes gewees het nie.",
-    "amountWrong": "Verkeerde bedrag",
-    "amountWrongHint": "Reik 'n kredietnota uit en stel 'n vervangingsfaktuur op. Albei verskyn op die klant se rekening, soos vereis.",
     "shouldNotExist": "Foutief uitgereik",
     "shouldNotExistHint": "Verkeerde klant, of 'n duplikaat. Die dokument en sy nommer word behou; die bedrag word teruggekeer.",
     "void": "Kanselleer hierdie dokument",
