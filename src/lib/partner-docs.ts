@@ -22,6 +22,10 @@ export type DocSource = (typeof DOC_SOURCES)[number];
 
 export const DOC_STATUSES = [
   "draft", "sent", "accepted", "declined", "part_paid", "paid", "cancelled", "expired", "void",
+  // The customer is never going to pay (0422/0423). Not the same as void: the invoice was
+  // correct and the work was done, so it stays on the statement and in the farm's cost
+  // ledger — it just stops being money anyone is waiting for.
+  "written_off",
 ] as const;
 export type DocStatus = (typeof DOC_STATUSES)[number];
 
@@ -157,7 +161,7 @@ export function isNote(kind: DocKind): boolean {
 export function statusesFor(kind: DocKind): DocStatus[] {
   if (kind === "quote") return ["draft", "sent", "accepted", "declined", "expired", "cancelled"];
   if (kind === "credit_note" || kind === "debit_note") return ["draft", "sent", "void"];
-  return ["draft", "sent", "part_paid", "paid", "void"];
+  return ["draft", "sent", "part_paid", "paid", "written_off", "void"];
 }
 
 /**
@@ -178,7 +182,7 @@ export function awaitsCustomer(doc: Pick<PartnerDocument, "kind" | "status">): b
 
 /** A document that is settled needs no further action from anyone. */
 export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
-  return ["paid", "declined", "cancelled", "expired"].includes(doc.status);
+  return ["paid", "declined", "cancelled", "expired", "written_off"].includes(doc.status);
 }
 
 /**
@@ -188,7 +192,9 @@ export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
  */
 export function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
   return (doc.kind === "invoice" || isNote(doc.kind))
-    && ["sent", "part_paid", "paid"].includes(doc.status);
+    // `written_off` counts too: the customer never paid, but the work was done on that
+    // machine and its cost of ownership should say so.
+    && ["sent", "part_paid", "paid", "written_off"].includes(doc.status);
 }
 
 /**
@@ -216,14 +222,21 @@ export function isEditable(doc: Pick<PartnerDocument, "status" | "source">): boo
  *   credit   the amount was wrong. A credit note against it, then a fresh invoice. This
  *            is what VAT Act s21 requires once a tax invoice has been issued
  */
-export type Correction = "delete" | "void" | "credit";
+export type Correction = "delete" | "void" | "credit" | "write_off";
 
 export function correctionsFor(doc: Pick<PartnerDocument, "kind" | "status">): Correction[] {
   if (doc.status === "draft") return ["delete"];
   if (doc.status === "void" || doc.status === "cancelled") return [];
+  // Already written off: the decision is made and it is off the ageing. Voiding it now
+  // would claim the bill should never have existed, which is a different (and untrue)
+  // statement about the same job.
+  if (doc.status === "written_off") return [];
   // Notes attach to an INVOICE. A note on a note would be unreadable on a statement, and
   // the thing being corrected is always the invoice underneath.
-  if (doc.kind === "invoice") return ["credit", "void"];
+  if (doc.kind === "invoice") {
+    // Writing off is only meaningful while something is still owed.
+    return doc.status === "paid" ? ["credit", "void"] : ["credit", "void", "write_off"];
+  }
   return ["void"];
 }
 
@@ -235,6 +248,8 @@ export function outstandingCents(
   creditedCents = 0,
 ): number {
   if (!isCosted(doc) || doc.kind !== "invoice") return 0;
+  // Written off is not outstanding — that is the whole point of writing it off.
+  if (doc.status === "written_off") return 0;
   return Math.max(0, doc.total_cents - (doc.amount_paid_cents || 0) - creditedCents);
 }
 

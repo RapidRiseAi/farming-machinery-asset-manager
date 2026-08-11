@@ -268,6 +268,8 @@ export const DOC_LOOK: Record<string, StatusLook> = {
   paid: { tone: "ok", shape: "check" },
   cancelled: { tone: "neutral", shape: "dash" },
   expired: { tone: "warning", shape: "triangle" },
+  void: { tone: "neutral", shape: "dash" },
+  written_off: { tone: "danger", shape: "dash" },
 };
 
 /** Look up a state's look in a map, falling back to a neutral ring. */

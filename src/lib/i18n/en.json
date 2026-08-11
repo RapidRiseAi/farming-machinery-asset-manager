@@ -55,7 +55,8 @@
     "documents": "Quotes & invoices",
     "partnerSettings": "My business",
     "clients": "My clients",
-    "statements": "Statements"
+    "statements": "Statements",
+    "corrections": "Corrections"
   },
   "auth": {
     "signIn": "Sign in",
@@ -1798,7 +1799,11 @@
     "statementsTitle": "Statements",
     "statementsWhat": "One customer's account: what they owe you right now, and every invoice, credit and payment that got it there.",
     "statementsDoes": "Pick a customer and a period\nSee how much is overdue, and by how long\nSend the statement as a PDF on your letterhead\nDownload it as a spreadsheet for your bookkeeper",
-    "statementsNote": "The balance carries forward — anything owed before the period starts shows as the first line, so the closing figure really is what they owe."
+    "statementsNote": "The balance carries forward — anything owed before the period starts shows as the first line, so the closing figure really is what they owe.",
+    "correctionsTitle": "Corrections log",
+    "correctionsWhat": "Every change made to a document after it was sent, newest first — with the reason, the person, and what the amount was before.",
+    "correctionsDoes": "See at a glance whether anyone has been reducing totals\nOpen the document a change was made to\nRead the reason it was given",
+    "correctionsNote": "This log cannot be edited or deleted by anyone, including the person who made the change. That is what makes editing safe."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -1877,7 +1882,8 @@
     "paid": "Paid",
     "cancelled": "Cancelled",
     "expired": "Expired",
-    "void": "Voided"
+    "void": "Voided",
+    "written_off": "Written off"
   },
   "doc": {
     "title": "Quotes & invoices",
@@ -2012,7 +2018,20 @@
     "theirReference": "Their order number",
     "theirReferenceHint": "Optional — what they call this job on their side.",
     "kindCredit": "Credit note",
-    "kindDebit": "Debit note"
+    "kindDebit": "Debit note",
+    "refundBadge": "Refund",
+    "refundTitle": "Pay money back",
+    "refundHint": "If you have to return money to this customer, record it here so their account shows it left.",
+    "refundInCredit": "They have paid more than this invoice comes to. In credit:",
+    "refundBody": "This records money going back to the customer. It shows on their statement on the day you paid it out.",
+    "refundAmount": "How much are you paying back?",
+    "refundPaidOn": "When did it go out?",
+    "refundWhy": "What is it for?",
+    "recordRefund": "Record a refund",
+    "refundedFlash": "Refund recorded.",
+    "writtenOffFlash": "Written off. It has come off what they owe you.",
+    "refundTooBig": "You cannot pay back more than has been paid on this invoice.",
+    "needAmount": "Type how much."
   },
   "partnerSettings": {
     "title": "My business",
@@ -2205,7 +2224,18 @@
     "overchargedHint": "A credit note puts the money back. Use this when they have already paid — the refund needs to show as its own thing.",
     "undercharged": "You charged too little",
     "underchargedHint": "A debit note adds the difference to the same job, so it reads as part of that invoice on their statement instead of turning up as a mystery charge.",
-    "startDebit": "Start a debit note"
+    "startDebit": "Start a debit note",
+    "neverPaying": "They are never going to pay",
+    "neverPayingHint": "Write it off. The invoice stays on their statement exactly as it was — the work was done — but it stops counting as money you are owed, and we stop chasing it.",
+    "writeOff": "Write it off",
+    "writeOffTitle": "Write off {number}?",
+    "writeOffBody": "Use this when you have given up on collecting. It is not the same as cancelling — the bill was correct, the money is just not coming.",
+    "writeOffConsequence1": "It stops counting as outstanding, and stops appearing in your overdue totals.",
+    "writeOffConsequence2": "It stays on the customer’s statement, with a matching line that clears the balance.",
+    "writeOffConsequence3": "The version before this is kept, with your reason, and cannot be deleted.",
+    "writeOffReason": "Why are you writing it off?",
+    "writeOffReasonHint": "For example: business closed down, or three years of no contact.",
+    "writeOffReasonMissing": "Say why you are writing it off — a few words is enough."
   },
   "email": {
     "title": "Send it to them",
@@ -2259,7 +2289,18 @@
     "emptyBody": "No invoices, credits or payments between these dates. Try a wider window.",
     "noneTitle": "No customers yet",
     "noneBody": "Statements are per customer. Add someone to your client book, or connect to a farm, and their account will build itself as you invoice them.",
-    "addClient": "Go to my clients"
+    "addClient": "Go to my clients",
+    "send": "Email it to them",
+    "sendNow": "Send the statement",
+    "sendHint": "Optional. It goes at the top of the email, above the balance.",
+    "rowOpening": "Balance brought forward",
+    "rowPayment": "Payment received",
+    "rowRefund": "Refund paid out",
+    "rowWriteOff": "Written off as bad debt",
+    "rowInvoice": "Invoice",
+    "rowCreditNote": "Credit note",
+    "rowDebitNote": "Debit note",
+    "writtenOff": "Written off"
   },
   "pubDoc": {
     "vatNo": "VAT",
@@ -2331,6 +2372,20 @@
     "historyTitle": "How this document has changed",
     "historyIntro": "Every version, with who changed it and why.",
     "sameTotal": "Total unchanged at {amount}",
-    "whatItSaid": "What it said then"
+    "whatItSaid": "What it said then",
+    "savedFlash": "Saved. The version before this is on file.",
+    "reasonMissing": "Say what you are changing and why — your customer can read it.",
+    "emptyDocument": "A document needs at least one line."
+  },
+  "corrections": {
+    "title": "Corrections log",
+    "tagline": "Every change ever made to a document that had already gone out.",
+    "total": "Corrections",
+    "reduced": "Made smaller",
+    "raised": "Made bigger",
+    "everyChange": "Every change, newest first",
+    "unknownDoc": "Document",
+    "emptyTitle": "Nothing has been corrected",
+    "emptyBody": "When someone changes a document that has already been sent, it shows up here — with the reason, who did it and what the amount was before."
   }
 }

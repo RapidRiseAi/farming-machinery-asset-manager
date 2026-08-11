@@ -1,7 +1,8 @@
 import { requireRole, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
-import { withRunningBalance, type StatementRow } from "@/lib/statement";
+import { withRunningBalance, statementLabel, type StatementRow } from "@/lib/statement";
+import { parseStatementParty } from "@/lib/statement-party";
 
 export const dynamic = "force-dynamic";
 
@@ -17,22 +18,15 @@ export async function GET(request: Request) {
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) return new Response("Forbidden", { status: 403 });
 
-  const url = new URL(request.url);
-  const [kind, id] = (url.searchParams.get("party") ?? "").split(":");
-  const from = url.searchParams.get("from") ?? "";
-  const to = url.searchParams.get("to") ?? "";
-  if (!["farm", "client"].includes(kind) || !/^[0-9a-f-]{36}$/i.test(id ?? "")) {
-    return new Response("Bad request", { status: 400 });
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    return new Response("Bad request", { status: 400 });
-  }
+  const party = parseStatementParty(new URL(request.url).searchParams);
+  if (!party) return new Response("Bad request", { status: 400 });
+  const { from, to } = party;
 
   const supabase = await createClient();
   const { data } = await supabase.rpc("partner_statement", {
     p_workshop: workshop.id,
-    p_farm: kind === "farm" ? id : null,
-    p_client: kind === "client" ? id : null,
+    p_farm: party.farmId,
+    p_client: party.clientId,
     p_from: from,
     p_to: to,
   });
@@ -45,7 +39,7 @@ export async function GET(request: Request) {
       l.entry_date,
       l.kind,
       l.reference ?? "",
-      l.description,
+      statementLabel(l, profile.lang),
       l.debit_cents ? centsToR(l.debit_cents) : "",
       l.credit_cents ? centsToR(l.credit_cents) : "",
       centsToR(l.balance_cents),

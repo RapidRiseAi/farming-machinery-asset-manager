@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import {
-  withRunningBalance, statementTotals, defaultStatementPeriod,
+  withRunningBalance, statementTotals, statementLabel, defaultStatementPeriod,
   AGEING_BUCKETS, EMPTY_AGEING, type StatementRow, type Ageing,
 } from "@/lib/statement";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { AllClear, GetStarted } from "@/components/ui/empty-state";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { DownloadIcon } from "@/components/ui/icons";
 import { StatementPicker } from "./picker";
+import { SendStatement } from "@/components/statements/send-statement";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,16 @@ export default async function StatementsPage({
     ageing = agedRows[0] ?? EMPTY_AGEING;
   }
 
+  // Their billing address, so "send" is one tap rather than a lookup.
+  let recipientEmail = "";
+  if (selected) {
+    const { data: who } = selected.farm_id
+      ? await supabase.from("farms").select("billing_email").eq("id", selected.farm_id).maybeSingle()
+      : await supabase.from("partner_clients").select("email").eq("id", selected.client_id!).maybeSingle();
+    const w = (who ?? {}) as { billing_email?: string | null; email?: string | null };
+    recipientEmail = w.billing_email ?? w.email ?? "";
+  }
+
   const lines = withRunningBalance(rows);
   const totals = statementTotals(rows);
   const csvHref = selected
@@ -158,6 +169,15 @@ export default async function StatementsPage({
             <a href={csvHref} className={buttonVariants({ variant: "ghost", size: "sm" })}>
               {t("statement.csv", locale)}
             </a>
+            {/* The last step of the monthly-account workflow. Without it a customer who
+                pays off a statement could be emailed six invoices and no statement. */}
+            <SendStatement
+              party={selected.key}
+              from={from}
+              to={to}
+              defaultEmail={recipientEmail}
+              locale={locale}
+            />
           </div>
         ) : null}
       </div>
@@ -232,7 +252,7 @@ export default async function StatementsPage({
                         <tr key={`${l.kind}-${l.document_id ?? i}`} className="border-b border-sand-100 last:border-0">
                           <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</td>
                           <td className="py-2.5 pr-3">
-                            <span className="text-sand-900">{l.description}</span>
+                            <span className="text-sand-900">{statementLabel(l, locale)}</span>
                             {l.reference ? (
                               l.document_id ? (
                                 <Link
@@ -274,6 +294,12 @@ export default async function StatementsPage({
                   ) : null}
                   <dt className="text-sand-600">{t("statement.received", locale)}</dt>
                   <dd className="text-right tabular-nums text-sand-900">−{rands(totals.paidCents)}</dd>
+                  {totals.writtenOffCents > 0 ? (
+                    <>
+                      <dt className="text-sand-600">{t("statement.writtenOff", locale)}</dt>
+                      <dd className="text-right tabular-nums text-sand-900">−{rands(totals.writtenOffCents)}</dd>
+                    </>
+                  ) : null}
                   <dt className="pt-1 font-semibold text-sand-900">{t("statement.closing", locale)}</dt>
                   <dd className="pt-1 text-right font-semibold tabular-nums text-sand-900">
                     {rands(totals.closingCents)}

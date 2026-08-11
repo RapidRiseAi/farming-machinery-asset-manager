@@ -97,6 +97,9 @@ export default async function AppLayout({
   // A customer's account: what they owe and how it got there (G2). Partner-only — a farm
   // reads the same ledger from the other side, on the documents they were sent.
   const statements: NavItemData = { href: "/statements", label: t("nav.statements", locale), icon: "reports" };
+  // Every change made to a document after it went out. Its own section, because "has
+  // anyone been quietly moving numbers" is a question you ask without a document in mind.
+  const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "documents" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
   // A partner's own client book (F15) — their whole customer list, not only the farms
   // that happened to find them.
@@ -120,7 +123,7 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -151,7 +154,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, corrections] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]
@@ -165,7 +168,7 @@ export default async function AppLayout({
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: [...(isManagerPlus ? [documents, team] : []), alerts],
+          items: [...(isManagerPlus ? [documents, corrections, team] : []), alerts],
         },
       ];
 

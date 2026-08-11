@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { rands } from "@/lib/money";
 import { correctionsFor, type DocKind, type DocStatus } from "@/lib/partner-docs";
-import { voidDocument, createCreditNote, createDebitNote } from "@/app/(app)/documents/actions";
+import { voidDocument, createCreditNote, createDebitNote, writeOffDocument } from "@/app/(app)/documents/actions";
 
 export type CorrectionDoc = {
   id: string;
@@ -16,6 +16,8 @@ export type CorrectionDoc = {
   number: string;
   total_cents: number;
   void_reason: string | null;
+  written_off_reason: string | null;
+  balance_cents: number;
 };
 
 export type CreditNoteRef = { id: string; number: string; total_cents: number; status: DocStatus };
@@ -69,6 +71,11 @@ export function CorrectionPanel({
         <p className="text-sm text-sand-600">
           <Badge tone="warning" className="mr-2 align-middle">{t("docStatus.void", locale)}</Badge>
           {doc.void_reason}
+        </p>
+      ) : doc.status === "written_off" ? (
+        <p className="text-sm text-sand-600">
+          <Badge tone="danger" className="mr-2 align-middle">{t("docStatus.written_off", locale)}</Badge>
+          {doc.written_off_reason}
         </p>
       ) : (
         <p className="mb-3 text-sm text-sand-600">{t("correct.intro", locale)}</p>
@@ -125,6 +132,36 @@ export function CorrectionPanel({
             <SubmitButton variant="secondary" className="self-start">{t("correct.startDebit", locale)}</SubmitButton>
           </form>
         </>
+      ) : null}
+
+      {options.includes("write_off") ? (
+        <div className="mt-3 border-t border-sand-100 pt-3">
+          <p className="text-sm font-medium text-sand-900">{t("correct.neverPaying", locale)}</p>
+          <p className="mt-0.5 text-sm text-sand-600">{t("correct.neverPayingHint", locale)}</p>
+          <ConfirmDialog
+            action={writeOffDocument}
+            triggerLabel={t("correct.writeOff", locale)}
+            triggerVariant="ghost"
+            triggerSize="sm"
+            triggerClassName="mt-2"
+            title={t("correct.writeOffTitle", locale).replace("{number}", doc.number)}
+            intro={t("correct.writeOffBody", locale)}
+            facts={[{ label: t("doc.balanceDue", locale), value: rands(doc.balance_cents) }]}
+            consequences={[
+              t("correct.writeOffConsequence1", locale),
+              t("correct.writeOffConsequence2", locale),
+              t("correct.writeOffConsequence3", locale),
+            ]}
+            confirmLabel={t("correct.writeOff", locale)}
+            cancelLabel={t("common.cancel", locale)}
+            closeLabel={t("ui.close", locale)}
+          >
+            <input type="hidden" name="document_id" value={doc.id} />
+            <Field label={t("correct.writeOffReason", locale)} hint={t("correct.writeOffReasonHint", locale)} htmlFor="writeoff_reason">
+              <Input id="writeoff_reason" name="reason" required minLength={3} maxLength={500} />
+            </Field>
+          </ConfirmDialog>
+        </div>
       ) : null}
 
       {options.includes("void") ? (
