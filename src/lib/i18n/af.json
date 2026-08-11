@@ -55,7 +55,8 @@
     "documents": "Kwotasies & fakture",
     "partnerSettings": "My besigheid",
     "clients": "My kliënte",
-    "statements": "State"
+    "statements": "State",
+    "corrections": "Regstellings"
   },
   "auth": {
     "signIn": "Teken in",
@@ -1798,7 +1799,11 @@
     "statementsTitle": "State",
     "statementsWhat": "Een klant se rekening: wat hulle jou nou skuld, en elke faktuur, krediet en betaling wat dit daar gekry het.",
     "statementsDoes": "Kies 'n klant en 'n tydperk\nSien hoeveel agterstallig is, en hoe lank\nStuur die staat as 'n PDF op jou briefhoof\nLaai dit af as 'n sigblad vir jou boekhouer",
-    "statementsNote": "Die saldo dra oor — enigiets wat voor die tydperk verskuldig was wys as die eerste reël, sodat die slotsyfer werklik is wat hulle skuld."
+    "statementsNote": "Die saldo dra oor — enigiets wat voor die tydperk verskuldig was wys as die eerste reël, sodat die slotsyfer werklik is wat hulle skuld.",
+    "correctionsTitle": "Regstellingslog",
+    "correctionsWhat": "Elke verandering aan 'n dokument nadat dit gestuur is, nuutste eerste — met die rede, die persoon, en wat die bedrag voorheen was.",
+    "correctionsDoes": "Sien met een oogopslag of iemand totale verminder het\nMaak die dokument oop waaraan 'n verandering gemaak is\nLees die rede wat gegee is",
+    "correctionsNote": "Hierdie log kan deur niemand geredigeer of uitgevee word nie, ook nie deur die persoon wat die verandering gemaak het nie. Dit is wat redigering veilig maak."
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -1877,7 +1882,8 @@
     "paid": "Betaal",
     "cancelled": "Gekanselleer",
     "expired": "Verval",
-    "void": "Gekanselleer"
+    "void": "Gekanselleer",
+    "written_off": "Afgeskryf"
   },
   "doc": {
     "title": "Kwotasies & fakture",
@@ -2012,7 +2018,20 @@
     "theirReference": "Hul bestelnommer",
     "theirReferenceHint": "Opsioneel — wat hulle hierdie werk aan hul kant noem.",
     "kindCredit": "Kredietnota",
-    "kindDebit": "Debietnota"
+    "kindDebit": "Debietnota",
+    "refundBadge": "Terugbetaling",
+    "refundTitle": "Betaal geld terug",
+    "refundHint": "As jy geld aan hierdie klant moet teruggee, teken dit hier aan sodat hul rekening wys dit het uitgegaan.",
+    "refundInCredit": "Hulle het meer betaal as wat hierdie faktuur beloop. In krediet:",
+    "refundBody": "Dit teken geld aan wat na die klant teruggaan. Dit wys op hul staat op die dag wat jy dit uitbetaal het.",
+    "refundAmount": "Hoeveel betaal jy terug?",
+    "refundPaidOn": "Wanneer het dit uitgegaan?",
+    "refundWhy": "Waarvoor is dit?",
+    "recordRefund": "Teken ’n terugbetaling aan",
+    "refundedFlash": "Terugbetaling aangeteken.",
+    "writtenOffFlash": "Afgeskryf. Dit is af van wat hulle jou skuld.",
+    "refundTooBig": "Jy kan nie meer terugbetaal as wat op hierdie faktuur betaal is nie.",
+    "needAmount": "Tik in hoeveel."
   },
   "partnerSettings": {
     "title": "My besigheid",
@@ -2205,7 +2224,18 @@
     "overchargedHint": "'n Kredietnota gee die geld terug. Gebruik dit as hulle reeds betaal het — die terugbetaling moet as sy eie ding wys.",
     "undercharged": "Jy het te min gehef",
     "underchargedHint": "'n Debietnota voeg die verskil by dieselfde werk, sodat dit as deel van daardie faktuur op hul staat lees in plaas van as 'n raaiselheffing op te daag.",
-    "startDebit": "Begin 'n debietnota"
+    "startDebit": "Begin 'n debietnota",
+    "neverPaying": "Hulle gaan nooit betaal nie",
+    "neverPayingHint": "Skryf dit af. Die faktuur bly presies soos dit was op hul staat — die werk is gedoen — maar dit tel nie meer as geld wat jou geskuld word nie, en ons jaag dit nie verder nie.",
+    "writeOff": "Skryf dit af",
+    "writeOffTitle": "Skryf {number} af?",
+    "writeOffBody": "Gebruik dit wanneer jy opgegee het om in te vorder. Dit is nie dieselfde as kanselleer nie — die rekening was reg, die geld kom net nie.",
+    "writeOffConsequence1": "Dit tel nie meer as uitstaande nie, en verskyn nie meer in jou agterstallige totale nie.",
+    "writeOffConsequence2": "Dit bly op die klant se staat, met ’n passende reël wat die saldo skoonmaak.",
+    "writeOffConsequence3": "Die weergawe hiervoor word gehou, met jou rede, en kan nie uitgevee word nie.",
+    "writeOffReason": "Hoekom skryf jy dit af?",
+    "writeOffReasonHint": "Byvoorbeeld: besigheid het gesluit, of drie jaar sonder kontak.",
+    "writeOffReasonMissing": "Sê hoekom jy dit afskryf — ’n paar woorde is genoeg."
   },
   "email": {
     "title": "Stuur dit vir hulle",
@@ -2259,7 +2289,18 @@
     "emptyBody": "Geen fakture, krediete of betalings tussen hierdie datums nie. Probeer 'n wyer venster.",
     "noneTitle": "Nog geen klante nie",
     "noneBody": "State is per klant. Voeg iemand by jou klanteboek, of koppel aan 'n plaas, en hul rekening bou homself soos jy hulle faktureer.",
-    "addClient": "Gaan na my klante"
+    "addClient": "Gaan na my klante",
+    "send": "E-pos dit vir hulle",
+    "sendNow": "Stuur die staat",
+    "sendHint": "Opsioneel. Dit kom bo-aan die e-pos, bo die saldo.",
+    "rowOpening": "Saldo oorgedra",
+    "rowPayment": "Betaling ontvang",
+    "rowRefund": "Terugbetaling uitbetaal",
+    "rowWriteOff": "Afgeskryf as slegte skuld",
+    "rowInvoice": "Faktuur",
+    "rowCreditNote": "Kredietnota",
+    "rowDebitNote": "Debietnota",
+    "writtenOff": "Afgeskryf"
   },
   "pubDoc": {
     "vatNo": "BTW",
@@ -2331,6 +2372,20 @@
     "historyTitle": "Hoe hierdie dokument verander het",
     "historyIntro": "Elke weergawe, met wie dit verander het en hoekom.",
     "sameTotal": "Totaal onveranderd op {amount}",
-    "whatItSaid": "Wat dit toe gesê het"
+    "whatItSaid": "Wat dit toe gesê het",
+    "savedFlash": "Gestoor. Die weergawe hiervoor is op rekord.",
+    "reasonMissing": "Sê wat jy verander en hoekom — jou klant kan dit lees.",
+    "emptyDocument": "’n Dokument het ten minste een reël nodig."
+  },
+  "corrections": {
+    "title": "Regstellingslog",
+    "tagline": "Elke verandering wat ooit aan 'n dokument gemaak is nadat dit reeds uit was.",
+    "total": "Regstellings",
+    "reduced": "Kleiner gemaak",
+    "raised": "Groter gemaak",
+    "everyChange": "Elke verandering, nuutste eerste",
+    "unknownDoc": "Dokument",
+    "emptyTitle": "Niks is reggestel nie",
+    "emptyBody": "Wanneer iemand 'n dokument verander wat reeds gestuur is, wys dit hier — met die rede, wie dit gedoen het en wat die bedrag voorheen was."
   }
 }

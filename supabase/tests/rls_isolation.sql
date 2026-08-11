@@ -4508,3 +4508,374 @@ end $$;
 reset role;
 
 select 'ALL G3 REVISION & DEBIT-NOTE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G4 — THE HISTORY IS APPEND-ONLY (0420)
+-- ═════════════════════════════════════════════════════════════════
+-- The version history is what makes editing an issued document safe, so "can anyone
+-- remove it?" is the load-bearing question. Before 0420 the honest answer was "not
+-- really, by accident": UPDATE and DELETE matched no rows because 0417 defined only a
+-- SELECT policy, so they ran, changed nothing, and RAISED NOTHING. Measured that way on
+-- the live project. These assertions are about it refusing out loud.
+
+set role authenticated;
+
+-- ── (a) A partner cannot empty or rewrite their own history ─────────────────
+do $$ declare ok boolean := false; c_before bigint; c_after bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+  select count(*) into c_before from partner_document_revisions;
+  if c_before = 0 then raise exception 'G4 FAIL [fixture]: no revisions to protect'; end if;
+
+  begin
+    delete from partner_document_revisions;
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G4 FAIL [SILENT]: deleting the version history did not even raise — an audit trail that can be quietly emptied is not one';
+  end if;
+
+  ok := false;
+  begin
+    update partner_document_revisions set reason = 'rewritten', total_cents_before = 0;
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G4 FAIL [SILENT]: rewriting the version history did not even raise';
+  end if;
+
+  select count(*) into c_after from partner_document_revisions;
+  if c_after <> c_before then raise exception 'G4 FAIL: % revisions became %', c_before, c_after; end if;
+  if not (select bool_and(reason <> 'rewritten') from partner_document_revisions) then
+    raise exception 'G4 FAIL: a reason was rewritten';
+  end if;
+end $$;
+
+-- ── (b) Nor forge one ────────────────────────────────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    insert into partner_document_revisions (document_id, workshop_id, version, reason, snapshot, total_cents_before)
+    select id, workshop_id, 99, 'forged', '{}'::jsonb, 0 from partner_documents
+     where workshop_id = '62100000-0000-0000-0000-000000000001' limit 1;
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G4 FAIL: a partner wrote a version by hand'; end if;
+end $$;
+
+-- ── (c) Neither can rr_admin, and neither can the farm ───────────────────────
+-- Nobody has this. The trigger has no exception for a role — only for the one function
+-- that writes it, from inside itself.
+do $$ declare ok boolean := false; begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');        -- rr_admin
+  begin
+    delete from partner_document_revisions;
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G4 FAIL: rr_admin emptied the version history'; end if;
+end $$;
+reset role;
+
+-- ── (d) A draft has no history to lose ───────────────────────────────────────
+-- `document_id` cascades and a DRAFT can still be deleted, so "revise a draft, then
+-- delete it" would have taken its versions with it. Closed by refusing to revise a draft
+-- at all — it is directly editable, so the correction machinery is redundant there.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name)
+values ('64000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'DRAFT-0001',
+        current_date, 'Farm S');
+
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    perform public.revise_document('64000000-0000-0000-0000-000000000001', 'correct a draft', '{}'::jsonb, null);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G4 FAIL: a draft was put through the correction machinery, so deleting it would take history with it';
+  end if;
+end $$;
+reset role;
+
+-- The draft can still be deleted, and there is no history for it to take.
+delete from partner_documents where id = '64000000-0000-0000-0000-000000000001';
+do $$ declare c bigint; begin
+  select count(*) into c from partner_document_revisions
+   where document_id = '64000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G4 FAIL: a deleted draft left % orphan versions', c; end if;
+end $$;
+
+-- ── (e) And correcting an issued document still works ────────────────────────
+-- The point of all the above is to make the edit safe, not to make it impossible.
+set role authenticated;
+do $$ declare v_rev int; v_versions bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  perform public.revise_document('62500000-0000-0000-0000-000000000001',
+    'Still works after the history was locked down', jsonb_build_object('subject', 'Locked down'), null);
+  select revision into v_rev from partner_documents where id = '62500000-0000-0000-0000-000000000001';
+  select count(*) into v_versions from partner_document_revisions
+   where document_id = '62500000-0000-0000-0000-000000000001';
+  if v_versions < 2 then
+    raise exception 'G4 FAIL: the correction did not add a version (% on file, now revision %)', v_versions, v_rev;
+  end if;
+  -- and the outcome was stamped onto it, which needs the trigger to stand aside exactly once
+  if exists (select 1 from partner_document_revisions
+              where document_id = '62500000-0000-0000-0000-000000000001'
+                and version = v_rev - 1 and total_cents_after is null) then
+    raise exception 'G4 FAIL: the version was written but its outcome never recorded';
+  end if;
+end $$;
+reset role;
+
+select 'ALL G4 APPEND-ONLY-HISTORY TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G5 — REFUNDS AND WRITE-OFFS (0422–0423)
+-- ═════════════════════════════════════════════════════════════════
+-- Two ways a balance goes to zero that the statement could not express, and both matter
+-- for the same reason: a balance that cannot be cleared CORRECTLY sits on the page for
+-- ever, and a customer who cannot reconcile their own statement stops reading it.
+--
+--   a refund     money going back after they had already paid. A negative payment, so the
+--                running balance climbs back.
+--   a write-off  they are never going to pay. The invoice stays at full value — the work
+--                was done — but stops being outstanding, stops being chased, and posts a
+--                matching credit so the account nets to zero.
+--
+-- The claim under test is that neither can be used to move money quietly: a refund cannot
+-- exceed what was paid, a write-off needs a reason and keeps a version, and neither can be
+-- done by a partner who did not issue the invoice.
+
+-- A clean invoice of its own, so the assertions do not lean on G2/G3's arithmetic.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, due_date, vat_rate_bps, bill_to_name)
+values ('65000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZI-9001',
+        current_date - 120, current_date - 90, 1500, 'Farm S');
+
+insert into partner_document_lines (document_id, farm_id, sort_order, kind,
+                                    description, qty, unit_price_cents)
+values ('65000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        1, 'labour', 'Gearbox strip and rebuild', 1, 1000000);
+
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '65000000-0000-0000-0000-000000000001';
+
+do $$ declare v_total bigint; begin
+  select total_cents into v_total from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_total <> 1150000 then
+    raise exception 'G5 SETUP: the fixture invoice totals % (expected 1150000 incl VAT)', v_total;
+  end if;
+end $$;
+
+-- ── (a) A refund is negative and a payment is positive ───────────────────────
+-- Stated as a constraint so no code path — ours or a future one — can write a payment
+-- whose sign disagrees with what it claims to be.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on)
+    values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+            50000, true, current_date);
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G5 FAIL: a POSITIVE refund was accepted — the sign says money came in'; end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on)
+    values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+            -50000, false, current_date);
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G5 FAIL: a NEGATIVE payment was accepted without being called a refund'; end if;
+end $$;
+
+-- ── (b) You cannot refund money that never arrived ───────────────────────────
+do $$ declare ok boolean := false; v_paid bigint; begin
+  begin
+    insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on)
+    values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+            -20000, true, current_date);
+  exception when check_violation then ok := true; end;
+  if not ok then
+    raise exception 'G5 FAIL: an invoice with no payments was refunded — the account now shows a negative receipt';
+  end if;
+  select amount_paid_cents into v_paid from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_paid <> 0 then raise exception 'G5 FAIL: the refused refund still moved amount_paid to %', v_paid; end if;
+end $$;
+
+-- ── (c) A real payment, then a real refund ───────────────────────────────────
+insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on, method)
+values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+        400000, false, current_date - 60, 'eft');
+insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on, method)
+values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+        -100000, true, current_date - 30, 'eft');
+
+do $$ declare v_paid bigint; v_status text; v_credit bigint; begin
+  select amount_paid_cents, status::text into v_paid, v_status
+    from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_paid <> 300000 then
+    raise exception 'G5 FAIL: after R4 000 in and R1 000 back, the invoice shows % paid (expected 300000)', v_paid;
+  end if;
+  if v_status <> 'part_paid' then raise exception 'G5 FAIL: the invoice is % after a partial payment', v_status; end if;
+
+  -- On the statement the refund is a NEGATIVE credit, so the balance climbs back.
+  select credit_cents into v_credit
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'refund' and document_id = '65000000-0000-0000-0000-000000000001';
+  if v_credit is null or v_credit >= 0 then
+    raise exception 'G5 FAIL: the refund reads as % on the statement — it has to reduce what was received', v_credit;
+  end if;
+end $$;
+
+-- ── (d) Writing off needs a reason, and belongs to the issuer ────────────────
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z, the issuer
+  begin
+    perform public.write_off_document('65000000-0000-0000-0000-000000000001', '  ');
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G5 FAIL: an invoice was written off with no reason given'; end if;
+end $$;
+
+do $$ declare ok boolean := false; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W, unrelated
+  begin
+    perform public.write_off_document('65000000-0000-0000-0000-000000000001', 'not my invoice');
+  exception when insufficient_privilege or no_data_found then ok := true; end;
+  if not ok then
+    raise exception 'G5 FAIL [CROSS-PARTNER]: another workshop wrote off Workshop Z''s invoice';
+  end if;
+end $$;
+
+-- The farm cannot write off its own debt either — it is the partner's decision to stop
+-- asking for the money, not the debtor's.
+do $$ declare ok boolean := false; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
+  begin
+    perform public.write_off_document('65000000-0000-0000-0000-000000000001', 'we are not paying this');
+  exception when insufficient_privilege or no_data_found then ok := true; end;
+  if not ok then raise exception 'G5 FAIL: the customer wrote off their own bill'; end if;
+end $$;
+reset role;
+
+-- ── (e) The write-off itself ─────────────────────────────────────────────────
+do $$ declare v_before bigint; begin
+  select total_cents into v_before from app.partner_ageing(
+    '62100000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', null, current_date);
+  create temp table _t_g5_ageing as select v_before as cents;
+end $$;
+
+set role authenticated;
+do $$ declare v_versions bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  perform public.write_off_document('65000000-0000-0000-0000-000000000001',
+                                    'Business liquidated, three letters unanswered');
+  select count(*) into v_versions from partner_document_revisions
+   where document_id = '65000000-0000-0000-0000-000000000001';
+  if v_versions <> 1 then
+    raise exception 'G5 FAIL: writing off left % versions on file (expected 1) — the decision has no before-picture', v_versions;
+  end if;
+end $$;
+reset role;
+
+do $$ declare v_status text; v_reason text; begin
+  select status::text, written_off_reason into v_status, v_reason
+    from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_status <> 'written_off' then raise exception 'G5 FAIL: the invoice is % after a write-off', v_status; end if;
+  if v_reason is null then raise exception 'G5 FAIL: the reason was not kept'; end if;
+end $$;
+
+-- It stops being money anyone is waiting for …
+do $$ declare v_after bigint; v_before bigint; begin
+  select cents into v_before from _t_g5_ageing;
+  select total_cents into v_after from app.partner_ageing(
+    '62100000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', null, current_date);
+  if v_after <> v_before - 850000 then
+    raise exception 'G5 FAIL [AGEING]: outstanding went % → % ; the R8 500 still owed on a written-off invoice is still being counted',
+      v_before, v_after;
+  end if;
+end $$;
+
+-- … and stops being chased.
+do $$ declare c bigint; begin
+  perform app.enqueue_document_reminders();
+  select count(*) into c from notifications
+   where payload->>'document_id' = '65000000-0000-0000-0000-000000000001'
+     and template like 'invoice_%';
+  if c <> 0 then
+    raise exception 'G5 FAIL: % reminders were queued for an invoice nobody is collecting', c;
+  end if;
+end $$;
+
+-- ── (f) The statement stays readable, and nets to zero ───────────────────────
+-- The invoice is still there at full value, because the customer really was billed it.
+-- The write-off posts its own credit line, so the account does not carry a balance for a
+-- debt everyone has given up on.
+do $$ declare v_net bigint; v_writeoff bigint; v_rows bigint; begin
+  select coalesce(sum(debit_cents - credit_cents), 0), count(*) into v_net, v_rows
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where document_id = '65000000-0000-0000-0000-000000000001';
+  if v_rows < 4 then
+    raise exception 'G5 FAIL: the written-off invoice shows only % lines — invoice, payment, refund and write-off are all part of what happened', v_rows;
+  end if;
+  if v_net <> 0 then
+    raise exception 'G5 FAIL [STATEMENT]: the written-off invoice leaves % on the account — a statement that cannot be cleared is one nobody can reconcile', v_net;
+  end if;
+
+  select credit_cents into v_writeoff
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'write_off' and document_id = '65000000-0000-0000-0000-000000000001';
+  if v_writeoff <> 850000 then
+    raise exception 'G5 FAIL: the write-off credited % (expected the 850000 still owed)', v_writeoff;
+  end if;
+end $$;
+
+-- ── (g) The farm still carries the cost ──────────────────────────────────────
+-- Not paying a bill does not un-do the work. The machine's cost of ownership keeps it.
+do $$ declare v_cents bigint; begin
+  select amount_cents into v_cents from cost_entries
+   where source_type = 'partner_document' and source_id = '65000000-0000-0000-0000-000000000001'
+     and deleted_at is null;
+  if v_cents is null then
+    raise exception 'G5 FAIL [LEDGER]: writing the invoice off deleted the farm''s cost entry — the work still happened';
+  end if;
+  if v_cents <> 1000000 then
+    raise exception 'G5 FAIL: the cost entry is % (expected the 1000000 ex-VAT that was billed)', v_cents;
+  end if;
+end $$;
+
+-- ── (h) It cannot be written off twice, or quietly reopened ──────────────────
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    perform public.write_off_document('65000000-0000-0000-0000-000000000001', 'again for luck');
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G5 FAIL: the same invoice was written off twice'; end if;
+end $$;
+reset role;
+
+-- Removing a payment must not quietly put it back into the ageing …
+delete from partner_payments
+ where document_id = '65000000-0000-0000-0000-000000000001' and is_refund;
+do $$ declare v_status text; begin
+  select status::text into v_status from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_status <> 'written_off' then
+    raise exception 'G5 FAIL: touching a payment reopened a written-off invoice (now %)', v_status;
+  end if;
+end $$;
+
+-- … but real money arriving after all does reopen it, which is the honest answer.
+insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on, method)
+values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
+        750000, false, current_date, 'eft');
+do $$ declare v_status text; begin
+  select status::text into v_status from partner_documents where id = '65000000-0000-0000-0000-000000000001';
+  if v_status <> 'paid' then
+    raise exception 'G5 FAIL: the customer paid in full after the write-off and the invoice still reads %', v_status;
+  end if;
+end $$;
+
+select 'ALL G5 REFUND & WRITE-OFF TESTS PASSED' as result;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { t } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { CorrectionPanel, type CreditNoteRef } from "@/components/documents/correction-panel";
 import { EmailDocument, type EmailAttempt } from "@/components/documents/email-document";
@@ -26,7 +26,7 @@ import { TrashIcon, DownloadIcon } from "@/components/ui/icons";
 import {
   addDocumentLine, removeDocumentLine, updateDocument, sendDocument,
   convertQuoteToInvoice, acceptDocument, declineDocument, recordPayment,
-  removePayment, deleteDraft,
+  removePayment, deleteDraft, recordRefund,
 } from "../actions";
 import { DeclineQuote } from "@/components/partner/decline-quote";
 
@@ -45,6 +45,7 @@ import { DeclineQuote } from "@/components/partner/decline-quote";
 type Doc = BillTo & {
   id: string; farm_id: string | null; partner_client_id: string | null;
   corrects_document_id: string | null; void_reason: string | null; revision: number;
+  written_off_reason: string | null;
   workshop_id: string; machine_id: string | null;
   work_request_id: string | null; quote_id: string | null;
   kind: DocKind; status: DocStatus; source: DocSource; number: string; subject: string | null;
@@ -58,8 +59,27 @@ type Doc = BillTo & {
 
 type Payment = {
   id: string; amount_cents: number; paid_on: string; method: string | null;
-  reference: string | null; note: string | null;
+  reference: string | null; note: string | null; is_refund: boolean;
 };
+
+/**
+ * The codes the server actions redirect with, said as sentences. Anything else — a raw
+ * Postgres message from a trigger — still comes through, because a partner seeing the
+ * database's own words beats a screen that says nothing happened when something did.
+ */
+const DOC_ERRORS: Record<string, string> = {
+  upgrade: "doc.upgradeNeeded",
+  "refund-too-big": "doc.refundTooBig",
+  "writeoff-reason": "correct.writeOffReasonMissing",
+  "revise-reason": "revise.reasonMissing",
+  "revise-empty": "revise.emptyDocument",
+  "need-amount": "doc.needAmount",
+};
+
+function docError(code: string | undefined, locale: Lang): string | undefined {
+  if (!code) return undefined;
+  return DOC_ERRORS[code] ? t(DOC_ERRORS[code], locale) : code;
+}
 
 export default async function DocumentPage({
   params,
@@ -96,7 +116,7 @@ export default async function DocumentPage({
         .order("sort_order"),
       supabase
         .from("partner_payments")
-        .select("id, amount_cents, paid_on, method, reference, note")
+        .select("id, amount_cents, paid_on, method, reference, note, is_refund")
         .eq("document_id", id)
         .is("deleted_at", null)
         .order("paid_on", { ascending: false }),
@@ -170,6 +190,8 @@ export default async function DocumentPage({
 
   const editable = isPartner && isEditable(doc) && canBuild;
   const balance = balanceDueCents(doc);
+  /** Paid MORE than the invoice — usually because a credit note landed after payment. */
+  const inCreditCents = Math.max(0, (doc.amount_paid_cents || 0) - doc.total_cents);
   const primary = brand.brand_primary ?? "#166534";
   const kindLabel = t(doc.kind === "invoice" ? "doc.kindInvoice" : "doc.kindQuote", locale);
 
@@ -182,11 +204,14 @@ export default async function DocumentPage({
         <DocStatusBadge value={doc.status} locale={locale} size="md" className="ml-auto" />
       </div>
 
-      <Flash tone="error" message={sp.error === "upgrade" ? t("doc.upgradeNeeded", locale) : sp.error} />
+      <Flash tone="error" message={docError(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added || sp.paid ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.sent ? t("doc.sentFlash", locale) : undefined} />
       <Flash tone="success" message={sp.accepted ? t("doc.acceptedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.converted ? t("doc.convertedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.revised ? t("revise.savedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.refunded ? t("doc.refundedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.written_off ? t("doc.writtenOffFlash", locale) : undefined} />
 
       {/* ── The document ─────────────────────────────────────────── */}
       <article className="overflow-hidden rounded-xl border border-sand-200 bg-white shadow-soft print:border-0 print:shadow-none">
@@ -494,6 +519,8 @@ export default async function DocumentPage({
             number: doc.number,
             total_cents: doc.total_cents,
             void_reason: doc.void_reason ?? null,
+            written_off_reason: doc.written_off_reason ?? null,
+            balance_cents: balance,
           }}
           credits={creditNotes}
           locale={locale}
@@ -545,7 +572,10 @@ export default async function DocumentPage({
             <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
               {payments.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-2 py-2">
-                  <span className="font-medium tabular-nums text-sand-900">{rands(p.amount_cents)}</span>
+                  <span className="font-medium tabular-nums text-sand-900">
+                    {p.is_refund ? `− ${rands(Math.abs(p.amount_cents))}` : rands(p.amount_cents)}
+                  </span>
+                  {p.is_refund ? <Badge tone="warning">{t("doc.refundBadge", locale)}</Badge> : null}
                   <span className="text-sand-500">{shortDate(p.paid_on, locale)}</span>
                   {p.method ? <Badge tone="neutral">{p.method}</Badge> : null}
                   {p.reference ? <span className="font-mono text-xs text-sand-500">{p.reference}</span> : null}
@@ -598,6 +628,50 @@ export default async function DocumentPage({
               </div>
               <SubmitButton variant="secondary">{t("doc.recordPayment", locale)}</SubmitButton>
             </form>
+          ) : null}
+
+          {/* Money going back. A credit note lowers what they owe; if they had already
+              paid, the cash still has to leave — and until this existed the statement
+              showed a customer refunded in full a year ago sitting in credit for ever. */}
+          {isPartner && canPay && doc.amount_paid_cents > 0 ? (
+            <div className="mt-3 border-t border-sand-100 pt-3">
+              <p className="text-sm font-medium text-sand-900">{t("doc.refundTitle", locale)}</p>
+              <p className="mt-0.5 text-sm text-sand-600">
+                {inCreditCents > 0
+                  ? `${t("doc.refundInCredit", locale)} ${rands(inCreditCents)}`
+                  : t("doc.refundHint", locale)}
+              </p>
+              <ConfirmDialog
+                action={recordRefund}
+                triggerLabel={t("doc.recordRefund", locale)}
+                triggerVariant="ghost"
+                triggerSize="sm"
+                triggerClassName="mt-2"
+                title={t("doc.refundTitle", locale)}
+                intro={t("doc.refundBody", locale)}
+                facts={[{ label: t("doc.paidSoFar", locale), value: rands(doc.amount_paid_cents) }]}
+                confirmLabel={t("doc.recordRefund", locale)}
+                cancelLabel={t("common.cancel", locale)}
+                closeLabel={t("ui.close", locale)}
+              >
+                <input type="hidden" name="document_id" value={doc.id} />
+                <Field label={t("doc.refundAmount", locale)} htmlFor="refund_amount">
+                  <Input
+                    id="refund_amount"
+                    name="amount"
+                    inputMode="decimal"
+                    required
+                    defaultValue={inCreditCents > 0 ? String(inCreditCents / 100) : ""}
+                  />
+                </Field>
+                <Field label={t("doc.refundPaidOn", locale)} htmlFor="refund_paid_on">
+                  <Input id="refund_paid_on" name="paid_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                </Field>
+                <Field label={t("doc.refundWhy", locale)} htmlFor="refund_note">
+                  <Input id="refund_note" name="note" maxLength={200} />
+                </Field>
+              </ConfirmDialog>
+            </div>
           ) : null}
 
           {isPartner && !canPay ? <p className="text-sm text-sand-500">{t("doc.paymentsUpgrade", locale)}</p> : null}

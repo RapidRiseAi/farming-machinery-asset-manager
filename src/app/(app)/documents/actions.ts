@@ -55,6 +55,7 @@ type DocRow = {
   source: string;
   number: string;
   total_cents: number;
+  amount_paid_cents: number;
   vat_rate_bps: number;
   machine_id: string | null;
   work_request_id: string | null;
@@ -69,7 +70,7 @@ async function loadDoc(
     .from("partner_documents")
     .select(
       "id, farm_id, partner_client_id, corrects_document_id, workshop_id, kind, status, source, " +
-      "number, total_cents, vat_rate_bps, machine_id, work_request_id, subject, due_date, " +
+      "number, total_cents, amount_paid_cents, vat_rate_bps, machine_id, work_request_id, subject, due_date, " +
       "bill_to_name, bill_to_email",
     )
     .eq("id", id)
@@ -791,4 +792,80 @@ export async function reviseDocument(formData: FormData) {
   revalidatePath(`/documents/${id}`);
   revalidatePath("/documents");
   redirect(`/documents/${id}?revised=1`);
+}
+
+/**
+ * Money going BACK to the customer.
+ *
+ * A credit note reduces what they owe; if they had already paid, that leaves them in
+ * credit and the money still has to physically leave. There was no way to record it, so a
+ * customer refunded in full a year ago would show a credit balance on their statement for
+ * ever.
+ *
+ * Stored as a negative `partner_payments` row rather than a fifth document kind, so the
+ * statement's running balance needs no special case and there is one answer to "what
+ * money moved on this account". The DB check constraint (0422) keeps the sign and the
+ * flag agreeing.
+ */
+export async function recordRefund(formData: FormData) {
+  const profile = await requireRole(["workshop"]);
+  const id = String(formData.get("document_id") ?? "");
+  const supabase = await createClient();
+  const doc = await loadDoc(supabase, id);
+  if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
+
+  const gate = await checkWorkshopEntitlement("record_payments", profile);
+  if (!gate.allowed) redirect(`/documents/${id}?error=upgrade`);
+
+  const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
+  if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
+  // The rollup (0423) refuses this too — this is only so the partner reads a sentence
+  // rather than a Postgres exception.
+  if (amount > (doc.amount_paid_cents ?? 0)) redirect(`/documents/${id}?error=refund-too-big`);
+
+  const { error } = await supabase.from("partner_payments").insert({
+    farm_id: doc.farm_id,
+    document_id: id,
+    // Negative: the balance climbs back, which is what actually happened.
+    amount_cents: -amount,
+    is_refund: true,
+    paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10),
+    method: s(formData, "method"),
+    reference: s(formData, "reference"),
+    note: s(formData, "note"),
+    recorded_by: profile.id,
+  });
+
+  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  revalidatePath(`/documents/${id}`);
+  redirect(`/documents/${id}?refunded=1`);
+}
+
+/**
+ * The customer is never going to pay.
+ *
+ * Without this the only ways to clear it were to pretend they paid (a lie in the books)
+ * or to void the invoice (which claims it should never have been issued — also untrue,
+ * the work was done). Both corrupt the record; leaving it corrupts the ageing instead,
+ * with money nobody will ever collect sitting in "60+ days late" for ever and dragging
+ * every total that reads from it.
+ *
+ * Goes through `write_off_document` (0423), which keeps a version like any other change
+ * to an issued document. The invoice stays on the statement at full value and stays in
+ * the farm's cost ledger — the work happened — but stops being outstanding and stops
+ * being chased.
+ */
+export async function writeOffDocument(formData: FormData) {
+  await requireRole(["workshop"]);
+  const id = String(formData.get("document_id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (reason.length < 3) redirect(`/documents/${id}?error=writeoff-reason`);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("write_off_document", { p_document: id, p_reason: reason });
+  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath(`/documents/${id}`);
+  revalidatePath("/documents");
+  redirect(`/documents/${id}?written_off=1`);
 }

@@ -15,13 +15,22 @@
  * Keeping the definition in one SQL function is the fix, not a stylistic preference.
  */
 
-export type StatementKind = "opening" | "invoice" | "credit_note" | "debit_note" | "payment";
+import { t, type Lang } from "@/lib/i18n";
+
+export type StatementKind =
+  | "opening" | "invoice" | "credit_note" | "debit_note" | "payment" | "refund" | "write_off";
 
 export type StatementRow = {
   entry_date: string;
   kind: StatementKind;
   reference: string | null;
-  description: string;
+  /**
+   * The row's own detail and nothing else: a document's subject, a payment's method, null
+   * where there is none. The SENTENCE is composed here, not in SQL — a statement sent to
+   * an Afrikaans farm cannot have half its lines written in English by a Postgres
+   * function, and `kind` already says what each row is.
+   */
+  description: string | null;
   document_id: string | null;
   debit_cents: number;
   credit_cents: number;
@@ -68,9 +77,42 @@ export function statementTotals(rows: readonly StatementRow[]) {
       .filter((r) => r.kind === "invoice" || r.kind === "debit_note")
       .reduce((s, r) => s + r.debit_cents, 0),
     creditedCents: rows.filter((r) => r.kind === "credit_note").reduce((s, r) => s + r.credit_cents, 0),
-    paidCents: rows.filter((r) => r.kind === "payment").reduce((s, r) => s + r.credit_cents, 0),
+    // Refunds are negative payments (0422), so netting them in here keeps "received"
+    // meaning money the partner actually kept — and keeps the four subtotals adding up to
+    // the closing balance, which is the only way a customer can check the page.
+    paidCents: rows
+      .filter((r) => r.kind === "payment" || r.kind === "refund")
+      .reduce((s, r) => s + r.credit_cents, 0),
+    writtenOffCents: rows.filter((r) => r.kind === "write_off").reduce((s, r) => s + r.credit_cents, 0),
     closingCents: closingBalanceCents(rows),
   };
+}
+
+/**
+ * The sentence a statement line reads as, in the reader's language.
+ *
+ * SQL returns what the row IS (`kind`) and its own detail (`description`); the wording is
+ * assembled here so the screen, the PDF, the CSV and the emailed copy all say the same
+ * thing and all say it in Afrikaans when the customer reads Afrikaans.
+ */
+export function statementLabel(row: Pick<StatementRow, "kind" | "description">, locale: Lang): string {
+  const detail = row.description?.trim() || "";
+  switch (row.kind) {
+    case "opening":
+      return t("statement.rowOpening", locale);
+    case "payment":
+      return detail ? `${t("statement.rowPayment", locale)} (${detail})` : t("statement.rowPayment", locale);
+    case "refund":
+      return detail ? `${t("statement.rowRefund", locale)} (${detail})` : t("statement.rowRefund", locale);
+    case "write_off":
+      return t("statement.rowWriteOff", locale);
+    case "credit_note":
+      return detail || t("statement.rowCreditNote", locale);
+    case "debit_note":
+      return detail || t("statement.rowDebitNote", locale);
+    default:
+      return detail || t("statement.rowInvoice", locale);
+  }
 }
 
 /**
