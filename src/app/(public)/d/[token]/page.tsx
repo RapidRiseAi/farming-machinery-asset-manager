@@ -16,6 +16,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { CheckIcon, DownloadIcon } from "@/components/ui/icons";
 import { acceptFromLink, declineFromLink, notifyPaidFromLink } from "./actions";
+import { buildCheckout } from "@/lib/payments";
+import { publicDocumentUrl, siteUrl } from "@/lib/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +67,21 @@ export default async function PublicDocumentPage({
   const isDebit = doc.kind === "debit_note";
   const charging = doc.vat_rate_bps > 0;
   const owed = balanceDueCents(doc);
+
+  // A "pay now" form, when the partner has a provider configured. Built server-side
+  // because the signature must never be computed in the browser: the merchant key would
+  // have to go with it.
+  const checkout = doc.kind === "invoice" && owed > 0
+    ? buildCheckout({
+        paymentId: doc.id,
+        amountCents: owed,
+        itemName: `${brand.name} ${doc.number}`,
+        buyerEmail: doc.bill_to_email,
+        returnUrl: publicDocumentUrl(token) + "?paid=1",
+        cancelUrl: publicDocumentUrl(token),
+        notifyUrl: `${siteUrl()}/api/payments/notify`,
+      })
+    : null;
   const open = isQuote && doc.status === "sent";
   const voided = doc.status === "void";
 
@@ -84,6 +101,10 @@ export default async function PublicDocumentPage({
       <Flash tone="success" message={sp.accepted ? t("pubDoc.acceptedFlash", locale) : undefined} />
       <Flash tone="info" message={sp.declined ? t("pubDoc.declinedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.told ? t("pubDoc.toldFlash", locale) : undefined} />
+      {/* PayFast sends the customer back here. The notification that actually records the
+          money arrives separately and may land a moment later, so this thanks them
+          without claiming the balance has already moved. */}
+      <Flash tone="success" message={sp.paid ? t("pubDoc.paidFlash", locale) : undefined} />
       <Flash tone="warning" message={sp.error === "closed" ? t("pubDoc.closedFlash", locale) : undefined} />
       <Flash tone="warning" message={sp.error === "name" ? t("pubDoc.nameFlash", locale) : undefined} />
 
@@ -160,6 +181,20 @@ export default async function PublicDocumentPage({
       {isInvoice && !voided && owed > 0 ? (
         <section className="rounded-xl border border-sand-200 bg-white p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.howToPay", locale)}</h2>
+
+          {/* Pay it now, if the partner has online payment switched on. First, because a
+              customer who is already looking at the bill is the most likely they will
+              ever be to pay it — the bank details below are for everyone else. */}
+          {checkout ? (
+            <form action={checkout.action} method="post" className="mt-3">
+              {checkout.fields.map(([k, v]) => (
+                <input key={k} type="hidden" name={k} value={v} />
+              ))}
+              <SubmitButton>{t("pubDoc.payNow", locale).replace("{amount}", rands(owed))}</SubmitButton>
+              <p className="mt-1.5 text-xs text-sand-500">{t("pubDoc.payNowHint", locale)}</p>
+            </form>
+          ) : null}
+
           {brand.bank_name ? (
             <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-4 gap-y-1.5 text-sm">
               <dt className="text-sand-500">{t("pubDoc.accountName", locale)}</dt>

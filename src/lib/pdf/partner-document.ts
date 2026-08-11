@@ -2,6 +2,7 @@ import "server-only";
 
 import { Pdf } from "@/lib/pdf/doc";
 import { rands } from "@/lib/money";
+import { resolveLayout } from "@/lib/doc-layout";
 import { vatPercent } from "@/lib/format";
 import { brandingFrom, brandingOf, type Branding } from "@/lib/branding";
 import { brandingLogoBytes } from "@/lib/partner-media";
@@ -71,6 +72,12 @@ export type PdfContext = {
   corrects: { number: string; issue_date: string } | null;
 };
 
+/**
+ * The layout the partner chose, frozen onto the document at send time. The SAME resolver
+ * the screen uses, so a customer who compares the emailed PDF with the page they were
+ * linked to sees the same document — which is the entire point of putting the choices in
+ * one closed set rather than letting each renderer interpret them.
+ */
 const LABEL: Record<DocKind, string> = {
   quote: "Quote",
   invoice: "Invoice",
@@ -89,16 +96,24 @@ export function documentFilename(doc: Pick<PdfDocRow, "kind" | "number">): strin
 export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8Array; brand: Branding }> {
   const { doc, lines, machine, corrects } = ctx;
   const brand = brandingOf(doc.issuer_snapshot as never, brandingFrom(ctx.workshop as never));
+  const layout = resolveLayout(brand.doc_layout);
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
 
-  const label = documentLabel(doc.kind);
+  // The title on the face of the document. A VAT-registered partner's invoice defaults to
+  // "Tax invoice" because under VAT Act s20(4) it has to be headed as one to be a valid
+  // tax invoice, and the customer's accountant will send it back if it is not.
+  // A partner who is not VAT registered issues no VAT line anywhere on the document.
+  // Printing "VAT 0.00" would still assert they charge it — the claim they must not make.
+  const charging = Number(doc.vat_rate_bps) > 0;
+  const label =
+    doc.kind === "quote" ? (layout.quote_title ?? "Quote")
+    : doc.kind === "credit_note" ? (layout.credit_title ?? "Credit note")
+    : doc.kind === "debit_note" ? (layout.debit_title ?? "Debit note")
+    : (layout.invoice_title ?? (charging ? "Tax invoice" : "Invoice"));
   const isInvoice = doc.kind === "invoice";
   const isCredit = doc.kind === "credit_note";
   const isDebit = doc.kind === "debit_note";
   const isNoteKind = isCredit || isDebit;
-  // A partner who is not VAT registered issues no VAT line anywhere on the document.
-  // Printing "VAT 0.00" would still assert they charge it — the claim they must not make.
-  const charging = Number(doc.vat_rate_bps) > 0;
 
   const pdf = await Pdf.create(`${label} ${doc.number}`, {
     name: brand.name,
@@ -121,7 +136,7 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   pdf.heading("From");
   pdf.kv("Business", brand.name);
   if (brand.reg_number) pdf.kv("Registration", brand.reg_number);
-  if (brand.vat_number) pdf.kv("VAT number", brand.vat_number);
+  if (layout.show_vat_number && brand.vat_number) pdf.kv("VAT number", brand.vat_number);
   if (brand.address) pdf.kv("Address", brand.address);
   if (brand.phone) pdf.kv("Phone", brand.phone);
   if (brand.email) pdf.kv("Email", brand.email);
@@ -134,7 +149,7 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   if (doc.bill_to_vat_number) pdf.kv("VAT number", doc.bill_to_vat_number);
   if (doc.bill_to_address) pdf.kv("Address", doc.bill_to_address);
   if (doc.bill_to_email) pdf.kv("Email", doc.bill_to_email);
-  if (machine) pdf.kv("Vehicle", [machine.name, machine.reg_no].filter(Boolean).join(" · "));
+  if (layout.show_vehicle && machine) pdf.kv("Vehicle", [machine.name, machine.reg_no].filter(Boolean).join(" · "));
   if (doc.subject) pdf.kv("Subject", doc.subject);
 
   pdf.heading("Details");
@@ -152,19 +167,32 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   }
 
   if (lines.length > 0) {
-    pdf.heading("Items");
+    pdf.heading(layout.items_label ?? "Items");
+    const headers = [
+      ...(layout.show_line_numbers ? ["#"] : []),
+      "Description",
+      "Qty",
+      ...(layout.show_unit_price ? [charging ? "Unit (ex VAT)" : "Unit"] : []),
+      charging ? "Total (ex VAT)" : "Total",
+    ];
+    const widths = [
+      ...(layout.show_line_numbers ? [24] : []),
+      layout.show_unit_price ? 260 : 340,
+      60,
+      ...(layout.show_unit_price ? [90] : []),
+      90,
+    ];
     pdf.table(
-      charging
-        ? ["Description", "Qty", "Unit (ex VAT)", "Total (ex VAT)"]
-        : ["Description", "Qty", "Unit", "Total"],
-      lines.map((l) => [
+      headers,
+      lines.map((l, i) => [
+        ...(layout.show_line_numbers ? [String(i + 1)] : []),
         l.part_no ? `${l.description} (${l.part_no})` : l.description,
         String(l.qty),
-        rands(l.unit_price_cents),
+        ...(layout.show_unit_price ? [rands(l.unit_price_cents)] : []),
         rands(l.line_total_cents),
       ]),
-      [260, 60, 90, 90],
-      [false, true, true, true],
+      widths,
+      headers.map((_, i) => i >= (layout.show_line_numbers ? 2 : 1)),
     );
   } else if (doc.source === "uploaded") {
     pdf.heading("Items");
@@ -175,13 +203,16 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   pdf.kv(charging ? "Subtotal (ex VAT)" : "Subtotal", rands(doc.subtotal_cents));
   if (doc.discount_cents > 0) pdf.kv("Discount", `-${rands(doc.discount_cents)}`);
   if (charging) pdf.kv(`VAT (${vatPercent(doc.vat_rate_bps)})`, rands(doc.vat_cents));
-  pdf.kv(isCredit ? "Total credited" : isDebit ? "Additional amount due" : "Total", rands(doc.total_cents));
+  pdf.kv(
+    isCredit ? "Total credited" : isDebit ? "Additional amount due" : (layout.total_label ?? "Total"),
+    rands(doc.total_cents),
+  );
   if (isInvoice && doc.amount_paid_cents > 0) {
     pdf.kv("Paid so far", `-${rands(doc.amount_paid_cents)}`);
     pdf.kv("Balance due", rands(balanceDueCents(doc as never)));
   }
 
-  if (isInvoice && brand.bank_name) {
+  if (layout.show_banking && isInvoice && brand.bank_name) {
     pdf.heading("How to pay");
     pdf.kv("Account name", brand.bank_account_name ?? brand.name);
     pdf.kv("Bank", brand.bank_name);
@@ -189,6 +220,15 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
     if (brand.bank_branch_code) pdf.kv("Branch code", brand.bank_branch_code);
     if (brand.bank_account_type) pdf.kv("Account type", brand.bank_account_type);
     pdf.kv("Reference", doc.number);
+  }
+
+  if (layout.show_thanks && layout.thanks_text) {
+    pdf.text(layout.thanks_text);
+  }
+  if (layout.show_signature) {
+    pdf.heading("Signature");
+    pdf.kv("Signed", "____________________________");
+    pdf.kv("Date", "____________________");
   }
 
   if (isNoteKind) {

@@ -11,6 +11,7 @@ import { Field, TextField, TextareaField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { DocumentLayoutForm } from "@/components/partner/document-layout-form";
 import { Badge } from "@/components/ui/badge";
 import { VatRateField } from "@/components/vat-rate-field";
 import { LogoUpload } from "@/components/partner/logo-upload";
@@ -29,7 +30,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 export default async function PartnerSettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; layout?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role !== "workshop") redirect(`${homePathFor(profile.role)}?denied=1`);
@@ -59,6 +60,7 @@ export default async function PartnerSettingsPage({
 
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.layout ? t("layout.savedFlash", locale) : undefined} />
 
       <nav
         aria-label={t("settings.jumpTo", locale)}
@@ -107,6 +109,18 @@ export default async function PartnerSettingsPage({
           </div>
         </div>
       </Card>
+
+      {/* How the document is LAID OUT, as opposed to what colour it is. Directly under the
+          letterhead preview because the two answer the same question — what does the thing
+          I send actually look like — and a partner comparing them wants them together. */}
+      <DocumentLayoutForm
+        locale={locale}
+        current={(workshop as { doc_layout?: unknown } | null)?.doc_layout}
+        brandPrimary={b.brand_primary ?? "#166534"}
+        vatRegistered={workshop?.vat_registered !== false}
+        businessName={b.name}
+      />
+
 
       <LogoUpload
         locale={locale}

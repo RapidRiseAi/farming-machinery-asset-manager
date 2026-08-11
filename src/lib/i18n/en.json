@@ -2047,7 +2047,12 @@
     "refundedFlash": "Refund recorded.",
     "writtenOffFlash": "Written off. It has come off what they owe you.",
     "refundTooBig": "You cannot pay back more than has been paid on this invoice.",
-    "needAmount": "Type how much."
+    "needAmount": "Type how much.",
+    "kindTaxInvoice": "Tax invoice",
+    "kindCreditNote": "Credit note",
+    "kindDebitNote": "Debit note",
+    "signedBy": "Signed",
+    "signedDate": "Date"
   },
   "partnerSettings": {
     "title": "My business",
@@ -2361,7 +2366,10 @@
     "creditExplains": "This credit note takes {amount} off invoice {number}. There is nothing to pay on this document.",
     "download": "Download the PDF",
     "questions": "Questions? Call",
-    "extraDue": "Extra amount due"
+    "extraDue": "Extra amount due",
+    "payNow": "Pay {amount} now",
+    "payNowHint": "Card or instant EFT, through PayFast. You will come back here when you are done.",
+    "paidFlash": "Thank you — we have your payment. It may take a minute to show below."
   },
   "revise": {
     "title": "Change this document",
@@ -2600,5 +2608,41 @@
     "emptyTitle": "No standing invoices yet",
     "emptyBody": "If you bill someone the same amount every month, set it up once here and stop remembering it.",
     "footnote": "These are raised overnight. If one is due today it will go out tonight."
+  },
+  "layout": {
+    "title": "How your documents look",
+    "lead": "The wording and the blocks on every quote and invoice you send. Change it once; it applies to everything from now on.",
+    "namesTitle": "What things are called",
+    "namesBody": "Leave any of these empty to use the normal wording.",
+    "quoteTitle": "A quote is called",
+    "invoiceTitle": "An invoice is called",
+    "invoiceTitleHint": "If you are registered for VAT this needs to say “tax invoice” somewhere, or your customer’s accountant will send it back.",
+    "creditTitle": "A credit note is called",
+    "debitTitle": "A debit note is called",
+    "billToLabel": "The customer block is headed",
+    "itemsLabel": "The items block is headed",
+    "totalLabel": "The total is called",
+    "blocksTitle": "What appears on the page",
+    "showVehicle": "The vehicle it was for",
+    "showVatNumber": "Your VAT number",
+    "showBanking": "Your banking details",
+    "showLineNumbers": "Number each line",
+    "showUnitPrice": "Price per item",
+    "showUnitPriceHint": "Turn this off to show only the line total — some trades prefer it.",
+    "showSignature": "A line to sign on",
+    "showThanks": "A thank-you at the bottom",
+    "thanksText": "What it says",
+    "lookTitle": "How it looks",
+    "density": "Spacing",
+    "densityComfortable": "Roomy",
+    "densityCompact": "Tight — fits more on a page",
+    "accentStyle": "Your colour",
+    "accentBand": "A band across the top",
+    "accentLine": "A thin line",
+    "accentPlain": "No colour",
+    "save": "Save how they look",
+    "savedFlash": "Saved. New documents will use this.",
+    "previewTitle": "What a customer will see",
+    "frozenNote": "Documents you have already sent keep the look they were sent with — changing this cannot restate an old invoice."
   }
 }

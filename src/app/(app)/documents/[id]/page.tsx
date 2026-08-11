@@ -12,6 +12,7 @@ import { shortDate, vatPercent } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
 import { signedBrandingUrl, signedDocUrl } from "@/lib/partner-media";
+import { resolveLayout, documentTitle, cellPadding } from "@/lib/doc-layout";
 import { balanceDueCents, outstandingCents, isEditable, type BillTo, type DocKind, type DocStatus, type DocSource, type DocLine } from "@/lib/partner-docs";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, TextareaField, SelectField } from "@/components/ui/field";
@@ -197,6 +198,9 @@ export default async function DocumentPage({
     doc.issuer_snapshot as never,
     brandingFrom(isPartner ? workshop : { id: shop?.id ?? "", name: shop?.name ?? "", trading_name: shop?.trading_name }),
   );
+  // The layout rides in the same snapshot as the letterhead, so a document sent last
+  // year keeps the shape it was sent with even after the partner redesigns.
+  const layout = resolveLayout(brand.doc_layout);
   const logoUrl = await signedBrandingUrl(brand.logo_path ?? null);
   const fileUrl = await signedDocUrl(doc.upload_path);
 
@@ -209,7 +213,9 @@ export default async function DocumentPage({
     .filter((c) => c.status !== "draft" && c.status !== "void")
     .reduce((s, c) => s + c.total_cents, 0);
   const primary = brand.brand_primary ?? "#166534";
-  const kindLabel = t(doc.kind === "invoice" ? "doc.kindInvoice" : "doc.kindQuote", locale);
+  const vatRegistered = doc.vat_rate_bps > 0;
+  const kindLabel = documentTitle(doc.kind, layout, locale, vatRegistered);
+  const cell = cellPadding(layout.density);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -232,21 +238,43 @@ export default async function DocumentPage({
 
       {/* ── The document ─────────────────────────────────────────── */}
       <article className="overflow-hidden rounded-xl border border-sand-200 bg-white shadow-soft print:border-0 print:shadow-none">
-        <header className="flex flex-wrap items-center gap-3 px-4 py-4" style={{ backgroundColor: primary, color: onBrand(primary) }}>
+        <header
+          className={
+            layout.accent_style === "band"
+              ? "flex flex-wrap items-center gap-3 px-4 py-4"
+              : layout.accent_style === "line"
+                ? "flex flex-wrap items-center gap-3 border-t-4 bg-white px-4 py-4"
+                : "flex flex-wrap items-center gap-3 border-b border-sand-200 bg-white px-4 py-4"
+          }
+          style={
+            layout.accent_style === "band"
+              ? { backgroundColor: primary, color: onBrand(primary) }
+              : layout.accent_style === "line"
+                ? { borderTopColor: primary }
+                : undefined
+          }
+        >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- a signed Storage URL, not a static asset
             <img src={logoUrl} alt="" className="h-11 w-11 rounded bg-white/90 object-contain p-0.5" />
           ) : null}
           <div className="min-w-0">
-            <p className="truncate text-lg font-bold">{brand.name}</p>
-            <p className="truncate text-xs opacity-90">
-              {[brand.reg_number, brand.vat_number ? `${t("partnerSettings.vatNo", locale)} ${brand.vat_number}` : null]
+            <p className={`truncate text-lg font-bold ${layout.accent_style === "band" ? "" : "text-sand-900"}`}>{brand.name}</p>
+            <p className={`truncate text-xs ${layout.accent_style === "band" ? "opacity-90" : "text-sand-600"}`}>
+              {[
+                brand.reg_number,
+                layout.show_vat_number && brand.vat_number
+                  ? `${t("partnerSettings.vatNo", locale)} ${brand.vat_number}`
+                  : null,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
           </div>
-          <div className="ml-auto text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide opacity-90">{kindLabel}</p>
+          <div className={`ml-auto text-right ${layout.accent_style === "band" ? "" : "text-sand-900"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${layout.accent_style === "band" ? "opacity-90" : "text-sand-500"}`}>
+              {kindLabel}
+            </p>
             <p className="font-mono text-lg font-bold tabular-nums">{doc.number}</p>
             {/* Part of a bigger job: say so on the document itself, or the customer
                 reads a R7 500 invoice for a R15 000 job and rings up confused. */}
@@ -260,9 +288,11 @@ export default async function DocumentPage({
 
         <div className="grid gap-4 px-4 py-4 sm:grid-cols-2">
           <div className="text-sm">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">{t("doc.billTo", locale)}</p>
-            <p className="font-medium text-sand-900">{farm?.name}</p>
-            {machine ? (
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">
+              {layout.bill_to_label ?? t("doc.billTo", locale)}
+            </p>
+            <p className="font-medium text-sand-900">{doc.bill_to_name || farm?.name}</p>
+            {layout.show_vehicle && machine ? (
               <p className="text-sand-600">
                 {machine.name}
                 {machine.reg_no ? ` · ${machine.reg_no}` : ""}
@@ -297,23 +327,31 @@ export default async function DocumentPage({
             <table className="w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="border-b border-sand-100 text-left text-xs uppercase tracking-wide text-sand-500">
-                  <th className="px-4 py-2 font-semibold">{t("doc.lineDescription", locale)}</th>
-                  <th className="px-2 py-2 text-right font-semibold">{t("doc.lineQty", locale)}</th>
-                  <th className="px-2 py-2 text-right font-semibold">{t("doc.lineUnit", locale)}</th>
-                  <th className="px-4 py-2 text-right font-semibold">{t("doc.lineTotal", locale)}</th>
+                  {layout.show_line_numbers ? <th className={`${cell} font-semibold`}>#</th> : null}
+                  <th className={`${cell} font-semibold`}>{layout.items_label ?? t("doc.lineDescription", locale)}</th>
+                  <th className={`${cell} text-right font-semibold`}>{t("doc.lineQty", locale)}</th>
+                  {layout.show_unit_price ? (
+                    <th className={`${cell} text-right font-semibold`}>{t("doc.lineUnit", locale)}</th>
+                  ) : null}
+                  <th className={`${cell} text-right font-semibold`}>{t("doc.lineTotal", locale)}</th>
                   {editable ? <th className="px-2 py-2"><span className="sr-only">{t("common.remove", locale)}</span></th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand-50">
-                {lines.map((l) => (
+                {lines.map((l, i) => (
                   <tr key={l.id}>
-                    <td className="px-4 py-2">
+                    {layout.show_line_numbers ? (
+                      <td className={`${cell} tabular-nums text-sand-500`}>{i + 1}</td>
+                    ) : null}
+                    <td className={cell}>
                       <span className="text-sand-900">{l.description}</span>
                       {l.part_no ? <span className="block text-xs text-sand-500">{l.part_no}</span> : null}
                     </td>
-                    <td className="px-2 py-2 text-right tabular-nums text-sand-700">{l.qty}</td>
-                    <td className="px-2 py-2 text-right tabular-nums text-sand-700">{rands(l.unit_price_cents)}</td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums text-sand-900">{rands(l.line_total_cents)}</td>
+                    <td className={`${cell} text-right tabular-nums text-sand-700`}>{l.qty}</td>
+                    {layout.show_unit_price ? (
+                      <td className={`${cell} text-right tabular-nums text-sand-700`}>{rands(l.unit_price_cents)}</td>
+                    ) : null}
+                    <td className={`${cell} text-right font-medium tabular-nums text-sand-900`}>{rands(l.line_total_cents)}</td>
                     {editable ? (
                       <td className="px-2 py-2 text-right">
                         <ConfirmDialog
@@ -363,7 +401,9 @@ export default async function DocumentPage({
                 <dd className="text-right tabular-nums text-sand-800">{rands(doc.vat_cents)}</dd>
               </>
             ) : null}
-            <dt className="mt-1 border-t border-sand-200 pt-1 font-semibold text-sand-900">{t("doc.total", locale)}</dt>
+            <dt className="mt-1 border-t border-sand-200 pt-1 font-semibold text-sand-900">
+              {layout.total_label ?? t("doc.total", locale)}
+            </dt>
             <dd className="mt-1 border-t border-sand-200 pt-1 text-right text-lg font-bold tabular-nums text-sand-900">
               {rands(doc.total_cents)}
             </dd>
@@ -378,10 +418,11 @@ export default async function DocumentPage({
           </dl>
         </div>
 
-        {(doc.notes || brand.bank_name || doc.terms || brand.footer) && (
+        {(doc.notes || (layout.show_banking && brand.bank_name) || doc.terms || brand.footer
+          || (layout.show_thanks && layout.thanks_text) || layout.show_signature) && (
           <footer className="flex flex-col gap-3 border-t border-sand-100 bg-sand-50/60 px-4 py-4 text-sm">
             {doc.notes ? <p className="whitespace-pre-line text-sand-700">{doc.notes}</p> : null}
-            {doc.kind === "invoice" && brand.bank_name ? (
+            {layout.show_banking && doc.kind === "invoice" && brand.bank_name ? (
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">{t("doc.howToPay", locale)}</p>
                 <p className="text-sand-700">
@@ -395,6 +436,15 @@ export default async function DocumentPage({
               </div>
             ) : null}
             {doc.terms ? <p className="whitespace-pre-line text-xs text-sand-500">{doc.terms}</p> : null}
+            {layout.show_thanks && layout.thanks_text ? (
+              <p className="text-sm font-medium text-sand-700">{layout.thanks_text}</p>
+            ) : null}
+            {layout.show_signature ? (
+              <div className="mt-2 flex flex-wrap gap-8 text-xs text-sand-500">
+                <span className="min-w-[12rem] border-t border-sand-300 pt-1">{t("doc.signedBy", locale)}</span>
+                <span className="min-w-[8rem] border-t border-sand-300 pt-1">{t("doc.signedDate", locale)}</span>
+              </div>
+            ) : null}
             {brand.footer ? <p className="text-xs text-sand-400">{brand.footer}</p> : null}
           </footer>
         )}

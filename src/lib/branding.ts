@@ -19,7 +19,8 @@ export const BRANDING_COLUMNS =
   "id, name, trading_name, reg_number, vat_number, address, phone, whatsapp, email, website, " +
   "bank_name, bank_account_name, bank_account_number, bank_branch_code, bank_account_type, " +
   "logo_path, brand_primary, brand_secondary, show_powered_by, doc_prefix_quote, doc_prefix_invoice, " +
-  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, vat_registered, doc_terms, doc_footer, doc_prefix_credit";
+  "quote_validity_days, invoice_terms_days, default_vat_rate_bps, vat_registered, doc_terms, doc_footer, doc_prefix_credit, " +
+  "doc_layout";
 
 export type WorkshopBrandingRow = {
   id: string;
@@ -52,6 +53,8 @@ export type WorkshopBrandingRow = {
   vat_registered?: boolean | null;
   doc_terms?: string | null;
   doc_footer?: string | null;
+  /** How documents are laid out (G9). Opaque here; `resolveLayout` gives it shape. */
+  doc_layout?: unknown;
 };
 
 export type Branding = Required<Pick<IssuerSnapshot, "name">> & IssuerSnapshot & {
@@ -82,6 +85,9 @@ export function brandingFrom(w: WorkshopBrandingRow | null | undefined): Brandin
     logo_path: w?.logo_path ?? null,
     terms: w?.doc_terms ?? null,
     footer: w?.doc_footer ?? null,
+    // Frozen onto a document at send time along with the rest of the letterhead, so a
+    // partner who redesigns next year cannot restate last year's invoice.
+    doc_layout: w?.doc_layout ?? null,
     show_powered_by: w?.show_powered_by ?? true,
     quoteValidityDays: w?.quote_validity_days ?? 14,
     invoiceTermsDays: w?.invoice_terms_days ?? 30,

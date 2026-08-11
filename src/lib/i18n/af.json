@@ -2047,7 +2047,12 @@
     "refundedFlash": "Terugbetaling aangeteken.",
     "writtenOffFlash": "Afgeskryf. Dit is af van wat hulle jou skuld.",
     "refundTooBig": "Jy kan nie meer terugbetaal as wat op hierdie faktuur betaal is nie.",
-    "needAmount": "Tik in hoeveel."
+    "needAmount": "Tik in hoeveel.",
+    "kindTaxInvoice": "Belastingfaktuur",
+    "kindCreditNote": "Kredietnota",
+    "kindDebitNote": "Debietnota",
+    "signedBy": "Geteken",
+    "signedDate": "Datum"
   },
   "partnerSettings": {
     "title": "My besigheid",
@@ -2361,7 +2366,10 @@
     "creditExplains": "Hierdie kredietnota haal {amount} af van faktuur {number}. Daar is niks op hierdie dokument om te betaal nie.",
     "download": "Laai die PDF af",
     "questions": "Vrae? Bel",
-    "extraDue": "Ekstra bedrag verskuldig"
+    "extraDue": "Ekstra bedrag verskuldig",
+    "payNow": "Betaal {amount} nou",
+    "payNowHint": "Kaart of kitsEFT, deur PayFast. Jy kom hierheen terug wanneer jy klaar is.",
+    "paidFlash": "Dankie — ons het jou betaling. Dit kan ’n minuut neem om hieronder te wys."
   },
   "revise": {
     "title": "Verander hierdie dokument",
@@ -2600,5 +2608,41 @@
     "emptyTitle": "Nog geen staande fakture nie",
     "emptyBody": "As jy iemand elke maand dieselfde bedrag faktureer, stel dit een keer hier op en hou op om dit te onthou.",
     "footnote": "Hierdie word snags geskep. As een vandag verskuldig is, gaan dit vanaand uit."
+  },
+  "layout": {
+    "title": "Hoe jou dokumente lyk",
+    "lead": "Die bewoording en die blokke op elke kwotasie en faktuur wat jy stuur. Verander dit een keer; dit geld van nou af vir alles.",
+    "namesTitle": "Wat dinge genoem word",
+    "namesBody": "Los enige van hierdie leeg om die gewone bewoording te gebruik.",
+    "quoteTitle": "’n Kwotasie word genoem",
+    "invoiceTitle": "’n Faktuur word genoem",
+    "invoiceTitleHint": "As jy vir BTW geregistreer is moet dit êrens “belastingfaktuur” sê, anders stuur jou klant se rekenmeester dit terug.",
+    "creditTitle": "’n Kredietnota word genoem",
+    "debitTitle": "’n Debietnota word genoem",
+    "billToLabel": "Die klantblok se opskrif is",
+    "itemsLabel": "Die itemsblok se opskrif is",
+    "totalLabel": "Die totaal word genoem",
+    "blocksTitle": "Wat op die bladsy verskyn",
+    "showVehicle": "Die voertuig waarvoor dit was",
+    "showVatNumber": "Jou BTW-nommer",
+    "showBanking": "Jou bankbesonderhede",
+    "showLineNumbers": "Nommer elke reël",
+    "showUnitPrice": "Prys per item",
+    "showUnitPriceHint": "Skakel dit af om net die reëltotaal te wys — sommige ambagte verkies dit.",
+    "showSignature": "’n Streep om op te teken",
+    "showThanks": "’n Dankie onderaan",
+    "thanksText": "Wat dit sê",
+    "lookTitle": "Hoe dit lyk",
+    "density": "Spasiëring",
+    "densityComfortable": "Ruim",
+    "densityCompact": "Dig — pas meer op ’n bladsy",
+    "accentStyle": "Jou kleur",
+    "accentBand": "’n Band oor die bokant",
+    "accentLine": "’n Dun streep",
+    "accentPlain": "Geen kleur",
+    "save": "Stoor hoe hulle lyk",
+    "savedFlash": "Gestoor. Nuwe dokumente sal dit gebruik.",
+    "previewTitle": "Wat ’n klant sal sien",
+    "frozenNote": "Dokumente wat jy reeds gestuur het behou die voorkoms waarmee hulle gestuur is — dit verander kan nie ’n ou faktuur herstel nie."
   }
 }

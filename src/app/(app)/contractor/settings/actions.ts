@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
 import { normaliseHex, DEFAULT_BRAND_PRIMARY, DEFAULT_BRAND_SECONDARY } from "@/lib/branding";
 import { percentToBps } from "@/lib/format";
+import { LAYOUT_SWITCHES } from "@/lib/doc-layout";
 
 /**
  * A partner maintaining its own business profile and letterhead (F14a).
@@ -117,4 +118,44 @@ export async function removePartnerLogo() {
   await supabase.from("workshops").update({ logo_path: null }).eq("id", profile.workshop_id);
   revalidatePath("/contractor/settings");
   redirect("/contractor/settings?saved=1");
+}
+
+/**
+ * How this partner's documents are laid out (G9).
+ *
+ * Goes through `update_document_layout`, which takes the workshop from the SESSION rather
+ * than from an argument — so there is no id to tamper with and a partner cannot restyle
+ * somebody else's documents. It merges rather than replaces, so a screen that offers
+ * fifteen settings cannot wipe a sixteenth added later.
+ *
+ * Checkboxes are the awkward part of an HTML form: an unticked box posts nothing at all,
+ * which is indistinguishable from "not offered". Every switch is therefore sent
+ * explicitly as true or false from the known list, so unticking one actually turns it off
+ * instead of silently falling back to the default.
+ */
+export async function updateDocumentLayout(formData: FormData) {
+  await requireRole(["workshop"]);
+
+  const patch: Record<string, unknown> = {};
+  for (const key of LAYOUT_SWITCHES) patch[key] = formData.get(key) != null;
+
+  for (const key of [
+    "quote_title", "invoice_title", "credit_title", "debit_title",
+    "bill_to_label", "items_label", "total_label", "thanks_text",
+  ]) {
+    patch[key] = String(formData.get(key) ?? "").trim();
+  }
+
+  const density = String(formData.get("density") ?? "comfortable");
+  patch.density = density === "compact" ? "compact" : "comfortable";
+  const accent = String(formData.get("accent_style") ?? "band");
+  patch.accent_style = accent === "line" || accent === "plain" ? accent : "band";
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_document_layout", { p_patch: patch });
+  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath("/contractor/settings");
+  revalidatePath("/documents");
+  redirect("/contractor/settings?layout=1");
 }

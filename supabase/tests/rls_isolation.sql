@@ -5420,3 +5420,173 @@ end $$;
 reset role;
 
 select 'ALL G8 STANDING-INVOICE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G9 — DOCUMENT LAYOUT (0434)
+-- ═════════════════════════════════════════════════════════════════
+-- The layout is display, not money, so the claims are narrower — but two of them still
+-- matter. A partner must not be able to restyle another partner's documents (their
+-- documents are their identity to their customers), and the stored value must be a
+-- closed set, because both the screen and the PDF have to understand every key. A typo
+-- that stores silently is a setting the partner believes they changed and did not.
+
+-- ── (a) The guard refuses a key neither renderer knows ───────────────────────
+do $$ declare ok boolean := false; begin
+  begin
+    update workshops set doc_layout = '{"make_it_fancy": true}'::jsonb
+     where id = '62100000-0000-0000-0000-000000000001';
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G9 FAIL: an unknown layout setting was stored — the partner would think it applied';
+  end if;
+end $$;
+
+-- … and a bad value for a known key ──────────────────────────────────────────
+do $$ declare ok boolean := false; begin
+  begin
+    update workshops set doc_layout = '{"density": "enormous"}'::jsonb
+     where id = '62100000-0000-0000-0000-000000000001';
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G9 FAIL: an invalid density was stored'; end if;
+end $$;
+
+-- ── (b) A real setting is stored, and merged rather than replaced ────────────
+set role authenticated;
+do $$ declare v jsonb; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+  perform public.update_document_layout('{"invoice_title": "Tax Invoice", "density": "compact"}'::jsonb);
+  perform public.update_document_layout('{"show_banking": false}'::jsonb);
+
+  select doc_layout into v from workshops where id = '62100000-0000-0000-0000-000000000001';
+  if v->>'invoice_title' <> 'Tax Invoice' then
+    raise exception 'G9 FAIL: the second save wiped the first (invoice_title is %)', v->>'invoice_title';
+  end if;
+  if v->>'density' <> 'compact' then raise exception 'G9 FAIL: density did not stick'; end if;
+  if (v->>'show_banking')::boolean then raise exception 'G9 FAIL: show_banking did not stick'; end if;
+end $$;
+
+-- ── (c) A partner cannot restyle somebody else's documents ───────────────────
+-- The RPC takes the workshop from the SESSION, so there is no id to tamper with. This
+-- proves the other half: Workshop W calling it changes W's own row and not Z's.
+do $$ declare v_z jsonb; v_w jsonb; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  perform public.update_document_layout('{"invoice_title": "W was here"}'::jsonb);
+
+  select doc_layout into v_z from workshops where id = '62100000-0000-0000-0000-000000000001';
+  if v_z->>'invoice_title' = 'W was here' then
+    raise exception 'G9 FAIL [CROSS-PARTNER]: another workshop restyled Z''s documents';
+  end if;
+
+  select doc_layout into v_w from workshops where id = app.user_workshop_id();
+  if v_w->>'invoice_title' <> 'W was here' then
+    raise exception 'G9 FAIL: a partner could not change its OWN layout';
+  end if;
+end $$;
+
+-- ── (d) A farm user has no layout to change ──────────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
+  begin
+    perform public.update_document_layout('{"invoice_title": "Farm was here"}'::jsonb);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G9 FAIL: a farm user changed a document layout'; end if;
+end $$;
+reset role;
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform public.update_document_layout('{}'::jsonb);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G9 FAIL: anon changed a document layout'; end if;
+end $$;
+reset role;
+
+select 'ALL G9 DOCUMENT-LAYOUT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G10 — ONLINE PAYMENT (0435)
+-- ═════════════════════════════════════════════════════════════════
+-- A payment provider calls back to say money arrived, and EVERY provider worth using
+-- retries that callback until it gets a clean response. So the load-bearing property is
+-- not that a payment can be recorded — it is that the same one cannot be recorded twice.
+--
+-- The defence is a unique index rather than a "have I seen this?" check in the route,
+-- because application logic loses the race: two retries arriving together both look,
+-- both see nothing, and both insert. A unique index is decided by the database.
+
+-- ── (a) The same provider reference cannot land twice ────────────────────────
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, provider, provider_ref)
+values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
+        100000, current_date, 'card', 'payfast', 'pf-abc-123');
+
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, provider, provider_ref)
+    values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
+            100000, current_date, 'card', 'payfast', 'pf-abc-123');
+  exception when unique_violation then ok := true; end;
+  if not ok then
+    raise exception 'G10 FAIL [DOUBLE CREDIT]: a retried payment notification credited the invoice twice';
+  end if;
+end $$;
+
+-- … and the invoice was credited exactly once.
+do $$ declare c bigint; begin
+  select count(*) into c from partner_payments
+   where provider = 'payfast' and provider_ref = 'pf-abc-123' and deleted_at is null;
+  if c <> 1 then raise exception 'G10 FAIL: % payments exist for one provider reference', c; end if;
+end $$;
+
+-- ── (b) Hand-recorded payments are unaffected ────────────────────────────────
+-- The index is partial for exactly this reason: two cash payments of the same amount on
+-- the same day are ordinary, and must both be allowed.
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
+values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002', 5000, current_date, 'cash');
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
+values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002', 5000, current_date, 'cash');
+do $$ declare c bigint; begin
+  select count(*) into c from partner_payments
+   where document_id = '68000000-0000-0000-0000-000000000002' and method = 'cash' and deleted_at is null;
+  if c <> 2 then raise exception 'G10 FAIL: two identical cash payments collapsed to %', c; end if;
+end $$;
+
+-- ── (c) A half-recorded payment is refused ───────────────────────────────────
+-- A reference with no provider (or the reverse) is how a reconciliation goes wrong six
+-- months later, when nobody can say where a payment came from.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_payments (farm_id, document_id, amount_cents, paid_on, provider_ref)
+    values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
+            1000, current_date, 'orphan-ref');
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G10 FAIL: a provider reference was stored with no provider'; end if;
+end $$;
+
+-- ── (d) A different reference is a different payment ─────────────────────────
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, provider, provider_ref)
+values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
+        2000, current_date, 'card', 'payfast', 'pf-abc-124');
+do $$ declare c bigint; begin
+  select count(*) into c from partner_payments
+   where provider = 'payfast' and document_id = '68000000-0000-0000-0000-000000000002' and deleted_at is null;
+  if c <> 2 then raise exception 'G10 FAIL: a genuinely new payment was refused (% on file)', c; end if;
+end $$;
+
+-- ── (e) The farm still cannot see another farm's payments ────────────────────
+-- Nothing about adding a provider column loosens who may read a payment.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');        -- Farm B owner
+  select count(*) into c from partner_payments where provider = 'payfast';
+  if c <> 0 then raise exception 'G10 FAIL [CROSS-TENANT]: another farm read % card payments', c; end if;
+end $$;
+reset role;
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from partner_payments; exception when others then ok := true; end;
+  if not ok then raise exception 'G10 FAIL: anon read the payments table'; end if;
+end $$;
+reset role;
+
+select 'ALL G10 ONLINE-PAYMENT TESTS PASSED' as result;

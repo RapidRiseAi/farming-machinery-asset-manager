@@ -112,6 +112,8 @@ export type IssuerSnapshot = {
   terms?: string | null;
   footer?: string | null;
   show_powered_by?: boolean;
+  /** The layout chosen when this document was issued (G9, `lib/doc-layout`). */
+  doc_layout?: unknown;
 };
 
 // ── Totals, mirroring the 0381 triggers ────────────────────────────
