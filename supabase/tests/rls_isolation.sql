@@ -5061,3 +5061,362 @@ end $$;
 reset role;
 
 select 'ALL G6 PURCHASE & VAT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G7 — BILLING A JOB IN STAGES (0432)
+-- ═════════════════════════════════════════════════════════════════
+-- A deposit and a progress payment are the same act to a ledger: an invoice for PART of
+-- an agreed job. The claim under test is the one that makes that shape safe — three
+-- invoices against one quote put their OWN amounts into the farm's costs and nothing
+-- more, because nothing is netted anywhere.
+--
+-- The failure this guards against is the one every "deposit feature" eventually has: a
+-- deposit that is also deducted from the final invoice, so the money is counted once as
+-- a deposit and once as a deduction, and the cost ledger disagrees with the statement.
+
+-- A R10 000 ex-VAT quote (R11 500 incl) for Farm S from Workshop Z.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values ('68000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'quote', 'draft', 'built', 'ZSQ-0001',
+        current_date - 240, 1500, 'Farm S');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('68000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        1, 'labour', 'Full engine rebuild', 1, 1000000);
+update partner_documents set status = 'accepted' where id = '68000000-0000-0000-0000-000000000001';
+
+-- ── (a) Nothing billed yet ───────────────────────────────────────────────────
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if b.quoted_cents <> 1150000 then raise exception 'G7 FAIL: the quote reads % (expected 1150000 incl VAT)', b.quoted_cents; end if;
+  if b.billed_cents <> 0 or b.remaining_cents <> 1150000 then
+    raise exception 'G7 FAIL: a quote with no invoices says % billed / % remaining', b.billed_cents, b.remaining_cents;
+  end if;
+end $$;
+reset role;
+
+-- ── (b) A draft stage is not billed ──────────────────────────────────────────
+-- A draft has not left the building. Counting it would tell a partner they had asked for
+-- money they have not asked for.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
+                               vat_rate_bps, bill_to_name, quote_id, billing_stage, stage_label)
+values ('68000000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZSI-0001',
+        current_date - 239, 1500, 'Farm S', '68000000-0000-0000-0000-000000000001', 'deposit', '50% deposit');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('68000000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001', 1, 'other', '50% deposit', 1, 500000);
+
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if b.billed_cents <> 0 then raise exception 'G7 FAIL: a DRAFT stage counted as billed (%)', b.billed_cents; end if;
+  if b.draft_cents <> 575000 then raise exception 'G7 FAIL: the draft is reported as % (expected 575000)', b.draft_cents; end if;
+end $$;
+reset role;
+
+-- ── (c) Send it, and it counts ───────────────────────────────────────────────
+update partner_documents set status = 'sent', sent_at = now() where id = '68000000-0000-0000-0000-000000000002';
+
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if b.billed_cents <> 575000 or b.remaining_cents <> 575000 then
+    raise exception 'G7 FAIL: after a 50%% deposit the quote says % billed / % remaining', b.billed_cents, b.remaining_cents;
+  end if;
+end $$;
+reset role;
+
+-- ── (d) The balance, and NO DOUBLE COUNTING in the farm's ledger ─────────────
+-- The whole reason for this shape. Each stage carries its own lines and its own cost
+-- entry; there is no "less deposit previously invoiced" line to get wrong.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
+                               vat_rate_bps, bill_to_name, quote_id, billing_stage, stage_label)
+values ('68000000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZSI-0002',
+        current_date - 200, 1500, 'Farm S', '68000000-0000-0000-0000-000000000001', 'final', 'Balance on completion');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('68000000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001', 1, 'other', 'Balance', 1, 500000);
+update partner_documents set status = 'sent', sent_at = now() where id = '68000000-0000-0000-0000-000000000003';
+
+do $$ declare v_ledger bigint; begin
+  select coalesce(sum(amount_cents), 0) into v_ledger from cost_entries
+   where source_type = 'partner_document'
+     and source_id in ('68000000-0000-0000-0000-000000000002', '68000000-0000-0000-0000-000000000003')
+     and deleted_at is null;
+  if v_ledger <> 1000000 then
+    raise exception 'G7 FAIL [DOUBLE COUNT]: two stages of a R10 000 job put % into the farm''s costs', v_ledger;
+  end if;
+  -- and the quote itself never books a cost, because a quote is not money owed
+  if exists (select 1 from cost_entries where source_type = 'partner_document'
+              and source_id = '68000000-0000-0000-0000-000000000001' and deleted_at is null) then
+    raise exception 'G7 FAIL: the QUOTE was costed as well as the invoices raised against it';
+  end if;
+end $$;
+
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if b.billed_cents <> 1150000 or b.remaining_cents <> 0 then
+    raise exception 'G7 FAIL: fully billed quote says % billed / % remaining', b.billed_cents, b.remaining_cents;
+  end if;
+  if b.over_billed then raise exception 'G7 FAIL: billing exactly the quote was flagged as over-billing'; end if;
+  if b.invoice_count <> 2 then raise exception 'G7 FAIL: % stage invoices counted (expected 2)', b.invoice_count; end if;
+end $$;
+reset role;
+
+-- ── (e) Both stages appear on the statement, in their own right ──────────────
+do $$ declare c bigint; v_charged bigint; begin
+  select count(*), coalesce(sum(debit_cents), 0) into c, v_charged
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 260, current_date - 190)
+   where document_id in ('68000000-0000-0000-0000-000000000002', '68000000-0000-0000-0000-000000000003');
+  if c <> 2 then raise exception 'G7 FAIL: % of the 2 stage invoices reached the statement', c; end if;
+  if v_charged <> 1150000 then
+    raise exception 'G7 FAIL: the statement charges % for a R11 500 job billed in two halves', v_charged;
+  end if;
+end $$;
+
+-- ── (f) Over-billing is flagged, not refused ─────────────────────────────────
+-- Jobs grow. Refusing the invoice would push the partner outside the system, which is
+-- worse than a number in orange.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
+                               vat_rate_bps, bill_to_name, quote_id, billing_stage)
+values ('68000000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZSI-0003',
+        current_date - 195, 1500, 'Farm S', '68000000-0000-0000-0000-000000000001', 'progress');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('68000000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001', 1, 'other', 'Extra work found', 1, 200000);
+update partner_documents set status = 'sent', sent_at = now() where id = '68000000-0000-0000-0000-000000000004';
+
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if not b.over_billed then
+    raise exception 'G7 FAIL: billing % against a % quote was not flagged', b.billed_cents, b.quoted_cents;
+  end if;
+  if b.remaining_cents <> 0 then
+    raise exception 'G7 FAIL: over-billed remaining went negative (%) instead of flooring at zero', b.remaining_cents;
+  end if;
+end $$;
+
+-- ── (g) A stage must belong to a quote, and only an invoice can be one ───────
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_documents (farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name, billing_stage)
+    values ('62000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+            'invoice', 'draft', 'built', 'ZSI-9999', current_date, 'Farm S', 'deposit');
+  exception when check_violation then ok := true; end;
+  if not ok then raise exception 'G7 FAIL: an invoice was marked a deposit with no job to be a deposit for'; end if;
+end $$;
+reset role;
+
+-- ── (h) The other farm sees none of it ───────────────────────────────────────
+set role authenticated;
+do $$ declare b record; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');        -- Farm B owner
+  select * into b from app.quote_billing('68000000-0000-0000-0000-000000000001');
+  if coalesce(b.quoted_cents, 0) <> 0 or coalesce(b.billed_cents, 0) <> 0 then
+    raise exception 'G7 FAIL [CROSS-TENANT]: another farm read the billing state of Farm S''s job';
+  end if;
+end $$;
+reset role;
+
+select 'ALL G7 STAGE-BILLING TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G8 — STANDING INVOICES (0433)
+-- ═════════════════════════════════════════════════════════════════
+-- The whole point of a schedule is that it runs when nobody is watching, which makes two
+-- things load-bearing: it must be impossible to bill a customer twice for the same month,
+-- and a partner must not be able to point a schedule at somebody else's business.
+--
+-- Double-billing is the failure that matters. A cron can fire twice, a night can fail
+-- half-way and be retried, and a partner can press "raise it now" on a schedule that has
+-- already run. All three go through the same generator, so all three are tested here.
+
+insert into recurring_invoices (id, workshop_id, farm_id, name, subject, cadence,
+                                next_issue_date, vat_rate_bps, created_by)
+values ('69000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+        '62000000-0000-0000-0000-000000000001', 'Monthly service contract',
+        'Service contract', 'monthly', current_date - 150, 1500,
+        '62200000-0000-0000-0000-000000000001');
+
+insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind, description, qty, unit_price_cents)
+values ('69000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+        0, 'other', 'Monthly service contract', 1, 300000);
+
+-- ── (a) It raises exactly one invoice ────────────────────────────────────────
+do $$ declare v_made int; c bigint; begin
+  select app.generate_recurring_invoices('69000000-0000-0000-0000-000000000001') into v_made;
+  if v_made <> 1 then raise exception 'G8 FAIL: the generator raised % invoices (expected 1)', v_made; end if;
+
+  select count(*) into c from partner_documents
+   where workshop_id = '62100000-0000-0000-0000-000000000001'
+     and issue_date = current_date - 150 and kind = 'invoice' and deleted_at is null;
+  if c <> 1 then raise exception 'G8 FAIL: % invoices exist for the first period', c; end if;
+end $$;
+
+-- … as a DRAFT, because nothing should reach a customer nobody has looked at …
+do $$ declare st text; v_total bigint; begin
+  select d.status::text, d.total_cents into st, v_total
+    from partner_documents d
+    join recurring_invoices r on r.last_document_id = d.id
+   where r.id = '69000000-0000-0000-0000-000000000001';
+  if st <> 'draft' then
+    raise exception 'G8 FAIL: a schedule with auto_send off produced a % invoice', st;
+  end if;
+  if v_total <> 345000 then
+    raise exception 'G8 FAIL: the generated invoice totals % (expected 345000 incl VAT)', v_total;
+  end if;
+end $$;
+
+-- … and the schedule moved on by exactly one month.
+do $$ declare v_next date; v_last date; begin
+  select next_issue_date, last_period_start into v_next, v_last
+    from recurring_invoices where id = '69000000-0000-0000-0000-000000000001';
+  if v_last <> current_date - 150 then
+    raise exception 'G8 FAIL: last_period_start is % (expected the period just raised)', v_last;
+  end if;
+  if v_next <> (current_date - 150 + interval '1 month')::date then
+    raise exception 'G8 FAIL: next_issue_date is % (expected one month on)', v_next;
+  end if;
+end $$;
+
+-- ── (b) THE ONE THAT MATTERS: it cannot bill the same period twice ───────────
+-- The generator is re-run against the SAME period by forcing the date back, which is what
+-- a retry after a half-finished night looks like from the database's point of view.
+update recurring_invoices set next_issue_date = last_period_start
+ where id = '69000000-0000-0000-0000-000000000001';
+
+do $$ declare v_made int; c bigint; begin
+  select app.generate_recurring_invoices('69000000-0000-0000-0000-000000000001') into v_made;
+  if v_made <> 0 then
+    raise exception 'G8 FAIL [DOUBLE BILL]: re-running the same period raised % more invoices', v_made;
+  end if;
+  select count(*) into c from partner_documents
+   where workshop_id = '62100000-0000-0000-0000-000000000001'
+     and issue_date = current_date - 150 and kind = 'invoice' and deleted_at is null;
+  if c <> 1 then
+    raise exception 'G8 FAIL [DOUBLE BILL]: % invoices now exist for one month', c;
+  end if;
+end $$;
+
+-- And the skipped run still moved the date on, so the schedule is not stuck for ever.
+do $$ declare v_next date; begin
+  select next_issue_date into v_next from recurring_invoices where id = '69000000-0000-0000-0000-000000000001';
+  if v_next <= current_date - 150 then
+    raise exception 'G8 FAIL: a skipped run left the schedule stuck on %', v_next;
+  end if;
+end $$;
+
+-- ── (c) A schedule with no lines raises nothing ──────────────────────────────
+-- Better than a R0,00 invoice arriving at a customer every month.
+insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date, created_by)
+values ('69000000-0000-0000-0000-000000000002', '62100000-0000-0000-0000-000000000001',
+        '62000000-0000-0000-0000-000000000001', 'Empty schedule', 'monthly', current_date - 5,
+        '62200000-0000-0000-0000-000000000001');
+do $$ declare v_made int; begin
+  select app.generate_recurring_invoices('69000000-0000-0000-0000-000000000002') into v_made;
+  if v_made <> 0 then raise exception 'G8 FAIL: a schedule with no lines raised % invoices', v_made; end if;
+end $$;
+
+-- ── (d) auto_send produces a SENT invoice, and it is costed ──────────────────
+insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
+                                vat_rate_bps, auto_send, created_by)
+values ('69000000-0000-0000-0000-000000000003', '62100000-0000-0000-0000-000000000001',
+        '62000000-0000-0000-0000-000000000001', 'Auto retainer', 'monthly', current_date - 3,
+        1500, true, '62200000-0000-0000-0000-000000000001');
+insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind, description, qty, unit_price_cents)
+values ('69000000-0000-0000-0000-000000000003', '62100000-0000-0000-0000-000000000001',
+        0, 'other', 'Retainer', 1, 100000);
+
+do $$ declare st text; v_doc uuid; v_cost bigint; begin
+  perform app.generate_recurring_invoices('69000000-0000-0000-0000-000000000003');
+  select last_document_id into v_doc from recurring_invoices where id = '69000000-0000-0000-0000-000000000003';
+  select status::text into st from partner_documents where id = v_doc;
+  if st <> 'sent' then raise exception 'G8 FAIL: auto_send produced a % invoice', st; end if;
+
+  -- A generated invoice is an ordinary invoice: it reaches the farm's cost ledger like
+  -- any other, through the same 0418 trigger.
+  select amount_cents into v_cost from cost_entries
+   where source_type = 'partner_document' and source_id = v_doc and deleted_at is null;
+  if coalesce(v_cost, 0) <> 100000 then
+    raise exception 'G8 FAIL: a generated invoice booked % to the farm''s costs (expected 100000 ex VAT)', v_cost;
+  end if;
+end $$;
+
+-- ── (e) It stops at its end date ─────────────────────────────────────────────
+insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
+                                ends_on, vat_rate_bps, created_by)
+values ('69000000-0000-0000-0000-000000000004', '62100000-0000-0000-0000-000000000001',
+        '62000000-0000-0000-0000-000000000001', 'Ends soon', 'monthly', current_date - 2,
+        current_date, 1500, '62200000-0000-0000-0000-000000000001');
+insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind, description, qty, unit_price_cents)
+values ('69000000-0000-0000-0000-000000000004', '62100000-0000-0000-0000-000000000001', 0, 'other', 'Last one', 1, 50000);
+
+do $$ declare v_active boolean; begin
+  perform app.generate_recurring_invoices('69000000-0000-0000-0000-000000000004');
+  select active into v_active from recurring_invoices where id = '69000000-0000-0000-0000-000000000004';
+  if v_active then
+    raise exception 'G8 FAIL: a schedule past its end date is still active and will bill for ever';
+  end if;
+end $$;
+
+-- ── (f) A partner cannot reach another partner's schedules ───────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  select count(*) into c from recurring_invoices;
+  if c <> 0 then raise exception 'G8 FAIL [CROSS-PARTNER]: another workshop read % schedules', c; end if;
+end $$;
+
+-- … nor run one, which is the dangerous half: the generator underneath is SECURITY
+-- DEFINER, so the ownership check has to live in the RPC rather than in RLS.
+do $$ declare ok boolean := false; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  begin
+    perform public.run_recurring_invoice('69000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege or no_data_found then ok := true; end;
+  if not ok then
+    raise exception 'G8 FAIL [PRIVILEGE]: another workshop raised an invoice from Z''s schedule';
+  end if;
+end $$;
+
+-- … and the farm being billed cannot read or run it either.
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
+  select count(*) into c from recurring_invoices;
+  if c <> 0 then raise exception 'G8 FAIL: the farm being billed read % of its contractor''s schedules', c; end if;
+end $$;
+
+-- ── (g) The generator itself is not callable from a session ──────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin perform app.generate_recurring_invoices(null);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G8 FAIL: a signed-in user ran the generator directly, bypassing the ownership check';
+  end if;
+end $$;
+reset role;
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from recurring_invoices; exception when others then ok := true; end;
+  if not ok then raise exception 'G8 FAIL: anon read the schedules'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.run_recurring_invoice('69000000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G8 FAIL: anon raised an invoice'; end if;
+end $$;
+reset role;
+
+select 'ALL G8 STANDING-INVOICE TESTS PASSED' as result;

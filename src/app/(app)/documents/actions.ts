@@ -432,6 +432,105 @@ export async function convertQuoteToInvoice(formData: FormData) {
   redirect(`/documents/${invoiceId}?converted=1`);
 }
 
+/**
+ * Bill PART of a quote: a deposit up front, a stage as work proceeds, or the balance.
+ *
+ * A deposit and a progress payment are the same thing to a ledger — an invoice for part
+ * of an agreed job — so there is one action rather than two features that drift apart.
+ * The invoice it raises is an ordinary invoice: its own number, its own single line, its
+ * own cost entry through the existing 0418 trigger, its own row on the statement. Nothing
+ * is netted anywhere, which is precisely why three stages of a R15 000 job can never add
+ * up to more than R15 000 in the farm's costs.
+ *
+ * It is raised as a DRAFT. The partner reads it, adds anything the stage needs, and sends
+ * it — the same as every other document here. `app.quote_billing` deliberately does not
+ * count a draft as billed for that reason.
+ */
+export async function billQuoteStage(formData: FormData) {
+  const profile = await requireRole(["workshop"]);
+  const gate = await checkWorkshopEntitlement("build_documents", profile);
+  if (!gate.allowed) redirect("/documents?error=upgrade");
+
+  const quoteId = String(formData.get("document_id") ?? "");
+  const supabase = await createClient();
+  const quote = await loadDoc(supabase, quoteId);
+  if (!quote || quote.kind !== "quote") redirect("/documents?error=not-found");
+
+  const stageRaw = String(formData.get("billing_stage") ?? "progress");
+  const stage: "deposit" | "progress" | "final" =
+    stageRaw === "deposit" || stageRaw === "final" ? stageRaw : "progress";
+
+  // Either a percentage of the quote or a typed amount. Percent is what a partner
+  // actually says out loud ("fifty percent up front"), so it is offered first — but the
+  // amount is what gets stored, because a percentage of a quote that is later revised
+  // would silently restate an invoice that has already gone out.
+  const rateBps = quote.vat_rate_bps ?? 1500;
+  const percent = Number.parseFloat(String(formData.get("percent") ?? ""));
+  const typedIncl = parseRandsToCents(String(formData.get("amount") ?? ""));
+
+  let inclCents: number | null = null;
+  if (typedIncl != null && typedIncl > 0) inclCents = typedIncl;
+  else if (Number.isFinite(percent) && percent > 0) {
+    inclCents = Math.round((quote.total_cents * percent) / 100);
+  }
+  if (inclCents == null || inclCents <= 0) redirect(`/documents/${quoteId}?error=need-amount`);
+
+  const { workshop } = await currentWorkshop(profile);
+  const branding = brandingFrom(workshop);
+
+  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+    p_workshop: quote.workshop_id,
+    p_kind: "invoice",
+  });
+  if (numErr) redirect(`/documents/${quoteId}?error=${encodeURIComponent(numErr.message)}`);
+
+  const label = s(formData, "stage_label");
+  const { data: created, error } = await supabase
+    .from("partner_documents")
+    .insert({
+      farm_id: quote.farm_id,
+      partner_client_id: quote.partner_client_id,
+      workshop_id: quote.workshop_id,
+      machine_id: quote.machine_id,
+      work_request_id: quote.work_request_id,
+      quote_id: quote.id,
+      kind: "invoice",
+      status: "draft",
+      source: "built",
+      billing_stage: stage,
+      stage_label: label,
+      number: String(numData),
+      subject: quote.subject,
+      terms: branding.terms,
+      vat_rate_bps: rateBps,
+      issue_date: new Date().toISOString().slice(0, 10),
+      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, branding.invoiceTermsDays),
+      created_by: profile.id,
+    })
+    .select("id")
+    .single();
+  if (error) redirect(`/documents/${quoteId}?error=${encodeURIComponent(error.message)}`);
+
+  const invoiceId = (created as { id: string }).id;
+
+  // One line, describing the stage. The amount was chosen VAT-inclusive (it is the number
+  // the customer was promised), and lines are stored ex-VAT like everywhere else.
+  await supabase.from("partner_document_lines").insert({
+    farm_id: quote.farm_id,
+    document_id: invoiceId,
+    sort_order: 0,
+    kind: "other",
+    description: label || quote.subject || String(numData),
+    qty: 1,
+    unit_price_cents: exVatCents(inclCents, rateBps),
+    discount_cents: 0,
+  });
+
+  revalidatePath(`/documents/${quoteId}`);
+  revalidatePath("/documents");
+  redirect(`/documents/${invoiceId}?staged=1`);
+}
+
 // ── The farmer's side ────────────────────────────────────────────────────────
 
 /** Accept a quote. The partner sees it immediately; no money moves until they invoice. */

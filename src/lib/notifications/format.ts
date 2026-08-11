@@ -120,6 +120,12 @@ export function formatNotification(
       return fill("notifications.tplInvoiceOverduePartner", locale, {
         number: String(p.number ?? ""), customer: String(p.customer ?? ""), amount: rands(p.amount as number),
       });
+    // A standing invoice was raised overnight (G8). A draft nobody knows about is the
+    // same as no invoice at all, so the schedule tells the partner it fired.
+    case "recurring_raised":
+      return fill("notifications.tplRecurringRaised", locale, {
+        schedule: String(p.schedule ?? ""), number: String(p.number ?? ""),
+      });
     // Answers from the customer's emailed link (G2). The partner is not watching the
     // screen when someone accepts at 9pm, which is exactly why these exist.
     case "quote_accepted_partner":

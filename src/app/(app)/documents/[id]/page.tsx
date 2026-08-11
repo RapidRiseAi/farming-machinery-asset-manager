@@ -29,6 +29,7 @@ import {
   removePayment, deleteDraft, recordRefund,
 } from "../actions";
 import { DeclineQuote } from "@/components/partner/decline-quote";
+import { BillInStages, type QuoteBilling } from "@/components/documents/bill-in-stages";
 
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
@@ -46,6 +47,7 @@ type Doc = BillTo & {
   id: string; farm_id: string | null; partner_client_id: string | null;
   corrects_document_id: string | null; void_reason: string | null; revision: number;
   written_off_reason: string | null;
+  billing_stage: "deposit" | "progress" | "final" | null; stage_label: string | null;
   workshop_id: string; machine_id: string | null;
   work_request_id: string | null; quote_id: string | null;
   kind: DocKind; status: DocStatus; source: DocSource; number: string; subject: string | null;
@@ -173,6 +175,16 @@ export default async function DocumentPage({
     editor_name: r.edited_by ? (editorName.get(r.edited_by) ?? null) : null,
   }));
 
+  // How much of this job has been billed. Asked for a QUOTE (so the partner can bill the
+  // next stage) and for an invoice that is part of one (so both sides can see where this
+  // invoice sits in the job) — `app.quote_billing` is SECURITY INVOKER, so each side gets
+  // the answer built from the documents they are allowed to see.
+  const billingOf = doc.kind === "quote" ? doc.id : doc.quote_id;
+  const { data: billingData } = billingOf
+    ? await supabase.rpc("quote_billing", { p_quote: billingOf })
+    : { data: null };
+  const billing = (((billingData ?? []) as QuoteBilling[])[0] ?? null);
+
   const isPartner = profile.role === "workshop";
   const isFarmDecider = profile.role === "owner" || profile.role === "manager";
   const { workshop, plan } = await currentWorkshop(profile);
@@ -213,6 +225,7 @@ export default async function DocumentPage({
       <Flash tone="success" message={sp.sent ? t("doc.sentFlash", locale) : undefined} />
       <Flash tone="success" message={sp.accepted ? t("doc.acceptedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.converted ? t("doc.convertedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.staged ? t("stage.createdFlash", locale) : undefined} />
       <Flash tone="success" message={sp.revised ? t("revise.savedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.refunded ? t("doc.refundedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.written_off ? t("doc.writtenOffFlash", locale) : undefined} />
@@ -235,6 +248,13 @@ export default async function DocumentPage({
           <div className="ml-auto text-right">
             <p className="text-xs font-semibold uppercase tracking-wide opacity-90">{kindLabel}</p>
             <p className="font-mono text-lg font-bold tabular-nums">{doc.number}</p>
+            {/* Part of a bigger job: say so on the document itself, or the customer
+                reads a R7 500 invoice for a R15 000 job and rings up confused. */}
+            {doc.billing_stage ? (
+              <p className="text-xs opacity-90">
+                {doc.stage_label || t(`stage.kind${doc.billing_stage === "deposit" ? "Deposit" : doc.billing_stage === "final" ? "Final" : "Progress"}`, locale)}
+              </p>
+            ) : null}
           </div>
         </header>
 
@@ -510,6 +530,35 @@ export default async function DocumentPage({
           revision={doc.revision ?? 1}
           locale={locale}
         />
+      ) : null}
+
+      {/* Billing a job in stages. Offered on a quote the customer has agreed to — a
+          deposit before work starts is the commonest case, and the reason a workshop
+          asks for one is that they are about to buy parts. */}
+      {isPartner && canBuild && doc.kind === "quote" && billing
+        && (doc.status === "accepted" || doc.status === "sent") ? (
+        <BillInStages documentId={doc.id} billing={billing} locale={locale} />
+      ) : null}
+
+      {/* And on a stage invoice, where this one sits in the whole job. */}
+      {doc.billing_stage && billing ? (
+        <Card>
+          <CardHeader><CardTitle>{t("stage.partOfTitle", locale)}</CardTitle></CardHeader>
+          <p className="text-sm text-sand-600">{t("stage.partOfBody", locale)}</p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:max-w-sm">
+            <dt className="text-sand-600">{t("stage.quoted", locale)}</dt>
+            <dd className="text-right tabular-nums text-sand-900">{rands(billing.quoted_cents)}</dd>
+            <dt className="text-sand-600">{t("stage.billed", locale)}</dt>
+            <dd className="text-right tabular-nums text-sand-900">{rands(billing.billed_cents)}</dd>
+            <dt className="font-medium text-sand-800">{t("stage.remaining", locale)}</dt>
+            <dd className="text-right font-semibold tabular-nums text-sand-900">{rands(billing.remaining_cents)}</dd>
+          </dl>
+          {doc.quote_id ? (
+            <Link href={`/documents/${doc.quote_id}`} className="focus-ring mt-3 self-start rounded text-sm text-brand-700 underline-offset-2 hover:underline">
+              {t("stage.viewQuote", locale)}
+            </Link>
+          ) : null}
+        </Card>
       ) : null}
 
       <RevisionHistory revisions={revisions} locale={locale} />
