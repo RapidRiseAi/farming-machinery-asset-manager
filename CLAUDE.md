@@ -999,4 +999,68 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     layout) — the current customisation is letterhead + colours + terms + numbering +
     per-document editing; and the email layer, still the biggest gap against AutoVault.
 
+- **FleetWise G1–G5 — the commercial layer made correct** (migrations `0403–0404`,
+  `0410–0423`; merged as PRs #13/#15/#16; isolation-tested, `db:test` green; every
+  migration applied to the demo project and driven live):
+  - **Two P1 security fixes first.** `0403` closed four side doors (a user could read
+    another user's `notifications`; Storage object visibility was not farm-resolved; the
+    VAT guard sorted BEFORE the totals trigger so a stale form could still issue VAT;
+    `wl_upd` matched zero rows and reported success). `0404` closed a **privilege
+    escalation**: any signed-in user could `update users set role='rr_admin'` on
+    themselves and read every tenant — reachable in production via
+    `PATCH /rest/v1/users?id=eq.<self>`. `users_scope_ck` blocked the naive shape, which
+    is why it never showed on a policy read.
+  - **Who a document is FOR** (`0410`): billing identity on `farms` + `partner_clients`;
+    `partner_documents.farm_id` nullable + `partner_client_id`; eight `bill_to_*` columns
+    seeded by trigger and then editable, so a customer who moves premises next year cannot
+    silently restate last year's invoice. Three recipient kinds — a linked FleetWise farm,
+    a client from the partner's own book, or a **one-time customer typed straight onto the
+    document** (a walk-in job should not require filing a customer before you can bill it).
+  - **Correcting a mistake** — the thing AutoVault has no answer for (its route
+    hard-DELETEs invoices). Four ways to be wrong, four different answers: delete a draft;
+    **void** with a reason (it should not exist); a **credit note** (`0411–0412`,
+    `0415`) or a **debit note** (`0416`, `0418`) for the amount; and — the founder's
+    call, correctly — **edit the document in place** (`0417`, `0419`). The old version
+    prefills the form, is snapshotted into `partner_document_revisions` (document + lines)
+    with a reason, the new version replaces it, and `revision` links them. The guarantee
+    moved from "cannot change" to "cannot change without leaving a complete record":
+    freeze triggers refuse every other route, and `0420` makes the history **append-only**
+    (grants revoked + a trigger that raises, rr_admin included; measured first — DELETE
+    ran silently at 0 rows, which is default-deny, not an audit trail) and refuses to
+    revise a **draft**, which is the one path that could have taken versions with it.
+  - **Statements** (`0413`, `0421`), because a monthly-account farmer pays off a
+    statement, not invoices. `app.partner_statement` / `app.partner_ageing` in SQL so the
+    screen, PDF, CSV and emailed copy cannot disagree. **All six AutoVault statement
+    faults fixed**: it had no opening balance, found credits by regex over free text,
+    showed payments only once fully paid, INVENTED a payment at full value when paid with
+    no amount, inflated the invoice debit by its own credit notes and then counted them
+    again, and put quotes on a statement of account.
+  - **Refunds and write-offs** (`0422–0423`), both found by walking the standard
+    financial-control checklist. A refund is a **negative payment** (sign enforced by
+    constraint; the rollup refuses refunding more than was ever paid), so a customer
+    refunded a year ago stops sitting in credit for ever. A **write-off** goes through the
+    same correction machinery (reason + kept version): it stays on the statement at full
+    value AND posts its own credit line so the account **nets to zero**, leaves the ageing,
+    stops being chased, and **stays in the farm's cost ledger** — not paying a bill does
+    not undo the work. It survives payments moving underneath it (only full settlement
+    reopens it) — caught by the isolation suite, which found that deleting a payment row
+    put a written-off invoice back into the ageing.
+  - **Email** (`0414`, Resend via a thin fetch, env-gated on `RESEND_API_KEY`/`EMAIL_FROM`):
+    documents and statements go out as branded PDFs; every attempt logged, failures
+    included, because a bounce nobody sees leaves the partner believing the customer was
+    told. Plus a **customer-facing `/d/[token]` link** (zero anon DB), quote **expiry**,
+    and overdue/expiring **reminders** on the nightly cron.
+  - App: `/statements` (customer picker, period, ageing, send), `/documents/corrections`
+    (every change ever made to a document that had already gone out), revise + version
+    history + credit/debit/void/write-off/refund on the document page, and the statement's
+    row wording moved **out of SQL into `lib/statement.ts`** — a statement posted to an
+    Afrikaans farm was having half its lines written in English by a Postgres function.
+  - `rls_isolation.sql` gains **G2–G5**. i18n EN/AF at parity (**2,211 leaf keys**).
+    Gates green; shared first-load JS flat at **102 kB**.
+  - **Known gaps, in order of who is blocked**: no **VAT-return (output VAT) report** for
+    a period — a real blocker for a VAT-registered partner at filing time; no
+    purchase/expense side (this is sales-only); no deposits, progress/milestone billing,
+    recurring invoices, or online payment; no document **template builder** (customisation
+    is letterhead + colours + terms + numbering + per-document editing).
+
 > Update this "current status" block at the end of every session.
