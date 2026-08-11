@@ -100,6 +100,10 @@ export default async function AppLayout({
   // Every change made to a document after it went out. Its own section, because "has
   // anyone been quietly moving numbers" is a question you ask without a document in mind.
   const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "documents" };
+  // The books' other half (G6): what the partner BOUGHT, and what that means at filing
+  // time. Partner-only — a farm never sees its contractor's purchases.
+  const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "parts" };
+  const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "reports" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
   // A partner's own client book (F15) — their whole customer list, not only the farms
   // that happened to find them.
@@ -123,7 +127,7 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, expenses, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -154,7 +158,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, corrections] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, expenses, vat, corrections] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]

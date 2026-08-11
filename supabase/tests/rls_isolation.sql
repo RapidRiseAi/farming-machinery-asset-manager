@@ -4879,3 +4879,185 @@ do $$ declare v_status text; begin
 end $$;
 
 select 'ALL G5 REFUND & WRITE-OFF TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════
+-- G6 — THE PURCHASE SIDE AND THE VAT RETURN (0430–0431)
+-- ═════════════════════════════════════════════════════════════════
+-- Two claims. First, a partner's purchases are the partner's: not the farms they work
+-- for, not another contractor, nobody. A farm being able to read what its contractor pays
+-- its suppliers would hand over the contractor's margin on every job, which is exactly
+-- the class of leak F16 was built to close — so the new table gets the same treatment
+-- from the start rather than being tightened later.
+--
+-- Second, the VAT return has to be arithmetic somebody can be audited on: output VAT on
+-- the invoice basis, credit notes subtracting, drafts and voids absent, and input VAT
+-- only where it may actually be claimed.
+
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  -- Workshop Z's own purchases, inside the period. The G6 window is a quiet stretch of the
+  -- calendar nothing else in this suite uses, so the arithmetic below states its own
+  -- inputs rather than inheriting every document G2–G5 happened to leave lying around.
+  ('66000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
+   'Bearing Supplies', 'parts', current_date - 276, 200000, 1500, 30000, true),
+  -- Claimed VAT it may NOT claim (entertainment) — must be excluded from input VAT
+  ('66000000-0000-0000-0000-000000000002', '62100000-0000-0000-0000-000000000001',
+   'Steakhouse', 'other', current_date - 275, 100000, 1500, 15000, false),
+  -- Outside the period entirely
+  ('66000000-0000-0000-0000-000000000003', '62100000-0000-0000-0000-000000000001',
+   'Old Supplier', 'parts', current_date - 400, 500000, 1500, 75000, true);
+
+-- ── (a) A farm cannot read its contractor's purchases ────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
+  select count(*) into c from partner_expenses;
+  if c <> 0 then
+    raise exception 'G6 FAIL [MARGIN LEAK]: a farm read % of its contractor''s supplier invoices', c;
+  end if;
+end $$;
+
+-- ── (b) Nor can another contractor ───────────────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  select count(*) into c from partner_expenses;
+  if c <> 0 then raise exception 'G6 FAIL [COMPETITOR]: another workshop read % purchase rows', c; end if;
+end $$;
+
+-- ── (c) And a contractor cannot write into somebody else's books ─────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  begin
+    insert into partner_expenses (workshop_id, supplier_name, expense_date, amount_cents)
+    values ('62100000-0000-0000-0000-000000000001', 'Planted', current_date, 100000);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G6 FAIL: a workshop wrote an expense into another workshop''s books'; end if;
+end $$;
+
+-- ── (d) The owner sees exactly its own ───────────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+  select count(*) into c from partner_expenses;
+  if c <> 3 then raise exception 'G6 FAIL: Workshop Z sees % of its own 3 purchases', c; end if;
+end $$;
+reset role;
+
+-- ── (e) Anon reaches nothing, and cannot run the return ──────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from partner_expenses; exception when others then ok := true; end;
+  if not ok then raise exception 'G6 FAIL: anon read the purchase ledger'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_vat_return(null, current_date, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G6 FAIL: anon ran the VAT return'; end if;
+end $$;
+reset role;
+
+-- ── (f) The arithmetic ───────────────────────────────────────────────────────
+-- Built from scratch for this section so the assertion states its own inputs: two
+-- invoices, a credit note against one, a draft that must not count, and a voided one.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values
+  ('67000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+   '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZV-0001', current_date - 280, 1500, 'Farm S'),
+  ('67000000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001',
+   '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZV-0002', current_date - 279, 1500, 'Farm S'),
+  ('67000000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001',
+   '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ZV-0003', current_date - 278, 1500, 'Farm S');
+
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values
+  ('67000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 1, 'labour', 'Job one',   1, 1000000),
+  ('67000000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001', 1, 'labour', 'Job two',   1,  400000),
+  ('67000000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001', 1, 'labour', 'Never sent',1,  900000);
+
+-- Two are issued; ZV-0003 stays a DRAFT and must be invisible to the return.
+update partner_documents set status = 'sent', sent_at = now()
+ where id in ('67000000-0000-0000-0000-000000000001', '67000000-0000-0000-0000-000000000002');
+
+-- A credit note against the first, for R1 000 ex-VAT.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
+                               vat_rate_bps, bill_to_name, corrects_document_id)
+values ('67000000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001',
+        '62100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'ZCN-0001',
+        current_date - 277, 1500, 'Farm S', '67000000-0000-0000-0000-000000000001');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('67000000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001', 1, 'other', 'Overcharged', 1, 100000);
+update partner_documents set status = 'sent' where id = '67000000-0000-0000-0000-000000000004';
+
+set role authenticated;
+do $$
+declare v record; v_expected_output bigint;
+begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select * into v from app.partner_vat_return(
+    '62100000-0000-0000-0000-000000000001', current_date - 300, current_date - 250);
+
+  -- Sales at the standard rate: R10 000 + R4 000 ex-VAT. The DRAFT is not a supply.
+  if v.standard_ex_cents <> 1400000 then
+    raise exception 'G6 FAIL: standard-rated sales are % (expected 1400000 — a draft or a void has been counted)', v.standard_ex_cents;
+  end if;
+
+  -- Output VAT: 15% of (10 000 + 4 000 − 1 000) = R1 950.
+  v_expected_output := 195000;
+  if v.output_vat_cents <> v_expected_output then
+    raise exception 'G6 FAIL: output VAT is % (expected % — the credit note must SUBTRACT)',
+      v.output_vat_cents, v_expected_output;
+  end if;
+  if v.credits_ex_cents <> 100000 then
+    raise exception 'G6 FAIL: credit notes total % (expected 100000)', v.credits_ex_cents;
+  end if;
+
+  -- Input VAT: only the claimable purchase inside the window. The steakhouse is blocked,
+  -- the year-old invoice is out of period.
+  if v.input_vat_cents <> 30000 then
+    raise exception 'G6 FAIL: input VAT is % (expected 30000 — blocked or out-of-period VAT has been claimed)', v.input_vat_cents;
+  end if;
+  if v.blocked_vat_cents <> 15000 then
+    raise exception 'G6 FAIL: blocked VAT is % (expected 15000, shown but not claimed)', v.blocked_vat_cents;
+  end if;
+
+  -- And the answer.
+  if v.net_vat_cents <> 195000 - 30000 then
+    raise exception 'G6 FAIL: net VAT is % (expected %)', v.net_vat_cents, 195000 - 30000;
+  end if;
+end $$;
+
+-- ── (g) Another partner's return is not readable through the same function ───
+-- SECURITY INVOKER, so RLS answers: a workshop passing somebody else's id gets zeroes
+-- rather than their turnover.
+do $$ declare v record; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  select * into v from app.partner_vat_return(
+    '62100000-0000-0000-0000-000000000001', current_date - 300, current_date - 250);
+  if coalesce(v.output_vat_cents, 0) <> 0 or coalesce(v.input_vat_cents, 0) <> 0 then
+    raise exception 'G6 FAIL [CROSS-PARTNER]: another workshop read Z''s VAT position (output %, input %)',
+      v.output_vat_cents, v.input_vat_cents;
+  end if;
+end $$;
+reset role;
+
+-- ── (h) A written-off invoice still declared its VAT ─────────────────────────
+-- The supply happened. Bad-debt relief is a separate claim (s22), so the return reports
+-- the amount rather than quietly removing it.
+set role authenticated;
+do $$ declare v record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  perform public.write_off_document('67000000-0000-0000-0000-000000000002', 'Customer disappeared');
+  select * into v from app.partner_vat_return(
+    '62100000-0000-0000-0000-000000000001', current_date - 300, current_date - 250);
+  if v.output_vat_cents <> 195000 then
+    raise exception 'G6 FAIL: writing an invoice off changed the VAT declared (now %) — the supply still happened', v.output_vat_cents;
+  end if;
+  if v.written_off_vat_cents <> 60000 then
+    raise exception 'G6 FAIL: written-off VAT reported as % (expected 60000, so a s22 claim can be raised knowingly)',
+      v.written_off_vat_cents;
+  end if;
+end $$;
+reset role;
+
+select 'ALL G6 PURCHASE & VAT TESTS PASSED' as result;
