@@ -23,13 +23,24 @@ const NNBSP = " ";
  */
 export function num(value: number | null | undefined, maxFractionDigits = 1): string {
   if (value == null || !Number.isFinite(value)) return "—";
+
+  // Written out rather than delegated to `toLocaleString("en-ZA")`, for the reason set
+  // out in `lib/money.ts`: a runtime with trimmed ICU data silently answers in en-US, so
+  // the same number renders "184 320,5" on one side and "184,320.5" on the other. The
+  // conventions this file exists to enforce cannot depend on the runtime's locale tables.
   const whole = Math.abs(value % 1) < 1e-9;
-  return value
-    .toLocaleString("en-ZA", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: whole ? 0 : maxFractionDigits,
-    })
-    .replace(/,/g, NNBSP);
+  const digits = whole ? 0 : maxFractionDigits;
+  const fixed = Math.abs(value).toFixed(digits);
+  const [intPart, frac] = fixed.split(".");
+
+  let grouped = "";
+  for (let i = 0; i < intPart.length; i++) {
+    if (i > 0 && (intPart.length - i) % 3 === 0) grouped += NNBSP;
+    grouped += intPart[i];
+  }
+
+  const sign = value < 0 ? "-" : "";
+  return frac ? `${sign}${grouped},${frac}` : `${sign}${grouped}`;
 }
 
 /**
