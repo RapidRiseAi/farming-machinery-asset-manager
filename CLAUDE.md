@@ -1063,4 +1063,66 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     recurring invoices, or online payment; no document **template builder** (customisation
     is letterhead + colours + terms + numbering + per-document editing).
 
+- **FleetWise G6–G10 — the financial manager completed** (migrations `0430–0435`;
+  isolation-tested, `db:test` green; every migration applied to the demo project and
+  driven live):
+  - **The purchase side** (`0430`). Everything before this was SALES. `partner_expenses`
+    — supplier, their invoice number and date, category, ex-VAT cents with the supplier's
+    OWN VAT amount captured alongside (a source document's VAT line is what may legally be
+    claimed), and a `vat_claimable` flag for the VAT Act s17(2) blocks (entertainment,
+    passenger vehicles, club fees). WORKSHOP-scoped like the client book: a farm reading
+    what its contractor pays its suppliers would hand over their margin on every job.
+    Capture form is a client component solely so the inclusive split shows live —
+    R1 150,00 off a till slip becomes "R1 000,00 + R150,00" before you press anything.
+  - **VAT return** (`0431`) — the gap most likely to send a partner back to a spreadsheet.
+    `app.partner_vat_return`: output VAT (invoices + debit notes adding, credit notes
+    subtracting, drafts/voids absent) less input VAT, on the **INVOICE BASIS** (time of
+    supply = issue date, s9(1)) with that said in words on the screen. Real SARS **VAT
+    periods** offered rather than a free range (`workshops.vat_category` A/B/monthly), because
+    the wrong pair double-counts one month and omits another. A **written-off** invoice
+    still declared its VAT — s22 bad-debt relief is a separate claim, so the return
+    reports the amount and points at it rather than quietly making it. Screen + CSV (with
+    every document and expense behind the figure) + PDF on the letterhead.
+  - **Deposits and progress billing** (`0432`) — one mechanism, because a deposit and a
+    progress payment are the same act to a ledger: an invoice for PART of an agreed job.
+    Many invoices may point at one quote; `app.quote_billing` keeps it honest. Each stage
+    carries its OWN lines and its own cost entry — **no netting, no deduction field**, so
+    three invoices of R5 000 against a R15 000 quote put exactly R15 000 into the farm's
+    ledger (asserted). Over-billing is flagged, not refused: jobs grow.
+  - **Standing invoices** (`0433`) — the failure is forgetting, not mis-billing. Cadence +
+    next date + lines; the nightly cron raises real documents. Generates a **DRAFT** by
+    default (`auto_send` off), and **cannot run twice for the same period**
+    (`last_period_start` is the idempotency key — a double-fired cron, a retry, and the
+    partner's "raise it now" all go through it). Month arithmetic in its own function on
+    both sides, checked against Postgres on 12 cases incl. leap years.
+  - **Document layout** (`0434`) — not a designer: a closed set of choices (what things are
+    CALLED, which blocks appear, density, accent style) applied identically by screen and
+    PDF, with a DB trigger refusing unknown keys and a live miniature preview. A
+    VAT-registered partner's invoice defaults to **"Tax invoice"** because s20(4) requires
+    it to be headed as one. Frozen into `issuer_snapshot` with the letterhead.
+  - **Online payment** (`0435`, PayFast, env-gated) — signature computed SERVER-side,
+    checkout POSTed as a form (never a signed query string), and the callback believed only
+    when the signature recomputes, the amount matches OUR record, and PayFast confirms the
+    payload. A retried callback cannot credit twice: unique index on
+    `(provider, provider_ref)`, not a check in the route. Signature verified against
+    PayFast's own worked example, byte for byte. **The ITN itself is untested** — it needs
+    live credentials and a real payment.
+  - **A defect the browser found**: `toLocaleString("en-ZA")` gives "2 242,50" in Node and
+    "2,242.50" in Chrome (trimmed ICU falls back to en-US). Every server-rendered amount
+    and every client-rendered one disagreed, and any client component showing money
+    hydrated with different text — React #418, which throws the server HTML away. `rands`
+    and `num` are now written out by hand; verified on 18 cases and re-measured in the
+    browser.
+  - Also fixed this session: **every ConfirmDialog in the product was unreachable by
+    keyboard** (the focus-trap selector matched `input[type=hidden]`, so focus stayed on
+    the trigger outside the portal and Escape never reached the handler); initial focus now
+    lands on the first field, never the destructive button. And the write-off dialog named
+    `total − paid`, ignoring credit notes already raised.
+  - `rls_isolation.sql` gains **G6–G10**. i18n EN/AF at parity (**2,454 leaf keys**). Gates
+    green; shared first-load JS flat at **102 kB**.
+  - **Still missing**: deposits/progress/recurring/VAT/expenses/layout/payments are now
+    built, so the remaining gaps are narrower — no bank-feed import or reconciliation, no
+    multi-currency, no payroll, and the PayFast callback is unexercised until credentials
+    exist.
+
 > Update this "current status" block at the end of every session.
