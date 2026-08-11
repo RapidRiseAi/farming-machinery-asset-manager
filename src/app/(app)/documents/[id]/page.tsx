@@ -12,7 +12,7 @@ import { shortDate, vatPercent } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
 import { signedBrandingUrl, signedDocUrl } from "@/lib/partner-media";
-import { balanceDueCents, isEditable, type BillTo, type DocKind, type DocStatus, type DocSource, type DocLine } from "@/lib/partner-docs";
+import { balanceDueCents, outstandingCents, isEditable, type BillTo, type DocKind, type DocStatus, type DocSource, type DocLine } from "@/lib/partner-docs";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, TextareaField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -192,6 +192,10 @@ export default async function DocumentPage({
   const balance = balanceDueCents(doc);
   /** Paid MORE than the invoice — usually because a credit note landed after payment. */
   const inCreditCents = Math.max(0, (doc.amount_paid_cents || 0) - doc.total_cents);
+  // Credit notes that actually count: a draft has not been issued and a void one stood down.
+  const creditedCents = creditNotes
+    .filter((c) => c.status !== "draft" && c.status !== "void")
+    .reduce((s, c) => s + c.total_cents, 0);
   const primary = brand.brand_primary ?? "#166534";
   const kindLabel = t(doc.kind === "invoice" ? "doc.kindInvoice" : "doc.kindQuote", locale);
 
@@ -520,7 +524,7 @@ export default async function DocumentPage({
             total_cents: doc.total_cents,
             void_reason: doc.void_reason ?? null,
             written_off_reason: doc.written_off_reason ?? null,
-            balance_cents: balance,
+            outstanding_cents: outstandingCents(doc, creditedCents),
           }}
           credits={creditNotes}
           locale={locale}

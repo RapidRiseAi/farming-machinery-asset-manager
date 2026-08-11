@@ -11,8 +11,16 @@ import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { CloseIcon } from "./icons";
 
+// `input:not([type="hidden"])` matters more than it looks. Almost every ConfirmDialog
+// passes its payload as `<input type="hidden">` children, so without that clause the
+// first "focusable" in the panel was a hidden input: `.focus()` on it does nothing,
+// focus stayed on the TRIGGER — outside the portal — and two things followed. The modal
+// never received focus at all (a keyboard or screen-reader user was left behind it), and
+// Escape did nothing, because the keydown fired outside the portal subtree and never
+// reached this component's handler. Measured in a browser: dialog open, focus still on
+// the page behind it, Escape → still open.
 const FOCUSABLE =
-  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /** Shared overlay: portal, backdrop, Esc-to-close, scroll lock, focus trap. */
 export function Overlay({
@@ -76,12 +84,20 @@ export function Overlay({
     restoreRef.current = document.activeElement as HTMLElement | null;
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
-    // Focus the first control (or the panel) once painted.
+    // Focus the first thing worth typing in — never the button that commits the action.
+    // A dialog that opens with focus already on "Write it off" is one stray Enter away
+    // from writing off an invoice, so a confirm-only dialog focuses the panel instead
+    // (which is the WAI-ARIA pattern, and keeps Escape inside the portal either way).
     const id = window.setTimeout(() => {
       const panel = panelRef.current;
       if (!panel) return;
-      const first = panel.querySelector<HTMLElement>(FOCUSABLE);
-      (first ?? panel).focus();
+      const visible = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.offsetParent !== null,
+      );
+      const field = visible.find(
+        (el) => !(el instanceof HTMLButtonElement) && !(el instanceof HTMLAnchorElement),
+      );
+      (field ?? panel).focus();
     }, 0);
     return () => {
       window.clearTimeout(id);

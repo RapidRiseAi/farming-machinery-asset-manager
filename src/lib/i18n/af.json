@@ -2235,7 +2235,8 @@
     "writeOffConsequence3": "Die weergawe hiervoor word gehou, met jou rede, en kan nie uitgevee word nie.",
     "writeOffReason": "Hoekom skryf jy dit af?",
     "writeOffReasonHint": "Byvoorbeeld: besigheid het gesluit, of drie jaar sonder kontak.",
-    "writeOffReasonMissing": "Sê hoekom jy dit afskryf — ’n paar woorde is genoeg."
+    "writeOffReasonMissing": "Sê hoekom jy dit afskryf — ’n paar woorde is genoeg.",
+    "stillOwed": "Nog uitstaande"
   },
   "email": {
     "title": "Stuur dit vir hulle",

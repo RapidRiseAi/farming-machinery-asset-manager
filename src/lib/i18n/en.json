@@ -2235,7 +2235,8 @@
     "writeOffConsequence3": "The version before this is kept, with your reason, and cannot be deleted.",
     "writeOffReason": "Why are you writing it off?",
     "writeOffReasonHint": "For example: business closed down, or three years of no contact.",
-    "writeOffReasonMissing": "Say why you are writing it off — a few words is enough."
+    "writeOffReasonMissing": "Say why you are writing it off — a few words is enough.",
+    "stillOwed": "Still owed"
   },
   "email": {
     "title": "Send it to them",

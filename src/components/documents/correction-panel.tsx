@@ -17,7 +17,12 @@ export type CorrectionDoc = {
   total_cents: number;
   void_reason: string | null;
   written_off_reason: string | null;
-  balance_cents: number;
+  /**
+   * What is genuinely still owed: total less payments AND less anything already credited
+   * back. Not the raw balance — an invoice with a credit note against it owes less than
+   * `total − paid`, and a confirmation naming the wrong figure is worse than none.
+   */
+  outstanding_cents: number;
 };
 
 export type CreditNoteRef = { id: string; number: string; total_cents: number; status: DocStatus };
@@ -146,7 +151,7 @@ export function CorrectionPanel({
             triggerClassName="mt-2"
             title={t("correct.writeOffTitle", locale).replace("{number}", doc.number)}
             intro={t("correct.writeOffBody", locale)}
-            facts={[{ label: t("doc.balanceDue", locale), value: rands(doc.balance_cents) }]}
+            facts={[{ label: t("correct.stillOwed", locale), value: rands(doc.outstanding_cents) }]}
             consequences={[
               t("correct.writeOffConsequence1", locale),
               t("correct.writeOffConsequence2", locale),
