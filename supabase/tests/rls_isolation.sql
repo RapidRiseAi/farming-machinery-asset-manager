@@ -5590,3 +5590,73 @@ end $$;
 reset role;
 
 select 'ALL G10 ONLINE-PAYMENT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G11 — NO DEBUG BACK DOORS
+--
+-- This section exists because of a real incident, not a hypothetical one. A helper
+-- called public._f14_probe(uuid) was created directly on the live database during F14
+-- to answer "what does this user see?", and was never removed. It survived a whole
+-- session of green tests because it was never in this repo — db:test builds a database
+-- FROM the migrations, so an object that exists only in production is invisible to it.
+--
+-- The shape to watch for is not "a policy is missing". It is a function that rewrites
+-- request.jwt.claims, because auth.uid() reads that setting and every policy here
+-- decides through auth.uid(). Such a function does not disable RLS; it relocates the
+-- caller and lets RLS answer correctly for somebody else. Measured on production before
+-- it was dropped: an operator who legitimately read zero partner documents read back
+-- another tenant's counts by passing that tenant's user id.
+--
+-- The test harness legitimately needs this power — that is what _t_login does — so the
+-- rule is "nothing OUTSIDE the harness", and harness helpers are the `_t_` prefix.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── (a) No application function may rewrite the caller's identity ────────────
+do $$
+declare offenders text;
+begin
+  select string_agg(n.nspname || '.' || p.proname, ', ' order by n.nspname, p.proname)
+    into offenders
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname in ('public', 'app')
+    and p.prokind = 'f'                                  -- plain functions; aggregates have no definition to read
+    and p.proname not like '\_t\_%'                      -- the isolation harness itself
+    and pg_get_functiondef(p.oid) ilike '%request.jwt.claims%'
+    and pg_get_functiondef(p.oid) ilike '%set_config%';
+  if offenders is not null then
+    raise exception 'G11 FAIL [IMPERSONATION PRIMITIVE]: function(s) outside the test harness rewrite request.jwt.claims: %', offenders;
+  end if;
+end $$;
+
+-- ── (b) The specific helper that caused this, by name ────────────────────────
+-- Named explicitly so that anyone re-creating it for "just one quick check" trips a
+-- test that tells them the story rather than a generic failure.
+do $$ declare c int; begin
+  select count(*) into c
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = '_f14_probe';
+  if c <> 0 then
+    raise exception 'G11 FAIL: public._f14_probe is back. It lets any caller read as any user id — see migration 0440.';
+  end if;
+end $$;
+
+-- ── (c) Nothing in public/app is executable by anon except by explicit grant ──
+-- The probe was reachable by anon purely because a function with no grant defaults to
+-- EXECUTE TO PUBLIC. Only the deliberately public entry points should be callable by an
+-- unauthenticated caller; everything else must have had that default revoked.
+do $$
+declare leaked text;
+begin
+  select string_agg(n.nspname || '.' || p.proname, ', ' order by n.nspname, p.proname)
+    into leaked
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'app'                                -- app.* is helper-only: never anon
+    and has_function_privilege('anon', p.oid, 'EXECUTE');
+  if leaked is not null then
+    raise exception 'G11 FAIL [ANON EXECUTE]: anon can execute app-schema helper(s): %', leaked;
+  end if;
+end $$;
+
+select 'ALL G11 NO-DEBUG-BACK-DOOR TESTS PASSED' as result;
