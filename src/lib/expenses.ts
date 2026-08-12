@@ -118,6 +118,41 @@ export function vatPeriods(category: VatCategory, today = new Date(), count = 8)
   return out;
 }
 
+/**
+ * The period we are CURRENTLY inside — the one that has not closed yet.
+ *
+ * `vatPeriods` deliberately returns only closed periods, because a return is filed after
+ * its period ends. That is right for filing and wrong for everything else: a partner who
+ * captures a supplier invoice today then opens this screen finds that the only period the
+ * invoice could fall into is not on offer, and reads "you have not captured anything you
+ * bought in this period" as "the capture failed". Watching VAT accumulate is also the
+ * ordinary cash-flow question — "what am I going to owe?" — which is asked during the
+ * period, not after it.
+ *
+ * So this is offered alongside the closed ones and clearly marked as still open. It is
+ * never the default; the default stays the period about to be filed.
+ */
+export function currentVatPeriod(category: VatCategory, today = new Date()): VatPeriod {
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+
+  if (category === "monthly") {
+    const start = new Date(Date.UTC(year, month, 1));
+    return { from: iso(start), to: iso(monthEnd(year, month)), label: iso(start).slice(0, 7) };
+  }
+
+  // Walk forward to this period's closing month. Date.UTC normalises an overflowing month
+  // index into the next year on its own, so December + category A (which closes in
+  // January) needs no special case — month index 12 IS the following January.
+  const wantsOddMonth = category === "A";
+  let closing = month;
+  while ((closing % 2 === 0) !== wantsOddMonth) closing++;
+
+  const start = new Date(Date.UTC(year, closing - 1, 1));
+  const end = monthEnd(year, closing);
+  return { from: iso(start), to: iso(end), label: `${iso(start).slice(0, 7)} – ${iso(end).slice(0, 7)}` };
+}
+
 /** Positive means money owed to SARS; negative means a refund is due. */
 export function vatIsPayable(r: Pick<VatReturn, "net_vat_cents">): boolean {
   return r.net_vat_cents >= 0;

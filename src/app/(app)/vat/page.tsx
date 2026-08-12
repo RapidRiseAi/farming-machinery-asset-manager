@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import {
-  vatPeriods, vatIsPayable, EMPTY_VAT_RETURN,
+  vatPeriods, currentVatPeriod, vatIsPayable, EMPTY_VAT_RETURN,
   type VatReturn, type VatCategory,
 } from "@/lib/expenses";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,10 +51,15 @@ export default async function VatPage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const category = ((workshop as { vat_category?: string }).vat_category ?? "A") as VatCategory;
-  const periods = vatPeriods(category);
+  const closed = vatPeriods(category);
+  // The open period is offered first but is never the default: the default stays the one
+  // about to be filed. Without it, an invoice captured today falls in no period on offer.
+  const open = currentVatPeriod(category);
+  const periods = [open, ...closed];
   const chosen = periods.find((p) => p.from === sp.from && p.to === sp.to);
-  const from = chosen?.from ?? sp.from ?? periods[0].from;
-  const to = chosen?.to ?? sp.to ?? periods[0].to;
+  const from = chosen?.from ?? sp.from ?? closed[0].from;
+  const to = chosen?.to ?? sp.to ?? closed[0].to;
+  const viewingOpen = from === open.from && to === open.to;
 
   const supabase = await createClient();
   const [{ data: vatData }, { data: docData }, { data: expData }] = await Promise.all([
@@ -124,6 +129,7 @@ export default async function VatPage({
             <div className="flex flex-wrap gap-2">
               {periods.map((p) => {
                 const active = p.from === from && p.to === to;
+                const isOpen = p.from === open.from && p.to === open.to;
                 return (
                   <Link
                     key={p.from}
@@ -132,10 +138,14 @@ export default async function VatPage({
                     className={buttonVariants({ variant: active ? "primary" : "secondary", size: "sm" })}
                   >
                     {shortDate(p.from, locale)} – {shortDate(p.to, locale)}
+                    {isOpen ? ` · ${t("vat.periodOpen", locale)}` : ""}
                   </Link>
                 );
               })}
             </div>
+            {viewingOpen ? (
+              <p className="mt-3 text-sm text-sand-600">{t("vat.periodOpenNote", locale)}</p>
+            ) : null}
           </Card>
 
           <Card>

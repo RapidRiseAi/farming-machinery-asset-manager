@@ -100,6 +100,10 @@ export default async function RecurringPage({
                   <span className="font-medium text-sand-900">{s.name}</span>
                   <Badge tone="warning">{t("recurring.dueBadge", locale)}</Badge>
                   <span className="ml-auto text-sm text-sand-600">{shortDate(s.next_issue_date, locale)}</span>
+                  {/* A span, not a link: the whole row is already an anchor, and nesting
+                      one inside another is invalid HTML the browser silently un-nests —
+                      which is what threw React #418 on the machines list. */}
+                  <span className="text-sm font-medium text-brand-700">{t("recurring.dueOpen", locale)} →</span>
                 </Link>
               </li>
             ))}
