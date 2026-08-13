@@ -1207,4 +1207,31 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     credentials, and the cron HTTP route needs the service-role key. The PayFast signature
     was checked behaviourally rather than against PayFast's published worked example.
 
+- **Money answers — P&L, debtors, creditors, cash** (migration `0460`; isolation-tested,
+  `db:test` green; driven live). The commercial layer recorded transactions well and
+  reported on them barely at all: verified before building, there was no P&L anywhere in
+  the codebase, and `app.partner_ageing` **required** a farm or a client — so "who owes me
+  across everyone" matched nothing. Turnover was visible; profit was not.
+  `/money` adds profit for a period with a category breakdown, cash in/out, and both
+  ageing lists. **No new tables** — every figure aggregates `partner_documents`,
+  `partner_payments` and `partner_expenses`. All five functions are SECURITY INVOKER, so
+  passing another workshop's id is answered by RLS on the underlying tables rather than by
+  a check somebody could forget to write; a rival workshop and the farm they work for both
+  read zeros.
+  Three judgements, each a place a plausible implementation would be wrong, each pinned in
+  **G14**: a **written-off invoice stays revenue** and comes off again as bad debt
+  (dropping it would quietly restate a period already filed with SARS); **non-claimable
+  VAT is a cost** even though SARS will not refund it — omitting it overstates profit by
+  exactly the amount most likely to be forgotten; and a written-off invoice must **not**
+  still be chased on the debtors list. Creditor ageing buckets from the supplier's own
+  invoice date, because an expense carries no due date, and the screen says so rather than
+  implying lateness.
+  G14 also asserts the P&L's revenue equals the VAT return's over the same window — the
+  two screens are read by the same person in the same week, and if they disagree both are
+  useless. Live: August showed R582,50 invoiced against R1 000,00 of costs (a real loss),
+  while `/vat` independently showed R1 032,50 of sales less R450,00 of credit notes — the
+  same R582,50. Periods are **calendar**, not the SARS two-month cycle, because "did last
+  month make money" is a calendar question; this month is offered though incomplete, for
+  the same reason `currentVatPeriod` exists. i18n EN/AF at parity (**2 539 leaf keys**).
+
 > Update this "current status" block at the end of every session.

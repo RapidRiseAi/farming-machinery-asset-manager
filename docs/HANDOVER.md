@@ -1,6 +1,6 @@
 # FleetWise — handover
 
-Written at the end of the verification session (migrations `0440`, `0450–0452`). Everything
+Written at the end of the verification session (migrations `0440`, `0450–0452`, `0460`). Everything
 described here is on `main` and pushed; the hosted demo project has every migration applied
 and was **fingerprinted against the repo afterwards** — 981 objects across 10 categories,
 all matching.
@@ -16,11 +16,11 @@ as unverified no matter how confident the code comments sound.
 | | |
 |---|---|
 | Branch | `main` (all work merged and pushed) |
-| Migrations in repo | 94 files, `0001` → `0452` |
+| Migrations in repo | 95 files, `0001` → `0460` |
 | Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — **verified identical to the repo**, 981 objects, 10 categories |
 | Isolation suite | `supabase/tests/rls_isolation.sql`, 5 958 lines, 39 pass banners — **green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
-| i18n | EN/AF at parity, **2 501 leaf keys**, plus professional-tone overlays |
+| i18n | EN/AF at parity, **2 539 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
 `FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`; the farm
@@ -75,6 +75,11 @@ Safe to build on.
 * **Cadence arithmetic**: the TS mirror agrees with `app.advance_by_cadence` on 12 cases
   including leap years.
 * **All ten nightly cron engines** execute cleanly against the live database.
+* **The money screen agrees with the VAT return.** `/money`'s revenue and
+  `app.partner_vat_return` return the same figure over the same window — asserted in G14
+  and confirmed live (R582,50 on both, from R1 032,50 of sales less R450,00 of credit
+  notes). A written-off invoice stays in revenue and comes off as bad debt; non-claimable
+  VAT counts as a cost; a written-off invoice is not chased on the debtors list.
 
 ---
 
@@ -125,12 +130,18 @@ it is still on this list.
 
 ## 6. Not built at all
 
-* Bank-feed import or reconciliation.
+* **Bank-feed import and reconciliation — the next big rock.** Every payment is keyed by
+  hand. Matching a bank CSV or OFX against issued invoices and captured expenses is the
+  one monthly chore left in the financial layer. It needs new tables *and* it touches the
+  payment rollup that statements, ageing and `/money` all depend on, which makes it the
+  riskiest remaining change against code that is currently proven.
+* **Recurring expenses.** Standing invoices exist for sales; rent, insurance and salaries
+  repeat on the cost side too and are captured by hand every month.
+* **Purchase orders** — committing to a supplier before their invoice arrives, then
+  matching the invoice against it.
 * Multi-currency (everything is ZAR, integer cents).
 * Payroll.
 * WhatsApp Stage 2 (BSP API) — Stage 1 is manual; the queue and `deliver_after` are ready.
-* Purchase *orders* (the expense side records what was bought, not what was ordered; the
-  store now records what is held).
 * **Commitment-aware reordering.** `app.stock_needs_reorder` is deliberately its own
   function so this is a one-place change. Today it is "at or below the minimum you set".
   `service_kit_items` already says what each service consumes and
