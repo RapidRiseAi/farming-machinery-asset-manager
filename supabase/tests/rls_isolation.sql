@@ -3880,6 +3880,9 @@ insert into users (id, farm_id, workshop_id, role, name, email) values
 insert into auth.users (id, email) values ('62300000-0000-0000-0000-000000000001', 'ownerS@test');
 insert into users (id, farm_id, role, name, email) values
   ('62300000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'owner', 'Owner S', 'owners@test');
+insert into auth.users (id, email) values ('62400000-0000-0000-0000-000000000001', 'opS@test');
+insert into users (id, farm_id, role, name, email) values
+  ('62400000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'operator', 'Operator S', 'ops@test');
 insert into partner_clients (id, workshop_id, name, vat_number, payment_terms_days) values
   ('62400000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001', 'Off-grid Farming CC', '4987654321', 7);
 
@@ -5725,3 +5728,231 @@ end $$;
 reset role;
 
 select 'ALL G12 EXPENSE-RECEIPT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G13 — WHAT IS ON THE SHELF (0450–0451)
+--
+-- Two things to prove. The first is the money rule, because parts are the one place where
+-- two paths could each claim the same rand: `job_card_lines` have booked parts cost since
+-- 0211, and now a stock issue can too. The rule 0450 encodes, asserted here in BOTH
+-- directions — that the cost appears where it should, AND that it does not appear where
+-- it should not, which is the half that catches a double-count:
+--
+--     receipt                  stock up,   no cost
+--     issue naming a job card  stock down, no cost   (the job-card line owns the rand)
+--     issue with no job card   stock down, a `parts` cost entry against the machine
+--     adjustment / return      stock only, no cost
+--
+-- The second is that a contractor never sees a farm's shelf. `app.has_farm_access`
+-- deliberately admits a workshop with an active link — that is how a contractor reaches
+-- the vehicles it works on — so farm-side-only had to be said explicitly, and is worth an
+-- assertion because the failure mode is silent.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Fixtures of its own, so the arithmetic below states its own inputs.
+insert into machines (id, farm_id, name, type) values
+  ('69000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'Store Test Tractor', 'tractor');
+insert into parts_catalogue (id, farm_id, part_no, description, typical_cost_cents) values
+  ('69100000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', 'FLT-9001', 'Fuel filter', 25000);
+insert into stock_items (id, farm_id, part_catalogue_id, unit, reorder_point, bin) values
+  ('69200000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+   '69100000-0000-0000-0000-000000000001', 'each', 3, 'Shed 2');
+insert into job_cards (id, farm_id, machine_id, type, status) values
+  ('69300000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+   '69000000-0000-0000-0000-000000000001', 'scheduled_service', 'open');
+
+-- ── (a) A receipt raises the shelf and books nothing ─────────────────────────
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, occurred_on)
+values ('69400000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
+        '69200000-0000-0000-0000-000000000001', 'receipt', 10, 25000, current_date - 5);
+do $$ declare v numeric; c bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 10 then raise exception 'G13 FAIL: on_hand is % after receiving 10', v; end if;
+  select count(*) into c from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if c <> 0 then
+    raise exception 'G13 FAIL [PHANTOM COST]: buying stock booked % cost entries - a filter in its box is not a cost of owning a machine', c;
+  end if;
+end $$;
+
+-- ── (b) An issue with NO job card books the cost against the machine ─────────
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, occurred_on)
+values ('69400000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001',
+        '69200000-0000-0000-0000-000000000001', 'issue', 2, 25000,
+        '69000000-0000-0000-0000-000000000001', current_date - 4);
+do $$ declare v numeric; a bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 8 then raise exception 'G13 FAIL: on_hand is % after issuing 2 of 10', v; end if;
+  select coalesce(sum(amount_cents), 0) into a from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000002' and deleted_at is null;
+  if a <> 50000 then
+    raise exception 'G13 FAIL: a loose issue booked % instead of 2 x 25000 - the money would vanish with the stock', a;
+  end if;
+end $$;
+
+-- ── (c) An issue NAMING a job card books nothing ─────────────────────────────
+-- The no-double-count rule. The job card's own line owns that rand.
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, job_card_id, occurred_on)
+values ('69400000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001',
+        '69200000-0000-0000-0000-000000000001', 'issue', 3, 25000,
+        '69000000-0000-0000-0000-000000000001', '69300000-0000-0000-0000-000000000001', current_date - 3);
+do $$ declare v numeric; c bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 5 then raise exception 'G13 FAIL: on_hand is % after issuing 3 more', v; end if;
+  select count(*) into c from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000003' and deleted_at is null;
+  if c <> 0 then
+    raise exception 'G13 FAIL [DOUBLE COUNT]: an issue against a job card booked its own cost as well as the job-card line';
+  end if;
+end $$;
+
+-- ── (d) Returns move stock only ──────────────────────────────────────────────
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, occurred_on)
+values ('69400000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001',
+        '69200000-0000-0000-0000-000000000001', 'return', 1, 25000,
+        '69000000-0000-0000-0000-000000000001', current_date - 2);
+do $$ declare v numeric; c bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 6 then raise exception 'G13 FAIL: a return left on_hand at % rather than 6', v; end if;
+  select count(*) into c from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000004' and deleted_at is null;
+  if c <> 0 then raise exception 'G13 FAIL: a return booked a cost'; end if;
+end $$;
+
+-- ── (e) Removing a movement reverses BOTH the shelf and the money ────────────
+-- A correction that fixed the count and left the cost behind would overstate the machine
+-- for ever, and nothing downstream would ever notice.
+update stock_movements set deleted_at = now() where id = '69400000-0000-0000-0000-000000000002';
+do $$ declare v numeric; c bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 8 then raise exception 'G13 FAIL: undoing the issue of 2 left on_hand at % rather than 8', v; end if;
+  select count(*) into c from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000002' and deleted_at is null;
+  if c <> 0 then raise exception 'G13 FAIL: the cost survived the movement being removed'; end if;
+end $$;
+-- put it back so the totals below are the ones described
+update stock_movements set deleted_at = null where id = '69400000-0000-0000-0000-000000000002';
+
+-- ── (f) The farm side can read its own shelf ─────────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');
+  select count(*) into c from stock_items;
+  if c <> 1 then raise exception 'G13 FAIL: the farm owner sees % of its own 1 stock item', c; end if;
+  select count(*) into c from stock_movements;
+  if c <> 4 then raise exception 'G13 FAIL: the farm owner sees % of its own 4 movements', c; end if;
+end $$;
+
+-- ── (g) A LINKED contractor sees none of it ──────────────────────────────────
+-- Workshop Z holds an ACTIVE workshop_link to Farm S, so app.has_farm_access(Farm S) is
+-- true for it. What a farm keeps on its shelves is still none of its business.
+do $$ declare c bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select count(*) into c from stock_items;
+  if c <> 0 then raise exception 'G13 FAIL [CONTRACTOR]: a linked contractor read % stock items', c; end if;
+  select count(*) into c from stock_movements;
+  if c <> 0 then raise exception 'G13 FAIL [CONTRACTOR]: a linked contractor read % stock movements', c; end if;
+end $$;
+
+-- ── (h) Nor can it write into the farm's store ───────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  begin
+    insert into stock_items (farm_id, part_catalogue_id)
+    values ('62000000-0000-0000-0000-000000000001', '69100000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G13 FAIL: a contractor wrote a stock item into a farm store'; end if;
+end $$;
+
+-- ── (i) Another farm sees nothing ────────────────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  select count(*) into c from stock_items;
+  if c <> 0 then raise exception 'G13 FAIL [CROSS-TENANT]: another farm read % stock items', c; end if;
+end $$;
+reset role;
+
+-- ── (j) anon reads nothing, and cannot run the engine ────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from stock_items; exception when others then ok := true; end;
+  if not ok then raise exception 'G13 FAIL: anon read the store'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.enqueue_low_stock_nudges(); exception when others then ok := true; end;
+  if not ok then raise exception 'G13 FAIL: anon ran the low-stock engine'; end if;
+end $$;
+reset role;
+
+-- ── (k) The engine is service-role only ──────────────────────────────────────
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');
+  begin perform app.enqueue_low_stock_nudges(); exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G13 FAIL: a signed-in farm user ran the low-stock engine directly'; end if;
+end $$;
+reset role;
+
+-- on_hand is 6, reorder_point 3 — not low yet, so nothing should be queued.
+select app.enqueue_low_stock_nudges();
+do $$ declare c bigint; begin
+  select count(*) into c from notifications
+   where template = 'low_stock' and payload->>'stock_item_id' = '69200000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G13 FAIL: a shelf above its reorder point raised % nudges', c; end if;
+end $$;
+
+-- Take it below the line and it should speak up exactly once, then hold its tongue.
+insert into stock_movements (farm_id, stock_item_id, kind, qty, machine_id, occurred_on)
+values ('62000000-0000-0000-0000-000000000001', '69200000-0000-0000-0000-000000000001',
+        'issue', 4, '69000000-0000-0000-0000-000000000001', current_date);
+select app.enqueue_low_stock_nudges();
+select app.enqueue_low_stock_nudges();
+do $$ declare c bigint; v numeric; r bigint; begin
+  select on_hand into v from stock_items where id = '69200000-0000-0000-0000-000000000001';
+  if v <> 2 then raise exception 'G13 FAIL: on_hand is % rather than 2', v; end if;
+  select count(*) into c from notifications
+   where template = 'low_stock' and payload->>'stock_item_id' = '69200000-0000-0000-0000-000000000001';
+  if c = 0 then raise exception 'G13 FAIL: a shelf below its reorder point raised nothing'; end if;
+  -- notify_farm fans out to the farm's owners/managers, so the count is per RECIPIENT;
+  -- what must not happen is the second run doubling it.
+  select count(*) into r from users where farm_id = '62000000-0000-0000-0000-000000000001'
+    and role in ('owner','manager') and active and deleted_at is null;
+  if c > r then
+    raise exception 'G13 FAIL: running the engine twice queued the same nudge again (% rows for % recipients)', c, r;
+  end if;
+end $$;
+
+-- ── (l) An issue with no cost on it books nothing, rather than booking zero ──
+-- A farm that does not track what a part cost still wants the stock to move.
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty, machine_id, occurred_on)
+values ('69400000-0000-0000-0000-000000000009', '62000000-0000-0000-0000-000000000001',
+        '69200000-0000-0000-0000-000000000001', 'issue', 1,
+        '69000000-0000-0000-0000-000000000001', current_date);
+do $$ declare c bigint; begin
+  select count(*) into c from cost_entries
+   where source_type = 'stock_movement' and source_id = '69400000-0000-0000-0000-000000000009' and deleted_at is null;
+  if c <> 0 then raise exception 'G13 FAIL: an issue with no unit cost booked a zero-rand cost entry'; end if;
+end $$;
+
+select 'ALL G13 STOCK TESTS PASSED' as result;
+
+-- ── (m) An operator may LOOK but not TOUCH (0452) ────────────────────────────
+-- Reading is open to the whole farm side on purpose: "have we got a filter?" is a fair
+-- question for a driver at the shed. Writing decides what a machine costs, so it narrows
+-- to the three roles that maintain the catalogue. Found by driving 0450 — the server
+-- action guarded correctly and the POLICY did not, which is UI-only enforcement.
+set role authenticated;
+do $$ declare c bigint; ok boolean := false; begin
+  perform _t_login('62400000-0000-0000-0000-000000000001');        -- Operator on Farm S
+  select count(*) into c from stock_items;
+  if c <> 1 then raise exception 'G13 FAIL: an operator sees % of the farm store rather than 1', c; end if;
+
+  begin
+    insert into stock_movements (farm_id, stock_item_id, kind, qty)
+    values ('62000000-0000-0000-0000-000000000001', '69200000-0000-0000-0000-000000000001', 'receipt', 99);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G13 FAIL: an operator wrote a stock movement and moved a machine''s costs'; end if;
+end $$;
+reset role;
+
+select 'ALL G13b OPERATOR-WRITE TESTS PASSED' as result;

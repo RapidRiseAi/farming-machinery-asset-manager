@@ -1,4 +1,4 @@
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -14,6 +14,8 @@ import { Flash } from "@/components/ui/flash";
 import { SearchIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPart, updatePart, deletePart } from "./actions";
+import { trackPart } from "./stock-actions";
+import { StoreCard, type StoreRow } from "@/components/stock/store-card";
 
 type Part = {
   id: string;
@@ -45,6 +47,40 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   if (sp.q) query = query.or(`part_no.ilike.%${sp.q}%,description.ilike.%${sp.q}%,category.ilike.%${sp.q}%,supplier.ilike.%${sp.q}%`);
   const { data } = await query;
   const parts = (data as Part[] | null) ?? [];
+
+  // The store (0450). Farm-side only by RLS, so an rr_admin or a contractor simply gets
+  // nothing back and the section stays hidden rather than rendering an empty promise.
+  const farmId = await currentFarmId(profile);
+  const [{ data: stockData }, { data: machineData }] = await Promise.all([
+    supabase
+      .from("stock_items")
+      .select("id, farm_id, part_catalogue_id, unit, on_hand, reorder_point, bin")
+      .is("deleted_at", null),
+    supabase
+      .from("machines")
+      .select("id, name")
+      .is("deleted_at", null)
+      .not("status", "in", "(retired,sold)")
+      .order("name"),
+  ]);
+  const stockItems = (stockData ?? []) as StoreRow[];
+  const machines = (machineData ?? []) as { id: string; name: string }[];
+
+  // Join to the catalogue in memory: the two lists are already loaded, and a part may be a
+  // GLOBAL row, which a PostgREST embed across the nullable farm_id would not follow.
+  const partById = new Map(parts.map((p) => [p.id, p]));
+  const storeRows: StoreRow[] = stockItems.map((s) => {
+    const p = partById.get(s.part_catalogue_id);
+    return {
+      ...s,
+      part_no: p?.part_no ?? "—",
+      description: p?.description ?? null,
+      supplier: p?.supplier ?? null,
+      typical_cost_cents: p?.typical_cost_cents ?? null,
+    };
+  });
+  const trackedPartIds = new Set(stockItems.map((s) => s.part_catalogue_id));
+  const showStore = canManageFarm && !!farmId;
 
   // A row is editable when it is a farm row the user manages, or a global row and the
   // user is RR admin. (RLS also enforces this on write.)
@@ -109,6 +145,11 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
         </Card>
       ) : null}
 
+      {/* The store — what is actually on the shelf (0450). Farm side only. */}
+      {showStore ? (
+        <StoreCard locale={locale} rows={storeRows} machines={machines} canManage={canManageFarm} />
+      ) : null}
+
       {/* Catalogue */}
       <Card>
         <CardHeader><CardTitle>{t("parts.catalogue", locale)}</CardTitle></CardHeader>
@@ -124,6 +165,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                 <Th>{t("parts.supplier", locale)}</Th>
                 <Th className="text-right">{t("parts.typicalCost", locale)}</Th>
                 <Th>{t("parts.scope", locale)}</Th>
+                {showStore ? <Th>{t("stock.inStore", locale)}</Th> : null}
               </Tr>
             </Thead>
             <Tbody>
@@ -189,6 +231,20 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                       {p.farm_id == null ? t("parts.scopeGlobal", locale) : t("parts.scopeFarm", locale)}
                     </Badge>
                   </Td>
+                  {showStore ? (
+                    <Td>
+                      {trackedPartIds.has(p.id) ? (
+                        <Badge tone="ok">{t("stock.tracked", locale)}</Badge>
+                      ) : (
+                        // Starting to track IS the decision to hold this part, which is why
+                        // it lives on the catalogue row rather than in the store's own form.
+                        <form action={trackPart}>
+                          <input type="hidden" name="part_catalogue_id" value={p.id} />
+                          <SubmitButton variant="ghost" size="sm">{t("stock.track", locale)}</SubmitButton>
+                        </form>
+                      )}
+                    </Td>
+                  ) : null}
                 </Tr>
               ))}
             </Tbody>

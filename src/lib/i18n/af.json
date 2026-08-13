@@ -652,7 +652,8 @@
     "tplQuoteAcceptedPartner": "{by} het kwotasie {number} ({amount}) aanvaar. Jy kan begin.",
     "tplQuoteDeclinedPartner": "Kwotasie {number} is afgewys. {reason}",
     "tplPaymentClaimedPartner": "Iemand sê hulle het faktuur {number} ({amount}) betaal, verwysing {reference}. Kyk gerus jou bank.",
-    "tplRecurringRaised": "{schedule}: faktuur {number} is geskep"
+    "tplRecurringRaised": "{schedule}: faktuur {number} is geskep",
+    "tplLowStock": "Net {on_hand} {unit} van {part} oor — jy bestel weer by {reorder_point}."
   },
   "settings": {
     "title": "Instellings",
@@ -1119,7 +1120,8 @@
     "stale_meter": "Meterlesings",
     "work": "Kontrakteur-opdatering",
     "aarto": "AARTO-boete",
-    "documents": "Kwotasies & fakture"
+    "documents": "Kwotasies & fakture",
+    "stock": "Stoor"
   },
   "prefs": {
     "title": "Jou waarskuwingvoorkeure",
@@ -2667,5 +2669,31 @@
     "savedFlash": "Gestoor. Nuwe dokumente sal dit gebruik.",
     "previewTitle": "Wat ’n klant sal sien",
     "frozenNote": "Dokumente wat jy reeds gestuur het behou die voorkoms waarmee hulle gestuur is — dit verander kan nie ’n ou faktuur herstel nie."
+  },
+  "stock": {
+    "storeTitle": "Jou stoor",
+    "storeLead": "Wat werklik op die rak is. Ontvangs en uitgifte hou die telling reg — die getal word daaruit bereken, nooit ingetik nie.",
+    "inStore": "In stoor",
+    "track": "Hou in stoor",
+    "tracked": "Word getel",
+    "emptyTitle": "Nog niks in die stoor nie",
+    "emptyBody": "Druk \"Hou in stoor\" by ’n onderdeel hieronder om dit te begin tel.",
+    "lowSummary": "Raak min:",
+    "low": "Min",
+    "negative": "Onder nul",
+    "bin": "Waar",
+    "reorderAt": "Bestel weer by",
+    "noReorderPoint": "Geen herbestelpunt gestel nie",
+    "reorderPoint": "Bestel weer by",
+    "receive": "Ontvang",
+    "receiveDo": "Voeg by stoor",
+    "issue": "Gee uit",
+    "issueDo": "Neem uit",
+    "toMachine": "Vir watter voertuig",
+    "noMachine": "Nie vir ’n voertuig nie",
+    "unitCost": "Elk (BTW uitgesluit)",
+    "untrack": "Hou op tel",
+    "untrackTitle": "Hou op om hierdie onderdeel te tel?",
+    "untrackConsequence": "Die onderdeel bly in die katalogus en die geskiedenis van wat gepas is bly. Net die raktelling gaan weg."
   }
 }

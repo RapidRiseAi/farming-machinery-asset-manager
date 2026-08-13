@@ -652,7 +652,8 @@
     "tplQuoteAcceptedPartner": "{by} accepted quote {number} ({amount}). You can start.",
     "tplQuoteDeclinedPartner": "Quote {number} was declined. {reason}",
     "tplPaymentClaimedPartner": "Someone says they have paid invoice {number} ({amount}), reference {reference}. Worth checking your bank.",
-    "tplRecurringRaised": "{schedule}: invoice {number} has been raised"
+    "tplRecurringRaised": "{schedule}: invoice {number} has been raised",
+    "tplLowStock": "Only {on_hand} {unit} of {part} left — you reorder at {reorder_point}."
   },
   "settings": {
     "title": "Settings",
@@ -1119,7 +1120,8 @@
     "stale_meter": "Meter readings",
     "work": "Contractor update",
     "aarto": "AARTO fine",
-    "documents": "Quotes & invoices"
+    "documents": "Quotes & invoices",
+    "stock": "Store"
   },
   "prefs": {
     "title": "Your alert preferences",
@@ -2667,5 +2669,31 @@
     "savedFlash": "Saved. New documents will use this.",
     "previewTitle": "What a customer will see",
     "frozenNote": "Documents you have already sent keep the look they were sent with — changing this cannot restate an old invoice."
+  },
+  "stock": {
+    "storeTitle": "Your store",
+    "storeLead": "What is actually on the shelf. Receiving and issuing keeps the count right — the number is worked out from those, never typed.",
+    "inStore": "In store",
+    "track": "Track in store",
+    "tracked": "Tracked",
+    "emptyTitle": "Nothing in the store yet",
+    "emptyBody": "Press \"Track in store\" on a part below to start counting it.",
+    "lowSummary": "Running low:",
+    "low": "Low",
+    "negative": "Below zero",
+    "bin": "Where",
+    "reorderAt": "Reorder at",
+    "noReorderPoint": "No reorder point set",
+    "reorderPoint": "Reorder at",
+    "receive": "Received",
+    "receiveDo": "Add to store",
+    "issue": "Issue",
+    "issueDo": "Take out",
+    "toMachine": "For which vehicle",
+    "noMachine": "Not for a vehicle",
+    "unitCost": "Each (excl VAT)",
+    "untrack": "Stop tracking",
+    "untrackTitle": "Stop counting this part?",
+    "untrackConsequence": "The part stays in the catalogue and the history of what was fitted stays. Only the shelf count goes."
   }
 }
