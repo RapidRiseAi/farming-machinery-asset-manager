@@ -61,6 +61,41 @@ export type Creditor = {
 
 export type Cash = { in_cents: number; out_cents: number; net_cents: number };
 
+/**
+ * The quote pipeline for a period (0476). Counts and ex-VAT values for each outcome, plus
+ * two rates in basis points — see the migration header for why there are two and why
+ * "converted" is not simply `status = 'accepted'`.
+ */
+export type QuoteConversion = {
+  sent_count: number; sent_cents: number;
+  converted_count: number; converted_cents: number;
+  declined_count: number; declined_cents: number;
+  expired_count: number; expired_cents: number;
+  open_count: number; open_cents: number;
+  withdrawn_count: number; withdrawn_cents: number;
+  rate_bps: number; decided_rate_bps: number;
+};
+
+export const EMPTY_CONVERSION: QuoteConversion = {
+  sent_count: 0, sent_cents: 0, converted_count: 0, converted_cents: 0,
+  declined_count: 0, declined_cents: 0, expired_count: 0, expired_cents: 0,
+  open_count: 0, open_cents: 0, withdrawn_count: 0, withdrawn_cents: 0,
+  rate_bps: 0, decided_rate_bps: 0,
+};
+
+/**
+ * Basis points as a percentage people read: 4000 -> "40%", 4050 -> "40,5%".
+ *
+ * Written out rather than delegated to toLocaleString for the reason recorded in
+ * lib/money.ts — a runtime with trimmed ICU data answers in en-US and the decimal comma
+ * this product uses everywhere else silently becomes a point.
+ */
+export function ratePercent(bps: number): string {
+  const whole = Math.round(bps / 100);
+  const exact = bps / 100;
+  return Number.isInteger(exact) ? `${whole}%` : `${String(exact).replace(".", ",")}%`;
+}
+
 /** Sum a column across an ageing table, so the screen and its total cannot disagree. */
 export function ageingTotal<T extends Record<string, unknown>>(rows: readonly T[], key: keyof T): number {
   return rows.reduce((s, r) => s + Number(r[key] ?? 0), 0);

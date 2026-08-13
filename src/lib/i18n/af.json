@@ -2740,6 +2740,14 @@
     "bucket30": "1–30 dae",
     "bucket60": "31–60 dae",
     "bucket90": "60+ dae",
-    "bucketTotal": "Totaal"
+    "bucketTotal": "Totaal",
+    "quotesTitle": "Kwotasies wat werk geword het",
+    "quotesRateHint": "{converted} van {sent} kwotasies wat jy gestuur het",
+    "quotesDecidedHint": "Van dié wat werklik ’n antwoord gekry het: {rate}",
+    "quotesConverted": "Werk geword",
+    "quotesOpen": "Wag nog vir ’n antwoord",
+    "quotesDeclined": "Hulle het nee gesê",
+    "quotesExpired": "Tyd het verstryk",
+    "quotesExpiredNote": "’n Kwotasie tel as verstreke sodra sy geldig-tot datum verby is, of die oornag-lopie dit ingehaal het of nie."
   }
 }

@@ -6171,3 +6171,147 @@ end $$;
 reset role;
 
 select 'ALL G14 MONEY-ANSWER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G17 — HOW MANY QUOTES TURN INTO WORK (0476)
+--
+-- The figure is only worth having if its definition survives contact with how partners
+-- actually work, and two of the branches below are the ones a plausible implementation
+-- gets wrong:
+--
+--   * `status = 'accepted'` alone is not conversion. The customer phones, says yes, and
+--     the partner goes straight to invoicing; the quote sits at 'sent' for ever. So an
+--     ISSUED invoice against a quote counts as converted — you do not bill somebody for
+--     work they did not agree to.
+--   * but a DRAFT invoice does not. A draft has not left the building, and treating it as
+--     evidence of a yes would let a partner's own unsent paperwork inflate their rate.
+--
+-- And expiry cannot be read off the status either: `app.expire_partner_quotes` (0414) is
+-- what sets 'expired', it runs on the nightly cron, and per the handover that cron has
+-- never fired in production. A quote whose validity passed months ago is not an open
+-- offer because a scheduled job has not caught up with it. The classification therefore
+-- uses the same four clauses 0414 uses, which is what keeps the two in step.
+--
+-- Its own farm and workshop so the counts below are the only counts in play.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('6d000000-0000-0000-0000-000000000001', 'Farm Q');
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps)
+values ('6d100000-0000-0000-0000-000000000001', 'Workshop Q', 'mechanic', true, 1500);
+insert into workshop_links (workshop_id, farm_id, status)
+values ('6d100000-0000-0000-0000-000000000001', '6d000000-0000-0000-0000-000000000001', 'active');
+
+-- Built as DRAFTS first: the 0381 freeze trigger refuses lines on an issued document, so
+-- status is set only once the lines exist. Every quote is R1 000 ex-VAT, which makes the
+-- rand assertions readable as multiples.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, due_date, vat_rate_bps, bill_to_name)
+values
+  ('6d200000-0000-0000-0000-000000000001','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-1',current_date-600,current_date+30,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000002','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-2',current_date-600,current_date+30,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000003','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-3',current_date-600,current_date-10,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000004','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-4',current_date-600,current_date+30,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000005','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-5',current_date-600,current_date+30,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000006','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-6',current_date-600,current_date+30,1500,'Farm Q'),
+  ('6d200000-0000-0000-0000-000000000007','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','quote','draft','built','QQ-7',current_date-600,current_date+30,1500,'Farm Q');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+select id, '6d000000-0000-0000-0000-000000000001', 1, 'labour', 'Quoted work', 1, 100000
+  from partner_documents where number like 'QQ-%';
+
+update partner_documents set status='sent',      sent_at=now() where number='QQ-1'; -- open, still valid
+update partner_documents set status='accepted',  sent_at=now() where number='QQ-2'; -- converted by status
+update partner_documents set status='sent',      sent_at=now() where number='QQ-3'; -- expired by DATE, status untouched
+update partner_documents set status='declined',  sent_at=now() where number='QQ-4'; -- a no
+update partner_documents set status='sent',      sent_at=now() where number='QQ-5'; -- converted by INVOICE
+update partner_documents set status='cancelled', sent_at=now() where number='QQ-6'; -- withdrawn: not a lost sale
+-- QQ-7 stays a draft. It was never put in front of anybody, so it is not pipeline at all.
+
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name, quote_id)
+values
+  ('6d300000-0000-0000-0000-000000000001','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','invoice','draft','built','QI-1',current_date-599,1500,'Farm Q','6d200000-0000-0000-0000-000000000005'),
+  ('6d300000-0000-0000-0000-000000000002','6d000000-0000-0000-0000-000000000001','6d100000-0000-0000-0000-000000000001','invoice','draft','built','QI-2',current_date-599,1500,'Farm Q','6d200000-0000-0000-0000-000000000001');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+select id, '6d000000-0000-0000-0000-000000000001', 1, 'labour', 'Billed work', 1, 50000
+  from partner_documents where number like 'QI-%';
+-- QI-1 goes out, so QQ-5 is converted. QI-2 stays a DRAFT, so QQ-1 must stay OPEN.
+update partner_documents set status='sent', sent_at=now() where number='QI-1';
+
+-- ── (a) Every branch, on inputs stated above ─────────────────────────────────
+do $$ declare r record; begin
+  select * into r from app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001',
+                                                    current_date - 610, current_date - 590);
+  if r.sent_count <> 5 then
+    raise exception 'G17 FAIL: sent is % rather than 5 (6 issued less 1 withdrawn; the draft is not pipeline)', r.sent_count;
+  end if;
+  if r.converted_count <> 2 then
+    raise exception 'G17 FAIL: converted is % rather than 2 (one by status, one by issued invoice)', r.converted_count;
+  end if;
+  if r.declined_count <> 1 then raise exception 'G17 FAIL: declined is % rather than 1', r.declined_count; end if;
+  if r.expired_count <> 1 then
+    raise exception 'G17 FAIL: expired is % rather than 1 — a quote past its date is expired whether or not the nightly job has run', r.expired_count;
+  end if;
+  if r.open_count <> 1 then
+    raise exception 'G17 FAIL: open is % rather than 1 — a DRAFT invoice must not count as acceptance', r.open_count;
+  end if;
+  if r.withdrawn_count <> 1 then raise exception 'G17 FAIL: withdrawn is % rather than 1', r.withdrawn_count; end if;
+end $$;
+
+-- ── (b) The buckets partition the pipeline exactly ───────────────────────────
+-- If the parts stop adding back to the whole, some quote has fallen into two buckets or
+-- none, and every rate built on them is quietly wrong.
+do $$ declare r record; begin
+  select * into r from app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001',
+                                                    current_date - 610, current_date - 590);
+  if r.converted_count + r.declined_count + r.expired_count + r.open_count <> r.sent_count then
+    raise exception 'G17 FAIL: the outcomes (%,%,%,%) do not add back to sent (%)',
+      r.converted_count, r.declined_count, r.expired_count, r.open_count, r.sent_count;
+  end if;
+  if r.converted_cents + r.declined_cents + r.expired_cents + r.open_cents <> r.sent_cents then
+    raise exception 'G17 FAIL: the outcome values do not add back to the value sent';
+  end if;
+end $$;
+
+-- ── (c) Both rates, and the reason there are two ─────────────────────────────
+-- 2 of 5 sent = 40%. 2 of the 4 that actually got an answer = 50%. Reporting only the
+-- first understates a young period; only the second flatters a partner sitting on quotes
+-- nobody ever replied to.
+do $$ declare r record; begin
+  select * into r from app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001',
+                                                    current_date - 610, current_date - 590);
+  if r.rate_bps <> 4000 then raise exception 'G17 FAIL: rate is % bps rather than 4000', r.rate_bps; end if;
+  if r.decided_rate_bps <> 5000 then
+    raise exception 'G17 FAIL: decided rate is % bps rather than 5000', r.decided_rate_bps;
+  end if;
+  if r.sent_cents <> 500000 then raise exception 'G17 FAIL: value sent is % rather than 500000', r.sent_cents; end if;
+  if r.converted_cents <> 200000 then raise exception 'G17 FAIL: value converted is % rather than 200000', r.converted_cents; end if;
+end $$;
+
+-- ── (d) A rival workshop reads a rival's pipeline as zeros ───────────────────
+-- SECURITY INVOKER, so RLS on partner_documents answers rather than a check in the body.
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z staff
+  select * into r from app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001',
+                                                    current_date - 610, current_date - 590);
+  if coalesce(r.sent_count, 0) <> 0 or coalesce(r.converted_cents, 0) <> 0 then
+    raise exception 'G17 FAIL [COMPETITOR]: another workshop read % quotes worth %', r.sent_count, r.converted_cents;
+  end if;
+end $$;
+reset role;
+
+-- ── (e) anon runs none of it ─────────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001', current_date, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G17 FAIL: anon ran the conversion report'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.partner_quote_conversion('6d100000-0000-0000-0000-000000000001', current_date, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G17 FAIL: anon ran the public conversion wrapper'; end if;
+end $$;
+reset role;
+
+select 'ALL G17 QUOTE-CONVERSION TESTS PASSED' as result;

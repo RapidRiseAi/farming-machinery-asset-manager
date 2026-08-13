@@ -2740,6 +2740,14 @@
     "bucket30": "1–30 days",
     "bucket60": "31–60 days",
     "bucket90": "60+ days",
-    "bucketTotal": "Total"
+    "bucketTotal": "Total",
+    "quotesTitle": "Quotes that turned into work",
+    "quotesRateHint": "{converted} of {sent} quotes you sent",
+    "quotesDecidedHint": "Of the ones that actually got an answer: {rate}",
+    "quotesConverted": "Turned into work",
+    "quotesOpen": "Still waiting for an answer",
+    "quotesDeclined": "They said no",
+    "quotesExpired": "Ran out of time",
+    "quotesExpiredNote": "A quote counts as expired once its valid-until date has passed, whether or not the overnight job has caught up with it."
   }
 }

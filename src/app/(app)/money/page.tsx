@@ -6,8 +6,8 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import {
-  moneyPeriods, ageingTotal, seriouslyOverdue, EMPTY_PL,
-  type Pl, type Debtor, type Creditor, type Cash,
+  moneyPeriods, ageingTotal, seriouslyOverdue, ratePercent, EMPTY_PL, EMPTY_CONVERSION,
+  type Pl, type Debtor, type Creditor, type Cash, type QuoteConversion,
 } from "@/lib/money-report";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -50,20 +50,24 @@ export default async function MoneyPage({
   const to = chosen?.to ?? sp.to ?? periods[0].to;
 
   const supabase = await createClient();
-  const [{ data: plData }, { data: breakdownData }, { data: debtorData }, { data: creditorData }, { data: cashData }] =
-    await Promise.all([
-      supabase.rpc("partner_pl", { p_workshop: workshop.id, p_from: from, p_to: to }),
-      supabase.rpc("partner_expense_breakdown", { p_workshop: workshop.id, p_from: from, p_to: to }),
-      supabase.rpc("partner_debtors", { p_workshop: workshop.id }),
-      supabase.rpc("partner_creditors", { p_workshop: workshop.id }),
-      supabase.rpc("partner_cash", { p_workshop: workshop.id, p_from: from, p_to: to }),
-    ]);
+  const [
+    { data: plData }, { data: breakdownData }, { data: debtorData },
+    { data: creditorData }, { data: cashData }, { data: convData },
+  ] = await Promise.all([
+    supabase.rpc("partner_pl", { p_workshop: workshop.id, p_from: from, p_to: to }),
+    supabase.rpc("partner_expense_breakdown", { p_workshop: workshop.id, p_from: from, p_to: to }),
+    supabase.rpc("partner_debtors", { p_workshop: workshop.id }),
+    supabase.rpc("partner_creditors", { p_workshop: workshop.id }),
+    supabase.rpc("partner_cash", { p_workshop: workshop.id, p_from: from, p_to: to }),
+    supabase.rpc("partner_quote_conversion", { p_workshop: workshop.id, p_from: from, p_to: to }),
+  ]);
 
   const pl = (((plData ?? []) as Pl[])[0] ?? EMPTY_PL);
   const breakdown = (breakdownData ?? []) as { category: string; cost_cents: number }[];
   const debtors = (debtorData ?? []) as Debtor[];
   const creditors = (creditorData ?? []) as Creditor[];
   const cash = (((cashData ?? []) as Cash[])[0] ?? { in_cents: 0, out_cents: 0, net_cents: 0 });
+  const conv = (((convData ?? []) as QuoteConversion[])[0] ?? EMPTY_CONVERSION);
 
   const owed = ageingTotal(debtors, "total_cents");
   const late = seriouslyOverdue(debtors);
@@ -165,6 +169,48 @@ export default async function MoneyPage({
           delta={t("money.cashHint", locale)}
         />
       </div>
+
+      {/* How much of what I quoted turned into work */}
+      {conv.sent_count > 0 ? (
+        <Card>
+          <CardHeader><CardTitle>{t("money.quotesTitle", locale)}</CardTitle></CardHeader>
+          <div className="flex flex-wrap items-baseline gap-3">
+            <span className="text-3xl font-bold tabular-nums text-sand-900">{ratePercent(conv.rate_bps)}</span>
+            <span className="text-sm text-sand-600">
+              {t("money.quotesRateHint", locale)
+                .replace("{converted}", String(conv.converted_count))
+                .replace("{sent}", String(conv.sent_count))}
+            </span>
+          </div>
+          {/* Two rates, because neither is honest alone: the first understates a period
+              whose quotes are still out, the second flatters a partner sitting on quotes
+              nobody ever answered. */}
+          <p className="mt-1 text-sm text-sand-600">
+            {t("money.quotesDecidedHint", locale).replace("{rate}", ratePercent(conv.decided_rate_bps))}
+          </p>
+          <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            <dt className="text-sand-600">{t("money.quotesConverted", locale)}</dt>
+            <dd className="text-right tabular-nums text-sand-900">
+              {conv.converted_count} · {rands(conv.converted_cents)}
+            </dd>
+            <dt className="text-sand-600">{t("money.quotesOpen", locale)}</dt>
+            <dd className="text-right tabular-nums text-sand-900">
+              {conv.open_count} · {rands(conv.open_cents)}
+            </dd>
+            <dt className="text-sand-600">{t("money.quotesDeclined", locale)}</dt>
+            <dd className="text-right tabular-nums text-sand-700">
+              {conv.declined_count} · {rands(conv.declined_cents)}
+            </dd>
+            <dt className="text-sand-600">{t("money.quotesExpired", locale)}</dt>
+            <dd className="text-right tabular-nums text-status-warn">
+              {conv.expired_count} · {rands(conv.expired_cents)}
+            </dd>
+          </dl>
+          {conv.expired_count > 0 ? (
+            <p className="mt-2 text-xs text-sand-500">{t("money.quotesExpiredNote", locale)}</p>
+          ) : null}
+        </Card>
+      ) : null}
 
       {/* Who owes me */}
       <Card>
