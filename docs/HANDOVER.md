@@ -18,7 +18,7 @@ as unverified no matter how confident the code comments sound.
 | Branch | `main` (all work merged and pushed) |
 | Migrations in repo | 94 files, `0001` → `0452` |
 | Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — **verified identical to the repo**, 981 objects, 10 categories |
-| Isolation suite | `supabase/tests/rls_isolation.sql`, ~6 000 lines, 38 sections — **green** |
+| Isolation suite | `supabase/tests/rls_isolation.sql`, 5 958 lines, 39 pass banners — **green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
 | i18n | EN/AF at parity, **2 501 leaf keys**, plus professional-tone overlays |
 
@@ -52,7 +52,7 @@ encoding, stripped comments); read that doc before writing your own diff.
 
 Safe to build on.
 
-* **Every RLS claim** in the isolation suite (38 sections). Run `pnpm db:test`.
+* **Every RLS claim** in the isolation suite. Run `pnpm db:test`.
 * **Repo and production are the same schema** — 981 objects, 10 categories, including
   **function grants**, which a body-only diff would miss.
 * **The no-double-count rules**, each measured against the live database with real numbers:
