@@ -59,7 +59,8 @@
     "corrections": "Regstellings",
     "expenses": "Wat ek gekoop het",
     "vat": "BTW",
-    "recurring": "Staande fakture"
+    "recurring": "Staande fakture",
+    "money": "Geld"
   },
   "auth": {
     "signIn": "Teken in",
@@ -1821,7 +1822,11 @@
     "recurringTitle": "Staande fakture",
     "recurringWhat": "’n Rekening wat op sy eie uitgaan, op die dag wat jy kies, so lank as wat jy wil.",
     "recurringDoes": "Stel die bedrag en hoe gereeld, een keer\nOns skep dit snags en sê vir jou\nSkep een vroeër as jy moet",
-    "recurringNote": "By verstek maak ons ’n konsep, nie ’n gestuurde faktuur nie — so niks bereik ’n klant waarna jy nie gekyk het nie."
+    "recurringNote": "By verstek maak ons ’n konsep, nie ’n gestuurde faktuur nie — so niks bereik ’n klant waarna jy nie gekyk het nie.",
+    "moneyTitle": "Geld",
+    "moneyWhat": "Of die werk betaal het, wat werklik in die bank is, en die twee lyste wat telefoonoproepe word.",
+    "moneyDoes": "Sien wins vir ’n maand, kwartaal of jaar\nSien wie jou skuld en hoe laat hulle is\nSien vir wie jy skuld en hoe lank jy dit hou\nVergelyk wins met geld wat werklik gebank is",
+    "moneyNote": "Wins tel werk wanneer jy dit GEFAKTUREER het. Kontant tel geld wanneer dit BEWEEG het. ’n Goeie maand kan steeds ’n knap een wees, en daarom is albei hier."
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -2695,5 +2700,46 @@
     "untrack": "Hou op tel",
     "untrackTitle": "Hou op om hierdie onderdeel te tel?",
     "untrackConsequence": "Die onderdeel bly in die katalogus en die geskiedenis van wat gepas is bly. Net die raktelling gaan weg."
+  },
+  "money": {
+    "title": "Geld",
+    "lead": "Het dit geld gemaak, wie skuld jou, en vir wie skuld jy.",
+    "periodTitle": "Watter tydperk?",
+    "period": {
+      "thisMonth": "Hierdie maand",
+      "lastMonth": "Verlede maand",
+      "thisQuarter": "Hierdie kwartaal",
+      "thisYear": "Hierdie jaar",
+      "lastYear": "Verlede jaar"
+    },
+    "basis": "Getel wanneer jy gefaktureer het, nie wanneer jy betaal is nie.",
+    "profitTitle": "Jy het gemaak",
+    "lossTitle": "Jy het verloor",
+    "revenue": "Werk gefaktureer",
+    "badDebt": "Afgeskryf as nooit kom nie",
+    "costs": "Wat dit jou gekos het",
+    "blockedVat": "daarvan, BTW wat jy nie kan terugeis nie",
+    "profit": "Wins",
+    "loss": "Verlies",
+    "whereItWent": "Waarheen dit gegaan het",
+    "cashIn": "Geld in",
+    "cashOut": "Geld uit",
+    "cashNet": "Verskil",
+    "cashHint": "Werklik gebank en betaal in hierdie tydperk",
+    "owedTitle": "Aan jou verskuldig",
+    "owedNoneTitle": "Niemand skuld jou iets nie",
+    "owedNoneBody": "Elke faktuur wat jy gestuur het, is vereffen.",
+    "lateBadge": "{amount} is meer as 60 dae laat",
+    "owingTitle": "Jy skuld",
+    "owingNoneTitle": "Jy skuld niemand nie",
+    "owingNoneBody": "Elke verskaffersfaktuur wat jy vasgelê het, is as betaal gemerk.",
+    "owingAgeNote": "Getel vanaf die datum op die verskaffersfaktuur — ’n verskaffersfaktuur het geen vervaldatum nie.",
+    "colCustomer": "Klant",
+    "colSupplier": "Verskaffer",
+    "bucketCurrent": "Nog nie verskuldig",
+    "bucket30": "1–30 dae",
+    "bucket60": "31–60 dae",
+    "bucket90": "60+ dae",
+    "bucketTotal": "Totaal"
   }
 }

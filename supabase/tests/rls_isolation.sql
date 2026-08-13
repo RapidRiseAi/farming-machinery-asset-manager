@@ -5956,3 +5956,218 @@ end $$;
 reset role;
 
 select 'ALL G13b OPERATOR-WRITE TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G14 — DID THIS MONTH MAKE MONEY, WHO OWES ME, WHO DO I OWE (0460)
+--
+-- Every figure here is an aggregation over tables that already existed, so the risk is
+-- not tenancy — it is arithmetic that looks right and is not. Three judgements in 0460
+-- are the ones worth pinning down, because each is a place where a plausible
+-- implementation would be wrong:
+--
+--   * a WRITTEN-OFF invoice is still revenue, and the write-off is a cost. Dropping it
+--     from revenue would quietly restate a period already declared to SARS.
+--   * NON-CLAIMABLE VAT is a cost. The VAT return excludes it from input VAT correctly,
+--     but the money left the bank, and a P&L that ignored it would overstate profit by
+--     exactly the amount most likely to be forgotten.
+--   * a written-off invoice must NOT still be chased on the debtors list.
+--
+-- Its own farm and workshop, so the numbers below are the only numbers in play.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('6a000000-0000-0000-0000-000000000001', 'Farm T');
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps)
+values ('6a100000-0000-0000-0000-000000000001', 'Workshop Y', 'mechanic', true, 1500);
+insert into workshop_links (workshop_id, farm_id, status)
+values ('6a100000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001', 'active');
+insert into auth.users (id, email) values ('6a200000-0000-0000-0000-000000000001', 'ystaff@test');
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('6a200000-0000-0000-0000-000000000001', null, '6a100000-0000-0000-0000-000000000001', 'workshop', 'Y Staff', 'y@test');
+
+-- A quiet stretch of calendar nothing else in this suite uses.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values
+  ('6a300000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001',
+   '6a100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'YI-0001', current_date - 700, 1500, 'Farm T'),
+  ('6a300000-0000-0000-0000-000000000002', '6a000000-0000-0000-0000-000000000001',
+   '6a100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'YI-0002', current_date - 699, 1500, 'Farm T');
+
+-- Separate statement: 0418's partner_documents_note_ck requires a credit or debit note to
+-- name the document it corrects at insert time, so the invoices must exist first.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name, corrects_document_id)
+values
+  ('6a300000-0000-0000-0000-000000000003', '6a000000-0000-0000-0000-000000000001',
+   '6a100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'YC-0001', current_date - 698, 1500, 'Farm T',
+   '6a300000-0000-0000-0000-000000000001'),
+  ('6a300000-0000-0000-0000-000000000004', '6a000000-0000-0000-0000-000000000001',
+   '6a100000-0000-0000-0000-000000000001', 'debit_note', 'draft', 'built', 'YD-0001', current_date - 697, 1500, 'Farm T',
+   '6a300000-0000-0000-0000-000000000001');
+
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values
+  ('6a300000-0000-0000-0000-000000000001', '6a000000-0000-0000-0000-000000000001', 1, 'labour', 'Big job',    1, 100000),
+  ('6a300000-0000-0000-0000-000000000002', '6a000000-0000-0000-0000-000000000001', 1, 'labour', 'Never paid', 1,  50000),
+  ('6a300000-0000-0000-0000-000000000003', '6a000000-0000-0000-0000-000000000001', 1, 'labour', 'Overcharged',1,  20000),
+  ('6a300000-0000-0000-0000-000000000004', '6a000000-0000-0000-0000-000000000001', 1, 'labour', 'Extra',      1,  10000);
+
+update partner_documents set status = 'sent', sent_at = now()
+ where id in ('6a300000-0000-0000-0000-000000000001', '6a300000-0000-0000-0000-000000000003',
+              '6a300000-0000-0000-0000-000000000004');
+-- YI-0002 was earned, declared, and never collected.
+update partner_documents
+   set status = 'written_off', sent_at = now(), written_off_at = now(),
+       written_off_reason = 'Customer liquidated'
+ where id = '6a300000-0000-0000-0000-000000000002';
+
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  ('6a400000-0000-0000-0000-000000000001', '6a100000-0000-0000-0000-000000000001',
+   'Bearing Co', 'parts', current_date - 699, 30000, 1500, 4500, true),
+  -- Entertainment: the VAT is real money spent and may NOT be claimed (VAT Act s17(2)).
+  ('6a400000-0000-0000-0000-000000000002', '6a100000-0000-0000-0000-000000000001',
+   'Steakhouse', 'other', current_date - 698, 20000, 1500, 3000, false);
+
+-- ── (a) The P&L adds up, and says what it counted ────────────────────────────
+--   revenue  100000 + 50000 + 10000 − 20000 = 140000
+--   bad debt                                 =  50000  (YI-0002)
+--   cost      30000 + 20000 + 3000 blocked   =  53000
+--   profit   140000 − 50000 − 53000          =  37000
+do $$ declare r record; begin
+  select * into r from app.partner_pl('6a100000-0000-0000-0000-000000000001',
+                                      current_date - 705, current_date - 690);
+  if r.revenue_ex_cents <> 140000 then
+    raise exception 'G14 FAIL: revenue is % rather than 140000 (invoices + debit note − credit note)', r.revenue_ex_cents;
+  end if;
+  if r.bad_debt_ex_cents <> 50000 then
+    raise exception 'G14 FAIL: bad debt is % rather than 50000 — a written-off invoice must stay in revenue AND come off as a cost', r.bad_debt_ex_cents;
+  end if;
+  if r.expenses_ex_cents <> 50000 then
+    raise exception 'G14 FAIL: expenses are % rather than 50000', r.expenses_ex_cents;
+  end if;
+  if r.blocked_vat_cents <> 3000 then
+    raise exception 'G14 FAIL: blocked VAT is % rather than 3000 — VAT you cannot reclaim is still money spent', r.blocked_vat_cents;
+  end if;
+  if r.cost_cents <> 53000 then raise exception 'G14 FAIL: cost is % rather than 53000', r.cost_cents; end if;
+  if r.profit_cents <> 37000 then raise exception 'G14 FAIL: profit is % rather than 37000', r.profit_cents; end if;
+end $$;
+
+-- ── (b) The breakdown decomposes the total, exactly ──────────────────────────
+-- A total nobody can take apart is a total nobody believes.
+do $$ declare v_sum bigint; v_cost bigint; begin
+  select coalesce(sum(cost_cents), 0) into v_sum
+    from app.partner_expense_breakdown('6a100000-0000-0000-0000-000000000001',
+                                       current_date - 705, current_date - 690);
+  select cost_cents into v_cost
+    from app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
+  if v_sum <> v_cost then
+    raise exception 'G14 FAIL: the category breakdown sums to % but the P&L says cost is %', v_sum, v_cost;
+  end if;
+end $$;
+
+-- ── (c) Revenue agrees with the VAT return over the same window ──────────────
+-- The two screens are read by the same person in the same week. If they disagree, both
+-- are useless. The document selection in 0460 is copied from partner_vat_return for
+-- exactly this reason, and this is what keeps it copied.
+do $$ declare v_pl bigint; v_vat bigint; begin
+  select revenue_ex_cents into v_pl
+    from app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
+  select standard_ex_cents - credits_ex_cents into v_vat
+    from app.partner_vat_return('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
+  if v_pl <> v_vat then
+    raise exception 'G14 FAIL: the P&L says revenue % and the VAT return says % over the same window', v_pl, v_vat;
+  end if;
+end $$;
+
+-- ── (d) Who owes me: aggregated, credit-noted, and not chasing a write-off ───
+--   YI-0001 total 115000 less credit note 23000 = 92000 outstanding
+--   YI-0002 written off  -> must NOT appear
+do $$ declare r record; n bigint; begin
+  select count(*) into n from app.partner_debtors('6a100000-0000-0000-0000-000000000001', current_date);
+  if n <> 1 then raise exception 'G14 FAIL: debtors returned % customers rather than 1', n; end if;
+  select * into r from app.partner_debtors('6a100000-0000-0000-0000-000000000001', current_date);
+  if r.total_cents <> 92000 then
+    raise exception 'G14 FAIL: owed is % rather than 92000 (115000 invoice less a 23000 credit note)', r.total_cents;
+  end if;
+  if r.d90_cents <> 92000 then
+    raise exception 'G14 FAIL: an invoice ~700 days old landed in the wrong bucket (90+ shows %)', r.d90_cents;
+  end if;
+end $$;
+
+-- ── (e) Who I owe: what has not been paid, gross ─────────────────────────────
+--   30000 + 4500 + 20000 + 3000 = 57500 (what actually leaves the bank)
+do $$ declare v bigint; begin
+  select coalesce(sum(total_cents), 0) into v
+    from app.partner_creditors('6a100000-0000-0000-0000-000000000001', current_date);
+  if v <> 57500 then raise exception 'G14 FAIL: creditors total % rather than 57500', v; end if;
+end $$;
+-- Paying one takes it off the list, without touching the P&L.
+update partner_expenses set paid_on = current_date where id = '6a400000-0000-0000-0000-000000000001';
+do $$ declare v bigint; p bigint; begin
+  select coalesce(sum(total_cents), 0) into v
+    from app.partner_creditors('6a100000-0000-0000-0000-000000000001', current_date);
+  if v <> 23000 then raise exception 'G14 FAIL: paying a supplier left creditors at % rather than 23000', v; end if;
+  select profit_cents into p
+    from app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
+  if p <> 37000 then
+    raise exception 'G14 FAIL: paying a supplier changed profit to % — when it was paid is cash, not cost', p;
+  end if;
+end $$;
+
+-- ── (f) Cash is not profit ───────────────────────────────────────────────────
+-- The expense was paid TODAY, the work was invoiced 700 days ago. A cash view over today
+-- must show the money leaving and no revenue; the P&L window above is unmoved.
+do $$ declare r record; begin
+  select * into r from app.partner_cash('6a100000-0000-0000-0000-000000000001', current_date, current_date);
+  if r.out_cents <> 34500 then
+    raise exception 'G14 FAIL: cash out today is % rather than 34500', r.out_cents;
+  end if;
+  if r.in_cents <> 0 then raise exception 'G14 FAIL: cash in today is % rather than 0', r.in_cents; end if;
+  if r.net_cents <> -34500 then raise exception 'G14 FAIL: net cash is % rather than -34500', r.net_cents; end if;
+end $$;
+
+-- ── (g) Another workshop asking about these books gets nothing ───────────────
+-- Every function is SECURITY INVOKER, so passing somebody else's workshop id is answered
+-- by RLS on the underlying tables rather than by a check somebody could forget to write.
+set role authenticated;
+do $$ declare r record; n bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z staff
+  select * into r from app.partner_pl('6a100000-0000-0000-0000-000000000001',
+                                      current_date - 705, current_date - 690);
+  if coalesce(r.revenue_ex_cents, 0) <> 0 or coalesce(r.cost_cents, 0) <> 0 then
+    raise exception 'G14 FAIL [COMPETITOR]: another workshop read revenue % and cost %', r.revenue_ex_cents, r.cost_cents;
+  end if;
+  select count(*) into n from app.partner_debtors('6a100000-0000-0000-0000-000000000001', current_date);
+  if n <> 0 then raise exception 'G14 FAIL [COMPETITOR]: another workshop read % of its rival''s debtors', n; end if;
+  select count(*) into n from app.partner_creditors('6a100000-0000-0000-0000-000000000001', current_date);
+  if n <> 0 then raise exception 'G14 FAIL [COMPETITOR]: another workshop read % of its rival''s suppliers', n; end if;
+end $$;
+
+-- ── (h) The farm it works for cannot read its contractor's books either ──────
+do $$ declare r record; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- a farm owner
+  select * into r from app.partner_pl('6a100000-0000-0000-0000-000000000001',
+                                      current_date - 705, current_date - 690);
+  if coalesce(r.cost_cents, 0) <> 0 then
+    raise exception 'G14 FAIL [MARGIN LEAK]: a farm read its contractor''s costs (%)', r.cost_cents;
+  end if;
+end $$;
+reset role;
+
+-- ── (i) anon runs none of it ─────────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G14 FAIL: anon ran the P&L'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.partner_debtors('6a100000-0000-0000-0000-000000000001', current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G14 FAIL: anon ran the debtors report'; end if;
+end $$;
+reset role;
+
+select 'ALL G14 MONEY-ANSWER TESTS PASSED' as result;

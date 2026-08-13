@@ -59,7 +59,8 @@
     "corrections": "Corrections",
     "expenses": "What I bought",
     "vat": "VAT",
-    "recurring": "Standing invoices"
+    "recurring": "Standing invoices",
+    "money": "Money"
   },
   "auth": {
     "signIn": "Sign in",
@@ -1821,7 +1822,11 @@
     "recurringTitle": "Standing invoices",
     "recurringWhat": "A bill that goes out on its own, on the day you choose, for as long as you want.",
     "recurringDoes": "Set the amount and how often, once\nWe raise it overnight and tell you\nRaise one early if you need to",
-    "recurringNote": "By default we make a draft, not a sent invoice — so nothing reaches a customer you have not looked at."
+    "recurringNote": "By default we make a draft, not a sent invoice — so nothing reaches a customer you have not looked at.",
+    "moneyTitle": "Money",
+    "moneyWhat": "Whether the work paid, what is actually in the bank, and the two lists that turn into phone calls.",
+    "moneyDoes": "See profit for a month, quarter or year\nSee who owes you and how late they are\nSee who you owe and how long you have held it\nCompare profit against cash actually banked",
+    "moneyNote": "Profit counts work when you INVOICED it. Cash counts money when it MOVED. A good month can still be a tight one, which is why both are here."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -2695,5 +2700,46 @@
     "untrack": "Stop tracking",
     "untrackTitle": "Stop counting this part?",
     "untrackConsequence": "The part stays in the catalogue and the history of what was fitted stays. Only the shelf count goes."
+  },
+  "money": {
+    "title": "Money",
+    "lead": "Did it make money, who owes you, and who you owe.",
+    "periodTitle": "Which period?",
+    "period": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisQuarter": "This quarter",
+      "thisYear": "This year",
+      "lastYear": "Last year"
+    },
+    "basis": "Counted when you invoiced, not when you were paid.",
+    "profitTitle": "You made",
+    "lossTitle": "You lost",
+    "revenue": "Work invoiced",
+    "badDebt": "Written off as never coming",
+    "costs": "What it cost you",
+    "blockedVat": "of that, VAT you cannot claim back",
+    "profit": "Profit",
+    "loss": "Loss",
+    "whereItWent": "Where it went",
+    "cashIn": "Money in",
+    "cashOut": "Money out",
+    "cashNet": "Difference",
+    "cashHint": "Actually banked and paid in this period",
+    "owedTitle": "Owed to you",
+    "owedNoneTitle": "Nobody owes you anything",
+    "owedNoneBody": "Every invoice you have sent has been settled.",
+    "lateBadge": "{amount} is more than 60 days late",
+    "owingTitle": "You owe",
+    "owingNoneTitle": "You owe nobody",
+    "owingNoneBody": "Every supplier invoice you have captured is marked paid.",
+    "owingAgeNote": "Counted from the date on the supplier invoice — a supplier invoice carries no due date.",
+    "colCustomer": "Customer",
+    "colSupplier": "Supplier",
+    "bucketCurrent": "Not yet due",
+    "bucket30": "1–30 days",
+    "bucket60": "31–60 days",
+    "bucket90": "60+ days",
+    "bucketTotal": "Total"
   }
 }
