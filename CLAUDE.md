@@ -1125,4 +1125,86 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     multi-currency, no payroll, and the PayFast callback is unexercised until credentials
     exist.
 
+
+- **Verification pass + G11–G13** (migrations `0440`, `0450–0452`; isolation-tested,
+  `db:test` green; everything below applied to the demo project and driven live):
+  - **A debugging helper on the live database let anyone read as anyone.** Fingerprinting
+    every object the migrations create against the hosted project found exactly one object
+    on production and nowhere in the repo: `public._f14_probe(uuid)`, left from F14. It did
+    NOT bypass RLS — `SECURITY INVOKER`, but its body called
+    `set_config('request.jwt.claims', …)` with a uuid **the caller chooses**, and every
+    policy decides through `auth.uid()`. So it moved the caller to the other side of the
+    fence and let RLS answer correctly for somebody else, which is the more dangerous shape
+    because every policy still "passes". Measured before removal: a Weltevrede operator
+    (0 partner documents of their own) read back a contractor's 5/10/1 and the platform
+    admin's 6/12/1. `anon` could execute it too — a function with no grant defaults to
+    `EXECUTE TO PUBLIC` — and was stopped only by this schema's table grants.
+    `0440` drops it and revokes that PUBLIC default from eleven `app.*` helpers that still
+    carried it (**not** reachable — PostgREST exposes only `public`/`graphql_public` and
+    answers PGRST106 for `app` — so recorded as defence in depth, not a live hole).
+  - **`db:test` could never have caught it**: it builds a database FROM the migrations, so
+    a production-only object is invisible. Three things change that: a **G11** suite
+    section (nothing outside the test harness may rewrite `request.jwt.claims`; `_f14_probe`
+    named explicitly; anon executes nothing in `app`), and
+    **`scripts/schema_fingerprint.sql` + `docs/SCHEMA_DRIFT.md`** — one line per object
+    across ten categories **including function grants**, which a body-only diff misses.
+    G11 immediately earned itself by catching `app.stock_needs_reorder` with the same
+    PUBLIC default, the first time the suite ran after it was added.
+  - **Repo vs production is now provably identical**: 981 objects, 10 categories, all
+    matching. The handover's fear of column/policy drift was unfounded — what looked like
+    33 differing functions was three artifacts of a Windows checkout (CRLF in function
+    bodies, a psql client-encoding mismatch turning em-dashes to mojibake, and production
+    having comments stripped by how migrations were pasted). All three are documented in
+    `SCHEMA_DRIFT.md` because they will catch the next person too.
+  - **Two dead ends found by driving the screens, not reading them.** `vatPeriods` returns
+    closed periods only, so an expense captured today fell in a period the screen refused
+    to offer and `/vat` said "you have not captured anything you bought in this period" —
+    which reads as "the capture failed". `currentVatPeriod` adds the open period, marked
+    "still open", never the default. And `/recurring` said "you can raise one now" with no
+    control to do it (it lives on the schedule's own page); the copy now says to open one
+    and each due row carries the cue — as a `<span>`, because the row is already an anchor
+    and a nested anchor is the invalid HTML that threw React #418 on the machines list.
+  - **§4 of the handover, worked through**: `/expenses`, `/vat`, `/recurring`,
+    `/contractor/settings` and progress billing all driven end-to-end with real writes.
+    Proven live: a standing invoice pressed twice raises exactly ONE document
+    (217 391 + 32 609 = 250 000 exactly); a 25% stage invoice books 103 250 — its own value,
+    not the quote's — and a quote is never costed; a **sent** document keeps the letterhead
+    frozen at send time while a **draft** picks up a newly saved layout; both PDFs generate.
+    All ten nightly cron engines run clean against the live database (the HTTP route itself
+    still needs `SUPABASE_SERVICE_ROLE_KEY` + `CRON_SECRET` in Vercel).
+  - **§3 re-verified independently**: `rands()` renders identically in Node and Chrome
+    across 22 cases; `advanceByCadence` agrees with `app.advance_by_cadence` on 12 cases
+    including leap years; VAT periods have no gaps, no overlaps, correct category parity and
+    real month-ends; PayFast's three signing behaviours (order preserved, PHP `urlencode`,
+    empty fields omitted) all hold.
+  - **Receipts for expenses (§4.6)** — the bucket, its policies and `receipt_path` existed
+    since 0430; only the way to put a file there was missing, so a VAT-registered partner's
+    every input-VAT claim was unsupported. Founder's call: **warn, never block** — the
+    expense always saves, and the gap shows as an amount at the top of `/expenses`, a flag
+    on the row, and a line on the VAT return before it is filed. Uploads go through the
+    CALLER'S RLS client (the 0430 policies already scope the bucket by workshop), so no
+    service key is involved. Measured live: signing TJ's receipt returns 200 for TJ and
+    **400** for another contractor, for the farm TJ works for, and for anon. **G12** asserts
+    the column and the write; the storage policies are not testable locally (0430 skips them
+    where there is no `storage` schema) and that is said in the section.
+  - **Stock on hand (§6 inventory; `0450–0452`)** — `parts_catalogue` was a list and could
+    not answer "have we got one?". Shape is **F4's fuel model with different nouns**:
+    `stock_items` + a `stock_movements` ledger, `on_hand` maintained by trigger and never
+    typed. The money rule, chosen by the founder and asserted **both ways**: a receipt books
+    nothing; an issue **naming a job card** books nothing (the 0211 line owns that rand —
+    the no-double-count rule); an issue **with no job card** books a `parts` cost entry
+    against the machine; adjustments and returns book nothing. Live: received 10 at R112 →
+    no cost; issued 2 to the Claas Stroper → one entry of exactly 22 400. Contractors read
+    0 items and 0 movements despite an active link. `0452` closes a gap the browser found:
+    the policies admitted an **operator** to write while the server actions did not — UI-only
+    enforcement, which F7 exists to rule out. Reading stays open to the whole farm side
+    (a driver may ask "have we got a filter?"); the write narrows to owner/manager/mechanic.
+    `0451` adds a low-stock nudge on the 0205 engine pattern, wired into the nightly cron.
+  - i18n EN/AF at parity (**2 501 leaf keys**). Gates green; shared first-load JS flat at
+    **102 kB**.
+  - **Still not verifiable here** (all need secrets held by the founder): email has never
+    sent (`RESEND_API_KEY`/`EMAIL_FROM`), the PayFast ITN round trip needs merchant
+    credentials, and the cron HTTP route needs the service-role key. The PayFast signature
+    was checked behaviourally rather than against PayFast's published worked example.
+
 > Update this "current status" block at the end of every session.

@@ -1,11 +1,13 @@
 # FleetWise — handover
 
-Written at the end of the G6–G10 session (migrations `0430–0435`). Everything described
-here is on `main` and pushed; the hosted demo project has every migration applied.
+Written at the end of the verification session (migrations `0440`, `0450–0452`). Everything
+described here is on `main` and pushed; the hosted demo project has every migration applied
+and was **fingerprinted against the repo afterwards** — 981 objects across 10 categories,
+all matching.
 
 This document is deliberately blunt about what is **proven**, what is **built but
-unexercised**, and what is **not built**. If a claim is not in the "proven" column, treat
-it as unverified no matter how confident the code comments sound.
+unexercised**, and what is **not built**. If a claim is not in the "proven" column, treat it
+as unverified no matter how confident the code comments sound.
 
 ---
 
@@ -13,137 +15,111 @@ it as unverified no matter how confident the code comments sound.
 
 | | |
 |---|---|
-| Branch | `main` (all work merged; `claude/fleetwise-financial-controls` merged as PR #16) |
-| Migrations in repo | 90 files, `0001` → `0435` |
-| Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — all 47 tables present, every feature migration applied |
-| Isolation suite | `supabase/tests/rls_isolation.sql`, 5 592 lines, 35 sections, 505 assertions — **green** |
+| Branch | `main` (all work merged and pushed) |
+| Migrations in repo | 94 files, `0001` → `0452` |
+| Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — **verified identical to the repo**, 981 objects, 10 categories |
+| Isolation suite | `supabase/tests/rls_isolation.sql`, ~6 000 lines, 38 sections — **green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
-| i18n | EN/AF at parity, **2 454 leaf keys**, plus professional-tone overlays |
-| Routes | 50 pages, 18 API routes |
+| i18n | EN/AF at parity, **2 501 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
-`FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`.
+`FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`; the farm
+side is `danie@weltevrede.example` (owner) and `thabo@weltevrede.example` (operator).
 
 ---
 
-## 2. What the product now does
+## 2. The one thing to read before anything else
 
-The farm side (fleet registry, service, fuel, faults, job cards, checklists, compliance,
-budgets, multi-site, POPIA) was complete before these sessions and is summarised in
-`CLAUDE.md`. What follows is the **commercial/partner layer**, which is what recent work
-has been about.
+`pnpm db:test` builds a database **from** the migrations. It can only ever prove the repo
+is sound. It says nothing about the live project, and that gap was not theoretical:
 
-### The document spine (F14, G1–G5)
+`public._f14_probe(uuid)` was created on production during F14 to answer "what does this
+user see?", was never removed, and survived a whole session of green tests. It did **not**
+bypass RLS — it was `SECURITY INVOKER` — but its body called
+`set_config('request.jwt.claims', …)` with a uuid **the caller chose**, and every policy in
+this schema decides through `auth.uid()`. So it did not switch the fence off; it moved the
+caller to the other side and let RLS answer correctly on somebody else's behalf. A
+Weltevrede operator with zero partner documents read back another tenant's counts.
 
-* Quotes, invoices, **credit notes**, **debit notes** — one table with a `kind`, not
-  parallel schemas.
-* Three recipient kinds: a linked FleetWise farm, a client from the partner's own book, or
-  a **one-time customer typed straight onto the document**.
-* **Editing an issued document in place**, with the previous version snapshotted into
-  `partner_document_revisions` — the guarantee is "cannot change *without leaving a
-  complete record*", not "cannot change".
-* That history is **append-only**: grants revoked *and* a trigger that raises, `rr_admin`
-  included. (Measured first: `DELETE` previously ran silently at 0 rows — default-deny, not
-  an audit trail.)
-* Four ways to correct a mistake: delete a draft, **void** with a reason, a **credit or
-  debit note**, or **revise in place**. Plus **write-off** and **refund**.
-* **Statements** with a real opening balance, ageing, PDF, CSV and email.
-* Branded PDFs with the letterhead **frozen at send time**.
-
-### G6–G10 (this session)
-
-| Area | Migration | What it is |
-|---|---|---|
-| Purchases / expenses | `0430` | The input side. Workshop-scoped so a farm never sees its contractor's supplier invoices. |
-| VAT return | `0431` | Output less input VAT, **invoice basis**, over real SARS periods (`workshops.vat_category`). Screen + CSV + PDF. |
-| Deposits & progress billing | `0432` | Many invoices against one quote. No netting — each stage carries its own lines and its own cost entry. |
-| Standing invoices | `0433` | Nightly cron raises them. Draft by default; **cannot bill the same period twice**. |
-| Document layout | `0434` | A closed set of layout choices applied identically by screen and PDF, frozen into `issuer_snapshot`. |
-| Online payment | `0435` | PayFast, env-gated. Unique index on `(provider, provider_ref)` stops a retried callback crediting twice. |
+Migration `0440` drops it. **`scripts/schema_fingerprint.sql` + `docs/SCHEMA_DRIFT.md` are
+how it was found — run that comparison before trusting any statement that production matches
+the repo.** Three normalisations in it were each earned the hard way (CRLF, psql client
+encoding, stripped comments); read that doc before writing your own diff.
 
 ---
 
 ## 3. Proven — driven, measured, or asserted in the suite
 
-These are safe to build on.
+Safe to build on.
 
-* **Every RLS claim** in the isolation suite (505 assertions). Run `pnpm db:test`.
-* **The no-double-count rules**, each asserted with real numbers:
-  * a job billed in stages puts exactly the job's value into the farm's ledger (G7);
-  * a written-off invoice keeps its cost entry but leaves the ageing (G5);
-  * a credit note subtracts from the VAT return, a draft never appears (G6);
-  * a partner invoice, a work-request invoice and a job card never double-book (F12b, F14).
-* **Tenant isolation for the new tables**: a farm reads 0 of its contractor's expenses; a
-  contractor reads 0 of another contractor's; a partner cannot run or read another
-  partner's schedules, VAT position or layout.
-* **Idempotency**: re-running a standing invoice for the same period raises nothing; a
-  duplicate payment reference is refused by unique index.
-* **Money and number formatting**, verified on 18 cases and re-measured in the browser.
-* **VAT period arithmetic** (category A/B/monthly) — no gaps, no overlaps, correct
-  month-ends, checked over 8 periods.
-* **Cadence arithmetic** — TS mirror checked against Postgres on 12 cases including leap
-  years; a year of monthly runs from the 31st repeats no month.
-* **PayFast signature** — matches PayFast's own documented worked example byte for byte,
-  including the three details implementations get wrong (form order not alphabetical, PHP
-  `urlencode` with `+` and uppercase hex, empty fields omitted).
-* **Live browser sweep** of `/expenses`, `/vat`, `/recurring`, `/documents`, `/statements`,
-  `/contractor/settings` on desktop and a Pixel-sized phone: no uncaught errors, no
-  hydration failures, no horizontal overflow, no control under 48 px.
-* **Dialog accessibility**: four dialogs on the invoice page focus a field (never the
-  destructive button) and close on Escape.
+* **Every RLS claim** in the isolation suite (38 sections). Run `pnpm db:test`.
+* **Repo and production are the same schema** — 981 objects, 10 categories, including
+  **function grants**, which a body-only diff would miss.
+* **The no-double-count rules**, each measured against the live database with real numbers:
+  * a 25% stage invoice books 103 250 — its own value, not the quote's; a quote is never
+    costed;
+  * a stock issue naming a job card books nothing (the 0211 line owns it); an issue with no
+    job card books its own `parts` entry; a receipt books nothing;
+  * a credit note subtracts on the VAT return; a draft never appears there.
+* **Idempotency**: a standing invoice pressed twice raised exactly one document
+  (217 391 + 32 609 = 250 000 exactly); the low-stock engine run twice queued one round.
+* **Letterhead freeze**: a **sent** document keeps the letterhead frozen at send time while
+  a **draft** picks up a newly saved layout. Both PDFs generate.
+* **Tenant isolation for the new surfaces**: a contractor with an *active link* to a farm
+  reads 0 stock items and 0 movements; signing another partner's receipt returns 400 for
+  another contractor, for the farm they work for, and for anon.
+* **Role enforcement is in RLS, not the UI**: an operator may read the store and is refused
+  a write at the database (42501).
+* **Money and number formatting**: `rands()` identical in Node and Chrome across 22 cases.
+* **VAT period arithmetic**: no gaps, no overlaps, correct category parity, real month-ends.
+* **Cadence arithmetic**: the TS mirror agrees with `app.advance_by_cadence` on 12 cases
+  including leap years.
+* **All ten nightly cron engines** execute cleanly against the live database.
 
 ---
 
 ## 4. Built but NOT exercised — verify these first
 
-This is the honest list. All of it compiles, typechecks and has passing DB-level tests;
-none of it has been run against the real external thing.
+All of it compiles and has passing DB-level tests; none has been run against the real
+external thing. **Every item here is blocked on a secret the founder holds**, which is why
+it is still on this list.
 
-1. **Email has never sent.** `RESEND_API_KEY` and `EMAIL_FROM` are unset, so every send
-   path returns "email is not switched on". The PDFs generate (verified, ~3 KB) and every
-   attempt is logged, but no message has left the system. **Set the keys and send one
-   document and one statement to a real inbox.**
-2. **The PayFast ITN callback is untested.** It needs live (or sandbox) merchant
-   credentials and a real payment through PayFast's servers. The signature is proven; the
-   round trip is not. Use `PAYFAST_SANDBOX=1` first.
-3. **The nightly cron has never fired in production.** `/api/cron/nightly` now calls ten
-   engines including the new `cron_generate_recurring_invoices`. `CRON_SECRET` still needs
-   setting in Vercel and the schedule wiring confirmed (`docs/CRON.md`).
-4. **The new screens have not been driven end-to-end with writes.** They render correctly
-   and the DB behaviour is proven separately, but nobody has: captured an expense through
-   the form and watched it land on the VAT return; raised a stage invoice from a quote and
-   sent it; created a schedule and let the cron raise it; saved a layout and downloaded the
-   resulting PDF. **Do this first — it is the highest-value hour available.**
-5. **The VAT return has not been checked against a real accountant's figures.** The
-   arithmetic is asserted, but the *interpretation* (what belongs in which box of a VAT201)
-   deserves one review by someone who files them.
-6. **Receipts upload for expenses** — the bucket and policies exist (`partner-receipts`),
-   and `receipt_path` is on the row, but **no upload UI was built**. The column is unused.
+1. **Email has never sent.** `RESEND_API_KEY` and `EMAIL_FROM` are unset, so every send path
+   returns "email is not switched on". PDFs generate and every attempt is logged, but no
+   message has left the system. Set the keys and send one document and one statement to a
+   real inbox.
+2. **The PayFast ITN callback is untested.** It needs live or sandbox merchant credentials
+   and a real payment. The three signing behaviours are proven (order preserved, PHP
+   `urlencode` with `+` and uppercase hex, empty fields omitted); the round trip is not.
+   Note: the signature has **not** been compared against PayFast's own published worked
+   example — do that when you have the doc in front of you.
+3. **The nightly cron HTTP route has never fired.** The ten engines it calls have all been
+   run directly and are clean, but `/api/cron/nightly` needs `SUPABASE_SERVICE_ROLE_KEY` to
+   construct its client and `CRON_SECRET` set in Vercel, plus the schedule confirmed
+   (`docs/CRON.md`).
+4. **The VAT return has not been checked against a real accountant's figures.** The
+   arithmetic is asserted; the *interpretation* — what belongs in which box of a VAT201 —
+   deserves one review by somebody who files them.
 
 ---
 
 ## 5. Known risks and things to double-check
 
-* **Repo migrations ≠ production migration ledger.** The repo has 90 migration files; the
-  hosted project lists 60 applied entries, because several were applied by pasting combined
-  content rather than file-by-file. All 47 tables are confirmed present, but **column- and
-  policy-level drift has not been exhaustively diffed.** A fresh project built from the
-  repo is proven correct by `db:test`; the *hosted* one is proven only at table level.
-  Worth a systematic comparison.
-* **`docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` predates G6–G10** and does not mention the new
+* **The demo project now carries this session's test data**: one tracked stock item
+  (HYD-68-20L, deliberately left below its reorder point so the low-stock badge demos), a
+  captured expense with a receipt attached, a standing invoice, a 25% deposit invoice, and
+  a handful of notifications. Useful for demos; worth knowing before reading any figure on
+  it as "seed data".
+* **`docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` predates G6–G13** and does not mention the newer
   screens, env vars or demo data.
-* **The demo seed has no G6–G10 data.** No expenses, no schedules, no staged invoices, so
-  those screens open empty on the demo farm. Adding seed rows would make them demo-able.
-* **`num()` and `rands()` were just rewritten.** They are used on nearly every screen.
-  The unit cases pass and the live sweep was clean, but a wider visual pass across the farm
-  side (dashboard, reports, machine detail, fuel) would be cheap insurance.
-* **Dates still go through `toLocaleString`.** Money was the proven mismatch; the same
-  ICU-fallback risk applies to `shortDate` and friends. Currently only server-rendered, so
-  no hydration break — but worth the same treatment.
-* **The nightly route isolates engine failures** — checked: `run()` records the error in
-  `steps` and does not throw, so one failing engine does not stop the nine after it, and
-  the route answers 500 with a per-engine breakdown. Nothing to fix; worth knowing when
-  reading a failed run.
+* **Dates still go through `toLocaleString`.** Money was the proven mismatch and is now
+  hand-written; the same ICU-fallback risk applies to `shortDate` and friends. Currently
+  only server-rendered, so no hydration break — but worth the same treatment.
+* **Some `?error=` codes still render raw.** The receipt failures were given sentences; the
+  older ones on the same screens (`need-supplier`, `need-amount`) still show their code.
+* **A low-stock notification row is not a link** in the alert centre, although
+  `notificationUrl` returns `/parts#store` for it. Cosmetic; the centre appears to link only
+  some templates.
 
 ---
 
@@ -153,39 +129,47 @@ none of it has been run against the real external thing.
 * Multi-currency (everything is ZAR, integer cents).
 * Payroll.
 * WhatsApp Stage 2 (BSP API) — Stage 1 is manual; the queue and `deliver_after` are ready.
-* Purchase *orders* (the expense side records what was bought, not what was ordered).
-* Inventory/stock levels (parts catalogue exists; quantities on hand do not).
+* Purchase *orders* (the expense side records what was bought, not what was ordered; the
+  store now records what is held).
+* **Commitment-aware reordering.** `app.stock_needs_reorder` is deliberately its own
+  function so this is a one-place change. Today it is "at or below the minimum you set".
+  `service_kit_items` already says what each service consumes and
+  `app.recalc_machine_service` already knows what falls due, so "you have 2 filters and the
+  250-hour service next week needs 6" needs no new tables — only a judgement about how far
+  ahead to look, which is better made by somebody who has run a farm store.
 
 ---
 
 ## 7. Working on this project — things that will save you an hour
 
-* **`pnpm db:test` recreates the test database** and runs every migration in order, then
-  the isolation suite. It is the fastest way to know a migration is sound.
-* **A stale `.next` will lie to you.** If the dev server is running while you rebuild, the
-  browser gets old chunks against new HTML and you will see hydration errors that are not
-  real. Always: kill the server, `rm -rf .next`, rebuild, restart.
-* **`pkill -f "next start"` matches the invoking shell** and returns exit 144. Use
-  `pkill -f "next-server"` and expect to re-run the next command.
-* **Playwright** lives at `/opt/node22/lib/node_modules/playwright/index.js` and is
-  CommonJS — `import pw from …; const { chromium } = pw;`. Chromium is at
-  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
-* **Vercel preview URLs are behind Vercel SSO** and cannot be driven by Playwright. Build
-  and run locally against the live project instead (write `.env.local`, and **delete it
-  afterwards**).
+* **`pnpm db:test` recreates the test database**, applies every migration in order, then
+  runs the isolation suite. Fastest way to know a migration is sound.
+* **On Windows**: there is no `python`; use `node -e`. Export `PGCLIENTENCODING=UTF8` before
+  loading migrations or the em-dashes in error messages become mojibake. Git Bash `PATH`
+  entries must be POSIX (`/c/...`, not `C:/...`), and `MSYS_NO_PATHCONV=1` stops it
+  mangling a `/route` argument into a Windows path.
+* **A stale `.next` will lie to you**, and a server left running holds port 3000 while
+  answering from the OLD build — which looks like a readiness check passing. Always: stop
+  whatever holds 3000, `rm -rf .next`, rebuild, restart. `pkill -f "next-server"` is
+  unreliable here; find the PID from the listening port and stop that.
+* **Playwright**: `playwright-core` plus the Chrome already installed drives the app without
+  a 150 MB browser download (`executablePath` to `chrome.exe`).
+* **Discover selectors, do not guess them.** Several controls are `ConfirmDialog` *triggers*
+  — clicking one opens a dialog and the real submit is inside it. Others look like buttons
+  and are shortcuts that only prefill a field. Dump the page's controls first.
 * **An enum value cannot be used in the transaction that adds it** — new values need their
-  own migration file.
+  own migration file. Creating a brand-new enum type and using it is fine.
 * **The freeze triggers refuse lines on an issued document**, correctly. Anything that
   builds an invoice must create it as a draft, add lines, then send.
 * **Test against the live project inside `begin … rollback`** to verify behaviour without
-  touching demo data. This works well and was used throughout.
+  touching demo data.
 
 ---
 
 ## 8. Suggested order of work for the next session
 
-1. Verify the claims in §3 independently — do not take this document's word for them.
-2. Work through §4 in order; (4) is the highest value.
-3. Diff the repo schema against the hosted project properly (§5, first bullet).
-4. Seed demo data for the G6–G10 screens.
-5. Then pick from §6 by what the business actually needs next.
+1. Run the schema fingerprint (§2) before trusting anything about production.
+2. Unblock §4 — all four items need only credentials, and email is the biggest gap against
+   AutoVault.
+3. Then pick from §6. Bank reconciliation is the one every partner does monthly; the
+   commitment-aware reorder rule is the cheapest genuine improvement.
