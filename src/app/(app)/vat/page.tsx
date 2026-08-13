@@ -9,6 +9,7 @@ import {
   vatPeriods, currentVatPeriod, vatIsPayable, EMPTY_VAT_RETURN,
   type VatReturn, type VatCategory,
 } from "@/lib/expenses";
+import { claimNeedsProof } from "@/lib/receipt-media";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,7 @@ export default async function VatPage({
       .order("issue_date"),
     supabase
       .from("partner_expenses")
-      .select("id, supplier_name, expense_date, amount_cents, vat_cents, vat_claimable, category")
+      .select("id, supplier_name, expense_date, amount_cents, vat_cents, vat_claimable, category, receipt_path")
       .gte("expense_date", from)
       .lte("expense_date", to)
       .is("deleted_at", null)
@@ -90,8 +91,13 @@ export default async function VatPage({
   }[];
   const expenses = (expData ?? []) as {
     id: string; supplier_name: string; expense_date: string; amount_cents: number;
-    vat_cents: number; vat_claimable: boolean; category: string;
+    vat_cents: number; vat_claimable: boolean; category: string; receipt_path: string | null;
   }[];
+
+  // How much of the input VAT in this return has no supplier tax invoice behind it. The
+  // figure is still claimed — the founder's call was to warn, not block — but this is the
+  // part an auditor would disallow, so the return says so before it is filed.
+  const unsupportedVat = expenses.filter(claimNeedsProof).reduce((s, e) => s + e.vat_cents, 0);
 
   const payable = vatIsPayable(vat);
   const netAbs = Math.abs(vat.net_vat_cents);
@@ -263,6 +269,13 @@ export default async function VatPage({
 
           <Card>
             <CardHeader><CardTitle>{t("vat.purchasesTitle", locale)}</CardTitle></CardHeader>
+            {unsupportedVat > 0 ? (
+              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {t("vat.unsupportedInput", locale)}{" "}
+                <span className="font-semibold tabular-nums">{rands(unsupportedVat)}</span>{" "}
+                {t("vat.unsupportedInputTail", locale)}
+              </p>
+            ) : null}
             {expenses.length === 0 ? (
               <p className="text-sm text-sand-600">
                 {t("vat.noPurchases", locale)}{" "}
@@ -288,6 +301,9 @@ export default async function VatPage({
                         <td className="py-2.5 pr-3 text-sand-900">
                           {e.supplier_name}
                           <span className="block text-xs text-sand-500">{t(`expenseCategory.${e.category}`, locale)}</span>
+                          {claimNeedsProof(e) ? (
+                            <span className="block text-xs text-status-warn">{t("expenses.receiptMissing", locale)}</span>
+                          ) : null}
                         </td>
                         <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</td>
                         <td className="py-2.5 text-right tabular-nums text-sand-800">

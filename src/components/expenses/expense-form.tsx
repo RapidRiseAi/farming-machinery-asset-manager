@@ -152,6 +152,22 @@ export function ExpenseForm({ locale, vatRegistered }: { locale: Lang; vatRegist
 
         <TextField name="supplier_vat_number" label={t("expenses.supplierVat", locale)} hint={t("expenses.supplierVatHint", locale)} />
 
+        {/* Optional at capture, because the paper is usually still in the bakkie. The row
+            and the VAT return carry the warning until it arrives. */}
+        <Field
+          label={t("expenses.receiptLabel", locale)}
+          hint={t("expenses.receiptHint", locale)}
+          htmlFor="expense_receipt"
+        >
+          <input
+            id="expense_receipt"
+            type="file"
+            name="receipt"
+            accept="image/*,application/pdf"
+            className="focus-ring block w-full rounded-lg border border-sand-300 bg-white px-3 py-2.5 text-sm text-sand-700 file:mr-3 file:rounded-md file:border-0 file:bg-sand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sand-700"
+          />
+        </Field>
+
         <SubmitButton className="self-start">{t("expenses.save", locale)}</SubmitButton>
       </form>
     </Card>

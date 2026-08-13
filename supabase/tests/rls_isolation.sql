@@ -5660,3 +5660,68 @@ begin
 end $$;
 
 select 'ALL G11 NO-DEBUG-BACK-DOOR TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G12 — THE SUPPLIER'S TAX INVOICE ON AN EXPENSE (0430 bucket, app layer G6b)
+--
+-- `partner_expenses.receipt_path` and the `partner-receipts` bucket were both created by
+-- 0430; only the way to put a file there was missing, so the column sat unused. Attaching
+-- one adds a WRITE path to an existing row and a new object namespace, and both need the
+-- same answer as the row itself: a partner's supplier invoices are the partner's.
+--
+-- The storage policies themselves cannot be exercised here — the local test Postgres has
+-- no `storage` schema, which is why 0430 skips creating them. They were instead measured
+-- against the live project: signing a URL for TJ's receipt returned 200 for TJ and 400
+-- for another contractor, for the farm the contractor works for, and for anon. What IS
+-- testable here is the column those policies protect, and the write that sets it.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── (a) The owning partner can attach one ────────────────────────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
+  update partner_expenses
+     set receipt_path = '62100000-0000-0000-0000-000000000001/66000000-0000-0000-0000-000000000001/receipt-1.pdf'
+   where id = '66000000-0000-0000-0000-000000000001';
+  select count(*) into c from partner_expenses
+   where id = '66000000-0000-0000-0000-000000000001' and receipt_path is not null;
+  if c <> 1 then raise exception 'G12 FAIL: a partner could not attach a receipt to its own expense'; end if;
+end $$;
+
+-- ── (b) Another contractor cannot attach one to it ───────────────────────────
+-- Not an error — RLS makes it match zero rows, which is the shape to assert. A silent
+-- "success" that changed nothing is exactly how a leak hides, so the check is that the
+-- stored path is still the one the owner wrote.
+do $$ declare c bigint; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
+  update partner_expenses set receipt_path = 'c3333333-3333-3333-3333-333333333333/planted.pdf'
+   where id = '66000000-0000-0000-0000-000000000001';
+  perform _t_login('62200000-0000-0000-0000-000000000001');
+  select count(*) into c from partner_expenses
+   where id = '66000000-0000-0000-0000-000000000001'
+     and receipt_path like '62100000%';
+  if c <> 1 then
+    raise exception 'G12 FAIL [COMPETITOR]: another contractor overwrote the receipt on somebody else''s expense';
+  end if;
+end $$;
+
+-- ── (c) The farm cannot read the path ────────────────────────────────────────
+-- The path contains the workshop id and the expense id. Even without the object, a farm
+-- being able to enumerate its contractor's supplier invoices is the margin leak again.
+do $$ declare c bigint; begin
+  perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
+  select count(*) into c from partner_expenses where receipt_path is not null;
+  if c <> 0 then raise exception 'G12 FAIL [MARGIN LEAK]: a farm read % contractor receipt paths', c; end if;
+end $$;
+reset role;
+
+-- ── (d) anon reads nothing ───────────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from partner_expenses where receipt_path is not null;
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G12 FAIL: anon read receipt paths'; end if;
+end $$;
+reset role;
+
+select 'ALL G12 EXPENSE-RECEIPT TESTS PASSED' as result;

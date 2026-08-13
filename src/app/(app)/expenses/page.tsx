@@ -15,7 +15,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ExpenseForm } from "@/components/expenses/expense-form";
-import { markExpensePaid, deleteExpense } from "./actions";
+import { ReceiptUpload } from "@/components/expenses/receipt-upload";
+import { signedReceiptUrls, claimNeedsProof } from "@/lib/receipt-media";
+import { markExpensePaid, deleteExpense, removeReceipt } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,14 @@ export default async function ExpensesPage({
     .filter((e) => e.vat_claimable)
     .reduce((s, e) => s + e.vat_cents, 0);
 
+  // One round trip for the whole page rather than a signed URL per row.
+  const receiptUrls = await signedReceiptUrls(supabase, expenses.map((e) => e.receipt_path));
+
+  // VAT being claimed with no supplier tax invoice behind it. Never blocked at capture —
+  // stated here and on the return, because it is what an auditor disallows.
+  const unsupported = expenses.filter(claimNeedsProof);
+  const unsupportedVat = unsupported.reduce((s, e) => s + e.vat_cents, 0);
+
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -72,9 +82,29 @@ export default async function ExpensesPage({
         </span>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      {/* Receipt failures get sentences. A raw "receipt-too_big" on screen is the same
+          defect as the CSV import's "name_required — Preview", and it is not the user's
+          job to know our error codes. Other codes on this page still pass through. */}
+      <Flash
+        tone="error"
+        message={
+          sp.error && sp.error.startsWith("receipt-")
+            ? t(`expenses.receiptErr.${sp.error.slice("receipt-".length)}`, locale)
+            : sp.error
+        }
+      />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.attached ? t("expenses.receiptAttachedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.deleted ? t("expenses.deletedFlash", locale) : undefined} />
+
+      {/* Stated once at the top as an amount, because "three rows have a warning triangle"
+          and "R2 400 of your claim has no invoice behind it" are read very differently. */}
+      {unsupportedVat > 0 ? (
+        <Flash
+          tone="warning"
+          message={`${t("expenses.unsupportedWarning", locale)} ${rands(unsupportedVat)} (${unsupported.length}).`}
+        />
+      ) : null}
 
       {expenses.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-3">
@@ -110,6 +140,7 @@ export default async function ExpensesPage({
                   <th className="py-2 pr-3 text-right font-medium">{t("expenses.colVat", locale)}</th>
                   <th className="py-2 pr-3 text-right font-medium">{t("expenses.colTotal", locale)}</th>
                   <th className="py-2 pr-3 font-medium">{t("expenses.colPaid", locale)}</th>
+                  <th className="py-2 pr-3 font-medium">{t("expenses.colProof", locale)}</th>
                   <th className="py-2" />
                 </tr>
               </thead>
@@ -145,6 +176,41 @@ export default async function ExpensesPage({
                           <input type="hidden" name="expense_id" value={e.id} />
                           <SubmitButton variant="ghost" size="sm">{t("expenses.markPaid", locale)}</SubmitButton>
                         </form>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      {e.receipt_path ? (
+                        <span className="flex items-center gap-2">
+                          <a
+                            href={receiptUrls.get(e.receipt_path) ?? "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="focus-ring text-sm font-medium text-brand-700 underline underline-offset-2"
+                          >
+                            {t("expenses.receiptView", locale)}
+                          </a>
+                          <ConfirmDialog
+                            action={removeReceipt}
+                            triggerLabel={t("expenses.receiptRemove", locale)}
+                            triggerVariant="ghost"
+                            triggerSize="sm"
+                            title={t("expenses.receiptRemoveTitle", locale)}
+                            intro={e.supplier_name}
+                            consequences={[t("expenses.receiptRemoveConsequence", locale)]}
+                            confirmLabel={t("expenses.receiptRemove", locale)}
+                            cancelLabel={t("common.cancel", locale)}
+                            closeLabel={t("ui.close", locale)}
+                          >
+                            <input type="hidden" name="expense_id" value={e.id} />
+                          </ConfirmDialog>
+                        </span>
+                      ) : (
+                        <span className="flex flex-col gap-0.5">
+                          <ReceiptUpload expenseId={e.id} locale={locale} compact />
+                          {claimNeedsProof(e) ? (
+                            <span className="text-xs text-status-warn">{t("expenses.receiptMissing", locale)}</span>
+                          ) : null}
+                        </span>
                       )}
                     </td>
                     <td className="py-2.5 text-right">
