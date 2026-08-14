@@ -6315,3 +6315,1815 @@ end $$;
 reset role;
 
 select 'ALL G17 QUOTE-CONVERSION TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G16 — WHAT IS ON ORDER (0473–0475)
+--
+-- Two things to prove, and the first one matters more than everything else here.
+--
+-- THE MONEY. A purchase order is a commitment, not a cost. Ordering ten bearings is not
+-- spending; the order can be cancelled the same afternoon and no money ever moves. So
+-- raising an order, pricing it, and receiving every last item of it must change NOTHING
+-- in `cost_entries` and nothing in `partner_expenses` — and then the supplier's invoice,
+-- captured once, must produce exactly one expense and never a second. That is the
+-- codebase's signature invariant applied to a new pair of tables, and it is asserted in
+-- both directions, because the direction that catches a double-count is the one that
+-- proves the cost is NOT there yet.
+--
+-- THE ARITHMETIC AND THE LIFECYCLE. Header totals are maintained by trigger from the
+-- lines and the status is derived from what has arrived, so neither can be typed. Both
+-- are tested by changing a line and reading the header, which is the only way to catch a
+-- rollup that was correct on the day it was written and has since been bypassed.
+--
+-- Tenancy is the ordinary workshop-scoped shape (0430): a rival workshop reads zero, the
+-- FARM this workshop works for reads zero — its contractor's buying prices are the margin
+-- behind every quote it is given — and anon reads nothing at all.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Its own farm, workshops and people, so every number below states its own inputs.
+insert into farms (id, name) values ('6c000000-0000-0000-0000-000000000001', 'Farm U');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps) values
+  ('6c100000-0000-0000-0000-000000000001', 'Workshop P', 'mechanic',      true, 1500),
+  ('6c100000-0000-0000-0000-000000000002', 'Workshop Q', 'parts_supplier', true, 1500);
+
+-- P works for Farm U. This link is the whole reason (d) below is worth asserting: it is
+-- what makes P visible to the farm at all, and it must still open nothing here.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('6c100000-0000-0000-0000-000000000001', '6c000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('6c200000-0000-0000-0000-000000000001', 'pstaff@test'),
+  ('6c200000-0000-0000-0000-000000000002', 'qstaff@test'),
+  ('6c300000-0000-0000-0000-000000000001', 'ownerU@test');
+
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('6c200000-0000-0000-0000-000000000001', null, '6c100000-0000-0000-0000-000000000001', 'workshop', 'P Staff', 'p@test'),
+  ('6c200000-0000-0000-0000-000000000002', null, '6c100000-0000-0000-0000-000000000002', 'workshop', 'Q Staff', 'q@test'),
+  ('6c300000-0000-0000-0000-000000000001', '6c000000-0000-0000-0000-000000000001', null, 'owner', 'Owner U', 'u@test');
+
+-- The ledger as it stands BEFORE a single purchase order exists. Everything the section
+-- does to the order book is measured against this, so "no cost anywhere" is a comparison
+-- rather than an assumption about what else the suite has seeded.
+create temp table _g16_ledger_before as
+  select (select count(*) from cost_entries)     as cost_entries,
+         (select count(*) from partner_expenses) as expenses;
+
+-- ── (a) The header's totals follow the lines, and cannot be typed ────────────
+insert into purchase_orders (id, workshop_id, supplier_name, reference, order_date, expected_date, vat_rate_bps)
+values ('6c400000-0000-0000-0000-000000000001', '6c100000-0000-0000-0000-000000000001',
+        'Bearing Co', 'PO-1001', current_date - 9, current_date - 2, 1500);
+
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if r.subtotal_cents <> 0 or r.vat_cents <> 0 or r.total_cents <> 0 then
+    raise exception 'G16 FAIL: a brand new order is worth %/%/% rather than nothing', r.subtotal_cents, r.vat_cents, r.total_cents;
+  end if;
+  if r.status <> 'draft' then raise exception 'G16 FAIL: a new order starts as % rather than draft', r.status; end if;
+end $$;
+
+--   10 x 112,00 = 1120,00 ex-VAT; VAT at 15% = 168,00; total 1288,00
+insert into purchase_order_lines (id, workshop_id, purchase_order_id, sort_order, description, part_no, qty_ordered, unit_price_cents)
+values ('6c500000-0000-0000-0000-000000000001', '6c100000-0000-0000-0000-000000000001',
+        '6c400000-0000-0000-0000-000000000001', 1, 'Wheel bearing', 'BR-6205', 10, 11200);
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if r.subtotal_cents <> 112000 or r.vat_cents <> 16800 or r.total_cents <> 128800 then
+    raise exception 'G16 FAIL: one line of 10 x 11200 gave %/%/% rather than 112000/16800/128800',
+      r.subtotal_cents, r.vat_cents, r.total_cents;
+  end if;
+end $$;
+
+--   plus 2 x 500,00 = 1000,00 -> 2120,00 ex-VAT, VAT 318,00, total 2438,00
+insert into purchase_order_lines (id, workshop_id, purchase_order_id, sort_order, description, qty_ordered, unit_price_cents)
+values ('6c500000-0000-0000-0000-000000000002', '6c100000-0000-0000-0000-000000000001',
+        '6c400000-0000-0000-0000-000000000001', 2, 'Hydraulic hose', 2, 50000);
+do $$ declare v bigint; begin
+  select total_cents into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 243800 then raise exception 'G16 FAIL: adding a second line left the total at % rather than 243800', v; end if;
+end $$;
+
+-- EDITING a line moves the header. This is the assertion that catches a rollup which was
+-- right the day it was written and has since been bypassed by a direct update somewhere.
+update purchase_order_lines set qty_ordered = 5 where id = '6c500000-0000-0000-0000-000000000001';
+do $$ declare v bigint; begin
+  select subtotal_cents into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 156000 then raise exception 'G16 FAIL: halving a line left the subtotal at % rather than 156000', v; end if;
+end $$;
+
+-- Soft-deleting a line takes its value off the order, exactly as the select policy takes
+-- it off the screen. The two must agree or the order shows a total for lines nobody sees.
+update purchase_order_lines set deleted_at = now() where id = '6c500000-0000-0000-0000-000000000002';
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if r.subtotal_cents <> 56000 or r.vat_cents <> 8400 or r.total_cents <> 64400 then
+    raise exception 'G16 FAIL: removing a line left %/%/% rather than 56000/8400/64400',
+      r.subtotal_cents, r.vat_cents, r.total_cents;
+  end if;
+end $$;
+
+-- A stale form posting its own idea of the money is overwritten, not accepted.
+update purchase_orders set vat_cents = 1, total_cents = 1
+ where id = '6c400000-0000-0000-0000-000000000001';
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if r.vat_cents <> 8400 or r.total_cents <> 64400 then
+    raise exception 'G16 FAIL [TYPED TOTAL]: a written total stuck at %/% - the header must be derived from the lines',
+      r.vat_cents, r.total_cents;
+  end if;
+end $$;
+
+-- Re-pricing a line, and then the VAT the supplier is expected to add. A supplier who is
+-- not registered for VAT charges none, and the order must be able to say so.
+update purchase_order_lines set unit_price_cents = 12000 where id = '6c500000-0000-0000-0000-000000000001';
+update purchase_orders set vat_rate_bps = 0 where id = '6c400000-0000-0000-0000-000000000001';
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if r.subtotal_cents <> 60000 or r.vat_cents <> 0 or r.total_cents <> 60000 then
+    raise exception 'G16 FAIL: a zero-rated supplier gave %/%/% rather than 60000/0/60000',
+      r.subtotal_cents, r.vat_cents, r.total_cents;
+  end if;
+end $$;
+update purchase_orders set vat_rate_bps = 1500 where id = '6c400000-0000-0000-0000-000000000001';
+
+-- ── (b) Receiving moves the status, and only where it is the engine's to move ─
+-- A draft is not with the supplier yet, so quantities typed against one are a mistake
+-- being corrected rather than a delivery arriving.
+update purchase_order_lines set qty_received = 2 where id = '6c500000-0000-0000-0000-000000000001';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'draft' then raise exception 'G16 FAIL: receiving against a DRAFT moved it to %', v; end if;
+end $$;
+
+update purchase_order_lines set qty_received = 0 where id = '6c500000-0000-0000-0000-000000000001';
+update purchase_orders set status = 'sent' where id = '6c400000-0000-0000-0000-000000000001';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'sent' then raise exception 'G16 FAIL: sending an untouched order gave % rather than sent', v; end if;
+end $$;
+
+-- 2 of the 5 arrive. Nobody tells the app anything except what came out of the box.
+update purchase_order_lines set qty_received = 2 where id = '6c500000-0000-0000-0000-000000000001';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'part_received' then raise exception 'G16 FAIL: 2 of 5 delivered reads as % rather than part_received', v; end if;
+end $$;
+
+update purchase_order_lines set qty_received = 5 where id = '6c500000-0000-0000-0000-000000000001';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'received' then raise exception 'G16 FAIL: the last 3 of 5 arriving left it at % rather than received', v; end if;
+end $$;
+
+-- Something else is added to the order after it went out. It is no longer complete.
+insert into purchase_order_lines (id, workshop_id, purchase_order_id, sort_order, description, qty_ordered, unit_price_cents)
+values ('6c500000-0000-0000-0000-000000000003', '6c100000-0000-0000-0000-000000000001',
+        '6c400000-0000-0000-0000-000000000001', 3, 'Seal kit', 4, 8000);
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'part_received' then raise exception 'G16 FAIL: adding an unreceived line left the order at % rather than part_received', v; end if;
+end $$;
+
+-- THE CLAMP. The supplier sent twenty of the bearings and none of the seal kits. Summed
+-- naively that is 24 received against 9 ordered and the order looks complete, while the
+-- part the bakkie is actually waiting for has never left their shelf.
+update purchase_order_lines set qty_received = 20 where id = '6c500000-0000-0000-0000-000000000001';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'part_received' then
+    raise exception 'G16 FAIL [OVER-DELIVERY]: a surplus on one line covered a shortfall on another and the order reads %', v;
+  end if;
+end $$;
+
+update purchase_order_lines set qty_received = 4 where id = '6c500000-0000-0000-0000-000000000003';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'received' then raise exception 'G16 FAIL: the last line arriving left the order at % rather than received', v; end if;
+end $$;
+
+-- A human decision is never undone by the engine. A partner who closes a short-shipped
+-- order must not find it reopened the next time anybody touches a line.
+update purchase_orders set status = 'closed' where id = '6c400000-0000-0000-0000-000000000001';
+update purchase_order_lines set qty_received = 0 where id = '6c500000-0000-0000-0000-000000000003';
+do $$ declare v purchase_order_status; begin
+  select status into v from purchase_orders where id = '6c400000-0000-0000-0000-000000000001';
+  if v <> 'closed' then raise exception 'G16 FAIL [DECISION OVERRIDDEN]: a closed order reopened itself as %', v; end if;
+end $$;
+update purchase_order_lines set qty_received = 4 where id = '6c500000-0000-0000-0000-000000000003';
+
+-- The same for cancelled, on an order of its own so the one above keeps its history.
+insert into purchase_orders (id, workshop_id, supplier_name, reference, order_date, vat_rate_bps, status)
+values ('6c400000-0000-0000-0000-000000000002', '6c100000-0000-0000-0000-000000000001',
+        'Tyre Town', 'PO-1002', current_date - 6, 1500, 'sent');
+insert into purchase_order_lines (id, workshop_id, purchase_order_id, sort_order, description, qty_ordered, unit_price_cents)
+values ('6c500000-0000-0000-0000-000000000004', '6c100000-0000-0000-0000-000000000001',
+        '6c400000-0000-0000-0000-000000000002', 1, 'Tyre 16.9-34', 4, 25000);
+update purchase_orders set status = 'cancelled' where id = '6c400000-0000-0000-0000-000000000002';
+update purchase_order_lines set qty_received = 4 where id = '6c500000-0000-0000-0000-000000000004';
+do $$ declare r record; begin
+  select * into r from purchase_orders where id = '6c400000-0000-0000-0000-000000000002';
+  if r.status <> 'cancelled' then raise exception 'G16 FAIL: a cancelled order came back to life as %', r.status; end if;
+  -- It still knows what it was worth. A cancelled order is a record of what was nearly
+  -- committed, not an empty row.
+  if r.total_cents <> 115000 then raise exception 'G16 FAIL: the cancelled order is worth % rather than 115000', r.total_cents; end if;
+end $$;
+
+-- ── (c) A PURCHASE ORDER BOOKS NOTHING, ANYWHERE ────────────────────────────
+-- Two orders raised, priced, edited, delivered, closed and cancelled. If any of that
+-- moved money, this is where it shows.
+do $$ declare b record; c bigint; e bigint; begin
+  select * into b from _g16_ledger_before;
+  select count(*) into c from cost_entries;
+  select count(*) into e from partner_expenses;
+  if c <> b.cost_entries then
+    raise exception 'G16 FAIL [PHANTOM COST]: raising and receiving purchase orders added % cost entries - ordering is not spending', c - b.cost_entries;
+  end if;
+  if e <> b.expenses then
+    raise exception 'G16 FAIL [PHANTOM COST]: raising and receiving purchase orders added % expenses - the cost belongs to the supplier invoice, not the order', e - b.expenses;
+  end if;
+end $$;
+
+-- ── (d) Nobody else reads the order book ────────────────────────────────────
+set role authenticated;
+do $$ begin
+  perform _t_login('6c200000-0000-0000-0000-000000000001');       -- P staff, whose orders these are
+  perform _t_assert('purchase_orders', 2, 'Workshop P');
+  perform _t_assert('purchase_order_lines', 3, 'Workshop P');     -- the soft-deleted hose is gone
+end $$;
+
+do $$ declare c bigint; begin
+  perform _t_login('6c200000-0000-0000-0000-000000000002');       -- Workshop Q, a rival
+  select count(*) into c from purchase_orders;
+  if c <> 0 then raise exception 'G16 FAIL [COMPETITOR]: a rival workshop read % of P''s purchase orders', c; end if;
+  select count(*) into c from purchase_order_lines;
+  if c <> 0 then raise exception 'G16 FAIL [COMPETITOR]: a rival workshop read % of P''s order lines - that is P''s buying price', c; end if;
+end $$;
+
+-- …and cannot write into it either, by insert or by update.
+do $$ declare ok boolean := false; c bigint; begin
+  perform _t_login('6c200000-0000-0000-0000-000000000002');
+  begin
+    insert into purchase_orders (workshop_id, supplier_name)
+    values ('6c100000-0000-0000-0000-000000000001', 'Planted');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL [CROSS-TENANT WRITE]: a rival raised an order on P''s account'; end if;
+
+  update purchase_orders set supplier_name = 'Hijacked' where id = '6c400000-0000-0000-0000-000000000001';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G16 FAIL [CROSS-TENANT WRITE]: a rival updated % of P''s orders', c; end if;
+end $$;
+
+-- The FARM this workshop works for. An active workshop_link is what lets P reach Farm U's
+-- vehicles; it must open nothing in P's own books, because a farm reading its contractor's
+-- purchase orders is reading the margin on every quote it has ever been given (F16).
+do $$ declare c bigint; begin
+  perform _t_login('6c300000-0000-0000-0000-000000000001');       -- Owner U
+  select count(*) into c from purchase_orders;
+  if c <> 0 then raise exception 'G16 FAIL [MARGIN LEAK]: a farm read % of its contractor''s purchase orders', c; end if;
+  select count(*) into c from purchase_order_lines;
+  if c <> 0 then raise exception 'G16 FAIL [MARGIN LEAK]: a farm read % of its contractor''s order lines', c; end if;
+end $$;
+reset role;
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from purchase_orders; exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL: anon read the order book'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from purchase_order_lines; exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL: anon read the order lines'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.purchase_order_derived_status('6c400000-0000-0000-0000-000000000001', 'sent'); exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL: anon ran the receiving engine'; end if;
+end $$;
+reset role;
+
+-- ── (e) The invoice arrives: exactly one expense, and never a second ────────
+-- Bearing Co's invoice, captured the ordinary way. The only thing the purchase order does
+-- is get remembered on it.
+insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable, purchase_order_id)
+values ('6c600000-0000-0000-0000-000000000001', '6c100000-0000-0000-0000-000000000001',
+        'Bearing Co', 'INV-55021', 'parts', current_date - 1, 92000, 1500, 13800, true,
+        '6c400000-0000-0000-0000-000000000001');
+
+do $$ declare b record; c bigint; e bigint; begin
+  select * into b from _g16_ledger_before;
+  select count(*) into e from partner_expenses where purchase_order_id = '6c400000-0000-0000-0000-000000000001'
+     and deleted_at is null;
+  if e <> 1 then raise exception 'G16 FAIL: converting the order produced % expenses rather than exactly 1', e; end if;
+  select count(*) into e from partner_expenses;
+  if e <> b.expenses + 1 then
+    raise exception 'G16 FAIL: converting added % expenses in total rather than 1', e - b.expenses;
+  end if;
+  -- The expense is the workshop's own purchase. It never enters a FARM's cost ledger,
+  -- and converting must not have started doing so by a side door.
+  select count(*) into c from cost_entries;
+  if c <> b.cost_entries then
+    raise exception 'G16 FAIL [DOUBLE COUNT]: converting a purchase order added % rows to the farm cost ledger', c - b.cost_entries;
+  end if;
+end $$;
+
+-- Converting the same order again. Two people in the office capturing the same invoice,
+-- a double-submitted form and a retried request are all this same race, and it is refused
+-- by a unique index rather than by a read-then-write in application code.
+do $$ declare ok boolean := false; e bigint; begin
+  begin
+    insert into partner_expenses (workshop_id, supplier_name, reference, category, expense_date,
+                                  amount_cents, vat_rate_bps, vat_cents, purchase_order_id)
+    values ('6c100000-0000-0000-0000-000000000001', 'Bearing Co', 'INV-55021', 'parts', current_date,
+            92000, 1500, 13800, '6c400000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL [DOUBLE COUNT]: the same purchase order was converted twice'; end if;
+  select count(*) into e from partner_expenses where purchase_order_id = '6c400000-0000-0000-0000-000000000001'
+     and deleted_at is null;
+  if e <> 1 then raise exception 'G16 FAIL [DOUBLE COUNT]: re-converting left % live expenses on one order', e; end if;
+end $$;
+
+-- An expense may only point at an order of its OWN workshop. RLS already stops Q reading
+-- P's orders; the composite foreign key makes the cross-workshop write impossible rather
+-- than merely unreachable through the screens.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_expenses (workshop_id, supplier_name, category, expense_date,
+                                  amount_cents, vat_rate_bps, vat_cents, purchase_order_id)
+    values ('6c100000-0000-0000-0000-000000000002', 'Bearing Co', 'parts', current_date,
+            92000, 1500, 13800, '6c400000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G16 FAIL [CROSS-TENANT]: one workshop''s expense settled another workshop''s purchase order'; end if;
+end $$;
+
+-- The escape hatch, stated as a test because it is a deliberate judgement and not an
+-- oversight: the uniqueness is partial on `deleted_at`, so an expense captured against the
+-- wrong order can be retracted and the order converted again. Blocking that forever would
+-- strand the order with no way out but a support ticket.
+update partner_expenses set deleted_at = now() where id = '6c600000-0000-0000-0000-000000000001';
+insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, purchase_order_id)
+values ('6c600000-0000-0000-0000-000000000002', '6c100000-0000-0000-0000-000000000001',
+        'Bearing Co', 'INV-55021', 'parts', current_date - 1, 60000, 1500, 9000,
+        '6c400000-0000-0000-0000-000000000001');
+do $$ declare e bigint; begin
+  select count(*) into e from partner_expenses where purchase_order_id = '6c400000-0000-0000-0000-000000000001'
+     and deleted_at is null;
+  if e <> 1 then raise exception 'G16 FAIL: after retracting and re-capturing there are % live expenses rather than 1', e; end if;
+end $$;
+
+select 'ALL G16 PURCHASE-ORDER TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G15 — BANK STATEMENT IMPORT & RECONCILIATION (0470–0472)
+--
+-- A bank statement is the most sensitive document a small business holds: it names every
+-- customer who paid, every supplier, every salary and every personal transfer. So the first
+-- half of this section is ordinary tenancy — a rival workshop, the FARM the partner works
+-- for, and anon all read nothing — and the second half is the two properties this feature
+-- is actually built on, both of which are enforced by INDEXES rather than by code, because
+-- code loses races:
+--
+--   * re-importing the same statement adds nothing. A partner re-uploads constantly: a
+--     fresh download every Friday overlapping the last, a retry after a bad column mapping,
+--     a copy forwarded to a bookkeeper. If that duplicates lines the unmatched list doubles
+--     and they are worse off than before they started.
+--   * confirming a match twice banks the money once. A phone on a bad signal in a workshop
+--     yard is exactly where a button gets pressed again while the first request is in
+--     flight, and both requests pass any "have I already done this?" check ever written.
+--
+-- And one thing the feature deliberately does NOT do: write a total. Confirming money in
+-- inserts a `partner_payments` row and stops; the invoice's paid amount and status move
+-- through the 0381 rollup that already exists. That is asserted here too, because the whole
+-- design rests on it.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('6b000000-0000-0000-0000-000000000001', 'Farm BK');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps) values
+  ('6b100000-0000-0000-0000-000000000001', 'Workshop BK', 'mechanic', true, 1500),
+  -- A rival on the SAME farm. That is the interesting case: an active workshop_link admits
+  -- it to the farm, and it must still read nothing of the other partner's banking.
+  ('6b100000-0000-0000-0000-000000000002', 'Workshop Rival', 'tyre', true, 1500);
+
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('6b100000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001', 'active'),
+  ('6b100000-0000-0000-0000-000000000002', '6b000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('6b200000-0000-0000-0000-000000000001', 'bkstaff@test'),
+  ('6b200000-0000-0000-0000-000000000002', 'rivalstaff@test'),
+  ('6b200000-0000-0000-0000-000000000003', 'bkowner@test');
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('6b200000-0000-0000-0000-000000000001', null, '6b100000-0000-0000-0000-000000000001', 'workshop', 'BK Staff', 'bk@test'),
+  ('6b200000-0000-0000-0000-000000000002', null, '6b100000-0000-0000-0000-000000000002', 'workshop', 'Rival Staff', 'rival@test'),
+  ('6b200000-0000-0000-0000-000000000003', '6b000000-0000-0000-0000-000000000001', null, 'owner', 'BK Owner', 'owner-bk@test');
+
+-- An invoice the customer still owes: 100000 ex-VAT + 15% = 115000 inclusive.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+        '6b100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'BK-0007',
+        current_date - 20, 1500, 'Farm BK');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+        1, 'labour', 'Gearbox', 1, 100000);
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '6b300000-0000-0000-0000-000000000001';
+
+-- An invoice the RIVAL raised on the same farm, so the money-in direction has something to
+-- be wrongly matched against if the guard in 0471 were missing.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values ('6b300000-0000-0000-0000-000000000002', '6b000000-0000-0000-0000-000000000001',
+        '6b100000-0000-0000-0000-000000000002', 'invoice', 'draft', 'built', 'RV-0001',
+        current_date - 20, 1500, 'Farm BK');
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values ('6b300000-0000-0000-0000-000000000002', '6b000000-0000-0000-0000-000000000001',
+        1, 'labour', 'Tyres', 1, 100000);
+update partner_documents set status = 'sent', sent_at = now()
+ where id = '6b300000-0000-0000-0000-000000000002';
+
+-- A supplier invoice not yet paid: 200000 + 30000 VAT = 230000 out of the bank.
+insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values ('6b400000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-000000000001',
+        'Bearing Co', 'SI-9912', 'parts', current_date - 10, 200000, 1500, 30000, true);
+
+insert into bank_statement_imports (id, workshop_id, file_name, account_label, rows_in_file, rows_added)
+values ('6b600000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-000000000001',
+        'aug.csv', 'Cheque account', 4, 0);
+
+-- ── (a) The fingerprint the dedupe key is built on ───────────────────────────
+-- `parseStatement` in src/lib/banking.ts computes the same string in the browser when it
+-- numbers occurrences within a file. If the two ever drift, re-imports start duplicating
+-- again and nothing in the app would say so — so the exact value is pinned here.
+insert into bank_lines (id, workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values ('6b500000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-000000000001',
+        '6b600000-0000-0000-0000-000000000001', current_date - 2,
+        'EFT INBETALING WELTEVREDE', 'INV-0007', 115000, 1, 1);
+
+do $$ declare v text; begin
+  select fingerprint into v from bank_lines where id = '6b500000-0000-0000-0000-000000000001';
+  if v <> 'eftinbetalingweltevredeinv0007' then
+    raise exception 'G15 FAIL: fingerprint is "%" — src/lib/banking.ts computes a different one', v;
+  end if;
+end $$;
+
+-- ── (b) Re-importing the same statement adds nothing ─────────────────────────
+-- The import action inserts with `on conflict do nothing` against the natural-key index and
+-- reports back only what was actually written. Run twice here, exactly as a partner
+-- re-uploading Friday's overlapping download would.
+insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 2, 'EFT INBETALING WELTEVREDE', 'INV-0007', 115000, 1, 1),
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 1, 'BEARING CO', 'SI-9912', -230000, 2, 1),
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 1, 'KAARTFOOI', null, -5000, 3, 1)
+on conflict (workshop_id, txn_date, amount_cents, fingerprint, occurrence) do nothing;
+
+do $$ declare n bigint; begin
+  select count(*) into n from bank_lines where workshop_id = '6b100000-0000-0000-0000-000000000001';
+  if n <> 3 then raise exception 'G15 FAIL: after the first load there are % lines rather than 3', n; end if;
+end $$;
+
+-- The identical file again. Not one row of it is new.
+insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 2, 'EFT INBETALING WELTEVREDE', 'INV-0007', 115000, 1, 1),
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 1, 'BEARING CO', 'SI-9912', -230000, 2, 1),
+  ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+   current_date - 1, 'KAARTFOOI', null, -5000, 3, 1)
+on conflict (workshop_id, txn_date, amount_cents, fingerprint, occurrence) do nothing;
+
+do $$ declare n bigint; begin
+  select count(*) into n from bank_lines where workshop_id = '6b100000-0000-0000-0000-000000000001';
+  if n <> 3 then
+    raise exception 'G15 FAIL [DUPLICATE]: re-importing the same statement left % lines rather than 3', n;
+  end if;
+end $$;
+
+-- Punctuation and case differ between two exports of the same statement, and none of those
+-- differences make it a different transaction. The generated fingerprint is what absorbs it.
+insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+        current_date - 2, 'eft  inbetaling, weltevrede', 'inv/0007', 115000, 1, 1)
+on conflict (workshop_id, txn_date, amount_cents, fingerprint, occurrence) do nothing;
+do $$ declare n bigint; begin
+  select count(*) into n from bank_lines where workshop_id = '6b100000-0000-0000-0000-000000000001';
+  if n <> 3 then
+    raise exception 'G15 FAIL [DUPLICATE]: a re-spaced copy of the same line was stored (% lines)', n;
+  end if;
+end $$;
+
+-- But two GENUINELY identical charges on one day are two transactions, and collapsing them
+-- would understate the month. `occurrence` is what keeps the key from being wrong here.
+insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+        current_date - 1, 'KAARTFOOI', null, -5000, 4, 2)
+on conflict (workshop_id, txn_date, amount_cents, fingerprint, occurrence) do nothing;
+do $$ declare n bigint; begin
+  select count(*) into n from bank_lines where workshop_id = '6b100000-0000-0000-0000-000000000001';
+  if n <> 4 then
+    raise exception 'G15 FAIL: the second identical card fee was swallowed (% lines)', n;
+  end if;
+end $$;
+
+-- Without the conflict clause the index raises, which is what proves it is the index doing
+-- the work and not the `on conflict` wording above.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+    values ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+            current_date - 2, 'EFT INBETALING WELTEVREDE', 'INV-0007', 115000, 9, 1);
+  exception when unique_violation then ok := true; end;
+  if not ok then raise exception 'G15 FAIL: bank_lines_natural_uq did not refuse a duplicate line'; end if;
+end $$;
+
+-- ── (c) The partner itself can load and read its own statement ───────────────
+-- Asserted before the denials, because a policy set that denies everybody is trivially
+-- "isolated" and completely useless. The import action inserts through the ordinary RLS
+-- client, so this is the path it actually takes.
+set role authenticated;
+do $$ declare n bigint; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000001');            -- BK staff
+  select count(*) into n from bank_lines;
+  if n <> 4 then raise exception 'G15 FAIL: the partner reads % of its own 4 bank lines', n; end if;
+  select count(*) into n from bank_statement_imports;
+  if n <> 1 then raise exception 'G15 FAIL: the partner reads % of its own statement imports', n; end if;
+
+  insert into bank_lines (workshop_id, import_id, txn_date, description, amount_cents, row_no, occurrence)
+  values ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+          current_date - 1, 'RENTE', -7500, 5, 1);
+  select count(*) into n from bank_lines;
+  if n <> 5 then raise exception 'G15 FAIL: the partner could not load a line into its own statement'; end if;
+end $$;
+reset role;
+
+-- ── (d) Another workshop reads none of it ────────────────────────────────────
+-- The rival has an ACTIVE link to the same farm, so it reaches the farm's own data. It must
+-- still reach nothing of this partner's banking.
+set role authenticated;
+do $$ declare n bigint; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000002');            -- Rival staff
+  select count(*) into n from bank_lines;
+  if n <> 0 then raise exception 'G15 FAIL [COMPETITOR]: a rival workshop read % bank lines', n; end if;
+  select count(*) into n from bank_statement_imports;
+  if n <> 0 then raise exception 'G15 FAIL [COMPETITOR]: a rival workshop read % statement imports', n; end if;
+end $$;
+
+-- ...and cannot write one into the other partner's account either.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into bank_lines (workshop_id, txn_date, description, amount_cents)
+    values ('6b100000-0000-0000-0000-000000000001', current_date, 'PLANTED', 999);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [COMPETITOR]: a rival wrote a line into another workshop''s statement'; end if;
+end $$;
+
+-- ── (e) The farm the partner works for reads none of it either ───────────────
+-- A workshop_link admits a partner to a farm's yard. It does not admit the farm to the
+-- partner's bank account, and that direction is the one nobody thinks to check.
+do $$ declare n bigint; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000003');            -- the farm's owner
+  select count(*) into n from bank_lines;
+  if n <> 0 then raise exception 'G15 FAIL [MARGIN LEAK]: a farm read its contractor''s bank statement (% lines)', n; end if;
+end $$;
+reset role;
+
+-- ── (f) anon gets nothing at all ─────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from bank_lines;
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL: anon selected from bank_lines'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from bank_statement_imports;
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL: anon selected from bank_statement_imports'; end if;
+end $$;
+-- The resync helper is not an RPC. Nobody may ask the database to restate a line's status
+-- directly — the only honest way to change it is to change what settles it.
+do $$ declare ok boolean := false; begin
+  begin perform app.bank_line_resync('6b500000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL: anon ran app.bank_line_resync'; end if;
+end $$;
+reset role;
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000001');
+  begin perform app.bank_line_resync('6b500000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL: a signed-in user ran app.bank_line_resync directly'; end if;
+end $$;
+reset role;
+
+-- ── (g) Confirming money in creates exactly ONE payment ──────────────────────
+-- Run as the partner's own staff through RLS, because that is the path the confirm action
+-- takes. The insert carries the bank line and nothing else — no total is written here.
+set role authenticated;
+do $$ declare n bigint; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000001');            -- BK staff
+  insert into partner_payments (document_id, farm_id, amount_cents, paid_on, method, reference, recorded_by, bank_line_id)
+  values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+          115000, current_date - 2, 'eft', 'INV-0007',
+          '6b200000-0000-0000-0000-000000000001', '6b500000-0000-0000-0000-000000000001');
+
+  select count(*) into n from partner_payments
+   where bank_line_id = '6b500000-0000-0000-0000-000000000001' and deleted_at is null;
+  if n <> 1 then raise exception 'G15 FAIL: confirming created % payments rather than 1', n; end if;
+end $$;
+
+-- The second press. It loses to `partner_payments_bank_line_uq` — which is the point: an
+-- application-level check would let both through, because both read the same empty answer.
+do $$ declare ok boolean := false; n bigint; begin
+  begin
+    insert into partner_payments (document_id, farm_id, amount_cents, paid_on, method, recorded_by, bank_line_id)
+    values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+            115000, current_date - 2, 'eft',
+            '6b200000-0000-0000-0000-000000000001', '6b500000-0000-0000-0000-000000000001');
+  exception when unique_violation then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [DOUBLE]: a bank line was banked twice'; end if;
+
+  select count(*) into n from partner_payments
+   where bank_line_id = '6b500000-0000-0000-0000-000000000001' and deleted_at is null;
+  if n <> 1 then raise exception 'G15 FAIL [DOUBLE]: % live payments after re-confirming', n; end if;
+end $$;
+reset role;
+
+-- ── (h) The invoice's paid state followed the EXISTING trigger ───────────────
+-- Nothing in this feature writes `amount_paid_cents` or `status`. They moved because 0381's
+-- rollup saw a payment row, exactly as it does for a payment captured by hand.
+do $$ declare r record; begin
+  select status, amount_paid_cents, total_cents, paid_at into r
+    from partner_documents where id = '6b300000-0000-0000-0000-000000000001';
+  if r.amount_paid_cents <> 115000 then
+    raise exception 'G15 FAIL: the invoice shows % paid rather than 115000 — the 0381 rollup did not run', r.amount_paid_cents;
+  end if;
+  if r.status <> 'paid' then
+    raise exception 'G15 FAIL: the invoice is % rather than paid', r.status;
+  end if;
+  if r.paid_at is null then raise exception 'G15 FAIL: the invoice has no paid_at'; end if;
+end $$;
+
+-- ── (i) ...and the bank line's own state followed the ledger ─────────────────
+-- `status` is a rollup (0472), not something the confirm action typed. That is what stops a
+-- payment reversed on another screen leaving a line claiming to be reconciled.
+do $$ declare r record; begin
+  select status, matched_document_id, matched_payment_id, matched_at into r
+    from bank_lines where id = '6b500000-0000-0000-0000-000000000001';
+  if r.status <> 'matched' then raise exception 'G15 FAIL: the bank line is % rather than matched', r.status; end if;
+  if r.matched_document_id <> '6b300000-0000-0000-0000-000000000001' then
+    raise exception 'G15 FAIL: the bank line points at the wrong document';
+  end if;
+  if r.matched_payment_id is null or r.matched_at is null then
+    raise exception 'G15 FAIL: the bank line was matched without recording what settled it';
+  end if;
+end $$;
+
+-- Undoing it soft-deletes the payment and NOTHING else, and both the invoice and the bank
+-- line find their own way back.
+update partner_payments set deleted_at = now()
+ where bank_line_id = '6b500000-0000-0000-0000-000000000001';
+do $$ declare r record; l record; begin
+  select status, amount_paid_cents into r from partner_documents where id = '6b300000-0000-0000-0000-000000000001';
+  if r.amount_paid_cents <> 0 or r.status <> 'sent' then
+    raise exception 'G15 FAIL: after an undo the invoice is % with % paid', r.status, r.amount_paid_cents;
+  end if;
+  select status, matched_payment_id, matched_at into l from bank_lines where id = '6b500000-0000-0000-0000-000000000001';
+  if l.status <> 'unmatched' or l.matched_payment_id is not null or l.matched_at is not null then
+    raise exception 'G15 FAIL: after an undo the bank line still says %', l.status;
+  end if;
+end $$;
+
+-- And the line can be confirmed again afterwards, which is the whole reason the unique
+-- index is partial on `deleted_at is null`.
+set role authenticated;
+do $$ declare n bigint; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000001');
+  insert into partner_payments (document_id, farm_id, amount_cents, paid_on, method, recorded_by, bank_line_id)
+  values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+          115000, current_date - 2, 'eft',
+          '6b200000-0000-0000-0000-000000000001', '6b500000-0000-0000-0000-000000000001');
+  select count(*) into n from partner_payments
+   where bank_line_id = '6b500000-0000-0000-0000-000000000001' and deleted_at is null;
+  if n <> 1 then raise exception 'G15 FAIL: re-confirming after an undo left % live payments', n; end if;
+end $$;
+reset role;
+
+-- ── (j) Money out settles a supplier bill, once ──────────────────────────────
+set role authenticated;
+do $$ declare v_line uuid; ok boolean := false; begin
+  perform _t_login('6b200000-0000-0000-0000-000000000001');
+  select id into v_line from bank_lines
+   where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = -230000;
+
+  update partner_expenses
+     set paid_on = current_date - 1, bank_line_id = v_line
+   where id = '6b400000-0000-0000-0000-000000000001' and paid_on is null;
+
+  if (select paid_on from partner_expenses where id = '6b400000-0000-0000-0000-000000000001') is null then
+    raise exception 'G15 FAIL: confirming money out did not mark the supplier invoice paid';
+  end if;
+  if (select status from bank_lines where id = v_line) <> 'matched' then
+    raise exception 'G15 FAIL: a settled money-out line is not marked matched';
+  end if;
+  if (select matched_expense_id from bank_lines where id = v_line)
+     is distinct from '6b400000-0000-0000-0000-000000000001'::uuid then
+    raise exception 'G15 FAIL: the money-out line does not point at the bill it paid';
+  end if;
+
+  -- The same money cannot be claimed by a second supplier invoice.
+  insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                                amount_cents, vat_rate_bps, vat_cents)
+  values ('6b400000-0000-0000-0000-000000000002', '6b100000-0000-0000-0000-000000000001',
+          'Somebody Else', 'other', current_date - 10, 200000, 1500, 30000);
+  begin
+    update partner_expenses set paid_on = current_date - 1, bank_line_id = v_line
+     where id = '6b400000-0000-0000-0000-000000000002';
+  exception when unique_violation then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [DOUBLE]: one payment out of the bank paid two bills'; end if;
+end $$;
+reset role;
+
+-- ── (k) A settlement that does not make sense is refused ─────────────────────
+-- RLS already makes the cross-workshop case unreachable through the app. The guard exists
+-- because a settlement pointing at another business's bank account would be silent,
+-- permanent, and invisible in every total it corrupts.
+do $$ declare ok boolean := false; v_line uuid; begin
+  select id into v_line from bank_lines
+   where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = 115000;
+  begin
+    insert into partner_payments (document_id, farm_id, amount_cents, paid_on, bank_line_id)
+    values ('6b300000-0000-0000-0000-000000000002', '6b000000-0000-0000-0000-000000000001',
+            115000, current_date, v_line);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [CROSS]: one workshop''s bank line settled another''s invoice'; end if;
+end $$;
+
+-- Money that LEFT the account is not a customer receipt, whatever a caller claims.
+do $$ declare ok boolean := false; v_line uuid; begin
+  select id into v_line from bank_lines
+   where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = -5000 and occurrence = 1;
+  begin
+    insert into partner_payments (document_id, farm_id, amount_cents, paid_on, bank_line_id)
+    values ('6b300000-0000-0000-0000-000000000001', '6b000000-0000-0000-0000-000000000001',
+            5000, current_date, v_line);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [DIRECTION]: money leaving the bank was booked as a receipt'; end if;
+end $$;
+
+-- ...and money that ARRIVED did not pay a supplier.
+do $$ declare ok boolean := false; v_line uuid; begin
+  select id into v_line from bank_lines
+   where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = 115000;
+  begin
+    update partner_expenses set paid_on = current_date, bank_line_id = v_line
+     where id = '6b400000-0000-0000-0000-000000000002';
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G15 FAIL [DIRECTION]: money arriving was booked as paying a supplier'; end if;
+end $$;
+
+-- ── (l) A removed line stays removed across a re-import ──────────────────────
+-- The natural-key index covers deleted rows on purpose. A line somebody removed — a heading
+-- the parser read as data, a row from the wrong account — must not come back every Friday,
+-- or the button is worthless.
+update bank_lines set deleted_at = now()
+ where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = -5000 and occurrence = 2;
+insert into bank_lines (workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
+values ('6b100000-0000-0000-0000-000000000001', '6b600000-0000-0000-0000-000000000001',
+        current_date - 1, 'KAARTFOOI', null, -5000, 4, 2)
+on conflict (workshop_id, txn_date, amount_cents, fingerprint, occurrence) do nothing;
+do $$ declare n bigint; begin
+  select count(*) into n from bank_lines
+   where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = -5000 and deleted_at is null;
+  if n <> 1 then
+    raise exception 'G15 FAIL: a removed line came back on re-import (% live card-fee lines)', n;
+  end if;
+end $$;
+
+select 'ALL G15 BANK-RECONCILIATION TESTS PASSED' as result;
+
+-- ============================================================================
+-- H1: VOICE ASSISTANT FOUNDATION
+-- Proves consent evidence, private per-user records, machine-scoped aliases,
+-- redacted audit rows, LLM consent enforcement, and POPIA export/erasure.
+-- Fresh fixture IDs keep this section independent of every test above.
+-- ============================================================================
+
+select set_config('request.jwt.claims', '', false);
+
+-- Fixtures (superuser; RLS bypassed).
+insert into farms (id, name) values
+  ('7a000000-0000-0000-0000-000000000001', 'Voice Farm A'),
+  ('7a000000-0000-0000-0000-000000000002', 'Voice Farm B');
+
+insert into auth.users (id, email) values
+  ('7a100000-0000-0000-0000-000000000001', 'voice-owner-a@test'),
+  ('7a100000-0000-0000-0000-000000000002', 'voice-operator-a@test'),
+  ('7a100000-0000-0000-0000-000000000003', 'voice-operator-b@test'),
+  ('7a100000-0000-0000-0000-000000000004', 'voice-owner-b@test');
+
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('7a100000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', null, 'owner',    'Voice Owner A'),
+  ('7a100000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000001', null, 'operator', 'Voice Operator A'),
+  ('7a100000-0000-0000-0000-000000000004', '7a000000-0000-0000-0000-000000000002', null, 'owner',    'Voice Owner B');
+
+-- Consent-looking values on profile creation are discarded. A person must opt in
+-- themselves after their profile exists.
+insert into users (
+  id, farm_id, workshop_id, role, name, ai_processing_opt_in,
+  ai_processing_opted_in_at, ai_processing_consent_version
+) values (
+  '7a100000-0000-0000-0000-000000000003',
+  '7a000000-0000-0000-0000-000000000001', null, 'operator', 'Voice Operator B',
+  true, '2000-01-01 00:00:00+00', 'forged-at-insert'
+);
+
+insert into machines (id, farm_id, name, type, assigned_operator_id) values
+  ('7a200000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', 'John Deere 8320', 'tractor', '7a100000-0000-0000-0000-000000000002'),
+  ('7a200000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000001', 'Massey Ferguson', 'tractor', '7a100000-0000-0000-0000-000000000003'),
+  ('7a200000-0000-0000-0000-000000000003', '7a000000-0000-0000-0000-000000000002', 'Other Farm Tractor', 'tractor', null);
+
+-- Structural contract: all three tables are FORCE-RLS, and private records are
+-- read-only to browser clients even though aliases remain tenant-managed.
+do $$ declare n integer; begin
+  select count(*) into n
+    from pg_class c
+    join pg_namespace s on s.oid = c.relnamespace
+   where s.nspname = 'public'
+     and c.relname in ('asset_aliases', 'voice_captures', 'ai_interactions')
+     and c.relrowsecurity and c.relforcerowsecurity;
+  if n <> 3 then raise exception 'H1 RLS FAIL: only % of 3 voice tables have FORCE RLS', n; end if;
+
+  if not has_table_privilege('authenticated', 'public.asset_aliases', 'select')
+     or not has_table_privilege('authenticated', 'public.asset_aliases', 'insert')
+     or not has_table_privilege('authenticated', 'public.asset_aliases', 'update')
+     or not has_table_privilege('authenticated', 'public.asset_aliases', 'delete') then
+    raise exception 'H1 GRANT FAIL: authenticated cannot manage asset aliases';
+  end if;
+  if not has_table_privilege('authenticated', 'public.voice_captures', 'select')
+     or not has_table_privilege('authenticated', 'public.ai_interactions', 'select') then
+    raise exception 'H1 GRANT FAIL: authenticated cannot read their private voice records';
+  end if;
+  if has_table_privilege('authenticated', 'public.voice_captures', 'insert')
+     or has_table_privilege('authenticated', 'public.ai_interactions', 'insert') then
+    raise exception 'H1 GRANT FAIL: browser clients can write trusted voice/AI records';
+  end if;
+  if has_table_privilege('anon', 'public.asset_aliases', 'select')
+     or has_table_privilege('anon', 'public.voice_captures', 'select')
+     or has_table_privilege('anon', 'public.ai_interactions', 'select') then
+    raise exception 'H1 GRANT FAIL: anon can read voice foundation tables';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'ai_interactions'
+       and column_name = 'updated_at' and is_nullable = 'NO'
+  ) then raise exception 'H1 SCHEMA FAIL: ai_interactions.updated_at is missing/not required'; end if;
+end $$;
+
+do $$ declare r record; begin
+  select ai_processing_opt_in, ai_processing_opted_in_at,
+         ai_processing_consent_version, ai_processing_withdrawn_at
+    into r from users where id = '7a100000-0000-0000-0000-000000000003';
+  if r.ai_processing_opt_in
+     or r.ai_processing_opted_in_at is not null
+     or r.ai_processing_consent_version is not null
+     or r.ai_processing_withdrawn_at is not null then
+    raise exception 'H1 CONSENT FAIL: profile INSERT manufactured consent evidence';
+  end if;
+end $$;
+
+-- The subject opts in. Forged evidence supplied in the same PATCH is replaced by
+-- the database's current timestamp and known consent text version.
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000002');
+  update users
+     set ai_processing_opt_in = true,
+         ai_processing_opted_in_at = '2000-01-01 00:00:00+00',
+         ai_processing_consent_version = 'forged-at-update',
+         ai_processing_withdrawn_at = '2001-01-01 00:00:00+00'
+   where id = '7a100000-0000-0000-0000-000000000002';
+
+  select ai_processing_opt_in, ai_processing_opted_in_at,
+         ai_processing_consent_version, ai_processing_withdrawn_at
+    into r from users where id = '7a100000-0000-0000-0000-000000000002';
+  if not r.ai_processing_opt_in
+     or r.ai_processing_opted_in_at = '2000-01-01 00:00:00+00'::timestamptz
+     or r.ai_processing_consent_version <> 'voice-ai-v1'
+     or r.ai_processing_withdrawn_at is not null then
+    raise exception 'H1 CONSENT FAIL: self opt-in evidence was not DB-stamped';
+  end if;
+end $$;
+
+-- Even a same-farm owner cannot consent on somebody else's behalf.
+do $$ declare blocked boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  begin
+    update users set ai_processing_opt_in = true
+     where id = '7a100000-0000-0000-0000-000000000003';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 CONSENT FAIL: owner opted in another person'; end if;
+end $$;
+
+-- The farm owner curates aliases; normalization closes spacing/case duplicates and
+-- the composite FK rejects a machine from a different farm.
+do $$ declare blocked boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  insert into asset_aliases (id, farm_id, machine_id, alias) values
+    ('7a300000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', '7a200000-0000-0000-0000-000000000001', 'John Deere'),
+    ('7a300000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000001', '7a200000-0000-0000-0000-000000000002', 'Massey Ferguson');
+  begin
+    insert into asset_aliases (farm_id, machine_id, alias) values
+      ('7a000000-0000-0000-0000-000000000001', '7a200000-0000-0000-0000-000000000001', '  JOHN   DEERE  ');
+  exception when unique_violation then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 ALIAS FAIL: normalized duplicate was accepted'; end if;
+
+  blocked := false;
+  begin
+    insert into asset_aliases (farm_id, machine_id, alias) values
+      ('7a000000-0000-0000-0000-000000000001', '7a200000-0000-0000-0000-000000000003', 'Wrong farm');
+  exception when foreign_key_violation then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 ALIAS FAIL: cross-farm machine alias was accepted'; end if;
+end $$;
+
+-- Operators see aliases only for their assigned machines; another farm sees none.
+do $$ declare n bigint; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000002');
+  select count(*) into n from asset_aliases
+   where farm_id = '7a000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'H1 ALIAS RLS FAIL: operator sees % aliases rather than 1', n; end if;
+end $$;
+do $$ declare n bigint; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000004');
+  select count(*) into n from asset_aliases
+   where farm_id = '7a000000-0000-0000-0000-000000000001';
+  if n <> 0 then raise exception 'H1 ALIAS RLS FAIL: other farm sees % aliases', n; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+do $$ declare v text; score real; begin
+  select normalized_alias, similarity(normalized_alias, 'djon deer')
+    into v, score from asset_aliases
+   where farm_id = '7a000000-0000-0000-0000-000000000001'
+   order by similarity(normalized_alias, 'djon deer') desc limit 1;
+  if v <> 'john deere' or score <= 0.20 then
+    raise exception 'H1 ALIAS FAIL: fuzzy Djon Deer match returned % (score %)', v, score;
+  end if;
+end $$;
+
+-- Trusted server fixtures. Raw audio is absent; transcript/prompt text is deliberately
+-- distinctive so the audit assertions can prove it was never copied into audit_log.
+insert into voice_captures (
+  id, farm_id, user_id, machine_id, locale, status, transcript,
+  normalized_transcript, stt_provider, transcribed_at
+) values
+  ('7a400000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001', '7a100000-0000-0000-0000-000000000002', '7a200000-0000-0000-0000-000000000001', 'en-ZA', 'transcribed', 'VOICE-H-SECRET-4323 John Deere', 'voice-h-secret-4323 john deere', 'azure', now()),
+  ('7a400000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000001', '7a100000-0000-0000-0000-000000000003', '7a200000-0000-0000-0000-000000000002', 'af-ZA', 'transcribed', 'Operator B capture', 'operator b capture', 'azure', now());
+
+insert into ai_interactions (
+  id, farm_id, user_id, voice_capture_id, channel, locale, route_tier,
+  input_text, normalized_input, intent, tool_name, tool_args,
+  confirmation_status, result_status, response_text, provider, model,
+  consent_version, error_detail
+) values (
+  '7a500000-0000-0000-0000-000000000001',
+  '7a000000-0000-0000-0000-000000000001',
+  '7a100000-0000-0000-0000-000000000002',
+  '7a400000-0000-0000-0000-000000000001',
+  'voice', 'en-ZA', 2, 'AI-H-SECRET-9191 input', 'ai-h-secret-9191 input',
+  'log_meter', 'propose_meter_reading', '{"secret":"AI-H-SECRET-9191 args"}',
+  'pending', 'proposed', 'AI-H-SECRET-9191 response', 'vercel-ai-gateway',
+  'openai/gpt-5-mini', 'forged-consent-version', 'AI-H-SECRET-9191 error'
+);
+
+-- Deterministic/local parsing has no model and therefore carries no LLM consent claim.
+insert into ai_interactions (
+  id, farm_id, user_id, channel, locale, route_tier, input_text,
+  confirmation_status, result_status, response_text, consent_version
+) values (
+  '7a500000-0000-0000-0000-000000000002',
+  '7a000000-0000-0000-0000-000000000001',
+  '7a100000-0000-0000-0000-000000000002',
+  'typed', 'en-ZA', 0, 'deterministic request', 'not_required', 'answered',
+  'deterministic answer', 'forged-local-consent'
+);
+
+do $$ declare llm_v text; local_v text; begin
+  select consent_version into llm_v from ai_interactions
+   where id = '7a500000-0000-0000-0000-000000000001';
+  select consent_version into local_v from ai_interactions
+   where id = '7a500000-0000-0000-0000-000000000002';
+  if llm_v <> 'voice-ai-v1' then
+    raise exception 'H1 CONSENT FAIL: LLM interaction kept/stamped consent %', llm_v;
+  end if;
+  if local_v is not null then
+    raise exception 'H1 CONSENT FAIL: deterministic interaction retained a consent claim';
+  end if;
+end $$;
+
+-- A capture can only be attached to an interaction for the same farm and person.
+do $$ declare blocked boolean := false; begin
+  begin
+    insert into ai_interactions (
+      id, farm_id, user_id, voice_capture_id, channel, locale, route_tier,
+      confirmation_status, result_status
+    ) values (
+      '7a500000-0000-0000-0000-000000000003',
+      '7a000000-0000-0000-0000-000000000001',
+      '7a100000-0000-0000-0000-000000000002',
+      '7a400000-0000-0000-0000-000000000002',
+      'voice', 'en-ZA', 0, 'not_required', 'answered'
+    );
+  exception when foreign_key_violation then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 FK FAIL: interaction attached another user''s capture'; end if;
+end $$;
+
+-- Both stateful tables own updated_at, so the shared scope trigger can stamp safely.
+update ai_interactions
+   set updated_at = '2000-01-01 00:00:00+00', latency_ms = 20
+ where id = '7a500000-0000-0000-0000-000000000001';
+do $$ declare v timestamptz; begin
+  select updated_at into v from ai_interactions
+   where id = '7a500000-0000-0000-0000-000000000001';
+  if v = '2000-01-01 00:00:00+00'::timestamptz then
+    raise exception 'H1 TIMESTAMP FAIL: ai_interactions update was not DB-stamped';
+  end if;
+end $$;
+
+-- Private rows are visible only to their subject, not a colleague or farm owner.
+set role authenticated;
+do $$ declare vc bigint; ai bigint; blocked boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000002');
+  select count(*) into vc from voice_captures
+   where id in ('7a400000-0000-0000-0000-000000000001', '7a400000-0000-0000-0000-000000000002');
+  select count(*) into ai from ai_interactions
+   where id in ('7a500000-0000-0000-0000-000000000001', '7a500000-0000-0000-0000-000000000002');
+  if vc <> 1 or ai <> 2 then
+    raise exception 'H1 PRIVATE RLS FAIL: subject sees % captures / % interactions', vc, ai;
+  end if;
+  begin
+    insert into voice_captures (farm_id, user_id, locale, status)
+    values ('7a000000-0000-0000-0000-000000000001', '7a100000-0000-0000-0000-000000000002', 'en-ZA', 'captured');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 GRANT FAIL: browser inserted a trusted capture'; end if;
+end $$;
+do $$ declare vc bigint; ai bigint; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000003');
+  select count(*) into vc from voice_captures
+   where id in ('7a400000-0000-0000-0000-000000000001', '7a400000-0000-0000-0000-000000000002');
+  select count(*) into ai from ai_interactions
+   where id in ('7a500000-0000-0000-0000-000000000001', '7a500000-0000-0000-0000-000000000002');
+  if vc <> 1 or ai <> 0 then
+    raise exception 'H1 PRIVATE RLS FAIL: colleague sees % captures / % interactions', vc, ai;
+  end if;
+end $$;
+do $$ declare vc bigint; ai bigint; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  select count(*) into vc from voice_captures
+   where farm_id = '7a000000-0000-0000-0000-000000000001';
+  select count(*) into ai from ai_interactions
+   where farm_id = '7a000000-0000-0000-0000-000000000001';
+  if vc <> 0 or ai <> 0 then
+    raise exception 'H1 PRIVATE RLS FAIL: farm owner sees another person''s private records';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- Redacted audit rows exist, but never retain the transcript/prompt/reply/payload.
+do $$ declare n bigint; leaked bigint; keyed bigint; begin
+  select count(*) into n from audit_log
+   where (entity = 'voice_captures' and entity_id = '7a400000-0000-0000-0000-000000000001')
+      or (entity = 'ai_interactions' and entity_id = '7a500000-0000-0000-0000-000000000001');
+  if n < 2 then raise exception 'H1 AUDIT FAIL: redacted voice/AI audit rows are missing'; end if;
+
+  select count(*) into leaked from audit_log
+   where entity in ('voice_captures', 'ai_interactions')
+     and (position('VOICE-H-SECRET' in diff::text) > 0
+       or position('AI-H-SECRET' in diff::text) > 0);
+  if leaked <> 0 then raise exception 'H1 AUDIT FAIL: % audit rows retain secret content', leaked; end if;
+
+  select count(*) into keyed from audit_log
+   where entity in ('voice_captures', 'ai_interactions')
+     and (diff::text like '%"transcript":%'
+       or diff::text like '%"normalized_transcript":%'
+       or diff::text like '%"input_text":%'
+       or diff::text like '%"normalized_input":%'
+       or diff::text like '%"response_text":%'
+       or diff::text like '%"tool_args":%'
+       or diff::text like '%"error_detail":%');
+  if keyed <> 0 then raise exception 'H1 AUDIT FAIL: % audit rows retain sensitive keys', keyed; end if;
+end $$;
+
+-- POPIA export includes the subject's private voice and AI records.
+set role authenticated;
+do $$ declare j jsonb; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  j := public.export_personal_data('7a100000-0000-0000-0000-000000000002');
+  if jsonb_array_length(j -> 'voice_captures') <> 1 then
+    raise exception 'H1 EXPORT FAIL: voice capture missing from subject export';
+  end if;
+  if jsonb_array_length(j -> 'ai_interactions') <> 2 then
+    raise exception 'H1 EXPORT FAIL: AI interactions missing from subject export';
+  end if;
+end $$;
+reset role;
+
+-- A primary-farm manager must not export or globally erase a multi-site person. The
+-- account-level RPCs aggregate/deactivate the whole subject, so cross-farm requests are
+-- deliberately escalated to rr_admin rather than leaking or altering Farm B data.
+insert into user_farm_memberships (user_id, farm_id, role, active) values (
+  '7a100000-0000-0000-0000-000000000003',
+  '7a000000-0000-0000-0000-000000000002',
+  'operator', true
+);
+set role authenticated;
+do $$ declare export_blocked boolean := false; erase_blocked boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  begin
+    perform public.export_personal_data('7a100000-0000-0000-0000-000000000003');
+  exception when insufficient_privilege then export_blocked := true; end;
+  begin
+    perform public.erase_personal_data(
+      '7a100000-0000-0000-0000-000000000003', 'must be centrally handled'
+    );
+  exception when insufficient_privilege then erase_blocked := true; end;
+  if not export_blocked or not erase_blocked then
+    raise exception 'H1 DSAR ISOLATION FAIL: multi-site export/erasure=%/%',
+      export_blocked, erase_blocked;
+  end if;
+end $$;
+reset role;
+
+-- The protection must also survive historical membership cleanup. Audit rows are
+-- append-only and the personal-data export includes them, so audit history alone is
+-- enough to require central handling.
+delete from user_farm_memberships
+ where user_id = '7a100000-0000-0000-0000-000000000003'
+   and farm_id = '7a000000-0000-0000-0000-000000000002';
+insert into audit_log (farm_id, user_id, entity, entity_id, action, diff) values (
+  '7a000000-0000-0000-0000-000000000002',
+  '7a100000-0000-0000-0000-000000000003',
+  'historical_cross_farm_record',
+  '7a100000-0000-0000-0000-000000000003',
+  'view',
+  '{}'::jsonb
+);
+set role authenticated;
+do $$ declare export_blocked boolean := false; erase_blocked boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  begin
+    perform public.export_personal_data('7a100000-0000-0000-0000-000000000003');
+  exception when insufficient_privilege then export_blocked := true; end;
+  begin
+    perform public.erase_personal_data(
+      '7a100000-0000-0000-0000-000000000003', 'audit history requires central handling'
+    );
+  exception when insufficient_privilege then erase_blocked := true; end;
+  if not export_blocked or not erase_blocked then
+    raise exception 'H1 AUDIT DSAR ISOLATION FAIL: historical export/erasure=%/%',
+      export_blocked, erase_blocked;
+  end if;
+end $$;
+reset role;
+
+-- Withdrawal retains its evidence. Existing interaction bookkeeping may finish, but
+-- a new interaction cannot acquire a model after consent has ended.
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000002');
+  update users set ai_processing_opt_in = false
+   where id = '7a100000-0000-0000-0000-000000000002';
+  select ai_processing_opt_in, ai_processing_opted_in_at,
+         ai_processing_consent_version, ai_processing_withdrawn_at
+    into r from users where id = '7a100000-0000-0000-0000-000000000002';
+  if r.ai_processing_opt_in
+     or r.ai_processing_opted_in_at is null
+     or r.ai_processing_consent_version <> 'voice-ai-v1'
+     or r.ai_processing_withdrawn_at is null
+     or r.ai_processing_withdrawn_at < r.ai_processing_opted_in_at then
+    raise exception 'H1 CONSENT FAIL: withdrawal did not preserve complete evidence';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+update ai_interactions
+   set result_status = 'answered', response_text = 'bookkeeping after withdrawal',
+       completed_at = now()
+ where id = '7a500000-0000-0000-0000-000000000001';
+do $$ declare v text; blocked boolean := false; begin
+  select consent_version into v from ai_interactions
+   where id = '7a500000-0000-0000-0000-000000000001';
+  if v <> 'voice-ai-v1' then
+    raise exception 'H1 CONSENT FAIL: historical consent changed during bookkeeping';
+  end if;
+
+  begin
+    insert into ai_interactions (
+      id, farm_id, user_id, channel, locale, route_tier,
+      confirmation_status, result_status, provider, model
+    ) values (
+      '7a500000-0000-0000-0000-000000000003',
+      '7a000000-0000-0000-0000-000000000001',
+      '7a100000-0000-0000-0000-000000000002',
+      'typed', 'en-ZA', 2, 'not_required', 'answered',
+      'vercel-ai-gateway', 'openai/gpt-5-mini'
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H1 CONSENT FAIL: LLM used after withdrawal'; end if;
+end $$;
+
+-- Farm-scoped erasure scrubs sensitive payloads, soft-deletes the records, and leaves
+-- only the non-sensitive historical consent/version needed for accountability.
+set role authenticated;
+do $$ declare j jsonb; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000001');
+  j := public.erase_personal_data(
+    '7a100000-0000-0000-0000-000000000002', 'H1 voice foundation test'
+  );
+  if (j ->> 'voice_records_scrubbed')::bigint <> 1
+     or (j ->> 'ai_records_scrubbed')::bigint <> 2 then
+    raise exception 'H1 ERASURE FAIL: RPC reported wrong voice/AI scrub counts';
+  end if;
+end $$;
+reset role;
+
+do $$ declare r record; n bigint; leaked bigint; begin
+  select active, deleted_at, ai_processing_opt_in, ai_processing_opted_in_at,
+         ai_processing_consent_version, ai_processing_withdrawn_at
+    into r from users where id = '7a100000-0000-0000-0000-000000000002';
+  if r.active or r.deleted_at is null or r.ai_processing_opt_in
+     or r.ai_processing_opted_in_at is null
+     or r.ai_processing_consent_version <> 'voice-ai-v1'
+     or r.ai_processing_withdrawn_at is null then
+    raise exception 'H1 ERASURE FAIL: profile/consent state is inconsistent after erasure';
+  end if;
+
+  select count(*) into n from voice_captures
+   where user_id = '7a100000-0000-0000-0000-000000000002'
+     and deleted_at is not null and status = 'cancelled'
+     and transcript is null and normalized_transcript is null
+     and audio_storage_path is null and error_detail is null;
+  if n <> 1 then raise exception 'H1 ERASURE FAIL: voice capture was not fully scrubbed'; end if;
+
+  select count(*) into n from ai_interactions
+   where user_id = '7a100000-0000-0000-0000-000000000002'
+     and deleted_at is not null and input_text is null and normalized_input is null
+     and response_text is null and tool_args = '{}'::jsonb and error_detail is null;
+  if n <> 2 then raise exception 'H1 ERASURE FAIL: AI interactions were not fully scrubbed'; end if;
+
+  select count(*) into leaked from audit_log
+   where entity in ('voice_captures', 'ai_interactions')
+     and (position('VOICE-H-SECRET' in diff::text) > 0
+       or position('AI-H-SECRET' in diff::text) > 0);
+  if leaked <> 0 then raise exception 'H1 AUDIT FAIL: erasure audit retained secret content'; end if;
+end $$;
+
+select 'ALL H1 VOICE-ASSISTANT FOUNDATION TESTS PASSED' as result;
+
+-- ============================================================================
+-- H2: ATOMIC VOICE COMMANDS AND CONFIRMATION
+-- Proves selected-farm roles, assigned-machine visibility, non-claiming generic
+-- services, strict/atomic proposal application, ownership, entitlement and the
+-- per-user contention-safe turn limiter.
+-- ============================================================================
+
+select set_config('request.jwt.claims', '', false);
+
+-- Fixtures deliberately give each multi-site person opposite roles by farm.
+insert into farms (id, name, plan, settings) values
+  ('8a000000-0000-4000-8000-000000000001', 'Voice Command Farm A', 'complete', '{}'::jsonb),
+  ('8a000000-0000-4000-8000-000000000002', 'Voice Command Farm B', 'complete', '{"vat_rate_bps":"not-a-number"}'::jsonb),
+  ('8a000000-0000-4000-8000-000000000003', 'Voice Command Farm C', 'essential', '{}'::jsonb);
+
+insert into auth.users (id, email) values
+  ('8a100000-0000-4000-8000-000000000001', 'h2-operator-a-owner-b@test'),
+  ('8a100000-0000-4000-8000-000000000002', 'h2-owner-a-operator-b@test'),
+  ('8a100000-0000-4000-8000-000000000003', 'h2-owner-c@test');
+
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('8a100000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000001', null, 'operator', 'H2 Operator A Owner B'),
+  -- Deliberately stale users.role: the active primary membership below is authoritative.
+  ('8a100000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000001', null, 'operator', 'H2 Owner A Operator B'),
+  ('8a100000-0000-4000-8000-000000000003', '8a000000-0000-4000-8000-000000000003', null, 'owner',    'H2 Owner C');
+
+insert into user_farm_memberships (user_id, farm_id, role, active) values
+  ('8a100000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000001', 'operator', true),
+  ('8a100000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000002', 'owner', true),
+  ('8a100000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000001', 'owner', true),
+  ('8a100000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000002', 'operator', true);
+
+insert into machines (
+  id, farm_id, name, type, current_reading, current_reading_date, assigned_operator_id
+) values
+  ('8a200000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000001', 'H2 A Assigned',   'tractor', 100, current_date - 1, '8a100000-0000-4000-8000-000000000001'),
+  ('8a200000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000001', 'H2 A Unassigned', 'tractor', 100, current_date - 1, null),
+  ('8a200000-0000-4000-8000-000000000003', '8a000000-0000-4000-8000-000000000002', 'H2 B Assigned',   'tractor', 200, current_date - 1, '8a100000-0000-4000-8000-000000000002'),
+  ('8a200000-0000-4000-8000-000000000004', '8a000000-0000-4000-8000-000000000002', 'H2 B Unassigned', 'tractor', 200, current_date - 1, null),
+  ('8a200000-0000-4000-8000-000000000005', '8a000000-0000-4000-8000-000000000003', 'H2 C Machine',    'tractor',  50, current_date - 1, null);
+
+insert into service_plan_lines (
+  id, farm_id, machine_id, task, interval_hours, last_done_reading,
+  last_done_date, next_due_reading, status
+) values (
+  '8a300000-0000-4000-8000-000000000001',
+  '8a000000-0000-4000-8000-000000000002',
+  '8a200000-0000-4000-8000-000000000004',
+  'H2 engine oil task', 250, 100, current_date - 30, 200, 'overdue'
+);
+
+-- Reusable exact-shape proposal payloads. jsonb de-duplicates keys, so these carry
+-- the same eleven-key contract generated by the server's AssistantDraft object.
+create or replace function _h2_fault_args(p_machine uuid, p_description text)
+returns jsonb language sql immutable as $$
+  select jsonb_build_object(
+    'intent', 'report_fault', 'machineQuery', p_machine::text,
+    'machineId', p_machine::text, 'description', p_description,
+    'category', null, 'urgency', 'can_work', 'reading', null,
+    'readingDate', null, 'serviceDate', null, 'workPerformed', null,
+    'confidence', 0.95
+  );
+$$;
+grant execute on function _h2_fault_args(uuid, text) to public;
+
+create or replace function _h2_reading_args(
+  p_machine uuid, p_reading numeric, p_date date
+) returns jsonb language sql stable as $$
+  select jsonb_build_object(
+    'intent', 'log_reading', 'machineQuery', p_machine::text,
+    'machineId', p_machine::text, 'description', null,
+    'category', null, 'urgency', null, 'reading', p_reading,
+    'readingDate', to_char(p_date, 'YYYY-MM-DD'), 'serviceDate', null,
+    'workPerformed', null, 'confidence', 0.95
+  );
+$$;
+grant execute on function _h2_reading_args(uuid, numeric, date) to public;
+
+-- Structural security: private metadata stays browser-read-only; only the narrowly
+-- parameterised SECURITY DEFINER boundaries may mutate it.
+do $$ declare n integer; begin
+  if not has_function_privilege(
+       'authenticated', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'service_role', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+     ) then
+    raise exception 'H2 GRANT FAIL: proposal application execute grants are unsafe';
+  end if;
+  if not has_function_privilege(
+       'authenticated', 'public.consume_assistant_turn()', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon', 'public.consume_assistant_turn()', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'service_role', 'public.consume_assistant_turn()', 'EXECUTE'
+     ) then
+    raise exception 'H2 GRANT FAIL: turn limiter execute grants are unsafe';
+  end if;
+  if has_table_privilege(
+       'authenticated', 'app.assistant_turn_buckets', 'SELECT'
+     ) or has_table_privilege(
+       'authenticated', 'app.assistant_turn_buckets', 'UPDATE'
+     ) then
+    raise exception 'H2 GRANT FAIL: browser can inspect or alter limiter buckets';
+  end if;
+
+  select count(*) into n
+    from pg_proc p
+    join pg_namespace s on s.oid = p.pronamespace
+   where s.nspname = 'public'
+     and p.proname in ('apply_assistant_proposal', 'consume_assistant_turn')
+     and p.prosecdef;
+  if n <> 2 then
+    raise exception 'H2 STRUCTURE FAIL: privileged boundaries are not SECURITY DEFINER';
+  end if;
+  select count(*) into n
+    from pg_proc p
+    join pg_namespace s on s.oid = p.pronamespace
+   where s.nspname = 'public'
+     and p.proname in ('record_fault','record_meter_reading','record_completed_service')
+     and not p.prosecdef;
+  if n <> 3 then
+    raise exception 'H2 STRUCTURE FAIL: record commands are not SECURITY INVOKER';
+  end if;
+end $$;
+
+-- No no-JWT/service workflow may grant AI-processing consent to somebody else.
+do $$ declare blocked boolean := false; begin
+  begin
+    update users set ai_processing_opt_in = true
+     where id = '8a100000-0000-4000-8000-000000000003';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'H2 CONSENT FAIL: a no-JWT privileged update manufactured consent';
+  end if;
+end $$;
+
+-- Primary operator / secondary owner: assigned-only on A, full visibility on B.
+set role authenticated;
+do $$ declare ra user_role; rb user_role; na bigint; nb bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  ra := app.effective_farm_role(
+    auth.uid(), '8a000000-0000-4000-8000-000000000001'
+  );
+  rb := app.effective_farm_role(
+    auth.uid(), '8a000000-0000-4000-8000-000000000002'
+  );
+  select count(*) into na from machines
+   where id in (
+     '8a200000-0000-4000-8000-000000000001',
+     '8a200000-0000-4000-8000-000000000002'
+   );
+  select count(*) into nb from machines
+   where id in (
+     '8a200000-0000-4000-8000-000000000003',
+     '8a200000-0000-4000-8000-000000000004'
+   );
+  if ra <> 'operator' or rb <> 'owner' or na <> 1 or nb <> 2 then
+    raise exception 'H2 ROLE FAIL [U1]: roles A/B=%/% and visible A/B=%/%', ra, rb, na, nb;
+  end if;
+end $$;
+
+-- Primary owner / secondary operator: full visibility on A, assigned-only on B.
+do $$ declare ra user_role; rb user_role; na bigint; nb bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  ra := app.effective_farm_role(
+    auth.uid(), '8a000000-0000-4000-8000-000000000001'
+  );
+  rb := app.effective_farm_role(
+    auth.uid(), '8a000000-0000-4000-8000-000000000002'
+  );
+  select count(*) into na from machines
+   where id in (
+     '8a200000-0000-4000-8000-000000000001',
+     '8a200000-0000-4000-8000-000000000002'
+   );
+  select count(*) into nb from machines
+   where id in (
+     '8a200000-0000-4000-8000-000000000003',
+     '8a200000-0000-4000-8000-000000000004'
+   );
+  if ra <> 'owner' or rb <> 'operator' or na <> 2 or nb <> 1 then
+    raise exception 'H2 ROLE FAIL [U2]: roles A/B=%/% and visible A/B=%/%', ra, rb, na, nb;
+  end if;
+end $$;
+
+-- Alias mutation also follows the selected farm role.
+do $$ declare blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  insert into asset_aliases (farm_id, machine_id, alias) values (
+    '8a000000-0000-4000-8000-000000000002',
+    '8a200000-0000-4000-8000-000000000004', 'H2 owner alias'
+  );
+  begin
+    insert into asset_aliases (farm_id, machine_id, alias) values (
+      '8a000000-0000-4000-8000-000000000001',
+      '8a200000-0000-4000-8000-000000000001', 'H2 operator alias'
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H2 ALIAS FAIL: primary operator managed aliases'; end if;
+end $$;
+do $$ declare blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  begin
+    insert into asset_aliases (farm_id, machine_id, alias) values (
+      '8a000000-0000-4000-8000-000000000002',
+      '8a200000-0000-4000-8000-000000000003', 'H2 secondary operator alias'
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H2 ALIAS FAIL: secondary operator managed aliases'; end if;
+end $$;
+
+-- Operators may report only against their assigned machine and cannot use privileged
+-- meter/service commands, even if their primary role differs on another farm.
+do $$ declare fid uuid; blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  fid := public.record_fault(
+    '8a000000-0000-4000-8000-000000000001',
+    '8a200000-0000-4000-8000-000000000001',
+    'H2 assigned operator fault', 'can_work', null
+  );
+  if fid is null then raise exception 'H2 COMMAND FAIL: assigned fault returned no ID'; end if;
+  begin
+    perform public.record_fault(
+      '8a000000-0000-4000-8000-000000000001',
+      '8a200000-0000-4000-8000-000000000002',
+      'H2 unassigned operator fault', 'can_work', null
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H2 COMMAND FAIL: operator faulted unassigned machine'; end if;
+
+  blocked := false;
+  begin
+    perform public.record_meter_reading(
+      '8a000000-0000-4000-8000-000000000001',
+      '8a200000-0000-4000-8000-000000000001', 110, current_date, null
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H2 COMMAND FAIL: operator recorded primary-farm reading'; end if;
+end $$;
+
+-- The opposite-role person can record on their owner farm but not the secondary farm
+-- where their effective role is operator.
+do $$ declare rid uuid; blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  rid := public.record_meter_reading(
+    '8a000000-0000-4000-8000-000000000001',
+    '8a200000-0000-4000-8000-000000000002', 110, current_date, null
+  );
+  if rid is null then raise exception 'H2 COMMAND FAIL: owner reading returned no ID'; end if;
+  begin
+    perform public.record_meter_reading(
+      '8a000000-0000-4000-8000-000000000002',
+      '8a200000-0000-4000-8000-000000000003', 210, current_date, null
+    );
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'H2 COMMAND FAIL: secondary operator recorded reading'; end if;
+end $$;
+
+-- Future and current/newer decreasing readings fail. An older historical reading is
+-- retained as history but cannot regress machines.current_reading/current_reading_date.
+do $$ declare blocked_future boolean := false; blocked_low boolean := false;
+              historical_id uuid; before_reading numeric; before_date date; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  begin
+    perform public.record_meter_reading(
+      '8a000000-0000-4000-8000-000000000002',
+      '8a200000-0000-4000-8000-000000000003', 220, current_date + 1, null
+    );
+  exception when invalid_parameter_value then blocked_future := true; end;
+  begin
+    perform public.record_meter_reading(
+      '8a000000-0000-4000-8000-000000000002',
+      '8a200000-0000-4000-8000-000000000003', 199, current_date, null
+    );
+  exception when invalid_parameter_value then blocked_low := true; end;
+  select current_reading, current_reading_date into before_reading, before_date
+    from machines where id = '8a200000-0000-4000-8000-000000000003';
+  historical_id := public.record_meter_reading(
+    '8a000000-0000-4000-8000-000000000002',
+    '8a200000-0000-4000-8000-000000000003', 180, current_date - 2, null
+  );
+  if not blocked_future or not blocked_low or historical_id is null
+     or (select current_reading from machines where id = '8a200000-0000-4000-8000-000000000003') <> before_reading
+     or (select current_reading_date from machines where id = '8a200000-0000-4000-8000-000000000003') <> before_date then
+    raise exception 'H2 VALIDATION FAIL: future/low/history=%/%/%',
+      blocked_future, blocked_low, historical_id;
+  end if;
+end $$;
+
+-- A generic completed service creates no job_card_service_lines, so completion cannot
+-- silently claim/reset due tasks. Invalid VAT settings fall back to 15%.
+do $$ declare jid uuid; n bigint; r record; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  jid := public.record_completed_service(
+    '8a000000-0000-4000-8000-000000000002',
+    '8a200000-0000-4000-8000-000000000004',
+    250, current_date, 'H2 generic completed service'
+  );
+  select count(*) into n from job_card_service_lines where job_card_id = jid;
+  if n <> 0 then raise exception 'H2 SERVICE FAIL: generic service linked % plan lines', n; end if;
+  select last_done_reading, last_done_date into r
+    from service_plan_lines
+   where id = '8a300000-0000-4000-8000-000000000001';
+  if r.last_done_reading <> 100 or r.last_done_date <> current_date - 30 then
+    raise exception 'H2 SERVICE FAIL: generic service reset a plan line';
+  end if;
+  if (select vat_rate_bps from job_cards where id = jid) <> 1500 then
+    raise exception 'H2 SERVICE FAIL: malformed VAT setting did not fall back to 1500';
+  end if;
+  if (select status from job_cards where id = jid) <> 'completed' then
+    raise exception 'H2 SERVICE FAIL: generic service card is not completed';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- Private proposal/capture fixtures, written by the trusted server (superuser here).
+insert into voice_captures (
+  id, farm_id, user_id, machine_id, locale, status, transcript,
+  normalized_transcript, stt_provider, transcribed_at
+) values
+  ('8a400000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 apply once', 'h2 apply once', 'azure', now()),
+  ('8a400000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 reject once', 'h2 reject once', 'azure', now());
+
+insert into ai_interactions (
+  id, farm_id, user_id, voice_capture_id, channel, locale, route_tier,
+  intent, tool_name, tool_args, confirmation_status, result_status,
+  proposal_expires_at
+) values
+  ('8a500000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a400000-0000-4000-8000-000000000001', 'voice', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 apply exactly once'), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a400000-0000-4000-8000-000000000002', 'voice', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 reject exactly once'), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000003', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 expired must not save'), 'pending', 'proposed', now() - interval '1 second'),
+  ('8a500000-0000-4000-8000-000000000004', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'log_reading', 'log_reading', jsonb_set(_h2_reading_args('8a200000-0000-4000-8000-000000000004', 333, current_date), '{reading}', '"not-a-number"'::jsonb), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000005', '8a000000-0000-4000-8000-000000000001', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000002', 'H2 hidden machine must not save'), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000006', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000002', null, 'typed', 'en-ZA', 1, 'log_reading', 'log_reading', _h2_reading_args('8a200000-0000-4000-8000-000000000003', 225, current_date), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000007', '8a000000-0000-4000-8000-000000000003', '8a100000-0000-4000-8000-000000000003', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000005', 'H2 no entitlement must not save'), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000008', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 private ownership proposal'), 'pending', 'proposed', now() + interval '15 minutes');
+
+set role authenticated;
+
+-- Confirm exactly once. A second confirm returns the identical linked record without
+-- inserting another fault; the linked capture is updated in the same transaction.
+do $$ declare first_result jsonb; retry_result jsonb; linked uuid; n bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  first_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000001', 'confirm'
+  );
+  retry_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000001', 'confirm'
+  );
+  linked := (first_result ->> 'linkedRecordId')::uuid;
+  select count(*) into n from faults where description = 'H2 apply exactly once';
+  if not (first_result ->> 'ok')::boolean
+     or (first_result ->> 'replayed')::boolean
+     or not (retry_result ->> 'ok')::boolean
+     or not (retry_result ->> 'replayed')::boolean
+     or retry_result ->> 'linkedRecordId' <> linked::text
+     or n <> 1 then
+    raise exception 'H2 APPLY FAIL: first=%, retry=%, writes=%', first_result, retry_result, n;
+  end if;
+  if (select confirmation_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000001') <> 'confirmed'
+     or (select status from voice_captures where id = '8a400000-0000-4000-8000-000000000001') <> 'applied' then
+    raise exception 'H2 APPLY FAIL: interaction/capture did not commit atomically';
+  end if;
+end $$;
+
+-- Reject exactly once. Even a conflicting retry returns the stored rejection and does
+-- not turn it into a confirmation.
+do $$ declare first_result jsonb; retry_result jsonb; n bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  first_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000002', 'reject'
+  );
+  retry_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000002', 'confirm'
+  );
+  select count(*) into n from faults where description = 'H2 reject exactly once';
+  if first_result ->> 'action' <> 'reject'
+     or retry_result ->> 'action' <> 'reject'
+     or not (retry_result ->> 'replayed')::boolean
+     or n <> 0 then
+    raise exception 'H2 REJECT FAIL: first=%, retry=%, writes=%', first_result, retry_result, n;
+  end if;
+  if (select status from voice_captures where id = '8a400000-0000-4000-8000-000000000002') <> 'cancelled' then
+    raise exception 'H2 REJECT FAIL: linked capture was not cancelled atomically';
+  end if;
+end $$;
+
+-- Expiry and malformed payloads return structured failures and leave the proposal
+-- pending with no operational side effect, so the whole attempted apply rolled back.
+do $$ declare expired_result jsonb; malformed_result jsonb; n bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  expired_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000003', 'confirm'
+  );
+  malformed_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000004', 'confirm'
+  );
+  if expired_result ->> 'code' <> 'proposal_expired'
+     or malformed_result ->> 'code' <> 'invalid_proposal' then
+    raise exception 'H2 VALIDATION FAIL: expired=% malformed=%', expired_result, malformed_result;
+  end if;
+  select count(*) into n from meter_readings
+   where machine_id = '8a200000-0000-4000-8000-000000000004' and reading = 333;
+  if n <> 0
+     or (select confirmation_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000003') <> 'failed'
+     or (select error_code from ai_interactions where id = '8a500000-0000-4000-8000-000000000003') <> 'proposal_expired'
+     or (select confirmation_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000004') <> 'failed'
+     or (select error_code from ai_interactions where id = '8a500000-0000-4000-8000-000000000004') <> 'invalid_proposal' then
+    raise exception 'H2 ROLLBACK FAIL: invalid/expired proposal changed state or data';
+  end if;
+end $$;
+
+-- A selected-farm role downgrade, an unassigned machine and a downgraded plan all
+-- fail inside the locked RPC even if an older server route proposed the operation.
+do $$ declare hidden_result jsonb; role_result jsonb; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  hidden_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000005', 'confirm'
+  );
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  role_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000006', 'confirm'
+  );
+  if hidden_result ->> 'code' <> 'forbidden'
+     or role_result ->> 'code' <> 'forbidden' then
+    raise exception 'H2 AUTH FAIL: hidden=% role=%', hidden_result, role_result;
+  end if;
+end $$;
+do $$ declare plan_result jsonb; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000003');
+  plan_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000007', 'confirm'
+  );
+  if plan_result ->> 'code' <> 'feature_unavailable' then
+    raise exception 'H2 ENTITLEMENT FAIL: %', plan_result;
+  end if;
+end $$;
+
+-- Same-farm colleagues and an entirely different tenant both receive the same generic
+-- denial for a private proposal ID.
+do $$ declare same_farm_blocked boolean := false; cross_blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  begin
+    perform public.apply_assistant_proposal(
+      '8a500000-0000-4000-8000-000000000008', 'confirm'
+    );
+  exception when insufficient_privilege then same_farm_blocked := true; end;
+  perform _t_login('8a100000-0000-4000-8000-000000000003');
+  begin
+    perform public.apply_assistant_proposal(
+      '8a500000-0000-4000-8000-000000000008', 'confirm'
+    );
+  exception when insufficient_privilege then cross_blocked := true; end;
+  if not same_farm_blocked or not cross_blocked then
+    raise exception 'H2 OWNERSHIP FAIL: same-farm/cross-tenant=%/%',
+      same_farm_blocked, cross_blocked;
+  end if;
+end $$;
+
+-- One atomic minute bucket permits exactly twenty turns. A different user's bucket is
+-- independent. Repeated calls in one statement exercise the ON CONFLICT row-lock path.
+reset role;
+select set_config('request.jwt.claims', '', false);
+delete from app.assistant_turn_buckets;
+set role authenticated;
+do $$ declare i integer; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  for i in 1..20 loop
+    if not public.consume_assistant_turn() then
+      raise exception 'H2 LIMIT FAIL: user A was denied at turn %', i;
+    end if;
+  end loop;
+  if public.consume_assistant_turn() then
+    raise exception 'H2 LIMIT FAIL: user A received a 21st turn';
+  end if;
+end $$;
+do $$ begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  if not public.consume_assistant_turn() then
+    raise exception 'H2 LIMIT FAIL: user B inherited user A''s limit';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+do $$ declare a_count bigint; b_count bigint; a_rows bigint; begin
+  select coalesce(sum(request_count), 0), count(*) into a_count, a_rows
+    from app.assistant_turn_buckets
+   where user_id = '8a100000-0000-4000-8000-000000000001';
+  select coalesce(sum(request_count), 0) into b_count
+    from app.assistant_turn_buckets
+   where user_id = '8a100000-0000-4000-8000-000000000002';
+  if a_count <> 20 or a_rows <> 1 or b_count <> 1 then
+    raise exception 'H2 LIMIT FAIL: counts/rows A=%/% B=%', a_count, a_rows, b_count;
+  end if;
+end $$;
+
+-- Cleanup is indexed and bounded to 100 rows per call.
+insert into app.assistant_turn_buckets(user_id, bucket_start, request_count)
+select '8a100000-0000-4000-8000-000000000003',
+       date_trunc('minute', now()) - (g::text || ' minutes')::interval, 1
+  from generate_series(20, 124) g;
+set role authenticated;
+do $$ begin
+  perform _t_login('8a100000-0000-4000-8000-000000000003');
+  if not public.consume_assistant_turn() then
+    raise exception 'H2 LIMIT FAIL: cleanup call was unexpectedly denied';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+do $$ declare old_rows bigint; begin
+  select count(*) into old_rows
+    from app.assistant_turn_buckets
+   where bucket_start < date_trunc('minute', now()) - interval '10 minutes';
+  if old_rows <> 5 then
+    raise exception 'H2 LIMIT FAIL: bounded cleanup left % old rows rather than 5', old_rows;
+  end if;
+end $$;
+
+select 'ALL H2 ATOMIC VOICE-COMMAND TESTS PASSED' as result;

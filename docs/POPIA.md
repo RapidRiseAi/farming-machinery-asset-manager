@@ -48,7 +48,7 @@ crop/livestock/labour records.
 | **AARTO driver nomination** (who drove vehicle X on date D) | `usage_logs` | **Legal obligation** (AARTO Act) |
 | Reminders & alerts (service-due, expiry, fuel anomaly) | `users` contact + prefs | Consent / legitimate interest |
 | WhatsApp messaging *(deferred)* | `phone`, `whatsapp_opt_in` | **Explicit opt-in consent**, timestamped |
-| Cross-border AI (voice intent / RAG) *(deferred)* | transcript text, asset names | **Explicit consent + a signed DPA** (see §5) |
+| Optional cross-border AI for unresolved voice intent *(implemented; production enablement pending)* | difficult transcript text, locale and current date | **Explicit consent + a signed DPA** (see §5) |
 | Security, audit & dispute resolution | `audit_log` | Legal obligation / legitimate interest |
 
 Data minimisation: we ask only for what a farm-machinery manager needs. Money is stored
@@ -117,6 +117,8 @@ requires**, then de-identify.
 | Maintenance / fault / cost / fuel history | Life of the asset + reasonable dispute/warranty/tax window | Kept, de-identified (actor id points at `[erased]`) |
 | Attachments (photos/voice/docs) | Life of the parent record | Parent soft-delete cascades; a specific media item can be soft-deleted on request |
 | Notifications | Rolling operational window | User's queue de-identified with the account |
+| Voice transcripts / assistant proposals | Operational support and dispute window; private to the subject | Text and tool payloads scrubbed, records soft-deleted |
+| Offline raw voice audio (device IndexedDB only) | Until explicit transcription/discard, sign-out, or seven days at the latest | Cleared from that browser; never stored in FleetWise Postgres/Storage |
 | **`audit_log`** | Retained for integrity/legal-obligation | **Kept** — see §4.4 |
 | Backups (Supabase PITR) | Rolling window (see [`BACKUP.md`](BACKUP.md)) | Anonymisation propagates as the window rolls forward; documented exception below |
 
@@ -146,20 +148,33 @@ post-restore checklist in [`BACKUP.md`](BACKUP.md).
 
 Per `docs/FLEETWISE_FOUNDER_DECISIONS.md` (#2): **cross-border AI processing is permitted
 with (a) explicit user consent and (b) a signed Data Processing Agreement (DPA) with each
-processor.** This applies only to the **deferred** Voice-AI / RAG features (LLM
-intent-parsing may run in any region behind the adapter). Azure Speech runs in **South
-Africa North** regardless. When those features ship, per-user consent is captured with a
-timestamp (reusing the `whatsapp_opt_in`-style opt-in pattern) and the DPA is kept on
-file. **No personal information leaves South Africa today** — the base product (Supabase
-project + Storage) is single-region and no AI processor is wired.
+processor.** Voice AI now uses two deliberately separate paths:
+
+- Azure Speech STT/TTS runs against the dedicated **South Africa North** resource. The
+  browser receives a short-lived token; the Azure master key never leaves the server.
+- Deterministic Afrikaans/English parsing stays inside FleetWise. Only when it cannot
+  resolve a transcript may the optional Vercel AI Gateway/model path run. The database
+  must first stamp active, unwithdrawn `voice-ai-v1` consent on a private interaction
+  row. Users can withdraw that consent; Azure Speech and deterministic parsing continue
+  to work without it.
+
+The raw live recording is not retained by FleetWise. When offline, raw audio remains in
+that signed-in farm context's browser IndexedDB, is uploaded to Azure only after an
+explicit user action, and expires after seven days. FleetWise stores the transcript,
+interpretation metadata and confirmed result for audit/support, under private per-user
+RLS; its audit trigger deliberately excludes transcript, prompt, response, tool arguments
+and provider error detail so erasure can actually remove that content. Before enabling
+the optional LLM in production, record DPAs for Vercel Gateway and the selected underlying
+model provider and include them in the processor register.
 
 ---
 
 ## 6. Security & breach
 
-Security controls (RLS as the sole tenant-isolation guarantor, encryption in
-transit/at rest, hashed credentials, service-role key handling, the zero-anon-DB public
-QR path) are documented in [`SECURITY.md`](SECURITY.md). **Breach notification:** on a
+Security controls (RLS as the default tenant-isolation boundary, explicitly guarded
+atomic RPCs, encryption in transit/at rest, hashed credentials, service-role key
+handling, the zero-anon-DB public QR path) are documented in
+[`SECURITY.md`](SECURITY.md). **Breach notification:** on a
 confirmed compromise of personal information we notify the Information Regulator and
 affected data subjects as soon as reasonably possible (POPIA §22); `audit_log` and
 Supabase logs support scoping the incident.
@@ -170,7 +185,10 @@ Supabase logs support scoping the incident.
 
 - [ ] Supabase Auth: enable **leaked-password protection** (HaveIBeenPwned) — see `SECURITY.md`.
 - [ ] Confirm all Storage buckets are **private** (they are, by migration `0200`) and only served via signed URLs.
-- [ ] Keep a signed **DPA with Supabase** (sub-processor) on file; add one per AI/WhatsApp processor before enabling those deferred features.
+- [ ] Keep a signed **DPA with Supabase** on file; before production Voice AI, add Azure,
+      Vercel AI Gateway and the selected model provider to the processor/DPA register.
+- [ ] Confirm the Voice AI consent wording/version (`voice-ai-v1`), withdrawal path,
+      seven-day offline-audio expiry and data-subject export/erasure flow on real devices.
 - [ ] Publish a customer-facing **privacy notice** (purposes, rights, contact) derived from §1–§5.
 - [ ] Nominate an **Information Officer** (POPIA §55) and register with the Regulator.
 - [ ] Run a periodic **erasure/restore drill** and re-apply outstanding erasures after any restore (`BACKUP.md`).

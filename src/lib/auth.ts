@@ -57,13 +57,20 @@ export type Profile = {
   lang: Lang;
   /** Null until the person chooses a language themselves. See migration 0370. */
   language_set_at: string | null;
+  /** Explicit consent for transcript text to use the optional cross-border LLM tier. */
+  ai_processing_opt_in: boolean;
+  ai_processing_opted_in_at: string | null;
+  ai_processing_consent_version: string | null;
+  ai_processing_withdrawn_at: string | null;
   active: boolean;
 };
 
 type ProfileRow = Omit<Profile, "lang"> & { language: Locale; tone: Tone };
 
 const PROFILE_COLUMNS =
-  "id, farm_id, workshop_id, role, name, email, language, tone, language_set_at, active";
+  "id, farm_id, workshop_id, role, name, email, language, tone, language_set_at, " +
+  "ai_processing_opt_in, ai_processing_opted_in_at, ai_processing_consent_version, " +
+  "ai_processing_withdrawn_at, active";
 
 /** The authenticated Supabase auth user, or null. */
 export async function getUser(): Promise<User | null> {
@@ -212,6 +219,38 @@ export async function currentFarmId(profile?: Profile): Promise<string | null> {
     if (farms.some((f) => f.id === chosen)) return chosen;
   }
   return p.farm_id;
+}
+
+/**
+ * The role this person holds in one specific farm. Multi-site memberships are
+ * authoritative for that site; the profile role is only a compatibility fallback for
+ * an older primary-farm row that predates the membership backfill.
+ */
+export async function effectiveFarmRole(
+  farmId: string,
+  profile?: Profile,
+): Promise<Role | null> {
+  const p = profile ?? (await requireProfile());
+  if (p.role === "rr_admin") return "rr_admin";
+  if (p.role === "workshop") return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("user_farm_memberships")
+    .select("role")
+    .eq("user_id", p.id)
+    .eq("farm_id", farmId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+  const role = (data as { role?: string } | null)?.role;
+  if (role && ["owner", "manager", "mechanic", "operator"].includes(role)) {
+    return role as Role;
+  }
+
+  return farmId === p.farm_id && ["owner", "manager", "mechanic", "operator"].includes(p.role)
+    ? p.role
+    : null;
 }
 
 // ── Entitlement gating (F5) ──────────────────────────────────────────────────

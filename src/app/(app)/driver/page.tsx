@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { relativeDate } from "@/lib/format";
 import { signOut } from "../actions";
+import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 import { AllClear } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { buttonVariants } from "@/components/ui/button";
@@ -248,11 +249,11 @@ export default async function DriverHomePage({
 
       {/* On a shared bakkie phone, signing out matters more than for anyone else — and
           it sat two taps deep inside the overflow menu. */}
-      <form action={signOut} className="pb-4">
+      <AssistantSafeSignOutForm action={signOut} className="pb-4" locale={locale}>
         <SubmitButton variant="secondary" size="lg" fullWidth leftIcon={<SignOutIcon />}>
           {t("driver.signOut", locale)}
         </SubmitButton>
-      </form>
+      </AssistantSafeSignOutForm>
     </div>
   );
 }

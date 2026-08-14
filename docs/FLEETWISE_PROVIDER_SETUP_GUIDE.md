@@ -1,6 +1,6 @@
 # FleetWise — Manual setup guide for the provider-dependent features
 
-**Read this when we're ready to turn on Voice AI, WhatsApp, and Billing.** These three features need external accounts, approvals, and secret keys that only a human with company/billing/identity access can obtain. This guide lists **exactly what you must do and get**, in order, with the env-var names the code will expect. Nothing here is built yet — the code goes in only after these exist.
+**Read this when turning on Voice AI, WhatsApp, or Billing.** These features need external accounts, approvals, and secret keys that only a human with company/billing/identity access can obtain. Voice AI is now implemented behind its provider/configuration gate; WhatsApp and subscription charging remain deferred.
 
 Each section separates:
 - **🔧 What we build in code** (no action from you), and
@@ -34,12 +34,12 @@ Each section separates:
 3. **Get API keys** (Settings → API Keys & Webhooks), both test and live:
    - `PAYSTACK_SECRET_KEY` (server only — never expose)
    - `PAYSTACK_PUBLIC_KEY`
-4. **Create a webhook** pointing at `https://<your-domain>/api/billing/paystack/webhook` and copy the signing secret → `PAYSTACK_WEBHOOK_SECRET`. (We verify every event's signature.)
+4. **Create a webhook** pointing at `https://<your-domain>/api/billing/paystack/webhook`. Paystack signs `x-paystack-signature` with the account's API **secret key** (HMAC-SHA512); there is no separate webhook secret to copy. The future adapter must verify the raw body with `PAYSTACK_SECRET_KEY` before processing an event.
 5. **Confirm recurring capability** — verify with Paystack support that **card authorization codes** (charge-authorization / recurring) are enabled on your account for subscription re-charges.
 6. **VAT registration** — decide/confirm your SA VAT number and when you cross the R1m threshold; prices are VAT-inclusive, so invoices must show the VAT breakdown. Hand us the **VAT number** + rate.
 7. *(Phase 3, later — past ~50 paying farms)* Request **written quotes** from **Netcash** and **Stitch** for **DebiCheck** debit-order per-transaction fees; that becomes the primary rail then (cards stay for contractors/self-service).
 
-**Hand back:** `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_WEBHOOK_SECRET`, VAT number.
+**Hand back:** `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, VAT number. Keep these unset until FleetWise software-subscription charging is intentionally implemented; customer-to-contractor invoice collection is out of current scope.
 
 ---
 
@@ -66,19 +66,20 @@ Each section separates:
 
 ## 3. Feature A — Voice AI (Azure AI Speech + LLM adapter) 🎙️
 
-**🔧 What we build in code:** the three-tier router (local grammar → deterministic tool-call → LLM), per-tenant phrase lists, fuzzy entity resolution (`asset_aliases` + `pg_trgm`), confirm-before-commit UI, hybrid RAG over `kb_chunks`, all behind adapters (`transcribe()`, `synthesize()`, `parseIntent()`) — swappable in one file. Voice reuses the F2 offline queue (queue-and-sync, per your decision).
+**🔧 What is built in code:** push-to-talk Azure STT/TTS, deterministic Afrikaans/English parsing, optional consent-gated LLM fallback, tenant aliases + fuzzy entity resolution (`asset_aliases` + `pg_trgm`), role/plan checks, a human-readable confirmation card, atomic confirmed commands, private/redacted interaction logs, and a device-only offline recording queue. RAG over `kb_chunks` remains a later enhancement. English real-time recognition can use a phrase list; Afrikaans currently relies on aliases and application-side normalisation because Azure's current `af-ZA` matrix does not list phrase-list support.
 
 **✅ You set up / obtain:**
-1. **Azure account** + a **Speech resource** created in **South Africa North** (the region with af-ZA neural voices Adri/Willem + af-ZA STT). Copy:
+1. **Azure account** + a standalone **Speech resource** created in **South Africa North**. Development currently uses `fleetwise-speech-dev-za-01` on F0. Copy:
    - `AZURE_SPEECH_KEY`
    - `AZURE_SPEECH_REGION` = `southafricanorth`
-2. **Verify af-ZA availability in South Africa North** for: standard STT, **fast transcription**, and TTS neural voices — confirm in the resource before we rely on it (TTS is confirmed; verify STT + fast transcription in-region). If STT isn't in SA-North, we set the STT region separately via the adapter and note the POPIA implication (you approved cross-border AI with consent + DPA, so this is acceptable).
-3. **LLM provider** (any capable API model — used only for intent-parsing + RAG). Create the account, get the API key → `LLM_API_KEY` (+ `LLM_API_BASE`/`LLM_MODEL` if applicable). Cross-border is acceptable per your decision, **with** a signed **DPA** and user consent captured.
+   - `AZURE_SPEECH_ENDPOINT` = `https://southafricanorth.api.cognitive.microsoft.com/`
+2. **Verified capabilities:** South Africa North supports real-time `af-ZA`/`en-ZA` STT and neural TTS. It does **not** support Fast Transcription; the MVP deliberately uses real-time Speech SDK recognition. Preferred voices are `af-ZA-WillemNeural` and `en-GB-OllieMultilingualNeural`.
+3. **Optional LLM fallback:** the app uses Vercel AI Gateway only after deterministic parsing fails and the user explicitly opts in. Set `LLM_MODEL=openai/gpt-5.4-mini`. Vercel deployments authenticate Gateway using OIDC; for local development use `vercel env pull .env.local` to obtain the rotating `VERCEL_OIDC_TOKEN`. Do not paste that token into documentation or commit it. Cross-border processing still requires the processor/DPA register and explicit per-user consent.
 4. *(Optional, later)* **Azure Custom Speech** — only if the Afrikaans eval set proves it's needed; it carries a ~R650/mo hosting fee. Don't provision at launch.
 
 **Also plan (no key, but real work):** we build a **200–500 utterance Afrikaans eval set** from real farm phrasing before shipping voice — you/your pilot farms help collect these.
 
-**Hand back:** `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `LLM_API_KEY` (+ base/model), and confirmation of af-ZA STT/fast-transcription availability + a signed DPA on file.
+**Current setup status (13 August 2026):** the Speech resource, South Africa North region, both voices, STT, local/Vercel variables, Gateway OIDC, and a small no-auto-reload development credit were verified. Do not send secret values in chat. Before production, create a separate S0 Speech resource/key, record the Azure/Vercel/model-provider DPAs, run the Afrikaans evaluation set, apply the database migrations, and complete a real-device E2E test.
 
 ---
 
@@ -117,7 +118,6 @@ CRON_SECRET=
 # Billing (Paystack)
 PAYSTACK_SECRET_KEY=
 PAYSTACK_PUBLIC_KEY=
-PAYSTACK_WEBHOOK_SECRET=
 VAT_NUMBER=
 
 # WhatsApp (Meta Cloud API)
@@ -130,9 +130,9 @@ WHATSAPP_APP_SECRET=
 # Voice (Azure Speech + LLM)
 AZURE_SPEECH_KEY=
 AZURE_SPEECH_REGION=southafricanorth
-LLM_API_KEY=
-LLM_API_BASE=
-LLM_MODEL=
+AZURE_SPEECH_ENDPOINT=https://southafricanorth.api.cognitive.microsoft.com/
+LLM_MODEL=openai/gpt-5.4-mini
+# VERCEL_OIDC_TOKEN is injected by Vercel / refreshed by `vercel env pull`; do not hand-copy it.
 ```
 
-The code reads all of these through `src/lib/env.ts`-style getters that throw only when the feature is actually used, so the base product keeps building/running with these unset. We wire each feature only once its keys are in hand.
+Provider settings are read lazily and fail closed only when their feature is used, so the base product still builds with optional providers disabled. Speech secrets remain server-side; the browser receives only a short-lived token.

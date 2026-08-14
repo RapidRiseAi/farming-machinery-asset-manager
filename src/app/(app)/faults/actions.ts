@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile, requireRole } from "@/lib/auth";
+import { recordFault } from "@/lib/domain/fleet-commands";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
 
 export async function createFault(formData: FormData) {
-  const profile = await requireRole(["owner", "manager", "mechanic", "operator"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const description = String(formData.get("description") ?? "").trim();
@@ -16,18 +16,25 @@ export async function createFault(formData: FormData) {
   const urgency = URGENCIES.includes(urgencyRaw) ? urgencyRaw : "can_work";
   const category = String(formData.get("category") ?? "").trim() || null;
   if (!machineId || !farmId || !description) redirect("/faults?error=Pick+a+machine+and+describe+the+problem");
+  const profile = await requireProfile();
+  const role = await effectiveFarmRole(farmId, profile);
+  if (!role || !["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role)) {
+    redirect("/faults?error=You+cannot+report+a+fault+for+that+farm");
+  }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("faults").insert({
-    farm_id: farmId,
-    machine_id: machineId,
-    reported_by: profile.id,
-    description,
-    urgency,
-    category,
-    status: "open",
-  });
-  if (error) redirect(`/faults?error=${encodeURIComponent(error.message)}`);
+  try {
+    await recordFault(supabase, {
+      farmId,
+      machineId,
+      description,
+      urgency: urgency as "can_work" | "limping" | "stopped",
+      category,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not save the fault";
+    redirect(`/faults?error=${encodeURIComponent(message)}`);
+  }
   revalidatePath("/faults");
   redirect("/faults?saved=1");
 }

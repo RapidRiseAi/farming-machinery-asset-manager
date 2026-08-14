@@ -15,6 +15,7 @@ import { Flash } from "@/components/ui/flash";
 import { EmptyState, AllClear } from "@/components/ui/empty-state";
 import { BellIcon, CheckIcon } from "@/components/ui/icons";
 import { relativeDate } from "@/lib/format";
+import { AiConsentControl } from "@/components/assistant/ai-consent-control";
 
 type Note = {
   id: string; template: string; payload: Record<string, unknown>;
@@ -115,6 +116,12 @@ export default async function NotificationsPage({
           <PushToggle locale={locale} />
         </div>
       </Card>
+
+      {profile.ai_processing_opt_in ? (
+        <Card>
+          <AiConsentControl locale={locale} />
+        </Card>
+      ) : null}
 
       {notes.length === 0 ? (
         <AllClear icon={<BellIcon />} title={t("notifications.empty", locale)} hint={t("notifications.emptyHint", locale)} />

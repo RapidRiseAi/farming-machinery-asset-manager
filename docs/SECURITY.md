@@ -7,11 +7,13 @@ docs: [`POPIA.md`](POPIA.md) and [`BACKUP.md`](BACKUP.md).
 
 ---
 
-## 1. Tenant isolation — Row-Level Security is the sole guarantor
+## 1. Tenant isolation — Row-Level Security is the default guarantor
 
-Multi-tenant isolation (farm-to-farm and external-workshop) is enforced **only** by
-Postgres Row-Level Security, never by application filtering. This is the product's
-foundational ground rule.
+Multi-tenant isolation (farm-to-farm and external-workshop) is enforced by Postgres
+Row-Level Security, never by application filtering. This is the product's foundational
+ground rule. The narrow `SECURITY DEFINER` RPCs documented below are the deliberate
+exception: because their owner can bypass RLS, each one repeats tenant, user, role and
+record-visibility checks inside the same database transaction.
 
 - **Every business table** carries a `farm_id` and has RLS **enabled *and* forced**
   (`force row level security` — so even the table owner is subject to policy). Policies
@@ -113,6 +115,32 @@ through the narrow validated actions — never the database directly.
 - **Web Push** uses self-hosted VAPID (RFC 8291/8188) via Node crypto only — no third
   party (F6).
 
+### Voice assistant boundary
+
+- The Azure Speech master key is server-only. The browser receives a short-lived Speech
+  token from `/api/assistant/speech-token` only after same-origin, active-user,
+  selected-farm role, plan-entitlement and rate-limit checks. The response is private
+  and non-cacheable; the master key is never returned or logged.
+- Recognition runs against Azure Speech in `southafricanorth`. Raw microphone audio is
+  not stored by FleetWise or sent to the optional LLM. An offline recording stays in
+  device IndexedDB until the user explicitly transcribes or discards it, expires after
+  seven days, and is cleared when that person signs out.
+- Deterministic local parsing is attempted first. Only difficult **transcript text** may
+  use Vercel AI Gateway, and only after the database has atomically verified and stamped
+  the person's current `voice-ai-v1` consent. Withdrawing consent prevents every new
+  model assignment; past evidence remains immutable until the associated personal data
+  is erased under the POPIA workflow.
+- The model cannot write operational data. It can only populate a private server-held
+  proposal. The browser receives human-readable facts plus a proposal ID and must show a
+  confirmation card. `apply_assistant_proposal(id, action)` locks that proposal and, in
+  one transaction, rechecks its owner, selected farm, effective per-farm role,
+  entitlement, expiry, machine visibility and exact JSON schema before applying or
+  rejecting it. It accepts no browser-supplied farm, user, machine or tool arguments.
+- `voice_captures` and `ai_interactions` are private to their subject and browser-write
+  grants are revoked. Their audit trigger deliberately redacts transcripts, prompts,
+  replies, tool arguments, audio paths and provider error detail so POPIA erasure does
+  not leave another append-only copy.
+
 ## 8. Must verify / configure in the live Supabase + Vercel project
 
 - [ ] **Auth → leaked-password protection (HaveIBeenPwned): ENABLE.** The only open item
@@ -122,6 +150,10 @@ through the narrow validated actions — never the database directly.
 - [ ] Rotate and store `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, and VAPID keys as
       encrypted env vars in Vercel/Supabase; never in the repo or client bundle.
 - [ ] Set `CRON_SECRET` so `/api/cron/nightly` authenticates (see `docs/CRON.md`).
+- [ ] Keep `AZURE_SPEECH_KEY`, `VERCEL_OIDC_TOKEN` / AI Gateway credentials and all
+      provider secrets server-only. Verify a production Speech resource and application
+      request limits before the pilot; never add these values with a `NEXT_PUBLIC_`
+      prefix.
 - [ ] Restrict database network access / use the pooler; keep Postgres non-public where
       possible.
 - [ ] Enable **Sentry** (`SENTRY_DSN`) for error observability (NFR-6, in the setup guide).
@@ -131,6 +163,8 @@ through the narrow validated actions — never the database directly.
 
 ## 9. Known limitations (tracked)
 
-- Rate-limiting / WAF beyond Vercel/Supabase defaults is not custom-built.
+- Assistant turns have an atomic per-user database limit and Speech-token requests have
+  a bounded per-instance limit. A product-wide distributed WAF/rate-limit policy beyond
+  Vercel/Supabase defaults is not yet custom-built.
 - "From where" (IP/device) is not yet on the audit trail (FR-1.4 partial).
 - Formal load/pen-test not yet performed (NFR-1/§24 production-readiness gate).

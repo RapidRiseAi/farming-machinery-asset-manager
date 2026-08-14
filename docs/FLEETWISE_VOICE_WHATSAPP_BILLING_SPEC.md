@@ -49,16 +49,16 @@ All new tables keep the house rules (see `docs/FLEETWISE_BUILD_CHECKLISTS.md §G
 - **Tier 1** — deterministic intent + SQL tool call, server, 200–500ms, no LLM.
 - **Tier 2** — ambiguous/multi-step/KB questions, server, 1–3s, LLM with strict tool schema.
 
-**Pipeline:** push-to-talk (never auto-listen) → Tier 0 attempt → queue into the **existing F2 offline sync queue** if offline/unmatched ("Captured ✓") → on reconnect upload audio to Azure STT **with a per-tenant phrase list** (asset names, aliases, service-kit terms, part numbers — free, biggest accuracy lever) → fuzzy entity resolution against `machines` + `asset_aliases` via `pg_trgm` (highest-value custom code) → deterministic intent parse, LLM only if needed → **confirmation card (never auto-commit)** → commit through the normal validated RLS path → log to `ai_interactions`.
+**Implemented pipeline:** push-to-talk (never auto-listen) → real-time Azure STT, or a device-only IndexedDB recording while offline → explicit transcribe action after reconnect → fuzzy entity resolution against RLS-visible `machines` + `asset_aliases` (including observed “Djon Deer/jong deur” and “Macy Ferguson” variants) → deterministic intent parse → optional consent-gated LLM only if needed → **confirmation card (never auto-commit)** → one atomic, JWT-bound validated database command → private/redacted `ai_interactions` evidence. Raw audio is never stored on the FleetWise server. English (`en-ZA`) real-time recognition may use tenant phrase-list biasing; Microsoft’s current matrix does not list phrase-list support for `af-ZA`, so Afrikaans accuracy relies on aliases, normalisation and fuzzy matching.
 
-**Tool schema** (each validates args + runs under caller's permissions, reusing existing server actions):
-`log_service`, `report_fault`, `update_asset_status`, `query_asset_status`, `query_service_due`, `query_costs`, `query_knowledge_base` (hybrid RAG over `kb_chunks`).
+**Implemented tool schema** (each validates args again under the selected farm's role and requires confirmation before a write):
+`log_service`, `report_fault`, `log_reading`, `query_asset_status`, `query_service_due`. Planned later tools are `update_asset_status`, `query_costs`, and `query_knowledge_base` (the latter depends on the deferred hybrid RAG store).
 
-**Afrikaans quality levers (in order):** (1) per-request phrase lists; (2) fuzzy entity resolution in our code; (3) LLM post-correction with the tenant's asset list; (4) Azure Custom Speech = last resort (per-model hosting fee ~R650/mo). **Build a 200–500 utterance AF eval set before shipping.**
+**Afrikaans quality levers (in order):** (1) canonical asset names + tenant aliases and application-side normalisation; (2) fuzzy entity resolution in our code; (3) consent-gated LLM interpretation only for unresolved commands; (4) plain-text Custom Speech evaluation later if real tests justify it. Afrikaans neural voices do not support custom lexicons/phonemes, so FleetWise keeps `John Deere` in records/UI and changes only Willem’s spoken rendering to `Djon Deer`. **Build a 200–500 utterance AF eval set before production shipping.**
 
-**TTS:** Azure af-ZA voice for confirmations; fix part-number/brand pronunciation via SSML/custom lexicon (verify af-ZA voices support custom lexicon). **Prefer on-screen confirmation cards over speech** (visual beats audio next to a diesel engine).
+**TTS:** Azure Willem for Afrikaans and Ollie Multilingual for English. Afrikaans voices do not support a custom lexicon/phonemes, so pronunciation fixes are applied only to the spoken text in the app. **Prefer on-screen confirmation cards over speech** (visual beats audio next to a diesel engine).
 
-**New tables** (adapt org_id→farm_id, asset_id→machine_id): `asset_aliases` (alias + `gin_trgm_ops` index — the accuracy key), `voice_captures` (utterance lifecycle, ties into the sync queue), `ai_interactions` (eval/finetune log — log everything from day one), `kb_documents` + `kb_chunks` (pgvector + tsvector, hybrid retrieval with reciprocal-rank fusion).
+**Tables:** `asset_aliases` (alias + `gin_trgm_ops` index), private `voice_captures` metadata/transcripts, and private `ai_interactions` with redacted audit logging are implemented. `kb_documents` + `kb_chunks` (pgvector + tsvector, hybrid retrieval with reciprocal-rank fusion) remain deferred until RAG is built.
 
 ## Feature B — WhatsApp (Meta Cloud API direct)
 
@@ -79,7 +79,7 @@ All new tables keep the house rules (see `docs/FLEETWISE_BUILD_CHECKLISTS.md §G
 ## Build order (per spec)
 
 - **Phase 1 (launch):** offline sync queue ✅(F2) → hours+km+time scheduling ✅(existing) → tool/validation layer + confirmation UI → typed input first, voice second → WhatsApp webhook + inbound parsing → billing engine + Paystack → entitlements ✅(F5 in progress).
-- **Phase 2:** voice STT + phrase lists + entity resolution → TTS → notification queue with window checking → RAG over `kb_chunks` → affiliate tracking.
+- **Phase 2:** voice STT + language-appropriate recognition aids + entity resolution → TTS → notification queue with window checking → RAG over `kb_chunks` → affiliate tracking.
 - **Phase 3:** DebiCheck → Capacitor mobile build → Custom Speech (only if evals justify) → Dockerised self-hosted SKU.
 
 **Ship the tool layer + confirmation UI with typed input first**, so voice is an input method on top of something already working — if AF accuracy disappoints, it degrades gracefully.

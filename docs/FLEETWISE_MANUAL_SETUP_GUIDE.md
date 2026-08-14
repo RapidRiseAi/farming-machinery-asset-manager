@@ -1,7 +1,7 @@
 # FleetWise — Manual Setup & Operations Guide
 
 Everything you need to do **by hand** to stand up FleetWise and test it end-to-end,
-**except** the three provider-dependent features (Voice AI, WhatsApp, and card billing) —
+**except** provider activation/runtime verification for Voice AI, and the still-deferred WhatsApp and subscription-charging features —
 those live in [`FLEETWISE_PROVIDER_SETUP_GUIDE.md`](FLEETWISE_PROVIDER_SETUP_GUIDE.md) and
 are intentionally out of scope here. The entire base product works manually without them.
 
@@ -242,13 +242,13 @@ Everything below is done **in the app**, no code:
 
 ---
 
-## 13. What's intentionally NOT here (needs a provider you set up later)
+## 13. Provider-controlled activation and deferred features
 
-These are parked until you complete [`FLEETWISE_PROVIDER_SETUP_GUIDE.md`](FLEETWISE_PROVIDER_SETUP_GUIDE.md):
+These are activated or tracked through [`FLEETWISE_PROVIDER_SETUP_GUIDE.md`](FLEETWISE_PROVIDER_SETUP_GUIDE.md):
 
 | Feature | Provider | Status |
 |---|---|---|
-| **Voice AI** (Afrikaans speech capture/readback) | Azure AI Speech | Deferred — queue/UI seams exist |
+| **Voice AI** (Afrikaans/English speech capture/readback) | Azure AI Speech + optional Vercel AI Gateway | Implemented — migrations, deployment and real-device E2E/POPIA sign-off remain |
 | **WhatsApp alerts & inbound** | Meta WhatsApp Cloud API | Deferred — in-app + push channels work now; `deliver_after` queue ready |
 | **Card billing / charging** | Paystack (ZA) | Deferred — plans, tiers, asset-count & price display work; no charging |
 

@@ -85,10 +85,10 @@
 - 🟡 FR-11.4 (P1) Export CSV ✅ / PDF ✅ (job-card+machine-file) / **Excel ❌**, report-PDF via print
 - ❌ FR-11.5 (P2) Scheduled/emailed reports
 
-### §12 Voice AI  ⏸️ provider ready (Azure), not built
-- ⏸️ FR-12.1 (P0) Voice control EN/AF
-- ⏸️ FR-12.2/12.3 (P1) Confirm-back / permissions
-- ⏸️ FR-12.4 (P2) Offline fallback
+### §12 Voice AI  🟡 implemented, deployment/E2E pending
+- 🟡 FR-12.1 (P0) Voice control EN/AF — Azure real-time STT + Willem/Ollie TTS, deterministic intents and optional consent-gated LLM fallback implemented; production migration/device E2E pending
+- 🟡 FR-12.2/12.3 (P1) Confirm-back / permissions — selected-farm role/plan checks, private server-held proposals and confirm-before-commit implemented; runtime RLS test pending
+- 🟡 FR-12.4 (P2) Offline fallback — raw recording queues only in device IndexedDB, is explicitly transcribed after reconnect, expires after seven days; real-device test pending
 
 ### §13 Compliance (AARTO)
 - ✅ FR-13.1 (P0) Driver-usage log — **F3**
@@ -140,16 +140,16 @@
 ✅ due/overdue · ✅ total spend · ✅ assets tracked · ✅ cost by machine · ✅ breaks most often · ✅ TCO · ✅ cost/hour · ✅ cost/km · ✅ fuel L/hr & L/100km + trend · ✅ fuel anomalies · ✅ warranty/licence expiries · 🟡 downtime per asset (workshop-days proxy) · 🟡 open vs resolved faults · ❌ budget vs actual · ❌ utilisation (hours used vs idle) · 🟡 AARTO nominations pending (usage log ✅; nomination workflow ❌)
 
 ### §24 Production-readiness gate
-❌ Not yet — remaining P0 items (service kits FR-5.1; plus the ⏸️ provider features voice/WhatsApp/billing-charging) and the NFR-3/4/6 + hardening pass stand between here and the gate.
+❌ Not yet — remaining P0 work, Voice AI migration/E2E/privacy sign-off, NFR-3/4/6 and the hardening pass stand between here and the gate. WhatsApp and subscription charging are separately deferred roadmap items; customer-to-contractor payment processing is out of current scope.
 
 ---
 
 ## B. Extra features from the founder's provider spec (beyond §1–24)
 
 These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **not** in the original checklist:
-- ⏸️ Three-tier voice routing (local grammar / deterministic / LLM), `asset_aliases`, phrase-list biasing, Afrikaans eval set
+- 🟡 Three-tier voice routing (local/deterministic/optional LLM), `asset_aliases`, English phrase-list biasing and redacted `ai_interactions` logging implemented; Afrikaans eval set remains
 - ⏸️ Hybrid RAG knowledge base (`kb_documents`/`kb_chunks`, pgvector + full-text)
-- ⏸️ `ai_interactions` eval/finetune logging
+- 🟡 `ai_interactions` private/redacted logging implemented; production eval workflow remains
 - ⏸️ WhatsApp free-24h-window cost optimisation + template registry
 - ⏸️ Affiliate program (referral codes, tiered commissions)
 - ⏸️ DebiCheck debit-order rail (Phase 3)
@@ -171,8 +171,8 @@ These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **no
 8. **QR re-issue** (FR-9.4, P2), **per-user language switcher** (FR-18.1 completeness), status-vocab alignment (FR-3.3), "from where" audit (FR-1.4)
 9. **Base-product hardening/QA pass** — end-to-end runtime verification before any AI
 
-### Deferred — provider-dependent (build after you complete `FLEETWISE_PROVIDER_SETUP_GUIDE.md`)
-- **Voice AI** (Azure) — §12 + spec extras
+### Provider-dependent
+- **Voice AI** (Azure + optional Vercel AI Gateway) — implemented; apply migrations, deploy and complete E2E/POPIA launch checks
 - **WhatsApp** (Meta Cloud API) — §16.1/16.2 + spec extras
 - **Billing charging** (Paystack) — §19.1/19.3 engine on top of F5's framework + affiliate/DebiCheck
 
@@ -184,4 +184,4 @@ These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **no
 
 **P0 requirements (40 total):** ~28 ✅ done · ~7 🟡 partial · ~5 ⏸️/❌ remaining (service kits, multi-site, POPIA, + voice/WhatsApp/billing which are the ⏸️ provider set). Up from ~11 ✅ at the start of this effort.
 
-**Bottom line:** the maintenance/cost/fuel/offline/compliance/entitlement core is essentially complete. Remaining base work = service kits, multi-site + per-role, POPIA/security, observability, and a hardening pass. The three big provider features (Voice/WhatsApp/Billing) are intentionally parked until you finish the manual provider setup.
+**Bottom line:** the maintenance/cost/fuel/offline/compliance/entitlement core is essentially complete. Voice is now implemented but still needs migrations, deployment and runtime E2E/POPIA sign-off. WhatsApp and subscription charging remain intentionally parked; customer-to-contractor payment collection is not part of the current product scope.

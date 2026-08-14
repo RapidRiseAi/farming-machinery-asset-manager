@@ -24,9 +24,16 @@
 --      link that is a guess based on amount and date, which is precisely the guess that put
 --      the wrong match there in the first place.
 --
--- The index is PARTIAL (`where bank_line_id is not null`) because the vast majority of
--- payments and expenses have nothing to do with a bank import — a payment recorded by hand,
--- an expense captured from a till slip — and they must all be free to carry null.
+-- The index is PARTIAL on two counts, and both are load-bearing:
+--
+--   * `bank_line_id is not null`, because the vast majority of payments and expenses have
+--     nothing to do with a bank import — one recorded by hand, one captured off a till slip
+--     — and they must all be free to carry null.
+--   * `deleted_at is null`, because undoing a match SOFT deletes the payment (the audit
+--     trail keeps that it was once recorded and then reversed). Without this clause the
+--     reversed row would keep the bank line's slot reserved for ever, and a partner who
+--     undid a match to fix a date could never confirm that line again. What must be refused
+--     is a second LIVE settlement, not the memory of a withdrawn one.
 
 -- ── Money in: the payment a bank line created ────────────────────────────────
 alter table partner_payments
@@ -37,7 +44,7 @@ comment on column partner_payments.bank_line_id is
   'recorded by hand. Unique, so confirming the same line twice cannot bank the money twice.';
 
 create unique index partner_payments_bank_line_uq
-  on partner_payments(bank_line_id) where bank_line_id is not null;
+  on partner_payments(bank_line_id) where bank_line_id is not null and deleted_at is null;
 
 -- ── Money out: the supplier bill a bank line settled ─────────────────────────
 alter table partner_expenses
@@ -48,7 +55,7 @@ comment on column partner_expenses.bank_line_id is
   'set by hand. Unique, so one payment out of the bank cannot be claimed by two bills.';
 
 create unique index partner_expenses_bank_line_uq
-  on partner_expenses(bank_line_id) where bank_line_id is not null;
+  on partner_expenses(bank_line_id) where bank_line_id is not null and deleted_at is null;
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- A settlement has to make sense: same workshop, right direction

@@ -1,10 +1,18 @@
 import Link from "next/link";
-import { currentPlan, accessibleFarms, currentFarmId, supportFarm } from "@/lib/auth";
+import {
+  currentPlan,
+  accessibleFarms,
+  currentFarmId,
+  effectiveFarmRole,
+  getFarmPlan,
+  supportFarm,
+} from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { countInboxUnread } from "@/lib/inbox";
 import { t } from "@/lib/i18n";
 import { signOut } from "./actions";
+import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 // Direct module imports keep every (app) route's client bundle to just the nav
 // interactivity — the barrel would pull the kit's full client chunk (see
 // src/components/ui/README.md).
@@ -73,9 +81,22 @@ export default async function AppLayout({
   // Contractors (workshop) and rr_admin get [] from accessibleFarms and no switcher.
   // Support mode (S10): when an RR admin has pinned a farm, say so on every screen.
   const supporting = await supportFarm(profile);
-
   const farms = await accessibleFarms(profile);
-  const currentFarm = farms.length > 1 ? (await currentFarmId(profile)) ?? "" : profile.farm_id ?? "";
+  const currentFarm = isAdmin
+    ? (await currentFarmId(profile)) ?? ""
+    : farms.length > 1
+      ? (await currentFarmId(profile)) ?? ""
+      : profile.farm_id ?? "";
+  const currentRole = currentFarm ? await effectiveFarmRole(currentFarm, profile) : null;
+  const voicePlan = currentFarm && currentRole !== "rr_admin" ? await getFarmPlan(currentFarm) : null;
+  const voiceAllowed = Boolean(
+    !isWorkshop &&
+      currentFarm &&
+      currentRole &&
+      (currentRole === "rr_admin"
+        ? supporting !== null
+        : voicePlan && planAllows(voicePlan, "voice_ai")),
+  );
   const showSwitcher = farms.length > 1 && currentFarm !== "";
   const switcherLabel = t("nav.switchFarm", locale);
 
@@ -86,6 +107,7 @@ export default async function AppLayout({
   const machines: NavItemData = { href: "/machines", label: t("nav.machines", locale), icon: "machines" };
   const jobcards: NavItemData = { href: "/jobcards", label: t("nav.jobcards", locale), icon: "jobcards" };
   const faults: NavItemData = { href: "/faults", label: t("nav.faults", locale), icon: "faults" };
+  const assistant: NavItemData = { href: "/assistant", label: t("nav.assistant", locale), icon: "mic" };
   const fuel: NavItemData = { href: "/fuel", label: t("nav.fuel", locale), icon: "fuel" };
   const parts: NavItemData = { href: "/parts", label: t("nav.parts", locale), icon: "parts" };
   const partners: NavItemData = { href: "/partners", label: t("nav.partners", locale), icon: "partners" };
@@ -102,6 +124,12 @@ export default async function AppLayout({
   const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "documents" };
   // The books' other half (G6): what the partner BOUGHT, and what that means at filing
   // time. Partner-only — a farm never sees its contractor's purchases.
+  // What the partner has ON ORDER but not yet been invoiced for. Sits immediately before
+  // expenses because an order becomes one, and that is the order the two are used in.
+  const orders: NavItemData = { href: "/orders", label: t("po.nav", locale), icon: "inbox" };
+  // The bank statement queue. `download` rather than `inbox`: orders took the tray, and
+  // two adjacent items sharing a glyph is how a nav stops being scannable.
+  const banking: NavItemData = { href: "/banking", label: t("bank.nav", locale), icon: "download" };
   const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "parts" };
   const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "reports" };
   // Did this month make money, who owes me, who do I owe (0460). Sits FIRST among the
@@ -133,10 +161,11 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, money, expenses, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, recurring, money, orders, expenses, banking, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
+        ...(voiceAllowed ? [assistant] : []),
         work,
         ...(isManagerPlus ? [documents] : []),
         ...(fuelAllowed ? [fuel] : []),
@@ -160,11 +189,11 @@ export default async function AppLayout({
   const groups: { key: string; label: string; items: NavItemData[] }[] = isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, ...(voiceAllowed ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, money, expenses, vat, corrections] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, money, orders, expenses, banking, vat, corrections] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]
@@ -173,7 +202,7 @@ export default async function AppLayout({
         {
           key: "fleet",
           label: t("nav.theFleet", locale),
-          items: [machines, faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+          items: [machines, ...(voiceAllowed ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
         },
         {
           key: "farm",
@@ -243,7 +272,7 @@ export default async function AppLayout({
         <span className="text-[0.95rem] font-medium text-sand-800">{languageLabel}</span>
         <LanguageSwitcher current={languageChoice} label={languageLabel} />
       </div>
-      <form action={signOut}>
+      <AssistantSafeSignOutForm action={signOut} locale={locale}>
         <button
           type="submit"
           className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium text-sand-800 hover:bg-sand-100"
@@ -251,7 +280,7 @@ export default async function AppLayout({
           <SignOutIcon className="text-[1.35rem] text-sand-500" />
           {signOutLabel}
         </button>
-      </form>
+      </AssistantSafeSignOutForm>
     </div>
   );
 
@@ -317,7 +346,7 @@ export default async function AppLayout({
               <span className="block truncate text-xs capitalize text-sand-500">{profile.role}</span>
             </span>
           </div>
-          <form action={signOut}>
+          <AssistantSafeSignOutForm action={signOut} locale={locale}>
             <button
               type="submit"
               className="focus-ring flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-sand-600 hover:bg-sand-100 hover:text-sand-900"
@@ -325,7 +354,7 @@ export default async function AppLayout({
               <SignOutIcon className="text-[1.25rem]" />
               {signOutLabel}
             </button>
-          </form>
+          </AssistantSafeSignOutForm>
         </div>
       </aside>
 
