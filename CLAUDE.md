@@ -1234,4 +1234,70 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   month make money" is a calendar question; this month is offered though incomplete, for
   the same reason `currentVatPeriod` exists. i18n EN/AF at parity (**2 539 leaf keys**).
 
+- **Wave 1 of the business/financial tranche — bank reconciliation, purchase orders,
+  quote conversion** (migrations `0470–0476`; isolation-tested, `db:test` green; all six
+  applied to the demo project and driven live). Built by three subagents in parallel with
+  strict file ownership — the orchestrator kept `rls_isolation.sql`, both dictionaries,
+  `layout.tsx` and the cron route, and agents delivered assertions/i18n/nav as separate
+  fragments into `pending/` for merging. **No payment processing**: customers pay by EFT
+  outside the product and invoices already carry banking details, so PayFast (`0435`)
+  stays env-gated and inert.
+  - **Bank reconciliation (`0470–0472`, G15).** Import a bank CSV with column mapping,
+    match money-in against unpaid invoices and money-out against unpaid supplier invoices,
+    confirm behind a dialog that states the consequence. Re-importing the same statement is
+    a no-op, enforced by a unique index on
+    `(workshop, date, amount, fingerprint, occurrence)` rather than application logic —
+    `fingerprint` is a GENERATED column so the key cannot drift with the client, and
+    `occurrence` stops the key being wrong when a business is genuinely charged the same
+    R50 twice in a day. Confirming inserts a `partner_payments` row and NOTHING else: the
+    document's paid amount and status move through the existing 0381 rollup, so there is
+    one path to a balance, not two. `bank_lines.status` is itself a rollup (`0472`), not
+    typed at confirm time, because a payment reversed on the document page would otherwise
+    leave a line still claiming to be reconciled. Settlement indexes are partial on
+    `deleted_at is null` as well: undo soft-deletes the payment, and without that a partner
+    who undid a match to fix a date could never confirm that line again.
+  - **Purchase orders (`0473–0475`, G16).** Header + lines, totals maintained by trigger,
+    status derived from what has arrived (per-line clamped, so over-delivery on one line
+    cannot mask a shortfall on another). **A purchase order is a commitment, not a cost**:
+    `0473`/`0474` contain no code path to `cost_entries` or `partner_expenses` at all —
+    verified by reading, not by trusting the agent's report. The cost appears once, when
+    the supplier invoice is captured, and a partial unique index makes a second live
+    conversion impossible. G16 asserts both directions against a ledger snapshot taken
+    before any order exists, because the direction that catches a double-count is the one
+    proving the cost is NOT there yet.
+  - **Quote conversion (`0476`, G17).** "Converted" is deliberately not `status =
+    'accepted'`: customers phone, say yes, and the partner goes straight to invoicing, so
+    an ISSUED invoice against a quote counts — while a DRAFT one does not, since a
+    partner's own unsent paperwork must not inflate their rate. Expiry likewise reads the
+    date, not the status, because `app.expire_partner_quotes` runs on a cron that has never
+    fired in production. Two rates are reported because neither is honest alone. Live on
+    the demo project: TJ shows 1 of 2 converted, and the converted one is `TJQ-0001`, whose
+    status is still `sent`.
+  - **What was checked rather than accepted.** Both agents reported success; the deciding
+    claims were re-run: all migrations apply to a fresh database; G15/G16 pass inside the
+    FULL suite, not only the agents' private ones; the no-cost claim by grep; i18n through
+    a merge tool that refuses a fragment breaking parity, overwriting a key, or shipping
+    Afrikaans identical to English. Both agents independently chose the `inbox` icon — a
+    collision a workshop would see — so banking took `download`.
+  - **Driven live afterwards**, which settled the one thing the bank agent could not test:
+    `supabase-js` upsert with `ignoreDuplicates` against a GENERATED column in the conflict
+    target works over PostgREST (second identical import inserted 0 rows). Confirming a
+    match moved `TJI-0001` from `part_paid` to `paid` (350 750 of 350 750) **through the
+    existing trigger**, set the supplier expense's `paid_on` to the date money left, and
+    booked zero cost entries. Two "no match" results were investigated and found CORRECT:
+    the matcher skips fully-paid invoices and refuses a payment dated more than a week
+    before its invoice existed. Nine partner routes: no overflow, no nested anchors, no raw
+    i18n keys, no JS errors.
+  - i18n EN/AF at parity (**2 896 leaf keys**). Gates green; shared first-load JS flat at
+    **102 kB**.
+  - **A voice-assistant workstream ran concurrently in the same tree** and is entangled
+    with this work in three files (`layout.tsx` imports one of its components, the suite
+    references its tables 29 times, the dictionaries interleave its keys), so the two were
+    committed together on the founder's instruction. **Its migrations are NOT fully applied
+    to production**: only the four `users.ai_processing_*` columns were applied here,
+    because `PROFILE_COLUMNS` selects them and `requireProfile()` gates every page — without
+    them every role was bounced to `/login?error=no-profile`, a total outage. `voice_captures`,
+    `ai_interactions`, `asset_aliases` and their policies remain outstanding: known drift,
+    to be applied by whoever owns that workstream.
+
 > Update this "current status" block at the end of every session.

@@ -1,9 +1,13 @@
 # FleetWise — handover
 
-Written at the end of the verification session (migrations `0440`, `0450–0452`, `0460`). Everything
-described here is on `main` and pushed; the hosted demo project has every migration applied
-and was **fingerprinted against the repo afterwards** — 981 objects across 10 categories,
-all matching.
+Written at the end of the verification session and the first business/financial wave
+(migrations `0440`, `0450–0452`, `0460`, `0470–0476`). Everything described here is on
+`main` and pushed.
+
+**Production is NOT currently identical to the repo.** The six financial migrations of this
+wave are applied and verified; a concurrent voice-assistant workstream landed in the same
+commit and only part of its schema is live (see §5). Run the fingerprint before assuming
+otherwise.
 
 This document is deliberately blunt about what is **proven**, what is **built but
 unexercised**, and what is **not built**. If a claim is not in the "proven" column, treat it
@@ -16,11 +20,11 @@ as unverified no matter how confident the code comments sound.
 | | |
 |---|---|
 | Branch | `main` (all work merged and pushed) |
-| Migrations in repo | 95 files, `0001` → `0460` |
-| Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — **verified identical to the repo**, 981 objects, 10 categories |
+| Migrations in repo | 104 files, `0001` → `0476` plus two dated voice-assistant files |
+| Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — financial schema verified applied; **known assistant drift, see §5** |
 | Isolation suite | `supabase/tests/rls_isolation.sql`, 5 958 lines, 39 pass banners — **green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
-| i18n | EN/AF at parity, **2 539 leaf keys**, plus professional-tone overlays |
+| i18n | EN/AF at parity, **2 896 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
 `FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`; the farm
@@ -75,6 +79,19 @@ Safe to build on.
 * **Cadence arithmetic**: the TS mirror agrees with `app.advance_by_cadence` on 12 cases
   including leap years.
 * **All ten nightly cron engines** execute cleanly against the live database.
+* **Bank reconciliation settles through the EXISTING rollup.** Confirming a matched line
+  inserts a `partner_payments` row and nothing else; live, that moved `TJI-0001` from
+  `part_paid` to `paid` (350 750 of 350 750), set a supplier expense's `paid_on` to the
+  date money left, and booked zero cost entries. Re-importing an identical statement
+  inserts 0 rows — including through `supabase-js` upsert against a GENERATED column,
+  which was the one thing the agent could not test.
+* **A purchase order books no cost.** `0473`/`0474` contain no code path to
+  `cost_entries` or `partner_expenses`; G16 asserts it against a ledger snapshot taken
+  before any order exists, and that converting produces exactly one expense while
+  re-converting produces none.
+* **The bank matcher is conservative in the right ways**: it skips fully-paid invoices,
+  refuses a payment dated more than a week before its invoice existed, and never suggests
+  a line larger than what is owed.
 * **The money screen agrees with the VAT return.** `/money`'s revenue and
   `app.partner_vat_return` return the same figure over the same window — asserted in G14
   and confirmed live (R582,50 on both, from R1 032,50 of sales less R450,00 of credit
@@ -125,20 +142,29 @@ it is still on this list.
 * **A low-stock notification row is not a link** in the alert centre, although
   `notificationUrl` returns `/parts#store` for it. Cosmetic; the centre appears to link only
   some templates.
+* **KNOWN SCHEMA DRIFT — the voice assistant.** Its two dated migrations are in the repo
+  and pass `db:test`, but only the four `users.ai_processing_*` columns are on production.
+  Those were applied because `PROFILE_COLUMNS` selects them and `requireProfile()` gates
+  every page — without them EVERY role was bounced to `/login?error=no-profile`, a total
+  outage caused by shipping code ahead of its schema. Still outstanding: `voice_captures`,
+  `ai_interactions`, `asset_aliases`, their policies and the consent-guard trigger. Until
+  those are applied the assistant will fail at runtime on the demo project. This is the
+  clearest example yet of why §2 exists.
+* **One expense per purchase order.** A supplier who part-ships and invoices twice can only
+  link the first invoice to the order (partial unique index). Deliberate for now; noted by
+  the agent that built it.
 
 ---
 
 ## 6. Not built at all
 
-* **Bank-feed import and reconciliation — the next big rock.** Every payment is keyed by
-  hand. Matching a bank CSV or OFX against issued invoices and captured expenses is the
-  one monthly chore left in the financial layer. It needs new tables *and* it touches the
-  payment rollup that statements, ageing and `/money` all depend on, which makes it the
-  riskiest remaining change against code that is currently proven.
+* **Suppliers as records — the next thing worth doing.** `partner_expenses.supplier_name`
+  is free text, so `app.partner_creditors` groups the ageing by a trimmed string: "Agri
+  Diesel" and "Agri Diesel Depot" are two creditors. Purchase orders now carry the same
+  free-text field. A real supplier record fixes the ageing, the VAT return detail and
+  lets a PO prefill.
 * **Recurring expenses.** Standing invoices exist for sales; rent, insurance and salaries
   repeat on the cost side too and are captured by hand every month.
-* **Purchase orders** — committing to a supplier before their invoice arrives, then
-  matching the invoice against it.
 * Multi-currency (everything is ZAR, integer cents).
 * Payroll.
 * WhatsApp Stage 2 (BSP API) — Stage 1 is manual; the queue and `deliver_after` are ready.
