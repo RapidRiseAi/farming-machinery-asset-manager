@@ -10,7 +10,7 @@ import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
-import { OrderStatus } from "@/components/orders/order-status";
+import { OrderStatus } from "@/components/ui/status";
 import { OrderForm } from "@/components/orders/order-form";
 import {
   receivedSummary,

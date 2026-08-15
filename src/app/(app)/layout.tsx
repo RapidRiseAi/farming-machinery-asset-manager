@@ -130,6 +130,15 @@ export default async function AppLayout({
   // The bank statement queue. `download` rather than `inbox`: orders took the tray, and
   // two adjacent items sharing a glyph is how a nav stops being scannable.
   const banking: NavItemData = { href: "/banking", label: t("bank.nav", locale), icon: "download" };
+  // The supplier book (G18). `partners` is the handshake glyph and reads as "businesses
+  // we deal with"; the farm-side partners screen that also uses it is invisible to a
+  // workshop, so the two never share a nav.
+  const suppliers: NavItemData = { href: "/suppliers", label: t("supplier.navLabel", locale), icon: "partners" };
+  // Costs that repeat (G19) - rent, insurance, the monthly parts account. Sits beside
+  // expenses because it IS expenses, just the ones you should not have to remember.
+  const recurringExpenses: NavItemData = { href: "/recurring-expenses", label: t("recexp.navLabel", locale), icon: "parts" };
+  // What is ABOUT to happen (G20). /money says what did.
+  const cashflow: NavItemData = { href: "/cashflow", label: t("cash.nav", locale), icon: "dashboard" };
   const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "parts" };
   const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "reports" };
   // Did this month make money, who owes me, who do I owe (0460). Sits FIRST among the
@@ -161,7 +170,7 @@ export default async function AppLayout({
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, money, orders, expenses, banking, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, recurring, money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -193,7 +202,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, money, orders, expenses, banking, vat, corrections] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, corrections] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]

@@ -8127,3 +8127,1142 @@ do $$ declare old_rows bigint; begin
 end $$;
 
 select 'ALL H2 ATOMIC VOICE-COMMAND TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════
+-- G19 — STANDING COSTS: RECURRING EXPENSES (0483)
+-- ═════════════════════════════════════════════════════════════════
+-- The sales side has had standing invoices since 0433. This is the same feature on the
+-- cost side, and it has to hold two claims that are not the same claim.
+--
+-- The first is tenancy, and it is the ordinary one: what a contractor pays in rent,
+-- insurance and salaries is the contractor's business. Not the farms they work for — a
+-- farm reading its contractor's cost base is reading its margin on every job — and not
+-- the contractor down the road.
+--
+-- The second is arithmetic, and it is the one that makes this feature worth having or
+-- worth deleting. A generated expense must be captured EXACTLY ONCE per period. Booking
+-- October's rent twice is not a cosmetic duplicate: it overstates cost on the money
+-- screen, over-claims input VAT on a return that gets FILED, and inflates the creditors
+-- list. So the idempotency key is asserted against the two ways it is actually attacked —
+-- a cron that fires twice, and a partner pressing "capture it now" on a schedule that has
+-- already run this period.
+--
+-- And the last assertion is the point of the whole design: the generated row is an
+-- ORDINARY `partner_expenses` row, so it reaches `app.partner_pl` with no special casing
+-- anywhere downstream. If that ever stops being true, the feature has quietly grown a
+-- parallel ledger.
+--
+-- Its own farm and workshops, so the numbers below are the only numbers in play.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('6f000000-0000-0000-0000-000000000001', 'Farm RE');
+insert into workshops (id, name, kind) values
+  ('6f100000-0000-0000-0000-000000000001', 'Workshop RE-A', 'mechanic'),
+  ('6f100000-0000-0000-0000-000000000002', 'Workshop RE-B', 'tyre');
+-- A is a live contractor to the farm. That ACTIVE link is what makes the farm-side
+-- assertion below meaningful: the farm has every legitimate reason to see A's work, and
+-- still must see none of A's costs.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('6f100000-0000-0000-0000-000000000001', '6f000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('6f200000-0000-0000-0000-000000000001', 'reA@test'),
+  ('6f200000-0000-0000-0000-000000000002', 'reB@test'),
+  ('6f200000-0000-0000-0000-000000000003', 'reFarm@test');
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('6f200000-0000-0000-0000-000000000001', null, '6f100000-0000-0000-0000-000000000001', 'workshop', 'A Staff', 'reA@test'),
+  ('6f200000-0000-0000-0000-000000000002', null, '6f100000-0000-0000-0000-000000000002', 'workshop', 'B Staff', 'reB@test'),
+  ('6f200000-0000-0000-0000-000000000003', '6f000000-0000-0000-0000-000000000001', null, 'owner', 'RE Owner', 'reFarm@test');
+
+-- Four schedules for A, covering the four states the generator has to tell apart, plus
+-- one for B so "another workshop" is a real workshop with real rows rather than an empty
+-- account that would pass every read test by accident.
+--
+-- Every due schedule is dated TODAY on purpose. One cadence forward is a month, so after
+-- one run nothing is due again — which makes "run it twice, get one expense" a statement
+-- about the whole table rather than about one carefully filtered period.
+insert into recurring_expenses (
+  id, workshop_id, name, supplier_name, reference, category,
+  amount_cents, vat_rate_bps, vat_cents, vat_claimable,
+  cadence, next_due_date, ends_on, auto_paid, active
+) values
+  -- (1) The ordinary case: monthly rent, due today, still owed when it is captured.
+  ('6f300000-0000-0000-0000-000000000001', '6f100000-0000-0000-0000-000000000001',
+   'Workshop rent', 'Kerkstraat Eiendomme', 'ACC-4471', 'rent',
+   400000, 1500, 60000, true, 'monthly', current_date, null, false, true),
+  -- (2) PAUSED. A partner who stops paying for something switches the schedule off; it
+  --     must then produce nothing at all, not "nothing until somebody notices".
+  ('6f300000-0000-0000-0000-000000000002', '6f100000-0000-0000-0000-000000000001',
+   'Alarm monitoring', 'Sekuriteit SA', 'SEC-9', 'admin',
+   120000, 1500, 18000, true, 'monthly', current_date, null, false, false),
+  -- (3) The LAST run of a schedule with an end date, and a debit order that really does
+  --     leave the bank on the day (auto_paid). The next period falls past ends_on, so
+  --     this run is the one that must switch the schedule off.
+  ('6f300000-0000-0000-0000-000000000003', '6f100000-0000-0000-0000-000000000001',
+   'Accounting retainer', 'Van Wyk Rekenmeesters', 'VW-2231', 'admin',
+   250000, 1500, 37500, true, 'monthly', current_date, current_date + 5, true, true),
+  -- (4) Not due yet. The commonest state a schedule is in, and the one a generator that
+  --     forgot its date filter would silently bill a month early.
+  ('6f300000-0000-0000-0000-000000000004', '6f100000-0000-0000-0000-000000000001',
+   'Salaries', 'Payroll', null, 'salaries',
+   999900, 1500, 149985, true, 'monthly', current_date + 30, null, false, true),
+  -- (5) Workshop B's own standing cost.
+  ('6f300000-0000-0000-0000-000000000005', '6f100000-0000-0000-0000-000000000002',
+   'Tyre bay rent', 'Nywerheidspark', null, 'rent',
+   111100, 1500, 16665, true, 'monthly', current_date, null, false, true);
+
+-- ── (a) A farm cannot read its contractor's standing costs ───────────────────
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000003');       -- Farm RE owner
+  select count(*) into c from recurring_expenses;
+  if c <> 0 then
+    raise exception 'G19 FAIL [MARGIN LEAK]: a farm read % of its contractor''s standing costs', c;
+  end if;
+end $$;
+
+-- ── (b) Nor can another contractor ───────────────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000002');       -- Workshop RE-B
+  select count(*) into c from recurring_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'G19 FAIL [COMPETITOR]: another workshop read % of A''s schedules', c;
+  end if;
+  select count(*) into c from recurring_expenses;
+  if c <> 1 then
+    raise exception 'G19 FAIL: Workshop B sees % schedules rather than its own 1', c;
+  end if;
+end $$;
+
+-- ── (c) And cannot write one into somebody else's books ──────────────────────
+-- The interesting half: a cost schedule planted in another workshop's account would
+-- quietly reduce their profit every month for as long as nobody looked.
+do $$ declare ok boolean := false; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000002');
+  begin
+    insert into recurring_expenses (workshop_id, name, supplier_name, amount_cents, next_due_date)
+    values ('6f100000-0000-0000-0000-000000000001', 'Planted', 'Nobody', 500000, current_date);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G19 FAIL: a workshop wrote a standing cost into another workshop''s books';
+  end if;
+end $$;
+
+-- ── (d) The owner sees exactly its own four ──────────────────────────────────
+do $$ declare c bigint; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000001');       -- Workshop RE-A
+  select count(*) into c from recurring_expenses;
+  if c <> 4 then raise exception 'G19 FAIL: Workshop A sees % of its own 4 schedules', c; end if;
+end $$;
+
+-- ── (e) The generator is service-role only, from a signed-in session ─────────
+-- It is SECURITY DEFINER and takes an id, so a caller who could execute it could write a
+-- cost into any workshop's books. `run_recurring_expense` is the only door, and it checks
+-- ownership before it opens.
+do $$ declare ok boolean := false; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000001');
+  begin perform app.generate_recurring_expenses(null);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: a signed-in user executed the generator directly'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000001');
+  begin perform public.cron_generate_recurring_expenses();
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: a signed-in user executed the cron wrapper'; end if;
+end $$;
+reset role;
+
+-- ── (f) Anon reaches nothing at all ──────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from recurring_expenses; exception when others then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: anon read the standing-cost schedules'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.generate_recurring_expenses(null); exception when others then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: anon ran the generator'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.cron_generate_recurring_expenses(); exception when others then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: anon ran the cron wrapper'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.run_recurring_expense('6f300000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G19 FAIL: anon ran "capture it now"'; end if;
+end $$;
+reset role;
+
+-- ── (g) THE IDEMPOTENCY KEY. Two runs, one expense ───────────────────────────
+-- The cron firing twice is not hypothetical: a retry after a half-finished night looks
+-- exactly like this. `last_period_start` is what makes the second run a no-op.
+do $$ declare first_run int; second_run int; begin
+  first_run  := app.generate_recurring_expenses(null);
+  second_run := app.generate_recurring_expenses(null);
+  -- Three due schedules across both workshops: A's rent, A's ending retainer, B's rent.
+  if first_run <> 3 then
+    raise exception 'G19 FAIL: the first run captured % expenses rather than 3', first_run;
+  end if;
+  if second_run <> 0 then
+    raise exception 'G19 FAIL [DOUBLE BOOK]: a second run captured % more expenses — the same period was billed twice', second_run;
+  end if;
+end $$;
+
+do $$ declare c bigint; begin
+  select count(*) into c from partner_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001'
+     and supplier_name = 'Kerkstraat Eiendomme';
+  if c <> 1 then
+    raise exception 'G19 FAIL [DOUBLE BOOK]: % rent expenses exist for one period, expected exactly 1', c;
+  end if;
+end $$;
+
+-- ── (h) …including when the partner presses the button themselves ────────────
+-- Same guard, reached by a different door. And the door itself is locked: B may not
+-- capture A's cost even though the generator underneath would happily do it.
+set role authenticated;
+do $$ declare ok boolean := false; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000002');       -- Workshop RE-B
+  begin
+    perform public.run_recurring_expense('6f300000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G19 FAIL: a workshop captured another workshop''s standing cost';
+  end if;
+end $$;
+
+do $$ declare made int; c bigint; begin
+  perform _t_login('6f200000-0000-0000-0000-000000000001');       -- Workshop RE-A, its own
+  made := public.run_recurring_expense('6f300000-0000-0000-0000-000000000001');
+  if made <> 0 then
+    raise exception 'G19 FAIL [DOUBLE BOOK]: "capture it now" raised % expenses for a period already captured', made;
+  end if;
+  select count(*) into c from partner_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001'
+     and supplier_name = 'Kerkstraat Eiendomme';
+  if c <> 1 then
+    raise exception 'G19 FAIL [DOUBLE BOOK]: pressing the button left % rent expenses', c;
+  end if;
+end $$;
+reset role;
+
+-- ── (i) The generated row is a correct expense ───────────────────────────────
+-- Ex-VAT integer cents, the schedule's category, the PERIOD's date (not the night the
+-- cron happened to run — a late run must still land in the month the cost belongs to),
+-- and still owed, because rent is not a debit order unless the partner says it is.
+do $$ declare e record; begin
+  select * into e from partner_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001'
+     and supplier_name = 'Kerkstraat Eiendomme' and deleted_at is null;
+  if e.amount_cents <> 400000 then
+    raise exception 'G19 FAIL: the captured expense is % cents rather than 400000 ex-VAT', e.amount_cents;
+  end if;
+  if e.vat_cents <> 60000 then
+    raise exception 'G19 FAIL: the captured VAT is % rather than 60000', e.vat_cents;
+  end if;
+  if e.category <> 'rent' then
+    raise exception 'G19 FAIL: the captured expense landed in category % rather than rent', e.category;
+  end if;
+  if e.expense_date <> current_date then
+    raise exception 'G19 FAIL: the expense is dated % rather than the period it covers', e.expense_date;
+  end if;
+  if e.paid_on is not null then
+    raise exception 'G19 FAIL: an expense with auto_paid off was recorded as already paid';
+  end if;
+  if e.reference is distinct from 'ACC-4471' or not e.vat_claimable then
+    raise exception 'G19 FAIL: the supplier reference or the VAT-claimable flag did not carry across';
+  end if;
+end $$;
+
+-- A debit order DOES leave the bank on the day, and says so.
+do $$ declare e record; begin
+  select * into e from partner_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001'
+     and supplier_name = 'Van Wyk Rekenmeesters' and deleted_at is null;
+  if e.paid_on <> current_date then
+    raise exception 'G19 FAIL: an auto_paid schedule recorded paid_on as % rather than the period date', e.paid_on;
+  end if;
+end $$;
+
+-- ── (j) A paused schedule and a not-yet-due one produce nothing ──────────────
+do $$ declare c bigint; begin
+  select count(*) into c from partner_expenses
+   where workshop_id = '6f100000-0000-0000-0000-000000000001'
+     and supplier_name in ('Sekuriteit SA', 'Payroll');
+  if c <> 0 then
+    raise exception 'G19 FAIL: % expenses were captured from a paused or not-yet-due schedule', c;
+  end if;
+end $$;
+
+-- ── (k) A schedule that has reached its end date stops itself ────────────────
+-- The next period falls past `ends_on`, so the run that captured the final expense is
+-- also the run that switches the schedule off — otherwise it sits due for ever, and the
+-- only thing standing between it and a repeat is the idempotency key doing a job it was
+-- not meant to do alone.
+do $$ declare r record; n int; begin
+  select * into r from recurring_expenses where id = '6f300000-0000-0000-0000-000000000003';
+  if r.active then
+    raise exception 'G19 FAIL: a schedule past its end date is still live (next due %, ends %)',
+      r.next_due_date, r.ends_on;
+  end if;
+  if r.last_period_start <> current_date or r.last_expense_id is null then
+    raise exception 'G19 FAIL: the final run did not record the period it covered';
+  end if;
+  n := app.generate_recurring_expenses(null);
+  if n <> 0 then
+    raise exception 'G19 FAIL: an ended schedule captured % further expenses', n;
+  end if;
+end $$;
+
+-- ── (l) The date moved on, by the same arithmetic the screen uses ────────────
+do $$ declare r record; begin
+  select * into r from recurring_expenses where id = '6f300000-0000-0000-0000-000000000001';
+  if r.next_due_date <> app.advance_by_cadence(current_date, 'monthly') then
+    raise exception 'G19 FAIL: after a run the next date is % rather than one month on', r.next_due_date;
+  end if;
+  if r.last_period_start <> current_date then
+    raise exception 'G19 FAIL: last_period_start is % rather than the period just captured', r.last_period_start;
+  end if;
+end $$;
+
+-- ── (m) It reaches the money screen with no special casing ───────────────────
+-- The whole point of writing ordinary `partner_expenses` rows. If this ever fails, the
+-- feature has grown a parallel ledger and the P&L is understating cost by whatever the
+-- standing charges come to — which is exactly the money a partner set the schedule up to
+-- stop losing track of.
+--   rent 400000 + retainer 250000 = 650000, no blocked VAT (both claimable)
+do $$ declare r record; begin
+  select * into r from app.partner_pl('6f100000-0000-0000-0000-000000000001',
+                                      current_date, current_date);
+  if r.expenses_ex_cents <> 650000 then
+    raise exception 'G19 FAIL: the P&L sees % of standing cost rather than 650000 — generated expenses are not reaching the money screen', r.expenses_ex_cents;
+  end if;
+  if r.cost_cents <> 650000 then
+    raise exception 'G19 FAIL: cost is % rather than 650000', r.cost_cents;
+  end if;
+  if r.profit_cents <> -650000 then
+    raise exception 'G19 FAIL: profit is % rather than -650000 (no revenue, 650000 of standing cost)', r.profit_cents;
+  end if;
+end $$;
+
+-- And it is the RIGHT workshop's cost. B's rent went to B, not into A's total.
+do $$ declare v bigint; begin
+  select expenses_ex_cents into v from app.partner_pl('6f100000-0000-0000-0000-000000000002',
+                                                      current_date, current_date);
+  if v <> 111100 then
+    raise exception 'G19 FAIL [CROSS-PARTNER]: Workshop B''s standing cost reads % rather than 111100', v;
+  end if;
+end $$;
+
+select 'ALL G19 RECURRING-EXPENSE TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G18 — SUPPLIERS ARE RECORDS, NOT TYPING (0480–0482)
+--
+-- The defect this section exists to pin is not a leak; it is a report that was wrong in a
+-- way nobody could see. `app.partner_creditors` grouped the payables ageing by
+-- `btrim(supplier_name)`, so "Agri Diesel" and "agri diesel " were two businesses owed
+-- money, and the partner reading "who do I owe" added them up by eye. The section proves
+-- the old behaviour FIRST — two rows, on the same data — and then proves it is gone, with
+-- the totals unchanged. A merge that quietly changed what is owed would be worse than the
+-- split it replaced.
+--
+-- Around that sit the guarantees the merge rests on:
+--
+--   * the record is workshop-scoped, on the 0430 policy set: a rival workshop reads none
+--     and can write none, the FARM this workshop works for reads none — a supplier list
+--     with terms and account numbers is the margin behind every quote it is given (F16) —
+--     and anon reads nothing at all;
+--   * the composite foreign key makes an expense pointing at ANOTHER workshop's supplier
+--     structurally impossible, not merely unreachable through the screens;
+--   * the resolution trigger links by trimmed, case-insensitive name and NEVER invents a
+--     supplier for a name it does not know. Auto-creating would put the typo back wearing
+--     a better coat, and would do it at the moment nobody is looking;
+--   * the backfill is idempotent, because "run it again" is an ordinary operation — a
+--     partner who files a supplier today has three years of invoices to attach to it.
+--
+-- `app.link_suppliers()` is deliberately GLOBAL (it files a supplier per distinct name for
+-- every workshop), so this section belongs at the END of the suite, where the sections
+-- whose expenses it also links have already made their assertions.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Its own farm, workshops and people, so every number below states its own inputs.
+insert into farms (id, name) values ('6e000000-0000-0000-0000-000000000001', 'Farm V');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps) values
+  ('6e100000-0000-0000-0000-000000000001', 'Workshop R', 'mechanic',       true, 1500),
+  ('6e100000-0000-0000-0000-000000000002', 'Workshop S', 'parts_supplier', true, 1500);
+
+-- R works for Farm V. This link is the whole reason the farm assertion below is worth
+-- making: it is what makes R visible to the farm at all, and it must open nothing here.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('6e100000-0000-0000-0000-000000000001', '6e000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('6e200000-0000-0000-0000-000000000001', 'rstaff@test'),
+  ('6e200000-0000-0000-0000-000000000002', 'sstaff@test'),
+  ('6e300000-0000-0000-0000-000000000001', 'ownerV@test');
+
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('6e200000-0000-0000-0000-000000000001', null, '6e100000-0000-0000-0000-000000000001', 'workshop', 'R Staff', 'r@test'),
+  ('6e200000-0000-0000-0000-000000000002', null, '6e100000-0000-0000-0000-000000000002', 'workshop', 'S Staff', 's@test'),
+  ('6e300000-0000-0000-0000-000000000001', '6e000000-0000-0000-0000-000000000001', null, 'owner', 'Owner V', 'v@test');
+
+-- ── (a) The defect, reproduced on real rows ─────────────────────────────────
+-- Two invoices from ONE business, captured on two days by two people who typed its name
+-- differently. Nothing here is contrived: the padding and the capital D are what actually
+-- comes off a phone keyboard in a workshop.
+--   R1 150,00 five days ago  (1 000,00 + 150,00 VAT)  -> the 0–30 day bucket
+--   R  575,00 forty days ago (  500,00 +  75,00 VAT)  -> the 31–60 day bucket
+insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  ('6e400000-0000-0000-0000-000000000001', '6e100000-0000-0000-0000-000000000001',
+   'Agri Diesel',   'AD-1001', 'fuel', current_date - 5,  100000, 1500, 15000, true),
+  ('6e400000-0000-0000-0000-000000000002', '6e100000-0000-0000-0000-000000000001',
+   '  agri diesel ', 'AD-1002', 'fuel', current_date - 40,  50000, 1500,  7500, true),
+  -- A second workshop, so every "reads zero" below is measured against a real row rather
+  -- than an empty table.
+  ('6e400000-0000-0000-0000-000000000003', '6e100000-0000-0000-0000-000000000002',
+   'Bolt Barn', 'BB-77', 'parts', current_date - 3, 20000, 1500, 3000, true);
+
+-- Nothing is filed yet, so nothing is linked. Stated rather than assumed, because the
+-- whole backfill assertion below depends on starting from unlinked rows.
+do $$ declare c bigint; begin
+  select count(*) into c from partner_expenses
+   where workshop_id = '6e100000-0000-0000-0000-000000000001' and supplier_id is not null;
+  if c <> 0 then raise exception 'G18 FAIL: % expenses were linked before any supplier existed', c; end if;
+end $$;
+
+-- THE OLD BEHAVIOUR, measured on these exact rows. 0460 grouped by `btrim(supplier_name)`,
+-- so the defect is reproduced by asking that key what it would have done — the replaced
+-- function cannot be called to demonstrate its own bug, and quoting the key is the honest
+-- substitute. Two businesses owed money, where there is one.
+create temp table _g18_before as
+  select count(distinct btrim(supplier_name)) as rows,
+         coalesce(sum(amount_cents + vat_cents), 0) as owed
+    from partner_expenses
+   where workshop_id = '6e100000-0000-0000-0000-000000000001'
+     and deleted_at is null and paid_on is null and expense_date <= current_date;
+
+do $$ declare r record; begin
+  select * into r from _g18_before;
+  if r.rows <> 2 then
+    raise exception 'G18 SETUP FAIL: the old btrim() key gave % groups rather than the 2 this section exists to merge', r.rows;
+  end if;
+  if r.owed <> 172500 then
+    raise exception 'G18 SETUP FAIL: these two invoices owe % rather than 172500', r.owed;
+  end if;
+end $$;
+
+-- The fallback path, before anything is filed. Nothing is linked yet, so this is the new
+-- function grouping purely on the lower-cased trimmed name — which already fixes the
+-- original complaint for a workshop that never files a supplier at all. Worth pinning
+-- separately: the two paths through the function are not the same code and one of them
+-- being right has never implied the other is.
+do $$ declare r record; c bigint; begin
+  select count(*) into c from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+  if c <> 1 then
+    raise exception 'G18 FAIL [FALLBACK]: two spellings of an unfiled business still age as % creditors', c;
+  end if;
+  select * into r from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+  if r.total_cents <> 172500 then
+    raise exception 'G18 FAIL [FALLBACK]: the merged free-text row owes % rather than 172500', r.total_cents;
+  end if;
+end $$;
+
+-- ── (b) The backfill files one record per business and attaches the history ──
+do $$ declare res jsonb; c bigint; begin
+  res := app.link_suppliers();
+
+  select count(*) into c from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001';
+  if c <> 1 then
+    raise exception 'G18 FAIL [MERGE]: two spellings of one business filed % supplier records rather than 1', c;
+  end if;
+  if (select name from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001') <> 'Agri Diesel' then
+    raise exception 'G18 FAIL: the filed record is named %, not the deterministic pick', (select name from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001');
+  end if;
+
+  -- Both invoices now point at it, whichever way the name was typed.
+  select count(*) into c from partner_expenses e
+    join suppliers s on s.id = e.supplier_id
+   where e.workshop_id = '6e100000-0000-0000-0000-000000000001' and s.name = 'Agri Diesel';
+  if c <> 2 then raise exception 'G18 FAIL: % of the 2 historical invoices attached to the supplier', c; end if;
+
+  -- The other workshop was filed too, and separately.
+  select count(*) into c from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000002';
+  if c <> 1 then raise exception 'G18 FAIL: the second workshop filed % records rather than 1', c; end if;
+end $$;
+
+-- ── (c) Running it again creates nothing and links nothing ──────────────────
+-- The reason this matters is not tidiness. A partner files a supplier today and wants
+-- three years of invoices attached to it, so this function is meant to be re-run — and a
+-- re-run that duplicated records would recreate the very split it was written to fix.
+do $$ declare res jsonb; c bigint; e bigint; begin
+  select count(*) into c from suppliers;
+  select count(*) into e from partner_expenses where supplier_id is not null;
+
+  res := app.link_suppliers();
+
+  if (res ->> 'suppliers_created')::bigint <> 0
+     or (res ->> 'expenses_linked')::bigint <> 0
+     or (res ->> 'orders_linked')::bigint <> 0 then
+    raise exception 'G18 FAIL [NOT IDEMPOTENT]: a second backfill reported %', res;
+  end if;
+  if (select count(*) from suppliers) <> c then
+    raise exception 'G18 FAIL [NOT IDEMPOTENT]: a second backfill left % supplier records rather than %',
+      (select count(*) from suppliers), c;
+  end if;
+  if (select count(*) from partner_expenses where supplier_id is not null) <> e then
+    raise exception 'G18 FAIL [NOT IDEMPOTENT]: a second backfill changed the link count from % to %',
+      e, (select count(*) from partner_expenses where supplier_id is not null);
+  end if;
+end $$;
+
+-- ── (d) THE POINT: one business, one line, same money ───────────────────────
+-- Two invoices, two spellings, two ageing buckets — and now one creditor. The buckets
+-- must survive the merge intact: 1 150,00 five days old is not the same debt as 575,00
+-- forty days old, and a report that merged them into a single "total owed" would have
+-- traded one lie for another.
+do $$ declare r record; b record; begin
+  select * into b from _g18_before;
+  select * into r from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+
+  if (select count(*) from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date)) <> 1 then
+    raise exception 'G18 FAIL [MERGE]: one business still ages as % creditors',
+      (select count(*) from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date));
+  end if;
+  if r.supplier <> 'Agri Diesel' then
+    raise exception 'G18 FAIL: the merged row is titled % rather than the supplier record''s own name', r.supplier;
+  end if;
+  if r.current_cents <> 115000 or r.d30_cents <> 57500 or r.d60_cents <> 0 or r.d90_cents <> 0 then
+    raise exception 'G18 FAIL [BUCKETS]: merging moved the money to %/%/%/% rather than 115000/57500/0/0',
+      r.current_cents, r.d30_cents, r.d60_cents, r.d90_cents;
+  end if;
+  if r.total_cents <> b.owed then
+    raise exception 'G18 FAIL [TOTALS CHANGED]: the ageing now owes % where the free-text version owed %',
+      r.total_cents, b.owed;
+  end if;
+end $$;
+
+-- The public wrapper is the API PostgREST actually calls, and it must agree with the
+-- helper. A screen reading a different figure from the one this section proved is the
+-- failure mode the wrapper exists to make impossible.
+do $$ declare v bigint; begin
+  select total_cents into v from public.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+  if v <> 172500 then raise exception 'G18 FAIL: the public wrapper owed % rather than 172500', v; end if;
+end $$;
+
+-- ── (e) The resolution trigger links by name, and invents nothing ───────────
+insert into suppliers (id, workshop_id, name, contact_person, phone, vat_number, payment_terms_days)
+values ('6e500000-0000-0000-0000-000000000001', '6e100000-0000-0000-0000-000000000001',
+        'Bearing Co', 'Riaan', '+27821234567', '4123456789', 30);
+
+-- Padding and capitals. This is the case the whole feature turns on, and it is the one a
+-- string comparison written in a hurry gets wrong.
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents)
+values ('6e400000-0000-0000-0000-000000000004', '6e100000-0000-0000-0000-000000000001',
+        '  bEaRiNg cO  ', 'parts', current_date - 1, 30000, 1500, 4500);
+do $$ declare v uuid; begin
+  select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000004';
+  if v is distinct from '6e500000-0000-0000-0000-000000000001' then
+    raise exception 'G18 FAIL [RESOLUTION]: "  bEaRiNg cO  " linked to % rather than the Bearing Co record', v;
+  end if;
+end $$;
+
+-- An unknown name stays free text. It must NOT quietly become a supplier: that is how a
+-- typo stops being a phantom string and starts being a phantom business.
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents)
+values ('6e400000-0000-0000-0000-000000000005', '6e100000-0000-0000-0000-000000000001',
+        'Bearng Co', 'parts', current_date - 1, 10000, 1500, 1500);
+do $$ declare v uuid; c bigint; begin
+  select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000005';
+  if v is not null then
+    raise exception 'G18 FAIL [RESOLUTION]: a name nobody has filed was linked to %', v;
+  end if;
+  select count(*) into c from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001';
+  if c <> 2 then
+    raise exception 'G18 FAIL [TYPO MINTED A RECORD]: a misspelling left % supplier records rather than 2', c;
+  end if;
+end $$;
+
+-- The order book resolves the same way, from the same trigger.
+insert into purchase_orders (id, workshop_id, supplier_name, reference, order_date, vat_rate_bps)
+values ('6e600000-0000-0000-0000-000000000001', '6e100000-0000-0000-0000-000000000001',
+        'BEARING CO', 'PO-2001', current_date - 2, 1500);
+do $$ declare v uuid; begin
+  select supplier_id into v from purchase_orders where id = '6e600000-0000-0000-0000-000000000001';
+  if v is distinct from '6e500000-0000-0000-0000-000000000001' then
+    raise exception 'G18 FAIL [RESOLUTION]: a purchase order for "BEARING CO" linked to % rather than the record', v;
+  end if;
+end $$;
+
+-- Correcting the name away from the supplier drops the link. Leaving it would file the row
+-- under a business it no longer names, and the ageing would report money owed to the wrong
+-- one — the exact failure this feature exists to end, arriving by a different door.
+update partner_expenses set supplier_name = 'Somebody Else' where id = '6e400000-0000-0000-0000-000000000004';
+do $$ declare v uuid; begin
+  select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000004';
+  if v is not null then
+    raise exception 'G18 FAIL [STALE LINK]: renaming the supplier on an invoice left it filed under %', v;
+  end if;
+end $$;
+-- …and correcting it back restores it, without anybody touching an id.
+update partner_expenses set supplier_name = 'Bearing Co' where id = '6e400000-0000-0000-0000-000000000004';
+do $$ declare v uuid; begin
+  select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000004';
+  if v is distinct from '6e500000-0000-0000-0000-000000000001' then
+    raise exception 'G18 FAIL [RESOLUTION]: correcting the name back left the invoice linked to %', v;
+  end if;
+end $$;
+
+-- Filing a supplier AFTER the invoices were captured is the ordinary case, and it is what
+-- makes the backfill a routine rather than a migration step: the record appears, the
+-- history attaches to it, and no second record is created for the name it already has.
+insert into suppliers (id, workshop_id, name)
+values ('6e500000-0000-0000-0000-000000000002', '6e100000-0000-0000-0000-000000000001', 'bearng co');
+do $$ declare res jsonb; v uuid; c bigint; begin
+  res := app.link_suppliers();
+  select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000005';
+  if v is distinct from '6e500000-0000-0000-0000-000000000002' then
+    raise exception 'G18 FAIL: filing the supplier afterwards left its invoice linked to %', v;
+  end if;
+  if (res ->> 'suppliers_created')::bigint <> 0 then
+    raise exception 'G18 FAIL: the backfill filed % extra records for a name that was already on the books',
+      (res ->> 'suppliers_created')::bigint;
+  end if;
+  select count(*) into c from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001';
+  if c <> 3 then raise exception 'G18 FAIL: workshop R holds % supplier records rather than 3', c; end if;
+end $$;
+
+-- ── (f) One workshop's supplier, one workshop's expense ─────────────────────
+-- RLS already stops S READING R's suppliers; the composite foreign key makes the
+-- cross-workshop write impossible even from a caller that has bypassed the screens
+-- entirely (this insert runs as the superuser, with RLS out of the picture).
+do $$ declare ok boolean := false; begin
+  begin
+    insert into partner_expenses (workshop_id, supplier_name, category, expense_date,
+                                  amount_cents, vat_rate_bps, vat_cents, supplier_id)
+    values ('6e100000-0000-0000-0000-000000000002', 'Bearing Co', 'parts', current_date,
+            10000, 1500, 1500, '6e500000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G18 FAIL [CROSS-TENANT]: one workshop''s expense was filed against another workshop''s supplier';
+  end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin
+    insert into purchase_orders (workshop_id, supplier_name, order_date, supplier_id)
+    values ('6e100000-0000-0000-0000-000000000002', 'Bearing Co', current_date,
+            '6e500000-0000-0000-0000-000000000001');
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G18 FAIL [CROSS-TENANT]: one workshop''s order was raised against another workshop''s supplier';
+  end if;
+end $$;
+
+-- Two live records of the same name, in one workshop, are refused. Without this the merge
+-- is only as good as whoever last typed into the add form.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into suppliers (workshop_id, name)
+    values ('6e100000-0000-0000-0000-000000000001', '  AGRI DIESEL ');
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G18 FAIL [DUPLICATE]: the same business was filed twice under different capitals';
+  end if;
+end $$;
+-- The same name in ANOTHER workshop is a different business and is allowed. Two workshops
+-- buying from the same depot is the normal state of a small town.
+insert into suppliers (id, workshop_id, name)
+values ('6e500000-0000-0000-0000-000000000003', '6e100000-0000-0000-0000-000000000002', 'Agri Diesel');
+
+-- ── (g) Nobody else reads the supplier book ─────────────────────────────────
+set role authenticated;
+do $$ begin
+  perform _t_login('6e200000-0000-0000-0000-000000000001');       -- R staff, whose suppliers these are
+  perform _t_assert('suppliers', 3, 'Workshop R');                -- Agri Diesel, Bearing Co, bearng co
+end $$;
+
+do $$ declare c bigint; begin
+  perform _t_login('6e200000-0000-0000-0000-000000000002');       -- Workshop S, a rival
+  select count(*) into c from suppliers where workshop_id = '6e100000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'G18 FAIL [COMPETITOR]: a rival workshop read % of R''s suppliers - that is R''s buying relationships', c;
+  end if;
+  -- Its own book is intact, so the zero above is isolation and not an empty table.
+  select count(*) into c from suppliers;
+  if c <> 2 then raise exception 'G18 FAIL: workshop S sees % of its own supplier records rather than 2', c; end if;
+end $$;
+
+-- …and cannot write into R's book either, by insert or by update.
+do $$ declare ok boolean := false; c bigint; begin
+  perform _t_login('6e200000-0000-0000-0000-000000000002');
+  begin
+    insert into suppliers (workshop_id, name)
+    values ('6e100000-0000-0000-0000-000000000001', 'Planted');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G18 FAIL [CROSS-TENANT WRITE]: a rival filed a supplier on R''s account'; end if;
+
+  update suppliers set phone = '+27000000000' where id = '6e500000-0000-0000-0000-000000000001';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G18 FAIL [CROSS-TENANT WRITE]: a rival updated % of R''s suppliers', c; end if;
+
+  -- Nor can it read R's payables through the report. The function is SECURITY INVOKER, so
+  -- passing somebody else's workshop id is answered by RLS rather than by a check in the
+  -- body that somebody could forget to write.
+  select count(*) into c from app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+  if c <> 0 then raise exception 'G18 FAIL [COMPETITOR]: a rival read % rows of R''s payables ageing', c; end if;
+end $$;
+
+-- The FARM this workshop works for. An active workshop_link is what lets R reach Farm V's
+-- vehicles; it must open nothing in R's own supplier book, because a farm reading who its
+-- contractor buys from and on what terms is reading the margin on every quote it has ever
+-- been given (F16).
+do $$ declare c bigint; begin
+  perform _t_login('6e300000-0000-0000-0000-000000000001');       -- Owner V
+  select count(*) into c from suppliers;
+  if c <> 0 then raise exception 'G18 FAIL [MARGIN LEAK]: a farm read % of its contractor''s suppliers', c; end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from suppliers; exception when others then ok := true; end;
+  if not ok then raise exception 'G18 FAIL: anon read the supplier book'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin
+    insert into suppliers (workshop_id, name)
+    values ('6e100000-0000-0000-0000-000000000001', 'Anon Co');
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G18 FAIL: anon filed a supplier'; end if;
+end $$;
+-- G11's rule, restated where the functions were added: an app-schema helper with no
+-- explicit grant defaults to EXECUTE TO PUBLIC, and both of these rewrite or expose money.
+do $$ declare ok boolean := false; begin
+  begin perform app.link_suppliers(); exception when others then ok := true; end;
+  if not ok then raise exception 'G18 FAIL: anon ran the supplier backfill'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_creditors('6e100000-0000-0000-0000-000000000001'::uuid, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G18 FAIL: anon read the payables ageing'; end if;
+end $$;
+reset role;
+
+select 'ALL G18 SUPPLIER TESTS PASSED' as result;
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G20 — WHAT IS ABOUT TO HAPPEN TO THE BANK ACCOUNT (0486)
+--
+-- 0460 answers three questions that all look backwards. This one looks forwards, and a
+-- forecast is a different kind of risk from a report: nothing here is a new table, so the
+-- danger is not tenancy leaking — it is arithmetic that looks right and is not, and a row
+-- silently included or silently dropped. Each assertion below pins a decision where a
+-- plausible implementation would be wrong:
+--
+--   * an OVERDUE invoice is expected NOW. Bucketing it by its raw date would either drop
+--     it out of the forecast altogether or fold it into "this week", which reads as a
+--     promise nobody made.
+--   * a DRAFT invoice has not been sent, so nobody owes it, and a WRITTEN-OFF one was
+--     deliberately given up on (G5). Neither is money coming in.
+--   * an unpaid supplier invoice leaves the bank GROSS. The ledger is ex-VAT; the bank is
+--     not, and the VAT coming back from SARS in six weeks does not help on Friday.
+--   * a CANCELLED purchase order is not a commitment, and one already converted to an
+--     expense (0475) must not be counted twice — once as a commitment and once as a bill.
+--   * both functions are SECURITY INVOKER, so a rival workshop asking about these books is
+--     answered by RLS rather than by a check in the body.
+--
+-- Its own farm and workshop, so the numbers below are the only numbers in play. Every date
+-- is relative to current_date and every bucket asserted is one that cannot move with the
+-- day of the week: `overdue` is strictly before today, and today+32 or later is past the
+-- end of any month (a month is at most 31 days, so mo_end <= today+30).
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('70000000-0000-0000-0000-000000000001', 'Farm U');
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps, invoice_terms_days)
+values ('70100000-0000-0000-0000-000000000001', 'Workshop V', 'mechanic', true, 1500, 30),
+       ('70100000-0000-0000-0000-000000000002', 'Workshop V2 (rival)', 'mechanic', true, 1500, 30);
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('70100000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'active'),
+  -- The rival works for the SAME farm. That is the hard case: a shared customer must not
+  -- turn into a shared forecast.
+  ('70100000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('70200000-0000-0000-0000-000000000001', 'vstaff@test'),
+  ('70200000-0000-0000-0000-000000000002', 'v2staff@test'),
+  ('70200000-0000-0000-0000-000000000003', 'uowner@test');
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('70200000-0000-0000-0000-000000000001', null, '70100000-0000-0000-0000-000000000001', 'workshop', 'V Staff', 'v@test'),
+  ('70200000-0000-0000-0000-000000000002', null, '70100000-0000-0000-0000-000000000002', 'workshop', 'V2 Staff', 'v2@test'),
+  ('70200000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', null, 'owner', 'U Owner', 'u@test');
+
+-- ── Money in: four invoices, only two of which are real forecast ─────────────
+--   I1  sent, due 40 days ago, R1 000 ex -> R1 150 gross, less a R230 credit note = 92000
+--   I2  DRAFT, due in 25 days                        -> never forecast: nobody owes a draft
+--   I3  WRITTEN OFF, due 20 days ago                 -> never forecast: given up on (G5)
+--   I4  sent, due in 45 days, R920 gross less R220 paid = 70000, lands in `later`
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, due_date, vat_rate_bps, bill_to_name)
+values
+  ('70300000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001',
+   '70100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'VI-0001',
+   current_date - 60, current_date - 40, 1500, 'Farm U'),
+  ('70300000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001',
+   '70100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'VI-0002',
+   current_date - 5,  current_date + 25, 1500, 'Farm U'),
+  ('70300000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001',
+   '70100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'VI-0003',
+   current_date - 50, current_date - 20, 1500, 'Farm U'),
+  ('70300000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000001',
+   '70100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'VI-0004',
+   current_date - 1,  current_date + 45, 1500, 'Farm U');
+
+-- Separate statement: 0418's note check requires a credit note to name the document it
+-- corrects at insert time, so the invoice must exist first.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name, corrects_document_id)
+values
+  ('70300000-0000-0000-0000-000000000005', '70000000-0000-0000-0000-000000000001',
+   '70100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'VC-0001',
+   current_date - 30, 1500, 'Farm U', '70300000-0000-0000-0000-000000000001');
+
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values
+  ('70300000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 1, 'labour', 'Gearbox',      1, 100000),
+  ('70300000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', 1, 'labour', 'Not sent yet', 1, 200000),
+  ('70300000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', 1, 'labour', 'Never paid',   1,  50000),
+  ('70300000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000001', 1, 'labour', 'Big service',  1,  80000),
+  ('70300000-0000-0000-0000-000000000005', '70000000-0000-0000-0000-000000000001', 1, 'labour', 'Overcharged',  1,  20000);
+
+update partner_documents set status = 'sent', sent_at = now()
+ where id in ('70300000-0000-0000-0000-000000000001', '70300000-0000-0000-0000-000000000004',
+              '70300000-0000-0000-0000-000000000005');
+-- VI-0003 was earned, declared, and given up on. It stays revenue on the P&L and comes off
+-- again as bad debt (G14) — but it is NOT money about to arrive.
+update partner_documents
+   set status = 'written_off', sent_at = now(), written_off_at = now(),
+       written_off_reason = 'Customer liquidated'
+ where id = '70300000-0000-0000-0000-000000000003';
+
+-- A part payment against VI-0004: R920 gross, R220 in, R700 still to come.
+insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
+values ('70000000-0000-0000-0000-000000000001', '70300000-0000-0000-0000-000000000004',
+        22000, current_date - 1, 'eft');
+
+-- ── Money in: a standing invoice not raised yet ──────────────────────────────
+-- Issued in 3 days on 30-day terms, so the CASH is expected on day 33 — not day 3. Left
+-- with no `bill_to_name` on purpose, so the party label falls back to the schedule's name.
+insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
+                                vat_rate_bps, active, created_by)
+values ('70400000-0000-0000-0000-000000000001', '70100000-0000-0000-0000-000000000001',
+        '70000000-0000-0000-0000-000000000001', 'Monthly standby', 'monthly',
+        current_date + 3, 1500, true, '70200000-0000-0000-0000-000000000001');
+insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind, description, qty, unit_price_cents)
+values ('70400000-0000-0000-0000-000000000001', '70100000-0000-0000-0000-000000000001',
+        1, 'labour', 'Standby fee', 1, 40000);   -- 40000 ex + 6000 VAT = 46000 gross
+
+-- ── Money out: three supplier invoices, one of them already settled ──────────
+--   E1  unpaid, dated 60 days ago -> due 30 days ago -> overdue, GROSS 115000
+--   E2  PAID a day ago                                -> never forecast
+--   E3  unpaid, dated 10 days ago, and it is the invoice for PO3 (0475)
+insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
+                              paid_on, amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  ('70500000-0000-0000-0000-000000000001', '70100000-0000-0000-0000-000000000001',
+   'Bearing Co', 'BC-991', 'parts', current_date - 60, null, 100000, 1500, 15000, true),
+  ('70500000-0000-0000-0000-000000000002', '70100000-0000-0000-0000-000000000001',
+   'Oil Depot', 'OD-12', 'parts', current_date - 50, current_date - 1, 70000, 1500, 10500, true);
+
+-- ── Money out: three purchase orders ─────────────────────────────────────────
+--   PO1  sent,          arriving in 2 days  -> committed, forecast at 69000 gross
+--   PO2  CANCELLED                          -> never forecast: no money will move
+--   PO3  part received, already invoiced    -> never forecast: E3 owns that rand
+insert into purchase_orders (id, workshop_id, supplier_name, reference, order_date, expected_date,
+                             status, vat_rate_bps)
+values
+  ('70600000-0000-0000-0000-000000000001', '70100000-0000-0000-0000-000000000001',
+   'Bearing Co', 'PO-100', current_date - 3, current_date + 2, 'sent', 1500),
+  ('70600000-0000-0000-0000-000000000002', '70100000-0000-0000-0000-000000000001',
+   'Tyre Town', 'PO-101', current_date - 3, current_date + 2, 'draft', 1500),
+  ('70600000-0000-0000-0000-000000000003', '70100000-0000-0000-0000-000000000001',
+   'Filter Supply', 'PO-102', current_date - 9, current_date + 5, 'sent', 1500);
+
+insert into purchase_order_lines (workshop_id, purchase_order_id, sort_order, description,
+                                  qty_ordered, qty_received, unit_price_cents)
+values
+  ('70100000-0000-0000-0000-000000000001', '70600000-0000-0000-0000-000000000001', 1, 'Bearings',  1, 0, 60000),
+  ('70100000-0000-0000-0000-000000000001', '70600000-0000-0000-0000-000000000002', 1, 'Tyres',     1, 0, 500000),
+  ('70100000-0000-0000-0000-000000000001', '70600000-0000-0000-0000-000000000003', 1, 'Filters',   2, 1,  15000);
+
+-- Set the two terminal-ish states AFTER the lines, so 0474's rollup cannot overwrite them.
+update purchase_orders set status = 'cancelled'     where id = '70600000-0000-0000-0000-000000000002';
+update purchase_orders set status = 'part_received' where id = '70600000-0000-0000-0000-000000000003';
+
+-- The supplier's invoice for PO3 arrives. From this moment the ORDER stops being a
+-- forecast outflow and the EXPENSE becomes one — exactly once between them.
+insert into partner_expenses (id, workshop_id, purchase_order_id, supplier_name, reference, category,
+                              expense_date, paid_on, amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values ('70500000-0000-0000-0000-000000000003', '70100000-0000-0000-0000-000000000001',
+        '70600000-0000-0000-0000-000000000003', 'Filter Supply', 'FS-77', 'parts',
+        current_date - 10, null, 30000, 1500, 4500, true);
+
+-- ── (a) An overdue invoice is expected NOW, and a supplier bill leaves GROSS ─
+-- Both of the overdue rows are in the `overdue` bucket, not in a future one and not
+-- missing. In: VI-0001 at 115000 less the 23000 credit note = 92000. Out: E1 at
+-- 100000 + 15000 VAT = 115000 — the amount the bank actually loses, not the ex-VAT
+-- 100000 the ledger records.
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select * into r from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365)
+   where bucket = 'overdue';
+  if r.in_cents <> 92000 then
+    raise exception 'G20 FAIL: overdue money in is % rather than 92000 (a 115000 invoice less a 23000 credit note)', r.in_cents;
+  end if;
+  if r.out_cents <> 115000 then
+    raise exception 'G20 FAIL: overdue money out is % rather than 115000 — an unpaid supplier invoice must be forecast GROSS (100000 + 15000 VAT)', r.out_cents;
+  end if;
+  if r.net_cents <> -23000 or r.running_cents <> -23000 then
+    raise exception 'G20 FAIL: overdue net/running is %/% rather than -23000/-23000', r.net_cents, r.running_cents;
+  end if;
+  if r.item_count <> 2 then
+    raise exception 'G20 FAIL: the overdue bucket holds % items rather than 2', r.item_count;
+  end if;
+end $$;
+
+-- The item behind it says HOW late, so the screen can put it in words rather than leaving
+-- the reader to subtract two dates.
+do $$ declare r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70300000-0000-0000-0000-000000000001';
+  if r.bucket <> 'overdue' or r.ordinal <> 1 then
+    raise exception 'G20 FAIL: a 40-day-old invoice landed in bucket %/% rather than overdue/1', r.bucket, r.ordinal;
+  end if;
+  if r.days_late <> 40 then
+    raise exception 'G20 FAIL: an invoice due 40 days ago reports % days late', r.days_late;
+  end if;
+  if r.direction <> 'in' or r.amount_cents <> 92000 then
+    raise exception 'G20 FAIL: the overdue invoice item is %/% rather than in/92000', r.direction, r.amount_cents;
+  end if;
+end $$;
+
+-- ── (b) A draft invoice is not forecast, and neither is a written-off one ────
+-- A draft has never been sent, so nobody owes it; a written-off invoice was given up on
+-- deliberately and is no longer chased. Forecasting either is forecasting money that is
+-- not coming.
+do $$ declare n bigint; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70300000-0000-0000-0000-000000000002';
+  if n <> 0 then raise exception 'G20 FAIL: a DRAFT invoice was forecast as money coming in (% rows)', n; end if;
+
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70300000-0000-0000-0000-000000000003';
+  if n <> 0 then raise exception 'G20 FAIL: a WRITTEN-OFF invoice was forecast as money coming in (% rows)', n; end if;
+end $$;
+
+-- ── (c) A part-paid invoice is forecast for the REMAINDER, in `later` ────────
+-- R920 gross, R220 already received, R700 still to come, due in 45 days — past the end of
+-- any month, so this bucket cannot move with the calendar.
+do $$ declare r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70300000-0000-0000-0000-000000000004';
+  if r.amount_cents <> 70000 then
+    raise exception 'G20 FAIL: a part-paid invoice is forecast at % rather than the outstanding 70000', r.amount_cents;
+  end if;
+  if r.bucket <> 'later' then
+    raise exception 'G20 FAIL: an invoice due in 45 days landed in % rather than later', r.bucket;
+  end if;
+end $$;
+
+-- ── (d) Cash arrives on the TERMS date, not the issue date ──────────────────
+-- The standing invoice is raised in 3 days on the workshop's 30-day terms, so the money is
+-- expected on day 33. Forecasting it on day 3 would show cash that is a month away as cash
+-- this week, which is the single most dangerous way for a forecast to be wrong.
+do $$ declare r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source = 'recurring';
+  if r.expected_date <> current_date + 33 then
+    raise exception 'G20 FAIL: a standing invoice issued in 3 days on 30-day terms is expected on % rather than %',
+      r.expected_date, current_date + 33;
+  end if;
+  if r.amount_cents <> 46000 then
+    raise exception 'G20 FAIL: the standing invoice is forecast at % rather than 46000 gross (40000 + 6000 VAT)', r.amount_cents;
+  end if;
+  if r.party <> 'Monthly standby' then
+    raise exception 'G20 FAIL: a schedule with no bill-to name labelled itself "%" rather than falling back to its own name', r.party;
+  end if;
+end $$;
+
+-- ── (e) A cancelled purchase order is not forecast ──────────────────────────
+-- No money will move on it. Nor on one already converted to an expense (0475) — that rand
+-- is owned by the supplier's invoice now, and counting both would overstate the outflow by
+-- exactly the orders that are going best.
+do $$ declare n bigint; r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70600000-0000-0000-0000-000000000002';
+  if n <> 0 then raise exception 'G20 FAIL: a CANCELLED purchase order was forecast as money going out (% rows)', n; end if;
+
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70600000-0000-0000-0000-000000000003';
+  if n <> 0 then
+    raise exception 'G20 FAIL: an order already invoiced was forecast AGAIN alongside its expense — double count (% rows)', n;
+  end if;
+  -- Its expense is the one that carries the money, exactly once.
+  select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70500000-0000-0000-0000-000000000003';
+  if r.amount_cents <> 34500 or r.direction <> 'out' then
+    raise exception 'G20 FAIL: the invoice for the received order is %/% rather than out/34500', r.direction, r.amount_cents;
+  end if;
+
+  -- The open one IS committed money, forecast at its gross total on delivery + terms.
+  select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70600000-0000-0000-0000-000000000001';
+  if r.amount_cents <> 69000 or r.expected_date <> current_date + 32 then
+    raise exception 'G20 FAIL: an open order is forecast at % on % rather than 69000 on %',
+      r.amount_cents, r.expected_date, current_date + 32;
+  end if;
+end $$;
+
+-- ── (f) A settled supplier invoice is not forecast ──────────────────────────
+do $$ declare n bigint; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source_id = '70500000-0000-0000-0000-000000000002';
+  if n <> 0 then raise exception 'G20 FAIL: an ALREADY PAID supplier invoice was forecast as money going out (% rows)', n; end if;
+end $$;
+
+-- ── (g) Five buckets, always, and the running total is the sum of them ───────
+-- An empty bucket that vanishes makes the running balance unreadable, and "nothing goes
+-- out next week" is itself an answer. The last running figure is the whole forecast:
+--   in  92000 + 70000 + 46000 = 208000
+--   out 115000 + 34500 + 69000 = 218500   ->  -10500
+do $$ declare n bigint; v_last bigint; v_items bigint; v_buckets bigint; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select count(*) into n from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  if n <> 5 then raise exception 'G20 FAIL: the forecast returned % buckets rather than 5', n; end if;
+
+  select running_cents into v_last from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365)
+   where ordinal = 5;
+  if v_last <> -10500 then
+    raise exception 'G20 FAIL: the running total ends at % rather than -10500 (208000 in, 218500 out)', v_last;
+  end if;
+
+  -- The buckets decompose the items exactly: a total nobody can take apart is a total
+  -- nobody believes, and this is the property that makes the two functions one answer.
+  select coalesce(sum(case when direction = 'in' then amount_cents else -amount_cents end), 0)
+    into v_items from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365);
+  select coalesce(sum(net_cents), 0)
+    into v_buckets from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  if v_items <> v_buckets or v_items <> -10500 then
+    raise exception 'G20 FAIL: the items sum to % but the buckets sum to %', v_items, v_buckets;
+  end if;
+
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365);
+  if n <> 6 then raise exception 'G20 FAIL: the forecast holds % movements rather than 6', n; end if;
+end $$;
+
+-- ── (h) The horizon shortens the future and never hides the past ────────────
+-- Asked for a week, the two rows whose CASH DATE is further out drop away: VI-0004 (due in
+-- 45 days) and the invoice for the received order (due in 20). The two overdue rows stay,
+-- because they are not in the future at all — a window on the next seven days is not a
+-- reason to stop showing a debt that is thirty days late.
+--
+-- The standing invoice and the open order stay too, and that is deliberate rather than a
+-- leak: the horizon selects on the date that DEFINES each movement — when a schedule
+-- raises its invoice, when an order is due to arrive — and the bucket is then worked out
+-- from the cash date that follows it. Selecting on the cash date instead would mean a
+-- 30-day window never showed a single standing invoice, because none of them is ever paid
+-- inside the term they are raised in.
+--   in  92000 + 46000 = 138000 ; out 115000 + 69000 = 184000  ->  -46000
+do $$ declare n bigint; r record; begin
+  perform _t_login('70200000-0000-0000-0000-000000000001');
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 7);
+  if n <> 4 then raise exception 'G20 FAIL: a 7-day horizon holds % movements rather than 4', n; end if;
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 7)
+   where source_id in ('70300000-0000-0000-0000-000000000004', '70500000-0000-0000-0000-000000000003');
+  if n <> 0 then
+    raise exception 'G20 FAIL: a 7-day horizon still held % movements dated 20 and 45 days out', n;
+  end if;
+  select * into r from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 7) where ordinal = 1;
+  if r.net_cents <> -23000 then
+    raise exception 'G20 FAIL: shortening the horizon changed the OVERDUE bucket to % — the past is not in the window', r.net_cents;
+  end if;
+  select * into r from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 7) where ordinal = 5;
+  if r.running_cents <> -46000 then
+    raise exception 'G20 FAIL: a 7-day forecast ends at % rather than -46000', r.running_cents;
+  end if;
+end $$;
+
+-- ── (i) A rival workshop on the SAME farm reads zeros ───────────────────────
+-- Both functions are SECURITY INVOKER with no workshop check in the body, so passing
+-- somebody else's id is answered by RLS on the underlying tables. A second check written
+-- here would be a weaker copy of a rule the database already enforces.
+do $$ declare n bigint; v bigint; begin
+  perform _t_login('70200000-0000-0000-0000-000000000002');       -- the rival's staff
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365);
+  if n <> 0 then raise exception 'G20 FAIL [COMPETITOR]: a rival workshop read % of its competitor''s expected movements', n; end if;
+  select coalesce(sum(abs(net_cents)), 0) into v from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  if v <> 0 then raise exception 'G20 FAIL [COMPETITOR]: a rival workshop read a forecast worth %', v; end if;
+end $$;
+
+-- ── (j) The farm it works for reads none of its contractor's buying ────────
+-- What a workshop pays its suppliers, what it has on order and what it bills on standing
+-- arrangements is the margin behind every quote that farm is given, and RLS keeps all
+-- three workshop-scoped. What the farm DOES see through these functions is the invoices it
+-- was itself sent — its own debt, which it has every right to read and already reads on
+-- /documents. That is the correct answer rather than a leak, and it is asserted here so
+-- that nobody later "fixes" it by writing a workshop check into the function body: such a
+-- check would be a second, weaker copy of the rule RLS already enforces, and the first
+-- thing it would do is start disagreeing with the policies.
+do $$ declare n bigint; v_out bigint; begin
+  perform _t_login('70200000-0000-0000-0000-000000000003');       -- the farm's owner
+  select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
+   where source in ('expense', 'purchase_order', 'recurring');
+  if n <> 0 then
+    raise exception 'G20 FAIL [MARGIN LEAK]: a farm read % of its contractor''s purchases, orders or standing income', n;
+  end if;
+  select coalesce(sum(out_cents), 0) into v_out
+    from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  if v_out <> 0 then
+    raise exception 'G20 FAIL [MARGIN LEAK]: a farm read % of money leaving its contractor''s bank', v_out;
+  end if;
+end $$;
+reset role;
+
+-- ── (k) anon runs none of it ────────────────────────────────────────────────
+-- A function created with no explicit grant defaults to EXECUTE TO PUBLIC — the shape that
+-- left `public._f14_probe` on production (0440) — so the revoke is asserted, not assumed.
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G20 FAIL: anon ran app.partner_cashflow'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G20 FAIL: anon ran app.partner_cashflow_items'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G20 FAIL: anon ran the public cashflow wrapper'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform public.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G20 FAIL: anon ran the public cashflow-items wrapper'; end if;
+end $$;
+reset role;
+
+select 'ALL G20 CASHFLOW TESTS PASSED' as result;

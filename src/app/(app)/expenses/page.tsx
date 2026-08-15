@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { expenseTotalCents, type Expense } from "@/lib/expenses";
+import type { SupplierOption } from "@/lib/suppliers";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
@@ -47,13 +48,40 @@ export default async function ExpensesPage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("partner_expenses")
-    .select("*")
-    .is("deleted_at", null)
-    .order("expense_date", { ascending: false })
-    .limit(200);
-  const expenses = (data ?? []) as Expense[];
+  const [{ data }, { data: supplierData }, { data: orderData }] = await Promise.all([
+    supabase
+      .from("partner_expenses")
+      .select("*")
+      .is("deleted_at", null)
+      .order("expense_date", { ascending: false })
+      .limit(200),
+    // The book, for the capture form's picker. Inactive suppliers are left out: they are
+    // the ones this workshop has stopped buying from, and offering them is how a dormant
+    // record quietly comes back to life. Their history is untouched either way.
+    supabase
+      .from("suppliers")
+      .select("id, name")
+      .is("deleted_at", null)
+      .eq("active", true)
+      .order("name", { ascending: true }),
+    // Orders, so an expense converted from one can say which. Fetched as a small map rather
+    // than a PostgREST embed because the same page already loads everything else flat, and
+    // a workshop's live order book is a short list.
+    supabase
+      .from("purchase_orders")
+      .select("id, reference, order_date")
+      .is("deleted_at", null),
+  ]);
+
+  // `supplier_id` (0481) and `purchase_order_id` (0475) are on the row but not on the
+  // shared `Expense` type, which several other screens read — widened here rather than
+  // there so this page can render the two links without changing what they see.
+  type ExpenseRow = Expense & { supplier_id: string | null; purchase_order_id: string | null };
+  const expenses = (data ?? []) as ExpenseRow[];
+  const suppliers = (supplierData ?? []) as SupplierOption[];
+  const orders = new Map(
+    ((orderData ?? []) as { id: string; reference: string | null; order_date: string }[]).map((o) => [o.id, o])
+  );
 
   const spentCents = expenses.reduce((s, e) => s + expenseTotalCents(e), 0);
   const unpaid = expenses.filter((e) => !e.paid_on);
@@ -119,7 +147,7 @@ export default async function ExpensesPage({
         </div>
       ) : null}
 
-      <ExpenseForm locale={locale} vatRegistered={workshop.vat_registered !== false} />
+      <ExpenseForm locale={locale} vatRegistered={workshop.vat_registered !== false} suppliers={suppliers} />
 
       <Card>
         <CardHeader>
@@ -152,6 +180,21 @@ export default async function ExpensesPage({
                       <span className="text-sand-900">{e.supplier_name}</span>
                       {e.reference ? <span className="block font-mono text-xs text-sand-500">{e.reference}</span> : null}
                       {e.description ? <span className="block text-xs text-sand-500">{e.description}</span> : null}
+                      {/* Where this invoice came from. 0475 records the link and nothing
+                          showed it, so the one thing an order is raised for — checking that
+                          what was billed is what was agreed — meant hunting for the order
+                          by supplier and date. The reference is the number said down the
+                          phone; a nameless order still gets a link, because the row without
+                          one is the one most in need of opening. */}
+                      {e.purchase_order_id ? (
+                        <a
+                          href={`/orders/${e.purchase_order_id}`}
+                          className="focus-ring mt-0.5 block text-xs font-medium text-brand-700 underline underline-offset-2"
+                        >
+                          {t("supplier.fromOrder", locale)}{" "}
+                          {orders.get(e.purchase_order_id)?.reference ?? t("supplier.fromOrderNoRef", locale)}
+                        </a>
+                      ) : null}
                     </td>
                     <td className="py-2.5 pr-3">
                       <Badge tone="neutral">{t(`expenseCategory.${e.category}`, locale)}</Badge>

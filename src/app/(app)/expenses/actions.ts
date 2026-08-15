@@ -28,6 +28,39 @@ function s(fd: FormData, k: string): string | null {
   return v === "" ? null : v;
 }
 
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Who this invoice is from, however the form offered it (G18).
+ *
+ * The form posts EITHER a `supplier_id` picked from the book or a `supplier_name` typed
+ * for someone new. Both end up writing the name, because every screen, CSV and PDF in the
+ * product prints it and because an expense must stay readable when the supplier record is
+ * later deactivated or removed.
+ *
+ * When an id is picked the name is read back from the record rather than trusted from the
+ * form — the two are posted from the same page and could otherwise disagree, at which point
+ * the row would print one business and age under another. The lookup goes through the
+ * caller's RLS client, so an id belonging to another workshop simply comes back empty and
+ * is refused here; the composite foreign key would refuse it again at the insert.
+ *
+ * Typed text is deliberately left as text. The 0481 trigger attaches it to a record if one
+ * of that name already exists, and files nothing if not — a typo must not mint a supplier.
+ */
+async function resolveSupplier(
+  supabase: Db,
+  fd: FormData
+): Promise<{ supplier_id: string | null; supplier_name: string } | null> {
+  const id = s(fd, "supplier_id");
+  if (id) {
+    const { data } = await supabase.from("suppliers").select("name").eq("id", id).maybeSingle();
+    const name = (data as { name: string } | null)?.name;
+    return name ? { supplier_id: id, supplier_name: name } : null;
+  }
+  const typed = s(fd, "supplier_name");
+  return typed ? { supplier_id: null, supplier_name: typed } : null;
+}
+
 function category(fd: FormData): ExpenseCategory {
   const raw = String(fd.get("category") ?? "other");
   return (EXPENSE_CATEGORIES as readonly string[]).includes(raw) ? (raw as ExpenseCategory) : "other";
@@ -57,18 +90,22 @@ export async function createExpense(formData: FormData) {
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
 
-  const supplier = s(formData, "supplier_name");
-  if (!supplier) redirect("/expenses?error=need-supplier");
-
   const m = money(formData);
   if (!m) redirect("/expenses?error=need-amount");
 
   const supabase = await createClient();
+  const supplier = await resolveSupplier(supabase, formData);
+  if (!supplier) redirect("/expenses?error=need-supplier");
+
   const { data: created, error } = await supabase
     .from("partner_expenses")
     .insert({
       workshop_id: workshop.id,
-      supplier_name: supplier,
+      // Both are written even when one was derived from the other: the id is what the
+      // payables ageing groups by, and the name is what every screen and PDF prints. The
+      // 0481 trigger fills the id in for typed text when a record of that name exists.
+      supplier_name: supplier.supplier_name,
+      supplier_id: supplier.supplier_id,
       supplier_vat_number: s(formData, "supplier_vat_number"),
       reference: s(formData, "reference"),
       category: category(formData),
@@ -177,10 +214,20 @@ export async function updateExpense(formData: FormData) {
   if (!m) redirect(`/expenses?error=need-amount`);
 
   const supabase = await createClient();
+  // A correction must still name somebody. The old fallback wrote "—" when the field came
+  // back empty, which put a nameless creditor onto the payables ageing for ever — the exact
+  // phantom this feature exists to end — so an empty supplier is now refused instead.
+  const supplier = await resolveSupplier(supabase, formData);
+  if (!supplier) redirect("/expenses?error=need-supplier");
+
   const { error } = await supabase
     .from("partner_expenses")
     .update({
-      supplier_name: s(formData, "supplier_name") ?? "—",
+      supplier_name: supplier.supplier_name,
+      // Set explicitly so switching an invoice from one record to another sticks. Writing
+      // the id here also stops the 0481 trigger's "the name was edited, drop the link"
+      // rule from firing on a deliberate re-pick, because the id changed too.
+      supplier_id: supplier.supplier_id,
       supplier_vat_number: s(formData, "supplier_vat_number"),
       reference: s(formData, "reference"),
       category: category(formData),

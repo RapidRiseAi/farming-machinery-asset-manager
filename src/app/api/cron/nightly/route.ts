@@ -53,6 +53,10 @@ export async function GET(request: Request) {
   // the period it last raised, so a double-fired night cannot bill anybody twice.
   await run("recurring_invoices", "cron_generate_recurring_invoices");
 
+  // Costs that repeat (G19). Same idempotency shape as the invoice generator above: it
+  // keys on the period it last covered, so a double-fired night cannot book rent twice.
+  await run("recurring_expenses", "cron_generate_recurring_expenses");
+
   // What the store is running out of (0451). Weekly per item, quiet hours honoured.
   await run("low_stock", "cron_enqueue_low_stock");
 

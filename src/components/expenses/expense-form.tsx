@@ -5,6 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { rands, parseRandsToCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES } from "@/lib/expenses";
+import type { SupplierOption } from "@/lib/suppliers";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -22,12 +23,33 @@ import { createExpense } from "@/app/(app)/expenses/actions";
  * The VAT box is pre-filled from the rate and stays editable, because the supplier's own
  * VAT line is what may legally be claimed. `createExpense` does the same arithmetic
  * server-side; this preview cannot disagree with it because both call `splitInclusive`.
+ *
+ * ── The supplier is a picker, and still a text box (G18) ────────────────────
+ *
+ * Choosing from the book is what stops the third spelling of one business appearing on the
+ * payables ageing. But a supplier invoice arrives from whoever the workshop bought from
+ * that morning, and refusing to capture it until somebody has filed the business would move
+ * the friction to the worst possible moment — so "someone new" stays one keystroke away and
+ * writes plain text, exactly as it did before. The 0481 trigger links that text to a record
+ * if one already matches, so typing the name of a supplier you forgot was on the list ends
+ * up in the same place as picking it.
  */
-export function ExpenseForm({ locale, vatRegistered }: { locale: Lang; vatRegistered: boolean }) {
+export function ExpenseForm({
+  locale,
+  vatRegistered,
+  suppliers = [],
+}: {
+  locale: Lang;
+  vatRegistered: boolean;
+  suppliers?: readonly SupplierOption[];
+}) {
   const [amount, setAmount] = useState("");
   const [inclusive, setInclusive] = useState(true);
   const [percent, setPercent] = useState(vatRegistered ? "15" : "0");
   const [vatOverride, setVatOverride] = useState("");
+  // "" means "someone new" — the default, so a workshop with an empty book sees exactly the
+  // form it saw before this feature existed.
+  const [supplierId, setSupplierId] = useState("");
 
   const rateBps = percentToBps(percent) ?? 0;
   const typed = parseRandsToCents(amount) ?? 0;
@@ -45,7 +67,34 @@ export function ExpenseForm({ locale, vatRegistered }: { locale: Lang; vatRegist
 
       <form action={createExpense} className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextField name="supplier_name" label={t("expenses.supplier", locale)} required />
+          {suppliers.length > 0 ? (
+            <SelectField
+              name="supplier_id"
+              label={t("expenses.supplier", locale)}
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+              hint={supplierId === "" ? t("supplier.pickHint", locale) : undefined}
+            >
+              <option value="">{t("supplier.pickNew", locale)}</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </SelectField>
+          ) : null}
+
+          {/* Shown whenever no record was chosen — which is every time for a workshop that
+              has filed nobody, and the "someone new" case for everyone else. `required` is
+              conditional for the same reason: the field is not on the form at all when a
+              supplier has been picked, and a required field nobody can see cannot be
+              satisfied. */}
+          {supplierId === "" ? (
+            <TextField
+              name="supplier_name"
+              label={suppliers.length > 0 ? t("supplier.newName", locale) : t("expenses.supplier", locale)}
+              required
+            />
+          ) : null}
+
           <TextField name="reference" label={t("expenses.reference", locale)} hint={t("expenses.referenceHint", locale)} />
         </div>
 

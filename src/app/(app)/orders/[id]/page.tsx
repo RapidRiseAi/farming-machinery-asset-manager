@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
-import { OrderStatus } from "@/components/orders/order-status";
+import { OrderStatus } from "@/components/ui/status";
 import { OrderForm } from "@/components/orders/order-form";
 import { LineEditor } from "@/components/orders/line-editor";
 import { ConvertForm } from "@/components/orders/convert-form";

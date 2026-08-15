@@ -14,6 +14,7 @@ import {
   BUDGET_LOOK,
   FINE_LOOK,
   DOC_LOOK,
+  PO_LOOK,
   type StatusLook,
 } from "./badge";
 
@@ -72,6 +73,17 @@ export const FineStatus = make(FINE_LOOK, "fineStatus");
 
 /** Partner quote/invoice lifecycle. */
 export const DocStatus = make(DOC_LOOK, "docStatus");
+
+/**
+ * Purchase-order lifecycle (G16) — what has been ordered and has not yet arrived.
+ *
+ * Lived in `components/orders/order-status.tsx` while that workstream was in flight, which
+ * meant one of the eleven domain enums rendered from its own private map. That is exactly
+ * how a vocabulary stops being one: the next person to add an order state edits a file
+ * nobody else reads, and an order's `sent` slowly stops looking like a document's.
+ * The i18n group is `po.status`, unchanged, so every existing label still resolves.
+ */
+export const OrderStatus = make(PO_LOOK, "po.status");
 
 /** Service due state — the traffic light the product turns on. */
 export function ServiceStatus({ value, locale, size = "sm", className }: Props) {

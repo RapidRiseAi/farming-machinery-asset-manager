@@ -272,6 +272,24 @@ export const DOC_LOOK: Record<string, StatusLook> = {
   written_off: { tone: "danger", shape: "dash" },
 };
 
+/**
+ * Purchase-order lifecycle (G16). The same shape as `DOC_LOOK`, and it belongs beside it:
+ * an order and the invoice that follows it are read on adjacent screens, so the two
+ * vocabularies have to be one vocabulary.
+ *
+ * `closed` and `cancelled` are deliberately NOT the same glyph even though both are grey
+ * and both mean "nothing more will happen". One is finished business and the other never
+ * happened, and a partner scanning the list needs to tell them apart without reading.
+ */
+export const PO_LOOK: Record<string, StatusLook> = {
+  draft: { tone: "neutral", shape: "ring" }, // ○ not with the supplier yet
+  sent: { tone: "info", shape: "clock" }, // ◔ waiting on somebody else
+  part_received: { tone: "warning", shape: "half" }, // ◐ some of it is here
+  received: { tone: "ok", shape: "check" }, // ✓ it all arrived
+  closed: { tone: "neutral", shape: "check" }, // ✓ dealt with, no longer live
+  cancelled: { tone: "neutral", shape: "dash" }, // — never happened
+};
+
 /** Look up a state's look in a map, falling back to a neutral ring. */
 export function look(map: Record<string, StatusLook>, value: string | null | undefined): StatusLook {
   return (value && map[value]) || NEUTRAL;
