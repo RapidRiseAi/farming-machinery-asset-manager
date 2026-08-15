@@ -1,13 +1,13 @@
 # FleetWise — handover
 
-Written at the end of the verification session and the first business/financial wave
-(migrations `0440`, `0450–0452`, `0460`, `0470–0476`). Everything described here is on
-`main` and pushed.
+Written at the end of the verification session and two business/financial waves
+(migrations `0440`, `0450–0452`, `0460`, `0470–0476`, `0480–0483`, `0486`). Everything
+described here is on `main` and pushed.
 
-**Production is NOT currently identical to the repo.** The six financial migrations of this
-wave are applied and verified; a concurrent voice-assistant workstream landed in the same
-commit and only part of its schema is live (see §5). Run the fingerprint before assuming
-otherwise.
+**Production is NOT currently identical to the repo.** All eleven financial migrations of
+these two waves are applied and verified; a concurrent voice-assistant workstream landed in
+the same commit and only part of its schema is live (see §5). Run the fingerprint before
+assuming otherwise.
 
 This document is deliberately blunt about what is **proven**, what is **built but
 unexercised**, and what is **not built**. If a claim is not in the "proven" column, treat it
