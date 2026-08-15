@@ -1300,4 +1300,66 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     `ai_interactions`, `asset_aliases` and their policies remain outstanding: known drift,
     to be applied by whoever owns that workstream.
 
+- **Wave 2 of the business/financial tranche — suppliers as records, recurring expenses,
+  cash-flow forecast** (migrations `0480–0483`, `0486`; isolation-tested, `db:test` green;
+  all five applied to the demo project and driven live). Built by three subagents in
+  parallel under the same ownership discipline as wave 1, with one addition that removed
+  the only real dependency between them: the supplier work adds a trigger that resolves
+  free-text `supplier_name` to a record, so the recurring-expense work never had to know
+  suppliers existed.
+  - **Suppliers (`0480–0482`, G18).** `partner_expenses.supplier_name` was free text and
+    `app.partner_creditors` grouped the payables ageing by `btrim()` of it, so "Agri
+    Diesel" and "agri diesel " were two businesses owed money; purchase orders had just
+    inherited the same weakness. A workshop-scoped `suppliers` table (a farm reading its
+    contractor's supplier list and terms would be reading the margin behind every quote it
+    is given), `supplier_id` on expenses AND orders with composite FKs, and a BEFORE
+    trigger that links by trimmed case-insensitive name and **never creates** — a typo must
+    not mint a supplier. Editing a name away from its record drops the link rather than
+    leaving a row printing one business and ageing under another. The trigger is
+    deliberately NOT `SECURITY DEFINER`, so the lookup runs under the caller's own RLS.
+    `partner_creditors` now groups by the RECORD where one is linked and by the lower-cased
+    trimmed name where none is, so the split is fixed even for a business nobody has filed;
+    same columns and buckets, because `/money` renders it. **Proven on production**: the
+    backfill filed Agri Diesel Depot and linked it; inserting `'  agri diesel depot '` —
+    different case AND whitespace — linked to the same record and the ageing returned ONE
+    creditor. The agent also found a bug in its own scope: `updateExpense`'s `"—"` fallback
+    minted a nameless permanent creditor.
+  - **Recurring expenses (`0483`, G19).** The cost-side mirror of `0433`, wired into the
+    nightly cron. Its reasoning goes one step past the sales side: `last_period_start` makes
+    a SEQUENCE of runs idempotent and a `for update` row lock handles two CONCURRENT ones —
+    different problems. Header only, no lines: a `partner_expense` is a single amount by
+    0430's design, so a lines table would hold one row for ever and put the amount in two
+    places that can disagree. Generated rows are ordinary expenses, asserted by checking
+    they land in `app.partner_pl`'s cost. `run_recurring_expense` checks ownership itself
+    because the generator it calls is `SECURITY DEFINER` and would otherwise trust any id.
+  - **Cash flow (`0486`, G20).** `/money` says what happened; nothing said what is about to.
+    Five buckets from overdue to later with a running total, over outstanding invoices,
+    standing invoices not yet raised, unpaid supplier bills and open purchase orders. The
+    aggregate is built FROM the item list rather than repeating its four queries, so a
+    bucket total cannot disagree with the rows beneath it. A purchase order already
+    converted to an expense is excluded — otherwise it counts once as a commitment and again
+    as a bill. All GROSS, said in the header, in the lib and on the screen, because a
+    forecast is about cash leaving the bank. Supplier terms default to 30 days from the
+    supplier's own invoice date and the screen says so in words: `partner_expenses` has no
+    due date, so a forecast must assume one, and between two wrong answers the earlier one
+    fails safe.
+  - Also closed the two gaps the wave-1 audit found: the purchase-order badge now lives in
+    `components/ui/status.tsx` beside the other ten, and an expense converted from an order
+    links back to it.
+  - **What the agents caught that the brief got wrong.** One was told to use fixture ids
+    starting `6g`; `g` is not a hex digit and `uuid` rejects it — it used `70` and said so.
+    Another's own "the farm reads nothing" assertion FAILED, and rather than delete it, it
+    established that a farm DOES read its own invoices through these functions by design,
+    confirmed no margin leak (expenses, orders, standing income and the whole `out_cents`
+    column return zero), and pinned that exact shape so nobody later "fixes" it by writing a
+    workshop check into a function body.
+  - **Driven live afterwards**: all three screens render against production with no
+    overflow, no nested anchors, no raw i18n keys and no JS errors; the forecast's single
+    movement was reconciled against `partner_debtors`/`partner_creditors` (both genuinely
+    empty after the bank reconciliation) rather than assumed; all six partner money screens
+    appear in the nav in a sensible order; and a farm owner opening `/cashflow` directly
+    lands on `/dashboard` — refused by the guard, not merely hidden in the nav.
+  - 48 suite banners. i18n EN/AF at parity (**3 075 leaf keys**). Gates green; shared
+    first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

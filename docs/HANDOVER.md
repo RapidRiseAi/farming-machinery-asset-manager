@@ -20,11 +20,11 @@ as unverified no matter how confident the code comments sound.
 | | |
 |---|---|
 | Branch | `main` (all work merged and pushed) |
-| Migrations in repo | 104 files, `0001` → `0476` plus two dated voice-assistant files |
+| Migrations in repo | 109 files, `0001` → `0486` plus two dated voice-assistant files |
 | Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — financial schema verified applied; **known assistant drift, see §5** |
-| Isolation suite | `supabase/tests/rls_isolation.sql`, 5 958 lines, 39 pass banners — **green** |
+| Isolation suite | `supabase/tests/rls_isolation.sql`, 48 pass banners — **green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
-| i18n | EN/AF at parity, **2 896 leaf keys**, plus professional-tone overlays |
+| i18n | EN/AF at parity, **3 075 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
 `FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`; the farm
@@ -158,13 +158,11 @@ it is still on this list.
 
 ## 6. Not built at all
 
-* **Suppliers as records — the next thing worth doing.** `partner_expenses.supplier_name`
-  is free text, so `app.partner_creditors` groups the ageing by a trimmed string: "Agri
-  Diesel" and "Agri Diesel Depot" are two creditors. Purchase orders now carry the same
-  free-text field. A real supplier record fixes the ageing, the VAT return detail and
-  lets a PO prefill.
-* **Recurring expenses.** Standing invoices exist for sales; rent, insurance and salaries
-  repeat on the cost side too and are captured by hand every month.
+* **Purchase-order receipts against several invoices.** One expense per order (partial
+  unique index), so a supplier who part-ships and invoices twice can only link the first.
+* **Supplier statements and remittance advice.** Suppliers are records now (G18), so
+  "what did I buy from this business this year" and a remittance to send with a payment
+  are both a short step away.
 * Multi-currency (everything is ZAR, integer cents).
 * Payroll.
 * WhatsApp Stage 2 (BSP API) — Stage 1 is manual; the queue and `deliver_after` are ready.
