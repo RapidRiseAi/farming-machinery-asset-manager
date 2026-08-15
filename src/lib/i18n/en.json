@@ -2592,7 +2592,8 @@
     "emptyBody": "Add the invoices your suppliers send you. Then this system can tell you what a month actually made, and what you owe SARS.",
     "deletedFlash": "Removed.",
     "deleteTitle": "Remove this purchase?",
-    "deleteConsequence": "If this period’s VAT has already been filed, your figures will no longer match what you submitted."
+    "deleteConsequence": "If this period’s VAT has already been filed, your figures will no longer match what you submitted.",
+    "claimableNotRegistered": "You are not registered for VAT, so this VAT cannot be claimed back. It is captured as part of what the bill cost you."
   },
   "vat": {
     "title": "VAT",
@@ -3245,7 +3246,8 @@
     "vatPercent": "VAT rate",
     "viewInExpenses": "See it with your other expenses",
     "whatItCosts": "What it costs",
-    "whenTitle": "When it goes out"
+    "whenTitle": "When it goes out",
+    "claimableNotRegistered": "You are not registered for VAT, so this VAT counts as part of the cost rather than something to claim back."
   },
   "cash": {
     "apply": "Show me",
@@ -3304,6 +3306,7 @@
     "windowEmpty": "Nothing left of this month",
     "windowFrom": "From {date}",
     "windowNow": "Already due, expected now",
-    "windowTitle": "What you are looking at"
+    "windowTitle": "What you are looking at",
+    "termsFiled": "Bills use each supplier’s own payment terms where you have filed them."
   }
 }

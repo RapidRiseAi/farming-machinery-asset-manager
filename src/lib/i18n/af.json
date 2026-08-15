@@ -2592,7 +2592,8 @@
     "emptyBody": "Voeg die fakture by wat jou verskaffers stuur. Dan kan hierdie stelsel jou sê wat ’n maand werklik gemaak het, en wat jy SARS skuld.",
     "deletedFlash": "Verwyder.",
     "deleteTitle": "Verwyder hierdie aankoop?",
-    "deleteConsequence": "As hierdie tydperk se BTW reeds ingedien is, sal jou syfers nie meer ooreenstem met wat jy ingedien het nie."
+    "deleteConsequence": "As hierdie tydperk se BTW reeds ingedien is, sal jou syfers nie meer ooreenstem met wat jy ingedien het nie.",
+    "claimableNotRegistered": "Jy is nie vir BTW geregistreer nie, dus kan hierdie BTW nie teruggeëis word nie. Dit word vasgelê as deel van wat die rekening jou gekos het."
   },
   "vat": {
     "title": "BTW",
@@ -3245,7 +3246,8 @@
     "vatPercent": "BTW-koers",
     "viewInExpenses": "Sien dit by jou ander uitgawes",
     "whatItCosts": "Wat dit kos",
-    "whenTitle": "Wanneer dit afgaan"
+    "whenTitle": "Wanneer dit afgaan",
+    "claimableNotRegistered": "Jy is nie vir BTW geregistreer nie, dus tel hierdie BTW as deel van die koste eerder as iets om terug te eis."
   },
   "cash": {
     "apply": "Wys my",
@@ -3304,6 +3306,7 @@
     "windowEmpty": "Niks oor van hierdie maand nie",
     "windowFrom": "Vanaf {date}",
     "windowNow": "Reeds verskuldig, nou verwag",
-    "windowTitle": "Waarna jy kyk"
+    "windowTitle": "Waarna jy kyk",
+    "termsFiled": "Rekeninge gebruik elke verskaffer se eie betaalvoorwaardes waar jy dit ingevul het."
   }
 }

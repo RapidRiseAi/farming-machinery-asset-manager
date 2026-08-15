@@ -186,6 +186,16 @@ export function ExpenseForm({
           </p>
         ) : null}
 
+        {/* A business that is not registered for VAT can never reclaim input VAT, so asking
+            is not a choice — it is a question with one answer, and offering it invites the
+            wrong one. The 0490 trigger forces the column false regardless of what is
+            posted; this only stops the screen implying otherwise. The VAT itself is still
+            captured, because it really was paid — it is simply all cost. */}
+        {!vatRegistered ? (
+          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
+            {t("expenses.claimableNotRegistered", locale)}
+          </p>
+        ) : (
         <label className="flex items-start gap-3 text-sm text-sand-700">
           <input
             type="checkbox"
@@ -198,6 +208,7 @@ export function ExpenseForm({
             <span className="block text-xs text-sand-500">{t("expenses.claimableHint", locale)}</span>
           </span>
         </label>
+        )}
 
         <TextField name="supplier_vat_number" label={t("expenses.supplierVat", locale)} hint={t("expenses.supplierVatHint", locale)} />
 

@@ -9266,3 +9266,130 @@ end $$;
 reset role;
 
 select 'ALL G20 CASHFLOW TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G21 — VAT YOU CANNOT CLAIM, AND TERMS YOU ACTUALLY SET (0490, 0491)
+--
+-- Two rules that were captured and then not honoured, which is the worst of the three
+-- possible states: absent settings are obvious, wrong ones are visible, but a setting the
+-- product stores and ignores buys trust its output has not earned.
+--
+-- 1. A business not registered for VAT can NEVER reclaim input VAT. 0401 guarded the sales
+--    side — a non-registered partner's documents are forced to a zero rate. The purchase
+--    side had no equivalent, so a non-registered workshop could capture a supplier invoice
+--    at 15% with `vat_claimable` ticked (the default) and `app.partner_pl` would count the
+--    ex-VAT figure as the cost and nothing as blocked. Measured before 0490 on exactly
+--    that input: cost 100000, blocked 0, against R1 150 that genuinely left the bank —
+--    profit overstated by the VAT, on EVERY purchase the business makes.
+--
+-- 2. `suppliers.payment_terms_days` was asked for on /suppliers, stored, and then ignored
+--    by the forecast, which assumed 30 days for everybody. A partner could file "60 days"
+--    and read a cash-flow that spent the money in 30.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps)
+values ('7a000000-0000-0000-0000-000000000001', 'Not Registered Co', 'mechanic', false, 0),
+       ('7a000000-0000-0000-0000-000000000002', 'Registered Co',     'mechanic', true,  1500);
+
+-- ── (a) A non-registered business cannot store a claimable expense ───────────
+-- Written with vat_claimable TRUE on purpose: the guard must correct it, not trust it.
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values ('7a100000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001',
+        'Bearing Co', 'parts', current_date - 800, 100000, 1500, 15000, true);
+do $$ declare v boolean; begin
+  select vat_claimable into v from partner_expenses where id = '7a100000-0000-0000-0000-000000000001';
+  if v then
+    raise exception 'G21 FAIL: a workshop that is not registered for VAT stored a CLAIMABLE expense';
+  end if;
+end $$;
+
+-- ── (b) …and the money says so: all of it is cost ───────────────────────────
+-- The whole point. R1 150 left the bank, so R1 150 is the cost — not R1 000 with the VAT
+-- quietly forgotten.
+do $$ declare r record; begin
+  select * into r from app.partner_pl('7a000000-0000-0000-0000-000000000001',
+                                      current_date - 810, current_date - 790);
+  if r.blocked_vat_cents <> 15000 then
+    raise exception 'G21 FAIL: blocked VAT is % rather than 15000 for an unregistered business', r.blocked_vat_cents;
+  end if;
+  if r.cost_cents <> 115000 then
+    raise exception 'G21 FAIL: cost is % rather than 115000 - the VAT it can never reclaim is money it spent', r.cost_cents;
+  end if;
+end $$;
+
+-- ── (c) An update cannot smuggle the claim back in ───────────────────────────
+update partner_expenses set vat_claimable = true
+ where id = '7a100000-0000-0000-0000-000000000001';
+do $$ declare v boolean; begin
+  select vat_claimable into v from partner_expenses where id = '7a100000-0000-0000-0000-000000000001';
+  if v then raise exception 'G21 FAIL: an UPDATE restored a claim the business may not make'; end if;
+end $$;
+
+-- ── (d) A REGISTERED business is untouched ──────────────────────────────────
+-- The guard must be a rule about registration, not a blanket refusal.
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values ('7a100000-0000-0000-0000-000000000002', '7a000000-0000-0000-0000-000000000002',
+        'Bearing Co', 'parts', current_date - 800, 100000, 1500, 15000, true);
+do $$ declare v boolean; r record; begin
+  select vat_claimable into v from partner_expenses where id = '7a100000-0000-0000-0000-000000000002';
+  if not v then raise exception 'G21 FAIL: a REGISTERED business lost its claim'; end if;
+  select * into r from app.partner_pl('7a000000-0000-0000-0000-000000000002',
+                                      current_date - 810, current_date - 790);
+  if r.cost_cents <> 100000 or r.blocked_vat_cents <> 0 then
+    raise exception 'G21 FAIL: a registered business shows cost % blocked %, expected 100000 / 0',
+      r.cost_cents, r.blocked_vat_cents;
+  end if;
+end $$;
+
+-- ── (e) Registering later frees the claim, without rewriting history ────────
+-- The switch is a settings change, not a migration. Rows already captured keep what was
+-- true when they were captured; the next capture obeys the new answer.
+update workshops set vat_registered = true where id = '7a000000-0000-0000-0000-000000000001';
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values ('7a100000-0000-0000-0000-000000000003', '7a000000-0000-0000-0000-000000000001',
+        'Bearing Co', 'parts', current_date - 799, 100000, 1500, 15000, true);
+do $$ declare v_new boolean; v_old boolean; begin
+  select vat_claimable into v_new from partner_expenses where id = '7a100000-0000-0000-0000-000000000003';
+  select vat_claimable into v_old from partner_expenses where id = '7a100000-0000-0000-0000-000000000001';
+  if not v_new then raise exception 'G21 FAIL: after registering, a new expense still could not claim'; end if;
+  if v_old then raise exception 'G21 FAIL: registering rewrote an older row''s history'; end if;
+end $$;
+update workshops set vat_registered = false where id = '7a000000-0000-0000-0000-000000000001';
+
+-- ── (f) The forecast uses the supplier's OWN terms where they are filed ─────
+-- Two identical bills, same date, different suppliers: one filed at 60 days, one not filed
+-- at all. If the forecast ignored the record, both would land on the same day.
+insert into suppliers (id, workshop_id, name, payment_terms_days)
+values ('7a200000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000002', 'Slow Terms Co', 60);
+insert into partner_expenses (id, workshop_id, supplier_name, supplier_id, category, expense_date,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable, paid_on)
+values ('7a100000-0000-0000-0000-000000000004', '7a000000-0000-0000-0000-000000000002',
+        'Slow Terms Co', '7a200000-0000-0000-0000-000000000001', 'parts', current_date - 40,
+        100000, 1500, 15000, true, null),
+       ('7a100000-0000-0000-0000-000000000005', '7a000000-0000-0000-0000-000000000002',
+        'Unfiled Supplier', null, 'parts', current_date - 40,
+        100000, 1500, 15000, true, null);
+do $$ declare v_slow date; v_flat date; begin
+  select expected_date into v_slow from app.partner_cashflow_items('7a000000-0000-0000-0000-000000000002', 365)
+   where source_id = '7a100000-0000-0000-0000-000000000004';
+  select expected_date into v_flat from app.partner_cashflow_items('7a000000-0000-0000-0000-000000000002', 365)
+   where source_id = '7a100000-0000-0000-0000-000000000005';
+  if v_slow is null or v_flat is null then
+    raise exception 'G21 FAIL: an unpaid supplier bill fell out of the forecast entirely';
+  end if;
+  if v_slow <> current_date - 40 + 60 then
+    raise exception 'G21 FAIL: a supplier filed at 60 days is expected on % rather than %',
+      v_slow, current_date - 40 + 60;
+  end if;
+  if v_flat <> current_date - 40 + 30 then
+    raise exception 'G21 FAIL: an unfiled supplier lost the 30-day fallback (expected on %)', v_flat;
+  end if;
+  if v_slow = v_flat then
+    raise exception 'G21 FAIL: the forecast ignored the terms the partner filed - both bills land on one day';
+  end if;
+end $$;
+
+select 'ALL G21 VAT-REGISTRATION AND SUPPLIER-TERMS TESTS PASSED' as result;

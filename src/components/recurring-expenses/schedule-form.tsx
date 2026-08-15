@@ -170,13 +170,22 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
           </p>
         ) : null}
 
-        <label className="flex items-start gap-3 text-sm text-sand-700">
-          <input type="checkbox" name="vat_claimable" defaultChecked className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
-          <span>
-            {t("recexp.claimable", locale)}
-            <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
-          </span>
-        </label>
+        {/* Not offered when the business is not registered for VAT: it can never reclaim
+            input VAT, so the question has one answer. The 0490 trigger forces it either
+            way; this stops the screen suggesting a choice exists. */}
+        {vatRegistered ? (
+          <label className="flex items-start gap-3 text-sm text-sand-700">
+            <input type="checkbox" name="vat_claimable" defaultChecked className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
+            <span>
+              {t("recexp.claimable", locale)}
+              <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
+            </span>
+          </label>
+        ) : (
+          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
+            {t("recexp.claimableNotRegistered", locale)}
+          </p>
+        )}
 
         <label className="flex items-start gap-3 text-sm text-sand-700">
           <input type="checkbox" name="auto_paid" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
