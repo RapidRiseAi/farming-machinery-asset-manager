@@ -48,7 +48,11 @@ begin
                          bank_name, bank_account_name, bank_account_number, bank_branch_code, bank_account_type,
                          brand_primary, brand_secondary, doc_prefix_quote, doc_prefix_invoice,
                          quote_validity_days, invoice_terms_days, doc_terms, doc_footer) values
-    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'managed',
+    -- 'books' (0492) rather than 'managed': the demo partner is the one every gated
+    -- surface is shown from, so it carries the top product for the same reason the demo
+    -- FARM carries 'complete'. A demo that hides half the product demonstrates the gate,
+    -- not the product.
+    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'books',
      '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville',
      'TJ Service & Repairs', '2016/447123/07', '4820291847',
      E'12 Voortrekkerstraat\nBothaville 9660\nVrystaat', 'www.tjrepairs.example',

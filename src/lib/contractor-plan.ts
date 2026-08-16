@@ -27,13 +27,14 @@
  * `app.has_entitlement`). PAYMENTS ARE DEFERRED — no money moves here.
  */
 
-export const WORKSHOP_PLANS = ["portal", "managed"] as const;
+export const WORKSHOP_PLANS = ["portal", "managed", "books"] as const;
 export type WorkshopPlan = (typeof WORKSHOP_PLANS)[number];
 
 /** Ordered rank; a higher plan unlocks everything a lower one does. */
 export const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
   portal: 1,
   managed: 2,
+  books: 3,
 };
 
 /**
@@ -50,6 +51,11 @@ export const WORKSHOP_FEATURE_MIN_PLAN = {
   build_documents: "managed",
   record_payments: "managed",
   client_analytics: "managed",
+  // The financial-management layer (0492). One feature key rather than nine, because a
+  // partner does not buy "the VAT screen" - they buy running their books here, and a map
+  // with nine near-identical rows invites them to drift apart the first time somebody
+  // gates a new screen and forgets one.
+  financials: "books",
 } as const satisfies Record<string, WorkshopPlan>;
 
 export type WorkshopFeature = keyof typeof WORKSHOP_FEATURE_MIN_PLAN;
@@ -83,7 +89,14 @@ export function workshopPlanNameKey(plan: WorkshopPlan): string {
  * difference in price alongside the difference in product, rather than leaving "there is
  * a price difference" as folklore.
  */
-export const WORKSHOP_PLAN_PRICE_MONTHLY: Record<WorkshopPlan, number> = {
-  portal: 499,
-  managed: 1299,
+/**
+ * DELIBERATELY UNSET while the three-tier ladder is priced (0492). The console renders a
+ * dash where a number is missing rather than a stale one: a wrong price shown to the
+ * person who sells the product is worse than no price, because it gets quoted. Nothing
+ * here charges anyone either way — the billing adapter is still the no-op.
+ */
+export const WORKSHOP_PLAN_PRICE_MONTHLY: Record<WorkshopPlan, number | null> = {
+  portal: null,
+  managed: null,
+  books: null,
 };

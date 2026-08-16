@@ -9393,3 +9393,145 @@ do $$ declare v_slow date; v_flat date; begin
 end $$;
 
 select 'ALL G21 VAT-REGISTRATION AND SUPPLIER-TERMS TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G22 — THE BOOKS TIER, AND WHY IT IS NOT A TENANCY CONTROL (0492)
+--
+-- A third partner product sits above `managed` and unlocks the accounting half of the
+-- product: profit and loss, cash flow, the VAT return, expenses, suppliers, purchase
+-- orders, standing costs and bank reconciliation.
+--
+-- There is a real temptation, when a tier is worth money, to enforce it in SQL — and that
+-- would be a mistake this codebase has deliberately avoided since 0320. A partner's
+-- isolation must never depend on what they PAID: a lapsed subscription that silently
+-- widened what a contractor could read would be a catastrophe, and a downgrade that
+-- narrowed it would look like data loss. So the plan gates SCREENS (app-side, in
+-- `src/lib/contractor-plan.ts`) while RLS + `workshop_links` gate ROWS, exactly as before.
+--
+-- What must therefore be proven here is the opposite of the usual entitlement test:
+--
+--   1. the new rung exists and nobody was moved onto it;
+--   2. a partner cannot promote ITSELF onto it (the money question);
+--   3. buying it changes NOTHING about what a partner can see (the safety question) —
+--      the same contractor reads the same rows on `books` as on `portal`.
+--
+-- (3) is the assertion that would fail if someone ever "helpfully" mirrored this map into
+-- a policy.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── (a) The rung exists, and the default did not move ────────────────────────
+do $$ declare n int; d text; begin
+  select count(*) into n from pg_enum e
+    join pg_type t on t.oid = e.enumtypid
+   where t.typname = 'workshop_plan' and e.enumlabel = 'books';
+  if n <> 1 then raise exception 'G22 FAIL: workshop_plan has no books label'; end if;
+
+  select column_default into d from information_schema.columns
+   where table_schema = 'public' and table_name = 'workshops' and column_name = 'plan';
+  if d is null or position('portal' in d) = 0 then
+    raise exception 'G22 FAIL: the default partner product is % - a new partner must not start on a paid rung', d;
+  end if;
+end $$;
+
+-- ── (b) Nobody was silently promoted or demoted by the migration ─────────────
+-- 0492 adds a label; it must not touch a single existing row. A migration that moved
+-- partners onto a tier is either giving the product away or repossessing it. Checked
+-- WITHOUT a login on purpose: this is a statement about every row in the table, not about
+-- what any one person can see.
+do $$ declare n bigint; begin
+  select count(*) into n from workshops where plan = 'books';
+  if n <> 0 then
+    raise exception 'G22 FAIL: % workshop(s) were moved onto books by a migration', n;
+  end if;
+end $$;
+
+set role authenticated;
+
+-- ── (c) A partner cannot buy itself the books ────────────────────────────────
+-- The same 0380/0382 guard that refuses a self-set 'managed' must refuse 'books'. Asserted
+-- separately because a guard written as an equality against one label would pass the
+-- existing F14 test and let this one through.
+do $$ begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  begin
+    update workshops set plan = 'books' where id = '33333333-3333-3333-3333-333333333333';
+    raise exception 'G22 FAIL [self-upgrade]: a partner promoted itself onto the top product';
+  exception
+    when raise_exception then
+      if position('set by Rapid Rise' in sqlerrm) = 0 then raise; end if;
+  end;
+end $$;
+
+-- ── (d) The plan is not, and must never become, a visibility rule ────────────
+-- Count what Workshop W can read on `portal`, buy it the top product as RR, and count
+-- again. The numbers must be identical. If a future change mirrors the entitlement map
+-- into a policy, this is where it is caught.
+--
+-- Note the `set role authenticated` above: without it these counts run as the owner, RLS
+-- is bypassed, and the whole comparison degenerates into reading the same raw table
+-- twice. The non-zero guard below exists for the same reason — a before/after test whose
+-- baseline is zero passes no matter what the policies do.
+do $$
+declare
+  before_docs bigint; after_docs bigint;
+  before_wr   bigint; after_wr   bigint;
+  before_mach bigint; after_mach bigint;
+begin
+  perform _t_login('d4444444-4444-4444-4444-444444444444');            -- RR admin sets plans
+  update workshops set plan = 'portal' where id = '33333333-3333-3333-3333-333333333333';
+
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
+  select count(*) into before_docs from partner_documents;
+  select count(*) into before_wr   from work_requests;
+  select count(*) into before_mach from machines;
+
+  if before_docs = 0 or before_wr = 0 then
+    raise exception 'G22 FAIL [vacuous]: Workshop W reads % document(s) and % request(s) on the base plan - this test proves nothing until it can see something',
+      before_docs, before_wr;
+  end if;
+
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  update workshops set plan = 'books' where id = '33333333-3333-3333-3333-333333333333';
+
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  select count(*) into after_docs from partner_documents;
+  select count(*) into after_wr   from work_requests;
+  select count(*) into after_mach from machines;
+
+  if (before_docs, before_wr, before_mach) is distinct from (after_docs, after_wr, after_mach) then
+    raise exception 'G22 FAIL: buying the top product changed what a partner can SEE (docs %->%, requests %->%, machines %->%) - the plan has become a tenancy control',
+      before_docs, after_docs, before_wr, after_wr, before_mach, after_mach;
+  end if;
+
+  -- …and the reverse: a downgrade must not widen anything either.
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  update workshops set plan = 'portal' where id = '33333333-3333-3333-3333-333333333333';
+  perform _t_login('c3333333-3333-3333-3333-333333333333');
+  select count(*) into after_docs from partner_documents;
+  if after_docs <> before_docs then
+    raise exception 'G22 FAIL: a DOWNGRADE changed what a partner can see (% -> %)', before_docs, after_docs;
+  end if;
+
+  -- Leave W where the rest of the suite expects to find it.
+  perform _t_login('d4444444-4444-4444-4444-444444444444');
+  update workshops set plan = 'managed' where id = '33333333-3333-3333-3333-333333333333';
+end $$;
+
+reset role;
+
+-- ── (e) There is deliberately no SQL mirror of the partner entitlement map ───
+-- The farm plan has `app.has_entitlement` because farm entitlements gate row-returning
+-- RPCs. The partner plan gates screens, so a function of this shape appearing would mean
+-- somebody had started enforcing a PRICE in the database — see (d) for why that is the
+-- wrong place. Named explicitly so the decision is refused, not merely undocumented.
+do $$ declare n int; begin
+  select count(*) into n from pg_proc p
+    join pg_namespace ns on ns.oid = p.pronamespace
+   where ns.nspname = 'app' and p.proname in ('has_workshop_entitlement', 'workshop_plan_rank',
+                                              'workshop_feature_min_rank');
+  if n <> 0 then
+    raise exception 'G22 FAIL: % SQL mirror(s) of the partner entitlement map exist - the partner plan must gate screens, never rows', n;
+  end if;
+end $$;
+
+select 'ALL G22 PARTNER BOOKS-TIER TESTS PASSED' as result;

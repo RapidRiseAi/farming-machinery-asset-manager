@@ -1362,4 +1362,71 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - 48 suite banners. i18n EN/AF at parity (**3 075 leaf keys**). Gates green; shared
     first-load JS flat at **102 kB**.
 
+- **Two settings the product asked for and then ignored, and a third partner product**
+  (migrations `0490–0492`; isolation-tested, `db:test` green; all three applied to the
+  demo project and driven live):
+  - Auditing the financial layer against a standard SMB system found two settings that
+    were captured, stored and then not honoured — the worst of the three possible states,
+    because an absent setting is obvious and a wrong one is visible, while a setting the
+    product asks for and ignores buys trust its output has not earned.
+    **`0490`**: `vat_registered` guarded the SALES side since 0401, but nothing guarded
+    the PURCHASE side, so a business not registered for VAT could capture a supplier
+    invoice with `vat_claimable` ticked (the default) and have `app.partner_pl` treat the
+    ex-VAT figure as the cost. Measured on exactly that input before the fix: cost 100000,
+    blocked 0, against R1 150 that genuinely left the bank — profit overstated by the VAT
+    on **every purchase the business makes**. A BEFORE trigger on `partner_expenses` and
+    `recurring_expenses` now forces the flag false for an unregistered issuer (an UPDATE
+    cannot smuggle it back), and the capture forms stop offering a choice that has one
+    answer. Registering later frees the next capture without rewriting history.
+    **`0491`**: `suppliers.payment_terms_days` was asked for on `/suppliers` and then
+    ignored by the forecast, which assumed 30 days for everyone — so a partner could file
+    "60 days" and read a cash-flow that spent the money in 30. Now
+    `coalesce(supplier.payment_terms_days, 30)`, with the fallback still stated in words
+    for a supplier nobody has filed. **G21** pins both, including the direction that
+    catches a blanket refusal (a REGISTERED business must be untouched).
+  - **`0492` — a third partner product, `books`.** 0382 shaped the partner offer as two
+    products rather than two sizes; since then a whole financial-management layer has
+    grown above it, and that is not a bigger version of invoicing — it is the difference
+    between writing the invoice and knowing whether the month made money. `books` sits
+    above `managed` and unlocks exactly the **purchase and accounting half**: `/money`,
+    `/cashflow`, `/vat`, `/expenses`, `/recurring-expenses`, `/suppliers`, `/orders`,
+    `/banking`. The **sales** half (documents, statements, standing invoices, corrections)
+    stays on `managed` where it was — the tier is an upgrade, never a repossession, which
+    is the same promise 0382 made when it kept uploading-your-own-paperwork free forever.
+    One feature key (`financials`) rather than nine, because a partner does not buy "the
+    VAT screen".
+  - **Gated at the route AND the action**, per the F5 rule: 8 pages return a server-
+    rendered `UpgradeNotice` before any query runs, **all 30 exported server actions** in
+    the five actions files call the new `requireWorkshopEntitlement`, and the two VAT API
+    routes answer **403** rather than redirecting (a 302 to HTML hands the caller a "CSV"
+    full of markup). `UpgradeNotice` widened to take either plan family — the two label
+    sets are disjoint, so the naming scheme is decided by the value, and its CTA now sends
+    a partner to `/contractor` instead of a farm's vehicle list.
+  - **Pricing deliberately unset**: `WORKSHOP_PLAN_PRICE_MONTHLY` is `number | null` with
+    all three null, and the admin console renders a **dash** and says why. A wrong price
+    shown to the person who sells the product is worse than no price, because it gets
+    quoted. Nothing charges anyone — the billing adapter is still the no-op.
+  - **`rls_isolation.sql` G22** proves the *opposite* of the usual entitlement test, because
+    the partner plan must never become a tenancy control: the rung exists, the default did
+    not move, **no row was promoted by the migration**, a partner cannot promote **itself**
+    (asserted separately — a guard written as an equality against one label would pass the
+    existing F14 test), buying the top product changes **nothing** about what a partner can
+    SEE (and neither does a downgrade), and **no SQL mirror** of the map exists, named
+    explicitly so the decision is refused rather than merely undocumented.
+  - **Two ways this session's own tests were nearly worthless, both caught by measuring.**
+    The G22 visibility blocks originally ran without `set role authenticated`, so they
+    compared 48 raw rows to 48 raw rows with RLS bypassed — now they run as the role and
+    **refuse to pass with a zero baseline**. And the live action test first reported "no
+    row created", which is exactly what a button that never submitted also produces; re-run
+    with the network traced, it shows **1 POST → HTTP 303 → `?error=upgrade_required`**,
+    the notice rendered, the form gone and zero rows written.
+  - **Driven live** against the demo project as two partners: TJ (`books`) gets all 8
+    screens and 8/8 nav items; Volt (`portal`) gets the upgrade notice on all 8 URLs,
+    0/8 nav items, `403` on both VAT routes, and keeps documents/statements/contractor
+    throughout. The lapsed-subscription case — form opened while entitled, tier revoked
+    underneath it, Save pressed — is refused at the action. Demo partner set to `books`;
+    nothing else moved, and no demo data was written beyond the plan changes.
+  - i18n EN/AF at parity (**3 080 leaf keys**). 50 suite banners. Gates green; shared
+    first-load JS flat at **102 kB**.
+
 > Update this "current status" block at the end of every session.

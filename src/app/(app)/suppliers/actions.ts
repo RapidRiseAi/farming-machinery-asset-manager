@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { isDuplicateName } from "@/lib/suppliers";
 
 /**
@@ -55,6 +55,7 @@ export async function createSupplier(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/suppliers");
 
   const name = s(formData, "name");
   if (!name) redirect("/suppliers?error=need-name");
@@ -78,6 +79,7 @@ export async function createSupplier(formData: FormData) {
 
 export async function updateSupplier(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/suppliers");
   const id = String(formData.get("supplier_id") ?? "");
   const name = s(formData, "name");
   if (!id) redirect("/suppliers?error=not-found");
@@ -106,6 +108,7 @@ export async function updateSupplier(formData: FormData) {
  */
 export async function setSupplierActive(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/suppliers");
   const id = String(formData.get("supplier_id") ?? "");
   if (!id) redirect("/suppliers?error=not-found");
   const active = String(formData.get("active") ?? "") === "1";
@@ -133,6 +136,7 @@ export async function setSupplierActive(formData: FormData) {
  */
 export async function deleteSupplier(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/suppliers");
   const id = String(formData.get("supplier_id") ?? "");
   if (!id) redirect("/suppliers?error=not-found");
 

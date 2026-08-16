@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
@@ -67,6 +67,7 @@ export async function createExpenseSchedule(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/recurring-expenses");
 
   const name = s(formData, "name");
   if (!name) redirect("/recurring-expenses?error=need-name");
@@ -114,6 +115,7 @@ export async function createExpenseSchedule(formData: FormData) {
 
 export async function updateExpenseSchedule(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/recurring-expenses");
   const id = String(formData.get("schedule_id") ?? "");
   if (!id) redirect("/recurring-expenses?error=not-found");
 
@@ -158,6 +160,7 @@ export async function updateExpenseSchedule(formData: FormData) {
  */
 export async function toggleExpenseSchedule(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/recurring-expenses");
   const id = String(formData.get("schedule_id") ?? "");
   const active = String(formData.get("active") ?? "") === "1";
   const supabase = await createClient();
@@ -181,6 +184,7 @@ export async function toggleExpenseSchedule(formData: FormData) {
  */
 export async function runExpenseScheduleNow(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/recurring-expenses");
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("run_recurring_expense", { p_id: id });
@@ -201,6 +205,7 @@ export async function runExpenseScheduleNow(formData: FormData) {
  */
 export async function deleteExpenseSchedule(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/recurring-expenses");
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
   await supabase

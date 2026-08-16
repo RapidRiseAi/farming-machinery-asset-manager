@@ -1,4 +1,4 @@
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, workshopEntitlementOr403 } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
 import { rands } from "@/lib/money";
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) return new Response("Forbidden", { status: 403 });
+  const denied = await workshopEntitlementOr403("financials", profile);
+  if (denied) return denied;
 
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? "";

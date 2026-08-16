@@ -648,7 +648,8 @@
       "voice_ai": "the voice assistant",
       "multi_site": "multi-site",
       "whatsapp": "WhatsApp alerts",
-      "api_access": "API access"
+      "api_access": "API access",
+      "financials": "Running the books"
     }
   },
   "ui": {
@@ -1502,7 +1503,8 @@
     "free": "Free",
     "pro": "Pro",
     "portal": "Portal",
-    "managed": "Managed"
+    "managed": "Managed",
+    "books": "Books"
   },
   "contractor": {
     "title": "Contractor dashboard",

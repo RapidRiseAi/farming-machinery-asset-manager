@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseStatement, MAX_STATEMENT_ROWS } from "@/lib/banking";
 
 /**
@@ -52,6 +52,7 @@ export async function importBankStatement(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/banking");
 
   const csv = String(formData.get("csv") ?? "");
   const parsed = parseStatement(csv);
@@ -128,6 +129,7 @@ export async function importBankStatement(formData: FormData) {
  */
 export async function confirmMatch(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/banking");
   const lineId = s(formData, "line_id");
   const targetId = s(formData, "target_id");
   const kind = String(formData.get("target_kind") ?? "");
@@ -230,6 +232,7 @@ export async function confirmMatch(formData: FormData) {
  */
 export async function undoMatch(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/banking");
   const lineId = s(formData, "line_id");
   if (!lineId) redirect("/banking?error=not_found");
 
@@ -272,6 +275,7 @@ export async function undoMatch(formData: FormData) {
  */
 export async function setAsideLine(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/banking");
   const lineId = s(formData, "line_id");
   if (!lineId) redirect("/banking?error=not_found");
 
@@ -288,6 +292,7 @@ export async function setAsideLine(formData: FormData) {
 
 export async function restoreLine(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/banking");
   const lineId = s(formData, "line_id");
   if (!lineId) redirect("/banking?error=not_found");
 
@@ -312,6 +317,7 @@ export async function restoreLine(formData: FormData) {
  */
 export async function removeLine(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/banking");
   const lineId = s(formData, "line_id");
   if (!lineId) redirect("/banking?error=not_found");
 

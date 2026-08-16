@@ -61,11 +61,17 @@ export default async function AdminPartnersPage({
   const docsBy = new Map<string, number>();
   for (const d of docs) if (d.status !== "draft") docsBy.set(d.workshop_id, (docsBy.get(d.workshop_id) ?? 0) + 1);
 
-  const onManaged = partners.filter((p) => p.plan === "managed").length;
-  const indicativeMonthly = partners.reduce(
-    (sum, p) => sum + (WORKSHOP_PLAN_PRICE_MONTHLY[p.plan as keyof typeof WORKSHOP_PLAN_PRICE_MONTHLY] ?? 0),
-    0,
-  );
+  const onBooks = partners.filter((p) => p.plan === "books").length;
+  // A dash where a price has not been set, never a zero: "R0,00/month" reads as a decision
+  // somebody made, and this console is where the product gets quoted from.
+  const priceOf = (plan: string) =>
+    WORKSHOP_PLAN_PRICE_MONTHLY[plan as keyof typeof WORKSHOP_PLAN_PRICE_MONTHLY] ?? null;
+  const priceLabel = (plan: string) => {
+    const p = priceOf(plan);
+    return p == null ? "—" : `${rands(p * 100)}/month`;
+  };
+  const priced = partners.filter((p) => priceOf(p.plan) != null);
+  const indicativeMonthly = priced.reduce((sum, p) => sum + (priceOf(p.plan) ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,8 +82,10 @@ export default async function AdminPartnersPage({
       <Card>
         <CardHeader><CardTitle>At a glance</CardTitle></CardHeader>
         <p className="text-sm text-sand-600">
-          {partners.length} partner{partners.length === 1 ? "" : "s"} · {onManaged} on Managed ·{" "}
-          indicative {rands(indicativeMonthly * 100)}/month across all of them (VAT incl., display only — nothing is charged).
+          {partners.length} partner{partners.length === 1 ? "" : "s"} · {onBooks} on Books ·{" "}
+          {priced.length === 0
+            ? "the ladder is not priced yet, so there is no subtotal to show."
+            : `indicative ${rands(indicativeMonthly * 100)}/month across the ${priced.length} priced (VAT incl., display only — nothing is charged).`}
         </p>
       </Card>
 
@@ -121,10 +129,7 @@ export default async function AdminPartnersPage({
                           </option>
                         ))}
                       </Select>
-                      <span className="tabular-nums text-sand-600">
-                        {rands((WORKSHOP_PLAN_PRICE_MONTHLY[p.plan as keyof typeof WORKSHOP_PLAN_PRICE_MONTHLY] ?? 0) * 100)}
-                        /month
-                      </span>
+                      <span className="tabular-nums text-sand-600">{priceLabel(p.plan)}</span>
                       <SubmitButton variant="secondary" size="sm">Save</SubmitButton>
                     </form>
                   </Td>
@@ -143,10 +148,10 @@ export default async function AdminPartnersPage({
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>What the two products are</CardTitle></CardHeader>
+        <CardHeader><CardTitle>What the three products are</CardTitle></CardHeader>
         <dl className="flex flex-col gap-3 text-sm">
           <div>
-            <dt className="font-medium text-sand-900">Portal — {rands(WORKSHOP_PLAN_PRICE_MONTHLY.portal * 100)}/month</dt>
+            <dt className="font-medium text-sand-900">Portal — {priceLabel("portal")}</dt>
             <dd className="text-sand-600">
               Their customers see their fleet with the partner in it: work requests, vehicle history, their own
               letterhead, and attaching the quotes and invoices they already produce elsewhere. Their existing
@@ -154,13 +159,26 @@ export default async function AdminPartnersPage({
             </dd>
           </div>
           <div>
-            <dt className="font-medium text-sand-900">Managed — {rands(WORKSHOP_PLAN_PRICE_MONTHLY.managed * 100)}/month</dt>
+            <dt className="font-medium text-sand-900">Managed — {priceLabel("managed")}</dt>
             <dd className="text-sand-600">
-              Everything above, plus running the commercial side here: quotes and invoices built line by line,
-              quote-to-invoice conversion, payments and proofs, and cross-client analytics.
+              Everything above, plus billing their customers here: quotes and invoices built line by line,
+              quote-to-invoice conversion, statements of account, payments and proofs, and cross-client analytics.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium text-sand-900">Books — {priceLabel("books")}</dt>
+            <dd className="text-sand-600">
+              Everything above, plus running the business here rather than only billing from it: profit and loss,
+              cash-flow forecasting, the VAT return, expenses and receipts, suppliers, purchase orders, standing
+              costs and bank reconciliation. The difference between writing the invoice and knowing whether the
+              month made money.
             </dd>
           </div>
         </dl>
+        <p className="mt-3 text-xs text-sand-500">
+          Prices are not set yet, so this console shows a dash rather than a number. Nothing here charges
+          anyone either way — the billing adapter is still the no-op.
+        </p>
       </Card>
     </div>
   );

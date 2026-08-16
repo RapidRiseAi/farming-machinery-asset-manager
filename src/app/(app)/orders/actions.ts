@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
@@ -81,6 +81,7 @@ export async function createOrder(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/orders");
 
   const supplier = s(formData, "supplier_name");
   if (!supplier) redirect(`${HOME}?error=po-needSupplier`);
@@ -113,6 +114,7 @@ export async function createOrder(formData: FormData) {
 
 export async function updateOrder(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
@@ -150,6 +152,7 @@ export async function updateOrder(formData: FormData) {
  */
 export async function setOrderStatus(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   const raw = String(formData.get("status") ?? "");
   const allowed: PurchaseOrderStatus[] = ["draft", "sent", "closed", "cancelled"];
@@ -178,6 +181,7 @@ export async function setOrderStatus(formData: FormData) {
  */
 export async function deleteOrder(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
@@ -205,6 +209,7 @@ export async function addLine(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/orders");
 
   const id = String(formData.get("order_id") ?? "");
   const description = s(formData, "description");
@@ -251,6 +256,7 @@ export async function addLine(formData: FormData) {
  */
 export async function saveLine(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   const lineId = String(formData.get("line_id") ?? "");
   if (!id || !lineId) redirect(`${HOME}?error=po-notFound`);
@@ -287,6 +293,7 @@ export async function saveLine(formData: FormData) {
 
 export async function removeLine(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   const lineId = String(formData.get("line_id") ?? "");
   if (!id || !lineId) redirect(`${HOME}?error=po-notFound`);
@@ -312,6 +319,7 @@ export async function removeLine(formData: FormData) {
  */
 export async function receiveAll(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/orders");
   const id = String(formData.get("order_id") ?? "");
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
@@ -357,6 +365,7 @@ export async function convertOrder(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/orders");
 
   const id = String(formData.get("order_id") ?? "");
   if (!id) redirect(`${HOME}?error=po-notFound`);

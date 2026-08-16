@@ -648,7 +648,8 @@
       "voice_ai": "die stemassistent",
       "multi_site": "veelvuldige plekke",
       "whatsapp": "WhatsApp-kennisgewings",
-      "api_access": "API-toegang"
+      "api_access": "API-toegang",
+      "financials": "Om die boeke te hou"
     }
   },
   "ui": {
@@ -1502,7 +1503,8 @@
     "free": "Gratis",
     "pro": "Pro",
     "portal": "Portaal",
-    "managed": "Bestuur"
+    "managed": "Bestuur",
+    "books": "Boeke"
   },
   "contractor": {
     "title": "Kontrakteur-paneelbord",

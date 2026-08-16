@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { requireProfile, currentWorkshop } from "@/lib/auth";
+import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -46,6 +47,22 @@ export default async function ExpensesPage({
 
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+
+  // Running the books here is the `books` product (0492). Denied BEFORE any query runs,
+  // so a partner without it never causes the data to be read, let alone rendered.
+  const gate = await checkWorkshopEntitlement("financials", profile);
+  if (!gate.allowed) {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <UpgradeNotice
+          feature="financials"
+          requiredPlan={gate.requiredPlan}
+          currentPlan={gate.plan}
+          locale={locale}
+        />
+      </div>
+    );
+  }
 
   const supabase = await createClient();
   const [{ data }, { data: supplierData }, { data: orderData }] = await Promise.all([

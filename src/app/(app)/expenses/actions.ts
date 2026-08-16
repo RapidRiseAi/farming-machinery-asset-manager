@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
@@ -89,6 +89,7 @@ export async function createExpense(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/expenses");
 
   const m = money(formData);
   if (!m) redirect("/expenses?error=need-amount");
@@ -163,6 +164,7 @@ export async function attachReceipt(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) redirect("/contractor?error=no-workshop");
+  await requireWorkshopEntitlement("financials", "/expenses");
 
   const id = String(formData.get("expense_id") ?? "");
   if (!id) redirect("/expenses?error=not-found");
@@ -191,6 +193,7 @@ export async function attachReceipt(formData: FormData) {
  */
 export async function removeReceipt(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   if (!id) redirect("/expenses?error=not-found");
 
@@ -207,6 +210,7 @@ export async function removeReceipt(formData: FormData) {
 
 export async function updateExpense(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   if (!id) redirect("/expenses?error=not-found");
 
@@ -255,6 +259,7 @@ export async function updateExpense(formData: FormData) {
  */
 export async function markExpensePaid(formData: FormData) {
   await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   const supabase = await createClient();
   await supabase
@@ -272,6 +277,7 @@ export async function markExpensePaid(formData: FormData) {
  */
 export async function deleteExpense(formData: FormData) {
   const profile = await requireRole(["workshop"]);
+  await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   const supabase = await createClient();
   await supabase

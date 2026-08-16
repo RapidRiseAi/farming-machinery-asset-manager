@@ -6,6 +6,7 @@ import {
   effectiveFarmRole,
   getFarmPlan,
   supportFarm,
+  checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
@@ -68,6 +69,16 @@ export default async function AppLayout({
   // Logo/home link must point somewhere the role/plan can actually open. A contractor's
   // home is their aggregated dashboard (F12c).
   const homeHref = isWorkshop ? "/contractor" : isOperator ? "/driver" : dashAllowed ? "/dashboard" : "/machines";
+
+  // The partner's own product ladder (0492), which is a different axis from the farm plan
+  // above: `books` unlocks running the business here — the purchase and accounting half
+  // (P&L, cash flow, VAT, expenses, suppliers, orders, bank reconciliation). The SALES
+  // half (documents, statements, standing invoices, corrections) stays where 0382 put it,
+  // so no partner loses a screen they already use. Hiding here is courtesy; the refusal
+  // that matters is on each page and action.
+  const booksAllowed = isWorkshop
+    ? (await checkWorkshopEntitlement("financials", profile)).allowed
+    : false;
 
   // Owner/manager activity inbox (F13): unread badge on the nav. Only the two roles that
   // own the inbox pay the extra query; the count runs under RLS (own farm only).
@@ -169,8 +180,14 @@ export default async function AppLayout({
     : isOperator
       ? [driverHome, machines, faults]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
+  // The eight screens that make up running the books here (0492). Listed once and reused
+  // by both shells, so the phone and the desktop can never disagree about what a
+  // partner's product includes.
+  const booksItems: NavItemData[] = booksAllowed
+    ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat]
+    : [];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -202,7 +219,7 @@ export default async function AppLayout({
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, corrections] },
+        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, ...booksItems, corrections] },
         { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
         { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
       ]

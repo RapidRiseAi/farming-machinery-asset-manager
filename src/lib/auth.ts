@@ -381,3 +381,34 @@ export async function checkWorkshopEntitlement(
   const allowed = plan == null ? false : workshopPlanAllows(plan, feature);
   return { profile: p, plan, feature, requiredPlan: workshopRequiredPlan(feature), allowed };
 }
+
+/**
+ * Enforce a partner entitlement in a SERVER ACTION. The twin of `requireEntitlement` for
+ * the farm side, and the reason it exists is the same one F5 recorded: a page that renders
+ * an upgrade notice has hidden the screen, not closed the door — the action behind it is
+ * still a POST endpoint anybody with the form can reach. `redirectTo` is the surface
+ * itself, which renders the notice, so a denied submit lands somewhere that explains
+ * itself rather than on a blank error.
+ */
+export async function requireWorkshopEntitlement(
+  feature: WorkshopFeature,
+  redirectTo: string,
+  profile?: Profile
+): Promise<Profile> {
+  const { profile: p, allowed } = await checkWorkshopEntitlement(feature, profile);
+  if (!allowed) redirect(`${redirectTo}?error=upgrade_required`);
+  return p;
+}
+
+/**
+ * The same rule for an API route, which must answer with a status rather than a
+ * redirect — a CSV or PDF endpoint that 302s to an HTML page hands the caller a file
+ * full of markup. 403 matches how F5 denied the farm-side report exports.
+ */
+export async function workshopEntitlementOr403(
+  feature: WorkshopFeature,
+  profile?: Profile
+): Promise<Response | null> {
+  const { allowed } = await checkWorkshopEntitlement(feature, profile);
+  return allowed ? null : new Response("Forbidden", { status: 403 });
+}
