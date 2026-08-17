@@ -40,6 +40,53 @@ function back(fd: FormData, fallback: string): string {
   return to.startsWith("/") && !to.startsWith("//") ? to : fallback;
 }
 
+/**
+ * The payment terms that actually apply to a document's recipient.
+ *
+ * A customer's own filed terms beat the partner's default — that is what agreeing terms
+ * with a customer means, and retyping them on every invoice is how they drift. This exists
+ * as one function because it was previously inline in ONE of the three places that raise an
+ * invoice: converting a quote and raising a progress stage both used the workshop default,
+ * so a customer on 60 days got a 30-day due date depending on which button was pressed.
+ * Same class of defect as 0491 (a supplier's filed terms ignored by the forecast).
+ *
+ * Resolved for BOTH recipient kinds: a client record directly, and a linked FleetWise farm
+ * via the client record that points at it (F15 sets `partner_clients.farm_id`). Without the
+ * second arm, terms filed against a farm customer would be silently ignored.
+ */
+async function termsDaysFor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  // Nullable because a farm-side user has no workshop. Only the farm-linked lookup needs
+  // it, and with no workshop there is no client book to look in.
+  workshopId: string | null,
+  kind: DocKind | string,
+  recipient: { farm_id: string | null; partner_client_id: string | null },
+  branding: { quoteValidityDays: number; invoiceTermsDays: number },
+): Promise<number> {
+  // A quote expires on its validity period; terms are a billing concept.
+  if (kind === "quote") return branding.quoteValidityDays;
+
+  let filed: number | null = null;
+  if (recipient.partner_client_id) {
+    const { data } = await supabase
+      .from("partner_clients")
+      .select("payment_terms_days")
+      .eq("id", recipient.partner_client_id)
+      .maybeSingle();
+    filed = (data as { payment_terms_days: number | null } | null)?.payment_terms_days ?? null;
+  } else if (recipient.farm_id && workshopId) {
+    const { data } = await supabase
+      .from("partner_clients")
+      .select("payment_terms_days")
+      .eq("workshop_id", workshopId)
+      .eq("farm_id", recipient.farm_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    filed = (data as { payment_terms_days: number | null } | null)?.payment_terms_days ?? null;
+  }
+  return filed ?? branding.invoiceTermsDays;
+}
+
 type DocRow = {
   id: string;
   farm_id: string | null;
@@ -182,18 +229,7 @@ export async function createDocument(formData: FormData) {
   });
   if (numErr) redirect(`/documents?error=${encodeURIComponent(numErr.message)}`);
 
-  // A client's own payment terms beat the partner's default — that is what agreeing terms
-  // with a customer means, and retyping them on every invoice is how they drift.
-  let termsDays = kind === "quote" ? branding.quoteValidityDays : branding.invoiceTermsDays;
-  if (recipient.partner_client_id && kind === "invoice") {
-    const { data: client } = await supabase
-      .from("partner_clients")
-      .select("payment_terms_days")
-      .eq("id", recipient.partner_client_id)
-      .maybeSingle();
-    const days = (client as { payment_terms_days: number | null } | null)?.payment_terms_days;
-    if (days != null) termsDays = days;
-  }
+  const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding);
 
   const { data, error } = await supabase
     .from("partner_documents")
@@ -387,10 +423,24 @@ export async function convertQuoteToInvoice(formData: FormData) {
     .maybeSingle();
   const src = (full ?? {}) as { subject?: string | null; notes?: string | null; terms?: string | null; discount_cents?: number; vat_rate_bps?: number };
 
+  // The recipient must come across too. This previously copied `farm_id` alone, so
+  // converting a quote raised for a CLIENT produced an invoice with neither farm nor
+  // client — permitted by the 0410 constraint (that is the one-time-customer case), so it
+  // failed silently. The document still printed, because bill_to_* is snapshotted, but it
+  // never reached that client's statement, ageing, debtors or credit limit.
+  const termsDays = await termsDaysFor(
+    supabase,
+    doc.workshop_id,
+    "invoice",
+    { farm_id: doc.farm_id, partner_client_id: doc.partner_client_id },
+    branding,
+  );
+
   const { data: created, error } = await supabase
     .from("partner_documents")
     .insert({
       farm_id: doc.farm_id,
+      partner_client_id: doc.partner_client_id,
       workshop_id: doc.workshop_id,
       machine_id: doc.machine_id,
       work_request_id: doc.work_request_id,
@@ -405,7 +455,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
       discount_cents: src.discount_cents ?? 0,
       vat_rate_bps: src.vat_rate_bps ?? branding.defaultVatRateBps,
       issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, branding.invoiceTermsDays),
+      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, termsDays),
       created_by: profile.id,
     })
     .select("id")
@@ -485,6 +535,13 @@ export async function billQuoteStage(formData: FormData) {
   if (numErr) redirect(`/documents/${quoteId}?error=${encodeURIComponent(numErr.message)}`);
 
   const label = s(formData, "stage_label");
+  const stageTermsDays = await termsDaysFor(
+    supabase,
+    quote.workshop_id,
+    "invoice",
+    { farm_id: quote.farm_id, partner_client_id: quote.partner_client_id },
+    branding,
+  );
   const { data: created, error } = await supabase
     .from("partner_documents")
     .insert({
@@ -504,7 +561,7 @@ export async function billQuoteStage(formData: FormData) {
       terms: branding.terms,
       vat_rate_bps: rateBps,
       issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, branding.invoiceTermsDays),
+      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, stageTermsDays),
       created_by: profile.id,
     })
     .select("id")

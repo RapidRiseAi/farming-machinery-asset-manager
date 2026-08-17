@@ -4,6 +4,7 @@ import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
+import { rands } from "@/lib/money";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ export default async function PartnerClientPage({
   const client = data as ClientRow | null;
   if (!client) notFound();
 
-  const [{ data: vData }, { data: farmData }] = await Promise.all([
+  const [{ data: vData }, { data: farmData }, { data: expData }] = await Promise.all([
     supabase
       .from("partner_client_vehicles")
       .select("id, name, make, model, reg_no, serial_no, year, notes, machine_id")
@@ -77,12 +78,25 @@ export default async function PartnerClientPage({
     client.farm_id
       ? supabase.from("farms").select("id, name").eq("id", client.farm_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    // What this customer owes against the limit filed below (0500). Runs under the
+    // caller's own RLS — a rival workshop passing this id reads zeros.
+    supabase.rpc("partner_client_exposure", {
+      p_workshop: profile.workshop_id,
+      p_client: id,
+    }),
   ]);
 
   const vehicles = (vData ?? []) as Vehicle[];
   const farm = farmData as { id: string; name: string } | null;
   const toCopy = vehicles.filter((v) => !v.machine_id).length;
   const connected = !!client.farm_id;
+  const exposure = (Array.isArray(expData) ? expData[0] : expData) as {
+    has_limit: boolean;
+    limit_cents: number;
+    outstanding_cents: number;
+    over_cents: number;
+    pct_used: number | null;
+  } | null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -200,6 +214,40 @@ export default async function PartnerClientPage({
           </div>
         )}
       </Card>
+
+      {/* ── What they owe against their limit (0500) ─────────────────
+          Sits immediately above the card where the limit is typed, so the number and the
+          setting that governs it are read together. Shown whenever a limit is filed, not
+          only when it is breached: "you have used 40% of it" is the useful state, and a
+          panel that appears only in trouble teaches people it is not watching. */}
+      {exposure?.has_limit ? (
+        <Card>
+          <CardHeader><CardTitle>{t("credit.title", locale)}</CardTitle></CardHeader>
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+            <p className="text-sm text-sand-600">
+              {t("credit.outstanding", locale)}{" "}
+              <span className="font-semibold tabular-nums text-sand-900">{rands(exposure.outstanding_cents)}</span>
+            </p>
+            <p className="text-sm text-sand-600">
+              {t("credit.limit", locale)}{" "}
+              <span className="font-semibold tabular-nums text-sand-900">{rands(exposure.limit_cents)}</span>
+            </p>
+            {exposure.pct_used != null ? (
+              <Badge tone={exposure.over_cents > 0 ? "danger" : exposure.pct_used >= 80 ? "warning" : "ok"}>
+                {t("credit.pctUsed", locale).replace("{pct}", String(exposure.pct_used))}
+              </Badge>
+            ) : null}
+          </div>
+          {exposure.over_cents > 0 ? (
+            <p className="mt-3 rounded-lg bg-status-overdue/10 px-3 py-2 text-sm text-sand-800">
+              {t("credit.over", locale).replace("{amount}", rands(exposure.over_cents))}
+            </p>
+          ) : null}
+          {/* Said plainly, because the alternative is someone believing an invoice will be
+              refused. It will not — see the 0500 header for why that is deliberate. */}
+          <p className="mt-2 text-xs text-sand-500">{t("credit.advisory", locale)}</p>
+        </Card>
+      ) : null}
 
       {/* ── Contact ──────────────────────────────────────────────── */}
       <Card>

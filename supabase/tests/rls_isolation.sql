@@ -9535,3 +9535,200 @@ do $$ declare n int; begin
 end $$;
 
 select 'ALL G22 PARTNER BOOKS-TIER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G23 — A CREDIT LIMIT THAT IS ACTUALLY USED (0500)
+--
+-- `partner_clients.credit_limit_cents` was captured by 0410 and then never compared to
+-- anything. This is the third instance of that shape (0490 VAT-claimable, 0491 supplier
+-- terms), so the assertions below pin the two things that make it real: the arithmetic, and
+-- the fact that it stays ADVISORY.
+--
+-- The arithmetic has to match `app.partner_debtors` exactly, because the client page and
+-- the debtors list on /money are read by the same person in the same week. So the same
+-- exclusions are asserted here: a draft is not owed, a credit note reduces what is owed,
+-- and a written-off invoice leaves the limit alone just as it leaves the ageing (G5).
+--
+-- Two app-layer defects found while wiring this are pinned too, at the level SQL can see
+-- them: an invoice must be attributable to its client (the convert path dropped
+-- `partner_client_id`, which silently orphaned it), and a document addressed to a LINKED
+-- FARM must still count against that customer's limit.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps, plan)
+values ('7c000000-0000-0000-0000-000000000001', 'Credit Co', 'mechanic', true, 1500, 'books'),
+       ('7c000000-0000-0000-0000-000000000002', 'Rival Co',  'mechanic', true, 1500, 'books');
+
+-- Two customers of Credit Co: one a plain client, one linked to Farm A.
+insert into partner_clients (id, workshop_id, name, credit_limit_cents)
+values ('7c100000-0000-0000-0000-000000000001', '7c000000-0000-0000-0000-000000000001',
+        'Limited Client', 100000),
+       ('7c100000-0000-0000-0000-000000000003', '7c000000-0000-0000-0000-000000000001',
+        'No Limit Client', null);
+insert into partner_clients (id, workshop_id, name, farm_id, credit_limit_cents)
+values ('7c100000-0000-0000-0000-000000000002', '7c000000-0000-0000-0000-000000000001',
+        'Farm Client', '11111111-1111-1111-1111-111111111111', 200000);
+
+-- ── (a) Nothing invoiced: no exposure, but the limit is still reported ───────
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  if not r.has_limit then raise exception 'G23 FAIL: a filed limit reported as absent'; end if;
+  if r.limit_cents <> 100000 then raise exception 'G23 FAIL: limit is % not 100000', r.limit_cents; end if;
+  if r.outstanding_cents <> 0 or r.over_cents <> 0 then
+    raise exception 'G23 FAIL: a customer who owes nothing shows % outstanding / % over',
+      r.outstanding_cents, r.over_cents;
+  end if;
+end $$;
+
+-- ── (b) A DRAFT is not owed ─────────────────────────────────────────────────
+-- The partner's own unsent paperwork must never consume their customer's credit.
+insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
+                               number, issue_date, bill_to_name, total_cents, vat_rate_bps)
+values ('7c200000-0000-0000-0000-000000000001', '7c000000-0000-0000-0000-000000000001',
+        '7c100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built',
+        'CC-D1', current_date, 'Limited Client', 50000, 1500);
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  if r.outstanding_cents <> 0 then
+    raise exception 'G23 FAIL: an unsent DRAFT consumed % of a customer''s credit', r.outstanding_cents;
+  end if;
+end $$;
+
+-- ── (c) An issued invoice is owed, and over-limit is reported ───────────────
+insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
+                               number, issue_date, bill_to_name, total_cents, vat_rate_bps)
+values ('7c200000-0000-0000-0000-000000000002', '7c000000-0000-0000-0000-000000000001',
+        '7c100000-0000-0000-0000-000000000001', 'invoice', 'sent', 'built',
+        'CC-1', current_date, 'Limited Client', 150000, 1500);
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  if r.outstanding_cents <> 150000 then
+    raise exception 'G23 FAIL: outstanding is % not 150000', r.outstanding_cents;
+  end if;
+  if r.over_cents <> 50000 then
+    raise exception 'G23 FAIL: over-limit is % not 50000', r.over_cents;
+  end if;
+  if r.pct_used is null or round(r.pct_used) <> 150 then
+    raise exception 'G23 FAIL: pct_used is % not 150', r.pct_used;
+  end if;
+end $$;
+
+-- ── (d) …and it is ADVISORY: raising another one is not refused ──────────────
+-- The load-bearing decision (0500 header). If a future change adds a blocking trigger,
+-- this is where it is caught — deliberately, because blocking would stop legitimate work.
+do $$ begin
+  insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
+                                 number, issue_date, bill_to_name, total_cents, vat_rate_bps)
+  values ('7c200000-0000-0000-0000-000000000003', '7c000000-0000-0000-0000-000000000001',
+          '7c100000-0000-0000-0000-000000000001', 'invoice', 'sent', 'built',
+          'CC-2', current_date, 'Limited Client', 25000, 1500);
+exception when others then
+  raise exception 'G23 FAIL [advisory]: an over-limit customer could not be invoiced (%) - the limit must warn, never block', sqlerrm;
+end $$;
+
+-- ── (e) A credit note reduces what is owed ──────────────────────────────────
+insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
+                               number, issue_date, bill_to_name, total_cents, vat_rate_bps,
+                               corrects_document_id)
+values ('7c200000-0000-0000-0000-000000000004', '7c000000-0000-0000-0000-000000000001',
+        '7c100000-0000-0000-0000-000000000001', 'credit_note', 'sent', 'built',
+        'CC-CN1', current_date, 'Limited Client', 25000, 1500,
+        '7c200000-0000-0000-0000-000000000002');
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  -- 150000 + 25000 raised, less a 25000 credit note = 150000.
+  if r.outstanding_cents <> 150000 then
+    raise exception 'G23 FAIL: a credit note did not reduce exposure (got %)', r.outstanding_cents;
+  end if;
+end $$;
+
+-- ── (f) A written-off invoice leaves the limit, as it leaves the ageing ─────
+do $$ declare before_owed bigint; after_owed bigint; begin
+  select outstanding_cents into before_owed from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  -- A write-off carries its reason by constraint (0423) - the product routes this through
+  -- public.write_off_document, so the reason is never optional.
+  update partner_documents set status = 'written_off', written_off_reason = 'G23: gone bad'
+   where id = '7c200000-0000-0000-0000-000000000002';
+  select outstanding_cents into after_owed from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  if after_owed >= before_owed then
+    raise exception 'G23 FAIL: writing off an invoice left it against the credit limit (% -> %)',
+      before_owed, after_owed;
+  end if;
+  update partner_documents set status = 'sent', written_off_reason = null
+   where id = '7c200000-0000-0000-0000-000000000002';
+end $$;
+
+-- ── (g) A document addressed to the LINKED FARM counts against that customer ─
+-- Without this arm, a partner who invoices a farm customer would read zero exposure
+-- against a limit they had filed on that same customer's record.
+insert into partner_documents (id, workshop_id, farm_id, kind, status, source,
+                               number, issue_date, bill_to_name, total_cents, vat_rate_bps)
+values ('7c200000-0000-0000-0000-000000000005', '7c000000-0000-0000-0000-000000000001',
+        '11111111-1111-1111-1111-111111111111', 'invoice', 'sent', 'built',
+        'CC-F1', current_date, 'Farm A', 75000, 1500);
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000002');
+  if r.outstanding_cents <> 75000 then
+    raise exception 'G23 FAIL: a farm-addressed invoice did not reach the linked client''s limit (got %)',
+      r.outstanding_cents;
+  end if;
+end $$;
+
+-- ── (h) No limit filed → reported as absent, and never "over" ───────────────
+do $$ declare r record; begin
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000003');
+  if r.has_limit then raise exception 'G23 FAIL: a client with no limit reported one'; end if;
+  if r.over_cents <> 0 or r.pct_used is not null then
+    raise exception 'G23 FAIL: a client with no limit shows over=% pct=%', r.over_cents, r.pct_used;
+  end if;
+end $$;
+
+-- ── (i) The over-limit list agrees with the per-client figure ───────────────
+-- Built from the same function on purpose; this asserts it stayed that way, and that a
+-- client with no limit never appears.
+do $$ declare v_over bigint; v_one bigint; n int; begin
+  select count(*) into n from app.partner_over_limit('7c000000-0000-0000-0000-000000000001')
+   where client_id = '7c100000-0000-0000-0000-000000000003';
+  if n <> 0 then raise exception 'G23 FAIL: a client with no limit appeared on the over-limit list'; end if;
+
+  select over_cents into v_over from app.partner_over_limit('7c000000-0000-0000-0000-000000000001')
+   where client_id = '7c100000-0000-0000-0000-000000000001';
+  select over_cents into v_one from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  if v_over is distinct from v_one then
+    raise exception 'G23 FAIL: the list says % over and the client page says % - they must not disagree',
+      v_over, v_one;
+  end if;
+end $$;
+
+-- ── (j) A rival workshop reads nothing, and anon cannot execute ─────────────
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W, unrelated
+  select * into r from app.partner_client_exposure(
+    '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
+  -- SECURITY INVOKER: RLS on partner_clients hides the row, so there is no row to return.
+  if r is not null and coalesce(r.outstanding_cents, 0) <> 0 then
+    raise exception 'G23 FAIL: another workshop read % of a rival''s customer exposure', r.outstanding_cents;
+  end if;
+end $$;
+reset role;
+
+do $$ begin
+  if has_function_privilege('anon', 'app.partner_client_exposure(uuid,uuid,date)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.partner_client_exposure(uuid,uuid,date)', 'EXECUTE')
+     or has_function_privilege('anon', 'app.partner_over_limit(uuid,date)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.partner_over_limit(uuid,date)', 'EXECUTE') then
+    raise exception 'G23 FAIL: anon may execute a credit-exposure function';
+  end if;
+end $$;
+
+select 'ALL G23 CREDIT-LIMIT TESTS PASSED' as result;

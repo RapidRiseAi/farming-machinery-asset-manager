@@ -3310,5 +3310,13 @@
     "windowNow": "Reeds verskuldig, nou verwag",
     "windowTitle": "Waarna jy kyk",
     "termsFiled": "Rekeninge gebruik elke verskaffer se eie betaalvoorwaardes waar jy dit ingevul het."
+  },
+  "credit": {
+    "title": "Krediet",
+    "outstanding": "Skuld nou",
+    "limit": "Hul perk",
+    "pctUsed": "{pct}% gebruik",
+    "over": "Hulle is {amount} oor die perk wat jy vir hulle gestel het.",
+    "advisory": "Dit is n riglyn vir jou, nie n blokkering nie. FleetWise sal jou steeds toelaat om vir hierdie kliënt te kwoteer en te faktureer."
   }
 }

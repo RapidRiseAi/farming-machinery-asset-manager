@@ -3310,5 +3310,13 @@
     "windowNow": "Already due, expected now",
     "windowTitle": "What you are looking at",
     "termsFiled": "Bills use each supplier’s own payment terms where you have filed them."
+  },
+  "credit": {
+    "title": "Credit",
+    "outstanding": "Owing now",
+    "limit": "Their limit",
+    "pctUsed": "{pct}% used",
+    "over": "They are {amount} over the limit you set for them.",
+    "advisory": "This is a guide for you, not a block. FleetWise will still let you quote and invoice this customer."
   }
 }
