@@ -142,14 +142,22 @@ it is still on this list.
 * **A low-stock notification row is not a link** in the alert centre, although
   `notificationUrl` returns `/parts#store` for it. Cosmetic; the centre appears to link only
   some templates.
-* **KNOWN SCHEMA DRIFT — the voice assistant.** Its two dated migrations are in the repo
-  and pass `db:test`, but only the four `users.ai_processing_*` columns are on production.
-  Those were applied because `PROFILE_COLUMNS` selects them and `requireProfile()` gates
-  every page — without them EVERY role was bounced to `/login?error=no-profile`, a total
-  outage caused by shipping code ahead of its schema. Still outstanding: `voice_captures`,
-  `ai_interactions`, `asset_aliases`, their policies and the consent-guard trigger. Until
-  those are applied the assistant will fail at runtime on the demo project. This is the
-  clearest example yet of why §2 exists.
+* **~~KNOWN SCHEMA DRIFT — the voice assistant.~~ CLOSED.** For a while only the four
+  `users.ai_processing_*` columns were on production, applied under duress: `PROFILE_COLUMNS`
+  selects them and `requireProfile()` gates every page, so without them EVERY role was
+  bounced to `/login?error=no-profile` — a total outage caused by shipping code ahead of its
+  schema. The rest (`voice_captures`, `ai_interactions`, `asset_aliases`,
+  `app.assistant_turn_buckets`, their policies, the consent guard, the `record_*` commands
+  and `apply_assistant_proposal`) is now applied too, so the assistant's schema is present
+  and the repo is the only source of it.
+  Two things were measured rather than assumed while applying it, because that migration
+  rewrites `app.row_visible_to_role` and the core `machines_sel` policy: contractor and
+  owner visibility were counted before and after and are **identical** (TJ 4 machines / 0
+  costs / 3 own requests; owner 15 / 38 / 6), and the operator rule was exercised on a
+  driver who actually has an assignment — **1 machine of 15, the assigned one**. Note that
+  production carries **no `user_farm_memberships` rows**, so it is the migration's
+  documented primary-farm fallback in `app.effective_farm_role` that answers, not a
+  membership.
 * **One expense per purchase order.** A supplier who part-ships and invoices twice can only
   link the first invoice to the order (partial unique index). Deliberate for now; noted by
   the agent that built it.

@@ -87,6 +87,21 @@ in this codebase's error messages into mojibake as the migrations load, which sh
 four functions differing for no visible reason. Export `PGCLIENTENCODING=UTF8` before
 loading.
 
+That caveat has now cost real time twice, so here is the concrete instance to recognise it
+by. A comparison found exactly one function differing: `app.partner_creditors`, 1,322 chars
+on production against 1,693 in the repo. Most of the gap was stripped comments (point 2
+above, normalised). The rest was **one character**: the fallback label for an expense with
+no supplier name at all was `'-'` on production where the repo has `'—'`. An earlier session
+had loaded `0482` through psql without `PGCLIENTENCODING=UTF8`. It is cosmetic — but note
+that the fingerprint deliberately did **not** normalise it away, because a character inside
+a string literal is semantic and the next one might not be cosmetic. Re-stating the repo's
+version through a migration closed it.
+
+The useful technique when one category disagrees: **bisect, do not transcribe.** Group the
+digest by schema (two groups), then by `left(proname,1)` (seventeen), and only enumerate the
+bucket that differs. That found the single function above in three queries instead of
+diffing 157 bodies.
+
 ---
 
 ## When to run it
@@ -95,8 +110,24 @@ loading.
 - After anyone touches the live database outside a migration.
 - After a restore (see `BACKUP.md`) — a PITR rewind can undo a migration silently.
 
-The last full comparison — the one that found `_f14_probe` — is recorded in the status
-block in `CLAUDE.md`. After `0440`, all ten categories match across 937 objects.
+The comparison that found `_f14_probe` is recorded in the status block in `CLAUDE.md`; after
+`0440`, all ten categories matched across 937 objects.
+
+The most recent one, after the voice-assistant migrations and `0490–0492` were applied,
+matches across **1,256 objects** in all ten categories:
+
+```
+column           59  e35c412910de52a2      index           225  629abfd3e8298d03
+constraint      332  1f782a37b8cf8621      policy           58  a701e01c59324208
+enum             41  c7eeac473fc85185      rls              59  b3dc8b2899c9cb4e
+function        157  7543983a99f144bf      table-grant      58  87d03f9ae0835e4b
+function-grant  157  8e49a8857fa91d81      trigger         105  9a345f5abb1e5372
+```
+
+When comparing, remember the repo side is a *test* database: `rls_isolation.sql` creates
+five helpers of its own (`_t_login`, `_t_assert`, `_t_notif`, `_h2_fault_args`,
+`_h2_reading_args`). They are the difference between 1,261 local objects and 1,256, and they
+must never appear on production. Exclude them with `proname !~ '^_(t|h2)_'`.
 
 ## What this does not cover
 

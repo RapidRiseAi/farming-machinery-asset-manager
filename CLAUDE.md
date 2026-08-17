@@ -1429,4 +1429,42 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - i18n EN/AF at parity (**3 080 leaf keys**). 50 suite banners. Gates green; shared
     first-load JS flat at **102 kB**.
 
+- **Production brought level with the repo** (no new migration in the repo; two existing
+  ones applied, one function re-stated):
+  - **The voice-assistant drift is closed.** Its two dated migrations
+    (`20260813195653_voice_assistant_foundation`, `20260813200621_voice_assistant_commands`)
+    had been in the repo and green under `db:test` for two waves while only the four
+    `users.ai_processing_*` columns were on production — so the deployed `/assistant` was
+    code pointed at tables that did not exist. Both are now applied. The constraint I had
+    hand-added during that earlier outage was **dropped first** so the migration file
+    recreates it (verified byte-equivalent beforehand): production's schema should come from
+    the repo, not from an emergency edit.
+  - **Measured, not assumed**, because the commands migration rewrites `app.row_visible_to_role`
+    AND the core `machines_sel` policy — the most tenancy-sensitive objects in the product.
+    Counts taken before and after are identical: contractor TJ **4 machines / 0 costs / 1
+    user / 3 own requests**, farm owner **15 / 38 / 6**. The operator rule was then exercised
+    on a driver who actually has an assignment: **1 machine of 15, the assigned one**. Worth
+    recording: production has **zero `user_farm_memberships` rows**, so it is the migration's
+    documented primary-farm fallback in `app.effective_farm_role` that resolves a role there,
+    not a membership.
+  - **Repo == production, proven across 1,256 objects in all ten fingerprint categories.**
+    The first pass disagreed on two: `function` and `function-grant`, 162 local vs 157 live.
+    Five of those are helpers `rls_isolation.sql` creates in the TEST database (`_t_login`,
+    `_t_assert`, `_t_notif`, `_h2_fault_args`, `_h2_reading_args`) and must never exist on
+    production. Excluding them, grants matched exactly and **one body** did not.
+  - **Found by bisecting, not by transcribing**: digest by schema (`public` matched, `app`
+    did not), then by `left(proname,1)` (16 of 17 buckets matched) → `app.partner_creditors`.
+    Production held a logically identical body whose only real difference was **one
+    character** — the nameless-creditor fallback label was `'-'` where the repo has `'—'`,
+    from an earlier session loading `0482` through psql without `PGCLIENTENCODING=UTF8`.
+    Cosmetic, but the fingerprint deliberately does not normalise a string literal, so it was
+    corrected rather than explained away. `docs/SCHEMA_DRIFT.md` now carries the instance and
+    the bisect technique.
+  - **Nothing exists on production that is absent from the repo** — the `_f14_probe` direction,
+    the one that matters.
+  - Git was already clean and in sync; the only content anywhere on GitHub but not on `main`
+    was one orphaned docs file on the ancient `week-1-foundation` branch, now brought across.
+    The `fleetwise-financial-controls` branch is fully contained in `main` (squash-merged,
+    content verified identical) and is stale, not pending.
+
 > Update this "current status" block at the end of every session.
