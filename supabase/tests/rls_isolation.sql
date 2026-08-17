@@ -6625,9 +6625,15 @@ do $$ declare b record; c bigint; e bigint; begin
   end if;
 end $$;
 
--- Converting the same order again. Two people in the office capturing the same invoice,
--- a double-submitted form and a retried request are all this same race, and it is refused
--- by a unique index rather than by a read-then-write in application code.
+-- RECONCILED BY 0501. Two people in the office capturing the same invoice, a
+-- double-submitted form and a retried request are all one race, and it is still refused by a
+-- unique index rather than by a read-then-write in application code — but the index has
+-- MOVED. 0475 hung it on the purchase order, which also made a part-shipping supplier
+-- unrecordable; 0501 hangs it on the supplier's own invoice number, which is the natural key
+-- of a purchase. So the protection is unchanged in strength and the legitimate case opens up.
+--
+-- This is the one assertion in G16 that encoded the old rule, and it is restated rather than
+-- relaxed: the SAME bill twice must still be impossible.
 do $$ declare ok boolean := false; e bigint; begin
   begin
     insert into partner_expenses (workshop_id, supplier_name, reference, category, expense_date,
@@ -6635,10 +6641,27 @@ do $$ declare ok boolean := false; e bigint; begin
     values ('6c100000-0000-0000-0000-000000000001', 'Bearing Co', 'INV-55021', 'parts', current_date,
             92000, 1500, 13800, '6c400000-0000-0000-0000-000000000001');
   exception when others then ok := true; end;
-  if not ok then raise exception 'G16 FAIL [DOUBLE COUNT]: the same purchase order was converted twice'; end if;
+  if not ok then raise exception 'G16 FAIL [DOUBLE COUNT]: the same supplier invoice was captured twice'; end if;
   select count(*) into e from partner_expenses where purchase_order_id = '6c400000-0000-0000-0000-000000000001'
      and deleted_at is null;
-  if e <> 1 then raise exception 'G16 FAIL [DOUBLE COUNT]: re-converting left % live expenses on one order', e; end if;
+  if e <> 1 then raise exception 'G16 FAIL [DOUBLE COUNT]: re-capturing left % live expenses on one order', e; end if;
+end $$;
+
+-- …and the case 0501 exists for: a SECOND, DIFFERENT bill against the same order is allowed.
+-- Six filters invoiced now, four in a fortnight.
+do $$ declare e bigint; begin
+  insert into partner_expenses (workshop_id, supplier_name, reference, category, expense_date,
+                                amount_cents, vat_rate_bps, vat_cents, purchase_order_id)
+  values ('6c100000-0000-0000-0000-000000000001', 'Bearing Co', 'INV-55022', 'parts', current_date,
+          8000, 1500, 1200, '6c400000-0000-0000-0000-000000000001');
+  select count(*) into e from partner_expenses
+   where purchase_order_id = '6c400000-0000-0000-0000-000000000001' and deleted_at is null;
+  if e <> 2 then
+    raise exception 'G16 FAIL: a second DIFFERENT supplier invoice against one order was refused (% live)', e;
+  end if;
+  -- Leave G16's fixtures as the rest of the section expects to find them.
+  delete from partner_expenses where reference = 'INV-55022'
+     and workshop_id = '6c100000-0000-0000-0000-000000000001';
 end $$;
 
 -- An expense may only point at an order of its OWN workshop. RLS already stops Q reading
@@ -9732,3 +9755,191 @@ do $$ begin
 end $$;
 
 select 'ALL G23 CREDIT-LIMIT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G24 — ONE ORDER, SEVERAL SUPPLIER INVOICES (0501)
+--
+-- 0475's partial unique index allowed exactly one live expense per purchase order. That made
+-- a double-count structurally impossible, and it also made a part-shipping supplier
+-- unrecordable: six filters invoiced now, four in a fortnight, two real bills that SARS may
+-- ask about. 0501 drops the index.
+--
+-- So the assertions have to carry the weight the index used to. Two of them matter most:
+--
+--   * the cost still lands exactly once PER BILL — asserted against a ledger snapshot taken
+--     before the order exists, because the direction that catches a double-count is the one
+--     proving the cost is NOT there yet;
+--   * the cash-flow forecast now carries the UNBILLED REMAINDER. 0486 dropped the whole
+--     order the moment any expense linked to it, which was right when only one ever could.
+--     Left alone, part-billing would have understated the outflow by the remainder — a
+--     forecast that quietly shrinks is worse than no forecast.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps, plan)
+values ('7d000000-0000-0000-0000-000000000001', 'Part Ship Co', 'parts_supplier', true, 1500, 'books');
+
+insert into suppliers (id, workshop_id, name, payment_terms_days)
+values ('7d100000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-000000000001',
+        'Filter Wholesale', 30);
+
+-- ── (a) An order books NOTHING ──────────────────────────────────────────────
+-- Snapshot first: this is the assertion that catches a double-count, so it has to run
+-- before the order can possibly have contributed anything.
+do $$ declare v_cost bigint; v_exp bigint; begin
+  select count(*) into v_cost from cost_entries;
+  select count(*) into v_exp  from partner_expenses
+   where workshop_id = '7d000000-0000-0000-0000-000000000001';
+
+  insert into purchase_orders (id, workshop_id, supplier_id, supplier_name, reference,
+                               status, order_date, expected_date, vat_rate_bps)
+  values ('7d200000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-000000000001',
+          '7d100000-0000-0000-0000-000000000001', 'Filter Wholesale', 'PO-PS-1',
+          'sent', current_date, current_date + 7, 1500);
+  insert into purchase_order_lines (id, workshop_id, purchase_order_id, description,
+                                   qty_ordered, unit_price_cents)
+  values ('7d300000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-000000000001',
+          '7d200000-0000-0000-0000-000000000001', 'Oil filter', 10, 10000);
+
+  if (select count(*) from cost_entries) <> v_cost then
+    raise exception 'G24 FAIL: raising a purchase order booked a cost - an order is a commitment, not a cost';
+  end if;
+  if (select count(*) from partner_expenses
+       where workshop_id = '7d000000-0000-0000-0000-000000000001') <> v_exp then
+    raise exception 'G24 FAIL: raising a purchase order created an expense';
+  end if;
+end $$;
+
+-- The order totals 10 x 10000 ex-VAT = 100000 + 15000 VAT = 115000 gross.
+do $$ declare r record; begin
+  select * into r from app.purchase_order_invoiced('7d200000-0000-0000-0000-000000000001');
+  if r.ordered_cents <> 115000 then
+    raise exception 'G24 FAIL: order gross is % not 115000', r.ordered_cents;
+  end if;
+  if r.invoiced_cents <> 0 or r.invoice_count <> 0 or r.fully_invoiced then
+    raise exception 'G24 FAIL: a fresh order reads % invoiced over % bills (fully=%)',
+      r.invoiced_cents, r.invoice_count, r.fully_invoiced;
+  end if;
+end $$;
+
+-- ── (b) The FIRST partial invoice: six of ten ───────────────────────────────
+insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
+                              category, expense_date, amount_cents, vat_rate_bps, vat_cents,
+                              vat_claimable)
+values ('7d400000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-000000000001',
+        '7d100000-0000-0000-0000-000000000001', 'Filter Wholesale',
+        '7d200000-0000-0000-0000-000000000001',
+        'parts', current_date, 60000, 1500, 9000, true);
+do $$ declare r record; begin
+  select * into r from app.purchase_order_invoiced('7d200000-0000-0000-0000-000000000001');
+  if r.invoiced_cents <> 69000 then
+    raise exception 'G24 FAIL: after one part-invoice, invoiced is % not 69000', r.invoiced_cents;
+  end if;
+  if r.remaining_cents <> 46000 then
+    raise exception 'G24 FAIL: remaining is % not 46000', r.remaining_cents;
+  end if;
+  if r.fully_invoiced then raise exception 'G24 FAIL: a part-invoiced order reports fully invoiced'; end if;
+end $$;
+
+-- ── (c) The SECOND invoice is allowed at all — the point of 0501 ─────────────
+do $$ begin
+  insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
+                                category, expense_date, amount_cents, vat_rate_bps, vat_cents,
+                                vat_claimable)
+  values ('7d400000-0000-0000-0000-000000000002', '7d000000-0000-0000-0000-000000000001',
+          '7d100000-0000-0000-0000-000000000001', 'Filter Wholesale',
+          '7d200000-0000-0000-0000-000000000001',
+          'parts', current_date, 40000, 1500, 6000, true);
+exception when unique_violation then
+  raise exception 'G24 FAIL: a supplier who part-ships still cannot invoice twice - 0475''s index survived';
+end $$;
+
+do $$ declare r record; begin
+  select * into r from app.purchase_order_invoiced('7d200000-0000-0000-0000-000000000001');
+  if r.invoice_count <> 2 then
+    raise exception 'G24 FAIL: order shows % invoices not 2', r.invoice_count;
+  end if;
+  if r.invoiced_cents <> 115000 or r.remaining_cents <> 0 then
+    raise exception 'G24 FAIL: two invoices totalling the order read % invoiced / % remaining',
+      r.invoiced_cents, r.remaining_cents;
+  end if;
+  if not r.fully_invoiced then
+    raise exception 'G24 FAIL: an order billed in full does not report fully invoiced';
+  end if;
+end $$;
+
+-- ── (d) …and the cost landed once PER BILL, not once per order ──────────────
+-- Two real bills arrived, so two costs is correct. What must NOT happen is the order
+-- contributing a third.
+do $$ declare n bigint; total bigint; begin
+  select count(*), coalesce(sum(amount_cents + vat_cents), 0) into n, total
+    from partner_expenses
+   where purchase_order_id = '7d200000-0000-0000-0000-000000000001'
+     and deleted_at is null;
+  if n <> 2 then raise exception 'G24 FAIL: % expense rows for two bills', n; end if;
+  if total <> 115000 then
+    raise exception 'G24 FAIL: the two bills total % not 115000 - something double-counted', total;
+  end if;
+end $$;
+
+-- ── (e) The forecast carries the REMAINDER, then drops the order ────────────
+-- The defect 0501 would have introduced if the 0486 arm had been left alone.
+do $$ declare v_po bigint; begin
+  -- Fully billed now, so the order must contribute nothing.
+  select coalesce(sum(amount_cents), 0) into v_po
+    from app.partner_cashflow_items('7d000000-0000-0000-0000-000000000001', 365)
+   where source = 'purchase_order' and source_id = '7d200000-0000-0000-0000-000000000001';
+  if v_po <> 0 then
+    raise exception 'G24 FAIL: a fully-billed order still forecasts % of commitment', v_po;
+  end if;
+
+  -- Remove the second bill: the order is part-billed again, so the REMAINDER must appear.
+  update partner_expenses set deleted_at = now()
+   where id = '7d400000-0000-0000-0000-000000000002';
+  select coalesce(sum(amount_cents), 0) into v_po
+    from app.partner_cashflow_items('7d000000-0000-0000-0000-000000000001', 365)
+   where source = 'purchase_order' and source_id = '7d200000-0000-0000-0000-000000000001';
+  if v_po <> 46000 then
+    raise exception 'G24 FAIL: a part-billed order forecasts % of commitment, expected the 46000 remainder', v_po;
+  end if;
+  update partner_expenses set deleted_at = null
+   where id = '7d400000-0000-0000-0000-000000000002';
+end $$;
+
+-- ── (f) Over-invoicing is flagged, not refused ──────────────────────────────
+do $$ declare r record; begin
+  insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
+                                category, expense_date, amount_cents, vat_rate_bps, vat_cents,
+                                vat_claimable)
+  values ('7d400000-0000-0000-0000-000000000003', '7d000000-0000-0000-0000-000000000001',
+          '7d100000-0000-0000-0000-000000000001', 'Filter Wholesale',
+          '7d200000-0000-0000-0000-000000000001',
+          'parts', current_date, 10000, 1500, 1500, true);
+
+  select * into r from app.purchase_order_invoiced('7d200000-0000-0000-0000-000000000001');
+  if r.over_cents <> 11500 then
+    raise exception 'G24 FAIL: over-invoicing reports % not 11500', r.over_cents;
+  end if;
+exception when others then
+  if sqlerrm like 'G24 FAIL%' then raise; end if;
+  raise exception 'G24 FAIL [flag not refuse]: a supplier billing more than the order was refused (%) - jobs grow', sqlerrm;
+end $$;
+
+-- ── (g) Cross-tenant and anon ───────────────────────────────────────────────
+set role authenticated;
+do $$ declare r record; begin
+  perform _t_login('c3333333-3333-3333-3333-333333333333');            -- unrelated workshop
+  select * into r from app.purchase_order_invoiced('7d200000-0000-0000-0000-000000000001');
+  if r is not null and coalesce(r.ordered_cents, 0) <> 0 then
+    raise exception 'G24 FAIL: another workshop read % of a rival''s order', r.ordered_cents;
+  end if;
+end $$;
+reset role;
+
+do $$ begin
+  if has_function_privilege('anon', 'app.purchase_order_invoiced(uuid)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.purchase_order_invoiced(uuid)', 'EXECUTE') then
+    raise exception 'G24 FAIL: anon may execute purchase_order_invoiced';
+  end if;
+end $$;
+
+select 'ALL G24 PART-INVOICED ORDER TESTS PASSED' as result;
