@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { rands } from "@/lib/money";
 import { resolveLayout, type ResolvedLayout, type Density, type AccentStyle } from "@/lib/doc-layout";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { TextField, SelectField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DocumentPreview } from "@/components/documents/document-preview";
 import { updateDocumentLayout } from "@/app/(app)/contractor/settings/actions";
 
 /**
@@ -27,20 +27,21 @@ export function DocumentLayoutForm({
   brandPrimary,
   vatRegistered,
   businessName,
+  logoUrl,
+  vatNumber,
 }: {
   locale: Lang;
   current: unknown;
   brandPrimary: string;
   vatRegistered: boolean;
   businessName: string;
+  /** Signed logo URL — passed through so this preview and the template picker's agree. */
+  logoUrl?: string | null;
+  vatNumber?: string | null;
 }) {
   const [l, setL] = useState<ResolvedLayout>(() => resolveLayout(current));
   const set = <K extends keyof ResolvedLayout>(key: K, value: ResolvedLayout[K]) =>
     setL((prev) => ({ ...prev, [key]: value }));
-
-  const title =
-    l.invoice_title || (vatRegistered ? t("doc.kindTaxInvoice", locale) : t("doc.kindInvoice", locale));
-  const pad = l.density === "compact" ? "px-2 py-0.5" : "px-2.5 py-1.5";
 
   const Switch = ({ name, label, hint }: { name: keyof ResolvedLayout; label: string; hint?: string }) => (
     <label className="flex items-start gap-3 text-sm text-sand-700">
@@ -69,85 +70,17 @@ export function DocumentLayoutForm({
       <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-sand-500">
         {t("layout.previewTitle", locale)}
       </p>
-      <div className="overflow-hidden rounded-lg border border-sand-200">
-        <div
-          className={
-            l.accent_style === "band"
-              ? "flex items-center gap-2 px-3 py-2.5 text-white"
-              : l.accent_style === "line"
-                ? "flex items-center gap-2 border-t-4 bg-white px-3 py-2.5"
-                : "flex items-center gap-2 border-b border-sand-200 bg-white px-3 py-2.5"
-          }
-          style={
-            l.accent_style === "band"
-              ? { backgroundColor: brandPrimary }
-              : l.accent_style === "line"
-                ? { borderTopColor: brandPrimary }
-                : undefined
-          }
-        >
-          <span className={`text-sm font-bold ${l.accent_style === "band" ? "" : "text-sand-900"}`}>
-            {businessName}
-          </span>
-          <span className={`ml-auto text-xs font-semibold uppercase ${l.accent_style === "band" ? "opacity-90" : "text-sand-500"}`}>
-            {title}
-          </span>
-        </div>
-
-        <div className="px-3 py-2 text-xs">
-          <p className="font-semibold uppercase tracking-wide text-sand-500">
-            {l.bill_to_label ?? t("doc.billTo", locale)}
-          </p>
-          <p className="text-sand-900">Weltevrede Boerdery</p>
-          {l.show_vehicle ? <p className="text-sand-600">John Deere 6120M · CA 123-456</p> : null}
-        </div>
-
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-y border-sand-100 text-left text-sand-500">
-              {l.show_line_numbers ? <th className={pad}>#</th> : null}
-              <th className={pad}>{l.items_label ?? t("doc.lineDescription", locale)}</th>
-              <th className={`${pad} text-right`}>{t("doc.lineQty", locale)}</th>
-              {l.show_unit_price ? <th className={`${pad} text-right`}>{t("doc.lineUnit", locale)}</th> : null}
-              <th className={`${pad} text-right`}>{t("doc.lineTotal", locale)}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { d: "Oil filter", q: 2, u: 24500 },
-              { d: "Labour — 3 hours", q: 3, u: 45000 },
-            ].map((row, i) => (
-              <tr key={row.d} className="border-b border-sand-50">
-                {l.show_line_numbers ? <td className={`${pad} text-sand-500`}>{i + 1}</td> : null}
-                <td className={`${pad} text-sand-900`}>{row.d}</td>
-                <td className={`${pad} text-right text-sand-700`}>{row.q}</td>
-                {l.show_unit_price ? <td className={`${pad} text-right text-sand-700`}>{rands(row.u)}</td> : null}
-                <td className={`${pad} text-right font-medium text-sand-900`}>{rands(row.q * row.u)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="px-3 py-2 text-right text-xs">
-          <span className="text-sand-500">{l.total_label ?? t("doc.total", locale)} </span>
-          <span className="font-bold text-sand-900">{rands(vatRegistered ? 224250 : 195000)}</span>
-        </div>
-
-        {l.show_banking ? (
-          <p className="border-t border-sand-100 px-3 py-2 text-xs text-sand-600">
-            {t("doc.howToPay", locale)}: FNB · 62… · {t("doc.useReference", locale)} INV-0042
-          </p>
-        ) : null}
-        {l.show_thanks && l.thanks_text ? (
-          <p className="px-3 pb-2 text-xs font-medium text-sand-700">{l.thanks_text}</p>
-        ) : null}
-        {l.show_signature ? (
-          <div className="flex gap-6 px-3 pb-3 text-[0.65rem] text-sand-500">
-            <span className="min-w-[8rem] border-t border-sand-300 pt-1">{t("doc.signedBy", locale)}</span>
-            <span className="min-w-[5rem] border-t border-sand-300 pt-1">{t("doc.signedDate", locale)}</span>
-          </div>
-        ) : null}
-      </div>
+      {/* The same miniature the template picker draws (0505) — one preview in the codebase,
+          so the four templates and these switches can never show a different document. */}
+      <DocumentPreview
+        locale={locale}
+        layout={l}
+        brandPrimary={brandPrimary}
+        businessName={businessName}
+        vatRegistered={vatRegistered}
+        logoUrl={logoUrl}
+        vatNumber={vatNumber}
+      />
 
       {/* ── The choices ─────────────────────────────────────────── */}
       <form action={updateDocumentLayout} className="mt-4 flex flex-col gap-4">

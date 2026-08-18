@@ -11,6 +11,9 @@ const MUTED = rgb(0.42, 0.39, 0.34);
 const RULE = rgb(0.9, 0.88, 0.84);
 const BRAND = rgb(0.08, 0.5, 0.24);
 
+/** Space kept clear at the right of a table cell, so two columns never touch. */
+const TABLE_GUTTER = 5;
+
 // Characters pdf-lib's WinAnsi encoding can't render → safe replacements.
 const MAP: Record<string, string> = { "→": "->", "←": "<-", "•": "-", "ℓ": "L", "☑": "[x]", "☐": "[ ]", "✓": "x", "🚜": "" };
 const EXTRA = new Set([0x2018, 0x2019, 0x201c, 0x201d, 0x2013, 0x2014, 0x2026, 0x2022, 0x20ac, 0x2122]);
@@ -47,6 +50,24 @@ export type PdfBrand = {
   footer?: string | null;
   /** Append the FleetWise credit to the footer. */
   poweredBy?: boolean;
+  /**
+   * How the partner's colour appears (0434 `accent_style`, chosen through a 0505 template).
+   *
+   * `band` is the DEFAULT and is exactly what this engine has always drawn — the wordmark
+   * set in the brand colour. It is deliberately not changed to paint a filled rectangle:
+   * every existing partner is on `band`, so that would restyle documents nobody asked to
+   * restyle. `line` adds a rule in the brand colour above the wordmark; `plain` removes
+   * every trace of colour from the page, which is the point of it — a solid band comes out
+   * of a mono photocopier as a grey smear.
+   */
+  accent?: "band" | "line" | "plain";
+  /**
+   * Extra points of vertical space in a table row, a key/value row and around a heading
+   * (0434 `density`, via `pdfRowGap`). 8 is the default and reproduces today's spacing to
+   * the point; 4 is `compact`. One knob rather than three so the whole document tightens
+   * together instead of the table drifting away from the totals beside it.
+   */
+  rowGap?: number;
 };
 
 function hexRgb(hex: string | null | undefined, fallback: RGB): RGB {
@@ -70,11 +91,16 @@ export class Pdf {
   private brand: PdfBrand;
   private accent: RGB;
   private logo: PDFImage | null = null;
+  /** See `PdfBrand.rowGap`. 8 = today's spacing; clamped so a bad value cannot break a page. */
+  private rowGap: number;
+  private accentStyle: "band" | "line" | "plain";
 
   private constructor(title: string, brand: PdfBrand) {
     this.title = title;
     this.brand = brand;
     this.accent = hexRgb(brand.primary, BRAND);
+    this.rowGap = Math.min(12, Math.max(2, Math.round(brand.rowGap ?? 8)));
+    this.accentStyle = brand.accent ?? "band";
   }
 
   static async create(title: string, brand?: PdfBrand): Promise<Pdf> {
@@ -127,16 +153,28 @@ export class Pdf {
 
   /** Document title block with the issuer's wordmark (and logo, when they have one). */
   header(subtitle?: string) {
+    // `plain` means no colour on the page at all — including the wordmark, which is the
+    // only coloured thing this engine draws.
+    const wordmark = this.accentStyle === "plain" ? INK : this.accent;
+    if (this.accentStyle === "line") {
+      this.page.drawLine({
+        start: { x: MARGIN, y: this.y + 6 },
+        end: { x: PAGE_W - MARGIN, y: this.y + 6 },
+        thickness: 3,
+        color: this.accent,
+      });
+      this.y -= 8;
+    }
     if (this.logo) {
       const h = 28;
       const w = Math.min(90, (this.logo.width / this.logo.height) * h);
       this.page.drawImage(this.logo, { x: MARGIN, y: this.y - h + 10, width: w, height: h });
       this.page.drawText(sanitize(this.brand.name), {
-        x: MARGIN + w + 10, y: this.y, size: 12, font: this.bold, color: this.accent,
+        x: MARGIN + w + 10, y: this.y, size: 12, font: this.bold, color: wordmark,
       });
       this.y -= 34;
     } else {
-      this.page.drawText(sanitize(this.brand.name), { x: MARGIN, y: this.y, size: 12, font: this.bold, color: this.accent });
+      this.page.drawText(sanitize(this.brand.name), { x: MARGIN, y: this.y, size: 12, font: this.bold, color: wordmark });
       this.y -= 24;
     }
     this.page.drawText(sanitize(this.title), { x: MARGIN, y: this.y, size: 20, font: this.bold, color: INK });
@@ -150,9 +188,9 @@ export class Pdf {
 
   heading(text: string) {
     this.ensure(28);
-    this.y -= 10;
+    this.y -= 2 + this.rowGap;
     this.page.drawText(sanitize(text), { x: MARGIN, y: this.y, size: 13, font: this.bold, color: INK });
-    this.y -= 16;
+    this.y -= 8 + this.rowGap;
   }
 
   text(text: string, opts: TextOpts = {}) {
@@ -168,15 +206,16 @@ export class Pdf {
 
   /** Label/value row (label muted, left; value right-aligned block under label width). */
   kv(label: string, value: string) {
+    const step = 6 + this.rowGap;
     this.ensure(16);
     this.page.drawText(sanitize(label), { x: MARGIN, y: this.y, size: 9, font: this.font, color: MUTED });
     const val = this.wrap(value, 10, this.font, CONTENT_W - 160);
     this.page.drawText(val[0] ?? "", { x: MARGIN + 160, y: this.y, size: 10, font: this.font, color: INK });
-    this.y -= 14;
+    this.y -= step;
     for (const extra of val.slice(1)) {
-      this.ensure(14);
+      this.ensure(step);
       this.page.drawText(extra, { x: MARGIN + 160, y: this.y, size: 10, font: this.font, color: INK });
-      this.y -= 14;
+      this.y -= step;
     }
   }
 
@@ -188,15 +227,46 @@ export class Pdf {
 
   gap(h = 8) { this.y -= h; }
 
+  /**
+   * Trim `s` to fit `width`, ending in an ellipsis when it will not go.
+   *
+   * `table()` used to draw a cell at its column's x and then step x by the column width,
+   * with nothing in between measuring anything. A description wider than its column
+   * therefore ran straight over the neighbour — and because the neighbour is usually a
+   * money column, an ordinary parts line like "Front wheel bearing kit + oil seal set"
+   * (143pt in a 130pt column) printed on top of a rand amount. Silently: no warning, no
+   * clipping, just two strings sharing the same ink.
+   *
+   * A gutter is subtracted as well as the overflow, because columns that merely touch are
+   * still unreadable. The ellipsis is U+2026, which `sanitize` already passes through to
+   * WinAnsi, so it survives the same encoder as the rest of the row.
+   */
+  private fit(s: string, width: number, font: PDFFont, size: number): string {
+    const max = width - TABLE_GUTTER;
+    if (max <= 0 || font.widthOfTextAtSize(s, size) <= max) return s;
+    const ell = "…";
+    const ellW = font.widthOfTextAtSize(ell, size);
+    // A column too narrow even for the ellipsis: draw nothing rather than one stray dot
+    // sitting in a neighbour's cell.
+    if (ellW > max) return "";
+    let out = s;
+    while (out.length > 0 && font.widthOfTextAtSize(out, size) + ellW > max) out = out.slice(0, -1);
+    return out.replace(/\s+$/, "") + ell;
+  }
+
   /** Paginated table. `align` marks right-aligned columns. */
   table(headers: string[], rows: string[][], widths: number[], align: boolean[] = []) {
     const size = 9;
-    const rowH = 16;
+    const rowH = 8 + this.rowGap;
     const drawRow = (cells: string[], font: PDFFont, color: RGB) => {
       let x = MARGIN;
       cells.forEach((c, i) => {
         const w = widths[i];
-        const s = sanitize(c);
+        // Right-aligned columns are money and quantities, and money is never abbreviated:
+        // "R12 4…" is worse than an overlap, because an overlap is visibly wrong while a
+        // truncated amount reads as a smaller number. A right-aligned cell that does not
+        // fit is a column-width bug, and it stays visible so somebody fixes it.
+        const s = align[i] ? sanitize(c) : this.fit(sanitize(c), w, font, size);
         const tw = font.widthOfTextAtSize(s, size);
         const tx = align[i] ? x + w - tw : x;
         this.page.drawText(s, { x: tx, y: this.y, size, font, color });

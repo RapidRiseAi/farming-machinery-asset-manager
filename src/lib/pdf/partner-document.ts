@@ -2,7 +2,7 @@ import "server-only";
 
 import { Pdf } from "@/lib/pdf/doc";
 import { rands } from "@/lib/money";
-import { resolveLayout } from "@/lib/doc-layout";
+import { resolveLayout, pdfRowGap } from "@/lib/doc-layout";
 import { vatPercent } from "@/lib/format";
 import { brandingFrom, brandingOf, type Branding } from "@/lib/branding";
 import { brandingLogoBytes } from "@/lib/partner-media";
@@ -121,6 +121,13 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
     logo,
     footer: brand.footer,
     poweredBy: brand.show_powered_by !== false,
+    // 0505: the two 0434 keys this engine used to drop on the floor. A template that
+    // promises "fits more on a page" or "no colour anywhere" is describing the EMAILED
+    // PDF as much as the screen, so both keys have to reach here or the promise is only
+    // half kept. `band` + `pdfRowGap("comfortable")` is the existing default and renders
+    // exactly what this engine rendered before.
+    accent: layout.accent_style,
+    rowGap: pdfRowGap(layout.density),
   });
 
   pdf.header([doc.bill_to_name, machine?.name].filter(Boolean).join(" · ") || undefined);
@@ -175,9 +182,15 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
       ...(layout.show_unit_price ? [charging ? "Unit (ex VAT)" : "Unit"] : []),
       charging ? "Total (ex VAT)" : "Total",
     ];
+    // The line-number column comes OUT of the description, not on top of the table. Before
+    // this it was simply prepended, so turning line numbers on pushed the row 24pt wider
+    // than the page's content width and the right-aligned total printed past the right
+    // margin. Nobody saw it while the default was off; the "Fits more on a page" template
+    // (0505) turns it on, so it would have shipped visibly.
+    const numberW = layout.show_line_numbers ? 24 : 0;
     const widths = [
-      ...(layout.show_line_numbers ? [24] : []),
-      layout.show_unit_price ? 260 : 340,
+      ...(layout.show_line_numbers ? [numberW] : []),
+      (layout.show_unit_price ? 260 : 340) - numberW,
       60,
       ...(layout.show_unit_price ? [90] : []),
       90,

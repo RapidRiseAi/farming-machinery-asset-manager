@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth";
 import { normaliseHex, DEFAULT_BRAND_PRIMARY, DEFAULT_BRAND_SECONDARY } from "@/lib/branding";
 import { percentToBps } from "@/lib/format";
 import { LAYOUT_SWITCHES } from "@/lib/doc-layout";
+import { isDocTemplate, templateLayout } from "@/lib/doc-templates";
 
 /**
  * A partner maintaining its own business profile and letterhead (F14a).
@@ -158,4 +159,43 @@ export async function updateDocumentLayout(formData: FormData) {
   revalidatePath("/contractor/settings");
   revalidatePath("/documents");
   redirect("/contractor/settings?layout=1");
+}
+
+/**
+ * Choosing one of the four document templates (0505).
+ *
+ * The template is a name plus the eight 0434 layout keys it stands for, and the keys come
+ * from `src/lib/doc-templates.ts` rather than from the form: the browser posts an id, and
+ * the server decides what that id means. A tampered post can therefore only be an
+ * unrecognised id — never an arbitrary layout — and the closed set is checked here as well
+ * as by the 0505 trigger, so a bad id gets a sentence instead of a Postgres error string.
+ *
+ * `apply_document_template` records the choice and merges the keys in ONE transaction,
+ * reusing `update_document_layout` underneath, so there is still exactly one write path to
+ * `doc_layout`. The workshop comes from the session inside the RPC — there is no id here to
+ * get wrong.
+ *
+ * NOT entitlement-gated, deliberately and in step with `updateDocumentLayout` above: a
+ * partner's letterhead and how their documents look is CORE on every product
+ * (`contractor-plan.ts`), because a partner on `portal` who attaches paperwork from their
+ * own accounting package still hands that paperwork to a farmer with our branding round it.
+ * Charging for the four templates would be charging for the one thing that was promised
+ * free forever.
+ */
+export async function applyDocumentTemplate(formData: FormData) {
+  await requireRole(["workshop"]);
+
+  const id = String(formData.get("template") ?? "");
+  if (!isDocTemplate(id)) redirect("/contractor/settings?error=unknown-template");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("apply_document_template", {
+    p_template: id,
+    p_layout: templateLayout(id),
+  });
+  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath("/contractor/settings");
+  revalidatePath("/documents");
+  redirect("/contractor/settings?template=1");
 }

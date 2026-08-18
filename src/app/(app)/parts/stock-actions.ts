@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentFarmId } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
 import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
+import { clampLookahead } from "@/lib/reorder";
 
 /**
  * The store (§6 inventory, 0450).
@@ -141,4 +142,36 @@ export async function untrackPart(formData: FormData) {
     .eq("id", id);
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
+}
+
+/**
+ * How far ahead the store looks for parts the schedule has already spoken for (0503).
+ *
+ * 0451 declined to guess a lookahead, on the grounds that it is a judgement better made by
+ * somebody who has run a farm store. So it is a farm SETTING, and it is written through the
+ * existing `update_farm_settings` RPC (0204) — owner/manager guarded inside the function,
+ * a jsonb merge, no schema change and no new policy. The clamp is applied here as well as
+ * on read so a mistyped 3000 is not quietly stored and then silently ignored.
+ *
+ * It lives on /parts rather than /settings because this is where the number is read: the
+ * card states the window in words directly above the control that changes it.
+ */
+export async function setReorderWindow(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  const farmId = await currentFarmId(profile);
+  if (!farmId) redirect("/parts?error=no-farm");
+
+  const days = clampLookahead(String(formData.get("reorder_lookahead_days") ?? ""));
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_farm_settings", {
+    p_farm: farmId,
+    // A cleared box means "use the default", which the SQL reads as an absent key. Writing
+    // JSON null rather than deleting keeps this a one-line merge.
+    p_settings: { reorder_lookahead_days: days },
+  });
+
+  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/parts");
+  redirect("/parts?saved=1#next");
 }

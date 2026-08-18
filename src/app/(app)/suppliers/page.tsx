@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -180,7 +181,18 @@ export default async function SuppliersPage({
                   <div className="flex flex-wrap items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-sand-900">
-                        {row.name}{" "}
+                        {/* The name opens the account: statement, ageing and the remittance
+                            advice for a payment run (G25). Until this link existed /money
+                            could say "you owe them R80 500" and nothing could open that
+                            line. A plain link, not a wrapper around the whole row — the row
+                            already contains its own forms and a nested interactive element
+                            is the invalid HTML that threw React #418 on the machines list. */}
+                        <Link
+                          href={`/suppliers/${row.id}`}
+                          className="focus-ring rounded underline-offset-2 hover:underline"
+                        >
+                          {row.name}
+                        </Link>{" "}
                         {row.active ? null : <Badge tone="neutral">{t("supplier.inactive", locale)}</Badge>}
                       </p>
                       <p className="text-sm text-sand-600">
@@ -205,6 +217,14 @@ export default async function SuppliersPage({
                       <p className="text-xs text-sand-500">
                         {pos.invoices} {t("supplier.invoicesSuffix", locale)} · {rands(pos.spent_cents)}
                       </p>
+                      {/* Named in full as well as on the business name above: "open the
+                          account" is the action, and a bare name does not look like one. */}
+                      <Link
+                        href={`/suppliers/${row.id}`}
+                        className="focus-ring inline-flex min-h-[2.75rem] items-center rounded text-sm font-medium text-brand-700 underline-offset-2 hover:underline sm:min-h-0"
+                      >
+                        {t("supplier.openAccount", locale)}
+                      </Link>
                     </div>
                   </div>
 

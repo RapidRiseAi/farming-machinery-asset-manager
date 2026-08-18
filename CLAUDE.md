@@ -1467,4 +1467,99 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     The `fleetwise-financial-controls` branch is fully contained in `main` (squash-merged,
     content verified identical) and is stale, not pending.
 
+
+- **Wave 3 — supplier statements, commitment-aware reordering, document templates, and a
+  statement bug the arithmetic hid** (migrations `0502–0505`; isolation-tested, `db:test`
+  green at **56 sections**; built by three subagents in parallel under the wave-1 ownership
+  discipline, every deciding claim re-run by the orchestrator before acceptance):
+  - **Supplier statements + remittance (`0502`, G25).** `/money` could say "you owe Bolt &
+    Bearing R805,00" since 0460/0482 and there was no way to open that line. `app.supplier_statement`
+    / `app.supplier_ageing` / `app.supplier_remittance`, all `security invoker` so RLS answers
+    rather than a check someone could forget. No new tables — everything aggregates
+    `partner_expenses` (0430) and `suppliers` (0480). **Workshop-scoped**: a farm reading what
+    its contractor pays its suppliers would be reading the margin behind every quote it is
+    given, and G25 proves the rival and the farm both read 0 while the partner reads 12 lines.
+    The ordering uses an **explicit rank**, deliberately not copying 0413's — which is how the
+    0504 bug below was found. The limitation is written into the migration header rather than
+    papered over: the purchase side has no payment ROWS, only `partner_expenses.paid_on`, so a
+    part-payment to a supplier cannot be represented and a "payment" line is a bill whose
+    `paid_on` falls in the period, credited at full gross.
+  - **`0504` — the balance brought forward was not always the first line.** Found while
+    building the supplier statement. `app.partner_statement` ended `order by 1, 2` from 0413,
+    carried through 0418 and 0423; the opening row is dated `p_from`, and `credit_note`,
+    `debit_note` and `invoice` all sort BEFORE `opening`. So any document issued on the
+    window's first day — the 1st of a month, or exactly 90 days ago, which is the DEFAULT
+    period — printed above "Balance brought forward", and `withRunningBalance` ran the Balance
+    column from the wrong start for every row above it. **Reproduced before the fix**: an
+    invoice of R230,00 rendered as line 1 with a running balance of R230,00 when the customer
+    owed R1 150,00. The closing total was always right, which is exactly why it survived four
+    migrations and a live click-through — every subtotal reconciled. A rank cannot be
+    expressed in the ORDER BY of a UNION (Postgres allows only output column names or ordinal
+    positions), so the union moves into a subquery; the tie-break after the rank is still
+    `kind`, and nothing else changed. Affects `/statements`, the statement PDF, the CSV and
+    the emailed copy. **G28 mutation-tested**: reinstalling the 0423 ordering makes assertion
+    (a) fire naming the defect; restoring 0504 makes it pass.
+  - **Commitment-aware reordering (`0503`, G26).** Not 0451's "you have 2 and your minimum is
+    3", but "the services due in the next 30 days need 9 filters and you have 4" — joining
+    `service_kit_items` (0271), the 0202 due engine and `stock_items` (0450). Lookahead is a
+    farm setting (`reorder_lookahead_days`, default 30, clamped 1–365) written through the
+    existing `update_farm_settings` RPC, so no schema or policy change. Meter projection uses
+    the **observed** trailing-90-day rate, not G1's utilisation capacity — at 10 h/day every
+    250 h service would be "due within 30 days" for ever. 0451's engine is **replaced, not
+    duplicated**, and skips any item the shortfall engine will speak about, so a shelf raises
+    one sentence a week whichever engine runs first; G26 asserts both directions. Warn, never
+    block: no trigger, no constraint. Wired into the nightly cron as step 11.
+  - **Document templates (`0505`, G27).** Four named presets — classic / compact / plain /
+    totals_only — over the **existing 0434 layout keys**, applied through 0434's own
+    `update_document_layout` merge and resolved by 0434's own resolver, so screen and PDF
+    cannot drift. Not a builder: nothing new can be expressed, which is the point. A template
+    governs **shape only** and never the wording keys, because `invoice_title` is load-bearing
+    in law — `documentTitle()` supplies "Tax invoice" for a VAT-registered partner exactly
+    when that key is empty, so a template that renamed headings would silently invalidate the
+    document (asserted in SQL and measured in the PDF across all four templates). The picker
+    is server-rendered with zero new client JS. Not entitlement-gated, matching
+    `updateDocumentLayout` — branding is core on every plan, as 0382 promised.
+  - **The PDF engine rendered `density` and `accent_style` on screen and dropped them in the
+    PDF**, so two of the four templates would have been half-kept in the emailed artefact.
+    `PdfBrand` gains `accent` and `rowGap` (defaults identical to today). Measured off the
+    page: `plain` draws only two colours on the whole sheet, `compact` is the only one with
+    the accent rule and fits 17 lines before spilling against classic's 3.
+  - **`Pdf.table()` neither wrapped nor clipped a cell** — it drew the text then advanced
+    `x += w`, so any oversized cell silently overlapped its neighbour. Pre-existing, affecting
+    every invoice, quote, statement and remittance the product has ever printed. Measured with
+    pdf-lib metrics: "Front wheel bearing kit + oil seal set" is 143pt in a 130pt column — an
+    utterly ordinary parts description colliding with a money column. `Pdf.fit()` now trims
+    against a 5pt gutter and appends an ellipsis; **right-aligned money cells are exempt**,
+    because a truncated amount reads as a smaller number, which is worse than a visible
+    overlap. Fixing it exposed a second defect: `partner-document.ts` **prepended** the line-
+    number column instead of taking it out of the description, running 24.7pt past the right
+    margin — invisible while the default was off, which `compact` turns on.
+  - **Byte-identity proved independently of the agent that made the change**: the same invoice
+    rendered through the engine at HEAD and as it now stands hashes identically for a partner
+    who never opened the branding screen (`layout` null, `{}`, wording-only, and the 0434
+    defaults written out in full), and differs only for the long-description case that was
+    already broken. That is the evidence the fix changes nothing except what was wrong.
+  - **PDFs were generated, not merely compiled** — the gap the supplier-statement agent
+    declared honestly. 121 statement rows paginate to 4 pages; the six-column remittance fits
+    (480pt against a 499.28pt content width); an empty period renders a document rather than
+    throwing; Afrikaans does not throw.
+  - **What the mutation exercise bought.** The reordering agent ran 32 mutations, all caught,
+    and four of them found things reading had not: its first harness passed POSIX paths to a
+    Windows psql, which prints `error:` in lowercase, so a grep missed it and **all 24
+    assertions were reported as "cannot fail" while nothing had run**; `select * into r` with
+    no matching row leaves every field NULL and `NULL <> 4` is NULL, so three blocks would
+    have passed silently if a shelf vanished from the report; and calling the function turned
+    up a real 0503 defect where a shelf at −2 with nothing committed reported `short_qty = 2`
+    while `is_short` was false.
+  - i18n EN/AF at parity (**3 179 leaf keys**; `supplierStatement.*`, `reorder.*`,
+    `docTemplate.*`, `notifications.tplStockShort`). Gates green (typecheck + lint + build +
+    `db:test`); shared first-load JS flat at **102 kB**.
+  - **Known gaps, unchanged or newly named**: the customer-facing `/d/[token]` page ignores
+    `doc_layout` entirely — it hardcodes an accent band and calls `documentLabel(kind)`, so
+    the page the person PAYING is linked to shows "Invoice", never "Tax invoice", never the
+    partner's own wording, and never the layout they chose; the authenticated page and the PDF
+    both honour it. The PDF also heads the recipient block "To" regardless of `bill_to_label`.
+    Still no bank-feed reconciliation beyond 0470, no multi-currency, no payroll, and the
+    PayFast ITN remains unexercised (deliberately — payments stay outside the product).
+
 > Update this "current status" block at the end of every session.

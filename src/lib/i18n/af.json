@@ -751,7 +751,8 @@
     "tplQuoteDeclinedPartner": "Kwotasie {number} is afgewys. {reason}",
     "tplPaymentClaimedPartner": "Iemand sê hulle het faktuur {number} ({amount}) betaal, verwysing {reference}. Kyk gerus jou bank.",
     "tplRecurringRaised": "{schedule}: faktuur {number} is geskep",
-    "tplLowStock": "Net {on_hand} {unit} van {part} oor — jy bestel weer by {reorder_point}."
+    "tplLowStock": "Net {on_hand} {unit} van {part} oor — jy bestel weer by {reorder_point}.",
+    "tplStockShort": "Die volgende {days} dae het {committed} {unit} van {part} nodig en jy het {on_hand} — {short} kort."
   },
   "settings": {
     "title": "Instellings",
@@ -1924,7 +1925,11 @@
     "moneyTitle": "Geld",
     "moneyWhat": "Of die werk betaal het, wat werklik in die bank is, en die twee lyste wat telefoonoproepe word.",
     "moneyDoes": "Sien wins vir ’n maand, kwartaal of jaar\nSien wie jou skuld en hoe laat hulle is\nSien vir wie jy skuld en hoe lank jy dit hou\nVergelyk wins met geld wat werklik gebank is",
-    "moneyNote": "Wins tel werk wanneer jy dit GEFAKTUREER het. Kontant tel geld wanneer dit BEWEEG het. ’n Goeie maand kan steeds ’n knap een wees, en daarom is albei hier."
+    "moneyNote": "Wins tel werk wanneer jy dit GEFAKTUREER het. Kontant tel geld wanneer dit BEWEEG het. ’n Goeie maand kan steeds ’n knap een wees, en daarom is albei hier.",
+    "supplierStatementTitle": "Een verskaffer se rekening",
+    "supplierStatementWhat": "Alles wat jy by hierdie besigheid gekoop het, alles wat jy hulle betaal het, en wat nog verskuldig is — opgebou uit die fakture wat jy vasgelê het, so dit is dieselfde geld as op die kontantvloei- en geldskerms.",
+    "supplierStatementDoes": "Kyk wat jy hulle skuld voordat jy bel, of voordat hulle bel\nLaai die staat af as 'n PDF op jou briefhoof, of as 'n sigblad\nDruk 'n betalingsadvies vir 'n betaalronde, sodat hulle weet watter fakture jou EFT gedek het",
+    "supplierStatementNote": "Bedrae sluit BTW in, want dit is wat jou bank verlaat. 'n \"Verval op\"-datum kom uit die termyn wat jy vir hierdie verskaffer geliasseer het — hul faktuur dra nie een nie."
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -3167,7 +3172,8 @@
     "unfiledNote": "Sommige fakture is nog net onder 'n getikte naam geliasseer. Voeg daardie besigheid hierbo by, dan koppel hulle daaraan. Niks word vir jou geskep nie, want dan sou 'n tikfout 'n verskaffer word.",
     "vatNumber": "Hul BTW-nommer",
     "vatNumberHint": "Nodig vir 'n eis van meer as R5 000.",
-    "vatShort": "BTW"
+    "vatShort": "BTW",
+    "openAccount": "Open hul rekening"
   },
   "recexp": {
     "aYear": "Oor 'n jaar",
@@ -3318,5 +3324,106 @@
     "pctUsed": "{pct}% gebruik",
     "over": "Hulle is {amount} oor die perk wat jy vir hulle gestel het.",
     "advisory": "Dit is n riglyn vir jou, nie n blokkering nie. FleetWise sal jou steeds toelaat om vir hierdie kliënt te kwoteer en te faktureer."
+  },
+  "supplierStatement": {
+    "back": "Alle verskaffers",
+    "noContact": "Geen kontakbesonderhede op rekord nie.",
+    "termsAssumed": "Geen termyn op rekord nie — 30 dae aanvaar",
+    "pdf": "PDF",
+    "csv": "Sigblad",
+    "owedNow": "Nou aan hulle verskuldig",
+    "totalOwed": "Totaal verskuldig",
+    "ageingHint": "Getel vanaf die datum op elk van hul fakture. 'n Verskaffersfaktuur dra nie 'n vervaldatum nie, so dit is hoe lank jy al daarop sit — nie hoe laat jy is nie.",
+    "grossHint": "Elke bedrag sluit BTW in. Dit is geld wat jou bank verlaat, so dit is dieselfde syfer as op die geldskerm.",
+    "age": {
+      "current": "Onder 30 dae",
+      "d30": "31–60 dae",
+      "d60": "61–90 dae",
+      "d90": "Meer as 90 dae"
+    },
+    "periodTitle": "Watter tydperk",
+    "period": {
+      "days90": "Laaste 90 dae",
+      "thisMonth": "Hierdie maand",
+      "lastMonth": "Verlede maand",
+      "thisYear": "Hierdie jaar"
+    },
+    "from": "Van",
+    "to": "Tot",
+    "show": "Wys",
+    "ledgerTitle": "Hul rekening",
+    "emptyTitle": "Niks het op hierdie rekening gebeur nie",
+    "emptyBody": "Geen fakture van hulle en geen betalings aan hulle tussen hierdie datums nie. Probeer 'n wyer tydperk — enigiets ouer is reeds in die oorgedraagde saldo.",
+    "date": "Datum",
+    "what": "Wat gebeur het",
+    "dueBy": "Verval op",
+    "charged": "Hulle het gehef",
+    "paid": "Jy het betaal",
+    "balance": "Saldo",
+    "opening": "Saldo oorgedra",
+    "billed": "Hulle het gefaktureer",
+    "paidOff": "Jy het betaal",
+    "closing": "Nog verskuldig",
+    "dueHint": "\"Verval op\" word uit hul betaaltermyn bereken; dit staan nie op hul faktuur nie. Waar jy geen termyn geliasseer het nie, word 30 dae aanvaar — dieselfde reël wat die kontantvloeiskerm gebruik.",
+    "remitTitle": "Betalingsadvies",
+    "remitLead": "Stuur dit saam met die betaling sodat hulle weet watter van hul fakture dit dek. Sonder dit vereffen 'n verskaffer gewoonlik die oudste faktuur en jaag jou dan vir geld wat jy reeds gestuur het.",
+    "remitNoneInPeriod": "Niks is in hierdie tydperk aan hierdie verskaffer betaal nie. Kies 'n wyer tydperk, of tik die betaaldatum hieronder.",
+    "remitDate": "Betaaldatum",
+    "remitDateHint": "Die dag toe die geld jou bank verlaat het.",
+    "remitEmpty": "Geen fakture van hierdie verskaffer is op daardie datum as betaal gemerk nie.",
+    "remitOne": "Een faktuur vereffen, totaal",
+    "remitMany": "{n} fakture met een betaling vereffen, totaal",
+    "remitPdf": "Betalingsadvies-PDF",
+    "theirInvoice": "Hul faktuur",
+    "dated": "Gedateer",
+    "exVat": "Sonder BTW",
+    "vat": "BTW",
+    "total": "Totaal",
+    "rowOpening": "Saldo oorgedra",
+    "rowBill": "Hul faktuur",
+    "rowPayment": "Volledig betaal"
+  },
+  "docTemplate": {
+    "title": "Kies die dokument wat jy stuur",
+    "lead": "Vier dokumente, almal joune. Kies die een wat reg lyk en alles wat jy van nou af stuur gebruik dit.",
+    "keepsNote": "Jou naam, logo, kleure, staande voorwaardes, voetskrif en nommering geld vir al vier — om een te kies gooi hulle nooit weg nie.",
+    "current": "In gebruik",
+    "inUse": "Dit is wat jy stuur.",
+    "use": "Gebruik hierdie een",
+    "reapply": "Sit dit terug",
+    "changedByHand": "Jy het van die instellings hieronder self verander sedert jy hierdie een gekies het.",
+    "savedFlash": "Gestoor. Alles wat jy van nou af stuur gebruik hierdie een.",
+    "frozenNote": "Enigiets wat jy reeds gestuur het behou die voorkoms waarmee dit gestuur is — ’n ander keuse kan nie ’n ou faktuur herstel nie.",
+    "name": {
+      "classic": "Standaard briefhoof",
+      "compact": "Pas meer op ’n bladsy",
+      "plain": "Gewone papier",
+      "totals_only": "Sonder tariewe"
+    },
+    "desc": {
+      "classic": "Jou naam en kleur oor die bokant, ruim rye, en ’n prys by elke reël. Wat die meeste werkswinkels stuur.",
+      "compact": "Digter rye, genommerde reëls, en ’n dun kleurstreep in plaas van ’n band. ’n Lang werk pas op een bladsy in plaas van twee.",
+      "plain": "Geen kleur nêrens nie, en ’n streep om op te teken. Dit fotokopieer en faks skoon, en druk in swart en wit sonder om grys te word.",
+      "totals_only": "Sê wat jy gedoen het en wat elke item gekos het, maar hou jou uurtarief en deelpryse van die bladsy af."
+    }
+  },
+  "reorder": {
+    "title": "Wat die volgende dienste nodig het",
+    "window": "Tel elke diens wat in die volgende {days} dae val.",
+    "headline": "{count} onderdele raak op voor die dienste wat in die volgende {days} dae val",
+    "shortCount": "{count} onderdele sal nie rondgaan nie.",
+    "allCovered": "Jy het genoeg van alles wat hierdie dienste nodig het.",
+    "nothingDueTitle": "Geen dienste val binne hierdie tydperk nie",
+    "nothingDueBody": "Niks op die diensskedule val binne die tydperk nie, so niks op die rak is nog opgeëis nie. Gee 'n voertuig 'n dienspak en die onderdele wat dit nodig het, verskyn hier.",
+    "onHand": "Op die rak",
+    "committed": "Benodig",
+    "leftOver": "Oor",
+    "shortBy": "{qty} kort",
+    "covered": "Genoeg",
+    "forMachines": "Vir:",
+    "severalKitsNote": "'n Voertuig met meer as een dienspak tel almal, want niks hier hou by watter pak by watter diens hoort nie. Eerder meer as minder.",
+    "windowLabel": "Hoeveel dae vooruit om te kyk",
+    "windowHint": "Tussen 1 en 365. Alles hierbo tel dienste wat binne soveel dae val.",
+    "windowSave": "Stoor tydperk"
   }
 }

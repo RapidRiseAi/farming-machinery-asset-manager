@@ -16,8 +16,9 @@ import { deliverPush } from "@/lib/push/deliver";
  *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
  *   9. cron_generate_recurring_invoices   — standing invoices due today (idempotent, G8)
  *  10. cron_enqueue_low_stock             — parts at or below their reorder point (0451)
- *  11. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
- *  12. push delivery                      — Web Push for the freshly-queued rows (F6)
+ *  11. cron_enqueue_stock_shortfall       — parts the next N days of services need (0503)
+ *  12. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *  13. push delivery                      — Web Push for the freshly-queued rows (F6)
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
  * sends this header when a CRON_SECRET env var is set (see docs/CRON.md), so the same
@@ -59,6 +60,9 @@ export async function GET(request: Request) {
 
   // What the store is running out of (0451). Weekly per item, quiet hours honoured.
   await run("low_stock", "cron_enqueue_low_stock");
+
+  // What the schedule has already spoken for (0503). Weekly per item, quiet hours honoured.
+  await run("stock_shortfall", "cron_enqueue_stock_shortfall");
 
   // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {

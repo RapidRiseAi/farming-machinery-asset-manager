@@ -16,6 +16,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPart, updatePart, deletePart } from "./actions";
 import { trackPart } from "./stock-actions";
 import { StoreCard, type StoreRow } from "@/components/stock/store-card";
+import { CommitmentCard } from "@/components/parts/commitment-card";
+import { shortfallCount, type ShortfallRow } from "@/lib/reorder";
+import { num } from "@/lib/format";
 
 type Part = {
   id: string;
@@ -66,6 +69,25 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   const stockItems = (stockData ?? []) as StoreRow[];
   const machines = (machineData ?? []) as { id: string; name: string }[];
 
+  // What the schedule has already spoken for (0503). The WINDOW is asked for rather than
+  // worked out here: the days printed on the card are then the days the query used, by
+  // construction, so there is no mirrored rule to drift. Both functions are SECURITY
+  // INVOKER, so a farm id this session cannot reach simply comes back empty.
+  let lookaheadDays = 0;
+  let shortfall: ShortfallRow[] = [];
+  if (farmId) {
+    const { data: daysData } = await supabase.rpc("reorder_lookahead_days", { p_farm: farmId });
+    lookaheadDays = typeof daysData === "number" ? daysData : 0;
+    if (lookaheadDays > 0) {
+      const { data: shortData } = await supabase.rpc("stock_shortfall", {
+        p_farm: farmId,
+        p_days: lookaheadDays,
+      });
+      shortfall = (shortData ?? []) as ShortfallRow[];
+    }
+  }
+  const shortCount = shortfallCount(shortfall);
+
   // Join to the catalogue in memory: the two lists are already loaded, and a part may be a
   // GLOBAL row, which a PostgREST embed across the nullable farm_id would not follow.
   const partById = new Map(parts.map((p) => [p.id, p]));
@@ -97,6 +119,17 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
           <PageInfoButton infoKey="parts" locale={locale} />
         </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("parts.subtitle", locale)}</p>
+          {showStore && shortCount > 0 ? (
+            // Stated before the catalogue rather than only inside the card, because it is
+            // the one thing on this screen that changes what somebody does today.
+            <p className="mt-1.5 text-sm font-medium text-status-overdue">
+              <a href="#next" className="underline underline-offset-2">
+                {t("reorder.headline", locale)
+                  .replace("{count}", num(shortCount, 0))
+                  .replace("{days}", num(lookaheadDays, 0))}
+              </a>
+            </p>
+          ) : null}
         </div>
         <form method="get" className="flex items-end gap-2">
           <Field label={t("parts.search", locale)} htmlFor="q">
@@ -143,6 +176,16 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
             </form>
           </details>
         </Card>
+      ) : null}
+
+      {/* What the next N days need (0503), above the shelf it is about. */}
+      {showStore ? (
+        <CommitmentCard
+          locale={locale}
+          rows={shortfall}
+          days={lookaheadDays}
+          canSetWindow={["owner", "manager"].includes(profile.role)}
+        />
       ) : null}
 
       {/* The store — what is actually on the shelf (0450). Farm side only. */}

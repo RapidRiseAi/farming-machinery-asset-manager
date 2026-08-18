@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { vatPercent } from "@/lib/format";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { DocumentLayoutForm } from "@/components/partner/document-layout-form";
+import { DocumentTemplatePicker } from "@/components/documents/template-picker";
 import { Badge } from "@/components/ui/badge";
 import { VatRateField } from "@/components/vat-rate-field";
 import { LogoUpload } from "@/components/partner/logo-upload";
@@ -30,7 +32,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 export default async function PartnerSettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; layout?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; layout?: string; template?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role !== "workshop") redirect(`${homePathFor(profile.role)}?denied=1`);
@@ -41,7 +43,23 @@ export default async function PartnerSettingsPage({
   const b = brandingFrom(workshop);
   const logoUrl = await signedBrandingUrl(workshop?.logo_path ?? null);
 
+  // `doc_template` is not part of `BRANDING_COLUMNS` — that list is the LETTERHEAD, and the
+  // template is a record of which preset produced it, read only by this screen. One narrow
+  // read rather than widening a shape four other surfaces depend on. RLS scopes it: a
+  // partner reads its own workshop row and no other.
+  let chosenTemplate: string | null = null;
+  if (workshop) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("workshops")
+      .select("doc_template")
+      .eq("id", workshop.id)
+      .maybeSingle();
+    chosenTemplate = (data as { doc_template?: string } | null)?.doc_template ?? null;
+  }
+
   const groups = [
+    ["ps-templates", "docTemplate.title"],
     ["ps-identity", "partnerSettings.identity"],
     ["ps-contact", "partnerSettings.contact"],
     ["ps-bank", "partnerSettings.banking"],
@@ -61,6 +79,7 @@ export default async function PartnerSettingsPage({
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.layout ? t("layout.savedFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.template ? t("docTemplate.savedFlash", locale) : undefined} />
 
       <nav
         aria-label={t("settings.jumpTo", locale)}
@@ -110,6 +129,24 @@ export default async function PartnerSettingsPage({
         </div>
       </Card>
 
+      {/* Pick a document, then adjust it. The picker comes FIRST because it is the question
+          most partners will answer — four real documents to point at — and the switches
+          below are for the one in ten who wants to move something afterwards. Both draw the
+          same miniature, with this partner's own colour, logo and VAT number in it, so it is
+          plain that choosing a template does not throw the letterhead away. */}
+      <div id="ps-templates">
+        <DocumentTemplatePicker
+          locale={locale}
+          chosen={chosenTemplate}
+          currentLayout={(workshop as { doc_layout?: unknown } | null)?.doc_layout}
+          brandPrimary={b.brand_primary ?? "#166534"}
+          businessName={b.name}
+          vatRegistered={workshop?.vat_registered !== false}
+          logoUrl={logoUrl}
+          vatNumber={b.vat_number}
+        />
+      </div>
+
       {/* How the document is LAID OUT, as opposed to what colour it is. Directly under the
           letterhead preview because the two answer the same question — what does the thing
           I send actually look like — and a partner comparing them wants them together. */}
@@ -119,6 +156,8 @@ export default async function PartnerSettingsPage({
         brandPrimary={b.brand_primary ?? "#166534"}
         vatRegistered={workshop?.vat_registered !== false}
         businessName={b.name}
+        logoUrl={logoUrl}
+        vatNumber={b.vat_number}
       />
 
 

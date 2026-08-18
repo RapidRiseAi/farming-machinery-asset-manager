@@ -62,6 +62,15 @@ export function formatNotification(
         unit: String(p.unit ?? ""),
         reorder_point: String(p.reorder_point ?? ""),
       });
+    case "stock_short":
+      return fill("notifications.tplStockShort", locale, {
+        part: String(p.part_no ?? p.description ?? ""),
+        committed: String(p.committed ?? ""),
+        on_hand: String(p.on_hand ?? ""),
+        short: String(p.short ?? ""),
+        unit: String(p.unit ?? ""),
+        days: String(p.days ?? ""),
+      });
     case "warranty_expiring":
       return fill("notifications.tplWarrantyExpiring", locale, { machine: m, date: String(p.expiry_date ?? "") });
     case "warranty_expired":
@@ -182,7 +191,7 @@ export function notificationTitle(template: string, locale: Lang): string {
                     template.startsWith("invoice_") ||
                     template.startsWith("payment_")
                   ? "documents"
-                : template === "low_stock"
+                : template === "low_stock" || template === "stock_short"
                   ? "stock"
                 : template.startsWith("aarto_")
                   ? "aarto"
@@ -205,7 +214,10 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // the customer's answers from the emailed link included.
   if (p.document_id) return `/documents/${p.document_id}`;
   // A low-stock nudge opens the store it is about.
+  // A low-stock nudge opens the store it is about; a shortfall opens the panel that
+  // explains which services are waiting on the part.
   if (template === "low_stock") return "/parts#store";
+  if (template === "stock_short") return "/parts#next";
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
   if (p.machine_id) return `/machines/${p.machine_id}`;

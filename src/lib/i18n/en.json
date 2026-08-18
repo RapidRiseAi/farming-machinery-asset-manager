@@ -751,7 +751,8 @@
     "tplQuoteDeclinedPartner": "Quote {number} was declined. {reason}",
     "tplPaymentClaimedPartner": "Someone says they have paid invoice {number} ({amount}), reference {reference}. Worth checking your bank.",
     "tplRecurringRaised": "{schedule}: invoice {number} has been raised",
-    "tplLowStock": "Only {on_hand} {unit} of {part} left — you reorder at {reorder_point}."
+    "tplLowStock": "Only {on_hand} {unit} of {part} left — you reorder at {reorder_point}.",
+    "tplStockShort": "The next {days} days need {committed} {unit} of {part} and you have {on_hand} — {short} short."
   },
   "settings": {
     "title": "Settings",
@@ -1924,7 +1925,11 @@
     "moneyTitle": "Money",
     "moneyWhat": "Whether the work paid, what is actually in the bank, and the two lists that turn into phone calls.",
     "moneyDoes": "See profit for a month, quarter or year\nSee who owes you and how late they are\nSee who you owe and how long you have held it\nCompare profit against cash actually banked",
-    "moneyNote": "Profit counts work when you INVOICED it. Cash counts money when it MOVED. A good month can still be a tight one, which is why both are here."
+    "moneyNote": "Profit counts work when you INVOICED it. Cash counts money when it MOVED. A good month can still be a tight one, which is why both are here.",
+    "supplierStatementTitle": "One supplier's account",
+    "supplierStatementWhat": "Everything you have bought from this business, everything you have paid them, and what is still owed — built from the invoices you have captured, so it is the same money the cash-flow and money screens use.",
+    "supplierStatementDoes": "Check what you owe them before you ring, or before they ring you\nDownload the statement as a PDF on your letterhead, or as a spreadsheet\nPrint a remittance advice for a payment run, so they know which invoices your EFT covered",
+    "supplierStatementNote": "Amounts include VAT, because that is what leaves your bank. A \"due by\" date comes from the terms you filed for this supplier — their invoice does not carry one."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -3167,7 +3172,8 @@
     "unfiledNote": "Some invoices are still filed under a typed name only. Add that business above and they attach to it. Nothing is created for you, because then a typo would become a supplier.",
     "vatNumber": "Their VAT number",
     "vatNumberHint": "Needed on a claim over R5 000.",
-    "vatShort": "VAT"
+    "vatShort": "VAT",
+    "openAccount": "Open their account"
   },
   "recexp": {
     "aYear": "Over a year",
@@ -3318,5 +3324,106 @@
     "pctUsed": "{pct}% used",
     "over": "They are {amount} over the limit you set for them.",
     "advisory": "This is a guide for you, not a block. FleetWise will still let you quote and invoice this customer."
+  },
+  "supplierStatement": {
+    "back": "All suppliers",
+    "noContact": "No contact details on file.",
+    "termsAssumed": "No terms on file — 30 days assumed",
+    "pdf": "PDF",
+    "csv": "Spreadsheet",
+    "owedNow": "Owed to them now",
+    "totalOwed": "Total owed",
+    "ageingHint": "Counted from the date on each of their invoices. A supplier invoice does not carry a due date, so this is how long you have been sitting on it — not how late you are.",
+    "grossHint": "Every amount includes VAT. This is money that leaves your bank, so it is the same figure the money screen shows.",
+    "age": {
+      "current": "Under 30 days",
+      "d30": "31–60 days",
+      "d60": "61–90 days",
+      "d90": "Over 90 days"
+    },
+    "periodTitle": "Which period",
+    "period": {
+      "days90": "Last 90 days",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisYear": "This year"
+    },
+    "from": "From",
+    "to": "To",
+    "show": "Show",
+    "ledgerTitle": "Their account",
+    "emptyTitle": "Nothing happened on this account",
+    "emptyBody": "No invoices from them and no payments to them between these dates. Try a wider period — anything older is already inside the balance brought forward.",
+    "date": "Date",
+    "what": "What happened",
+    "dueBy": "Due by",
+    "charged": "They charged",
+    "paid": "You paid",
+    "balance": "Balance",
+    "opening": "Balance brought forward",
+    "billed": "They invoiced",
+    "paidOff": "You paid",
+    "closing": "Still owed",
+    "dueHint": "\"Due by\" is worked out from their payment terms; it is not printed on their invoice. Where you have not filed a term, 30 days is assumed — the same rule the cash-flow screen uses.",
+    "remitTitle": "Remittance advice",
+    "remitLead": "Send this with the payment so they know which of their invoices it covers. Without one a supplier usually settles the oldest invoice and then chases you for money you have already sent.",
+    "remitNoneInPeriod": "Nothing was paid to this supplier in this period. Pick a wider period, or type the payment date below.",
+    "remitDate": "Payment date",
+    "remitDateHint": "The day the money left your bank.",
+    "remitEmpty": "No invoices from this supplier are marked paid on that date.",
+    "remitOne": "One invoice settled, total",
+    "remitMany": "{n} invoices settled by one payment, total",
+    "remitPdf": "Remittance PDF",
+    "theirInvoice": "Their invoice",
+    "dated": "Dated",
+    "exVat": "Ex VAT",
+    "vat": "VAT",
+    "total": "Total",
+    "rowOpening": "Balance brought forward",
+    "rowBill": "Their invoice",
+    "rowPayment": "Paid in full"
+  },
+  "docTemplate": {
+    "title": "Pick the document you send",
+    "lead": "Four documents, all of them yours. Pick the one that looks right and everything you send from now on uses it.",
+    "keepsNote": "Your name, logo, colours, standing terms, footer and numbering apply to all four — picking one never throws them away.",
+    "current": "In use",
+    "inUse": "This is what you send.",
+    "use": "Use this one",
+    "reapply": "Put it back",
+    "changedByHand": "You have changed some of the settings below by hand since choosing this.",
+    "savedFlash": "Saved. Everything you send from now on uses this one.",
+    "frozenNote": "Anything you have already sent keeps the look it was sent with — picking a different one cannot restate an old invoice.",
+    "name": {
+      "classic": "Standard letterhead",
+      "compact": "Fits more on a page",
+      "plain": "Plain paper",
+      "totals_only": "No rates shown"
+    },
+    "desc": {
+      "classic": "Your name and colour across the top, roomy rows, and a price against every line. What most workshops send.",
+      "compact": "Tighter rows, numbered lines, and a thin colour stripe instead of a band. A long job lands on one page instead of two.",
+      "plain": "No colour anywhere, and a line to sign. Photocopies and faxes cleanly, and prints in black and white without going grey.",
+      "totals_only": "Says what you did and what each item came to, but keeps your rate per hour and per part off the page."
+    }
+  },
+  "reorder": {
+    "title": "What the next services need",
+    "window": "Counting every service due in the next {days} days.",
+    "headline": "{count} parts will run out before the services due in the next {days} days",
+    "shortCount": "{count} parts will not go round.",
+    "allCovered": "You have enough of everything these services need.",
+    "nothingDueTitle": "No services due in this window",
+    "nothingDueBody": "Nothing on the service schedule falls inside the window, so nothing on the shelf is spoken for yet. Give a vehicle a service kit and the parts it needs will show up here.",
+    "onHand": "On the shelf",
+    "committed": "Needed",
+    "leftOver": "Left over",
+    "shortBy": "{qty} short",
+    "covered": "Enough",
+    "forMachines": "For:",
+    "severalKitsNote": "A vehicle with more than one service kit counts all of them, because nothing here records which kit belongs to which service. Rather more than less.",
+    "windowLabel": "How many days ahead to look",
+    "windowHint": "Between 1 and 365. Everything above counts services due inside this many days.",
+    "windowSave": "Save window"
   }
 }

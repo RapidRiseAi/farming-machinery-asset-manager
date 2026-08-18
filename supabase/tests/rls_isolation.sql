@@ -9943,3 +9943,1596 @@ do $$ begin
 end $$;
 
 select 'ALL G24 PART-INVOICED ORDER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G25 — SUPPLIER STATEMENTS (0502)
+--
+-- 0413 built the statement for a CUSTOMER and catalogued six ways AutoVault got the same
+-- document wrong. This is the mirror, on the purchase side, and it is exposed to five of
+-- those six faults for exactly the same reasons — so the section proves the arithmetic
+-- before it proves the isolation.
+--
+-- Every figure below states its own inputs. Eight bills against one supplier, on dates
+-- chosen so that each one exercises a different arm of the function:
+--
+--   E1  -120d  115000 gross  paid -100d   both legs BEFORE the window -> nets to nothing
+--   E2  -100d   57500        unpaid       bill before the window      -> opening only
+--   E3   -90d   23000        paid  -30d   bill before, PAYMENT inside -> both, separately
+--   E4   -20d   11500        unpaid       inside the window
+--   E5   -10d   46000        paid   -5d   inside, and settled inside
+--   E6  -400d    9200        unpaid       far outside -> opening, and the 90+ bucket
+--   E7   -15d    5750        paid   -5d   settled in the SAME banking run as E5
+--   E8   -60d    2300        unpaid       dated ON the window's first day
+--
+-- Window = [current_date - 60, current_date]. That gives:
+--
+--   opening   = 204700 billed before the window - 115000 settled before it = 89700
+--   8 lines   = opening, E8, E3's payment, E4, E7, E5, E5's payment, E7's payment
+--   closing   = 80500, which is also exactly what is still unpaid and dated on or before
+--               the window's end - so the statement and the ageing are made to agree, and
+--               asserted to, rather than being written the same way and hoped over
+--
+-- What each assertion is here to catch:
+--
+--   * THE OPENING BALANCE. The first and worst of 0413's six: filter by date, start the
+--     running balance at zero, and the closing figure is not what is owed - it is what was
+--     billed this quarter. E1/E2/E3/E6 are all before the window and all contribute
+--     differently, so an opening balance that merely summed something would still be wrong.
+--   * A BILL OUTSIDE THE PERIOD IS NOT A LINE. E6 is 400 days old and must appear ONLY
+--     inside the brought-forward figure. A statement that listed it would be a
+--     transaction history wearing a statement's clothes.
+--   * GROSS, NOT EX-VAT. `amount_cents` is ex-VAT and `vat_cents` is the supplier's own VAT
+--     line (0430). What leaves the bank is the sum, which is what `app.partner_creditors`
+--     already ages. The unpaid ex-VAT figure here is 70000 and the gross one is 80500; if
+--     this function ever quietly returned the first, /money and this screen would answer
+--     "what do I owe them" differently in the same week.
+--   * THE OPENING LINE COMES FIRST even on a day a bill was captured. 0413 orders `by 1, 2`
+--     and gets away with it only because 'opening' happens to sort after 'credit_note' and
+--     'invoice'; 'bill' sorts BEFORE it. E8 is dated on the window's first day precisely to
+--     hold 0502's explicit rank in place.
+--   * WORKSHOP SCOPE, both ways round. A rival partner reads nothing - not with a guessed
+--     supplier id, and not by pairing its OWN workshop id with the rival's supplier. And
+--     the FARM this workshop works for reads nothing at all, through an ACTIVE
+--     workshop_link, because a farm reading who its contractor buys from, what it pays and
+--     on what terms is reading the margin behind every quote it has ever been given (F16).
+--     Both partners are on the `books` plan, so every zero below is RLS refusing and never
+--     an entitlement (G22: the partner plan is not a tenancy control).
+--   * ANON EXECUTES NOTHING. G11's rule: an app-schema function with no explicit grant
+--     defaults to EXECUTE TO PUBLIC, and all six of these expose money.
+--
+-- Fixture ids begin `7e`. (`g` is not a hex digit and `uuid` rejects it.)
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values ('7e000000-0000-0000-0000-000000000001', 'Farm SS');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps, plan) values
+  ('7e100000-0000-0000-0000-000000000001', 'Workshop SA', 'mechanic',       true, 1500, 'books'),
+  ('7e100000-0000-0000-0000-000000000002', 'Workshop SB', 'parts_supplier', true, 1500, 'books');
+
+-- SA works for Farm SS. This link is the entire reason the farm assertion below is worth
+-- making: it is what makes SA reachable from the farm at all, and it must open nothing here.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('7e100000-0000-0000-0000-000000000001', '7e000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('7e200000-0000-0000-0000-000000000001', 'sastaff@test'),
+  ('7e200000-0000-0000-0000-000000000002', 'sbstaff@test'),
+  ('7e300000-0000-0000-0000-000000000001', 'ownerSS@test');
+
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('7e200000-0000-0000-0000-000000000001', null, '7e100000-0000-0000-0000-000000000001', 'workshop', 'SA Staff', 'sa@test'),
+  ('7e200000-0000-0000-0000-000000000002', null, '7e100000-0000-0000-0000-000000000002', 'workshop', 'SB Staff', 'sb@test'),
+  ('7e300000-0000-0000-0000-000000000001', '7e000000-0000-0000-0000-000000000001', null, 'owner', 'Owner SS', 'ss@test');
+
+-- 60-day terms, so the DERIVED due date on the statement is provably the supplier's own
+-- number and not 0491's 30-day fallback.
+insert into suppliers (id, workshop_id, name, payment_terms_days, account_number) values
+  ('7e400000-0000-0000-0000-000000000001', '7e100000-0000-0000-0000-000000000001', 'Bolt & Bearing', 60, 'SA-4471'),
+  ('7e400000-0000-0000-0000-000000000002', '7e100000-0000-0000-0000-000000000002', 'Rival Depot',    30, null);
+
+insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, reference, category,
+                              expense_date, paid_on, amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  ('7e500000-0000-0000-0000-000000000001', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-001', 'parts',
+   current_date - 120, current_date - 100, 100000, 1500, 15000, true),
+  ('7e500000-0000-0000-0000-000000000002', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-002', 'parts',
+   current_date - 100, null, 50000, 1500, 7500, true),
+  ('7e500000-0000-0000-0000-000000000003', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-003', 'tools',
+   current_date - 90, current_date - 30, 20000, 1500, 3000, true),
+  ('7e500000-0000-0000-0000-000000000004', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-004', 'parts',
+   current_date - 20, null, 10000, 1500, 1500, true),
+  ('7e500000-0000-0000-0000-000000000005', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-005', 'parts',
+   current_date - 10, current_date - 5, 40000, 1500, 6000, true),
+  ('7e500000-0000-0000-0000-000000000006', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-006', 'parts',
+   current_date - 400, null, 8000, 1500, 1200, true),
+  ('7e500000-0000-0000-0000-000000000007', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-007', 'tools',
+   current_date - 15, current_date - 5, 5000, 1500, 750, true),
+  ('7e500000-0000-0000-0000-000000000008', '7e100000-0000-0000-0000-000000000001',
+   '7e400000-0000-0000-0000-000000000001', 'Bolt & Bearing', 'BB-008', 'parts',
+   current_date - 60, null, 2000, 1500, 300, true),
+  -- An invoice nobody has filed a supplier for. 0481 refuses to invent one from a name, so
+  -- this is the ordinary and permanent state for any workshop that never files its
+  -- suppliers - and it is the documented boundary of this feature: it belongs to no
+  -- supplier record, so it appears on no statement, while still being money owed and
+  -- therefore still aging on /money.
+  ('7e500000-0000-0000-0000-000000000009', '7e100000-0000-0000-0000-000000000001',
+   null, 'Never Filed Co', 'NF-1', 'admin',
+   current_date - 1, null, 1000, 1500, 150, true),
+  -- The rival's own bill, so every "reads zero" below is measured against a real row.
+  ('7e500000-0000-0000-0000-000000000010', '7e100000-0000-0000-0000-000000000002',
+   '7e400000-0000-0000-0000-000000000002', 'Rival Depot', 'RD-1', 'parts',
+   current_date - 10, null, 30000, 1500, 4500, true);
+
+-- The typed-name row must genuinely be unlinked, or the boundary assertion below proves
+-- nothing. Stated rather than assumed: the 0481 trigger runs on every insert above.
+do $$ declare v uuid; begin
+  select supplier_id into v from partner_expenses where id = '7e500000-0000-0000-0000-000000000009';
+  if v is not null then
+    raise exception 'G25 SETUP FAIL: a typed supplier name minted or matched a record (%) - 0481 must never invent one', v;
+  end if;
+end $$;
+
+-- ── (a) The opening balance, and that it is FIRST ────────────────────────────
+do $$
+declare
+  v_from date := current_date - 60;
+  v_to   date := current_date;
+  r      record;
+  n      bigint;
+begin
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', v_from, v_to);
+  if n <> 8 then
+    raise exception 'G25 FAIL: the statement has % lines rather than the 8 these eight bills produce', n;
+  end if;
+
+  -- 204700 billed before the window less the 115000 settled before it.
+  select * into r
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+   limit 1;
+  if r.kind <> 'opening' then
+    raise exception 'G25 FAIL [ORDER]: the first line is a % - a bill dated on the window''s first day outranked the balance brought forward, so the running balance starts from the wrong number', r.kind;
+  end if;
+  if r.debit_cents <> 89700 or r.credit_cents <> 0 then
+    raise exception 'G25 FAIL [OPENING]: brought forward is %/% rather than 89700/0', r.debit_cents, r.credit_cents;
+  end if;
+  if r.entry_date <> v_from then
+    raise exception 'G25 FAIL [OPENING]: brought forward is dated % rather than the window start %', r.entry_date, v_from;
+  end if;
+
+  -- E1 was billed AND settled before the window: it must contribute nothing at all, which
+  -- is a different statement from "it is not a line".
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+              where expense_id = '7e500000-0000-0000-0000-000000000001') then
+    raise exception 'G25 FAIL: a bill raised and paid before the window is listed inside it';
+  end if;
+end $$;
+
+-- ── (b) A bill outside the period is inside the opening figure, and nowhere else ──
+do $$
+declare
+  v_from date := current_date - 60;
+  v_to   date := current_date;
+begin
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+              where expense_id in ('7e500000-0000-0000-0000-000000000002',   -- 100 days old
+                                   '7e500000-0000-0000-0000-000000000006'))  -- 400 days old
+  then
+    raise exception 'G25 FAIL [PERIOD]: a bill dated before the window is listed as its own line - that is a transaction history, not a statement';
+  end if;
+
+  -- Nothing after the window either. E5 was settled 5 days ago; a statement that closed a
+  -- fortnight ago must not know about it.
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001',
+                                                  current_date - 60, current_date - 14)
+              where expense_id = '7e500000-0000-0000-0000-000000000005' and kind = 'payment')
+  then
+    raise exception 'G25 FAIL [PERIOD]: a settlement dated after the window''s end is on the statement';
+  end if;
+
+  -- And the unfiled invoice belongs to no supplier record, so it is on no statement.
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+              where expense_id = '7e500000-0000-0000-0000-000000000009') then
+    raise exception 'G25 FAIL: an expense carrying only a typed supplier name appeared on a supplier''s statement';
+  end if;
+end $$;
+
+-- ── (c) GROSS, not ex-VAT ───────────────────────────────────────────────────
+-- The single most likely way for this to be quietly wrong, because `amount_cents` is the
+-- column somebody reaches for first and it is ex-VAT by house rule.
+do $$
+declare
+  v_from date := current_date - 60;
+  v_to   date := current_date;
+  v_debit  bigint;
+  v_credit bigint;
+  v_close  bigint;
+begin
+  select debit_cents into v_debit
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+   where expense_id = '7e500000-0000-0000-0000-000000000004' and kind = 'bill';
+  if v_debit <> 11500 then
+    raise exception 'G25 FAIL [GROSS]: a bill of 10000 + 1500 VAT is charged at % - a statement of account is what leaves the bank', v_debit;
+  end if;
+
+  select credit_cents into v_credit
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+   where expense_id = '7e500000-0000-0000-0000-000000000005' and kind = 'payment';
+  if v_credit <> 46000 then
+    raise exception 'G25 FAIL [GROSS]: settling a 40000 + 6000 VAT bill credits % rather than 46000', v_credit;
+  end if;
+
+  -- The closing balance: 89700 opening, then the window's movements.
+  select coalesce(sum(debit_cents - credit_cents), 0) into v_close
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', v_from, v_to);
+  if v_close = 70000 then
+    raise exception 'G25 FAIL [GROSS]: the closing balance is the EX-VAT total (70000) - the VAT left the bank too';
+  end if;
+  if v_close <> 80500 then
+    raise exception 'G25 FAIL: the closing balance is % rather than 80500', v_close;
+  end if;
+end $$;
+
+-- ── (d) The derived due date is the SUPPLIER's own term ─────────────────────
+-- A supplier invoice carries no due date, so 0502 derives one exactly as 0491 taught the
+-- cash-flow forecast to: the supplier's filed terms, falling back to 30 days. Two screens
+-- naming different dates for the same bill is how a partner stops trusting either.
+do $$ declare v_due date; begin
+  select due_date into v_due
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001',
+                                current_date - 60, current_date)
+   where expense_id = '7e500000-0000-0000-0000-000000000004' and kind = 'bill';
+  if v_due <> current_date - 20 + 60 then
+    raise exception 'G25 FAIL [TERMS]: a bill from a 60-day supplier falls due % rather than %, so the statement and /cashflow disagree',
+      v_due, current_date - 20 + 60;
+  end if;
+end $$;
+
+-- ── (e) The ageing, and that it AGREES with the statement and with /money ───
+-- Three functions, one figure. The statement's closing balance, this supplier's ageing
+-- total and the /money payables row for the same supplier are read by the same person in
+-- the same week; two of them disagreeing makes all three useless.
+do $$
+declare
+  r  record;
+  cr record;
+  v_close bigint;
+begin
+  select * into r from app.supplier_ageing('7e100000-0000-0000-0000-000000000001',
+                                           '7e400000-0000-0000-0000-000000000001', current_date);
+  -- E4 is 20 days old (current), E8 is 60 (31-60), E2 is 100 and E6 is 400 (both 90+).
+  if r.current_cents <> 11500 or r.d30_cents <> 2300 or r.d60_cents <> 0 or r.d90_cents <> 66700 then
+    raise exception 'G25 FAIL [AGEING]: buckets are %/%/%/% rather than 11500/2300/0/66700',
+      r.current_cents, r.d30_cents, r.d60_cents, r.d90_cents;
+  end if;
+  if r.total_cents <> 80500 then
+    raise exception 'G25 FAIL [AGEING]: total owed is % rather than 80500', r.total_cents;
+  end if;
+
+  select coalesce(sum(debit_cents - credit_cents), 0) into v_close
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001',
+                                current_date - 60, current_date);
+  if v_close <> r.total_cents then
+    raise exception 'G25 FAIL [DISAGREEMENT]: the statement closes at % and the ageing says % is owed', v_close, r.total_cents;
+  end if;
+
+  -- The same supplier's row on /money (0460, regrouped by 0482). Matched on the RECORD's
+  -- name because that is what 0482 titles the row with once a supplier is filed.
+  select * into cr from app.partner_creditors('7e100000-0000-0000-0000-000000000001'::uuid, current_date)
+   where supplier = 'Bolt & Bearing';
+  if cr is null then
+    raise exception 'G25 FAIL: /money shows no payables row for a supplier owed 80500';
+  end if;
+  if cr.total_cents <> r.total_cents
+     or cr.current_cents <> r.current_cents or cr.d30_cents <> r.d30_cents
+     or cr.d60_cents <> r.d60_cents or cr.d90_cents <> r.d90_cents then
+    raise exception 'G25 FAIL [DISAGREEMENT]: /money ages this supplier %/%/%/% = % while the supplier page says %/%/%/% = %',
+      cr.current_cents, cr.d30_cents, cr.d60_cents, cr.d90_cents, cr.total_cents,
+      r.current_cents, r.d30_cents, r.d60_cents, r.d90_cents, r.total_cents;
+  end if;
+end $$;
+
+-- ── (f) A soft-deleted bill leaves the statement and the ageing together ────
+do $$ declare n bigint; v_total bigint; begin
+  update partner_expenses set deleted_at = now() where id = '7e500000-0000-0000-0000-000000000004';
+
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', current_date - 60, current_date);
+  if n <> 7 then raise exception 'G25 FAIL: retracting one bill left % lines rather than 7', n; end if;
+
+  select total_cents into v_total
+    from app.supplier_ageing('7e100000-0000-0000-0000-000000000001',
+                             '7e400000-0000-0000-0000-000000000001', current_date);
+  if v_total <> 69000 then
+    raise exception 'G25 FAIL: retracting an 11500 bill leaves % owed rather than 69000', v_total;
+  end if;
+
+  update partner_expenses set deleted_at = null where id = '7e500000-0000-0000-0000-000000000004';
+end $$;
+
+-- ── (g) The remittance: what one payment run covered ────────────────────────
+-- E5 and E7 were settled on the same day, which is how paying a supplier actually happens
+-- - one banking session, several invoices - and is the entire reason the advice exists.
+do $$ declare n bigint; v_ex bigint; v_vat bigint; v_total bigint; begin
+  select count(*), coalesce(sum(amount_cents), 0), coalesce(sum(vat_cents), 0), coalesce(sum(total_cents), 0)
+    into n, v_ex, v_vat, v_total
+    from app.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                 '7e400000-0000-0000-0000-000000000001', current_date - 5);
+  if n <> 2 then
+    raise exception 'G25 FAIL [REMITTANCE]: a payment run covering two invoices advises % of them', n;
+  end if;
+  if v_ex <> 45000 or v_vat <> 6750 or v_total <> 51750 then
+    raise exception 'G25 FAIL [REMITTANCE]: the advice totals % + % VAT = % rather than 45000 + 6750 = 51750',
+      v_ex, v_vat, v_total;
+  end if;
+
+  -- Ex-VAT and VAT are reported separately here, unlike the statement: the supplier is
+  -- reconciling against their own tax invoice, which has both lines on it.
+  if v_ex + v_vat <> v_total then
+    raise exception 'G25 FAIL [REMITTANCE]: % ex-VAT plus % VAT does not add to the % advised', v_ex, v_vat, v_total;
+  end if;
+
+  -- A date on which nothing was paid advises nothing, rather than everything.
+  select count(*) into n
+    from app.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                 '7e400000-0000-0000-0000-000000000001', current_date - 4);
+  if n <> 0 then
+    raise exception 'G25 FAIL [REMITTANCE]: % bills were advised for a day no money left', n;
+  end if;
+
+  -- An unpaid bill is never on a remittance, on any date.
+  if exists (select 1 from app.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                                   '7e400000-0000-0000-0000-000000000001', current_date - 5)
+              where expense_id = '7e500000-0000-0000-0000-000000000004') then
+    raise exception 'G25 FAIL [REMITTANCE]: an unpaid bill was advised as settled';
+  end if;
+end $$;
+
+-- ── (h) Nobody but this partner reads any of it ─────────────────────────────
+set role authenticated;
+
+-- The owner of the books first, so every zero below is isolation and not an empty table.
+do $$ declare n bigint; v_total bigint; begin
+  perform _t_login('7e200000-0000-0000-0000-000000000001');          -- SA staff
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', current_date - 60, current_date);
+  if n <> 8 then
+    raise exception 'G25 FAIL: the partner whose books these are reads % lines of its own statement rather than 8', n;
+  end if;
+  select total_cents into v_total
+    from app.supplier_ageing('7e100000-0000-0000-0000-000000000001',
+                             '7e400000-0000-0000-0000-000000000001', current_date);
+  if v_total <> 80500 then
+    raise exception 'G25 FAIL: the partner reads % owed on its own account rather than 80500', v_total;
+  end if;
+end $$;
+
+-- A RIVAL partner. Both are on the `books` plan, so this zero is RLS refusing and not an
+-- entitlement — the partner plan is not a tenancy control (G22).
+do $$ declare n bigint; v_total bigint; begin
+  perform _t_login('7e200000-0000-0000-0000-000000000002');          -- SB staff
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', current_date - 60, current_date);
+  if n <> 0 then
+    raise exception 'G25 FAIL [COMPETITOR]: a rival read % lines of another partner''s supplier account', n;
+  end if;
+  select total_cents into v_total
+    from app.supplier_ageing('7e100000-0000-0000-0000-000000000001',
+                             '7e400000-0000-0000-0000-000000000001', current_date);
+  if v_total <> 0 then
+    raise exception 'G25 FAIL [COMPETITOR]: a rival read % owed on another partner''s supplier account', v_total;
+  end if;
+  select count(*) into n
+    from app.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                 '7e400000-0000-0000-0000-000000000001', current_date - 5);
+  if n <> 0 then
+    raise exception 'G25 FAIL [COMPETITOR]: a rival read % lines of another partner''s remittance', n;
+  end if;
+
+  -- Pairing its OWN workshop id with the rival's supplier id, which is the shape a caller
+  -- reaches for when the workshop id is the one thing they are sure of. The composite scope
+  -- (workshop AND supplier, joined through suppliers(id, workshop_id)) is what refuses it.
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000002',
+                                '7e400000-0000-0000-0000-000000000001', current_date - 60, current_date);
+  if n <> 0 then
+    raise exception 'G25 FAIL [COMPETITOR]: pairing an own workshop id with a rival''s supplier id returned % lines', n;
+  end if;
+
+  -- Its own book is intact, so none of the zeros above is an empty table.
+  select total_cents into v_total
+    from app.supplier_ageing('7e100000-0000-0000-0000-000000000002',
+                             '7e400000-0000-0000-0000-000000000002', current_date);
+  if v_total <> 34500 then
+    raise exception 'G25 FAIL: the rival reads % owed on its OWN supplier account rather than 34500 - the zeros above prove nothing', v_total;
+  end if;
+end $$;
+
+-- The FARM this workshop works for, through an ACTIVE workshop_link.
+do $$ declare n bigint; v_total bigint; begin
+  perform _t_login('7e300000-0000-0000-0000-000000000001');          -- Owner SS
+  select count(*) into n
+    from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                '7e400000-0000-0000-0000-000000000001', current_date - 60, current_date);
+  if n <> 0 then
+    raise exception 'G25 FAIL [MARGIN LEAK]: a farm read % lines of its contractor''s supplier account', n;
+  end if;
+  select total_cents into v_total
+    from app.supplier_ageing('7e100000-0000-0000-0000-000000000001',
+                             '7e400000-0000-0000-0000-000000000001', current_date);
+  if v_total <> 0 then
+    raise exception 'G25 FAIL [MARGIN LEAK]: a farm read % owed by its contractor to a supplier', v_total;
+  end if;
+  select count(*) into n
+    from app.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                 '7e400000-0000-0000-0000-000000000001', current_date - 5);
+  if n <> 0 then
+    raise exception 'G25 FAIL [MARGIN LEAK]: a farm read % lines of what its contractor paid a supplier', n;
+  end if;
+end $$;
+
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- ── (i) Anon executes nothing ──────────────────────────────────────────────
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'app.supplier_statement(uuid,uuid,date,date)',
+    'app.supplier_ageing(uuid,uuid,date)',
+    'app.supplier_remittance(uuid,uuid,date)',
+    'public.supplier_statement(uuid,uuid,date,date)',
+    'public.supplier_ageing(uuid,uuid,date)',
+    'public.supplier_remittance(uuid,uuid,date)'] loop
+    if has_function_privilege('anon', f, 'EXECUTE') then
+      raise exception 'G25 FAIL: anon may execute % - a function with no explicit grant defaults to EXECUTE TO PUBLIC (G11)', f;
+    end if;
+  end loop;
+end $$;
+
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin
+    perform count(*) from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                 '7e400000-0000-0000-0000-000000000001',
+                                                 current_date - 60, current_date);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G25 FAIL: anon read a supplier statement'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin
+    perform count(*) from public.supplier_remittance('7e100000-0000-0000-0000-000000000001',
+                                                     '7e400000-0000-0000-0000-000000000001',
+                                                     current_date - 5);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G25 FAIL: anon read a remittance advice'; end if;
+end $$;
+reset role;
+
+select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G26 — COMMITMENT-AWARE REORDERING (0503)
+--
+-- 0451 could only answer "are you at or below the minimum you set". This section proves
+-- the sentence it said it could not yet write: "you have 2 filters and the 250-hour
+-- service due next week needs 6". Three existing things are joined — `service_kit_items`
+-- (what a service consumes, 0271), the 0202 due engine (what falls due) and `stock_items`
+-- (what is on the shelf, 0450) — and NO new table is added, so everything below runs
+-- against the schema that was already there.
+--
+-- What is worth asserting, and why each one is here rather than assumed:
+--
+--   * The arithmetic. A kit of 6 against a shelf of 4 is 5 short once a second machine's
+--     kit is counted too, and a wrong number here sends somebody to town for the wrong
+--     part. Every quantity below is stated in the fixture and then checked exactly.
+--   * The WINDOW IS A SETTING. This is the load-bearing decision of the whole feature:
+--     0451 declined to guess how far ahead to look, so the lookahead lives in
+--     `farms.settings.reorder_lookahead_days` and is written through the existing
+--     owner/manager-guarded `update_farm_settings` RPC. The test therefore narrows the
+--     window and watches the commitment EMPTY, then widens it and watches a machine that
+--     was out of range come IN. A constant buried in a function body would pass a test
+--     that only ever looked at one window.
+--   * A RETIRED machine's service never counts (Scope §4.1 / C8). Asserted at the WIDEST
+--     window, with every other machine deliberately inside it — the direction that
+--     actually catches a missing status filter, because at a narrow window a retired
+--     machine is excluded for the wrong reason.
+--   * Farm isolation, with a non-zero baseline first. `app.stock_commitment` /
+--     `app.stock_shortfall` are SECURITY INVOKER precisely so RLS answers a cross-tenant
+--     id rather than a check somebody could forget to write. A test that compares 0 to 0
+--     proves nothing, so the owner's own two rows are asserted before the other farm's
+--     zero is believed.
+--   * An operator may LOOK but not TOUCH. 0452 closed exactly this gap on `stock_items` /
+--     `stock_movements` — the server action guarded correctly and the POLICY did not — and
+--     nothing in 0503 may reopen it. Reading stays open on purpose: "have we got a filter?"
+--     is a fair question for a driver at the shed at six in the morning.
+--   * anon executes nothing. G11 already fails the suite for ANY app-schema function anon
+--     can execute; these are named individually anyway, because the new engine writes
+--     notifications and a silent grant on it would be worth catching by name.
+--   * Warn, never block. The last block issues stock the farm has already committed and
+--     asserts it SUCCEEDS. This is the one assertion that fails if somebody later decides
+--     a shortfall should refuse an issue — the same call 0430 made for missing receipts
+--     and 0500 for a credit limit.
+--   * One shelf, one sentence a week. An item that is both below its minimum AND short
+--     must raise the shortfall line only; an item that is low but NOT short must still
+--     raise the 0451 line. The second half is what catches a blanket suppression, which
+--     is the failure mode a one-sided test would wave through.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── Fixtures ─────────────────────────────────────────────────────────────────
+-- Own farms and own machines, so the arithmetic below states all of its own inputs. The
+-- shelf quantities are NEVER typed: they come from receipts through the 0450 rollup, which
+-- is also how a farm gets them.
+insert into farms (id, name, status) values
+  ('7f000000-0000-0000-0000-000000000001', 'Farm R (reorder)',       'active'),
+  ('7f000000-0000-0000-0000-000000000002', 'Farm R2 (the neighbour)', 'active');
+
+insert into auth.users (id, email) values
+  ('7fa00000-0000-0000-0000-000000000001', 'ownerR@test'),
+  ('7fa00000-0000-0000-0000-000000000002', 'driverR@test'),
+  ('7fa00000-0000-0000-0000-000000000003', 'ownerR2@test');
+
+insert into users (id, farm_id, role, name) values
+  ('7fa00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', 'owner',    'Owner R'),
+  ('7fa00000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001', 'operator', 'Driver R'),
+  ('7fa00000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000002', 'owner',    'Owner R2');
+
+-- Four machines, each carrying one of the cases:
+--   M-due      hours meter, service reachable ONLY by projecting the observed rate
+--   M-far      hours meter, same rate, service far too far away for a 30-day window
+--   M-retired  overdue today, and retired — must never count
+--   M-type     calendar basis, no kit of its own, relies on a machine_type kit template
+insert into machines (id, farm_id, name, type, meter_type, status, assigned_operator_id) values
+  ('7fb00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', 'R Tractor Due',     'tractor',   'hours', 'active',
+   '7fa00000-0000-0000-0000-000000000002'),
+  ('7fb00000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001', 'R Tractor Far',     'tractor',   'hours', 'active',  null),
+  ('7fb00000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000001', 'R Tractor Retired', 'tractor',   'hours', 'retired', null),
+  ('7fb00000-0000-0000-0000-000000000004', '7f000000-0000-0000-0000-000000000001', 'R Harvester',       'harvester', 'none',  'active',  null);
+
+insert into parts_catalogue (id, farm_id, part_no, description, typical_cost_cents) values
+  ('7fd00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', 'FLT-R', 'R oil filter', 18000),
+  ('7fd00000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001', 'OIL-R', 'R engine oil',   4500),
+  -- No kit names this one. It exists for the below-zero case at the end: one live stock
+  -- record per part per farm (0450's partial unique index), so that case needs its own part.
+  ('7fd00000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000001', 'GRS-R', 'R grease',       2500);
+
+insert into stock_items (id, farm_id, part_catalogue_id, unit, bin) values
+  ('7fe00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001',
+   '7fd00000-0000-0000-0000-000000000001', 'each',   'Shed 1'),
+  ('7fe00000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001',
+   '7fd00000-0000-0000-0000-000000000002', 'litres', 'Shed 1');
+
+-- Readings 60 days apart, 300 units of meter: an OBSERVED 5 units/day. This is the rate
+-- 0503 projects with, and it is deliberately NOT the farm's utilisation capacity setting
+-- (which is an upper bound and would put every machine in every window for ever).
+insert into meter_readings (farm_id, machine_id, reading, reading_date, source, by_user) values
+  ('7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000001', 4600, current_date - 60, 'manual', '7fa00000-0000-0000-0000-000000000001'),
+  ('7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000001', 4900, current_date,      'manual', '7fa00000-0000-0000-0000-000000000001'),
+  ('7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000002',  700, current_date - 60, 'manual', '7fa00000-0000-0000-0000-000000000001'),
+  ('7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000002', 1000, current_date,      'manual', '7fa00000-0000-0000-0000-000000000001');
+
+-- The plan lines, then the REAL 0202 engine to work out status and next-due. Setting those
+-- by hand would test the arithmetic below against a fiction.
+-- TWO lines fall due together on M-due, deliberately. Nothing in the schema links a kit to
+-- a plan line, so the convention is that a machine's kit counts ONCE however many of its
+-- tasks come round together — three tasks on one visit is one service, and counting the kit
+-- three times would treble the shopping list. With one line per machine that property would
+-- be untested and a per-line sum would pass.
+insert into service_plan_lines (id, farm_id, machine_id, task, interval_hours, last_done_reading) values
+  ('7fc10000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000001', 'Engine oil + filter', 250, 4750),
+  ('7fc10000-0000-0000-0000-000000000005', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000001', 'Hydraulic filter',    250, 4750),
+  ('7fc10000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000002', 'Engine oil + filter', 250, 1750);
+insert into service_plan_lines (id, farm_id, machine_id, task, interval_months, next_due_date) values
+  ('7fc10000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000003', 'Annual service', 12, current_date),
+  ('7fc10000-0000-0000-0000-000000000004', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000004', 'Annual service', 12, current_date + 25);
+
+select app.recalc_machine_service('7fb00000-0000-0000-0000-000000000001');
+select app.recalc_machine_service('7fb00000-0000-0000-0000-000000000002');
+select app.recalc_machine_service('7fb00000-0000-0000-0000-000000000003');
+select app.recalc_machine_service('7fb00000-0000-0000-0000-000000000004');
+
+-- The engine's own view of the fixture, asserted before anything is built on it. If
+-- M-due were already `due_soon` the projection path below would never be exercised, and
+-- the test would pass while proving nothing about the window.
+do $$ declare v_status service_line_status; v_due numeric; v_read numeric; v_lines int; begin
+  select status, next_due_reading into v_status, v_due
+    from service_plan_lines where id = '7fc10000-0000-0000-0000-000000000001';
+  select current_reading into v_read from machines where id = '7fb00000-0000-0000-0000-000000000001';
+  if v_status is distinct from 'ok' or v_due is distinct from 5000 or v_read is distinct from 4900 then
+    raise exception 'G26 FAIL [FIXTURE]: M-due is status % due at % reading % - expected ok/5000/4900, so the projection path is not the thing under test', v_status, v_due, v_read;
+  end if;
+  -- Both of M-due's lines must be in the window, or "the kit counts once" is not under test.
+  select count(*) into v_lines from service_plan_lines
+   where machine_id = '7fb00000-0000-0000-0000-000000000001' and deleted_at is null
+     and status = 'ok' and next_due_reading = 5000;
+  if v_lines <> 2 then
+    raise exception 'G26 FAIL [FIXTURE]: M-due has % lines falling due together rather than 2 - a per-line sum would pass unnoticed', v_lines;
+  end if;
+  select status into v_status from service_plan_lines where id = '7fc10000-0000-0000-0000-000000000003';
+  if v_status is distinct from 'overdue' then
+    raise exception 'G26 FAIL [FIXTURE]: the retired machine''s line is % rather than overdue - excluding it would prove nothing', v_status;
+  end if;
+  select status into v_status from service_plan_lines where id = '7fc10000-0000-0000-0000-000000000004';
+  if v_status is distinct from 'ok' then
+    raise exception 'G26 FAIL [FIXTURE]: M-type''s line is % rather than ok - it must reach the window by the CALENDAR arithmetic, not by due_soon', v_status;
+  end if;
+end $$;
+
+-- Kits. One per machine plus a machine_type template for the harvester, which has none of
+-- its own.
+insert into service_kits (id, farm_id, machine_id, machine_type, name) values
+  ('7fc00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000001', null, '250 h kit'),
+  ('7fc00000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000002', null, 'Far kit'),
+  ('7fc00000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000001', '7fb00000-0000-0000-0000-000000000003', null, 'Retired kit'),
+  ('7fc00000-0000-0000-0000-000000000004', '7f000000-0000-0000-0000-000000000001', null, 'harvester', 'Harvester type kit');
+
+insert into service_kit_items (farm_id, service_kit_id, part_catalogue_id, part_no, qty) values
+  -- (A) linked to the catalogue: 6 filters
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', '7fd00000-0000-0000-0000-000000000001', null,             6),
+  -- (B) FREE TEXT, padded and mis-cased: must still find the OIL-R shelf, the way 0482
+  --     resolves a supplier from whatever was typed
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', null,                                   '  Oil-R  ',    20),
+  -- (C) BOTH a catalogue link and a part number naming a DIFFERENT shelf. The catalogue
+  --     link wins and the row counts exactly once — a kit item that counted on both
+  --     branches would double-count silently.
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', '7fd00000-0000-0000-0000-000000000001', 'OIL-R',         1),
+  -- (D) free text naming a part the farm does not keep: there is no shelf to be short of,
+  --     so it contributes nothing anywhere. Documented limit, asserted rather than assumed.
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', null,                                   'NOT-STOCKED-R', 77),
+  -- the far machine, the retired machine, and the type template
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000002', '7fd00000-0000-0000-0000-000000000001', null,            99),
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000003', '7fd00000-0000-0000-0000-000000000001', null,            50),
+  ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000004', '7fd00000-0000-0000-0000-000000000001', null,             2);
+
+-- 4 filters and 25 litres on the shelf, through the ledger.
+insert into stock_movements (farm_id, stock_item_id, kind, qty, unit_cost_cents, occurred_on, by_user) values
+  ('7f000000-0000-0000-0000-000000000001', '7fe00000-0000-0000-0000-000000000001', 'receipt',  4, 18000, current_date - 10, '7fa00000-0000-0000-0000-000000000001'),
+  ('7f000000-0000-0000-0000-000000000001', '7fe00000-0000-0000-0000-000000000002', 'receipt', 25,  4500, current_date - 10, '7fa00000-0000-0000-0000-000000000001');
+
+do $$ declare a numeric; b numeric; begin
+  select on_hand into a from stock_items where id = '7fe00000-0000-0000-0000-000000000001';
+  select on_hand into b from stock_items where id = '7fe00000-0000-0000-0000-000000000002';
+  if a <> 4 or b <> 25 then
+    raise exception 'G26 FAIL [FIXTURE]: the shelf reads % filters / % litres rather than 4 / 25', a, b;
+  end if;
+end $$;
+
+-- ── (a) A due service's kit consumes exactly the right quantity ───────────────
+-- Filters: 6 from the due machine's kit (A) + 1 from the both-columns item (C) + 2 from the
+-- harvester's TYPE template = 9, across 2 machines.
+-- Oil:     20, from the padded mis-cased free-text item (B) alone.
+-- Nothing from (D), from the far machine's 99, or from the retired machine's 50.
+do $$
+declare v_flt numeric; v_oil numeric; v_m int; v_rows int;
+begin
+  select count(*) into v_rows from app.stock_commitment('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 2 then
+    raise exception 'G26 FAIL: the commitment names % shelves rather than 2 - a part the farm does not stock has no shelf to be short of', v_rows;
+  end if;
+
+  select committed_qty, machine_count into v_flt, v_m
+    from app.stock_commitment('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000001';
+  if v_flt is distinct from 9 then
+    raise exception 'G26 FAIL: filters committed = % rather than 9 (6 kit + 1 both-columns + 2 type template). 16 means M-due''s kit was counted once per DUE LINE instead of once per machine; 10 means the both-columns item counted on both branches; 108 means a service outside the window counted; 59 means the retired machine counted', v_flt;
+  end if;
+  if v_m is distinct from 2 then
+    raise exception 'G26 FAIL: % machines named rather than 2 - the number has to be auditable or nobody will act on it', v_m;
+  end if;
+
+  select committed_qty into v_oil
+    from app.stock_commitment('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000002';
+  if v_oil is distinct from 20 then
+    raise exception 'G26 FAIL [FREE TEXT]: oil committed = % rather than 20 - "  Oil-R  " must find the OIL-R shelf trimmed and case-insensitively (0482''s rule), and the both-columns item must NOT add to it', v_oil;
+  end if;
+end $$;
+
+-- The shortfall is built FROM the commitment, so the two can never disagree. Asserted
+-- rather than trusted, because the whole point of building it that way is this property.
+do $$
+declare bad text;
+begin
+  select string_agg(c.stock_item_id::text, ', ')
+    into bad
+    from app.stock_commitment('7f000000-0000-0000-0000-000000000001') c
+    join app.stock_shortfall('7f000000-0000-0000-0000-000000000001') s
+      on s.stock_item_id = c.stock_item_id
+   where s.committed_qty is distinct from c.committed_qty;
+  if bad is not null then
+    raise exception 'G26 FAIL: the shortfall and the commitment disagree on %', bad;
+  end if;
+end $$;
+
+-- short_qty and is_short must never disagree, on ANY row. They are two renderings of one
+-- fact, a screen may read either, and the failure is silent: a shelf at -2 with nothing
+-- committed once reported "2 short" while the flag said false. Found by CALLING the
+-- function against real fixtures, not by reading it.
+do $$
+declare bad text;
+begin
+  select string_agg(coalesce(s.part_no, s.stock_item_id::text), ', ')
+    into bad
+    from app.stock_shortfall('7f000000-0000-0000-0000-000000000001') s
+   where s.is_short is distinct from (s.short_qty > 0);
+  if bad is not null then
+    raise exception 'G26 FAIL: is_short and short_qty disagree on % - two renderings of one fact', bad;
+  end if;
+end $$;
+
+-- On hand vs committed vs short, which is the sentence the screen has to be able to write.
+-- `select * into` leaves every field NULL when nothing matches, and NULL <> 4 is NULL, not
+-- true — so without the `found` guards below these three blocks would pass in silence if the
+-- shelf dropped off the report altogether, which is the one failure that matters most.
+-- Found by deliberately breaking them.
+do $$
+declare r record;
+begin
+  select * into r from app.stock_shortfall('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000001';
+  if not found then raise exception 'G26 FAIL: the filter shelf is not on the shortfall report at all'; end if;
+  if r.on_hand <> 4 or r.committed_qty <> 9 or r.projected_qty <> -5 or r.short_qty <> 5 or not r.is_short then
+    raise exception 'G26 FAIL: filters read on_hand=% committed=% projected=% short=% is_short=% - expected 4 / 9 / -5 / 5 / true',
+      r.on_hand, r.committed_qty, r.projected_qty, r.short_qty, r.is_short;
+  end if;
+  -- No reorder point is set on either shelf yet, so the 0451 rule must stay silent: a part
+  -- with no minimum is untracked for reordering, not "low at zero".
+  if r.needs_reorder then
+    raise exception 'G26 FAIL: a shelf with no reorder point reported needs_reorder - 0451''s rule has changed underneath the nudge';
+  end if;
+
+  select * into r from app.stock_shortfall('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000002';
+  if not found then raise exception 'G26 FAIL: the oil shelf is not on the shortfall report at all'; end if;
+  if r.on_hand <> 25 or r.committed_qty <> 20 or r.projected_qty <> 5 or r.short_qty <> 0 or r.is_short then
+    raise exception 'G26 FAIL: oil reads on_hand=% committed=% projected=% short=% is_short=% - 25 litres covers 20, so it is NOT short',
+      r.on_hand, r.committed_qty, r.projected_qty, r.short_qty, r.is_short;
+  end if;
+end $$;
+
+-- ── (b) The window is a SETTING, and the owner sets it ───────────────────────
+-- The load-bearing decision. Run as the farm's owner through the app-facing path, so this
+-- doubles as proof that RLS does not hide a farm's own commitment from it (the zero-baseline
+-- trap: a farm-isolation test that compares 0 to 0 passes for the wrong reason).
+set role authenticated;
+do $$ declare v_flt numeric; v_rows int; v_days int; begin
+  perform _t_login('7fa00000-0000-0000-0000-000000000001');
+
+  select count(*) into v_rows from app.stock_commitment('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 2 then
+    raise exception 'G26 FAIL [BASELINE]: the farm''s OWN owner reads % commitment rows rather than 2 - every zero asserted below would be meaningless', v_rows;
+  end if;
+
+  -- Unset means 30 days, and the default is read not guessed.
+  select app.reorder_lookahead_days('7f000000-0000-0000-0000-000000000001') into v_days;
+  if v_days is distinct from 30 then raise exception 'G26 FAIL: an unset lookahead is % days rather than the documented 30', v_days; end if;
+
+  -- Narrow it to 5 days through the EXISTING owner-guarded RPC (0204 jsonb merge - no new
+  -- policy, no schema change). M-due needs 100 more hours at 5/day = 20 days away, and
+  -- M-type's service is 25 days out, so the commitment must empty completely.
+  perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": 5}'::jsonb);
+  select app.reorder_lookahead_days('7f000000-0000-0000-0000-000000000001') into v_days;
+  if v_days is distinct from 5 then raise exception 'G26 FAIL: the RPC set 5 and the function reads % - the lookahead is not actually a setting', v_days; end if;
+  select count(*) into v_rows from app.stock_commitment('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 0 then
+    raise exception 'G26 FAIL [WINDOW]: a 5-day window still commits % shelves - the window is being ignored, which is what a constant in a function body looks like', v_rows;
+  end if;
+
+  -- Widen it to 250 days. Now EVERY LIVE machine is comfortably inside it: M-due (100 h
+  -- away at 5/day), M-type (25 days away) and M-far (1000 h away = 200 days). 9 + 99 = 108.
+  -- The retired machine's 50 must STILL be absent - this is the retired assertion at its
+  -- strongest, because it is now the only thing left that could be excluded, so a missing
+  -- status filter has nowhere to hide.
+  perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": 250}'::jsonb);
+  select committed_qty into v_flt
+    from app.stock_commitment('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000001';
+  if v_flt is distinct from 108 then
+    raise exception 'G26 FAIL [WINDOW/RETIRED]: a 250-day window commits % filters rather than 108 (9 + the far machine''s 99). 158 means the RETIRED machine''s service was counted', v_flt;
+  end if;
+
+  -- Clamped on read, so a typo cannot produce a nonsense projection and a farm that has
+  -- already stored one is not stuck with it.
+  perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": 100000}'::jsonb);
+  select app.reorder_lookahead_days('7f000000-0000-0000-0000-000000000001') into v_days;
+  if v_days is distinct from 365 then raise exception 'G26 FAIL: 100000 days was not clamped to 365 (got %)', v_days; end if;
+  perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": 0}'::jsonb);
+  select app.reorder_lookahead_days('7f000000-0000-0000-0000-000000000001') into v_days;
+  if v_days is distinct from 1 then raise exception 'G26 FAIL: 0 days was not clamped to 1 (got %)', v_days; end if;
+
+  -- Back to the documented default for everything that follows.
+  perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": null}'::jsonb);
+  select app.reorder_lookahead_days('7f000000-0000-0000-0000-000000000001') into v_days;
+  if v_days is distinct from 30 then raise exception 'G26 FAIL: clearing the setting left the window at % rather than 30', v_days; end if;
+end $$;
+
+-- An operator cannot move the window either - it is a farm decision, and the 0204 RPC is
+-- the only door. Asserted because the whole reason the lookahead is a setting is that
+-- somebody can change it, and "somebody" must not mean anybody.
+do $$ declare ok boolean := false; begin
+  perform _t_login('7fa00000-0000-0000-0000-000000000002');
+  begin
+    perform public.update_farm_settings('7f000000-0000-0000-0000-000000000001', '{"reorder_lookahead_days": 365}'::jsonb);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G26 FAIL: an operator moved the farm''s reorder window'; end if;
+end $$;
+
+-- ── (c) An operator may LOOK but not TOUCH (0452, not reopened) ───────────────
+-- Reading the shelf stays open to the whole farm side on purpose. What narrows for an
+-- operator is the F7 per-role view of `service_plan_lines` / `machines` / `meter_readings`,
+-- so the COMMITMENT they see is their own assigned machine's - 7 filters (6 + 1), not 9.
+-- That is the two features composing correctly, not a bug, and it is asserted so nobody
+-- later "fixes" it by widening the operator's view.
+do $$ declare v_rows int; v_flt numeric; ok boolean := false; begin
+  perform _t_login('7fa00000-0000-0000-0000-000000000002');
+
+  select count(*) into v_rows from app.stock_shortfall('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 2 then
+    raise exception 'G26 FAIL [OPERATOR READ]: a driver reads % shelves rather than 2 - "have we got a filter?" is a fair question at six in the morning', v_rows;
+  end if;
+
+  select committed_qty into v_flt
+    from app.stock_shortfall('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000001';
+  if v_flt is distinct from 7 then
+    raise exception 'G26 FAIL [OPERATOR SCOPE]: a driver sees % filters committed rather than 7 (their assigned machine only). 9 means F7''s per-role view was bypassed', v_flt;
+  end if;
+
+  begin
+    insert into stock_movements (farm_id, stock_item_id, kind, qty)
+    values ('7f000000-0000-0000-0000-000000000001', '7fe00000-0000-0000-0000-000000000001', 'receipt', 99);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then
+    raise exception 'G26 FAIL [OPERATOR WRITE]: an operator wrote a stock movement - 0452 closed exactly this and 0503 must not reopen it';
+  end if;
+end $$;
+
+-- ── (d) Another farm reads nothing ───────────────────────────────────────────
+-- Both functions are SECURITY INVOKER so RLS answers the id, rather than a check inside a
+-- function body that somebody could forget to write.
+do $$ declare v_rows int; begin
+  perform _t_login('7fa00000-0000-0000-0000-000000000003');
+  select count(*) into v_rows from app.stock_shortfall('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 0 then
+    raise exception 'G26 FAIL [CROSS-TENANT]: the neighbour read % of Farm R''s shelves', v_rows;
+  end if;
+  select count(*) into v_rows from app.stock_commitment('7f000000-0000-0000-0000-000000000001');
+  if v_rows <> 0 then
+    raise exception 'G26 FAIL [CROSS-TENANT]: the neighbour read % of Farm R''s commitments - which would be its service schedule and its parts list', v_rows;
+  end if;
+end $$;
+
+-- ── (e) A signed-in farm user cannot run the engine ──────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('7fa00000-0000-0000-0000-000000000001');
+  begin perform app.enqueue_stock_shortfall_nudges(); exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G26 FAIL: a signed-in owner ran the shortfall engine directly - it writes notifications for the whole farm'; end if;
+end $$;
+reset role;
+
+-- ── (f) anon executes nothing ────────────────────────────────────────────────
+-- G11 fails the suite for ANY app-schema function anon can execute; these are named
+-- individually because a function with no explicit grant defaults to EXECUTE TO PUBLIC,
+-- which is how the F14 debug probe stayed reachable (0440).
+--
+-- The GRANT is asserted before the attempt, and that order was arrived at by breaking this
+-- test rather than by writing it: granting anon EXECUTE on `app.stock_commitment` and then
+-- calling it still errors, because anon holds no grant on `farms` or `service_plan_lines`
+-- either. So the runtime attempt alone would have reported "denied" for a function that had
+-- genuinely been opened up, and would keep reporting it right up until somebody widened a
+-- table grant somewhere else entirely. The catalogue check cannot be masked that way.
+do $$
+declare leaked text;
+begin
+  select string_agg(quote_ident(n.nspname) || '.' || p.proname, ', ' order by p.proname)
+    into leaked
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in (
+           ('app','reorder_lookahead_days'), ('app','stock_commitment'), ('app','stock_shortfall'),
+           ('app','enqueue_stock_shortfall_nudges'), ('app','enqueue_low_stock_nudges'),
+           ('public','reorder_lookahead_days'), ('public','stock_commitment'), ('public','stock_shortfall'),
+           ('public','cron_enqueue_stock_shortfall'))
+     and has_function_privilege('anon', p.oid, 'EXECUTE');
+  if leaked is not null then
+    raise exception 'G26 FAIL [ANON GRANT]: anon holds EXECUTE on % - a function with no explicit grant defaults to EXECUTE TO PUBLIC (0440)', leaked;
+  end if;
+end $$;
+
+-- The other direction, because a revoke that goes too wide breaks every store screen and
+-- would otherwise be found by a farmer rather than by this file.
+do $$
+declare missing text;
+begin
+  select string_agg(quote_ident(n.nspname) || '.' || p.proname, ', ' order by p.proname)
+    into missing
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in (
+           ('app','reorder_lookahead_days'), ('app','stock_commitment'), ('app','stock_shortfall'),
+           ('public','reorder_lookahead_days'), ('public','stock_commitment'), ('public','stock_shortfall'))
+     and not has_function_privilege('authenticated', p.oid, 'EXECUTE');
+  if missing is not null then
+    raise exception 'G26 FAIL: a signed-in user cannot execute % - the store screen needs all six', missing;
+  end if;
+end $$;
+
+-- The engines stay service-role only, asserted at the grant as well as at the call.
+do $$
+declare leaked text;
+begin
+  select string_agg(p.proname, ', ' order by p.proname)
+    into leaked
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where ((n.nspname = 'app'    and p.proname in ('enqueue_stock_shortfall_nudges', 'enqueue_low_stock_nudges'))
+       or (n.nspname = 'public' and p.proname = 'cron_enqueue_stock_shortfall'))
+     and has_function_privilege('authenticated', p.oid, 'EXECUTE');
+  if leaked is not null then
+    raise exception 'G26 FAIL: a signed-in user holds EXECUTE on the nudge engine(s) % - they write notifications for a whole farm', leaked;
+  end if;
+end $$;
+
+set role anon;
+do $$
+declare ok boolean; f text;
+begin
+  foreach f in array array[
+    'select app.enqueue_stock_shortfall_nudges()',
+    'select app.reorder_lookahead_days(''7f000000-0000-0000-0000-000000000001'')',
+    'select count(*) from app.stock_commitment(''7f000000-0000-0000-0000-000000000001'')',
+    'select count(*) from app.stock_shortfall(''7f000000-0000-0000-0000-000000000001'')',
+    'select count(*) from public.stock_shortfall(''7f000000-0000-0000-0000-000000000001'')',
+    'select public.cron_enqueue_stock_shortfall()'
+  ] loop
+    ok := false;
+    begin execute f; exception when others then ok := true; end;
+    if not ok then raise exception 'G26 FAIL [ANON]: anon ran "%"', f; end if;
+  end loop;
+end $$;
+reset role;
+
+-- ── (g) One shelf, one sentence a week ───────────────────────────────────────
+-- The filter shelf is now BOTH below a minimum (4 <= 10) and short (4 of 9). The oil shelf
+-- is below its minimum (25 <= 30) and NOT short. So the filter must raise the shortfall
+-- line only, and the oil must still raise 0451's low-stock line - the second half is what
+-- catches a suppression that has quietly turned the old engine off altogether.
+update stock_items set reorder_point = 10 where id = '7fe00000-0000-0000-0000-000000000001';
+update stock_items set reorder_point = 30 where id = '7fe00000-0000-0000-0000-000000000002';
+
+select app.enqueue_stock_shortfall_nudges();
+select app.enqueue_stock_shortfall_nudges();          -- a second night must add nothing
+select app.enqueue_low_stock_nudges();
+select app.enqueue_low_stock_nudges();
+
+do $$
+declare v_short int; v_low int; v_recips int; v_oil_short int; v_payload jsonb;
+begin
+  select count(*) into v_recips from users
+   where farm_id = '7f000000-0000-0000-0000-000000000001'
+     and role in ('owner','manager') and active and deleted_at is null;
+
+  select count(*) into v_short from notifications
+   where template = 'stock_short' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000001';
+  if v_short = 0 then
+    raise exception 'G26 FAIL: a shelf 5 short of what the next 30 days need said nothing';
+  end if;
+  -- notify_farm fans out per owner/manager, so the count is per RECIPIENT; what must not
+  -- happen is the second run doubling it.
+  if v_short > v_recips then
+    raise exception 'G26 FAIL: running the engine twice queued the shortfall again (% rows for % recipients)', v_short, v_recips;
+  end if;
+
+  select count(*) into v_low from notifications
+   where template = 'low_stock' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000001';
+  if v_low <> 0 then
+    raise exception 'G26 FAIL [TWO SENTENCES]: the filter shelf raised % low-stock lines as well as its shortfall line - two lines about one shelf on one night is how an alert centre becomes wallpaper', v_low;
+  end if;
+
+  -- and the old engine is NOT off: a shelf that is low but not short still speaks.
+  select count(*) into v_low from notifications
+   where template = 'low_stock' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000002';
+  if v_low = 0 then
+    raise exception 'G26 FAIL [BLANKET]: a shelf below its minimum and NOT short said nothing - the suppression has turned 0451 off rather than deduplicating it';
+  end if;
+  select count(*) into v_oil_short from notifications
+   where template = 'stock_short' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000002';
+  if v_oil_short <> 0 then
+    raise exception 'G26 FAIL: a shelf that covers its commitment raised % shortfall lines', v_oil_short;
+  end if;
+
+  -- The message has to be able to name the consequence, so the payload has to carry it.
+  select payload into v_payload from notifications
+   where template = 'stock_short' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000001' limit 1;
+  if not found then raise exception 'G26 FAIL: no shortfall notification was queued for the filter shelf'; end if;
+  -- `is distinct from`, not `<>`. A missing jsonb key yields NULL, NULL <> 30 is NULL, and
+  -- an OR chain containing a NULL never becomes true — so the plain form could not see the
+  -- one failure it exists to catch. Found by deliberately nulling 'days' and watching this
+  -- block pass.
+  if (v_payload->>'part_no') is distinct from 'FLT-R'
+     or (v_payload->>'committed')::numeric is distinct from 9
+     or (v_payload->>'on_hand')::numeric is distinct from 4
+     or (v_payload->>'short')::numeric is distinct from 5
+     or (v_payload->>'days')::int is distinct from 30 then
+    raise exception 'G26 FAIL: the shortfall payload is % - it must name the part, the window and both quantities or the notification cannot say more than "low stock"', v_payload;
+  end if;
+end $$;
+
+-- ── (h) Warn, never block ────────────────────────────────────────────────────
+-- Nothing may refuse an issue because the shelf is already spoken for. A mechanic at six in
+-- the morning fitting the last filter must be able to record what actually happened - the
+-- same call 0430 made for a missing receipt and 0500 for a credit limit. This is the
+-- assertion that fails if somebody later adds a guard trigger.
+insert into stock_movements (farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, occurred_on, by_user)
+values ('7f000000-0000-0000-0000-000000000001', '7fe00000-0000-0000-0000-000000000001', 'issue', 3, 18000,
+        '7fb00000-0000-0000-0000-000000000001', current_date, '7fa00000-0000-0000-0000-000000000001');
+
+do $$ declare r record; begin
+  select * into r from app.stock_shortfall('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000001';
+  if not found then raise exception 'G26 FAIL: the filter shelf vanished from the report after an issue'; end if;
+  if r.on_hand <> 1 then
+    raise exception 'G26 FAIL [BLOCKED]: issuing 3 of 4 while 9 are committed left the shelf at % - something refused the issue, and this product warns rather than blocks', r.on_hand;
+  end if;
+  if r.short_qty <> 8 or not r.is_short then
+    raise exception 'G26 FAIL: after the issue the shelf is % short (is_short=%) rather than 8 - the warning must follow the shelf down', r.short_qty, r.is_short;
+  end if;
+end $$;
+
+-- A shelf below zero with NOTHING committed is a counting error (0450 allows it on purpose
+-- so it can be seen and fixed), not a commitment shortfall. Calling it "short" would send
+-- somebody to town for a part they may already have.
+insert into stock_items (id, farm_id, part_catalogue_id, unit) values
+  ('7fe00000-0000-0000-0000-000000000009', '7f000000-0000-0000-0000-000000000001',
+   '7fd00000-0000-0000-0000-000000000003', 'kg');
+insert into stock_movements (farm_id, stock_item_id, kind, qty, occurred_on) values
+  ('7f000000-0000-0000-0000-000000000001', '7fe00000-0000-0000-0000-000000000009', 'issue', 2, current_date);
+do $$ declare r record; begin
+  select * into r from app.stock_shortfall('7f000000-0000-0000-0000-000000000001')
+   where stock_item_id = '7fe00000-0000-0000-0000-000000000009';
+  if not found then raise exception 'G26 FAIL: the below-zero shelf is not on the report at all'; end if;
+  if r.on_hand is distinct from -2 then raise exception 'G26 FAIL [FIXTURE]: the untracked shelf reads % rather than -2', r.on_hand; end if;
+  if r.is_short then
+    raise exception 'G26 FAIL: a shelf below zero with nothing committed was reported short - that is a stocktake to do, not a part to buy';
+  end if;
+  if r.short_qty is distinct from 0 then
+    raise exception 'G26 FAIL: a shelf below zero with nothing committed reports % short - the quantity must agree with the flag', r.short_qty;
+  end if;
+end $$;
+
+select 'ALL G26 REORDER TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ═════════════════════════════════════════════════════════════════
+-- G27 — DOCUMENT TEMPLATES (0505)
+-- ═════════════════════════════════════════════════════════════════
+-- Four named documents a partner picks between, each one a preset over the 0434 layout
+-- keys. There is no new layout system and no SQL mirror of the presets — both renderers
+-- are TypeScript, so `src/lib/doc-templates.ts` is the single source of truth and this
+-- migration knows only the closed set of NAMES.
+--
+-- That shape decides what has to be proven here, and the order matters:
+--
+--   1. THE DEFAULT CHANGES NOTHING. `classic` is defined as the layout every partner
+--      already had, and the column defaults to it. A migration that quietly restyled
+--      documents customers have been receiving for a year is the one unrecoverable
+--      mistake available in this feature — you cannot un-send an invoice that went out
+--      looking different. Asserted as a statement about EVERY row, without a login, and
+--      with `doc_layout` proven untouched as well as the new column.
+--
+--   2. AN UNKNOWN NAME IS REFUSED. The 0434 discipline: a typo must fail where it is
+--      made, not store silently. A partner whose settings screen accepted
+--      'moderne-luxe' would believe their documents had changed and be wrong for as
+--      long as they went on sending them.
+--
+--   3. A PARTNER MAY SET ITS OWN AND ONLY ITS OWN. The RPC takes the workshop from the
+--      session, so there is no id to tamper with — but "no id" is only half the claim.
+--      The other half is that a second partner calling it moves ITS row and not the
+--      first one's. A partner's documents are their identity to their customers.
+--
+--   4. A SENT DOCUMENT IS FROZEN. This is the assertion that matters most, and the one
+--      an implementation gets wrong by rendering from the workshop's CURRENT settings
+--      instead of the snapshot. `issuer_snapshot` carries the letterhead AND the layout
+--      (0381/0434). Switching template must leave a sent document's snapshot byte-
+--      identical, or a partner who picks a different document next year silently
+--      restates last year's invoice — and a customer reprinting from their own filing
+--      gets a different piece of paper than the one they were sent.
+--
+--   5. ANON HAS NOTHING. No public path reads or writes a partner's letterhead.
+--
+-- Fixtures live under 8a…: two partners (8a1 = Template Co, 8a2 = Rival Co) and a farm
+-- with one sent invoice, so (3) and (4) can be asserted against a real second party
+-- rather than against the same row twice.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name) values
+  ('8a000000-0000-0000-0000-000000000001', 'Farm Template');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps, plan) values
+  ('8a100000-0000-0000-0000-000000000001', 'Template Co', 'mechanic', true, 1500, 'managed'),
+  ('8a100000-0000-0000-0000-000000000002', 'Rival Co',    'mechanic', true, 1500, 'managed');
+
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('8a100000-0000-0000-0000-000000000001', '8a000000-0000-0000-0000-000000000001', 'active'),
+  ('8a100000-0000-0000-0000-000000000002', '8a000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('8a200000-0000-0000-0000-000000000001', 'templateco@test'),
+  ('8a200000-0000-0000-0000-000000000002', 'rivalco@test'),
+  ('8a300000-0000-0000-0000-000000000001', 'ownerTemplate@test');
+
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('8a200000-0000-0000-0000-000000000001', null, '8a100000-0000-0000-0000-000000000001', 'workshop', 'Template Co Staff'),
+  ('8a200000-0000-0000-0000-000000000002', null, '8a100000-0000-0000-0000-000000000002', 'workshop', 'Rival Co Staff'),
+  ('8a300000-0000-0000-0000-000000000001', '8a000000-0000-0000-0000-000000000001', null, 'owner', 'Owner Template');
+
+-- ── (a) The column landed naming a template that changes nothing ─────────────
+-- Checked WITHOUT a login on purpose: this is a claim about every workshop in the table,
+-- not about what any one person can see.
+do $$ declare d text; n bigint; begin
+  select column_default into d from information_schema.columns
+   where table_schema = 'public' and table_name = 'workshops' and column_name = 'doc_template';
+  if d is null or position('classic' in d) = 0 then
+    raise exception 'G27 FAIL: the default document template is % - it must be the preset that reproduces today''s output', d;
+  end if;
+
+  select count(*) into n from workshops where doc_template is distinct from 'classic';
+  if n <> 0 then
+    raise exception 'G27 FAIL: % workshop(s) were moved onto a non-default template by a migration - documents already sent would look different', n;
+  end if;
+end $$;
+
+-- … and the layout itself was not touched while the column was added. `classic` IS
+-- `resolveLayout({})`, so a partner who never opened the screen must still have an EMPTY
+-- doc_layout — 0505 stamping the eight keys onto every row would be the same restyle by a
+-- different route, and would also overwrite a switch somebody had set by hand.
+do $$ declare n bigint; begin
+  select count(*) into n from workshops
+   where doc_layout ?| array['density', 'accent_style', 'show_vehicle', 'show_vat_number',
+                             'show_banking', 'show_signature', 'show_line_numbers', 'show_unit_price']
+     and id in ('8a100000-0000-0000-0000-000000000001', '8a100000-0000-0000-0000-000000000002');
+  if n <> 0 then
+    raise exception 'G27 FAIL: 0505 wrote layout keys onto % fresh workshop(s) - the default must be the ABSENCE of settings, not a copy of them', n;
+  end if;
+end $$;
+
+-- ── (b) An unknown template name is refused ──────────────────────────────────
+-- Direct, as superuser: this is the trigger's job, not a policy's, so it must hold even
+-- for the one role that RLS never stops.
+do $$ declare ok boolean := false; begin
+  begin
+    update workshops set doc_template = 'moderne-luxe'
+     where id = '8a100000-0000-0000-0000-000000000001';
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G27 FAIL: an unknown template name was stored - the partner would believe their documents had changed';
+  end if;
+end $$;
+
+-- … including on INSERT, which is the path a seed or an import takes.
+do $$ declare ok boolean := false; begin
+  begin
+    insert into workshops (id, name, doc_template)
+    values ('8a100000-0000-0000-0000-0000000000ff', 'Bad Template Co', 'whatever-looks-nice');
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G27 FAIL: a workshop was created naming a template no renderer knows';
+  end if;
+end $$;
+
+-- … and every name the app can actually send is accepted. The opposite direction, because
+-- a guard that refuses everything would pass the two tests above and ship a dead feature.
+do $$ declare v text; begin
+  foreach v in array array['classic', 'compact', 'plain', 'totals_only'] loop
+    update workshops set doc_template = v where id = '8a100000-0000-0000-0000-000000000001';
+  end loop;
+  update workshops set doc_template = 'classic' where id = '8a100000-0000-0000-0000-000000000001';
+end $$;
+
+-- ── A sent invoice, frozen with the letterhead AND the layout it went out with ─
+-- Written before any template is chosen, exactly as `sendDocument` writes it: the
+-- snapshot is the document's own copy of how it looked, and nothing after this point may
+-- alter it.
+insert into partner_documents
+  (id, farm_id, workshop_id, kind, status, source, number, issue_date, vat_rate_bps,
+   bill_to_name, sent_at, issuer_snapshot)
+values
+  ('8a400000-0000-0000-0000-000000000001', '8a000000-0000-0000-0000-000000000001',
+   '8a100000-0000-0000-0000-000000000001', 'invoice', 'sent', 'built', 'TC-0001',
+   current_date, 1500, 'Farm Template', now(),
+   jsonb_build_object(
+     'name', 'Template Co',
+     'brand_primary', '#166534',
+     'doc_layout', jsonb_build_object('density', 'comfortable', 'accent_style', 'band')));
+
+-- … and a DRAFT alongside it, which has NO snapshot. The pair is the whole rule: a draft
+-- is still being written, so it must pick up whatever the partner chooses next; a sent
+-- document is a record of what a customer was handed, so it must not.
+insert into partner_documents
+  (id, farm_id, workshop_id, kind, status, source, number, issue_date, vat_rate_bps,
+   bill_to_name)
+values
+  ('8a400000-0000-0000-0000-000000000002', '8a000000-0000-0000-0000-000000000001',
+   '8a100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'TC-0002',
+   current_date, 1500, 'Farm Template');
+
+set role authenticated;
+
+-- ── (c) A partner sets its OWN template, through the one write path ───────────
+-- `apply_document_template` records the choice and merges the layout in one transaction,
+-- calling 0434's `update_document_layout` underneath — so this also proves the merge still
+-- reaches doc_layout by that single route.
+do $$ declare v_tpl text; v jsonb; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000001');            -- Template Co
+  perform public.apply_document_template('plain', jsonb_build_object(
+    'density', 'comfortable', 'accent_style', 'plain',
+    'show_vehicle', true, 'show_vat_number', true, 'show_banking', true,
+    'show_signature', true, 'show_line_numbers', false, 'show_unit_price', true));
+
+  select doc_template, doc_layout into v_tpl, v from workshops
+   where id = '8a100000-0000-0000-0000-000000000001';
+  if v_tpl <> 'plain' then raise exception 'G27 FAIL: the chosen template did not stick (%)', v_tpl; end if;
+  if v->>'accent_style' <> 'plain' then
+    raise exception 'G27 FAIL: the template''s layout keys did not reach doc_layout (accent_style is %)', v->>'accent_style';
+  end if;
+  if not (v->>'show_signature')::boolean then
+    raise exception 'G27 FAIL: a switch the template turns ON stayed off';
+  end if;
+end $$;
+
+-- … and the partner's own WORDING survives a template switch untouched. This is the s20(4)
+-- guarantee in the database: `documentTitle` supplies "Tax invoice" for a VAT-registered
+-- partner exactly when `invoice_title` is empty, so a template that wrote a friendlier
+-- heading would silently invalidate the document. A template governs shape only.
+do $$ declare v jsonb; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000001');
+  perform public.update_document_layout('{"invoice_title": "Belastingfaktuur", "items_label": "Werk gedoen"}'::jsonb);
+  perform public.apply_document_template('compact', jsonb_build_object(
+    'density', 'compact', 'accent_style', 'line',
+    'show_vehicle', true, 'show_vat_number', true, 'show_banking', true,
+    'show_signature', false, 'show_line_numbers', true, 'show_unit_price', true));
+
+  select doc_layout into v from workshops where id = '8a100000-0000-0000-0000-000000000001';
+  if v->>'invoice_title' <> 'Belastingfaktuur' then
+    raise exception 'G27 FAIL: choosing a template renamed the partner''s invoice (% ) - a VAT-registered vendor''s heading is not ours to change', v->>'invoice_title';
+  end if;
+  if v->>'items_label' <> 'Werk gedoen' then
+    raise exception 'G27 FAIL: choosing a template overwrote the partner''s own wording';
+  end if;
+  if v->>'density' <> 'compact' then raise exception 'G27 FAIL: the template''s density did not apply'; end if;
+end $$;
+
+-- ── (d) … and cannot touch another partner's ─────────────────────────────────
+do $$ declare v_own text; v_other text; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000002');            -- Rival Co
+  perform public.apply_document_template('totals_only', jsonb_build_object(
+    'density', 'comfortable', 'accent_style', 'band',
+    'show_vehicle', true, 'show_vat_number', true, 'show_banking', true,
+    'show_signature', false, 'show_line_numbers', false, 'show_unit_price', false));
+
+  select doc_template into v_other from workshops where id = '8a100000-0000-0000-0000-000000000001';
+  if v_other = 'totals_only' then
+    raise exception 'G27 FAIL [CROSS-PARTNER]: one workshop restyled another workshop''s documents';
+  end if;
+
+  select doc_template into v_own from workshops where id = '8a100000-0000-0000-0000-000000000002';
+  if v_own <> 'totals_only' then
+    raise exception 'G27 FAIL: a partner could not choose its OWN template (%)', v_own;
+  end if;
+end $$;
+
+-- … not even by writing the column directly. `workshops_upd_self` (0380) is what stops
+-- this; asserted because the RPC is not the only door to a column.
+do $$ declare v text; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000002');            -- Rival Co
+  update workshops set doc_template = 'plain'
+   where id = '8a100000-0000-0000-0000-000000000001';                  -- Template Co's row
+  select doc_template into v from workshops where id = '8a100000-0000-0000-0000-000000000001';
+  if v = 'plain' then
+    raise exception 'G27 FAIL [CROSS-PARTNER]: a direct UPDATE set another partner''s template';
+  end if;
+end $$;
+
+-- ── (e) A farm user has no template to choose ────────────────────────────────
+do $$ declare ok boolean := false; begin
+  perform _t_login('8a300000-0000-0000-0000-000000000001');            -- Farm Template owner
+  begin
+    perform public.apply_document_template('plain', '{}'::jsonb);
+  exception when insufficient_privilege then ok := true; end;
+  if not ok then raise exception 'G27 FAIL: a farm user chose a partner''s document template'; end if;
+end $$;
+
+-- ── (f) THE ONE THAT MATTERS: a sent document is not restated ────────────────
+-- Template Co has now switched template twice and rewritten its layout. The invoice it
+-- sent before any of that must be byte-identical — both the whole snapshot and, called out
+-- separately, the layout inside it, because a change that reached only the nested object
+-- would still restate the document while an object-level compare on a shallow copy could
+-- miss it.
+do $$ declare v jsonb; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000001');            -- Template Co
+  select issuer_snapshot into v from partner_documents
+   where id = '8a400000-0000-0000-0000-000000000001';
+
+  if v is null then
+    raise exception 'G27 FAIL [vacuous]: the sent invoice has no snapshot - this test proves nothing';
+  end if;
+  if v->'doc_layout'->>'accent_style' <> 'band' then
+    raise exception 'G27 FAIL: a sent invoice''s FROZEN layout followed the partner''s new template (accent_style is now %) - a rebrand has restated last year''s invoice',
+      v->'doc_layout'->>'accent_style';
+  end if;
+  if v->'doc_layout'->>'density' <> 'comfortable' then
+    raise exception 'G27 FAIL: a sent invoice''s frozen density changed to %', v->'doc_layout'->>'density';
+  end if;
+  if v <> jsonb_build_object(
+       'name', 'Template Co',
+       'brand_primary', '#166534',
+       'doc_layout', jsonb_build_object('density', 'comfortable', 'accent_style', 'band')) then
+    raise exception 'G27 FAIL: the sent invoice''s snapshot is no longer what was frozen: %', v;
+  end if;
+end $$;
+
+-- … and the partner's CURRENT settings really did move, so (f) is a statement about
+-- freezing rather than about nothing having happened at all.
+do $$ declare v_tpl text; v jsonb; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000001');
+  select doc_template, doc_layout into v_tpl, v from workshops
+   where id = '8a100000-0000-0000-0000-000000000001';
+  if v_tpl <> 'compact' or v->>'accent_style' <> 'line' then
+    raise exception 'G27 FAIL [vacuous]: the partner''s live settings did not change (% / %) - the freeze test above compared two unchanged values',
+      v_tpl, v->>'accent_style';
+  end if;
+end $$;
+
+-- … and the OTHER direction, which is the half an implementation forgets. The DRAFT
+-- raised at the same time carries no snapshot at all, so `brandingOf(null, current)`
+-- resolves it against the partner's CURRENT settings — a document still being written
+-- picks up the template just chosen. If a snapshot ever appeared on a draft, that
+-- fallback would stop working and the partner would be editing one document while
+-- looking at another.
+do $$ declare v jsonb; st text; begin
+  perform _t_login('8a200000-0000-0000-0000-000000000001');            -- Template Co
+  select issuer_snapshot, status::text into v, st from partner_documents
+   where id = '8a400000-0000-0000-0000-000000000002';
+  if st is distinct from 'draft' then
+    raise exception 'G27 FAIL [vacuous]: the draft fixture reads % - the draft rule was not tested', st;
+  end if;
+  if v is not null then
+    raise exception 'G27 FAIL: a DRAFT carries a frozen letterhead (%) - it would keep a look the partner has already replaced', v;
+  end if;
+end $$;
+
+reset role;
+
+-- ── (g) anon has nothing ─────────────────────────────────────────────────────
+set role anon;
+do $$ declare ok boolean := false; begin
+  begin perform public.apply_document_template('plain', '{}'::jsonb);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G27 FAIL: anon chose a partner''s document template'; end if;
+end $$;
+do $$ declare ok boolean := false; begin
+  begin perform count(*) from workshops where doc_template = 'classic';
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G27 FAIL: anon read partner letterhead settings'; end if;
+end $$;
+reset role;
+
+-- ── (h) There is deliberately no SQL mirror of the template presets ──────────
+-- The database knows the closed set of NAMES (so a typo fails where it is made) and
+-- nothing about what each name means. Both renderers are TypeScript; a function here that
+-- expanded a name into layout keys would be a second copy of the map with nothing keeping
+-- it honest — the same decision 0492 recorded for the partner plan. Named explicitly so
+-- the decision is refused rather than merely undocumented.
+do $$ declare n int; begin
+  select count(*) into n from pg_proc p
+    join pg_namespace ns on ns.oid = p.pronamespace
+   where ns.nspname in ('app', 'public')
+     and p.proname in ('doc_template_layout', 'template_layout', 'expand_document_template',
+                       'document_template_keys');
+  if n <> 0 then
+    raise exception 'G27 FAIL: % SQL mirror(s) of the template presets exist - the map must live in one place, and both renderers are TypeScript', n;
+  end if;
+end $$;
+
+-- ── (i) The grants and privilege flags, measured rather than assumed ─────────
+-- Every earlier assertion in this section is about behaviour a policy or a trigger
+-- produces. This one is about the doors themselves: a function that quietly kept the
+-- PostgreSQL default (`EXECUTE TO PUBLIC`) is exactly the hole G11 was written for, and a
+-- trigger function that became SECURITY DEFINER would run the validation with privileges
+-- it does not need.
+do $$ declare r record; begin
+  select p.prosecdef,
+         has_function_privilege('anon', p.oid, 'EXECUTE')          as anon_exec,
+         has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_exec,
+         p.proconfig::text                                          as cfg
+    into r
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'apply_document_template';
+
+  if r is null then raise exception 'G27 FAIL: apply_document_template does not exist'; end if;
+  if r.anon_exec then
+    raise exception 'G27 FAIL: anon may EXECUTE apply_document_template';
+  end if;
+  if not r.auth_exec then
+    raise exception 'G27 FAIL: a signed-in partner may not EXECUTE apply_document_template';
+  end if;
+  -- INVOKER by choice: the `where id = app.user_workshop_id()` clause is a check somebody
+  -- could rewrite, `workshops_upd_self` is not, and running as the caller means both must
+  -- fail before one partner reaches another's row.
+  if r.prosecdef then
+    raise exception 'G27 FAIL: apply_document_template became SECURITY DEFINER - it would then bypass workshops_upd_self and rest on one WHERE clause';
+  end if;
+  if r.cfg is null or position('search_path' in r.cfg) = 0 then
+    raise exception 'G27 FAIL: apply_document_template has no pinned search_path';
+  end if;
+end $$;
+
+do $$ declare r record; begin
+  select p.prosecdef,
+         has_function_privilege('anon', p.oid, 'EXECUTE')          as anon_exec,
+         has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_exec
+    into r
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'app_workshops_check_template';
+
+  if r is null then raise exception 'G27 FAIL: the template guard trigger function does not exist'; end if;
+  if r.prosecdef then
+    raise exception 'G27 FAIL: the template guard became SECURITY DEFINER - a validation trigger needs no privileges of its own';
+  end if;
+  if r.anon_exec or r.auth_exec then
+    raise exception 'G27 FAIL: the template guard kept an EXECUTE grant (anon=%, authenticated=%) - a trigger is reached by its trigger, never called',
+      r.anon_exec, r.auth_exec;
+  end if;
+end $$;
+
+select 'ALL G27 DOCUMENT-TEMPLATE TESTS PASSED' as result;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G28 — THE BALANCE BROUGHT FORWARD IS THE FIRST LINE (0504)
+--
+-- `app.partner_statement` ended with the ordinal pair (entry_date, kind) from 0413 until
+-- 0504. The opening row is dated p_from, and 'credit_note', 'debit_note' and 'invoice' all
+-- sort BEFORE 'opening', so any document issued ON the window's first day was printed above
+-- "Balance brought forward". `withRunningBalance` (src/lib/statement.ts) then ran the
+-- Balance column from the wrong start for those rows.
+--
+-- The closing total was never wrong, which is exactly why this survived four migrations and
+-- a live click-through: every subtotal reconciled. Only the Balance column — the one a
+-- customer checks a statement against, line by line — was wrong.
+--
+-- These assertions pin the ORDER, not just the arithmetic, because the arithmetic already
+-- passed while the document was unreadable.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps)
+values ('7f000000-0000-0000-0000-000000000001', 'Statement Order Co', 'mechanic', true, 1500);
+insert into partner_clients (id, workshop_id, name)
+values ('7f100000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', 'Same Day Farm');
+
+-- One old invoice, so there IS a balance to bring forward; then an invoice and a credit
+-- note both issued on the window's first day, which is the case that used to break.
+insert into partner_documents (id, workshop_id, partner_client_id, kind, status, number,
+                               issue_date, subtotal_cents, vat_cents, total_cents,
+                               corrects_document_id)
+values ('7f200000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001',
+        '7f100000-0000-0000-0000-000000000001', 'invoice', 'sent', 'SO-OLD',
+        date '2026-01-10', 100000, 15000, 115000, null),
+       ('7f200000-0000-0000-0000-000000000002', '7f000000-0000-0000-0000-000000000001',
+        '7f100000-0000-0000-0000-000000000001', 'invoice', 'sent', 'SO-SAMEDAY',
+        date '2026-03-01', 20000, 3000, 23000, null),
+       ('7f200000-0000-0000-0000-000000000003', '7f000000-0000-0000-0000-000000000001',
+        '7f100000-0000-0000-0000-000000000001', 'credit_note', 'sent', 'SO-CN-SAMEDAY',
+        date '2026-03-01', 5000, 750, 5750, '7f200000-0000-0000-0000-000000000001');
+
+-- ── (a) The opening row is FIRST, on a window whose first day carries documents ──
+do $$ declare first_kind text; begin
+  select kind into first_kind
+    from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                               '7f100000-0000-0000-0000-000000000001',
+                               date '2026-03-01', date '2026-03-31')
+   limit 1;
+  if first_kind is distinct from 'opening' then
+    raise exception 'G28 FAIL [ORDER]: the first statement line is a % - a document issued on the first day of the window outranked the balance brought forward', first_kind;
+  end if;
+end $$;
+
+-- ── (b) …and it carries the right figure, so (a) cannot pass on an empty statement ──
+do $$ declare d bigint; c bigint; n int; begin
+  select count(*) into n
+    from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                               '7f100000-0000-0000-0000-000000000001',
+                               date '2026-03-01', date '2026-03-31');
+  if n <> 3 then
+    raise exception 'G28 FAIL: the statement has % lines, expected 3 - the fixture is not what (a) assumes', n;
+  end if;
+  select debit_cents, credit_cents into d, c
+    from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                               '7f100000-0000-0000-0000-000000000001',
+                               date '2026-03-01', date '2026-03-31')
+   limit 1;
+  if d <> 115000 or c <> 0 then
+    raise exception 'G28 FAIL: brought forward is %/% rather than 115000/0', d, c;
+  end if;
+end $$;
+
+-- ── (c) The running balance a renderer computes never starts from the wrong place ──
+-- This is the defect as the CUSTOMER met it: the first Balance cell on the page.
+do $$ declare first_bal bigint; begin
+  select sum(debit_cents - credit_cents)
+           over (rows between unbounded preceding and current row)
+    into first_bal
+    from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                               '7f100000-0000-0000-0000-000000000001',
+                               date '2026-03-01', date '2026-03-31')
+   limit 1;
+  if first_bal <> 115000 then
+    raise exception 'G28 FAIL [RUNNING BALANCE]: the first Balance cell reads % - the customer owed 115000 at that moment', first_bal;
+  end if;
+end $$;
+
+-- ── (d) The tie-break after the rank is unchanged ───────────────────────────
+-- 0504 lifts 'opening' and changes nothing else. Two documents share 2026-03-01, and
+-- 'credit_note' must still precede 'invoice' exactly as the ordinal ordering had it.
+do $$ declare k2 text; k3 text; begin
+  select kind into k2 from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                             '7f100000-0000-0000-0000-000000000001',
+                             date '2026-03-01', date '2026-03-31') offset 1 limit 1;
+  select kind into k3 from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                             '7f100000-0000-0000-0000-000000000001',
+                             date '2026-03-01', date '2026-03-31') offset 2 limit 1;
+  if k2 <> 'credit_note' or k3 <> 'invoice' then
+    raise exception 'G28 FAIL [TIE-BREAK]: same-date rows now order %, % - 0504 was meant to lift the opening line and change nothing else', k2, k3;
+  end if;
+end $$;
+
+-- ── (e) The closing balance is untouched by the reordering ──────────────────
+-- The figure that was ALWAYS right must stay right; a reordering that moved money would be
+-- a far worse bug than the one being fixed.
+do $$ declare closing bigint; begin
+  select coalesce(sum(debit_cents - credit_cents), 0) into closing
+    from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
+                               '7f100000-0000-0000-0000-000000000001',
+                               date '2026-03-01', date '2026-03-31');
+  if closing <> 132250 then
+    raise exception 'G28 FAIL: closing balance is % not 132250 - the reordering moved money', closing;
+  end if;
+end $$;
+
+-- ── (f) Still gated ─────────────────────────────────────────────────────────
+-- `create or replace function` preserves grants, but this is the assertion that would catch
+-- a future restatement pasted in without them (G11).
+do $$ begin
+  if has_function_privilege('anon', 'app.partner_statement(uuid,uuid,uuid,date,date)', 'EXECUTE') then
+    raise exception 'G28 FAIL: anon may execute app.partner_statement';
+  end if;
+  if (select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'partner_statement') then
+    raise exception 'G28 FAIL: app.partner_statement became SECURITY DEFINER - RLS must decide who reads a statement';
+  end if;
+end $$;
+
+select 'ALL G28 STATEMENT-ORDERING TESTS PASSED' as result;
