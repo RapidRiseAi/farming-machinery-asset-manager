@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadDocument } from "@/lib/document-load";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
-import { documentLabel } from "@/lib/pdf/partner-document";
+import { resolveLayout, documentTitle } from "@/lib/doc-layout";
 import { rands } from "@/lib/money";
 import { vatPercent, shortDate } from "@/lib/format";
 import { balanceDueCents } from "@/lib/partner-docs";
@@ -60,7 +60,18 @@ export default async function PublicDocumentPage({
   const brand = brandingOf(doc.issuer_snapshot as never, brandingFrom(loaded.workshop as never));
   const accent = brand.brand_primary || "#15803d";
   const ink = onBrand(accent);
-  const label = documentLabel(doc.kind);
+
+  // The layout the partner chose, resolved from the letterhead FROZEN onto the document at
+  // send time — the same source `brandingOf` above reads, so this page cannot restate an
+  // old document in a new style.
+  //
+  // This page used to call `documentLabel(kind)` and hardcode the accent band, which meant
+  // the one surface the PAYING CUSTOMER reads was the only one ignoring the partner's own
+  // wording, their chosen template, and — the part that actually matters — the fact that a
+  // VAT-registered partner's invoice must be headed "Tax invoice" (VAT Act s20(4)). The
+  // signed-in page and the PDF have both honoured it since 0434; only this one did not.
+  const layout = resolveLayout(brand.doc_layout);
+  const label = documentTitle(doc.kind, layout, locale, brand.vatRegistered);
   const isQuote = doc.kind === "quote";
   const isInvoice = doc.kind === "invoice";
   const isCredit = doc.kind === "credit_note";
@@ -88,11 +99,30 @@ export default async function PublicDocumentPage({
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 pb-16">
       {/* The partner's letterhead — the customer is doing business with them, not with us. */}
-      <header className="rounded-xl px-5 py-4" style={{ background: accent, color: ink }}>
+      <header
+        className={
+          layout.accent_style === "band"
+            ? "rounded-xl px-5 py-4"
+            : layout.accent_style === "line"
+              ? "rounded-xl border border-sand-200 border-t-4 bg-white px-5 py-4"
+              : "rounded-xl border border-sand-200 bg-white px-5 py-4"
+        }
+        style={
+          layout.accent_style === "band"
+            ? { background: accent, color: ink }
+            : layout.accent_style === "line"
+              ? { borderTopColor: accent }
+              : undefined
+        }
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-lg font-bold">{brand.name}</p>
-            {brand.vat_number ? <p className="text-sm opacity-85">{t("pubDoc.vatNo", locale)} {brand.vat_number}</p> : null}
+            <p className={`text-lg font-bold ${layout.accent_style === "band" ? "" : "text-sand-900"}`}>{brand.name}</p>
+            {layout.show_vat_number && brand.vat_number ? (
+              <p className={`text-sm ${layout.accent_style === "band" ? "opacity-85" : "text-sand-600"}`}>
+                {t("pubDoc.vatNo", locale)} {brand.vat_number}
+              </p>
+            ) : null}
           </div>
           <DeviceLanguageSwitcher current={locale} label={t("ui.language", locale)} />
         </div>

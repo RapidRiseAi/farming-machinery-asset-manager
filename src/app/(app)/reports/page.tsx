@@ -11,6 +11,7 @@ import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
+import { FleetCompliancePackLink } from "@/components/reports/compliance-packs";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { budgetTone, budgetPeriodLabel, budgetCategoryLabel } from "@/lib/budgets";
 
@@ -97,9 +98,7 @@ export default async function ReportsPage({
             {t("reports.downloadExcel", locale)} ↓
           </a>
           {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4) — fleet compliance summary PDF. */}
-          <a href="/reports/audit-pack.pdf" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            {t("reports.auditPack", locale)} ↓
-          </a>
+          <FleetCompliancePackLink locale={locale} />
           <PrintButton label={t("reports.print", locale)} />
         </div>
       </div>

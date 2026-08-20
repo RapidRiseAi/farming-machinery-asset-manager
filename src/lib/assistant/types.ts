@@ -86,6 +86,8 @@ export type AssistantTurnRequest = {
   locale: AssistantLocale;
   channel: AssistantChannel;
   voiceCaptureId?: string;
+  /** Earlier voice captures made non-actionable when this corrected/retried text is submitted. */
+  supersedesVoiceCaptureIds?: string[];
   sttConfidence?: number;
   clarification?: AssistantClarification;
 };
@@ -146,4 +148,3 @@ export function isAssistantLocale(value: unknown): value is AssistantLocale {
 export function isAssistantIntent(value: unknown): value is AssistantIntent {
   return typeof value === "string" && (ASSISTANT_INTENTS as readonly string[]).includes(value);
 }
-

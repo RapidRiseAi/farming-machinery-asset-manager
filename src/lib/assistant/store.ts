@@ -44,6 +44,19 @@ type CreateInteraction = {
   errorCode?: string | null;
 };
 
+export async function supersedeVoiceCapture(input: {
+  captureIds: string[];
+  farmId: string;
+  userId: string;
+}): Promise<void> {
+  const { error } = await createServiceClient().rpc("supersede_assistant_voice_capture", {
+    p_capture_ids: input.captureIds,
+    p_farm: input.farmId,
+    p_user: input.userId,
+  });
+  if (error) throw error;
+}
+
 export async function ensureVoiceCapture(input: {
   requestedId?: string;
   farmId: string;

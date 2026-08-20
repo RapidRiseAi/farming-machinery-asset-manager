@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import { configuredLlmModel, parseWithLlm } from "@/lib/assistant/llm";
 import { matchMachine, normalizeAssistantText } from "@/lib/assistant/normalize";
 import { parseDeterministic } from "@/lib/assistant/parser";
 import { missingFields, proposalFor, queryAnswer } from "@/lib/assistant/presentation";
+import { assistantTurnRequestSchema } from "@/lib/assistant/request-schema";
+import type { ParsedAssistantTurnRequest } from "@/lib/assistant/request-schema";
 import {
   createInteraction,
   ensureVoiceCapture,
   releaseClarification,
   reserveClarification,
+  supersedeVoiceCapture,
   turnRateAllowed,
   updateInteractionDraft,
   updateVoiceCapture,
@@ -20,25 +22,6 @@ import type { AssistantDraft, AssistantTurnResponse } from "@/lib/assistant/type
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const requestSchema = z.object({
-  input: z.string().trim().min(1).max(2000),
-  locale: z.enum(["en-ZA", "af-ZA"]),
-  channel: z.enum(["typed", "voice"]),
-  voiceCaptureId: z.uuid().optional(),
-  sttConfidence: z.number().min(0).max(1).optional(),
-  clarification: z
-    .object({
-      interactionId: z.uuid(),
-      machineId: z.uuid().optional(),
-      description: z.string().trim().min(1).max(2000).optional(),
-      workPerformed: z.string().trim().max(2000).optional(),
-      reading: z.number().min(0).optional(),
-      readingDate: z.iso.date().optional(),
-      serviceDate: z.iso.date().optional(),
-    })
-    .optional(),
-});
-
 function json(body: AssistantTurnResponse, status = 200) {
   return NextResponse.json(body, {
     status,
@@ -46,7 +29,10 @@ function json(body: AssistantTurnResponse, status = 200) {
   });
 }
 
-function mergeClarification(draft: AssistantDraft, values: NonNullable<z.infer<typeof requestSchema>["clarification"]>): AssistantDraft {
+function mergeClarification(
+  draft: AssistantDraft,
+  values: NonNullable<ParsedAssistantTurnRequest["clarification"]>,
+): AssistantDraft {
   return {
     ...draft,
     machineId: values.machineId ?? draft.machineId,
@@ -78,7 +64,7 @@ function localized(locale: "en-ZA" | "af-ZA", english: string, afrikaans: string
 
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return json({ kind: "error", code: "forbidden", message: "Request blocked." }, 403);
-  const parsedBody = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsedBody = assistantTurnRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsedBody.success) return json({ kind: "error", code: "bad_request", message: "Check the command and try again." }, 400);
   const body = parsedBody.data;
 
@@ -170,6 +156,13 @@ export async function POST(request: Request) {
       draft = mergeClarification(previous.tool_args, body.clarification);
     } else {
       if (body.channel === "voice") {
+        if (body.supersedesVoiceCaptureIds) {
+          await supersedeVoiceCapture({
+            captureIds: body.supersedesVoiceCaptureIds,
+            farmId: context.farmId,
+            userId: context.profile.id,
+          });
+        }
         captureId = await ensureVoiceCapture({
           requestedId: body.voiceCaptureId,
           farmId: context.farmId,
@@ -269,7 +262,7 @@ export async function POST(request: Request) {
         }
 
         try {
-          const llm = await parseWithLlm(body.input, body.locale, requestedModel);
+          const llm = await parseWithLlm(body.input, body.locale, requestedModel, request.signal);
           draft = llm.draft;
           tier = 2;
           provider = "vercel-ai-gateway";

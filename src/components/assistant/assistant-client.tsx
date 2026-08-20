@@ -37,6 +37,11 @@ import type {
   AssistantTurnResponse,
   AssistantLocale,
 } from "@/lib/assistant/types";
+import {
+  freshVoiceRetryFor,
+  pendingTranscriptFor,
+  type PendingAssistantTranscript,
+} from "@/lib/assistant/voice-retry";
 
 type Phase =
   | "idle"
@@ -57,7 +62,7 @@ type Capabilities = {
 };
 
 type Completion = { message: string; href?: string };
-type PendingTranscript = Pick<AssistantTurnRequest, "locale" | "channel" | "voiceCaptureId">;
+const ASSISTANT_TURN_TIMEOUT_MS = 20_000;
 
 function responseError(value: unknown, locale: Lang): AssistantTurnResponse {
   if (value && typeof value === "object" && "kind" in value) return value as AssistantTurnResponse;
@@ -110,7 +115,7 @@ export function AssistantClient({
   const [transcript, setTranscript] = useState("");
   const [typedInput, setTypedInput] = useState("");
   const [turn, setTurn] = useState<AssistantTurnResponse | null>(null);
-  const [pendingTranscript, setPendingTranscript] = useState<PendingTranscript | null>(null);
+  const [pendingTranscript, setPendingTranscript] = useState<PendingAssistantTranscript | null>(null);
   const [completion, setCompletion] = useState<Completion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
@@ -258,13 +263,7 @@ export function AssistantClient({
   const submitRequest = useCallback(
     async (requestBody: AssistantTurnRequest) => {
       if (requestAbortRef.current) return false;
-      const retryTranscript: PendingTranscript | null = requestBody.clarification
-        ? null
-        : {
-            locale: requestBody.locale,
-            channel: requestBody.channel,
-            voiceCaptureId: requestBody.voiceCaptureId,
-          };
+      const retryTranscript = requestBody.clarification ? null : pendingTranscriptFor(requestBody);
       if (!navigator.onLine) {
         if (retryTranscript) setPendingTranscript(retryTranscript);
         setPhase("error");
@@ -272,6 +271,11 @@ export function AssistantClient({
         return false;
       }
       const controller = new AbortController();
+      let timedOut = false;
+      const timeout = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, ASSISTANT_TURN_TIMEOUT_MS);
       requestAbortRef.current = controller;
       const operation = ++operationRef.current;
       lastRequestRef.current = requestBody;
@@ -291,7 +295,7 @@ export function AssistantClient({
         if (!mountedRef.current || operation !== operationRef.current) return false;
         setTurn(next);
         if (!response.ok || next.kind === "error") {
-          if (retryTranscript) setPendingTranscript(retryTranscript);
+          if (retryTranscript) setPendingTranscript(freshVoiceRetryFor(requestBody) ?? retryTranscript);
           setError(next.kind === "error" ? next.message : t("assistant.serviceUnavailable", locale));
           setPhase("error");
           return false;
@@ -300,11 +304,12 @@ export function AssistantClient({
         return true;
       } catch {
         if (!mountedRef.current || operation !== operationRef.current) return false;
-        if (retryTranscript) setPendingTranscript(retryTranscript);
-        setError(t("assistant.serviceUnavailable", locale));
+        if (retryTranscript) setPendingTranscript(freshVoiceRetryFor(requestBody) ?? retryTranscript);
+        setError(t(timedOut ? "assistant.requestTimedOut" : "assistant.serviceUnavailable", locale));
         setPhase("error");
         return false;
       } finally {
+        window.clearTimeout(timeout);
         if (requestAbortRef.current === controller) requestAbortRef.current = null;
       }
     },
@@ -600,15 +605,17 @@ export function AssistantClient({
   const updateTranscript = (value: string) => {
     operationRef.current += 1;
     const previous = lastRequestRef.current;
+    const freshVoiceRetry = previous ? freshVoiceRetryFor(previous) : null;
     transcriptRef.current = value;
     setTranscript(value);
-    setPendingTranscript(
-      pendingTranscript ?? {
+    setPendingTranscript((current) => {
+      const pending = current ?? {
         locale: previous?.locale ?? speechLanguage,
         channel: previous?.channel ?? "typed",
         voiceCaptureId: previous?.voiceCaptureId,
-      },
-    );
+      };
+      return freshVoiceRetry ?? pending;
+    });
     lastRequestRef.current = null;
     setTurn(null);
     setCompletion(null);
@@ -634,7 +641,9 @@ export function AssistantClient({
       else if (field.name === "readingDate") clarification.readingDate = raw;
       else if (field.name === "serviceDate") clarification.serviceDate = raw;
     }
-    await submitRequest({ ...previous, clarification });
+    const continuation = { ...previous, clarification };
+    delete continuation.supersedesVoiceCaptureIds;
+    await submitRequest(continuation);
   };
 
   const confirmProposal = async (action: "confirm" | "reject") => {
@@ -717,7 +726,9 @@ export function AssistantClient({
     setError(null);
     setPhase("speaking");
     try {
-      await getSpeech().speak(text, { voice: speechLanguage === "af-ZA" ? "willem" : "ollie" });
+      // Ollie Multilingual was preferred in the founder voice test and pronounced
+      // machinery names such as John Deere cleanly in both supported languages.
+      await getSpeech().speak(text, { voice: "ollie" });
       if (mountedRef.current && operation === operationRef.current) setPhase("idle");
     } catch (caught) {
       if (!mountedRef.current || operation !== operationRef.current) return;

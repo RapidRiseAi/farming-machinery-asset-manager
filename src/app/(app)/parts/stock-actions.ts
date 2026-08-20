@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentFarmId } from "@/lib/auth";
+import { farmPermissionState, requireFarmPermission } from "@/lib/permissions";
 import { parseRandsToCents } from "@/lib/money";
 import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
@@ -34,9 +34,7 @@ function s(fd: FormData, k: string): string | null {
 
 /** Start counting a catalogue part. The row IS the decision to hold it in the store. */
 export async function trackPart(formData: FormData) {
-  const profile = await requireRole(["owner", "manager", "mechanic"]);
-  const farmId = await currentFarmId(profile);
-  if (!farmId) redirect("/parts?error=no-farm");
+  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
 
   const partId = String(formData.get("part_catalogue_id") ?? "");
   if (!partId) redirect("/parts?error=not-found");
@@ -62,12 +60,12 @@ export async function trackPart(formData: FormData) {
 
 /** Change where it lives or when to reorder. Never the quantity. */
 export async function updateStockItem(formData: FormData) {
-  await requireRole(["owner", "manager", "mechanic"]);
+  const { farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
   const id = String(formData.get("stock_item_id") ?? "");
   if (!id) redirect("/parts?error=not-found");
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("stock_items")
     .update({
       unit: s(formData, "unit") ?? "each",
@@ -75,9 +73,13 @@ export async function updateStockItem(formData: FormData) {
       bin: s(formData, "bin"),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("farm_id", farmId)
+    .select("id")
+    .maybeSingle();
 
   if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
 }
@@ -92,9 +94,7 @@ export async function updateStockItem(formData: FormData) {
  * readable one way only.
  */
 export async function recordMovement(formData: FormData) {
-  const profile = await requireRole(["owner", "manager", "mechanic"]);
-  const farmId = await currentFarmId(profile);
-  if (!farmId) redirect("/parts?error=no-farm");
+  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
 
   const itemId = String(formData.get("stock_item_id") ?? "");
   const rawKind = String(formData.get("kind") ?? "");
@@ -106,6 +106,15 @@ export async function recordMovement(formData: FormData) {
 
   const machineId = s(formData, "machine_id");
   const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from("stock_items")
+    .select("id")
+    .eq("id", itemId)
+    .eq("farm_id", farmId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!item) redirect("/parts?error=not-found");
 
   const { error } = await supabase.from("stock_movements").insert({
     farm_id: farmId,
@@ -133,13 +142,18 @@ export async function recordMovement(formData: FormData) {
  * history of what was fitted to which machine survives the shelf being cleared.
  */
 export async function untrackPart(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
   const id = String(formData.get("stock_item_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  const { data, error } = await supabase
     .from("stock_items")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("farm_id", farmId)
+    .select("id")
+    .maybeSingle();
+  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
 }
@@ -157,9 +171,10 @@ export async function untrackPart(formData: FormData) {
  * card states the window in words directly above the control that changes it.
  */
 export async function setReorderWindow(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
-  const farmId = await currentFarmId(profile);
-  if (!farmId) redirect("/parts?error=no-farm");
+  const { farmId, role } = await farmPermissionState();
+  if (!farmId || !role || !["owner", "manager"].includes(role)) {
+    redirect("/parts?error=Not+allowed");
+  }
 
   const days = clampLookahead(String(formData.get("reorder_lookahead_days") ?? ""));
 

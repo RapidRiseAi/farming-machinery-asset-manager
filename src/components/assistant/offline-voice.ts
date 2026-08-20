@@ -6,7 +6,7 @@ const DB_NAME = "fleetwise-voice-assistant";
 const DB_VERSION = 1;
 const STORE = "captures";
 const SIGN_OUT_LOCK = "fleetwise-voice-storage-locked";
-const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const OFFLINE_VOICE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_OFFLINE_RECORDING_MS = 60_000;
 const pendingWrites = new Set<Promise<void>>();
 let writesBlockedForSignOut = false;
@@ -29,6 +29,27 @@ export type OfflineVoiceCapture = {
   durationMs: number;
   createdAt: number;
 };
+
+export function partitionOfflineCaptures(
+  captures: OfflineVoiceCapture[],
+  contextKey: string,
+  now = Date.now(),
+): { expiredIds: string[]; visible: OfflineVoiceCapture[] } {
+  const cutoff = now - OFFLINE_VOICE_RETENTION_MS;
+  const expiredIds: string[] = [];
+  const visible: OfflineVoiceCapture[] = [];
+
+  for (const capture of captures) {
+    if (capture.createdAt < cutoff) {
+      expiredIds.push(capture.id);
+    } else if (capture.contextKey === contextKey) {
+      visible.push(capture);
+    }
+  }
+
+  visible.sort((a, b) => a.createdAt - b.createdAt);
+  return { expiredIds, visible };
+}
 
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error("offline_storage_unavailable"));
@@ -210,20 +231,21 @@ export async function clearAllOfflineVoiceData(): Promise<void> {
 }
 
 export async function listOfflineCaptures(contextKey: string): Promise<OfflineVoiceCapture[]> {
-  const captures = await transaction<OfflineVoiceCapture[]>("readonly", (store, resolve, reject) => {
+  return transaction<OfflineVoiceCapture[]>("readwrite", (store, resolve, reject) => {
     const request = store.getAll();
-    request.onsuccess = () => resolve((request.result as OfflineVoiceCapture[]) ?? []);
+    request.onsuccess = () => {
+      const { expiredIds, visible } = partitionOfflineCaptures(
+        (request.result as OfflineVoiceCapture[]) ?? [],
+        contextKey,
+      );
+      for (const id of expiredIds) {
+        const deletion = store.delete(id);
+        deletion.onerror = () => reject(deletion.error);
+      }
+      resolve(visible);
+    };
     request.onerror = () => reject(request.error);
   });
-  const expired = captures.filter(
-    (capture) => capture.contextKey === contextKey && Date.now() - capture.createdAt > RETENTION_MS,
-  );
-  await Promise.all(
-    expired.map((capture) => deleteOfflineCapture(capture.id, contextKey).catch(() => undefined)),
-  );
-  return captures
-    .filter((capture) => capture.contextKey === contextKey && Date.now() - capture.createdAt <= RETENTION_MS)
-    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 function preferredMimeType(): string {

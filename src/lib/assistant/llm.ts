@@ -18,6 +18,8 @@ const parsedCommandSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+export const LLM_PARSE_TIMEOUT_MS = 12_000;
+
 export type LlmParseResult = {
   draft: AssistantDraft;
   model: string;
@@ -36,6 +38,7 @@ export async function parseWithLlm(
   input: string,
   locale: AssistantLocale,
   model = configuredLlmModel(),
+  abortSignal?: AbortSignal,
 ): Promise<LlmParseResult> {
   const started = Date.now();
   const result = await generateText({
@@ -43,6 +46,8 @@ export async function parseWithLlm(
     output: Output.object({ schema: parsedCommandSchema }),
     temperature: 0,
     maxOutputTokens: 500,
+    abortSignal,
+    timeout: { totalMs: LLM_PARSE_TIMEOUT_MS },
     system: [
       "You extract one FleetWise farm-machinery command. You never execute anything.",
       "Allowed intents: report_fault, log_reading, log_service, query_asset_status, query_service_due.",

@@ -1,9 +1,16 @@
 import { redirect } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { homePathFor, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import {
+  farmPermissionState,
+  roleHasBaselinePermission,
+  USER_PERMISSIONS,
+  type UserPermission,
+} from "@/lib/permissions";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
-import { inviteUser, setUserActive, erasePerson } from "./actions";
+import { inviteUser, setUserActive, erasePerson, setUserPermission } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Field } from "@/components/ui/field";
@@ -17,7 +24,16 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 import { roleLabel } from "@/lib/format";
 
-type TeamUser = { id: string; name: string; role: string; email: string | null; active: boolean };
+type TeamUser = {
+  id: string;
+  name: string;
+  role: "owner" | "manager" | "mechanic" | "operator";
+  email: string | null;
+  active: boolean;
+  primaryFarmId: string | null;
+  isPrimaryMember: boolean;
+  grants: ReadonlySet<UserPermission>;
+};
 
 /**
  * Something non-empty to name a person by. An already-erased profile has a blank name,
@@ -31,32 +47,113 @@ function personLabel(u: TeamUser): string {
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invited?: string; saved?: string; erased?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string; saved?: string; erased?: string; permissionSaved?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
   const locale = profile.lang;
   const sp = await searchParams;
 
+  const permissionState = await farmPermissionState(profile);
+  const farmId = permissionState.farmId;
+  const canManage = permissionState.role === "owner" || permissionState.role === "manager";
+  if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
+
   const supabase = await createClient();
-  const { data } = await supabase.from("users").select("id, name, role, email, active").order("role");
-  const users = (data as TeamUser[] | null) ?? [];
-  const canManage = profile.role === "owner" || profile.role === "manager";
+  const [{ data: primaryData }, { data: membershipData }, { data: grantData }] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id")
+      .eq("farm_id", farmId)
+      .is("deleted_at", null),
+    supabase
+      .from("user_farm_memberships")
+      .select("user_id, role, active")
+      .eq("farm_id", farmId)
+      .is("deleted_at", null),
+    supabase
+      .from("user_permission_grants")
+      .select("user_id, permission")
+      .eq("farm_id", farmId)
+      .is("deleted_at", null),
+  ]);
+
+  const primaryIds = new Set(((primaryData ?? []) as { id: string }[]).map((row) => row.id));
+  const memberships = (membershipData ?? []) as {
+    user_id: string;
+    role: TeamUser["role"];
+    active: boolean;
+  }[];
+  const membershipByUser = new Map(memberships.map((row) => [row.user_id, row]));
+  const candidateIds = [...new Set([...primaryIds, ...memberships.map((row) => row.user_id)])];
+
+  /*
+   * `users.farm_id` is only the PRIMARY farm. Its RLS policy cannot expose a person whose
+   * primary farm is elsewhere merely because this farm has a membership row for them.
+   * First derive the exact IDs through RLS above, then use the server credential only for
+   * those IDs. This is a bounded join, never a cross-tenant directory scan.
+   */
+  const service = createServiceClient();
+  const { data: profileData } = candidateIds.length
+    ? await service
+        .from("users")
+        .select("id, farm_id, name, role, email, active")
+        .in("id", candidateIds)
+        .is("deleted_at", null)
+    : { data: [] };
+
+  const grantsByUser = new Map<string, Set<UserPermission>>();
+  for (const row of (grantData ?? []) as { user_id: string; permission: unknown }[]) {
+    if (!(USER_PERMISSIONS as readonly unknown[]).includes(row.permission)) continue;
+    const set = grantsByUser.get(row.user_id) ?? new Set<UserPermission>();
+    set.add(row.permission as UserPermission);
+    grantsByUser.set(row.user_id, set);
+  }
+
+  const users = ((profileData ?? []) as {
+    id: string;
+    farm_id: string | null;
+    name: string;
+    role: TeamUser["role"];
+    email: string | null;
+    active: boolean;
+  }[])
+    .map((row): TeamUser | null => {
+      const membership = membershipByUser.get(row.id);
+      const isPrimaryMember = row.farm_id === farmId;
+      const selectedRole = membership?.active
+        ? membership.role
+        : isPrimaryMember
+          ? row.role
+          : membership?.role;
+      if (!selectedRole) return null;
+      return {
+        id: row.id,
+        name: row.name,
+        role: selectedRole,
+        email: row.email,
+        active: row.active && (isPrimaryMember || Boolean(membership?.active)),
+        primaryFarmId: row.farm_id,
+        isPrimaryMember,
+        grants: grantsByUser.get(row.id) ?? new Set<UserPermission>(),
+      };
+    })
+    .filter((row): row is TeamUser => row != null)
+    .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
           <PageInfoButton infoKey="team" locale={locale} />
         </div>
       <Flash tone="error" message={sp.error} />
-      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.permissionSaved ? t("permissions.saved", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
 
-      {canManage && profile.farm_id ? (
+      {canManage ? (
         <Card>
           <CardHeader><CardTitle>{t("team.invite", locale)}</CardTitle></CardHeader>
           <form action={inviteUser} className="flex flex-col gap-3">
-            <input type="hidden" name="farm_id" value={profile.farm_id} />
             <input type="hidden" name="back" value="/team" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label={t("team.name", locale)} htmlFor="inv-name" required>
@@ -95,6 +192,7 @@ export default async function TeamPage({
                 <Th>{t("team.role", locale)}</Th>
                 <Th>{t("team.email", locale)}</Th>
                 <Th>{t("team.active", locale)}</Th>
+                <Th>{t("permissions.title", locale)}</Th>
                 {canManage ? <Th /> : null}
               </Tr>
             </Thead>
@@ -104,10 +202,46 @@ export default async function TeamPage({
                   <Td className="font-medium text-sand-900">
                     {u.name}
                     {u.id === profile.id ? <span className="ml-1 text-xs text-sand-400">({t("team.you", locale)})</span> : null}
+                    {!u.isPrimaryMember ? (
+                      <span className="mt-0.5 block text-xs font-normal text-sand-500">
+                        {t("team.secondaryMember", locale)}
+                      </span>
+                    ) : null}
                   </Td>
                   <Td><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
                   <Td className="text-sand-500">{u.email ?? "—"}</Td>
                   <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
+                  <Td>
+                    <div className="flex min-w-56 flex-col gap-2 py-1">
+                      {USER_PERMISSIONS.map((permission) => {
+                        const baseline = roleHasBaselinePermission(u.role, permission);
+                        const granted = u.grants.has(permission);
+                        return (
+                          <div key={permission} className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs font-medium text-sand-700">
+                              {t(`permissions.${permission}`, locale)}
+                            </span>
+                            {baseline ? (
+                              <Badge tone="neutral">{t("permissions.inRole", locale)}</Badge>
+                            ) : granted ? (
+                              <Badge tone="ok">{t("permissions.extra", locale)}</Badge>
+                            ) : null}
+                            {!baseline && u.id !== profile.id && u.active ? (
+                              <form action={setUserPermission} className="ml-auto">
+                                <input type="hidden" name="user_id" value={u.id} />
+                                <input type="hidden" name="permission" value={permission} />
+                                <input type="hidden" name="enabled" value={granted ? "false" : "true"} />
+                                <input type="hidden" name="back" value="/team" />
+                                <Button type="submit" variant="ghost" size="sm">
+                                  {granted ? t("permissions.remove", locale) : t("permissions.add", locale)}
+                                </Button>
+                              </form>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Td>
                   {canManage ? (
                     <Td className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-1">
@@ -117,7 +251,7 @@ export default async function TeamPage({
                         >
                           {t("privacy.export", locale)}
                         </a>
-                        {u.id !== profile.id ? (
+                        {u.id !== profile.id && u.isPrimaryMember ? (
                           <>
                             <form action={setUserActive}>
                               <input type="hidden" name="id" value={u.id} />
@@ -161,6 +295,8 @@ export default async function TeamPage({
                               <input type="hidden" name="back" value="/team" />
                             </ConfirmDialog>
                           </>
+                        ) : !u.isPrimaryMember ? (
+                          <span className="text-xs text-sand-500">{t("team.primaryFarmControls", locale)}</span>
                         ) : null}
                       </div>
                     </Td>

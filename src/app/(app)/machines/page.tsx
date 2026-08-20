@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireProfile, currentFarmId } from "@/lib/auth";
+import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -50,7 +51,6 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
-  const canEdit = profile.role === "owner" || profile.role === "manager";
 
   const sort = sp.sort === "reading" ? "current_reading" : "name";
   const dir = sp.dir === "desc" ? "desc" : "asc";
@@ -61,6 +61,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   // single-farm user this is simply their farm (RLS already scopes it); a multi-site user
   // sees the farm chosen in the site switcher. null → rr_admin/workshop (RLS-only scope).
   const farmId = await currentFarmId(profile);
+  const permissionState = await farmPermissionState(profile, farmId);
+  const canEdit = permissionState.role === "owner" || permissionState.role === "manager";
+  const hasFullFleetGrant = permissionState.grants.has("see_all_vehicles");
   let query = supabase
     .from("machines")
     .select("id, name, type, make, model, year, reg_no, status, meter_type, current_reading, current_reading_date, cost_centre, primary_attachment_id")
@@ -302,6 +305,11 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               </>
             ) : null}
           </p>
+          {hasFullFleetGrant ? (
+            <p className="mt-1 text-xs font-medium text-brand-700">
+              {t("permissions.fullFleetActive", locale)}
+            </p>
+          ) : null}
         </div>
         {canEdit ? (
           <div className="flex items-center gap-2">

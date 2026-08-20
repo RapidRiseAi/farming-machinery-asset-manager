@@ -1,8 +1,11 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
+import { reportGrid } from "@/lib/report-export";
 
-/** Recurring-problems CSV: most-replaced parts + top fault categories (Scope §4.8). */
+/** Recurring-problems CSV: most-replaced parts + top fault categories (Scope §4.8).
+ *  The grid itself lives in src/lib/report-export.ts so this download and the emailed
+ *  copy a schedule sends (FR-11.5) are the same columns, not two lists to keep in step. */
 export async function GET(request: Request) {
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
@@ -11,13 +14,8 @@ export async function GET(request: Request) {
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
-  const { problems } = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
+  const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
 
-  const rows: (string | number)[][] = [["Machine (breaks most often)", "Count"]];
-  for (const b of problems.breaksMostOften) rows.push([b.name, b.count]);
-  rows.push(["", ""], ["Most-replaced part", "Count"]);
-  for (const p of problems.topParts) rows.push([p.name, p.count]);
-  rows.push(["", ""], ["Top fault category", "Count"]);
-  for (const ft of problems.topFaults) rows.push([ft.name, ft.count]);
-  return csvResponse("recurring-problems.csv", toCsv(rows));
+  const grid = reportGrid(data, "problems");
+  return csvResponse(grid.filename, toCsv(grid.rows));
 }

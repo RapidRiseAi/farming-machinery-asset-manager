@@ -104,6 +104,79 @@ diffing 157 bodies.
 
 ---
 
+### Three more differences that are not differences
+
+Each of these produced an alarming number, and none of them was drift.
+
+**pgcrypto lives in a different schema on each side.** A function count over
+`('public','app')` came back 246 local against 208 live — a gap of 37, which looks like a
+third of the schema missing. Every one of them is pgcrypto: `pgp_*` (21 of them),
+`digest`, `hmac`, `encrypt`/`encrypt_iv`, `decrypt`/`decrypt_iv`, `dearmor`/`armor`,
+`crypt`, `gen_salt`, `gen_random_bytes`. A local cluster installs the extension into
+`public`; Supabase installs it into `extensions`. Either exclude functions belonging to an
+extension (`pg_depend` with `deptype = 'e'`), or accept the gap once you have named it.
+
+**Trigger counts must be filtered by schema.** An unfiltered `pg_trigger` count read 111 on
+production against 106 locally — production appearing to hold five triggers the repo does
+not, which is the frightening direction. Those five belong to Supabase's own `storage`,
+`auth` and `realtime` schemas. Restricted to `public`, both sides are 106 and the set diff
+is empty in both directions.
+
+**A diff is only as good as both of its inputs.** The single worst moment in this session's
+comparison was a `comm` that reported *every one of production's 106 triggers* as existing
+on production and absent from the repo. There was no drift at all: the local `psql` had
+failed because the server had stopped, the local list was an empty file, and `comm`
+faithfully reported production against nothing.
+
+Guard against it explicitly — count both sides before you believe the comparison:
+
+```bash
+echo "prod  $(wc -l < prod.txt)"
+echo "local $(wc -l < local.txt)"
+# and refuse to diff if either is 0
+```
+
+An empty side is the failure mode most likely to be believed, because it produces exactly
+the output a catastrophic drift would.
+
+---
+
+### The drift that IS real: a migration applied in pieces
+
+Everything above is a false positive. This is the shape of a true one, and it is worth
+recognising because it looks tiny.
+
+A function-for-function diff of the `app` schema read **79 local against 78 live**. One
+function: `app.purchase_order_invoiced`, from `0501`. Everything *else* in that migration had
+landed — the old single-invoice unique index dropped, the plain index and the
+supplier-reference unique index created, and `app.partner_cashflow_items` restated with the
+part-billed remainder arm. Only the two `purchase_order_invoiced` functions (the `app` one and
+its `public` wrapper) were absent.
+
+That is the signature of a migration applied in **pieces** rather than as a file — a paste
+that stopped early, or a statement that errored while the rest of the transaction had already
+been committed separately. It is more dangerous than a migration that never ran at all,
+because the parts that did land make the schema look current.
+
+Two lessons:
+
+- **Count objects, not migrations.** A migration ledger, or "I remember applying that one",
+  would have shown `0501` as done. Only the object-level diff showed that four fifths of it
+  was done.
+- **A gap nobody is standing on is still worth closing.** Nothing in `src/` called
+  `purchase_order_invoiced` — it exists for the G16/G24 assertions and for the orders UI to
+  use later. It caused no outage and would have caused none for months. It was closed anyway,
+  because the property being defended is "repo == production", and the value of that property
+  is that it is *unconditional*.
+
+A footnote on method, since it happened while writing this: re-stating the function by hand
+into the SQL editor introduced a typo — `over_cents boolean` where the repo has `bigint` —
+and Postgres refused it with `42P13: return type mismatch`. That is the third time in this
+project that hand-transcribing a function body has gone wrong. **Extract the text from the
+migration file with `awk`, do not retype it.**
+
+---
+
 ## When to run it
 
 - Before trusting any claim of the form "production has every migration applied".

@@ -7699,15 +7699,29 @@ grant execute on function _h2_reading_args(uuid, numeric, date) to public;
 -- parameterised SECURITY DEFINER boundaries may mutate it.
 do $$ declare n integer; begin
   if not has_function_privilege(
-       'authenticated', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+       'authenticated', 'public.apply_assistant_proposal(uuid,text,uuid)', 'EXECUTE'
      )
      or has_function_privilege(
-       'anon', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+       'anon', 'public.apply_assistant_proposal(uuid,text,uuid)', 'EXECUTE'
      )
      or has_function_privilege(
-       'service_role', 'public.apply_assistant_proposal(uuid,text)', 'EXECUTE'
+       'service_role', 'public.apply_assistant_proposal(uuid,text,uuid)', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'authenticated', 'public.apply_assistant_proposal_internal(uuid,text)', 'EXECUTE'
      ) then
     raise exception 'H2 GRANT FAIL: proposal application execute grants are unsafe';
+  end if;
+  if not has_function_privilege(
+       'service_role', 'public.supersede_assistant_voice_capture(uuid[],uuid,uuid)', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'authenticated', 'public.supersede_assistant_voice_capture(uuid[],uuid,uuid)', 'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon', 'public.supersede_assistant_voice_capture(uuid[],uuid,uuid)', 'EXECUTE'
+     ) then
+    raise exception 'H2 GRANT FAIL: capture supersession execute grants are unsafe';
   end if;
   if not has_function_privilege(
        'authenticated', 'public.consume_assistant_turn()', 'EXECUTE'
@@ -7951,7 +7965,8 @@ insert into voice_captures (
   normalized_transcript, stt_provider, transcribed_at
 ) values
   ('8a400000-0000-4000-8000-000000000001', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 apply once', 'h2 apply once', 'azure', now()),
-  ('8a400000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 reject once', 'h2 reject once', 'azure', now());
+  ('8a400000-0000-4000-8000-000000000002', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 reject once', 'h2 reject once', 'azure', now()),
+  ('8a400000-0000-4000-8000-000000000003', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a200000-0000-4000-8000-000000000004', 'en-ZA', 'awaiting_confirmation', 'H2 old transcript', 'h2 old transcript', 'azure', now());
 
 insert into ai_interactions (
   id, farm_id, user_id, voice_capture_id, channel, locale, route_tier,
@@ -7965,7 +7980,29 @@ insert into ai_interactions (
   ('8a500000-0000-4000-8000-000000000005', '8a000000-0000-4000-8000-000000000001', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000002', 'H2 hidden machine must not save'), 'pending', 'proposed', now() + interval '15 minutes'),
   ('8a500000-0000-4000-8000-000000000006', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000002', null, 'typed', 'en-ZA', 1, 'log_reading', 'log_reading', _h2_reading_args('8a200000-0000-4000-8000-000000000003', 225, current_date), 'pending', 'proposed', now() + interval '15 minutes'),
   ('8a500000-0000-4000-8000-000000000007', '8a000000-0000-4000-8000-000000000003', '8a100000-0000-4000-8000-000000000003', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000005', 'H2 no entitlement must not save'), 'pending', 'proposed', now() + interval '15 minutes'),
-  ('8a500000-0000-4000-8000-000000000008', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 private ownership proposal'), 'pending', 'proposed', now() + interval '15 minutes');
+  ('8a500000-0000-4000-8000-000000000008', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', null, 'typed', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 private ownership proposal'), 'pending', 'proposed', now() + interval '15 minutes'),
+  ('8a500000-0000-4000-8000-000000000009', '8a000000-0000-4000-8000-000000000002', '8a100000-0000-4000-8000-000000000001', '8a400000-0000-4000-8000-000000000003', 'voice', 'en-ZA', 1, 'report_fault', 'report_fault', _h2_fault_args('8a200000-0000-4000-8000-000000000004', 'H2 superseded proposal must not save'), 'pending', 'proposed', now() + interval '15 minutes');
+
+-- The trusted server can atomically retire an old voice capture. Browser roles cannot
+-- call this transition directly (checked above).
+set role service_role;
+do $$ declare n integer; begin
+  n := public.supersede_assistant_voice_capture(
+    array['8a400000-0000-4000-8000-000000000003'::uuid],
+    '8a000000-0000-4000-8000-000000000002',
+    '8a100000-0000-4000-8000-000000000001'
+  );
+  if n <> 1 then raise exception 'H2 SUPERSEDE FAIL: retired % proposals', n; end if;
+end $$;
+reset role;
+do $$ begin
+  if (select confirmation_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000009') <> 'failed'
+     or (select result_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000009') <> 'failed'
+     or (select error_code from ai_interactions where id = '8a500000-0000-4000-8000-000000000009') <> 'superseded'
+     or (select status from voice_captures where id = '8a400000-0000-4000-8000-000000000003') <> 'cancelled' then
+    raise exception 'H2 SUPERSEDE FAIL: proposal or capture remained actionable';
+  end if;
+end $$;
 
 set role authenticated;
 
@@ -7974,10 +8011,12 @@ set role authenticated;
 do $$ declare first_result jsonb; retry_result jsonb; linked uuid; n bigint; begin
   perform _t_login('8a100000-0000-4000-8000-000000000001');
   first_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000001', 'confirm'
+    '8a500000-0000-4000-8000-000000000001', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   retry_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000001', 'confirm'
+    '8a500000-0000-4000-8000-000000000001', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   linked := (first_result ->> 'linkedRecordId')::uuid;
   select count(*) into n from faults where description = 'H2 apply exactly once';
@@ -8000,10 +8039,12 @@ end $$;
 do $$ declare first_result jsonb; retry_result jsonb; n bigint; begin
   perform _t_login('8a100000-0000-4000-8000-000000000001');
   first_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000002', 'reject'
+    '8a500000-0000-4000-8000-000000000002', 'reject',
+    '8a000000-0000-4000-8000-000000000002'
   );
   retry_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000002', 'confirm'
+    '8a500000-0000-4000-8000-000000000002', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   select count(*) into n from faults where description = 'H2 reject exactly once';
   if first_result ->> 'action' <> 'reject'
@@ -8022,10 +8063,12 @@ end $$;
 do $$ declare expired_result jsonb; malformed_result jsonb; n bigint; begin
   perform _t_login('8a100000-0000-4000-8000-000000000001');
   expired_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000003', 'confirm'
+    '8a500000-0000-4000-8000-000000000003', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   malformed_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000004', 'confirm'
+    '8a500000-0000-4000-8000-000000000004', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   if expired_result ->> 'code' <> 'proposal_expired'
      or malformed_result ->> 'code' <> 'invalid_proposal' then
@@ -8047,11 +8090,13 @@ end $$;
 do $$ declare hidden_result jsonb; role_result jsonb; begin
   perform _t_login('8a100000-0000-4000-8000-000000000001');
   hidden_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000005', 'confirm'
+    '8a500000-0000-4000-8000-000000000005', 'confirm',
+    '8a000000-0000-4000-8000-000000000001'
   );
   perform _t_login('8a100000-0000-4000-8000-000000000002');
   role_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000006', 'confirm'
+    '8a500000-0000-4000-8000-000000000006', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
   );
   if hidden_result ->> 'code' <> 'forbidden'
      or role_result ->> 'code' <> 'forbidden' then
@@ -8061,10 +8106,34 @@ end $$;
 do $$ declare plan_result jsonb; begin
   perform _t_login('8a100000-0000-4000-8000-000000000003');
   plan_result := public.apply_assistant_proposal(
-    '8a500000-0000-4000-8000-000000000007', 'confirm'
+    '8a500000-0000-4000-8000-000000000007', 'confirm',
+    '8a000000-0000-4000-8000-000000000003'
   );
   if plan_result ->> 'code' <> 'feature_unavailable' then
     raise exception 'H2 ENTITLEMENT FAIL: %', plan_result;
+  end if;
+end $$;
+
+-- A proposal prepared on Farm B cannot be confirmed while the server request is scoped
+-- to Farm A. The mismatch is non-terminal so the user may switch back and review it.
+do $$ declare context_result jsonb; superseded_result jsonb; n bigint; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  context_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000008', 'confirm',
+    '8a000000-0000-4000-8000-000000000001'
+  );
+  superseded_result := public.apply_assistant_proposal(
+    '8a500000-0000-4000-8000-000000000009', 'confirm',
+    '8a000000-0000-4000-8000-000000000002'
+  );
+  select count(*) into n from faults
+   where description in ('H2 private ownership proposal', 'H2 superseded proposal must not save');
+  if context_result ->> 'code' <> 'farm_context_changed'
+     or superseded_result ->> 'code' <> 'superseded'
+     or n <> 0
+     or (select confirmation_status from ai_interactions where id = '8a500000-0000-4000-8000-000000000008') <> 'pending' then
+    raise exception 'H2 CONTEXT FAIL: context=%, superseded=%, writes=%',
+      context_result, superseded_result, n;
   end if;
 end $$;
 
@@ -8074,13 +8143,15 @@ do $$ declare same_farm_blocked boolean := false; cross_blocked boolean := false
   perform _t_login('8a100000-0000-4000-8000-000000000002');
   begin
     perform public.apply_assistant_proposal(
-      '8a500000-0000-4000-8000-000000000008', 'confirm'
+      '8a500000-0000-4000-8000-000000000008', 'confirm',
+      '8a000000-0000-4000-8000-000000000002'
     );
   exception when insufficient_privilege then same_farm_blocked := true; end;
   perform _t_login('8a100000-0000-4000-8000-000000000003');
   begin
     perform public.apply_assistant_proposal(
-      '8a500000-0000-4000-8000-000000000008', 'confirm'
+      '8a500000-0000-4000-8000-000000000008', 'confirm',
+      '8a000000-0000-4000-8000-000000000002'
     );
   exception when insufficient_privilege then cross_blocked := true; end;
   if not same_farm_blocked or not cross_blocked then
@@ -11536,3 +11607,369 @@ do $$ begin
 end $$;
 
 select 'ALL G28 STATEMENT-ORDERING TESTS PASSED' as result;
+
+
+-- ================================================================================
+-- G29 - SCHEDULED REPORT RETRIES ARE ORDERED AND TENANT-BOUND (0506)
+--
+-- A failed or abandoned delivery is not a completed period. The latest attempt for the
+-- oldest unresolved period must be retried before the engine may claim the next cadence
+-- period. A sent attempt is terminal and the partial unique index remains the last line
+-- of defence against sending one period twice.
+-- ================================================================================
+
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+
+-- The engine intentionally skips farms below the report entitlement. Reuse Farm A but
+-- make that prerequisite explicit so this section cannot pass vacuously on zero claims.
+update farms
+   set plan = 'professional', status = 'active'
+ where id = '11111111-1111-1111-1111-111111111111';
+
+insert into report_schedules (
+  id, farm_id, name, report_key, output_format, cadence, next_run_date,
+  include_inactive, site, lang, created_by
+) values
+  ('6e000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'G29 failed retry', 'cost', 'xlsx', 'monthly', date '2026-04-01',
+   true, 'North yard', 'en', 'a1111111-1111-1111-1111-111111111111'),
+  ('6e000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+   'G29 stale retry', 'compliance', 'pdf', 'monthly', date '2026-04-01',
+   false, null, 'af', 'a1111111-1111-1111-1111-111111111111');
+
+insert into report_schedule_recipients
+  (schedule_id, farm_id, email, created_by)
+values
+  ('6e000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'reports-a@example.test', 'a1111111-1111-1111-1111-111111111111'),
+  ('6e000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+   'reports-b@example.test', 'a1111111-1111-1111-1111-111111111111');
+
+-- (a) A FAILED March delivery is retried on 1 May before April is claimed, even though
+-- the schedule pointer already advanced to May when the first attempt was claimed.
+do $$
+declare
+  first_run record;
+  retry_run record;
+  next_run record;
+  n int;
+  pointer date;
+  duplicate_blocked boolean := false;
+begin
+  select * into first_run
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000001', date '2026-04-01');
+  if first_run.run_id is null or first_run.period_start <> date '2026-03-01'
+     or first_run.period_end <> date '2026-03-31' then
+    raise exception 'G29 FAIL [FIRST CLAIM]: expected March, received % to %',
+      first_run.period_start, first_run.period_end;
+  end if;
+
+  update report_schedule_runs
+     set status = 'failed', error = 'provider unavailable'
+   where id = first_run.run_id;
+
+  -- A retry must rebuild what was originally claimed, not silently adopt settings edited
+  -- after the failed attempt.
+  update report_schedules
+     set report_key = 'fuel', output_format = 'pdf', lang = 'af',
+         include_inactive = false, site = 'Changed yard'
+   where id = '6e000000-0000-0000-0000-000000000001';
+
+  select * into retry_run
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000001', date '2026-05-01');
+  if retry_run.run_id is null or retry_run.run_id = first_run.run_id
+     or retry_run.period_start <> date '2026-03-01'
+     or retry_run.report_key <> 'cost' or retry_run.output_format <> 'xlsx'
+     or retry_run.lang <> 'en' or not retry_run.include_inactive
+     or retry_run.site is distinct from 'North yard' then
+    raise exception 'G29 FAIL [FAILED RETRY]: retry did not preserve the March claim (%)',
+      row_to_json(retry_run);
+  end if;
+
+  select next_run_date into pointer from report_schedules
+   where id = '6e000000-0000-0000-0000-000000000001';
+  if pointer <> date '2026-05-01' then
+    raise exception 'G29 FAIL [POINTER]: retry advanced the schedule from May to %', pointer;
+  end if;
+  select count(*) into n from report_schedule_runs
+   where schedule_id = '6e000000-0000-0000-0000-000000000001'
+     and period_start = date '2026-04-01';
+  if n <> 0 then
+    raise exception 'G29 FAIL [ORDER]: April was claimed before failed March was sent';
+  end if;
+
+  update report_schedule_runs set status = 'sent', sent_at = now()
+   where id = retry_run.run_id;
+
+  -- The database invariant, independently of the selector: an older failed attempt cannot
+  -- also become sent once the successful retry owns (schedule, period).
+  begin
+    update report_schedule_runs set status = 'sent', sent_at = now()
+     where id = first_run.run_id;
+  exception when unique_violation then
+    duplicate_blocked := true;
+  end;
+  if not duplicate_blocked then
+    raise exception 'G29 FAIL [SENT ONCE]: two March attempts were marked sent';
+  end if;
+
+  -- Only after March is sent may the now-due April period be claimed, using the schedule's
+  -- newly edited settings rather than the frozen settings from March.
+  select * into next_run
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000001', date '2026-05-01');
+  if next_run.run_id is null or next_run.period_start <> date '2026-04-01'
+     or next_run.report_key <> 'fuel' or next_run.output_format <> 'pdf'
+     or next_run.lang <> 'af' or next_run.include_inactive
+     or next_run.site is distinct from 'Changed yard' then
+    raise exception 'G29 FAIL [NEXT PERIOD]: April was not claimed after March completed (%)',
+      row_to_json(next_run);
+  end if;
+end $$;
+
+-- (b) A fresh pending claim blocks every newer period. Once it is six hours old the same
+-- period is retried, and the abandoned attempt is closed as failed audit history.
+do $$
+declare
+  first_run record;
+  retry_run record;
+  n int;
+  old_status text;
+  old_error text;
+begin
+  select * into first_run
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000002', date '2026-04-01');
+  if first_run.run_id is null then
+    raise exception 'G29 FAIL [STALE FIXTURE]: initial claim returned nothing';
+  end if;
+
+  select count(*) into n
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000002', date '2026-05-01');
+  if n <> 0 then
+    raise exception 'G29 FAIL [IN FLIGHT]: a newer period was claimed while March was fresh pending';
+  end if;
+
+  update report_schedule_runs
+     set created_at = now() - interval '7 hours'
+   where id = first_run.run_id;
+
+  select * into retry_run
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000002', date '2026-05-01');
+  if retry_run.run_id is null or retry_run.run_id = first_run.run_id
+     or retry_run.period_start <> date '2026-03-01' then
+    raise exception 'G29 FAIL [STALE RETRY]: abandoned March was not reclaimed first';
+  end if;
+
+  select status, error into old_status, old_error
+    from report_schedule_runs where id = first_run.run_id;
+  if old_status <> 'failed' or position('expired' in coalesce(old_error, '')) = 0 then
+    raise exception 'G29 FAIL [STALE AUDIT]: abandoned attempt remained % / %', old_status, old_error;
+  end if;
+
+  select count(*) into n from report_schedule_runs
+   where schedule_id = '6e000000-0000-0000-0000-000000000002'
+     and period_start = date '2026-04-01';
+  if n <> 0 then
+    raise exception 'G29 FAIL [STALE ORDER]: April was claimed before stale March completed';
+  end if;
+
+  -- Pausing is authoritative: even a failed latest attempt is not retried while inactive.
+  update report_schedule_runs set status = 'failed', error = 'retry failed'
+   where id = retry_run.run_id;
+  update report_schedules set active = false
+   where id = '6e000000-0000-0000-0000-000000000002';
+  select count(*) into n
+    from app.run_due_report_schedules(
+      '6e000000-0000-0000-0000-000000000002', date '2026-05-01');
+  if n <> 0 then
+    raise exception 'G29 FAIL [PAUSE]: an inactive schedule retried a failed delivery';
+  end if;
+end $$;
+
+-- (c) Schedule administration follows the role held in the schedule's farm, never the
+-- profile role from a different farm. Reuse H2's deliberately opposite memberships.
+-- Make U2's profile role match its primary owner membership so this also catches the
+-- original privilege escalation exactly: primary owner / secondary operator.
+update users set role = 'owner'
+ where id = '8a100000-0000-4000-8000-000000000002';
+
+insert into report_schedules (
+  id, farm_id, name, report_key, output_format, cadence, next_run_date, created_by
+) values
+  ('6f000000-0000-0000-0000-000000000001', '8a000000-0000-4000-8000-000000000001',
+   'G29 selected role A', 'cost', 'xlsx', 'monthly', date '2099-01-01',
+   '8a100000-0000-4000-8000-000000000002'),
+  ('6f000000-0000-0000-0000-000000000002', '8a000000-0000-4000-8000-000000000002',
+   'G29 selected role B', 'cost', 'xlsx', 'monthly', date '2099-01-01',
+   '8a100000-0000-4000-8000-000000000001');
+
+-- A named recipient may belong through a secondary-farm membership. Keep this separate
+-- from the two authorization fixtures so its due run cannot affect their RPC assertions.
+update users set email = 'h2-secondary-owner@example.test'
+ where id = '8a100000-0000-4000-8000-000000000001';
+insert into report_schedules (
+  id, farm_id, name, report_key, output_format, cadence, next_run_date, created_by
+) values (
+  '6d000000-0000-0000-0000-000000000001', '8a000000-0000-4000-8000-000000000002',
+  'G29 live secondary recipient', 'cost', 'xlsx', 'monthly', date '2026-04-01',
+  '8a100000-0000-4000-8000-000000000001'
+);
+insert into report_schedule_recipients (schedule_id, farm_id, user_id, created_by) values (
+  '6d000000-0000-0000-0000-000000000001', '8a000000-0000-4000-8000-000000000002',
+  '8a100000-0000-4000-8000-000000000001', '8a100000-0000-4000-8000-000000000001'
+);
+
+set role authenticated;
+
+-- Primary operator / secondary owner: B is administrable, A is not.
+do $$ declare n int; fid uuid; blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000001');
+  select count(*) into n from report_schedules where id::text like '6f000000-%';
+  select farm_id into fid from report_schedules where id::text like '6f000000-%' limit 1;
+  if n <> 1 or fid <> '8a000000-0000-4000-8000-000000000002' then
+    raise exception 'G29 FAIL [SELECTED ROLE U1]: saw % schedule(s) in farm %', n, fid;
+  end if;
+
+  with changed as (
+    update report_schedules set name = name || ' denied'
+     where id = '6f000000-0000-0000-0000-000000000001' returning id
+  ) select count(*) into n from changed;
+  if n <> 0 then raise exception 'G29 FAIL [SELECTED ROLE U1]: primary operator updated A'; end if;
+
+  with changed as (
+    update report_schedules set name = name || ' allowed'
+     where id = '6f000000-0000-0000-0000-000000000002' returning id
+  ) select count(*) into n from changed;
+  if n <> 1 then raise exception 'G29 FAIL [SELECTED ROLE U1]: secondary owner could not update B'; end if;
+
+  begin
+    perform run_id
+      from public.run_report_schedule('6f000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G29 FAIL [SELECTED ROLE U1]: primary operator invoked A schedule';
+  end if;
+  perform run_id
+    from public.run_report_schedule('6f000000-0000-0000-0000-000000000002');
+end $$;
+
+-- Primary owner / secondary operator: A is administrable, B is not. In particular, the
+-- primary `users.role = owner` must not leak owner power into B.
+do $$ declare n int; fid uuid; blocked boolean := false; begin
+  perform _t_login('8a100000-0000-4000-8000-000000000002');
+  select count(*) into n from report_schedules where id::text like '6f000000-%';
+  select farm_id into fid from report_schedules where id::text like '6f000000-%' limit 1;
+  if n <> 1 or fid <> '8a000000-0000-4000-8000-000000000001' then
+    raise exception 'G29 FAIL [SELECTED ROLE U2]: saw % schedule(s) in farm %', n, fid;
+  end if;
+
+  with changed as (
+    update report_schedules set name = name || ' denied'
+     where id = '6f000000-0000-0000-0000-000000000002' returning id
+  ) select count(*) into n from changed;
+  if n <> 0 then raise exception 'G29 FAIL [SELECTED ROLE U2]: secondary operator updated B'; end if;
+
+  with changed as (
+    update report_schedules set name = name || ' allowed'
+     where id = '6f000000-0000-0000-0000-000000000001' returning id
+  ) select count(*) into n from changed;
+  if n <> 1 then raise exception 'G29 FAIL [SELECTED ROLE U2]: primary owner could not update A'; end if;
+
+  begin
+    perform run_id
+      from public.run_report_schedule('6f000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G29 FAIL [SELECTED ROLE U2]: secondary operator invoked B schedule';
+  end if;
+  perform run_id
+    from public.run_report_schedule('6f000000-0000-0000-0000-000000000001');
+end $$;
+reset role;
+
+-- (d) The secondary owner resolved while membership was live. Removing that membership
+-- leaves the configured recipient as history but removes its address from every retry.
+do $$ declare first_run record; n int; blocked boolean := false; begin
+  select * into first_run
+    from app.run_due_report_schedules(
+      '6d000000-0000-0000-0000-000000000001', date '2026-04-01');
+  if first_run.run_id is null
+     or first_run.recipients <> array['h2-secondary-owner@example.test']::text[] then
+    raise exception 'G29 FAIL [SECONDARY RECIPIENT]: live member resolved as %',
+      first_run.recipients;
+  end if;
+  update report_schedule_runs set status = 'failed', error = 'retry fixture'
+   where id = first_run.run_id;
+
+  update user_farm_memberships
+     set active = false
+   where user_id = '8a100000-0000-4000-8000-000000000001'
+     and farm_id = '8a000000-0000-4000-8000-000000000002';
+
+  select count(*) into n
+    from app.run_due_report_schedules(
+      '6d000000-0000-0000-0000-000000000001', date '2026-05-01');
+  if n <> 0 then
+    raise exception 'G29 FAIL [REMOVED RECIPIENT]: removed member was resolved on retry';
+  end if;
+  select count(*) into n from report_schedule_runs
+   where schedule_id = '6d000000-0000-0000-0000-000000000001';
+  if n <> 1 then
+    raise exception 'G29 FAIL [REMOVED RECIPIENT]: retry created % attempts, expected 1', n;
+  end if;
+
+  begin
+    insert into report_schedule_recipients (schedule_id, farm_id, user_id, created_by)
+    values (
+      '6f000000-0000-0000-0000-000000000002',
+      '8a000000-0000-4000-8000-000000000002',
+      '8a100000-0000-4000-8000-000000000001',
+      '8a100000-0000-4000-8000-000000000001'
+    );
+  exception when check_violation then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G29 FAIL [RECIPIENT GUARD]: removed member was accepted again';
+  end if;
+end $$;
+
+-- (e) The new rows are still farm-private, and the public definer wrapper checks ownership
+-- before it reaches the privileged engine.
+set role authenticated;
+do $$ declare n int; blocked boolean := false; begin
+  perform _t_login('a1111111-1111-1111-1111-111111111111');
+  select count(*) into n from report_schedules where id::text like '6e000000-%';
+  if n <> 2 then raise exception 'G29 FAIL [OWNER A]: sees % of 2 own schedules', n; end if;
+
+  perform _t_login('b2222222-2222-2222-2222-222222222222');
+  select count(*) into n from report_schedules where id::text like '6e000000-%';
+  if n <> 0 then raise exception 'G29 FAIL [CROSS FARM]: Owner B sees % Farm A schedules', n; end if;
+  begin
+    perform run_id
+      from public.run_report_schedule('6e000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G29 FAIL [CROSS FARM]: Owner B invoked Farm A''s report schedule';
+  end if;
+end $$;
+reset role;
+
+set role anon;
+do $$ declare blocked boolean := false; begin
+  begin perform count(*) from report_schedules;
+  exception when others then blocked := true; end;
+  if not blocked then raise exception 'G29 FAIL [ANON]: anon read report schedules'; end if;
+end $$;
+reset role;
+
+select 'ALL G29 SCHEDULED-REPORT TESTS PASSED' as result;

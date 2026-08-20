@@ -1,4 +1,5 @@
-import { requireProfile, currentFarmId } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -36,10 +37,16 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
-  // Farm crew maintain their own catalogue; RR admin maintains the GLOBAL library.
-  const canManageFarm = ["owner", "manager", "mechanic"].includes(profile.role);
+  const permissionState = await farmPermissionState(profile);
+  const selectedRole = permissionState.role;
+  const farmId = permissionState.farmId;
+  // The extra stock grant opens stock_items/movements only. Catalogue maintenance stays
+  // with its existing role policy; the two controls must not imply the same authority.
+  const canManageCatalogue = Boolean(selectedRole && ["owner", "manager", "mechanic"].includes(selectedRole));
+  const canManageStock = permissionState.allows("manage_stock");
+  const isFarmSide = Boolean(selectedRole && ["owner", "manager", "mechanic", "operator"].includes(selectedRole));
   const isAdmin = profile.role === "rr_admin";
-  const canAdd = canManageFarm || isAdmin;
+  const canAdd = canManageCatalogue || isAdmin;
 
   const supabase = await createClient();
   let query = supabase
@@ -53,7 +60,6 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
 
   // The store (0450). Farm-side only by RLS, so an rr_admin or a contractor simply gets
   // nothing back and the section stays hidden rather than rendering an empty promise.
-  const farmId = await currentFarmId(profile);
   const [{ data: stockData }, { data: machineData }] = await Promise.all([
     supabase
       .from("stock_items")
@@ -102,11 +108,11 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
     };
   });
   const trackedPartIds = new Set(stockItems.map((s) => s.part_catalogue_id));
-  const showStore = canManageFarm && !!farmId;
+  const showStore = isFarmSide && !!farmId;
 
   // A row is editable when it is a farm row the user manages, or a global row and the
   // user is RR admin. (RLS also enforces this on write.)
-  const canEditRow = (p: Part) => (p.farm_id == null ? isAdmin : canManageFarm);
+  const canEditRow = (p: Part) => (p.farm_id == null ? isAdmin : canManageCatalogue);
 
   const inputCls = "rounded-lg border border-sand-300 px-3 py-2 text-sm";
 
@@ -184,13 +190,13 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
           locale={locale}
           rows={shortfall}
           days={lookaheadDays}
-          canSetWindow={["owner", "manager"].includes(profile.role)}
+          canSetWindow={selectedRole === "owner" || selectedRole === "manager"}
         />
       ) : null}
 
       {/* The store — what is actually on the shelf (0450). Farm side only. */}
       {showStore ? (
-        <StoreCard locale={locale} rows={storeRows} machines={machines} canManage={canManageFarm} />
+        <StoreCard locale={locale} rows={storeRows} machines={machines} canManage={canManageStock} />
       ) : null}
 
       {/* Catalogue */}
@@ -278,13 +284,15 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                     <Td>
                       {trackedPartIds.has(p.id) ? (
                         <Badge tone="ok">{t("stock.tracked", locale)}</Badge>
-                      ) : (
+                      ) : canManageStock ? (
                         // Starting to track IS the decision to hold this part, which is why
                         // it lives on the catalogue row rather than in the store's own form.
                         <form action={trackPart}>
                           <input type="hidden" name="part_catalogue_id" value={p.id} />
                           <SubmitButton variant="ghost" size="sm">{t("stock.track", locale)}</SubmitButton>
                         </form>
+                      ) : (
+                        <span className="text-xs text-sand-400">{t("stock.notTracked", locale)}</span>
                       )}
                     </Td>
                   ) : null}

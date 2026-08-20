@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WarningIcon } from "@/components/ui/icons";
+import { reportClientError } from "@/lib/client-report";
 
 /**
  * What a signed-in page shows when it throws.
@@ -27,6 +28,8 @@ export default function AppError({
 }) {
   useEffect(() => {
     console.error(error);
+    // Until now this screen was the end of the road: the farmer saw it and we never did.
+    reportClientError(error, "app");
   }, [error]);
 
   return (
