@@ -1,5 +1,20 @@
 # FleetWise — handover
 
+> **Release update — 24 August 2026:** Voice Assistant release PR
+> [#17](https://github.com/RapidRiseAi/farming-machinery-asset-manager/pull/17) is merged into
+> `main`; application release commit `56373e869d4fb944bacb78868ee55ffc83965f2a` was
+> deployed at `https://farming-machinery-asset-manager.vercel.app`. The six release migrations
+> (scheduled reports, per-user permissions, public API/QR, POPIA coverage,
+> selected-farm administration, and voice context/correction) were applied individually
+> and verified on the hosted Supabase project. Production E2E passed deterministic EN/AF
+> questions, machine clarification, the selected-farm reject path with no data mutation,
+> the Azure Speech token broker, and the optional consent-gated Vercel AI Gateway path;
+> consent withdrawal was also verified. Remaining Voice pilot work is physical-device
+> microphone/audible-playback/offline QA, a separate Azure S0 pilot resource, the
+> 200–500-utterance Afrikaans evaluation set, and processor/DPA sign-off. The historical
+> drift warning below describes the earlier verification session and is superseded by this
+> release update for the Voice Assistant schema.
+
 Written at the end of the verification session and two business/financial waves
 (migrations `0440`, `0450–0452`, `0460`, `0470–0476`, `0480–0483`, `0486`). Everything
 described here is on `main` and pushed.

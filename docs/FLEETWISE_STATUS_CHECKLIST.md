@@ -1,6 +1,6 @@
 # FleetWise — Full feature status checklist
 
-**As of:** F1–F6 merged to `main`. Legend: ✅ done & merged · 🟡 partial · ❌ not started · ⏸️ deferred (needs a provider you must set up first — see `FLEETWISE_PROVIDER_SETUP_GUIDE.md`).
+**As of:** 24 August 2026 Voice Assistant production release; sections outside this release retain their last audited status. Legend: ✅ done & merged · 🟡 partial · ❌ not started · ⏸️ deferred (needs a provider you must set up first — see `FLEETWISE_PROVIDER_SETUP_GUIDE.md`).
 
 **Does this checklist contain everything?** Yes — it covers **every** requirement in the official spec (`FR-x.y` / `NFR-n`, §1–24) **plus** the extra features the founder's provider spec added (§B below) that were NOT in the original §1–24 (affiliate program, RAG/knowledge base, DebiCheck, etc.). Nothing is hidden.
 
@@ -85,10 +85,10 @@
 - 🟡 FR-11.4 (P1) Export CSV ✅ / PDF ✅ (job-card+machine-file) / **Excel ❌**, report-PDF via print
 - ❌ FR-11.5 (P2) Scheduled/emailed reports
 
-### §12 Voice AI  🟡 implemented, deployment/E2E pending
-- 🟡 FR-12.1 (P0) Voice control EN/AF — Azure real-time STT + Ollie Multilingual TTS (Willem fallback), deterministic intents and optional consent-gated LLM fallback implemented; production migration/device E2E pending
-- 🟡 FR-12.2/12.3 (P1) Confirm-back / permissions — selected-farm role/plan checks, private server-held proposals and confirm-before-commit implemented; runtime RLS test pending
-- 🟡 FR-12.4 (P2) Offline fallback — raw recording queues only in device IndexedDB, is explicitly transcribed after reconnect, expires after seven days; real-device test pending
+### §12 Voice AI  🟡 live MVP; physical-device/pilot checks pending
+- 🟡 FR-12.1 (P0) Voice control EN/AF — Azure real-time STT + Ollie Multilingual TTS (Willem fallback), deterministic intents and optional consent-gated LLM fallback are live in production. EN/AF typed flows, the Azure token broker, and the consented Gateway path passed production E2E on 24 August 2026; physical microphone and audible-playback QA remains.
+- ✅ FR-12.2/12.3 (P1) Confirm-back / permissions — selected-farm role/plan checks, private server-held proposals, clarification, confirm-before-commit and atomic selected-farm commands are deployed. A production reject-path test verified that no fleet record was written.
+- 🟡 FR-12.4 (P2) Offline fallback — raw recording queues only in device IndexedDB, is explicitly transcribed after reconnect, expires after seven days; real-device offline/reconnect testing remains.
 
 ### §13 Compliance (AARTO)
 - ✅ FR-13.1 (P0) Driver-usage log — **F3**
@@ -140,7 +140,7 @@
 ✅ due/overdue · ✅ total spend · ✅ assets tracked · ✅ cost by machine · ✅ breaks most often · ✅ TCO · ✅ cost/hour · ✅ cost/km · ✅ fuel L/hr & L/100km + trend · ✅ fuel anomalies · ✅ warranty/licence expiries · 🟡 downtime per asset (workshop-days proxy) · 🟡 open vs resolved faults · ❌ budget vs actual · ❌ utilisation (hours used vs idle) · 🟡 AARTO nominations pending (usage log ✅; nomination workflow ❌)
 
 ### §24 Production-readiness gate
-❌ Not yet — remaining P0 work, Voice AI migration/E2E/privacy sign-off, NFR-3/4/6 and the hardening pass stand between here and the gate. WhatsApp and subscription charging are separately deferred roadmap items; customer-to-contractor payment processing is out of current scope.
+❌ Not yet — remaining P0 work, Voice AI physical-device/pilot privacy sign-off, NFR-3/4/6 and the hardening pass stand between here and the gate. The Voice AI MVP is deployed and its backend paths passed production E2E. WhatsApp and subscription charging are separately deferred roadmap items; customer-to-contractor payment processing is out of current scope.
 
 ---
 
@@ -172,7 +172,7 @@ These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **no
 9. **Base-product hardening/QA pass** — end-to-end runtime verification before any AI
 
 ### Provider-dependent
-- **Voice AI** (Azure + optional Vercel AI Gateway) — implemented; apply migrations, deploy and complete E2E/POPIA launch checks
+- **Voice AI** (Azure + optional Vercel AI Gateway) — live MVP; complete physical-device QA, S0 pilot provisioning, Afrikaans evaluation and processor/DPA sign-off before a wider pilot
 - **WhatsApp** (Meta Cloud API) — §16.1/16.2 + spec extras
 - **Billing charging** (Paystack) — §19.1/19.3 engine on top of F5's framework + affiliate/DebiCheck
 
@@ -182,6 +182,6 @@ These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **no
 
 **Merged so far:** F1 Cost/TCO · F2 Offline/Sync · F3 Field-capture/AARTO-usage · F4 Fuel · F5 Entitlements · F6 Compliance/Push — **6 major workstreams, 38 migrations, all gates green.**
 
-**P0 requirements (40 total):** ~28 ✅ done · ~7 🟡 partial · ~5 ⏸️/❌ remaining (service kits, multi-site, POPIA, + voice/WhatsApp/billing which are the ⏸️ provider set). Up from ~11 ✅ at the start of this effort.
+**P0 requirements (legacy approximate count):** Voice is no longer in the deferred provider set: its MVP is live with pilot checks pending. WhatsApp and subscription billing remain deferred; service kits, multi-site and broader POPIA work retain their section statuses above.
 
-**Bottom line:** the maintenance/cost/fuel/offline/compliance/entitlement core is essentially complete. Voice is now implemented but still needs migrations, deployment and runtime E2E/POPIA sign-off. WhatsApp and subscription charging remain intentionally parked; customer-to-contractor payment collection is not part of the current product scope.
+**Bottom line:** the maintenance/cost/fuel/offline/compliance/entitlement core is essentially complete. The Voice AI MVP is deployed and testable in production; physical-device QA, pilot capacity, the Afrikaans evaluation set and processor/DPA sign-off remain. WhatsApp and subscription charging remain intentionally parked; customer-to-contractor payment collection is not part of the current product scope.
