@@ -21,6 +21,7 @@ import { t } from "@/lib/i18n";
 import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotos } from "@/components/machine-photos";
+import { DocumentPacks } from "@/components/machines/document-packs";
 import { MeterGraph } from "./meter-graph";
 import { updateMachine, returnMachineToService } from "../actions";
 import { addReading } from "./reading-actions";
@@ -489,12 +490,6 @@ export default async function MachineDetailPage({
                 <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
                   {t("machine.machineFile", locale)}
                 </a>
-                <a href={`/machines/${machine.id}/sale-pack.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
-                  {t("machine.salePack", locale)}
-                </a>
-                <a href={`/machines/${machine.id}/warranty-pack.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
-                  {t("machine.warrantyPack", locale)}
-                </a>
               </div>
             </details>
           </div>
@@ -521,6 +516,8 @@ export default async function MachineDetailPage({
 
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
+
+      <DocumentPacks machineId={machine.id} locale={locale} />
 
       {/*
         Twenty cards on one scroll, all the same size, all always open, in schema order.

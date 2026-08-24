@@ -47,4 +47,19 @@ if [ -f "$ROOT/supabase/tests/rls_isolation.sql" ]; then
   pg "$DB" < "$ROOT/supabase/tests/rls_isolation.sql"
 fi
 
+if [ -f "$ROOT/supabase/tests/public_api_and_qr.sql" ]; then
+  echo "==> running public API and QR isolation tests"
+  pg "$DB" < "$ROOT/supabase/tests/public_api_and_qr.sql"
+fi
+
+if [ -f "$ROOT/supabase/tests/post_release_popia.sql" ]; then
+  echo "==> running post-release POPIA coverage tests"
+  pg "$DB" < "$ROOT/supabase/tests/post_release_popia.sql"
+fi
+
+if [ -f "$ROOT/supabase/tests/selected_farm_administration.sql" ]; then
+  echo "==> running selected-farm administration tests"
+  pg "$DB" < "$ROOT/supabase/tests/selected_farm_administration.sql"
+fi
+
 echo "==> OK"

@@ -27,6 +27,7 @@ import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { SyncStatus } from "@/components/offline/sync-status";
 import { Tour } from "@/components/tour";
 import { tourFor } from "@/lib/tour";
+import { farmPermissionState } from "@/lib/permissions";
 
 /** Two-letter initials from a display name, for the avatar chip. */
 function initials(name: string): string {
@@ -53,7 +54,6 @@ export default async function AppLayout({
   const isWorkshop = profile.role === "workshop";
   const isOperator = profile.role === "operator";
   // Parts catalogue & service kits (F9) — maintained by farm crew + RR admin (global lib).
-  const canParts = ["owner", "manager", "mechanic", "rr_admin"].includes(profile.role);
   // Partners directory (F12a) — farmer-facing (browse/add/connect contractors) + RR admin
   // (curates the global suggested catalogue). Workshop users have their own views (F12c).
   const canPartners = profile.role !== "workshop";
@@ -99,6 +99,14 @@ export default async function AppLayout({
       ? (await currentFarmId(profile)) ?? ""
       : profile.farm_id ?? "";
   const currentRole = currentFarm ? await effectiveFarmRole(currentFarm, profile) : null;
+  const permissionState = await farmPermissionState(profile, currentFarm || null);
+  // A named stock keeper must be able to reach the screen containing the controls the
+  // grant opens. Baseline catalogue roles and RR's global catalogue stay unchanged.
+  const canParts = Boolean(
+    profile.role === "rr_admin" ||
+      (currentRole && ["owner", "manager", "mechanic"].includes(currentRole)) ||
+      permissionState.allows("manage_stock"),
+  );
   const voicePlan = currentFarm && currentRole !== "rr_admin" ? await getFarmPlan(currentFarm) : null;
   const voiceAllowed = Boolean(
     !isWorkshop &&
@@ -107,6 +115,16 @@ export default async function AppLayout({
       (currentRole === "rr_admin"
         ? supporting !== null
         : voicePlan && planAllows(voicePlan, "voice_ai")),
+  );
+  const apiTokensAllowed = Boolean(
+    !isWorkshop &&
+      currentFarm &&
+      currentRole &&
+      (currentRole === "rr_admin"
+        ? supporting !== null
+        : ["owner", "manager"].includes(currentRole) &&
+          voicePlan &&
+          planAllows(voicePlan, "api_access")),
   );
   const showSwitcher = farms.length > 1 && currentFarm !== "";
   const switcherLabel = t("nav.switchFarm", locale);
@@ -168,6 +186,7 @@ export default async function AppLayout({
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
   const settings: NavItemData = { href: "/settings", label: t("nav.settings", locale), icon: "settings" };
+  const apiTokens: NavItemData = { href: "/settings/api", label: t("nav.apiTokens", locale), icon: "settings" };
   // Every role, including drivers and contractors: putting it on the phone is the
   // point of an offline-first product, and it was reachable from nowhere.
   const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
@@ -201,6 +220,7 @@ export default async function AppLayout({
         ...(finesAllowed ? [fines] : []),
         ...(reportsAllowed ? [reports] : []),
         alerts,
+        ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
         ...(isAdmin ? [admin] : []),
         install,
@@ -254,6 +274,7 @@ export default async function AppLayout({
         ...(canPartners ? [partners] : []),
         checklists,
         ...(finesAllowed ? [fines] : []),
+        ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [settings] : []),
         ...(isAdmin ? [admin] : []),
         install,

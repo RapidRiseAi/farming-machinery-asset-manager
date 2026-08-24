@@ -1,8 +1,11 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
+import { reportGrid } from "@/lib/report-export";
 
-/** Service-compliance CSV: status counts + current overdue list (Scope §4.8). */
+/** Service-compliance CSV: status counts + current overdue list (Scope §4.8).
+ *  The grid itself lives in src/lib/report-export.ts so this download and the emailed
+ *  copy a schedule sends (FR-11.5) are the same columns, not two lists to keep in step. */
 export async function GET(request: Request) {
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
@@ -11,16 +14,8 @@ export async function GET(request: Request) {
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
-  const { compliance } = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
+  const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
 
-  const rows: (string | number)[][] = [
-    ["Metric", "Value"],
-    ["OK", compliance.ok],
-    ["Due soon", compliance.dueSoon],
-    ["Overdue", compliance.overdue],
-    ["", ""],
-    ["Overdue machine", "Task"],
-  ];
-  for (const o of compliance.overdueList) rows.push([o.name, o.task]);
-  return csvResponse("service-compliance.csv", toCsv(rows));
+  const grid = reportGrid(data, "compliance");
+  return csvResponse(grid.filename, toCsv(grid.rows));
 }

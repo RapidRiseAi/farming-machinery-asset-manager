@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
+import { isSafeAssistantMachineHref } from "@/lib/assistant/identifiers";
 import type { AssistantConfirmResponse } from "@/lib/assistant/types";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,10 @@ function failureMessage(language: "en" | "af", code: string): string {
     case "proposal_unavailable":
     case "stale_proposal":
       return localized(language, "This proposal was already handled or is no longer pending.", "Hierdie voorstel is reeds hanteer of wag nie meer nie.");
+    case "farm_context_changed":
+      return localized(language, "The selected farm changed. Start the request again on this farm.", "Die gekose plaas het verander. Begin die versoek weer op hierdie plaas.");
+    case "superseded":
+      return localized(language, "This proposal was replaced by a corrected transcript.", "Hierdie voorstel is deur 'n gekorrigeerde transkripsie vervang.");
     case "feature_unavailable":
       return localized(language, "Voice assistant access is no longer enabled for this farm.", "Stemassistenttoegang is nie meer vir hierdie plaas geaktiveer nie.");
     case "forbidden":
@@ -64,7 +69,7 @@ function failureMessage(language: "en" | "af", code: string): string {
 }
 
 function statusFor(code: string): number {
-  if (["proposal_expired", "proposal_unavailable", "stale_proposal", "invalid_capture"].includes(code)) return 409;
+  if (["proposal_expired", "proposal_unavailable", "stale_proposal", "invalid_capture", "farm_context_changed", "superseded"].includes(code)) return 409;
   if (["forbidden", "feature_unavailable"].includes(code)) return 403;
   if (["bad_request", "invalid_proposal"].includes(code)) return 400;
   return 500;
@@ -76,9 +81,7 @@ function safeHref(result: z.infer<typeof rpcSuccessSchema>): string | null {
   if (result.linkedRecordType === "job_card") {
     return result.href === `/jobcards/${result.linkedRecordId}` ? result.href : null;
   }
-  return /^\/machines\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result.href)
-    ? result.href
-    : null;
+  return isSafeAssistantMachineHref(result.href) ? result.href : null;
 }
 
 export async function POST(request: Request) {
@@ -97,10 +100,39 @@ export async function POST(request: Request) {
   }
 
   const language = context.profile.language;
-  const { data, error } = await context.supabase.rpc("apply_assistant_proposal", {
+  // Keep the application-layer context check during the backwards-compatible
+  // rollout window as well. The new RPC repeats this check under a row lock.
+  const { data: proposalScope, error: proposalScopeError } = await context.supabase
+    .from("ai_interactions")
+    .select("farm_id")
+    .eq("id", parsed.data.proposalId)
+    .eq("user_id", context.profile.id)
+    .maybeSingle();
+  if (proposalScopeError) {
+    return json({ ok: false, code: "command_failed", message: failureMessage(language, "command_failed") }, 500);
+  }
+  if (!proposalScope) {
+    return json({ ok: false, code: "forbidden", message: failureMessage(language, "forbidden") }, 403);
+  }
+  if (proposalScope.farm_id !== context.farmId) {
+    return json({ ok: false, code: "farm_context_changed", message: failureMessage(language, "farm_context_changed") }, 409);
+  }
+
+  let rpcResult = await context.supabase.rpc("apply_assistant_proposal", {
     p_proposal_id: parsed.data.proposalId,
     p_action: parsed.data.action,
+    p_expected_farm: context.farmId,
   });
+
+  // Deploy the route before the migration. Until PostgREST sees the new overload,
+  // fall back to the existing RPC after the selected-farm check above has passed.
+  if (rpcResult.error?.code === "PGRST202") {
+    rpcResult = await context.supabase.rpc("apply_assistant_proposal", {
+      p_proposal_id: parsed.data.proposalId,
+      p_action: parsed.data.action,
+    });
+  }
+  const { data, error } = rpcResult;
 
   if (error) {
     const forbidden = error.code === "42501";

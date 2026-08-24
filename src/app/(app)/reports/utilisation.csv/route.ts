@@ -1,9 +1,11 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
+import { reportGrid } from "@/lib/report-export";
 
-/** Utilisation & downtime CSV (G1 · §23). used/idle in the machine's meter unit; downtime
- *  days over the analysis window. Farm-scoped by RLS. */
+/** Utilisation & downtime CSV (G1 · §23) over the analysis window. Farm-scoped by RLS.
+ *  The grid itself lives in src/lib/report-export.ts so this download and the emailed
+ *  copy a schedule sends (FR-11.5) are the same columns, not two lists to keep in step. */
 export async function GET(request: Request) {
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
@@ -13,22 +15,7 @@ export async function GET(request: Request) {
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
   const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
-  const w = data.utilisation.window;
 
-  const rows: (string | number)[][] = [
-    [`Utilisation & downtime — ${w.from} to ${w.to}`],
-    ["Machine", "Meter", "Used", "Utilisation %", "Idle", "Downtime (days)"],
-  ];
-  for (const r of data.utilisation.perMachine) {
-    const unit = r.meterType === "km" ? "km" : r.meterType === "hours" ? "h" : "";
-    rows.push([
-      r.name,
-      r.meterType,
-      r.used != null ? `${r.used.toFixed(r.meterType === "km" ? 0 : 1)} ${unit}`.trim() : "",
-      r.pct != null ? r.pct.toFixed(0) : "",
-      r.idle != null ? `${r.idle.toFixed(r.meterType === "km" ? 0 : 1)} ${unit}`.trim() : "",
-      r.downtimeDays.toFixed(1),
-    ]);
-  }
-  return csvResponse("utilisation-downtime.csv", toCsv(rows));
+  const grid = reportGrid(data, "utilisation");
+  return csvResponse(grid.filename, toCsv(grid.rows));
 }

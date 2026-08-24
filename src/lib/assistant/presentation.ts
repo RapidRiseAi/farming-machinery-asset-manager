@@ -11,6 +11,27 @@ function af(locale: AssistantLocale): boolean {
   return locale === "af-ZA";
 }
 
+function machineStatusLabel(status: string, locale: AssistantLocale): string {
+  const labels: Record<string, { en: string; af: string }> = {
+    active: { en: "active", af: "aktief" },
+    in_workshop: { en: "in the workshop", af: "in die werkswinkel" },
+    standby: { en: "on standby", af: "op bystand" },
+    out_of_service: { en: "out of service", af: "buite werking" },
+    retired: { en: "retired", af: "uit diens gestel" },
+    sold: { en: "sold", af: "verkoop" },
+  };
+  const label = labels[status];
+  return label ? label[af(locale) ? "af" : "en"] : status.replaceAll("_", " ");
+}
+
+function urgencyLabel(urgency: AssistantDraft["urgency"], locale: AssistantLocale): string {
+  const value = urgency ?? "can_work";
+  const labels = af(locale)
+    ? { can_work: "Kan nog werk", limping: "Sukkel", stopped: "Gestop" }
+    : { can_work: "Can still work", limping: "Limping", stopped: "Stopped" };
+  return labels[value];
+}
+
 export function missingFields(
   draft: AssistantDraft,
   machines: AssistantMachine[],
@@ -93,11 +114,11 @@ export function queryAnswer(
   if (draft.intent === "query_asset_status") {
     const reading = machine.currentReading == null ? null : meter(machine, machine.currentReading);
     if (af(locale)) {
-      return `${machine.name} se status is ${machine.status.replaceAll("_", " ")}.${
+      return `${machine.name} se status is ${machineStatusLabel(machine.status, locale)}.${
         reading ? ` Die huidige lesing is ${reading}.` : " Geen huidige meterlesing is aangeteken nie."
       }`;
     }
-    return `${machine.name} is ${machine.status.replaceAll("_", " ")}.${
+    return `${machine.name} is ${machineStatusLabel(machine.status, locale)}.${
       reading ? ` Its current reading is ${reading}.` : " No current meter reading is recorded."
     }`;
   }
@@ -135,7 +156,7 @@ export function proposalFor(
     title = af(locale) ? "Meld hierdie fout aan?" : "Report this fault?";
     facts.push(
       { label: af(locale) ? "Probleem" : "Problem", value: draft.description ?? "" },
-      { label: af(locale) ? "Dringendheid" : "Urgency", value: draft.urgency ?? "can_work" },
+      { label: af(locale) ? "Dringendheid" : "Urgency", value: urgencyLabel(draft.urgency, locale) },
     );
     if (draft.category) facts.push({ label: af(locale) ? "Kategorie" : "Category", value: draft.category });
   } else if (draft.intent === "log_reading") {

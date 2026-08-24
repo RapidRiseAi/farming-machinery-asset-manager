@@ -3,13 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
-import type { Role } from "@/lib/auth";
+import { homePathFor, requireProfile } from "@/lib/auth";
+import { farmPermissionState } from "@/lib/permissions";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 
 // Who may maintain the parts catalogue (Scope §6): farm crew for their own farm's
 // rows, RR admin for the GLOBAL library. Operators/workshop are read-only.
-const CATALOGUE_CREW: Role[] = ["owner", "manager", "mechanic", "rr_admin"];
+async function requireCatalogueManager() {
+  const profile = await requireProfile();
+  if (profile.role === "rr_admin") return { profile, farmId: null, isAdmin: true } as const;
+  const state = await farmPermissionState(profile);
+  if (!state.farmId || !state.role || !["owner", "manager", "mechanic"].includes(state.role)) {
+    redirect(`${homePathFor(profile.role)}?denied=1`);
+  }
+  return { profile, farmId: state.farmId, isAdmin: false } as const;
+}
 
 function s(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -29,15 +37,12 @@ function costToExVat(fd: FormData): number | null {
 }
 
 export async function createPart(formData: FormData) {
-  const profile = await requireRole(CATALOGUE_CREW);
+  const { profile, farmId } = await requireCatalogueManager();
   const partNo = s(formData, "part_no");
   if (!partNo) redirect("/parts?error=Part+number+is+required");
 
   // RR admin (no farm) maintains the GLOBAL catalogue (farm_id null); everyone else
   // creates rows scoped to their own farm.
-  const farmId = profile.role === "rr_admin" ? null : profile.farm_id;
-  if (profile.role !== "rr_admin" && !farmId) redirect("/parts?error=No+farm");
-
   const supabase = await createClient();
   const { error } = await supabase.from("parts_catalogue").insert({
     farm_id: farmId,
@@ -54,7 +59,7 @@ export async function createPart(formData: FormData) {
 }
 
 export async function updatePart(formData: FormData) {
-  await requireRole(CATALOGUE_CREW);
+  const { farmId, isAdmin } = await requireCatalogueManager();
   const id = String(formData.get("id") ?? "");
   const partNo = s(formData, "part_no");
   if (!id || !partNo) redirect("/parts?error=Part+number+is+required");
@@ -62,7 +67,7 @@ export async function updatePart(formData: FormData) {
   const supabase = await createClient();
   // RLS restricts this to own-farm rows (or global rows for RR admin); a blocked row
   // simply updates nothing.
-  const { error } = await supabase
+  let query = supabase
     .from("parts_catalogue")
     .update({
       part_no: partNo,
@@ -72,21 +77,27 @@ export async function updatePart(formData: FormData) {
       typical_cost_cents: costToExVat(formData),
     })
     .eq("id", id);
+  query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/parts?error=Part+not+found");
   revalidatePath("/parts");
   redirect("/parts?saved=1");
 }
 
 export async function deletePart(formData: FormData) {
-  const profile = await requireRole(CATALOGUE_CREW);
+  const { profile, farmId, isAdmin } = await requireCatalogueManager();
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/parts?error=Missing+id");
   const supabase = await createClient();
-  const { error } = await supabase
+  let query = supabase
     .from("parts_catalogue")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
+  query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/parts?error=Part+not+found");
   revalidatePath("/parts");
   redirect("/parts?saved=1");
 }

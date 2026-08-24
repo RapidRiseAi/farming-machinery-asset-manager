@@ -5,13 +5,32 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { requireRole, accessibleFarms } from "@/lib/auth";
-import type { Role } from "@/lib/auth";
+import { homePathFor, requireProfile } from "@/lib/auth";
+import { farmPermissionState } from "@/lib/permissions";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 
-// Who may maintain the partners directory: a farm's owner/manager for their own rows,
-// RR admin for the GLOBAL suggested catalogue. (RLS enforces the same on write.)
-const PARTNER_CREW: Role[] = ["owner", "manager", "rr_admin"];
+async function requireDirectoryManager() {
+  const profile = await requireProfile();
+  if (profile.role === "rr_admin") {
+    return { profile, farmId: null, isAdmin: true } as const;
+  }
+  const state = await farmPermissionState(profile);
+  if (!state.farmId || !state.allows("manage_partners")) {
+    redirect(`${homePathFor(profile.role)}?denied=1`);
+  }
+  return { profile, farmId: state.farmId, isAdmin: false } as const;
+}
+
+/** Contractor connections carry broader access than directory editing, so the additive
+ * `manage_partners` grant deliberately does not open this path. */
+async function requireConnectionManager() {
+  const profile = await requireProfile();
+  const state = await farmPermissionState(profile);
+  if (!state.farmId || !state.role || !["owner", "manager"].includes(state.role)) {
+    redirect(`${homePathFor(profile.role)}?denied=1`);
+  }
+  return { farmId: state.farmId };
+}
 
 const KINDS = [
   "mechanic", "auto_electrician", "parts_supplier",
@@ -42,16 +61,12 @@ function partnerFields(fd: FormData) {
 }
 
 export async function createPartner(formData: FormData) {
-  const profile = await requireRole(PARTNER_CREW);
+  const { profile, farmId, isAdmin } = await requireDirectoryManager();
   const f = partnerFields(formData);
   if (!f.name) redirect("/partners?error=Name+is+required");
 
   // RR admin (no farm) curates the GLOBAL suggested catalogue (farm_id null,
   // is_suggested true); a farmer adds a row scoped to their own farm.
-  const isAdmin = profile.role === "rr_admin";
-  const farmId = isAdmin ? null : profile.farm_id;
-  if (!isAdmin && !farmId) redirect("/partners?error=No+farm");
-
   const supabase = await createClient();
   const { error } = await supabase.from("partners").insert({
     farm_id: farmId,
@@ -65,7 +80,7 @@ export async function createPartner(formData: FormData) {
 }
 
 export async function updatePartner(formData: FormData) {
-  await requireRole(PARTNER_CREW);
+  const { farmId, isAdmin } = await requireDirectoryManager();
   const id = String(formData.get("id") ?? "");
   const f = partnerFields(formData);
   if (!id || !f.name) redirect("/partners?error=Name+is+required");
@@ -73,22 +88,28 @@ export async function updatePartner(formData: FormData) {
   const supabase = await createClient();
   // RLS restricts this to the farm's owner/manager (or RR admin for global rows);
   // a blocked row simply updates nothing.
-  const { error } = await supabase.from("partners").update(f).eq("id", id);
+  let query = supabase.from("partners").update(f).eq("id", id);
+  query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/partners?error=Partner+not+found");
   revalidatePath("/partners");
   redirect("/partners?saved=1");
 }
 
 export async function deletePartner(formData: FormData) {
-  const profile = await requireRole(PARTNER_CREW);
+  const { profile, farmId, isAdmin } = await requireDirectoryManager();
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/partners?error=Missing+id");
   const supabase = await createClient();
-  const { error } = await supabase
+  let query = supabase
     .from("partners")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
+  query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (!data) redirect("/partners?error=Partner+not+found");
   revalidatePath("/partners");
   redirect("/partners?saved=1");
 }
@@ -98,9 +119,9 @@ export async function deletePartner(formData: FormData) {
  * be edited or invited). Owner/manager only.
  */
 export async function adoptSuggested(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { profile, farmId, isAdmin } = await requireDirectoryManager();
   const id = String(formData.get("id") ?? "");
-  if (!id || !profile.farm_id) redirect("/partners?error=No+farm");
+  if (!id || isAdmin || !farmId) redirect("/partners?error=No+farm");
 
   const supabase = await createClient();
   const { data: src } = await supabase
@@ -112,7 +133,7 @@ export async function adoptSuggested(formData: FormData) {
   if (!src) redirect("/partners?error=Suggested+partner+not+found");
 
   const { error } = await supabase.from("partners").insert({
-    farm_id: profile.farm_id,
+    farm_id: farmId,
     is_suggested: false,
     name: src.name,
     kind: src.kind,
@@ -166,12 +187,11 @@ async function issueLoginUrl(
 }
 
 export async function inviteContractor(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const partnerId = String(formData.get("id") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!partnerId) redirect("/partners?error=Missing+partner");
   if (!email || !email.includes("@")) redirect("/partners?error=A+valid+email+is+required+to+invite");
-  if (!profile.farm_id) redirect("/partners?error=No+farm");
 
   // Load the partner through RLS (guarantees it belongs to this farm).
   const rls = await createClient();
@@ -180,12 +200,11 @@ export async function inviteContractor(formData: FormData) {
     .select("id, farm_id, name, kind, phone, whatsapp, email, area, workshop_id")
     .eq("id", partnerId)
     .maybeSingle();
-  if (!partner || partner.farm_id !== profile.farm_id) {
+  if (!partner || partner.farm_id !== farmId) {
     redirect("/partners?error=Partner+not+found");
   }
 
   const svc = createServiceClient();
-  const farmId = profile.farm_id;
   const name = partner.name as string;
 
   // 1) Workshop — reuse the linked one, or create it with the partner's classification.
@@ -274,7 +293,7 @@ export async function inviteContractor(formData: FormData) {
 
 /** Re-issue a fresh magic login URL for an already-connected contractor. */
 export async function sendLoginUrl(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const partnerId = String(formData.get("id") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!partnerId) redirect("/partners?error=Missing+partner");
@@ -286,7 +305,7 @@ export async function sendLoginUrl(formData: FormData) {
     .select("id, farm_id, workshop_id")
     .eq("id", partnerId)
     .maybeSingle();
-  if (!partner || partner.farm_id !== profile.farm_id || !partner.workshop_id) {
+  if (!partner || partner.farm_id !== farmId || !partner.workshop_id) {
     redirect("/partners?error=This+partner+is+not+connected+yet");
   }
 
@@ -308,7 +327,7 @@ export async function sendLoginUrl(formData: FormData) {
  * credential is not sitting there while the phone is handed around a workshop.
  */
 export async function dismissLoginUrl() {
-  await requireRole(["owner", "manager"]);
+  await requireConnectionManager();
   await clearPartnerLink();
   revalidatePath("/partners");
   redirect("/partners");
@@ -339,22 +358,11 @@ export async function dismissLoginUrl() {
  * has no business in. RLS would refuse the write in any case; failing here makes it a
  * clear error rather than a silent no-op.
  */
-async function decidingFarmId(formData: FormData, profile: { farm_id: string | null }): Promise<string> {
-  const claimed = String(formData.get("farm_id") ?? "").trim();
-  const farms = await accessibleFarms();
-  const allowed = new Set(farms.map((f) => f.id));
-  if (claimed && allowed.has(claimed)) return claimed;
-  if (claimed && !allowed.has(claimed)) redirect("/partners?error=forbidden");
-  if (profile.farm_id) return profile.farm_id;
-  redirect("/partners?error=missing");
-}
-
 /** Approve a contractor's connection request: their pending link becomes active. */
 export async function approveLinkRequest(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const workshopId = String(formData.get("workshop_id") ?? "");
   if (!workshopId) redirect("/partners?error=missing");
-  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -390,10 +398,9 @@ export async function approveLinkRequest(formData: FormData) {
 
 /** Decline it. The link is revoked (not deleted) so the history of the ask survives. */
 export async function declineLinkRequest(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const workshopId = String(formData.get("workshop_id") ?? "");
   if (!workshopId) redirect("/partners?error=missing");
-  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   await supabase
@@ -426,10 +433,9 @@ export async function declineLinkRequest(formData: FormData) {
 // that list is reading a competitor directory with phone numbers, and no amount of
 // consent makes it part of fixing a tractor.
 export async function setPartnerAccess(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const workshopId = String(formData.get("workshop_id") ?? "");
   if (!workshopId) redirect("/partners?error=missing");
-  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -451,10 +457,9 @@ export async function setPartnerAccess(formData: FormData) {
 
 /** Disconnect a contractor. The link is revoked, so access stops immediately. */
 export async function revokePartnerAccess(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireConnectionManager();
   const workshopId = String(formData.get("workshop_id") ?? "");
   if (!workshopId) redirect("/partners?error=missing");
-  const farmId = await decidingFarmId(formData, profile);
 
   const supabase = await createClient();
   await supabase

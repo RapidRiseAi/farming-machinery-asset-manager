@@ -149,7 +149,11 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   if (brand.email) pdf.kv("Email", brand.email);
 
   // The recipient block, in full — this is what makes it claimable.
-  pdf.heading("To");
+  //
+  // The heading follows the partner's own `bill_to_label` (0434), like every other surface.
+  // It was hardcoded to "To" here, so a partner who renamed it saw their wording on screen
+  // and ours on the printed document — the one artefact the customer keeps.
+  pdf.heading(layout.bill_to_label ?? "To");
   pdf.kv("Customer", doc.bill_to_name ?? "");
   if (doc.bill_to_contact) pdf.kv("Attention", doc.bill_to_contact);
   if (doc.bill_to_reg_number) pdf.kv("Registration", doc.bill_to_reg_number);

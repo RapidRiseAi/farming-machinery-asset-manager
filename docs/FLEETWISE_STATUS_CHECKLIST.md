@@ -86,7 +86,7 @@
 - ❌ FR-11.5 (P2) Scheduled/emailed reports
 
 ### §12 Voice AI  🟡 implemented, deployment/E2E pending
-- 🟡 FR-12.1 (P0) Voice control EN/AF — Azure real-time STT + Willem/Ollie TTS, deterministic intents and optional consent-gated LLM fallback implemented; production migration/device E2E pending
+- 🟡 FR-12.1 (P0) Voice control EN/AF — Azure real-time STT + Ollie Multilingual TTS (Willem fallback), deterministic intents and optional consent-gated LLM fallback implemented; production migration/device E2E pending
 - 🟡 FR-12.2/12.3 (P1) Confirm-back / permissions — selected-farm role/plan checks, private server-held proposals and confirm-before-commit implemented; runtime RLS test pending
 - 🟡 FR-12.4 (P2) Offline fallback — raw recording queues only in device IndexedDB, is explicitly transcribed after reconnect, expires after seven days; real-device test pending
 

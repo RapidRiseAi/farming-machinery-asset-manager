@@ -1,9 +1,11 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getReportData, parseFilters, toCsv, csvResponse, centsToR } from "../data";
+import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
+import { reportGrid } from "@/lib/report-export";
 
-/** Per-machine fuel CSV (litres, spend, consumption) for the accountant / SARS diesel
- *  logbook basis (Scope §9). Farm-scoped by RLS; respects the report period + filters. */
+/** Per-machine fuel CSV (litres, spend, consumption) for the SARS diesel logbook basis (Scope §9).
+ *  The grid itself lives in src/lib/report-export.ts so this download and the emailed
+ *  copy a schedule sends (FR-11.5) are the same columns, not two lists to keep in step. */
 export async function GET(request: Request) {
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
@@ -14,18 +16,6 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
 
-  const rows: (string | number)[][] = [["Machine", "Litres", "Fuel spend (R)", "Consumption", "Unit"]];
-  for (const r of data.fuel.perMachine) {
-    rows.push([
-      r.name,
-      r.litres,
-      centsToR(r.spend),
-      r.consumption != null ? r.consumption.toFixed(2) : "",
-      r.consumption != null ? (r.meterType === "km" ? "L/100km" : "L/hr") : "",
-    ]);
-  }
-  rows.push([]);
-  rows.push(["Purchased (deliveries) litres", data.fuel.purchasedLitres, "spend (R)", centsToR(data.fuel.purchasedSpend)]);
-  rows.push(["Used by machines (draws) litres", data.fuel.totalLitres, "spend (R)", centsToR(data.fuel.totalSpend)]);
-  return csvResponse("fuel.csv", toCsv(rows));
+  const grid = reportGrid(data, "fuel");
+  return csvResponse(grid.filename, toCsv(grid.rows));
 }

@@ -1,4 +1,5 @@
-import { requireProfile, currentFarmId } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -120,23 +121,32 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const locale = profile.lang;
 
+  const permissionState = await farmPermissionState(profile);
+  const viewingFarmId = permissionState.farmId;
+  const selectedRole = permissionState.role;
   const isAdmin = profile.role === "rr_admin";
-  const canManage = profile.role === "owner" || profile.role === "manager";
-  const canInvite = canManage; // owner/manager connect contractors to their farm
+  const canManageDirectory = permissionState.allows("manage_partners");
+  // Connecting a contractor opens broader farm data and remains owner/manager-only.
+  const canInvite = selectedRole === "owner" || selectedRole === "manager";
 
   const supabase = await createClient();
-  const { data } = await supabase
+  let partnersQuery = supabase
     .from("partners")
     .select("id, farm_id, name, kind, phone, whatsapp, email, area, is_suggested, workshop_id, notes")
     .is("deleted_at", null)
     .order("name", { ascending: true });
+  partnersQuery = viewingFarmId
+    ? partnersQuery.or(`farm_id.is.null,farm_id.eq.${viewingFarmId}`)
+    : partnersQuery.is("farm_id", null);
+  const { data } = await partnersQuery;
   const all = (data as Partner[] | null) ?? [];
-  const yours = all.filter((p) => p.farm_id != null);
+  const yours = all.filter((p) => p.farm_id === viewingFarmId);
   const suggested = all.filter((p) => p.farm_id == null);
 
   // A row is editable when it is a farm row the user manages, or a global row and the
   // user is RR admin. (RLS also enforces this on write.)
-  const canEditRow = (p: Partner) => (p.farm_id == null ? isAdmin : canManage);
+  const canEditRow = (p: Partner) =>
+    p.farm_id == null ? isAdmin : canManageDirectory && p.farm_id === viewingFarmId;
 
   /*
     Freshly-issued login URL to hand to a contractor. It arrives in a short-lived,
@@ -158,8 +168,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     filter a request for another site would render as actionable here and the approval
     would write against the wrong farm.
   */
-  const viewingFarmId = canManage ? await currentFarmId(profile) : null;
-  const { data: reqData } = canManage && viewingFarmId
+  const { data: reqData } = canInvite && viewingFarmId
     ? await supabase
         .from("workshop_links")
         .select("workshop_id, farm_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
@@ -170,7 +179,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
   // Connected contractors and what each may see (F16). Same farm scoping as the
   // requests above — this is a decision about the site you are looking at.
-  const { data: accessData } = canManage && viewingFarmId
+  const { data: accessData } = canInvite && viewingFarmId
     ? await supabase
         .from("workshop_links")
         .select("workshop_id, farm_id, see_all_vehicles, see_service_history, see_costs, see_team, workshops(id, name, trading_name)")
@@ -337,7 +346,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
       ) : null}
 
       {/* Add a partner (owner/manager for their farm; RR admin for the global catalogue) */}
-      {canManage || isAdmin ? (
+      {canManageDirectory || isAdmin ? (
         <Card>
           <details>
             <summary className="cursor-pointer font-semibold text-sand-900">{t("partners.add", locale)}</summary>
@@ -382,7 +391,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         {yours.length === 0 ? (
           <EmptyState
             title={t("partners.yoursEmpty", locale)}
-            hint={canManage ? t("partners.yoursEmptyHint", locale) : undefined}
+            hint={canManageDirectory ? t("partners.yoursEmptyHint", locale) : undefined}
           />
         ) : (
           <ul className="flex flex-col gap-3">
@@ -523,7 +532,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                 <div className="mt-3">
                   <ContactButtons p={p} locale={locale} />
                 </div>
-                {canManage ? (
+                {canManageDirectory && !isAdmin ? (
                   <form action={adoptSuggested} className="mt-3">
                     <input type="hidden" name="id" value={p.id} />
                     <SubmitButton variant="secondary" size="sm">{t("partners.adopt", locale)}</SubmitButton>

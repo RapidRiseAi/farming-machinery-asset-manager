@@ -1,9 +1,11 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getReportData, parseFilters, toCsv, csvResponse, centsToR } from "../data";
+import { getReportData, parseFilters, toCsv, csvResponse } from "../data";
+import { reportGrid } from "@/lib/report-export";
 
-/** Contractor analytics CSV (F13): outstanding quote/invoice value, throughput by status,
- *  responsiveness, and per-contractor spend. Farm-scoped by RLS; respects report filters. */
+/** Contractor analytics CSV (F13): outstanding value, throughput, responsiveness, per-contractor spend.
+ *  The grid itself lives in src/lib/report-export.ts so this download and the emailed
+ *  copy a schedule sends (FR-11.5) are the same columns, not two lists to keep in step. */
 export async function GET(request: Request) {
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
@@ -12,23 +14,8 @@ export async function GET(request: Request) {
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
-  const c = (await getReportData(supabase, parseFilters(sp), await currentFarmId(profile))).contractors;
+  const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
 
-  const rows: (string | number)[][] = [];
-  rows.push(["Metric", "Count", "Value (R)"]);
-  rows.push(["Outstanding quotes", c.outstandingQuotes.count, centsToR(c.outstandingQuotes.value)]);
-  rows.push(["Outstanding invoices", c.outstandingInvoices.count, centsToR(c.outstandingInvoices.value)]);
-  rows.push(["Spend via contractors", "", centsToR(c.spendViaContractors)]);
-  rows.push([]);
-  rows.push(["Responsiveness (avg hours)", "requested→viewed", c.responsiveness.requestedToViewedHrs ?? ""]);
-  rows.push(["", "viewed→quoted", c.responsiveness.viewedToQuotedHrs ?? ""]);
-  rows.push(["", "sample (requests)", c.responsiveness.sample]);
-  rows.push([]);
-  rows.push(["Work requests by status", "", ""]);
-  for (const s of c.byStatus) rows.push([s.status, s.count, ""]);
-  rows.push([]);
-  rows.push(["Contractor", "Requests", "Invoiced", "Spend (R)"]);
-  for (const p of c.perContractor) rows.push([p.name, p.requests, p.invoiced, centsToR(p.spend)]);
-
-  return csvResponse("contractors.csv", toCsv(rows));
+  const grid = reportGrid(data, "contractors");
+  return csvResponse(grid.filename, toCsv(grid.rows));
 }
