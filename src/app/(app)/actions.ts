@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { CURRENT_FARM_COOKIE, accessibleFarms } from "@/lib/auth";
+import { CURRENT_FARM_COOKIE, SUPPORT_FARM_COOKIE, accessibleFarms } from "@/lib/auth";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/lib/locale";
 import { isTone } from "@/lib/i18n";
 
@@ -31,7 +31,23 @@ export async function setTone(formData: FormData) {
 
 export async function signOut() {
   const supabase = await createClient();
+  const store = await cookies();
+  const supportFarmId = store.get(SUPPORT_FARM_COOKIE)?.value;
+  if (supportFarmId) {
+    // Match the explicit support-mode exit path so signing out cannot leave an unpaired
+    // impersonate event in the compliance log. This is deliberately best-effort: an
+    // audit outage must not trap anyone in a signed-in session or stale farm context.
+    await supabase.rpc("log_admin_farm_access", {
+      p_farm: supportFarmId,
+      p_action: "exit",
+    });
+  }
   await supabase.auth.signOut();
+  // Farm/support context belongs to the signed-in person, not the browser. Leaving these
+  // persistent cookies behind can open the next demo login on another farm and make gated
+  // navigation appear to vanish even though that person's primary farm is entitled.
+  store.delete(CURRENT_FARM_COOKIE);
+  store.delete(SUPPORT_FARM_COOKIE);
   revalidatePath("/", "layout");
   redirect("/login");
 }

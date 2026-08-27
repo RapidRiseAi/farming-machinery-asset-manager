@@ -18,9 +18,21 @@ export default async function AssistantPage() {
   if (profile.role === "workshop") redirect("/contractor?denied=1");
 
   const farmId = await currentFarmId(profile);
-  const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
-  const farmPlan = farmId && role !== "rr_admin" ? await getFarmPlan(farmId) : gate.plan;
-  const allowed = role === "rr_admin" ? true : Boolean(role && farmPlan && planAllows(farmPlan, "voice_ai"));
+  if (!farmId) {
+    return (
+      <EmptyState
+        icon={<InfoIcon />}
+        title={t("assistant.farmRequired", locale)}
+        hint={t("assistant.farmRequiredHint", locale)}
+      />
+    );
+  }
+
+  const role = await effectiveFarmRole(farmId, profile);
+  if (!role) redirect("/machines?denied=1");
+
+  const farmPlan = role !== "rr_admin" ? await getFarmPlan(farmId) : gate.plan;
+  const allowed = role === "rr_admin" ? true : Boolean(farmPlan && planAllows(farmPlan, "voice_ai"));
   if (!allowed) {
     return (
       <div className="flex flex-col gap-5">
@@ -38,17 +50,6 @@ export default async function AssistantPage() {
     );
   }
 
-  if (!farmId) {
-    return (
-      <EmptyState
-        icon={<InfoIcon />}
-        title={t("assistant.farmRequired", locale)}
-        hint={t("assistant.farmRequiredHint", locale)}
-      />
-    );
-  }
-
-  if (!role) redirect("/machines?denied=1");
   const machines = await loadAssistantMachines(await createClient(), farmId, {
     role,
     userId: profile.id,

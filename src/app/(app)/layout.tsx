@@ -28,6 +28,7 @@ import { SyncStatus } from "@/components/offline/sync-status";
 import { Tour } from "@/components/tour";
 import { tourFor } from "@/lib/tour";
 import { farmPermissionState } from "@/lib/permissions";
+import { assistantNavigationVisible } from "@/lib/assistant/navigation";
 
 /** Two-letter initials from a display name, for the avatar chip. */
 function initials(name: string): string {
@@ -107,15 +108,16 @@ export default async function AppLayout({
       (currentRole && ["owner", "manager", "mechanic"].includes(currentRole)) ||
       permissionState.allows("manage_stock"),
   );
-  const voicePlan = currentFarm && currentRole !== "rr_admin" ? await getFarmPlan(currentFarm) : null;
-  const voiceAllowed = Boolean(
-    !isWorkshop &&
-      currentFarm &&
-      currentRole &&
-      (currentRole === "rr_admin"
-        ? supporting !== null
-        : voicePlan && planAllows(voicePlan, "voice_ai")),
-  );
+  const selectedFarmPlan = currentFarm && currentRole !== "rr_admin" ? await getFarmPlan(currentFarm) : null;
+  // Unlike the gated content itself, the navigation entry stays discoverable. A farm on
+  // a lower plan reaches the page's server-rendered upgrade notice, while every API still
+  // rechecks the selected farm, role and Voice AI entitlement before doing any work.
+  const assistantNavVisible = assistantNavigationVisible({
+    isWorkshop,
+    isAdmin,
+    currentFarmId: currentFarm || null,
+    hasCurrentFarmRole: currentRole !== null,
+  });
   const apiTokensAllowed = Boolean(
     !isWorkshop &&
       currentFarm &&
@@ -123,8 +125,8 @@ export default async function AppLayout({
       (currentRole === "rr_admin"
         ? supporting !== null
         : ["owner", "manager"].includes(currentRole) &&
-          voicePlan &&
-          planAllows(voicePlan, "api_access")),
+          selectedFarmPlan &&
+          planAllows(selectedFarmPlan, "api_access")),
   );
   const showSwitcher = farms.length > 1 && currentFarm !== "";
   const switcherLabel = t("nav.switchFarm", locale);
@@ -210,7 +212,7 @@ export default async function AppLayout({
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
-        ...(voiceAllowed ? [assistant] : []),
+        ...(assistantNavVisible ? [assistant] : []),
         work,
         ...(isManagerPlus ? [documents] : []),
         ...(fuelAllowed ? [fuel] : []),
@@ -235,7 +237,7 @@ export default async function AppLayout({
   const groups: { key: string; label: string; items: NavItemData[] }[] = isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, ...(voiceAllowed ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
@@ -248,7 +250,7 @@ export default async function AppLayout({
         {
           key: "fleet",
           label: t("nav.theFleet", locale),
-          items: [machines, ...(voiceAllowed ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+          items: [machines, ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
         },
         {
           key: "farm",
