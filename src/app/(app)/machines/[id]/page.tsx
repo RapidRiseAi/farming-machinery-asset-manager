@@ -41,6 +41,7 @@ import {
   DEFAULT_WARRANTY_HOURS_LEAD,
 } from "@/lib/compliance";
 import { fineStatusLabel, fineStatusTone, nominationPending, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
+import { auditPlaceLabel, auditDevice, isHumanChange, type AuditRow } from "@/lib/audit-context";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +66,7 @@ import {
   TrashIcon,
   CheckIcon,
   CloseIcon,
+  PinIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { meterReading, relativeDate } from "@/lib/format";
@@ -297,9 +299,48 @@ export default async function MachineDetailPage({
   const linkedWorkshops = (workshopRes.data as { id: string; name: string; kind: string }[] | null) ?? [];
   const workshopNameById = new Map(linkedWorkshops.map((w) => [w.id, w.name]));
 
+  // Changes to the vehicle RECORD itself, with where they came from (FR-1.4, 0510).
+  // `audit_log` is farm-scoped by its own RLS policy (0101), so this needs no filter
+  // beyond the machine. The engine own writes are dropped by `isHumanChange`, because
+  // every meter reading updates `machines` and without that the one row somebody is
+  // looking for sits under fifty automatic ones.
+  //
+  // Twenty-five rows is a deliberate trade: `diff` carries the whole row before and
+  // after, so this is the heaviest query on the page per row. Postgres cannot be asked
+  // "only rows that changed something a person chose" without reading the diff, so the
+  // filtering happens here and the window is kept small enough to pay for.
+  const { data: auditData } = await supabase
+    .from("audit_log")
+    .select("id, user_id, action, at, diff, ip, geo_country, geo_region, geo_city, user_agent")
+    .eq("entity", "machines")
+    .eq("entity_id", id)
+    .order("at", { ascending: false })
+    .limit(25);
+  const recordChanges = ((auditData as AuditRow[] | null) ?? []).filter((row) => isHumanChange(row)).slice(0, 8);
+  const changeActorIds = [...new Set(recordChanges.map((r) => r.user_id).filter(Boolean) as string[])];
+  const { data: changeActors } = changeActorIds.length
+    ? await supabase.from("users").select("id, name").in("id", changeActorIds)
+    : { data: [] };
+  const changeActorName = new Map(
+    ((changeActors as { id: string; name: string }[] | null) ?? []).map((u) => [u.id, u.name])
+  );
+
   // Timeline (merge + sort desc).
-  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist" | "work"; title: string; sub: string; href?: string };
+  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist" | "work" | "audit"; title: string; sub: string; href?: string };
   const events: Ev[] = [];
+  for (const c of recordChanges) {
+    // Who, when — and now where. The place is a signal a human reads, never evidence:
+    // it comes from request headers and can be forged (see 0510's threat model).
+    const who = (c.user_id && changeActorName.get(c.user_id)) || t("machine.evAuditSystem", locale);
+    const place = auditPlaceLabel(c, locale);
+    const device = auditDevice(c, locale);
+    events.push({
+      date: c.at.slice(0, 10),
+      kind: "audit",
+      title: t(`machine.evAudit${c.action === "insert" ? "Added" : c.action === "delete" ? "Removed" : "Edited"}`, locale),
+      sub: [who, place, device].filter(Boolean).join(" · "),
+    });
+  }
   for (const j of jobCards)
     events.push({
       date: j.date_out ?? j.created_at.slice(0, 10),
@@ -360,7 +401,7 @@ export default async function MachineDetailPage({
   events.sort((a, b) => b.date.localeCompare(a.date));
 
   const evIcon = (k: Ev["kind"]) =>
-    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : <BellIcon />;
+    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : k === "audit" ? <PinIcon /> : <BellIcon />;
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
@@ -516,8 +557,6 @@ export default async function MachineDetailPage({
 
       <Flash tone="error" message={sp.error} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
-
-      <DocumentPacks machineId={machine.id} locale={locale} />
 
       {/*
         Twenty cards on one scroll, all the same size, all always open, in schema order.
@@ -1470,6 +1509,20 @@ export default async function MachineDetailPage({
               label: t("machine.tabPapers", locale),
               content: (
                 <div className="flex flex-col gap-4">
+              {/*
+                Audit / sale / warranty packs (FR-13.4) — the papers, as one PDF.
+
+                This sat above the tabs, so it spent roughly 150px of phone screen on every
+                visit to every machine for a job a farmer does a few times a year — at an
+                audit, or a sale. "Papers & licence" is already the warranty-and-licences
+                tab, which is what the packs are made of, so it is where somebody looks.
+
+                Hidden from operators and contractors: `authorizeMachinePack` refuses both
+                with a 403 before any query, so for them the card was a button that always
+                failed. The route is still what refuses — this is presentation only.
+              */}
+              <DocumentPacks machineId={machine.id} locale={locale} role={profile.role} />
+
               {/* Compliance — warranty + licences (F6) */}
               <Card>
                 <CardHeader><CardTitle>{t("compliance.title", locale)}</CardTitle></CardHeader>

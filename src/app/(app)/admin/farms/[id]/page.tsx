@@ -13,6 +13,7 @@ import {
   type Plan,
   type BillingPeriod,
 } from "@/lib/entitlements";
+import { auditPlace, auditDevice } from "@/lib/audit-context";
 import { updateFarm, impersonateFarm } from "./actions";
 import { inviteUser, setUserActive } from "@/app/(app)/team/actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,11 @@ type Farm = {
   created_at: string;
 };
 type FarmUser = { id: string; name: string; role: string; email: string | null; active: boolean };
-type Access = { id: number; user_id: string | null; action: string; at: string };
+type Access = {
+  id: number; user_id: string | null; action: string; at: string;
+  ip: string | null; geo_country: string | null; geo_region: string | null;
+  geo_city: string | null; user_agent: string | null;
+};
 
 export default async function FarmDetailPage({
   params,
@@ -63,7 +68,7 @@ export default async function FarmDetailPage({
 
   const [{ data: usersData }, { data: accessData }] = await Promise.all([
     supabase.from("users").select("id, name, role, email, active").eq("farm_id", id).order("role"),
-    supabase.from("audit_log").select("id, user_id, action, at").eq("entity", "admin_farm_access").eq("farm_id", id).order("at", { ascending: false }).limit(10),
+    supabase.from("audit_log").select("id, user_id, action, at, ip, geo_country, geo_region, geo_city, user_agent").eq("entity", "admin_farm_access").eq("farm_id", id).order("at", { ascending: false }).limit(10),
   ]);
   const users = (usersData as FarmUser[] | null) ?? [];
   const access = (accessData as Access[] | null) ?? [];
@@ -166,12 +171,25 @@ export default async function FarmDetailPage({
             <p className="text-sm text-sand-500">No support access recorded.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-sand-100 text-sm">
-              {access.map((a) => (
-                <li key={a.id} className="flex justify-between py-1.5">
-                  <span>{a.user_id ? adminName[a.user_id] ?? "admin" : "admin"} · {a.action}</span>
-                  <span className="text-sand-400">{dateTime(a.at, "en")}</span>
-                </li>
-              ))}
+              {access.map((a) => {
+                // Where the support session came from (FR-1.4, 0510). This is the row it
+                // matters most on: a platform admin opening a customer's books at 02:00
+                // from an unfamiliar city is exactly what an audit trail is for. It is a
+                // signal, never evidence — the value arrives in request headers and can
+                // be forged, and it never influenced who `a.user_id` says did this.
+                const place = auditPlace(a);
+                const device = auditDevice(a, "en");
+                return (
+                  <li key={a.id} className="flex flex-wrap justify-between gap-x-3 py-1.5">
+                    <span>{a.user_id ? adminName[a.user_id] ?? "admin" : "admin"} · {a.action}</span>
+                    <span className="text-sand-400">
+                      {[place, device].filter(Boolean).join(" · ")}
+                      {place || device ? " · " : ""}
+                      {dateTime(a.at, "en")}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

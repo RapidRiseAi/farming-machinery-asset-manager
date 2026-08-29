@@ -30,7 +30,9 @@ Everything in the product is tenant-isolated by `farm_id` and Row-Level Security
 | `meter_readings`, `job_cards`, `cost_entries`, `attachments`, `notifications` | `by_user` / `mechanic_user_id` / `approved_by` / `created_by` / `user_id` (who did what) | The acting user | No |
 | `attachments` (photos/voice/docs in private Storage) | May **incidentally** contain faces, number plates, or a voice note | Whoever appears/speaks | Treat as possibly identifying |
 | `audit_log` | `user_id`, `entity`, before/after `diff` | The acting user | Internal integrity record (see §4.4) |
+| `audit_log` **(location)** | `ip`, `geo_country`, `geo_region`, `geo_city`, `user_agent` | The acting user | Attributing a change to a place and a device, for dispute resolution and detecting account misuse — see §5.2 |
 | `partners`, `workshops` | Contractor `phone`/`whatsapp`/`email`/`area`/`contact` | Contractors | No (business contact data) |
+| **Error reports** (NFR-6) — *transmitted, never stored by us* | Stack trace, route path, and the acting user's and farm's **opaque uuids**. Deliberately never: name, email, phone, row content, or query strings. | The acting user | No — see §5.1 |
 
 **Not collected (Scope §13 — hard out of scope):** GPS/telemetry tracking, biometric
 identifiers, ID/passport numbers, banking/card data (billing is deferred; when it lands
@@ -50,6 +52,7 @@ crop/livestock/labour records.
 | WhatsApp messaging *(deferred)* | `phone`, `whatsapp_opt_in` | **Explicit opt-in consent**, timestamped |
 | Optional cross-border AI for unresolved voice intent *(implemented; production enablement pending)* | difficult transcript text, locale and current date | **Explicit consent + a signed DPA** (see §5) |
 | Security, audit & dispute resolution | `audit_log` | Legal obligation / legitimate interest |
+| **Where a change came from** (FR-1.4) | `audit_log.ip` + coarse geo + user agent | **Legitimate interest** (§11(1)(f)) in answering "who approved this, and was that really them". The interest is the data subject's too: the owner disputing a change and the employee wrongly accused both need it. See §5.2 for the minimisation that balances it. |
 
 Data minimisation: we ask only for what a farm-machinery manager needs. Money is stored
 as integer cents ex-VAT; no card/bank details are held.
@@ -169,6 +172,89 @@ model provider and include them in the processor register.
 
 ---
 
+## 5.1 Error reporting (NFR-6)
+
+**Off unless configured.** With `SENTRY_DSN` unset — the default — nothing leaves the server
+and errors go to the application log, which is a sub-processor question already covered by
+the hosting arrangement rather than a new one.
+
+When a DSN is set, an error report crosses to that provider. What it carries is deliberately
+minimal, and the reasoning is worth stating because the temptation runs the other way:
+
+- **Opaque identifiers only.** The acting user's uuid and their farm's uuid, which is what
+  answers "is this one farm's outage or everybody's". No name, email, phone or row content.
+- **Query strings are dropped.** Not merely unused — removed before the report is built.
+  This codebase has put a login credential in a query string before (the contractor
+  `action_link`, since fixed), and an error reporter must not become the thing that
+  exfiltrates the next one.
+- **The reported identity is never trusted.** The browser-facing endpoint accepts anonymous
+  reports by design, because the errors most worth seeing are on signed-out screens; what
+  lands in the report is what the server knows, not what the caller claimed.
+
+Because a report can leave South Africa depending on the DSN, the §5 rule applies: a DPA with
+the provider is required before enabling it in production, and the choice of region should be
+made at that point.
+
+---
+
+## 5.2 Where a change came from (FR-1.4, migration `0510`)
+
+`audit_log` records who and when. It now also records, on authenticated writes, the request
+IP, a coarse country/region/city derived from it by the hosting edge, and the user agent.
+
+### Minimisation — what is collected, and what deliberately is not
+
+POPIA §10 is the reason this is a short list.
+
+**Collected:** request IP (`x-forwarded-for`, first hop); coarse geo derived from it by the
+edge — country, region, city; user agent, capped at 300 characters.
+
+**Deliberately not collected:**
+
+- **Browser geolocation (GPS).** This is an audit trail, not a tracker. Asking a driver's
+  phone for coordinates to record that they saved a meter reading fails minimisation before
+  it fails anything else, and would need a consent this product has no reason to ask for.
+- **Latitude and longitude**, though the edge offers them. City is the coarsest granularity
+  that still answers the question a human is actually asking — *was that from the farm office
+  or from somewhere nobody recognises?* Coordinates answer a different question.
+- **Anything on the public QR flow.** That path is anonymous and writes through service-role
+  routes; it is not an authenticated action and has no `auth.uid()` to attribute anything to.
+
+### Accuracy — this is a signal, not evidence
+
+This governs how the data may be used, so it is stated rather than assumed.
+
+> Every one of these values is **supplied by the requesting client and can be forged**. The
+> product stores them beside a correctly-attributed action and never acts on them: no access
+> decision, no visibility rule and no notification reads them — asserted structurally in
+> `supabase/tests/rls_isolation.sql`, section G33, against both `pg_policies` and function
+> bodies. The identity itself still comes from `auth.uid()`. A wrong city beside a correct
+> name is the worst a forged value can produce.
+>
+> They must therefore **never be the sole basis for a disciplinary or legal conclusion**, and
+> a data subject disputing one should be told what it is: an approximation from an IP
+> address, not a record of where a person was.
+
+### Retention, access and erasure
+
+Retention is `audit_log`'s, unchanged — the documented audit-log exception in §4.4. No
+separate rule and no separate deletion path.
+
+A DSAR bundle discloses these fields automatically, because `public.export_personal_data`
+already returns the subject's `audit_log` actions and those rows now carry location. That is
+correct: it is the subject's own data and they are entitled to see what was recorded about
+where they were believed to be. No change to the RPC was needed or made.
+
+**One open decision for the founder.** `public.erase_personal_data` anonymises the person and
+leaves de-identified structural history behind, `audit_log` included, by the §4.4 choice. The
+location columns are therefore **not** separately scrubbed — the same decision applied
+consistently. It is called out here rather than left implicit because **an IP is more
+identifying than most of what remains in an audit row**, and a reasonable person could want
+the opposite answer. If so, the change is a `set ip = null, user_agent = null` for the
+subject's own rows inside that RPC: a one-line decision, not a redesign.
+
+---
+
 ## 6. Security & breach
 
 Security controls (RLS as the default tenant-isolation boundary, explicitly guarded
@@ -182,6 +268,14 @@ Supabase logs support scoping the incident.
 ---
 
 ## 7. Operational checklist (must verify in the live project)
+
+- [ ] Confirm the hosting edge geo headers are reaching the database (the columns are
+      null, not wrong, when they are not).
+- [ ] Confirm nobody has built a report, alert or access rule that reads `audit_log.ip`
+      or the geo columns. G33 asserts the database side; this is the application-side
+      half of the same promise.
+- [ ] Decide the erasure question in §5.2 (scrub `ip`/`user_agent` on erasure, or keep
+      the §4.4 audit-log exception as it stands).
 
 - [ ] Supabase Auth: enable **leaked-password protection** (HaveIBeenPwned) — see `SECURITY.md`.
 - [ ] Confirm all Storage buckets are **private** (they are, by migration `0200`) and only served via signed URLs.

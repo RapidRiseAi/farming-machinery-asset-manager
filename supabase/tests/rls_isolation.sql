@@ -11973,3 +11973,2167 @@ end $$;
 reset role;
 
 select 'ALL G29 SCHEDULED-REPORT TESTS PASSED' as result;
+
+-- ================================================================================
+-- G30 — PER-USER PERMISSION OVERRIDES (0507)
+--
+-- 0507 hands a farm one lever it did not have: "this person, on this farm, may
+-- additionally X" from a closed set of three names. It does it by adding TWENTY new
+-- PERMISSIVE policies across thirteen tables — including `machines`, the most
+-- tenancy-sensitive table in the product. It shipped without a section here.
+--
+-- The claim the whole design rests on is that this is ADDITIVE BY CONSTRUCTION:
+-- PostgreSQL ORs permissive policies, so a new one can only ever add rows. That is a
+-- property of the mechanism, not of the boolean expressions, and this section proves
+-- BOTH halves of it:
+--
+--   * the mechanism   — every policy 0507 adds is PERMISSIVE, and the full set is
+--                       still present (a later migration recreating `machines_sel`
+--                       must not have taken `machines_sel_perm` with it);
+--   * the expressions — with no grant rows `app.has_permission` is false for every
+--                       persona, so every one of those policies contributes nothing
+--                       and each persona's counts are exactly the pre-0507 numbers.
+--
+-- Read the policies IN FORCE before trusting 0507's own comments: upg_sel/ins/upd/del
+-- were replaced by 20260820180000_selected_farm_administration.sql, which swapped
+-- `has_farm_access + current_app_role` (the PRIMARY-farm role) for
+-- `app.effective_farm_role(auth.uid(), farm_id)` (the caller's role on THAT farm).
+-- The assertions below are written against what is actually installed.
+--
+-- Fresh fixtures (Farm P / Farm Q / Workshop Z, distinct id prefixes) so every earlier
+-- count in this file stays intact.
+-- ================================================================================
+
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+
+-- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+insert into farms (id, name) values
+  ('30000000-0000-0000-0000-000000000001', 'Farm P'),
+  ('30000000-0000-0000-0000-000000000002', 'Farm Q');
+
+-- Workshop Z is linked to Farm P at the F16 DEFAULT scope (every flag false). That
+-- matters: it gives the contractor a MINIMUM baseline, so if a grant row could widen a
+-- contractor by any route, the counts below would move and be caught.
+insert into workshops (id, name) values
+  ('33000000-0000-0000-0000-000000000001', 'Workshop Z');
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('33000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('31000000-0000-0000-0000-000000000001', 'ownerP@test'),
+  ('31000000-0000-0000-0000-000000000002', 'managerP@test'),
+  ('31000000-0000-0000-0000-000000000003', 'mechanicP@test'),
+  ('31000000-0000-0000-0000-000000000004', 'driverP@test'),
+  ('31000000-0000-0000-0000-000000000005', 'driver2P@test'),
+  ('31000000-0000-0000-0000-000000000009', 'ownerQ@test'),
+  ('31000000-0000-0000-0000-00000000000a', 'wsZ@test');
+
+insert into users (id, farm_id, workshop_id, role, name) values
+  ('31000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', null, 'owner',    'Owner P'),
+  ('31000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', null, 'manager',  'Manager P'),
+  ('31000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', null, 'mechanic', 'Mechanic P'),
+  ('31000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000001', null, 'operator', 'Driver P'),
+  ('31000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000001', null, 'operator', 'Driver 2 P'),
+  ('31000000-0000-0000-0000-000000000009', '30000000-0000-0000-0000-000000000002', null, 'owner',    'Owner Q'),
+  ('31000000-0000-0000-0000-00000000000a', null, '33000000-0000-0000-0000-000000000001', 'workshop', 'Workshop Z Staff');
+
+-- P1 is assigned to Driver P; P2 is not. Every count below turns on that one fact.
+insert into machines (id, farm_id, name, type, assigned_operator_id) values
+  ('32000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'P1 (assigned)',   'tractor', '31000000-0000-0000-0000-000000000004'),
+  ('32000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'P2 (unassigned)', 'tractor', null),
+  ('32000000-0000-0000-0000-000000000009', '30000000-0000-0000-0000-000000000002', 'Q1',              'tractor', null);
+
+insert into fuel_tanks (id, farm_id, name) values
+  ('34000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Tank P');
+
+-- One row per machine on every table 0507's see_all_vehicles loop touches, so each
+-- table's count moves 1 -> 2 for the grant holder and stays put for everyone else.
+insert into meter_readings (farm_id, machine_id, reading, source) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 11, 'manual'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 22, 'manual');
+insert into service_plan_lines (farm_id, machine_id, task, interval_hours) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'Oil', 250),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'Oil', 250);
+insert into faults (farm_id, machine_id, description, urgency, status) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'P1 fault', 'limping', 'open'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'P2 fault', 'limping', 'open');
+insert into job_cards (farm_id, machine_id, type, status) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'repair', 'open'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'repair', 'open');
+insert into watch_items (farm_id, machine_id, text) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'tyres'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'tyres');
+insert into fuel_issues (farm_id, tank_id, machine_id, litres) values
+  ('30000000-0000-0000-0000-000000000001','34000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 40),
+  ('30000000-0000-0000-0000-000000000001','34000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 40);
+insert into usage_logs (farm_id, machine_id, driver_user_id, occurred_on, meter_reading, source) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000004', current_date, 11, 'app'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000005', current_date, 22, 'app');
+insert into licences (farm_id, machine_id, type, expiry_date) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'vehicle_licence', current_date + 30),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'vehicle_licence', current_date + 30);
+insert into fines (farm_id, machine_id, notice_number, amount_cents) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'P1-FINE', 50000),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'P2-FINE', 50000);
+-- Only P1's request is Workshop Z's, so the contractor's own baseline is 1 machine.
+insert into work_requests (farm_id, machine_id, workshop_id, kind, status) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','33000000-0000-0000-0000-000000000001','repair','requested'),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', null,                                  'repair','requested');
+
+-- A farm-level fuel draw (machine_id null). 0341 hides these from an operator
+-- entirely; 0507 says see_all_vehicles brings them along. Both directions asserted.
+insert into fuel_issues (farm_id, tank_id, machine_id, litres) values
+  ('30000000-0000-0000-0000-000000000001','34000000-0000-0000-0000-000000000001', null, 15);
+
+-- The surfaces a grant must NOT open: money, the directory, the store.
+insert into cost_entries (farm_id, machine_id, type, occurred_on, amount_cents) values
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','parts', current_date, 100000),
+  ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002','parts', current_date, 100000);
+insert into partners (id, farm_id, name, kind, is_suggested) values
+  ('35000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','P partner','tyre', false),
+  ('35000000-0000-0000-0000-000000000009', null,                                 'G30 GLOBAL suggested','tyre', true);
+insert into parts_catalogue (id, farm_id, part_no, description) values
+  ('36000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','P-FILTER','Filter');
+insert into stock_items (id, farm_id, part_catalogue_id, on_hand, reorder_point) values
+  ('37000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','36000000-0000-0000-0000-000000000001', 5, 2);
+insert into stock_movements (id, farm_id, stock_item_id, kind, qty) values
+  ('38000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','37000000-0000-0000-0000-000000000001','receipt', 5);
+
+-- ══════════════════════════════════════════════════════════════════
+-- (a) THE MECHANISM: every policy 0507 adds is PERMISSIVE, and all 20 survive
+-- ══════════════════════════════════════════════════════════════════
+-- "Additive" is a property of PERMISSIVE combination, not of the expressions. If a
+-- later migration ever adds one of these `as restrictive`, or drops one, the additive
+-- argument stops being true of the mechanism and this fires first.
+do $$ declare total int; restrictive int; begin
+  select count(*), count(*) filter (where not polpermissive)
+    into total, restrictive
+    from pg_policy where polname like '%\_perm';
+  if total <> 20 then
+    raise exception 'G30 FAIL [POLICY SET]: % policies named %%_perm (expected 20). A migration added or dropped one of 0507''s policies', total;
+  end if;
+  if restrictive <> 0 then
+    raise exception 'G30 FAIL [PERMISSIVE]: % of 0507''s policies are RESTRICTIVE. A restrictive policy can REMOVE rows, which breaks the additive guarantee outright', restrictive;
+  end if;
+end $$;
+
+-- machines_sel_perm is the one most at risk: both 0400 and the voice-assistant
+-- commands migration drop and recreate `machines_sel`, and 0507 relies on the `_perm`
+-- suffix to survive that.
+do $$ declare c int; begin
+  select count(*) into c from pg_policy p join pg_class k on k.oid = p.polrelid
+   where k.relname = 'machines' and p.polname = 'machines_sel_perm';
+  if c <> 1 then
+    raise exception 'G30 FAIL [machines_sel_perm]: found % (expected 1). A later migration recreating machines_sel took 0507''s policy with it', c;
+  end if;
+end $$;
+
+-- ── THE BLAST RADIUS, PINNED BY NAME ─────────────────────────────
+-- Counting policies is not enough, and this section learned that the hard way: an
+-- assertion that `see_all_vehicles` does not leak COSTS cannot be written as a row
+-- count, because an operator ALREADY reads the farm's entire spend (0210/0400 gate
+-- cost_entries on partner scope alone). The cell is saturated, so a policy wiring costs
+-- into the vehicle grant moves no number and a count-based test passes while the leak
+-- is live — measured, by adding exactly that policy and watching this section pass.
+--
+-- So the reach of `app.has_permission` is pinned STRUCTURALLY instead: every table it
+-- may be consulted for, which command, and under which name. Anything wired to it that
+-- is not on this list is a widening nobody argued for.
+do $$
+declare
+  expected text[] := array[
+    'faults:r:see_all_vehicles',
+    'fines:r:see_all_vehicles',
+    'fuel_issues:r:see_all_vehicles',
+    'job_cards:r:see_all_vehicles',
+    'licences:r:see_all_vehicles',
+    'machines:r:see_all_vehicles',
+    'meter_readings:r:see_all_vehicles',
+    'partners:a:manage_partners',
+    'partners:d:manage_partners',
+    'partners:w:manage_partners',
+    'service_plan_lines:r:see_all_vehicles',
+    'stock_items:a:manage_stock',
+    'stock_items:d:manage_stock',
+    'stock_items:w:manage_stock',
+    'stock_movements:a:manage_stock',
+    'stock_movements:d:manage_stock',
+    'stock_movements:w:manage_stock',
+    'usage_logs:r:see_all_vehicles',
+    'watch_items:r:see_all_vehicles',
+    'work_requests:r:see_all_vehicles'
+  ];
+  found text[];
+  extra text[];
+  missing text[];
+begin
+  select coalesce(array_agg(sig order by sig), '{}')
+    into found
+    from (
+      select c.relname || ':' || p.polcmd::text || ':' ||
+             coalesce(substring(
+               coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' ||
+               coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')
+               from 'has_permission\([^)]*, ''([a-z_]+)'''), '?') as sig
+        from pg_policy p join pg_class c on c.oid = p.polrelid
+       where coalesce(pg_get_expr(p.polqual, p.polrelid), '') like '%has_permission%'
+          or coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') like '%has_permission%'
+    ) s;
+
+  select coalesce(array_agg(x), '{}') into extra
+    from unnest(found) x where x <> all(expected);
+  select coalesce(array_agg(x), '{}') into missing
+    from unnest(expected) x where x <> all(found);
+
+  if array_length(extra, 1) is not null then
+    raise exception 'G30 FAIL [BLAST RADIUS]: app.has_permission is consulted somewhere 0507 never put it: %. A grant now reaches a table nobody argued for', extra;
+  end if;
+  if array_length(missing, 1) is not null then
+    raise exception 'G30 FAIL [BLAST RADIUS]: 0507 policies are gone: %', missing;
+  end if;
+end $$;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (b) THE GATE ITSELF (G11): definer, pinned, and measured — not assumed
+-- ══════════════════════════════════════════════════════════════════
+-- An app-schema function with no explicit grant defaults to EXECUTE TO PUBLIC. That is
+-- how the F14 debug probe stayed reachable by anon until 0440 removed it, so the grant
+-- is MEASURED with has_function_privilege rather than read off the migration.
+do $$ declare r record; n int := 0; begin
+  for r in
+    select p.oid, p.proname, p.prosecdef, p.proconfig
+      from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+     where s.nspname = 'app' and p.proname in ('has_permission','user_belongs_to_farm')
+  loop
+    n := n + 1;
+    if not r.prosecdef then
+      raise exception 'G30 FAIL [SECDEF]: app.% is SECURITY INVOKER; it reads user_permission_grants from inside a policy and must be DEFINER', r.proname;
+    end if;
+    if r.proconfig is null or not ('search_path=public, pg_temp' = any(r.proconfig)) then
+      raise exception 'G30 FAIL [SEARCH PATH]: app.% does not pin search_path (config=%)', r.proname, r.proconfig;
+    end if;
+    if has_function_privilege('anon', r.oid, 'execute') then
+      raise exception 'G30 FAIL [ANON EXECUTE]: anon may execute app.% — the 0440 default-PUBLIC hole', r.proname;
+    end if;
+    if not has_function_privilege('authenticated', r.oid, 'execute') then
+      raise exception 'G30 FAIL [AUTH EXECUTE]: authenticated may NOT execute app.%; the policies would fail closed for everybody', r.proname;
+    end if;
+  end loop;
+  if n <> 2 then
+    raise exception 'G30 FAIL [GATE]: found % of the 2 gate functions (app.has_permission, app.user_belongs_to_farm)', n;
+  end if;
+end $$;
+
+-- The closed-set trigger function is reached by the trigger, never called. EXECUTE is
+-- checked when the trigger is CREATED, so nobody needs it (0505's rule).
+do $$ declare o oid; begin
+  select p.oid into o from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+   where s.nspname = 'public' and p.proname = 'app_user_permission_grants_check';
+  if o is null then raise exception 'G30 FAIL [TRIGGER FN]: app_user_permission_grants_check is missing'; end if;
+  if has_function_privilege('anon', o, 'execute')
+     or has_function_privilege('authenticated', o, 'execute') then
+    raise exception 'G30 FAIL [TRIGGER FN]: the closed-set trigger function is executable by anon/authenticated';
+  end if;
+end $$;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (c) PURELY ADDITIVE: with no grant rows, nothing anywhere has changed
+-- ══════════════════════════════════════════════════════════════════
+-- Every one of 0507's twenty policies is `... and app.has_permission(farm_id, '<name>')`.
+-- If has_permission is false for every caller then every one of them contributes the
+-- empty set, and the OR they take part in is the pre-0507 predicate exactly. Prove the
+-- premise for all eight personas and all three names, then pin the resulting numbers.
+set role authenticated;
+do $$
+declare
+  p text[][] := array[
+    ['ownerP',    '31000000-0000-0000-0000-000000000001'],
+    ['managerP',  '31000000-0000-0000-0000-000000000002'],
+    ['mechanicP', '31000000-0000-0000-0000-000000000003'],
+    ['driverP',   '31000000-0000-0000-0000-000000000004'],
+    ['driver2P',  '31000000-0000-0000-0000-000000000005'],
+    ['ownerQ',    '31000000-0000-0000-0000-000000000009'],
+    ['workshopZ', '31000000-0000-0000-0000-00000000000a'],
+    ['rrAdmin',   'd4444444-4444-4444-4444-444444444444']
+  ];
+  i int; nm text; v boolean;
+begin
+  for i in 1 .. array_length(p, 1) loop
+    perform _t_login(p[i][2]::uuid);
+    foreach nm in array array['see_all_vehicles','manage_stock','manage_partners'] loop
+      v := app.has_permission('30000000-0000-0000-0000-000000000001', nm);
+      if v then
+        raise exception 'G30 FAIL [UNUSED]: app.has_permission(Farm P, %) is TRUE for % with no grant rows in the table', nm, p[i][1];
+      end if;
+    end loop;
+  end loop;
+end $$;
+reset role;
+
+-- The pre-0507 numbers, pinned. Farm-side roles keep full farm access; an operator is
+-- narrowed to the machine assigned to them; a driver with no assignment sees nothing;
+-- the neighbouring tenant sees nothing. (fuel_issues carries one extra farm-level draw,
+-- which 0341 hides from operators entirely.)
+set role authenticated;
+do $$
+declare
+  p text[][] := array[
+    ['ownerP',    '31000000-0000-0000-0000-000000000001', '2'],
+    ['managerP',  '31000000-0000-0000-0000-000000000002', '2'],
+    ['mechanicP', '31000000-0000-0000-0000-000000000003', '2'],
+    ['driverP',   '31000000-0000-0000-0000-000000000004', '1'],
+    ['driver2P',  '31000000-0000-0000-0000-000000000005', '0'],
+    ['ownerQ',    '31000000-0000-0000-0000-000000000009', '0']
+  ];
+  vt text[] := array[
+    'machines','meter_readings','service_plan_lines','faults','job_cards','watch_items',
+    'fuel_issues','usage_logs','licences','fines','work_requests'
+  ];
+  i int; t text; c bigint; want bigint;
+begin
+  for i in 1 .. array_length(p, 1) loop
+    perform _t_login(p[i][2]::uuid);
+    foreach t in array vt loop
+      want := p[i][3]::bigint;
+      if t = 'fuel_issues' and want = 2 then want := 3; end if;   -- + the farm-level draw
+      execute format('select count(*) from public.%I where farm_id = %L',
+                     t, '30000000-0000-0000-0000-000000000001') into c;
+      if c <> want then
+        raise exception 'G30 FAIL [BASELINE %]: % visible=% expected % with no grant rows', p[i][1], t, c, want;
+      end if;
+    end loop;
+  end loop;
+end $$;
+reset role;
+
+-- The contractor's baseline, at the F16 DEFAULT link scope (every flag false): the one
+-- vehicle it has a work request on, and nothing about money, history, the farm's people
+-- or the farm's other contractors. Recorded exactly, because section (i) proves a grant
+-- row cannot move ANY of these numbers.
+set role authenticated;
+do $$
+declare
+  e text[][] := array[
+    ['machines','1'],           ['faults','1'],        ['job_cards','1'],
+    ['watch_items','1'],        ['usage_logs','1'],    ['licences','1'],
+    ['fines','1'],              ['work_requests','1'],
+    ['meter_readings','0'],     ['service_plan_lines','0'],
+    ['fuel_issues','0'],        ['cost_entries','0'],  ['partners','0'], ['users','0']
+  ];
+  i int; c bigint;
+begin
+  perform _t_login('31000000-0000-0000-0000-00000000000a');
+  for i in 1 .. array_length(e, 1) loop
+    execute format('select count(*) from public.%I where farm_id = %L',
+                   e[i][1], '30000000-0000-0000-0000-000000000001') into c;
+    if c <> e[i][2]::bigint then
+      raise exception 'G30 FAIL [BASELINE workshopZ]: % visible=% expected %', e[i][1], c, e[i][2];
+    end if;
+  end loop;
+end $$;
+reset role;
+
+-- The surfaces a grant must never open, measured now so section (d) can show they did
+-- not move. Note cost_entries: an operator ALREADY reads the farm's whole spend
+-- (0210/0400 gate it on partner scope only, never on the assignment rule). 0507's own
+-- header says so, and it is why `see_costs` was left out of the closed set. The number
+-- being 2 rather than 0 here is therefore correct, and the point of pinning it is that
+-- `see_all_vehicles` must not change it either.
+set role authenticated;
+do $$
+declare
+  e text[][] := array[
+    ['cost_entries','2'], ['budgets','0'], ['stock_items','1'],
+    ['stock_movements','1'], ['partners','1'], ['users','5']
+  ];
+  i int; c bigint;
+begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');   -- Driver P, no grants yet
+  for i in 1 .. array_length(e, 1) loop
+    execute format('select count(*) from public.%I where farm_id = %L',
+                   e[i][1], '30000000-0000-0000-0000-000000000001') into c;
+    if c <> e[i][2]::bigint then
+      raise exception 'G30 FAIL [BASELINE driverP other]: % visible=% expected %', e[i][1], c, e[i][2];
+    end if;
+  end loop;
+end $$;
+reset role;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (d) A GRANT OPENS ONLY ITS OWN SLICE
+-- ══════════════════════════════════════════════════════════════════
+-- The grant is written THROUGH the policy by the farm's owner, which doubles as the
+-- positive control: if this insert ever stops working, every negative below would pass
+-- vacuously and this section would be worthless.
+set role authenticated;
+do $$ declare c int; begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');            -- Owner P
+  insert into user_permission_grants (user_id, farm_id, permission, granted_by)
+    values ('31000000-0000-0000-0000-000000000004',
+            '30000000-0000-0000-0000-000000000001', 'see_all_vehicles',
+            '31000000-0000-0000-0000-000000000009');                   -- spoofed granter
+  select count(*) into c from user_permission_grants
+   where farm_id = '30000000-0000-0000-0000-000000000001' and deleted_at is null;
+  if c <> 1 then raise exception 'G30 FAIL [POSITIVE CONTROL]: owner could not grant (rows=%)', c; end if;
+end $$;
+reset role;
+
+-- granted_by is the record of who opened a security setting, so it comes from the
+-- session and never from the request: the insert above ASKED for Owner Q's id.
+do $$ declare g uuid; begin
+  select granted_by into g from user_permission_grants
+   where user_id = '31000000-0000-0000-0000-000000000004' and permission = 'see_all_vehicles';
+  if g is distinct from '31000000-0000-0000-0000-000000000001' then
+    raise exception 'G30 FAIL [granted_by]: recorded % but the caller was Owner P; a granter can be named by the request', g;
+  end if;
+end $$;
+
+-- see_all_vehicles: exactly the eleven machine-keyed tables move, 1 -> 2, and the
+-- farm-level fuel draw arrives with them (0341 hides machine_id-null rows from an
+-- operator; 0507 says the grant brings them along).
+set role authenticated;
+do $$
+declare
+  vt text[] := array[
+    'machines','meter_readings','service_plan_lines','faults','job_cards','watch_items',
+    'fuel_issues','usage_logs','licences','fines','work_requests'
+  ];
+  t text; c bigint; want bigint;
+begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');            -- Driver P, now a holder
+  foreach t in array vt loop
+    want := case when t = 'fuel_issues' then 3 else 2 end;
+    execute format('select count(*) from public.%I where farm_id = %L',
+                   t, '30000000-0000-0000-0000-000000000001') into c;
+    if c <> want then
+      raise exception 'G30 FAIL [see_all_vehicles]: % visible=% expected % for the grant holder', t, c, want;
+    end if;
+  end loop;
+end $$;
+reset role;
+
+-- ...and nothing else moves. Money, the store, the directory and the staff list are all
+-- exactly where they were, and the grant reaches no further than Farm P.
+set role authenticated;
+do $$
+declare
+  e text[][] := array[
+    ['cost_entries','2'], ['budgets','0'], ['stock_items','1'],
+    ['stock_movements','1'], ['partners','1'], ['users','5']
+  ];
+  i int; c bigint; blocked boolean;
+begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+  for i in 1 .. array_length(e, 1) loop
+    execute format('select count(*) from public.%I where farm_id = %L',
+                   e[i][1], '30000000-0000-0000-0000-000000000001') into c;
+    if c <> e[i][2]::bigint then
+      raise exception 'G30 FAIL [SLICE]: see_all_vehicles moved % to % (expected %) — the vehicle grant leaked into another surface', e[i][1], c, e[i][2];
+    end if;
+  end loop;
+
+  -- the grant is scoped to ONE farm
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000002';
+  if c <> 0 then raise exception 'G30 FAIL [SLICE]: holder sees % Farm Q machines (expected 0)', c; end if;
+  if app.has_permission('30000000-0000-0000-0000-000000000002', 'see_all_vehicles') then
+    raise exception 'G30 FAIL [SLICE]: a Farm P grant answers TRUE for Farm Q';
+  end if;
+
+  -- ...and it is a READ grant. It opens no write that 0452 closed.
+  blocked := false;
+  begin
+    insert into stock_movements (farm_id, stock_item_id, kind, qty)
+      values ('30000000-0000-0000-0000-000000000001',
+              '37000000-0000-0000-0000-000000000001', 'receipt', 1);
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [SLICE]: see_all_vehicles let an operator write stock — that is manage_stock''s door';
+  end if;
+
+  blocked := false;
+  begin
+    insert into partners (farm_id, name, kind)
+      values ('30000000-0000-0000-0000-000000000001', 'sneaky', 'tyre');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [SLICE]: see_all_vehicles let an operator write the contractor directory';
+  end if;
+end $$;
+reset role;
+
+-- A grant is about ONE person. The other driver on the same farm is untouched.
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000005');            -- Driver 2 P
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then
+    raise exception 'G30 FAIL [PER PERSON]: a grant to one driver showed % machines to a colleague (expected 0)', c;
+  end if;
+  if app.has_permission('30000000-0000-0000-0000-000000000001','see_all_vehicles') then
+    raise exception 'G30 FAIL [PER PERSON]: has_permission is true for a colleague who holds nothing';
+  end if;
+end $$;
+reset role;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (e) A GRANT CANNOT REMOVE ACCESS
+-- ══════════════════════════════════════════════════════════════════
+-- Owner, manager and mechanic already hold full farm access. Handing them all three
+-- grants must be a no-op — never a narrowing. This is the direction a RESTRICTIVE
+-- policy, or a rewritten baseline predicate, would break.
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+insert into user_permission_grants (user_id, farm_id, permission)
+select u, '30000000-0000-0000-0000-000000000001', p
+  from unnest(array['31000000-0000-0000-0000-000000000001',
+                    '31000000-0000-0000-0000-000000000002',
+                    '31000000-0000-0000-0000-000000000003']::uuid[]) u,
+       unnest(array['see_all_vehicles','manage_stock','manage_partners']) p;
+
+set role authenticated;
+do $$
+declare
+  p text[][] := array[
+    ['ownerP',    '31000000-0000-0000-0000-000000000001'],
+    ['managerP',  '31000000-0000-0000-0000-000000000002'],
+    ['mechanicP', '31000000-0000-0000-0000-000000000003']
+  ];
+  vt text[] := array[
+    'machines','meter_readings','service_plan_lines','faults','job_cards','watch_items',
+    'fuel_issues','usage_logs','licences','fines','work_requests'
+  ];
+  i int; t text; c bigint; want bigint;
+begin
+  for i in 1 .. array_length(p, 1) loop
+    perform _t_login(p[i][2]::uuid);
+    foreach t in array vt loop
+      want := case when t = 'fuel_issues' then 3 else 2 end;
+      execute format('select count(*) from public.%I where farm_id = %L',
+                     t, '30000000-0000-0000-0000-000000000001') into c;
+      if c <> want then
+        raise exception 'G30 FAIL [NO NARROWING %]: % visible=% expected % — holding a grant CHANGED what a full-access role sees', p[i][1], t, c, want;
+      end if;
+    end loop;
+  end loop;
+end $$;
+reset role;
+
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+delete from user_permission_grants
+ where user_id in ('31000000-0000-0000-0000-000000000001',
+                   '31000000-0000-0000-0000-000000000002',
+                   '31000000-0000-0000-0000-000000000003');
+
+-- ══════════════════════════════════════════════════════════════════
+-- (f) manage_stock and manage_partners open a WRITE and only that write
+-- ══════════════════════════════════════════════════════════════════
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+update user_permission_grants set permission = 'manage_stock'
+ where user_id = '31000000-0000-0000-0000-000000000004';
+
+set role authenticated;
+do $$ declare c bigint; blocked boolean; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+
+  -- it is a WRITE grant: the operator's READ scope is back to the assignment rule
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 1 then
+    raise exception 'G30 FAIL [manage_stock]: it opened % machines (expected 1). A store permission must not touch the fleet', c;
+  end if;
+
+  -- the door 0452 closed for operators, reopened for this one person
+  insert into stock_movements (farm_id, stock_item_id, kind, qty)
+    values ('30000000-0000-0000-0000-000000000001',
+            '37000000-0000-0000-0000-000000000001', 'receipt', 1);
+  update stock_items set reorder_point = 9 where id = '37000000-0000-0000-0000-000000000001';
+
+  -- ...and nothing beside it
+  blocked := false;
+  begin
+    insert into partners (farm_id, name, kind)
+      values ('30000000-0000-0000-0000-000000000001', 'sneaky2', 'tyre');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [manage_stock]: it also opened the contractor directory';
+  end if;
+end $$;
+reset role;
+
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+update user_permission_grants set permission = 'manage_partners'
+ where user_id = '31000000-0000-0000-0000-000000000004';
+
+set role authenticated;
+do $$ declare c bigint; blocked boolean; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 1 then
+    raise exception 'G30 FAIL [manage_partners]: it opened % machines (expected 1)', c;
+  end if;
+
+  insert into partners (farm_id, name, kind)
+    values ('30000000-0000-0000-0000-000000000001', 'Tyre Bros', 'tyre');
+
+  blocked := false;
+  begin
+    insert into stock_movements (farm_id, stock_item_id, kind, qty)
+      values ('30000000-0000-0000-0000-000000000001',
+              '37000000-0000-0000-0000-000000000001', 'receipt', 1);
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [manage_partners]: it also opened the store';
+  end if;
+end $$;
+reset role;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (g) THE GLOBAL DIRECTORY IS OUT OF REACH OF EVERY FARM-LEVEL GRANT
+-- ══════════════════════════════════════════════════════════════════
+-- `partners.farm_id is null` marks the RR-curated suggested rows every customer reads.
+-- A farm-level grant must not reach them by ANY route: not by creating one, not by
+-- editing one, not by deleting one, and not by promoting a farm's own row into one.
+-- The holder still carries manage_partners here.
+set role authenticated;
+do $$ declare blocked boolean; c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+
+  blocked := false;
+  begin
+    insert into partners (farm_id, name, kind, is_suggested)
+      values (null, 'Fake global', 'tyre', true);
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [GLOBAL]: a manage_partners holder created an RR-curated suggested row';
+  end if;
+
+  -- UPDATE and DELETE are filtered to zero rows rather than raising: RLS removes the
+  -- row from the command's view. Assert the count AND read the row back unchanged.
+  update partners set name = 'hijacked' where id = '35000000-0000-0000-0000-000000000009';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G30 FAIL [GLOBAL]: a holder updated % global rows', c; end if;
+
+  delete from partners where id = '35000000-0000-0000-0000-000000000009';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G30 FAIL [GLOBAL]: a holder deleted % global rows', c; end if;
+
+  -- promoting the farm's OWN row into a global one
+  blocked := false;
+  begin
+    update partners set farm_id = null, is_suggested = true
+     where id = '35000000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [GLOBAL]: a holder promoted their own farm row into the RR-curated catalogue';
+  end if;
+
+  -- ...or pushing it onto the neighbouring tenant
+  blocked := false;
+  begin
+    update partners set farm_id = '30000000-0000-0000-0000-000000000002'
+     where id = '35000000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [GLOBAL]: a holder moved a partner row onto another farm';
+  end if;
+
+  blocked := false;
+  begin
+    insert into partners (farm_id, name, kind)
+      values ('30000000-0000-0000-0000-000000000002', 'cross', 'tyre');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [GLOBAL]: a holder created a partner on another farm';
+  end if;
+end $$;
+reset role;
+
+do $$ declare n text; f uuid; begin
+  select name, farm_id into n, f from partners where id = '35000000-0000-0000-0000-000000000009';
+  if n is distinct from 'G30 GLOBAL suggested' or f is not null then
+    raise exception 'G30 FAIL [GLOBAL]: the suggested row now reads name=% farm=%', n, f;
+  end if;
+end $$;
+
+-- ══════════════════════════════════════════════════════════════════
+-- (h) NOBODY WRITES A ROW ABOUT THEMSELVES
+-- ══════════════════════════════════════════════════════════════════
+-- 0404 is why this is a POLICY and not a check in a server action: a signed-in user
+-- could once `update users set role='rr_admin'` on their own row straight over
+-- PostgREST, because the guard sat somewhere the request did not have to pass through.
+-- Every attempt below is made directly against the table as the attacking role, which
+-- is what an attacker holding a valid session actually has.
+set role authenticated;
+do $$ declare blocked boolean; c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');            -- an OPERATOR
+
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000004',
+              '30000000-0000-0000-0000-000000000001', 'see_all_vehicles');
+  exception when insufficient_privilege then blocked := true;
+       when unique_violation then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [SELF GRANT]: an operator granted itself see_all_vehicles'; end if;
+
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000005',
+              '30000000-0000-0000-0000-000000000001', 'see_all_vehicles');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [SELF GRANT]: an operator granted a COLLEAGUE'; end if;
+
+  -- the subtle direction: "granting" as an UPDATE of your own row rather than an INSERT
+  update user_permission_grants set permission = 'see_all_vehicles'
+   where user_id = '31000000-0000-0000-0000-000000000004';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G30 FAIL [SELF GRANT]: a holder rewrote its own grant row (% rows)', c; end if;
+
+  update user_permission_grants set deleted_at = null
+   where user_id = '31000000-0000-0000-0000-000000000004';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G30 FAIL [SELF GRANT]: a holder re-opened its own revoked row (% rows)', c; end if;
+
+  delete from user_permission_grants where user_id = '31000000-0000-0000-0000-000000000004';
+  get diagnostics c = row_count;
+  if c <> 0 then raise exception 'G30 FAIL [SELF GRANT]: a holder deleted its own grant row (% rows)', c; end if;
+end $$;
+reset role;
+
+-- A MECHANIC is farm-side with full farm access and still may not administer grants:
+-- deciding who may reach what stays with owner/manager.
+set role authenticated;
+do $$ declare blocked boolean := false; begin
+  perform _t_login('31000000-0000-0000-0000-000000000003');
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000005',
+              '30000000-0000-0000-0000-000000000001', 'manage_stock');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [MECHANIC]: a mechanic granted a permission'; end if;
+end $$;
+reset role;
+
+-- The rule holds for the ADMINS too, in both shapes. A manager may grant a colleague
+-- (positive control, so the negatives are not passing vacuously) but not themselves,
+-- and an owner may not re-point an existing row at themselves — the UPDATE path, which
+-- a WITH CHECK written only for INSERT would miss.
+set role authenticated;
+do $$ declare blocked boolean; c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000002');            -- Manager P
+  insert into user_permission_grants (user_id, farm_id, permission)
+    values ('31000000-0000-0000-0000-000000000003',
+            '30000000-0000-0000-0000-000000000001', 'manage_stock');   -- positive control
+  select count(*) into c from user_permission_grants
+   where user_id = '31000000-0000-0000-0000-000000000003' and deleted_at is null;
+  if c <> 1 then raise exception 'G30 FAIL [POSITIVE CONTROL]: a manager could not grant a colleague'; end if;
+
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000002',
+              '30000000-0000-0000-0000-000000000001', 'manage_stock');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [SELF GRANT]: a MANAGER granted itself'; end if;
+end $$;
+do $$ declare blocked boolean; begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');            -- Owner P
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000001',
+              '30000000-0000-0000-0000-000000000001', 'manage_stock');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [SELF GRANT]: an OWNER granted itself'; end if;
+
+  blocked := false;
+  begin
+    update user_permission_grants set user_id = '31000000-0000-0000-0000-000000000001'
+     where user_id = '31000000-0000-0000-0000-000000000003';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [SELF GRANT]: an owner re-pointed an existing grant row at himself';
+  end if;
+end $$;
+reset role;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+delete from user_permission_grants where user_id = '31000000-0000-0000-0000-000000000003';
+
+-- ══════════════════════════════════════════════════════════════════
+-- (i) NO CROSS-TENANT GRANT, AND A FORCED ONE IS INERT
+-- ══════════════════════════════════════════════════════════════════
+set role authenticated;
+do $$ declare blocked boolean; begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');            -- Owner P
+
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000009',
+              '30000000-0000-0000-0000-000000000002', 'see_all_vehicles');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [CROSS TENANT]: Owner P wrote a grant scoped to Farm Q'; end if;
+
+  -- naming a stranger on their OWN farm: inert, but it would be visible to that
+  -- stranger through the own-user clause and would land in their farm's audit log.
+  blocked := false;
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000009',
+              '30000000-0000-0000-0000-000000000001', 'see_all_vehicles');
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [CROSS TENANT]: Owner P wrote a grant naming another farm''s person'; end if;
+
+  blocked := false;
+  begin
+    update user_permission_grants set farm_id = '30000000-0000-0000-0000-000000000002'
+     where user_id = '31000000-0000-0000-0000-000000000004';
+  exception when insufficient_privilege then blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [CROSS TENANT]: an owner moved a grant onto another farm'; end if;
+end $$;
+reset role;
+
+-- The row that got past RLS anyway — a service-role import, a future migration, an
+-- attacker with the service key. `app.has_permission` refuses to answer for a farm the
+-- caller cannot already reach (the 0251 rule), so the row is inert rather than a hole.
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+insert into user_permission_grants (user_id, farm_id, permission)
+  values ('31000000-0000-0000-0000-000000000009',
+          '30000000-0000-0000-0000-000000000001', 'see_all_vehicles');
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000009');            -- Owner Q
+  if app.has_permission('30000000-0000-0000-0000-000000000001', 'see_all_vehicles') then
+    raise exception 'G30 FAIL [FORCED ROW]: has_permission answered TRUE for a farm Owner Q cannot reach';
+  end if;
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G30 FAIL [FORCED ROW]: Owner Q now sees % Farm P machines', c; end if;
+  select count(*) into c from faults where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G30 FAIL [FORCED ROW]: Owner Q now sees % Farm P faults', c; end if;
+end $$;
+reset role;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+delete from user_permission_grants where user_id = '31000000-0000-0000-0000-000000000009';
+
+-- ══════════════════════════════════════════════════════════════════
+-- (j) A GRANT CAN NEVER WIDEN A CONTRACTOR
+-- ══════════════════════════════════════════════════════════════════
+-- F16 settled what a partner may see, per workshop_link, and 0507 must not become a
+-- second way to answer that question. `app.has_permission` returns false unless
+-- `app.is_farm_side()`, so even a row forced past RLS is inert. Workshop Z is on the
+-- DEFAULT link scope, so any widening at all would move these numbers.
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+insert into user_permission_grants (user_id, farm_id, permission)
+  values ('31000000-0000-0000-0000-00000000000a',
+          '30000000-0000-0000-0000-000000000001', 'see_all_vehicles');
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-00000000000a');
+  if app.has_permission('30000000-0000-0000-0000-000000000001', 'see_all_vehicles') then
+    raise exception 'G30 FAIL [CONTRACTOR]: has_permission answered TRUE for a workshop user; a farm could hand its contractor the fleet through the staff screen';
+  end if;
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'G30 FAIL [CONTRACTOR]: sees % Farm P machines (expected 1, its own job)', c; end if;
+  select count(*) into c from cost_entries where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % cost entries (expected 0)', c; end if;
+  select count(*) into c from partners where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % of the farm''s other contractors (expected 0 — the competitor-list rule 0400 settled)', c; end if;
+  select count(*) into c from users where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % of the farm''s people (expected 0)', c; end if;
+end $$;
+reset role;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+delete from user_permission_grants where user_id = '31000000-0000-0000-0000-00000000000a';
+
+-- ══════════════════════════════════════════════════════════════════
+-- (k) DYNAMIC SCOPING: a grant is only ever as live as the person and the link
+-- ══════════════════════════════════════════════════════════════════
+-- Revoking is immediate (soft delete), exactly like workshop_links and memberships.
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+update user_permission_grants set permission = 'see_all_vehicles', deleted_at = null
+ where user_id = '31000000-0000-0000-0000-000000000004';
+
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 2 then raise exception 'G30 FAIL [REVOKE]: setup — holder sees % machines before revoking (expected 2)', c; end if;
+end $$;
+reset role;
+
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');            -- Owner P revokes
+  update user_permission_grants set deleted_at = now()
+   where user_id = '31000000-0000-0000-0000-000000000004';
+  get diagnostics c = row_count;
+  if c <> 1 then raise exception 'G30 FAIL [REVOKE]: owner revoked % rows (expected 1)', c; end if;
+end $$;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+  if app.has_permission('30000000-0000-0000-0000-000000000001','see_all_vehicles') then
+    raise exception 'G30 FAIL [REVOKE]: a soft-deleted grant still answers TRUE';
+  end if;
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
+  if c <> 1 then raise exception 'G30 FAIL [REVOKE]: after revoking, the holder still sees % machines (expected 1)', c; end if;
+end $$;
+reset role;
+
+-- Deactivating the person revokes their grants with them: `app.is_farm_side()` requires
+-- an active, undeleted account.
+set role authenticated;
+do $$ begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');
+  update user_permission_grants set deleted_at = null
+   where user_id = '31000000-0000-0000-0000-000000000004';
+  update users set active = false where id = '31000000-0000-0000-0000-000000000004';
+end $$;
+do $$ begin
+  perform _t_login('31000000-0000-0000-0000-000000000004');
+  if app.has_permission('30000000-0000-0000-0000-000000000001','see_all_vehicles') then
+    raise exception 'G30 FAIL [DEACTIVATED]: a deactivated account still holds its grant';
+  end if;
+end $$;
+do $$ begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');
+  update users set active = true where id = '31000000-0000-0000-0000-000000000004';
+end $$;
+reset role;
+
+-- A grant on a farm reached by an F7 MEMBERSHIP dies with the membership, while the
+-- grant row itself stays live: farm access is still the outer gate.
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+insert into user_farm_memberships (id, user_id, farm_id, role, active) values
+  ('39000000-0000-0000-0000-000000000001', '31000000-0000-0000-0000-000000000005',
+   '30000000-0000-0000-0000-000000000002', 'operator', true);
+insert into user_permission_grants (user_id, farm_id, permission)
+  values ('31000000-0000-0000-0000-000000000005',
+          '30000000-0000-0000-0000-000000000002', 'see_all_vehicles');
+
+set role authenticated;
+do $$ declare c bigint; begin
+  perform _t_login('31000000-0000-0000-0000-000000000005');
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000002';
+  if c <> 1 then raise exception 'G30 FAIL [MULTI-SITE]: member + grant sees % Farm Q machines (expected 1)', c; end if;
+end $$;
+reset role;
+
+update user_farm_memberships set active = false
+ where id = '39000000-0000-0000-0000-000000000001';
+
+set role authenticated;
+do $$ declare c bigint; live int; begin
+  perform _t_login('31000000-0000-0000-0000-000000000005');
+  if app.has_permission('30000000-0000-0000-0000-000000000002','see_all_vehicles') then
+    raise exception 'G30 FAIL [MULTI-SITE]: the grant outlived the membership that gave farm access';
+  end if;
+  select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000002';
+  if c <> 0 then raise exception 'G30 FAIL [MULTI-SITE]: still sees % Farm Q machines after the membership was revoked', c; end if;
+end $$;
+reset role;
+do $$ declare live int; begin
+  select count(*) into live from user_permission_grants
+   where user_id = '31000000-0000-0000-0000-000000000005' and deleted_at is null;
+  if live <> 1 then
+    raise exception 'G30 FAIL [MULTI-SITE]: setup — the grant row should still be live (found %), otherwise the test above proves nothing', live;
+  end if;
+end $$;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+delete from user_permission_grants where user_id = '31000000-0000-0000-0000-000000000005';
+delete from user_farm_memberships where id = '39000000-0000-0000-0000-000000000001';
+
+-- ══════════════════════════════════════════════════════════════════
+-- (l) THE CLOSED SET, AND ANON
+-- ══════════════════════════════════════════════════════════════════
+-- A name outside the set is not a permission granted — it is a word no policy will ever
+-- read, while the farm goes on believing the person can see the yard. Refused loudly,
+-- and refused for the SERVICE-ROLE path too (a table trigger, not an app check).
+set role authenticated;
+do $$ declare blocked boolean := false; begin
+  perform _t_login('31000000-0000-0000-0000-000000000001');
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000004',
+              '30000000-0000-0000-0000-000000000001', 'see_everything');
+  exception when others then
+    if sqlstate <> '22023' then raise; end if;
+    blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [CLOSED SET]: an unknown permission name was stored'; end if;
+
+  -- and via UPDATE, which a check written only for INSERT would miss
+  blocked := false;
+  begin
+    update user_permission_grants set permission = 'manage_team'
+     where user_id = '31000000-0000-0000-0000-000000000004';
+  exception when others then
+    if sqlstate <> '22023' then raise; end if;
+    blocked := true;
+  end;
+  if not blocked then raise exception 'G30 FAIL [CLOSED SET]: a grant was UPDATED to an unknown permission'; end if;
+end $$;
+reset role;
+
+do $$ declare blocked boolean := false; begin
+  begin
+    insert into user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000005',
+              '30000000-0000-0000-0000-000000000001', 'see_everything');
+  exception when others then
+    if sqlstate <> '22023' then raise; end if;
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G30 FAIL [CLOSED SET]: the service-role/superuser path stored an unknown permission — the guard is not on the table';
+  end if;
+end $$;
+
+set role anon;
+do $$ declare c bigint; blocked boolean; begin
+  perform set_config('request.jwt.claims', '', false);
+  blocked := false;
+  begin execute 'select count(*) from public.user_permission_grants' into c;
+  exception when insufficient_privilege then blocked := true; end;
+  if not blocked then raise exception 'G30 FAIL [ANON]: anon read % grant rows', c; end if;
+
+  blocked := false;
+  begin
+    insert into public.user_permission_grants (user_id, farm_id, permission)
+      values ('31000000-0000-0000-0000-000000000004',
+              '30000000-0000-0000-0000-000000000001', 'manage_stock');
+  exception when insufficient_privilege then blocked := true; end;
+  if not blocked then raise exception 'G30 FAIL [ANON]: anon inserted a grant'; end if;
+
+  blocked := false;
+  begin perform app.has_permission('30000000-0000-0000-0000-000000000001','see_all_vehicles');
+  exception when insufficient_privilege then blocked := true; end;
+  if not blocked then raise exception 'G30 FAIL [ANON]: anon executed app.has_permission'; end if;
+end $$;
+reset role;
+
+select 'ALL G30 PER-USER PERMISSION OVERRIDE TESTS PASSED' as result;
+
+-- ================================================================================
+-- G32 - AUDIT / SALE / WARRANTY DOCUMENT PACKS ARE ASSEMBLED THROUGH RLS (FR-13.4)
+--
+-- The packs feature adds NO DATABASE OBJECT: no table, no view, no function, no
+-- migration. Everything a pack contains already exists — service history, licences,
+-- warranty, checklists, faults and their resolutions, operator assignments, meter
+-- readings, costs — and src/lib/pdf/pack-data.ts simply SELECTs it through the CALLER'S
+-- RLS client. That is the whole tenancy argument, so it is the thing this section has to
+-- prove: a pack cannot contain another farm's machine because the caller cannot SELECT
+-- another farm's machine.
+--
+-- What is asserted, and why each one is here rather than assumed:
+--
+--   (a) A BASELINE THAT REFUSES TO BE ZERO. Every "the other farm sees 0" assertion is
+--       worthless if the owning farm also sees 0 (the G22 lesson: 48 raw rows compared to
+--       48 raw rows proves nothing). So the owner's counts are asserted FIRST, and each
+--       one raises if it is zero.
+--   (b) THE CROSS-FARM MACHINE ID. `authorizeMachinePack` resolves the machine through
+--       RLS and answers 404 when it is not there. This proves the "not there" — for the
+--       machine row AND for all nine child tables a pack reads, because a pack that
+--       404'd on the machine and then still summed another farm's costs would be worse
+--       than one that never checked.
+--   (c) THE FLEET SET. A fleet compliance pack counts machines ON HAND (Scope 4.1 / C8)
+--       and PRINTS the number it excluded, so the total can be reconciled against the
+--       farm's own machine list. Both numbers are asserted.
+--   (d) THE SALE ASYMMETRY. A sale pack is BY DEFINITION about a machine leaving, so a
+--       machine already marked `sold` must still be reachable by id. The two rules are
+--       opposite on purpose and the opposition is pinned here so nobody "fixes" one to
+--       match the other.
+--   (e) OPERATOR NARROWING. The route refuses operators outright, but if that check were
+--       ever dropped, RLS (F7) must still narrow. Belt and braces, measured.
+--   (f) THE CONTRACTOR LEAK THE ROUTE EXISTS TO CLOSE. F16 (0400) withholds the cost
+--       ledger from a contractor without `see_costs` — but `purchase_price_cents` and
+--       `supplier` live on the MACHINE row, which a contractor working on that machine
+--       can read. So RLS alone does NOT stop a linked contractor pulling a sale pack and
+--       reading what the farm paid and who from. This section asserts that the leak is
+--       real, which is the justification for pack-data.ts refusing `workshop` at the
+--       door. If a later change makes RLS hide it, this assertion fails loudly and the
+--       route's comment can be revisited deliberately.
+--   (g) ANON reads nothing.
+--   (h) G11 GRANT HYGIENE. An `app` function with no explicit grant defaults to EXECUTE
+--       TO PUBLIC. Packs introduce no function, and that is asserted by name, so adding
+--       one later cannot slip past without this section going red. The helpers the packs
+--       lean on are measured with `has_function_privilege` rather than read off a policy.
+-- ================================================================================
+
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+
+insert into farms (id, name, plan, status) values
+  ('32000000-0000-4000-8000-000000000001', 'G32 Pack Farm', 'professional', 'active'),
+  ('32000000-0000-4000-8000-000000000002', 'G32 Other Farm', 'professional', 'active');
+
+insert into workshops (id, name, kind) values
+  ('32000000-0000-4000-8000-00000000000f', 'G32 Contractor Z', 'mechanic');
+
+-- Default F16 scope: every grant OFF. A farmer connecting a mechanic to fix one tractor
+-- has not thereby handed over the fleet, the ledger or the staff directory.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('32000000-0000-4000-8000-00000000000f', '32000000-0000-4000-8000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('32100000-0000-4000-8000-000000000001', 'g32-owner-p@example.test'),
+  ('32100000-0000-4000-8000-000000000002', 'g32-mech-p@example.test'),
+  ('32100000-0000-4000-8000-000000000003', 'g32-operator-p@example.test'),
+  ('32100000-0000-4000-8000-000000000004', 'g32-owner-q@example.test'),
+  ('32100000-0000-4000-8000-000000000005', 'g32-staff-z@example.test');
+
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('32100000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001', null,
+   'owner', 'G32 Owner P', 'g32-owner-p@example.test'),
+  ('32100000-0000-4000-8000-000000000002', '32000000-0000-4000-8000-000000000001', null,
+   'mechanic', 'G32 Mechanic P', 'g32-mech-p@example.test'),
+  ('32100000-0000-4000-8000-000000000003', '32000000-0000-4000-8000-000000000001', null,
+   'operator', 'G32 Operator P', 'g32-operator-p@example.test'),
+  ('32100000-0000-4000-8000-000000000004', '32000000-0000-4000-8000-000000000002', null,
+   'owner', 'G32 Owner Q', 'g32-owner-q@example.test'),
+  ('32100000-0000-4000-8000-000000000005', null, '32000000-0000-4000-8000-00000000000f',
+   'workshop', 'G32 Staff Z', 'g32-staff-z@example.test');
+
+-- M1 carries a full history; M2 has NOTHING on file (the case the pack exists to state in
+-- words rather than leave blank); M3 is sold; M9 belongs to the other farm.
+insert into machines (
+  id, farm_id, name, type, status, make, model, year, serial_no, reg_no, location,
+  meter_type, current_reading, current_reading_date, purchase_date, purchase_price_cents,
+  supplier, warranty_expiry_date, warranty_expiry_hours, assigned_operator_id
+) values
+  ('32200000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001',
+   'G32 Tractor Full', 'tractor', 'active', 'John Deere', '6120M', 2019, 'G32-SERIAL-0001',
+   'CJ 41 288 FS', 'Kamp 4', 'hours', 6421, date '2026-08-24', date '2019-04-02',
+   12850000, 'G32 Supplier', date '2026-10-15', 7000,
+   '32100000-0000-4000-8000-000000000003'),
+  ('32200000-0000-4000-8000-000000000002', '32000000-0000-4000-8000-000000000001',
+   'G32 Bare Trailer', 'implement', 'active', null, null, null, null, null, null,
+   'none', null, null, null, null, null, null, null, null),
+  ('32200000-0000-4000-8000-000000000003', '32000000-0000-4000-8000-000000000001',
+   'G32 Sold Harvester', 'harvester', 'sold', 'Claas', 'Tucano', 2014, 'G32-SERIAL-0003',
+   null, null, 'hours', 18940, date '2026-03-02', date '2014-06-01', 9900000,
+   'G32 Supplier', null, null, null),
+  ('32200000-0000-4000-8000-000000000009', '32000000-0000-4000-8000-000000000002',
+   'G32 Other Farm Tractor', 'tractor', 'active', null, null, null, null, null, null,
+   'hours', 100, date '2026-08-01', null, null, null, null, null, null);
+
+-- The nine child tables a pack reads, all against M1.
+insert into licences (farm_id, machine_id, type, number, expiry_date, reminder_lead_days)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'vehicle_licence', 'G32-LIC-0001', date '2026-11-30', 30);
+
+insert into service_plan_lines (
+  farm_id, machine_id, task, interval_hours, last_done_reading, last_done_date,
+  next_due_reading, status)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'G32 engine oil & filter', 250, 6250, date '2026-06-18', 6500, 'ok');
+
+insert into faults (farm_id, machine_id, description, urgency, status, resolved_at)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'G32 hydraulic leak', 'limping', 'resolved', now() - interval '5 days');
+
+insert into checklist_instances (farm_id, machine_id, template_name, status, completed_at)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'G32 daily pre-start', 'completed', now() - interval '3 days');
+
+insert into usage_logs (farm_id, machine_id, driver_user_id, occurred_on, meter_reading, source)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        '32100000-0000-4000-8000-000000000003', current_date - 3, 6418, 'app');
+
+insert into job_cards (farm_id, machine_id, type, date_in, date_out, meter_reading, work_performed)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'scheduled_service', current_date - 60, current_date - 59, 6250, 'G32 250h service');
+
+insert into meter_readings (farm_id, machine_id, reading, reading_date, source)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        6421, date '2026-08-24', 'app');
+
+insert into attachments (id, farm_id, parent_type, parent_id, kind, storage_path)
+values ('32300000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001',
+        'machine', '32200000-0000-4000-8000-000000000001', 'photo',
+        '32000000-0000-4000-8000-000000000001/32200000-0000-4000-8000-000000000001/g32.jpg');
+
+update machines set primary_attachment_id = '32300000-0000-4000-8000-000000000001'
+ where id = '32200000-0000-4000-8000-000000000001';
+
+insert into cost_entries (farm_id, machine_id, type, amount_cents, occurred_on)
+values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-000000000001',
+        'parts', 1230500, current_date - 59);
+
+-- The contractor is working on M1 only. Under F16's default scope that is the ONLY
+-- machine it reaches — which is what makes (f) below a statement about one row and not
+-- about the fleet.
+insert into work_requests (
+  id, farm_id, machine_id, workshop_id, kind, status, title, created_by)
+values ('32400000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001',
+        '32200000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-00000000000f',
+        'repair', 'requested', 'G32 hydraulic leak', '32100000-0000-4000-8000-000000000001');
+
+-- ─────────────────────────────────────────────────────────────────
+-- (a) BASELINE — the owning farm sees the whole pack query set, and none of it is zero.
+-- ─────────────────────────────────────────────────────────────────
+set role authenticated;
+do $$
+declare
+  n int;
+  tbl text;
+  tables text[] := array[
+    'licences','service_plan_lines','faults','checklist_instances','usage_logs',
+    'job_cards','meter_readings','cost_entries'];
+begin
+  perform _t_login('32100000-0000-4000-8000-000000000001');
+
+  select count(*) into n from machines
+   where id = '32200000-0000-4000-8000-000000000001' and deleted_at is null;
+  if n <> 1 then
+    raise exception 'G32 FAIL [BASELINE]: owner P sees % of 1 own machine M1', n;
+  end if;
+
+  foreach tbl in array tables loop
+    execute format(
+      'select count(*) from public.%I where machine_id = %L and deleted_at is null',
+      tbl, '32200000-0000-4000-8000-000000000001') into n;
+    -- A zero here would make every cross-tenant assertion below vacuous.
+    if n < 1 then
+      raise exception 'G32 FAIL [BASELINE]: owner P sees % rows of % for M1, expected >= 1', n, tbl;
+    end if;
+  end loop;
+
+  select count(*) into n from attachments
+   where parent_type = 'machine' and parent_id = '32200000-0000-4000-8000-000000000001'
+     and deleted_at is null;
+  if n < 1 then
+    raise exception 'G32 FAIL [BASELINE]: owner P sees % photos for M1, expected >= 1', n;
+  end if;
+
+  -- A mechanic produces packs too (PACK_ROLES in pack-data.ts), so the same set must
+  -- resolve for them: the role list in the app is not narrower than RLS by accident.
+  perform _t_login('32100000-0000-4000-8000-000000000002');
+  select count(*) into n from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001' and deleted_at is null;
+  if n <> 3 then
+    raise exception 'G32 FAIL [BASELINE]: mechanic P sees % of 3 farm machines', n;
+  end if;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (b) A CROSS-FARM MACHINE ID CANNOT PRODUCE A PACK.
+--
+-- This is the assertion the whole feature rests on. `authorizeMachinePack` selects the
+-- machine by id through the caller's client and answers 404 on no row; every gather*
+-- function then filters by that id. So the machine AND all nine child tables must be
+-- empty for a user of the other farm.
+-- ─────────────────────────────────────────────────────────────────
+set role authenticated;
+do $$
+declare
+  n int;
+  tbl text;
+  tables text[] := array[
+    'licences','service_plan_lines','faults','checklist_instances','usage_logs',
+    'job_cards','meter_readings','cost_entries'];
+begin
+  perform _t_login('32100000-0000-4000-8000-000000000004');   -- Owner Q, the other farm
+
+  select count(*) into n from machines
+   where id = '32200000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CROSS FARM]: Owner Q resolved Farm P machine M1 (% rows)', n;
+  end if;
+
+  foreach tbl in array tables loop
+    execute format('select count(*) from public.%I where machine_id = %L',
+                   tbl, '32200000-0000-4000-8000-000000000001') into n;
+    if n <> 0 then
+      raise exception 'G32 FAIL [CROSS FARM]: Owner Q read % rows of % for Farm P machine M1', n, tbl;
+    end if;
+  end loop;
+
+  select count(*) into n from attachments
+   where parent_id = '32200000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CROSS FARM]: Owner Q read % photos of Farm P machine M1', n;
+  end if;
+
+  -- The issuer block prints the farm name and resolves operator/checklist names from
+  -- public.users. Neither may cross the fence either.
+  select count(*) into n from farms where id = '32000000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CROSS FARM]: Owner Q read Farm P (issuer block)';
+  end if;
+  select count(*) into n from users where farm_id = '32000000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CROSS FARM]: Owner Q read % Farm P people (issuer block)', n;
+  end if;
+
+  -- And the whole-fleet pack is farm-keyed, not just machine-keyed.
+  select count(*) into n from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CROSS FARM]: Owner Q read % Farm P machines for a fleet pack', n;
+  end if;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (c) THE FLEET SET, and (d) THE SALE ASYMMETRY.
+-- ─────────────────────────────────────────────────────────────────
+set role authenticated;
+do $$ declare total int; on_hand int; excluded int; sold int; begin
+  perform _t_login('32100000-0000-4000-8000-000000000001');
+
+  select count(*) into total from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001' and deleted_at is null;
+  select count(*) into on_hand from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001' and deleted_at is null
+     and status not in ('retired', 'sold');
+  excluded := total - on_hand;
+
+  if total <> 3 then
+    raise exception 'G32 FAIL [FLEET SET]: farm holds % machines, expected 3', total;
+  end if;
+  if on_hand <> 2 then
+    raise exception 'G32 FAIL [FLEET SET]: % machines on hand, expected 2 (isOnHand)', on_hand;
+  end if;
+  -- The pack prints this number. A total an auditor cannot reconcile against the farm's
+  -- own machine list is a total the auditor will query.
+  if excluded <> 1 then
+    raise exception 'G32 FAIL [FLEET SET]: excluded count is %, expected 1', excluded;
+  end if;
+
+  -- (d) A sale pack is about a machine LEAVING, so `sold` must still resolve by id.
+  -- The opposite rule to (c), on purpose.
+  select count(*) into sold from machines
+   where id = '32200000-0000-4000-8000-000000000003' and deleted_at is null;
+  if sold <> 1 then
+    raise exception 'G32 FAIL [SALE ASYMMETRY]: the sold machine is not reachable by id (% rows)', sold;
+  end if;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (e) OPERATOR NARROWING (F7). The pack routes refuse `operator` outright; this proves
+-- RLS would narrow anyway, so the app check is defence in depth and not the only fence.
+-- ─────────────────────────────────────────────────────────────────
+set role authenticated;
+do $$ declare n int; begin
+  perform _t_login('32100000-0000-4000-8000-000000000003');
+
+  select count(*) into n from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001' and deleted_at is null;
+  if n <> 1 then
+    raise exception 'G32 FAIL [OPERATOR]: operator sees % machines, expected 1 (the assigned one)', n;
+  end if;
+  select count(*) into n from machines
+   where id = '32200000-0000-4000-8000-000000000001';
+  if n <> 1 then
+    raise exception 'G32 FAIL [OPERATOR]: operator cannot see the machine assigned to them';
+  end if;
+  select count(*) into n from machines
+   where id = '32200000-0000-4000-8000-000000000002';
+  if n <> 0 then
+    raise exception 'G32 FAIL [OPERATOR]: operator read a machine they are not assigned to';
+  end if;
+  select count(*) into n from job_cards
+   where machine_id = '32200000-0000-4000-8000-000000000001';
+  if n <> 1 then
+    raise exception 'G32 FAIL [OPERATOR]: operator sees % job cards on their own machine, expected 1', n;
+  end if;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (f) THE CONTRACTOR LEAK THE ROUTE EXISTS TO CLOSE.
+--
+-- F16 narrows a contractor to the vehicles it works on and withholds costs and people
+-- without the matching grant. All of that holds — and it is still not enough, because a
+-- sale pack prints `purchase_price_cents` and `supplier`, which live on the MACHINE row
+-- the contractor is entitled to read. So the refusal has to be in the route, and this
+-- asserts why.
+-- ─────────────────────────────────────────────────────────────────
+set role authenticated;
+do $$ declare n int; price bigint; supp text; begin
+  perform _t_login('32100000-0000-4000-8000-000000000005');   -- Contractor Z's staff
+
+  -- Narrowed to the one machine it has work on.
+  select count(*) into n from machines
+   where farm_id = '32000000-0000-4000-8000-000000000001' and deleted_at is null;
+  if n <> 1 then
+    raise exception 'G32 FAIL [CONTRACTOR]: sees % machines, expected 1 (F16 default scope)', n;
+  end if;
+  select count(*) into n from machines
+   where id = '32200000-0000-4000-8000-000000000002';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CONTRACTOR]: read a machine it has no work on';
+  end if;
+
+  -- No `see_costs` grant: the ledger a sale pack would total is not there.
+  select count(*) into n from cost_entries
+   where machine_id = '32200000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CONTRACTOR]: read % cost entries without see_costs', n;
+  end if;
+  -- No `see_team` grant: the operator names a compliance pack prints are not there.
+  select count(*) into n from users
+   where farm_id = '32000000-0000-4000-8000-000000000001';
+  if n <> 0 then
+    raise exception 'G32 FAIL [CONTRACTOR]: read % farm people without see_team', n;
+  end if;
+
+  -- THE POINT. These two ARE readable, because they are columns on a machine the
+  -- contractor legitimately works on. A sale pack built for a contractor would print
+  -- what the farm paid and who it bought from. pack-data.ts therefore returns 403 for
+  -- role `workshop` before any query runs. If this assertion ever fails because RLS
+  -- started hiding these columns, the route's refusal can be revisited on purpose.
+  select purchase_price_cents, supplier into price, supp from machines
+   where id = '32200000-0000-4000-8000-000000000001';
+  if price is null or supp is null then
+    raise exception 'G32 FAIL [CONTRACTOR]: purchase price/supplier are now hidden from a '
+      'linked contractor - re-read the workshop refusal in pack-data.ts, it may be stale';
+  end if;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (g) ANON reads nothing a pack is built from.
+-- ─────────────────────────────────────────────────────────────────
+set role anon;
+do $$
+declare
+  n int;
+  tbl text;
+  tables text[] := array[
+    'machines','licences','service_plan_lines','faults','checklist_instances',
+    'usage_logs','job_cards','meter_readings','cost_entries','attachments','farms','users'];
+  blocked boolean;
+begin
+  foreach tbl in array tables loop
+    blocked := false;
+    begin
+      execute format('select count(*) from public.%I', tbl) into n;
+    exception when others then
+      blocked := true;
+    end;
+    if not blocked and n <> 0 then
+      raise exception 'G32 FAIL [ANON]: anon read % rows of %', n, tbl;
+    end if;
+  end loop;
+end $$;
+reset role;
+
+-- ─────────────────────────────────────────────────────────────────
+-- (h) G11 GRANT HYGIENE — and the record that packs ship no SQL.
+--
+-- An `app` function created without an explicit grant defaults to EXECUTE TO PUBLIC, so
+-- "we added no function" is a claim worth making machine-checkable: if a later change
+-- adds one, this fails and whoever added it has to think about the grant.
+-- ─────────────────────────────────────────────────────────────────
+reset role;
+do $$ declare n int; names text; begin
+  select count(*), coalesce(string_agg(n2.nspname || '.' || p.proname, ', '), '')
+    into n, names
+    from pg_proc p join pg_namespace n2 on n2.oid = p.pronamespace
+   where n2.nspname in ('app', 'public')
+     and (p.proname like '%_pack%' or p.proname like 'pack\_%' or p.proname like '%docpack%');
+  if n <> 0 then
+    raise exception 'G32 FAIL [NO SQL]: packs are app-only, but % pack function(s) exist: % '
+      '- if this is deliberate, grant it explicitly (G11) and update this assertion', n, names;
+  end if;
+end $$;
+
+do $$
+declare
+  fn text;
+  fns text[] := array[
+    'app.has_farm_access(uuid)',
+    'app.row_visible_to_role(uuid,uuid)',
+    'app.partner_machine_visible(uuid,uuid)',
+    'app.partner_scope(uuid,text)',
+    'app.accessible_farm_ids()'];
+begin
+  foreach fn in array fns loop
+    -- Measured, not read off a policy: `public` is the default grantee that bites.
+    if has_function_privilege('anon', fn, 'execute') then
+      raise exception 'G32 FAIL [G11]: anon may execute %', fn;
+    end if;
+    if has_function_privilege('public', fn, 'execute') then
+      raise exception 'G32 FAIL [G11]: % is still EXECUTE TO PUBLIC', fn;
+    end if;
+    -- The packs run as the signed-in caller, so this one must be true.
+    if not has_function_privilege('authenticated', fn, 'execute') then
+      raise exception 'G32 FAIL [G11]: authenticated cannot execute % - packs would 500', fn;
+    end if;
+  end loop;
+end $$;
+
+select 'ALL G32 DOCUMENT-PACK TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G33 — THE ACCOUNTING EXPORT RECONCILES, AND AUDIT LOCATION CANNOT BECOME IDENTITY
+--        (migration 0510)
+--
+-- Append to supabase/tests/rls_isolation.sql. Fixture ids use the `b3` prefix, which
+-- nothing else in any of the four suite files touches.
+--
+-- Two features, one migration, one section — because they share nothing except the file
+-- and it would be dishonest to imply otherwise.
+--
+-- ── Part 1: the export must reconcile ───────────────────────────────────────
+--
+-- The export is the THIRD screen a partner reads in the same week, after /money and
+-- /vat. G14 already pins those two against each other, precisely because two figures for
+-- the same period that disagree make both useless. This does the same job for the file
+-- they hand their accountant, and it is the assertion that matters most in this section:
+-- an export that quietly disagrees with the screens it was exported from is worse than
+-- no export, because it gets believed and then filed.
+--
+-- Each arm is checked separately rather than as one summed identity. A single "it all
+-- adds up" check passes when two errors cancel, which is exactly the shape a sign error
+-- takes.
+--
+-- ── Part 2: a forged location must stay a wrong city ────────────────────────
+--
+-- 0440 removed `public._f14_probe` because it let a caller rewrite `request.jwt.claims`,
+-- and every policy decides through `auth.uid()` — so it moved the caller to the other
+-- side of the fence and RLS then answered correctly for somebody else. The audit-location
+-- feature reads a caller-supplied value on every audited write, so it is the same shape
+-- of thing and has to be held to the same standard.
+--
+-- The properties asserted below are what keep it from being a second one of those:
+-- attribution is untouched, visibility is untouched, and NOTHING outside
+-- `app.audit_context` reads the namespace — that last one structurally, the way G11
+-- asserts its own, so the property is refused rather than merely intended.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Its own tenants and its own platform admin, so this section leans on nothing but the
+-- `_t_` harness helpers and can be run on its own against a fresh database.
+insert into farms (id, name) values
+  ('b3000000-0000-0000-0000-000000000001', 'Farm ACC'),
+  ('b3000000-0000-0000-0000-000000000002', 'Farm OTHER');
+
+insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps) values
+  ('b3100000-0000-0000-0000-000000000001', 'Workshop ACC',   'mechanic', true, 1500),
+  ('b3100000-0000-0000-0000-000000000002', 'Workshop RIVAL', 'mechanic', true, 1500);
+
+-- Both contractors work this farm. That is the interesting case: RLS lets each of them
+-- reach the farm, so anything that keeps the rival out of these books has to be doing
+-- real work rather than relying on the link being absent.
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('b3100000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001', 'active'),
+  ('b3100000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-000000000001', 'active');
+
+insert into auth.users (id, email) values
+  ('b3200000-0000-0000-0000-000000000001', 'accstaff@test'),
+  ('b3200000-0000-0000-0000-000000000002', 'rivalstaff@test'),
+  ('b3200000-0000-0000-0000-000000000003', 'accowner@test'),
+  ('b3200000-0000-0000-0000-000000000004', 'accadmin@test'),
+  ('b3200000-0000-0000-0000-000000000005', 'otherowner@test');
+
+insert into users (id, farm_id, workshop_id, role, name, email) values
+  ('b3200000-0000-0000-0000-000000000001', null, 'b3100000-0000-0000-0000-000000000001', 'workshop', 'ACC Staff',   'accstaff@test'),
+  ('b3200000-0000-0000-0000-000000000002', null, 'b3100000-0000-0000-0000-000000000002', 'workshop', 'Rival Staff', 'rivalstaff@test'),
+  ('b3200000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-000000000001', null,  'owner',    'ACC Owner',   'accowner@test'),
+  ('b3200000-0000-0000-0000-000000000004', null,                                   null,  'rr_admin', 'ACC Admin',   'accadmin@test'),
+  ('b3200000-0000-0000-0000-000000000005', 'b3000000-0000-0000-0000-000000000002', null,  'owner',    'Other Owner', 'otherowner@test');
+
+-- A quiet stretch of calendar nothing else in this suite uses. Deliberately NOT G14's
+-- amounts: reusing them would let a copy-paste error pass as a correct answer.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name)
+values
+  ('b3300000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ACI-0001', current_date - 900, 1500, 'Farm ACC'),
+  ('b3300000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ACI-0002', current_date - 899, 1500, 'Farm ACC'),
+  -- Never sent. Must appear nowhere: a draft was never a supply.
+  ('b3300000-0000-0000-0000-000000000005', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'ACI-0003', current_date - 897, 1500, 'Farm ACC'),
+  -- A quote is never costed and never journalled (F12b/0311, 0476).
+  ('b3300000-0000-0000-0000-000000000006', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'quote', 'draft', 'built', 'ACQ-0001', current_date - 896, 1500, 'Farm ACC');
+
+-- Separate statement: 0418's partner_documents_note_ck requires a note to name the
+-- document it corrects at insert time, so the invoices have to exist first.
+insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
+                               issue_date, vat_rate_bps, bill_to_name, corrects_document_id)
+values
+  ('b3300000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'credit_note', 'draft', 'built', 'ACC-0001', current_date - 898, 1500, 'Farm ACC',
+   'b3300000-0000-0000-0000-000000000001'),
+  ('b3300000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-000000000001',
+   'b3100000-0000-0000-0000-000000000001', 'debit_note', 'draft', 'built', 'ACD-0001', current_date - 897, 1500, 'Farm ACC',
+   'b3300000-0000-0000-0000-000000000001');
+
+insert into partner_document_lines (document_id, farm_id, sort_order, kind, description, qty, unit_price_cents)
+values
+  ('b3300000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Gearbox rebuild', 1, 200000),
+  ('b3300000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Never collected',  1,  80000),
+  ('b3300000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Overcharged',      1,  30000),
+  ('b3300000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Extra day',        1,  15000),
+  ('b3300000-0000-0000-0000-000000000005', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Still pricing',    1, 999999),
+  ('b3300000-0000-0000-0000-000000000006', 'b3000000-0000-0000-0000-000000000001', 1, 'labour', 'Might do',         1, 777777);
+
+update partner_documents set status = 'sent', sent_at = now()
+ where id in ('b3300000-0000-0000-0000-000000000001',
+              'b3300000-0000-0000-0000-000000000003',
+              'b3300000-0000-0000-0000-000000000004',
+              -- The quote is SENT, not left as a draft. Mutation testing found that a
+              -- draft quote is held out by the STATUS filter, so the kind filter was
+              -- never under test: widening it to include quotes changed nothing and
+              -- assertion (h) passed on a mutant that would have put a quote in
+              -- somebody's revenue. A sent quote is also simply the real case.
+              'b3300000-0000-0000-0000-000000000006');
+-- Earned, declared, never collected. Stays revenue; comes off again as bad debt (G14).
+update partner_documents
+   set status = 'written_off', sent_at = now(), written_off_at = now(),
+       written_off_reason = 'Customer liquidated'
+ where id = 'b3300000-0000-0000-0000-000000000002';
+
+insert into partner_payments (id, farm_id, document_id, amount_cents, paid_on)
+values ('b3500000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001',
+        'b3300000-0000-0000-0000-000000000001', 100000, current_date - 895);
+
+insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date, paid_on,
+                              amount_cents, vat_rate_bps, vat_cents, vat_claimable)
+values
+  ('b3400000-0000-0000-0000-000000000001', 'b3100000-0000-0000-0000-000000000001',
+   'Bearing Co', 'parts', current_date - 899, current_date - 893, 60000, 1500, 9000, true),
+  -- Entertainment: real money spent, and VAT Act s17(2) says it may not be reclaimed.
+  ('b3400000-0000-0000-0000-000000000002', 'b3100000-0000-0000-0000-000000000001',
+   'Steakhouse',  'other', current_date - 898, null,               40000, 1500, 6000, false);
+
+-- Farm-side ledger. A RETIRED machine on purpose: every dashboard, report and alert in
+-- this product excludes those (Scope §4.1) and this export must not, because money spent
+-- on a tractor that was later sold is still money the farm spent.
+insert into machines (id, farm_id, name, type, status) values
+  ('b3600000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001', 'ACC Tractor', 'tractor', 'active'),
+  ('b3600000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-000000000001', 'ACC Old One', 'tractor', 'retired');
+
+insert into cost_entries (id, farm_id, machine_id, type, amount_cents, occurred_on, source_type, note) values
+  ('b3700000-0000-0000-0000-000000000001', 'b3000000-0000-0000-0000-000000000001',
+   'b3600000-0000-0000-0000-000000000001', 'parts',  25000, current_date - 899, 'manual', 'Filters'),
+  ('b3700000-0000-0000-0000-000000000002', 'b3000000-0000-0000-0000-000000000001',
+   'b3600000-0000-0000-0000-000000000001', 'labour', 15000, current_date - 898, 'manual', 'Fitting'),
+  -- Farm-level, no machine (the shape 0210 made machine_id nullable for).
+  ('b3700000-0000-0000-0000-000000000003', 'b3000000-0000-0000-0000-000000000001',
+   null,                                    'fuel',   40000, current_date - 897, 'manual', 'Bulk diesel'),
+  -- The retired machine's cost. 11000 is the number assertion (i) hunts for.
+  ('b3700000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-000000000001',
+   'b3600000-0000-0000-0000-000000000002', 'parts',  11000, current_date - 896, 'manual', 'Sold since');
+
+-- ── (a) Every entry balances ON ITS OWN ──────────────────────────────────────
+-- Not merely in total. A file that balances overall while two entries are wrong in
+-- opposite directions imports cleanly and is still wrong, and that is precisely the
+-- shape a sign error takes.
+do $$ declare n bigint; bad text; begin
+  select count(*), min(entry_key) into n, bad from (
+    select entry_key, sum(debit_cents) d, sum(credit_cents) c
+      from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+     group by entry_key having sum(debit_cents) <> sum(credit_cents)
+  ) x;
+  if n <> 0 then
+    raise exception 'G33 FAIL [ENTRY BALANCE]: % partner journal entries do not balance, first is %', n, bad;
+  end if;
+
+  select count(*), min(entry_key) into n, bad from (
+    select entry_key, sum(debit_cents) d, sum(credit_cents) c
+      from app.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+     group by entry_key having sum(debit_cents) <> sum(credit_cents)
+  ) y;
+  if n <> 0 then
+    raise exception 'G33 FAIL [ENTRY BALANCE]: % farm journal entries do not balance, first is %', n, bad;
+  end if;
+end $$;
+
+-- ── (b) And the file balances in total ───────────────────────────────────────
+do $$ declare d bigint; c bigint; begin
+  select coalesce(sum(debit_cents), 0), coalesce(sum(credit_cents), 0) into d, c
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if d <> c or d = 0 then
+    raise exception 'G33 FAIL [BALANCE]: partner journal debits % credits % (a zero total means the fixture never loaded)', d, c;
+  end if;
+end $$;
+
+-- ── (c) RECONCILIATION: revenue in the journal is revenue on /money ──────────
+-- THE assertion. The document selection in 0510 is copied from app.partner_vat_return
+-- and app.partner_pl for exactly this reason, and this is what keeps it copied.
+--   200000 (ACI-0001) + 80000 (ACI-0002) + 15000 (debit note) − 30000 (credit note)
+--   = 265000
+do $$ declare j bigint; p bigint; begin
+  select coalesce(sum(credit_cents - debit_cents), 0) into j
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'sales';
+  select revenue_ex_cents into p
+    from app.partner_pl('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if j <> 265000 then
+    raise exception 'G33 FAIL [REVENUE]: the journal credits % to sales rather than 265000', j;
+  end if;
+  if j <> p then
+    raise exception 'G33 FAIL [RECONCILE REVENUE]: the export says % and /money says % over the same window', j, p;
+  end if;
+end $$;
+
+-- ── (d) A written-off invoice stays revenue AND comes off as bad debt ────────
+-- The judgement 0460/G14 recorded, carried into the export rather than re-litigated.
+-- Note what is NOT asserted: any VAT reversal. s22 bad-debt relief is a separate claim
+-- with its own conditions and 0431 decided this product points at it rather than
+-- quietly making it, so the journal must not make it either.
+do $$ declare j bigint; p bigint; v bigint; begin
+  select coalesce(sum(debit_cents - credit_cents), 0) into j
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'badDebt';
+  select bad_debt_ex_cents into p
+    from app.partner_pl('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if j <> 80000 then
+    raise exception 'G33 FAIL [BAD DEBT]: the journal debits % to bad debts rather than 80000', j;
+  end if;
+  if j <> p then
+    raise exception 'G33 FAIL [RECONCILE BAD DEBT]: the export says % and /money says %', j, p;
+  end if;
+  -- The sale itself is still there, at full value, in the same journal.
+  select coalesce(sum(credit_cents - debit_cents), 0) into v
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'sales' and entry_ref = 'ACI-0002';
+  if v <> 80000 then
+    raise exception 'G33 FAIL [WRITE-OFF]: the written-off invoice credits % to sales rather than 80000 - it must stay revenue', v;
+  end if;
+  -- ...and no VAT was reversed on it.
+  select coalesce(sum(debit_cents), 0) into v
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'vatOutput' and entry_ref = 'ACI-0002';
+  if v <> 0 then
+    raise exception 'G33 FAIL [WRITE-OFF VAT]: the journal reversed % of output VAT on a write-off - s22 relief is a separate claim (0431)', v;
+  end if;
+end $$;
+
+-- ── (e) RECONCILIATION: cost in the journal is cost on /money ────────────────
+-- Including the non-claimable VAT, which is debited to the expense account it sits on
+-- rather than to VAT input. Dropping it would overstate profit by exactly the amount
+-- most likely to be forgotten (0460 judgement 2).
+--   60000 + 40000 + 6000 blocked = 106000
+do $$ declare j bigint; p bigint; b bigint; begin
+  select coalesce(sum(debit_cents - credit_cents), 0) into j
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where starts_with(account_key, 'exp_');
+  select cost_cents into p
+    from app.partner_pl('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if j <> 106000 then
+    raise exception 'G33 FAIL [COST]: the journal debits % to expense accounts rather than 106000', j;
+  end if;
+  if j <> p then
+    raise exception 'G33 FAIL [RECONCILE COST]: the export says % and /money says %', j, p;
+  end if;
+  -- The blocked VAT is ON the expense line, not on VAT input.
+  select coalesce(sum(debit_cents), 0) into b
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'exp_other';
+  if b <> 46000 then
+    raise exception 'G33 FAIL [BLOCKED VAT]: the entertainment expense debits % rather than 46000 (40000 + 6000 you cannot reclaim)', b;
+  end if;
+end $$;
+
+-- ── (f) RECONCILIATION: output VAT in the journal is output VAT on /vat ──────
+-- 15% of each document's own net, credit note subtracting:
+--   30000 (200000) + 12000 (80000) + 2250 (15000) − 4500 (30000) = 39750
+-- Worth recording that this literal was WRONG when it was first written (42000, from
+-- misreading the debit note as 30000) and the assertion is what caught it. That is the
+-- argument for spelling the expected figure out rather than comparing two functions and
+-- calling it agreement: two arms computed the same way agree while both are wrong.
+do $$ declare j bigint; v bigint; begin
+  select coalesce(sum(credit_cents - debit_cents), 0) into j
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'vatOutput';
+  select output_vat_cents into v
+    from app.partner_vat_return('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if j <> 39750 then
+    raise exception 'G33 FAIL [OUTPUT VAT]: the journal credits % rather than 39750', j;
+  end if;
+  if j <> v then
+    raise exception 'G33 FAIL [RECONCILE OUTPUT VAT]: the export says % and /vat says % over the same window', j, v;
+  end if;
+end $$;
+
+-- ── (g) RECONCILIATION: input VAT in the journal is input VAT on /vat ────────
+-- Only the claimable 9000. The 6000 of entertainment VAT is a cost, checked in (e).
+do $$ declare j bigint; v bigint; begin
+  select coalesce(sum(debit_cents - credit_cents), 0) into j
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where account_key = 'vatInput';
+  select input_vat_cents into v
+    from app.partner_vat_return('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if j <> 9000 then
+    raise exception 'G33 FAIL [INPUT VAT]: the journal debits % rather than 9000', j;
+  end if;
+  if j <> v then
+    raise exception 'G33 FAIL [RECONCILE INPUT VAT]: the export says % and /vat says %', j, v;
+  end if;
+end $$;
+
+-- ── (h) A quote is never journalled, and neither is a draft ──────────────────
+-- Both are in the fixture at conspicuous amounts (999999 / 777777) so a leak is
+-- unmistakable rather than a plausible-looking total.
+do $$ declare n bigint; begin
+  select count(*) into n
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where entry_ref in ('ACQ-0001', 'ACI-0003');
+  if n <> 0 then
+    raise exception 'G33 FAIL [QUOTE/DRAFT]: % journal lines came from a quote or an unsent draft', n;
+  end if;
+end $$;
+
+-- ── (i) The farm journal is the LEDGER, retired machines included ────────────
+-- Deliberately opposite to every dashboard and report in the product, and asserted
+-- because it is the kind of thing a later reader would "fix".
+do $$ declare d bigint; c bigint; led bigint; r bigint; begin
+  select coalesce(sum(debit_cents), 0), coalesce(sum(credit_cents), 0) into d, c
+    from app.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  select coalesce(sum(amount_cents), 0) into led
+    from cost_entries
+   where farm_id = 'b3000000-0000-0000-0000-000000000001'
+     and deleted_at is null
+     and occurred_on between current_date - 905 and current_date - 890;
+  if d <> led then
+    raise exception 'G33 FAIL [FARM LEDGER]: the journal debits % but the cost ledger holds % over the same window', d, led;
+  end if;
+  if d <> c then
+    raise exception 'G33 FAIL [FARM BALANCE]: farm journal debits % credits %', d, c;
+  end if;
+  select coalesce(sum(debit_cents), 0) into r
+    from app.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where source_id = 'b3700000-0000-0000-0000-000000000004';
+  if r <> 11000 then
+    raise exception 'G33 FAIL [RETIRED]: a retired machine''s cost contributes % rather than 11000 - this is the books, not a fleet report', r;
+  end if;
+end $$;
+
+-- ── (j) Tenancy: RLS answers, not a check in a function body ─────────────────
+-- All four readers are SECURITY INVOKER, so the interesting question is what happens
+-- when somebody passes an id that is not theirs. Both contractors are linked to this
+-- farm, so the rival is kept out by the row policies rather than by the absence of a
+-- relationship.
+do $$ declare n bigint; d bigint; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000002');   -- the rival contractor
+  select count(*) into n
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if n <> 0 then
+    raise exception 'G33 FAIL [RIVAL]: another contractor read % lines of a competitor''s journal', n;
+  end if;
+  -- And a rival must not read the farm's cost ledger either (F16 narrowed that in 0400).
+  select count(*) into d
+    from app.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if d <> 0 then
+    raise exception 'G33 FAIL [RIVAL LEDGER]: a contractor read % lines of the farm''s cost journal', d;
+  end if;
+  reset role;
+end $$;
+
+do $$ declare n bigint; m bigint; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000003');   -- the farm's own owner
+  -- A farm never reads what its contractor BOUGHT — that is the margin behind every
+  -- quote it is given (the rule 0430 and G25 both turn on).
+  select count(*) into n
+    from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
+   where source_kind in ('expense', 'expense_payment');
+  if n <> 0 then
+    raise exception 'G33 FAIL [MARGIN LEAK]: a farm read % lines of its contractor''s purchases', n;
+  end if;
+  -- Its OWN cost ledger, however, it certainly reads — every entry, two lines each.
+  --
+  -- Derived rather than written as a literal, and that is not laziness. The first draft
+  -- asserted 8 (four seeded cost_entries) and FAILED at 16, which turned out to be
+  -- correct behaviour nobody had said out loud: an issued partner invoice books a cost
+  -- against the customer farm (0381/0311), so the farm's ledger legitimately grows when
+  -- its contractor invoices it. A literal here would have to be re-guessed every time a
+  -- later migration adds another path into `cost_entries`, and the property that
+  -- actually matters is that the journal covers the ledger exactly.
+  select count(*) into n
+    from cost_entries
+   where farm_id = 'b3000000-0000-0000-0000-000000000001'
+     and deleted_at is null
+     and amount_cents <> 0
+     and occurred_on between current_date - 905 and current_date - 890;
+  if n = 0 then
+    raise exception 'G33 FAIL [OWN LEDGER]: the farm owner reads no cost entries at all - this comparison would prove nothing';
+  end if;
+  select count(*) into m
+    from app.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  if m <> n * 2 then
+    raise exception 'G33 FAIL [OWN LEDGER]: % journal lines for % cost entries - every entry is exactly one debit and one credit', m, n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (k) anon executes none of it ─────────────────────────────────────────────
+do $$ declare ok boolean := false; begin
+  set local role anon;
+  begin
+    perform * from public.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G33 FAIL: anon ran the partner journal'; end if;
+  ok := false;
+  begin
+    perform * from public.farm_journal('b3000000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
+  exception when others then ok := true; end;
+  if not ok then raise exception 'G33 FAIL: anon ran the farm journal'; end if;
+  reset role;
+end $$;
+
+-- ── (l) G11: no function ships with the PUBLIC execute default ───────────────
+-- An app-schema function with no explicit grant defaults to EXECUTE TO PUBLIC, which
+-- `anon` inherits. Measured with has_function_privilege rather than read off the
+-- migration, because the migration is what would be wrong.
+do $$ declare f text; begin
+  foreach f in array array[
+    'app.partner_journal(uuid,date,date)',
+    'app.farm_journal(uuid,date,date)',
+    'app.audit_context()',
+    'public.partner_journal(uuid,date,date)',
+    'public.farm_journal(uuid,date,date)'] loop
+    if has_function_privilege('public', f, 'execute') then
+      raise exception 'G33 FAIL [GRANT]: % is executable by PUBLIC', f;
+    end if;
+    if has_function_privilege('anon', f, 'execute') then
+      raise exception 'G33 FAIL [GRANT]: % is executable by anon', f;
+    end if;
+    if not has_function_privilege('authenticated', f, 'execute') then
+      raise exception 'G33 FAIL [GRANT]: % is not executable by authenticated', f;
+    end if;
+  end loop;
+end $$;
+
+-- ── (m) The readers are SECURITY INVOKER, so RLS is what answers ─────────────
+-- app.fleet_downtime (0361) is invoker specifically so audit_log's own RLS scopes it;
+-- the same consideration applies to every reader added here. A definer reader would
+-- silently become a cross-tenant hole the day somebody passed the wrong id.
+do $$ declare r record; begin
+  for r in
+    select n.nspname || '.' || p.proname as fn, p.prosecdef
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where (n.nspname, p.proname) in
+           (('app','partner_journal'), ('app','farm_journal'), ('app','audit_context'),
+            ('public','partner_journal'), ('public','farm_journal'))
+  loop
+    if r.prosecdef then
+      raise exception 'G33 FAIL [SECDEF]: % is SECURITY DEFINER - RLS must be what answers', r.fn;
+    end if;
+  end loop;
+end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- Part 2 — audit location
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── (n) A forged context is RECORDED, and attribution is untouched ───────────
+-- The whole boundary in one assertion: the caller sets a city they were never in and a
+-- uuid that is not theirs, and what comes back is their own uuid beside a wrong city.
+do $$ declare v_user uuid; v_city text; v_ip text; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000003');   -- the farm's owner
+  perform set_config('fleetwise.request_ip',    '41.13.7.9', true);
+  perform set_config('fleetwise.request_geo',   'ZA/Free State/Bloemfontein', true);
+  perform set_config('fleetwise.request_agent', 'Mozilla/5.0 (Linux; Android 13) Mobile', true);
+  -- A setting that LOOKS like it should matter. It must not.
+  perform set_config('fleetwise.user_id', 'b3200000-0000-0000-0000-000000000002', true);
+
+  update machines set name = 'ACC Tractor mk2'
+   where id = 'b3600000-0000-0000-0000-000000000001';
+
+  select user_id, geo_city, host(ip) into v_user, v_city, v_ip
+    from audit_log
+   where entity = 'machines' and entity_id = 'b3600000-0000-0000-0000-000000000001'
+   order by at desc, id desc limit 1;
+
+  if v_user is distinct from 'b3200000-0000-0000-0000-000000000003'::uuid then
+    raise exception 'G33 FAIL [ATTRIBUTION]: audit_log.user_id is % - a forged fleetwise.* value reached identity, which is the _f14_probe failure (0440)', v_user;
+  end if;
+  if v_city is distinct from 'Bloemfontein' then
+    raise exception 'G33 FAIL [LOCATION]: geo_city is % rather than Bloemfontein - the context never arrived', v_city;
+  end if;
+  if v_ip is distinct from '41.13.7.9' then
+    raise exception 'G33 FAIL [LOCATION]: ip is % rather than 41.13.7.9', v_ip;
+  end if;
+  reset role;
+end $$;
+
+-- ── (o) A forged context changes NOTHING about what the caller can see ───────
+-- Counted before and against a fresh session with the settings in place. Refuses to
+-- pass on a zero baseline, which is how the G22 visibility blocks were nearly worthless
+-- until they were made to run as the role.
+do $$ declare before_n bigint; after_n bigint; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000003');
+  select count(*) into before_n from machines;
+  if before_n = 0 then
+    raise exception 'G33 FAIL [BASELINE]: the farm owner sees no machines at all - this comparison would prove nothing';
+  end if;
+
+  perform set_config('fleetwise.request_ip',  '10.0.0.1', true);
+  perform set_config('fleetwise.request_geo', 'GB/London/London', true);
+  perform set_config('fleetwise.farm_id',     '11111111-1111-1111-1111-111111111111', true);
+  perform set_config('fleetwise.role',        'rr_admin', true);
+  select count(*) into after_n from machines;
+
+  if after_n <> before_n then
+    raise exception 'G33 FAIL [VISIBILITY]: the fleetwise namespace changed visibility from % to %', before_n, after_n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (p) STRUCTURAL: nothing but app.audit_context reads the namespace ────────
+-- The G11 shape. An assertion that the property HOLDS is worth less than one that
+-- refuses the change which would break it, because the second survives the next author.
+do $$ declare n bigint; who text; begin
+  select count(*), min(policyname || ' on ' || tablename) into n, who
+    from pg_policies
+   where schemaname in ('public', 'app')
+     and coalesce(qual, '') || coalesce(with_check, '') like '%fleetwise.%';
+  if n <> 0 then
+    raise exception 'G33 FAIL [NAMESPACE]: % RLS policies read the fleetwise namespace (%) - location must never decide visibility', n, who;
+  end if;
+
+  select count(*), min(n2.nspname || '.' || p.proname) into n, who
+    from pg_proc p join pg_namespace n2 on n2.oid = p.pronamespace
+   where n2.nspname in ('app', 'public')
+     and p.prosrc like '%fleetwise.%'
+     and not (n2.nspname = 'app' and p.proname = 'audit_context');
+  if n <> 0 then
+    raise exception 'G33 FAIL [NAMESPACE]: % functions besides app.audit_context read the fleetwise namespace (%)', n, who;
+  end if;
+end $$;
+
+-- ── (q) A forged value cannot break a write, and cannot bloat the table ──────
+-- An audit feature that turned a bad `X-Forwarded-For` into a failed INSERT would be a
+-- denial of service delivered by the audit trail. And a 20 000-character user agent on
+-- every row is a different way to make the log unusable.
+do $$ declare v_ip inet; v_ua text; v_city text; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000003');
+  perform set_config('fleetwise.request_ip',    'not-an-ip-at-all', true);
+  perform set_config('fleetwise.request_agent', repeat('A', 20000), true);
+  perform set_config('fleetwise.request_geo',   repeat('Z', 500) || '/' || repeat('Y', 500) || '/' || repeat('X', 500), true);
+
+  -- This must simply work.
+  update machines set name = 'ACC Tractor mk3'
+   where id = 'b3600000-0000-0000-0000-000000000001';
+
+  select ip, user_agent, geo_city into v_ip, v_ua, v_city
+    from audit_log
+   where entity = 'machines' and entity_id = 'b3600000-0000-0000-0000-000000000001'
+   order by at desc, id desc limit 1;
+
+  if v_ip is not null then
+    raise exception 'G33 FAIL [BAD IP]: rubbish parsed to % rather than null', v_ip;
+  end if;
+  -- Non-null FIRST, and separately. A null here is not a pass: it means the context
+  -- resolution threw and app_audit's handler swallowed it, which silently disables the
+  -- whole feature while every "is it capped?" check comes back NULL and reads as true.
+  -- Mutation M11 (unguarded inet cast) survived the first draft of this block for
+  -- exactly that reason.
+  if v_ua is null or v_city is null then
+    raise exception 'G33 FAIL [CONTEXT LOST]: a bad IP took the whole audit context down with it (agent %, city %) - a forged header must cost one column, not all five',
+      coalesce(v_ua, '<null>'), coalesce(v_city, '<null>');
+  end if;
+  if length(v_ua) <> 300 then
+    raise exception 'G33 FAIL [CAP]: a 20000-character user agent stored % characters', length(v_ua);
+  end if;
+  if length(v_city) <> 80 then
+    raise exception 'G33 FAIL [CAP]: an oversized city stored % characters', length(v_city);
+  end if;
+  reset role;
+end $$;
+
+-- ── (r) audit_log is still read-only and still farm-scoped ──────────────────
+-- Adding columns must not have loosened the table that holds every diff in the product.
+do $$ declare n bigint; ok boolean := false; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000005');   -- a different tenant entirely
+  select count(*) into n from audit_log
+   where entity = 'machines' and entity_id = 'b3600000-0000-0000-0000-000000000001';
+  if n <> 0 then
+    raise exception 'G33 FAIL [AUDIT SCOPE]: another tenant read % audit rows for Farm ACC''s machine', n;
+  end if;
+  begin
+    update audit_log set geo_city = 'Nowhere' where entity = 'machines';
+    if found then ok := false; else ok := true; end if;
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G33 FAIL [APPEND-ONLY]: a client rewrote audit_log.geo_city';
+  end if;
+  reset role;
+end $$;
+
+-- anon is refused outright — audit_log carries no anon grant at all, so this raises
+-- rather than returning zero. Either answer is a pass; a COUNT is not.
+do $$ declare n bigint; denied boolean := false; begin
+  set local role anon;
+  begin
+    select count(*) into n from audit_log;
+  exception when insufficient_privilege then denied := true; n := 0;
+  end;
+  if not denied and n <> 0 then
+    raise exception 'G33 FAIL: anon read % audit rows', n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (s) Support access records where, and still refuses a non-admin ─────────
+-- 0206's guard is the thing that must not have moved while its body was extended.
+do $$ declare ok boolean := false; v_city text; v_user uuid; begin
+  set local role authenticated;
+  perform _t_login('b3200000-0000-0000-0000-000000000003');   -- an owner, not RR admin
+  begin
+    perform public.log_admin_farm_access('b3000000-0000-0000-0000-000000000001', 'impersonate');
+  exception when others then ok := true; end;
+  if not ok then
+    raise exception 'G33 FAIL [SUPPORT GUARD]: a farm owner recorded support access';
+  end if;
+
+  perform _t_login('b3200000-0000-0000-0000-000000000004');   -- the RR admin
+  perform set_config('fleetwise.request_geo', 'ZA/Gauteng/Johannesburg', true);
+  perform public.log_admin_farm_access('b3000000-0000-0000-0000-000000000001', 'impersonate');
+  select geo_city, user_id into v_city, v_user
+    from audit_log
+   where entity = 'admin_farm_access' and farm_id = 'b3000000-0000-0000-0000-000000000001'
+   order by at desc, id desc limit 1;
+  if v_city is distinct from 'Johannesburg' then
+    raise exception 'G33 FAIL [SUPPORT LOCATION]: the support row records city % - this is the row where where matters most', v_city;
+  end if;
+  if v_user is distinct from 'b3200000-0000-0000-0000-000000000004'::uuid then
+    raise exception 'G33 FAIL [SUPPORT ATTRIBUTION]: the support row names % rather than the admin who ran it', v_user;
+  end if;
+  reset role;
+end $$;
+
+select 'ALL G33 ACCOUNTING-EXPORT & AUDIT-LOCATION TESTS PASSED' as result;

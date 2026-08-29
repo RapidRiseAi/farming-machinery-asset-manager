@@ -17,12 +17,20 @@ import { runDueReportSchedules } from "@/lib/scheduled-reports";
  *   7. cron_enqueue_aarto_nominations     — AARTO nomination-deadline reminders (deduped, G2)
  *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
  *   9. cron_generate_recurring_invoices   — standing invoices due today (idempotent, G8)
- *  10. cron_enqueue_low_stock             — parts at or below their reorder point (0451)
- *  11. cron_enqueue_stock_shortfall       — parts the next N days of services need (0503)
- *  12. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
- *  13. push delivery                      — Web Push for the freshly-queued rows (F6)
+ *  10. cron_generate_recurring_expenses    — costs that repeat (idempotent, G19)
+ *  11. cron_enqueue_low_stock             — parts at or below their reorder point (0451)
+ *  12. cron_enqueue_stock_shortfall       — parts the next N days of services need (0503)
+ *  13. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
+ *  14. scheduled report delivery          — emailed report schedules now due (0506)
+ *  15. push delivery                      — Web Push for the freshly-queued rows (F6)
  *
- * Scheduled report delivery runs after the database steps and before push delivery.
+ * Step 14 is a TypeScript call rather than an RPC because it renders a report and sends
+ * mail; it runs after the database steps so every attachment reflects the same final state
+ * a person would see on /reports.
+ *
+ * A failed step is reported to the observability layer and the pass CONTINUES — step 7
+ * failing must not stop steps 8 through 15. Until that was added the failure went only into
+ * this route's JSON response, which Vercel's scheduler reads and nobody else does.
  *
  * Auth: requires `Authorization: Bearer ${CRON_SECRET}`. Vercel Cron automatically
  * sends this header when a CRON_SECRET env var is set (see docs/CRON.md), so the same

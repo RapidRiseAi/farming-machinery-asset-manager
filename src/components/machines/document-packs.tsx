@@ -19,7 +19,28 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
  * 48px rows on a phone, stepping down only at `sm` where there is a mouse (the button
  * kit's own rule); every control carries its word.
  */
-export function DocumentPacks({ machineId, locale }: { machineId: string; locale: Lang }) {
+export function DocumentPacks({
+  machineId,
+  locale,
+  role,
+}: {
+  machineId: string;
+  locale: Lang;
+  /**
+   * The viewer's role. Optional so the component is safe to render without it, but pass
+   * it: `authorizeMachinePack` refuses `operator` and `workshop` with a 403 before any
+   * query runs, so for those two the card is a button that always fails.
+   *
+   * That refusal lives in the route rather than in RLS on purpose, and G32(f) is the
+   * proof of why: a linked contractor may legitimately read `purchase_price_cents` and
+   * `supplier` on a machine it is working on, so a sale pack would print what the farm
+   * paid and who from. Hiding the card here is presentation only — the route is what
+   * actually refuses, and it still would if this prop were forgotten.
+   */
+  role?: string | null;
+}) {
+  if (role === "operator" || role === "workshop") return null;
+
   const packs = [
     { href: `/api/packs/machine/${machineId}/compliance`, label: t("machine.compliancePack", locale), hint: t("machine.compliancePackHint", locale) },
     { href: `/api/packs/machine/${machineId}/sale`, label: t("machine.salePack", locale), hint: t("machine.salePackHint", locale) },

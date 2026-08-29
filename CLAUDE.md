@@ -1562,4 +1562,136 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Still no bank-feed reconciliation beyond 0470, no multi-currency, no payroll, and the
     PayFast ITN remains unexercised (deliberately — payments stay outside the product).
 
+- **Recorded late: the voice release and `0506`–`0508`.** A release of 91 files landed
+  between waves carrying the voice assistant, two dated migrations
+  (`post_release_popia_coverage`, `selected_farm_administration`) and two new test files —
+  `run.sh` now runs **four** suites, not one. Alongside it came **`0506` scheduled &
+  emailed reports** (G29; idempotent per period, on the nightly cron, unblocked by email
+  going live), **`0507` per-user permission overrides**, and **`0508` public REST API +
+  QR re-issue**. None of it was in this block; it is here now so the next reader is not
+  told the product stops at Wave 3. One correction it forced: the write rules on
+  `user_permission_grants` are **not** `0507`'s — `selected_farm_administration` recreates
+  `upg_sel/ins/upd/del` using `app.effective_farm_role(auth.uid(), farm_id)` (the caller's
+  role on *that* farm) rather than their primary-farm role. A tightening. The twenty
+  `_perm` policies were untouched, which is exactly what the `_perm` suffix was for.
+
+- **Wave 4 — the last of the "not built" list, and the documents that were lying**
+  (migration `0510`; suite sections **G30 / G32 / G33**; **63 banners across four files**,
+  green; built by three subagents under the wave-1 ownership discipline, every deciding
+  claim re-run by the orchestrator):
+  - **`0507` proven correct as shipped (G30).** It layers permissive policies onto
+    `machines` and twelve other tables and had shipped with no assertion section at all —
+    the one thing in this codebase that had never been true before. The additive claim is
+    now measured rather than asserted: **63 RLS tables × 14 personas = 882 cells, zero
+    differences** with no grants present, and proven non-vacuous by showing it moves —
+    one `see_all_vehicles` grant changes exactly 11 cells, for exactly one person.
+    **34 mutations, 32 caught**; the two that were not are a deliberate no-op control
+    (proving the rig can report "not caught") and a guard that is double-enforced, where
+    breaking both locks does fire. No `0511` was needed.
+  - **The hole that pass found in its own test.** The first "`see_all_vehicles` must not
+    leak costs" assertion **could not fail**: an operator already reads the farm's whole
+    spend, because `cost_entries_sel` gates on partner scope and never on the assignment
+    rule, so the cell was saturated and a mutation wiring costs into the vehicle grant
+    passed unnoticed. Same trap as the G22 zero-baseline problem wearing the opposite
+    disguise. Replaced with a **structural** assertion that enumerates every policy whose
+    predicate mentions `app.has_permission` and compares the `table:command:permission`
+    signature set — which catches any future migration wiring a grant into a table nobody
+    argued for, saturated cell or not.
+  - **Compliance / sale / warranty packs finished and proven (G32).** The brief was wrong:
+    the UI entry points were already committed, as was `pack-data.ts` — 402 lines holding
+    the authorization, which the brief never mentioned. **Eight real defects surfaced only
+    by generating bytes.** `Pdf.fit()` truncates an over-wide cell, which is right for a
+    fault description and wrong for a **column header**, and wrong for `Resolved 09…` —
+    the fault resolution date an auditor came to see. **Afrikaans was the binding
+    constraint more often than English** (`Binnekort verskuldig` 94pt against `Due soon`
+    41pt), so a table sized by eye on an English screen truncates for exactly the farms
+    that need the translation. Re-derived widths: 0 header truncations, 34 data
+    truncations, all free-text and deliberate. 16 PDFs rendered; the machine with nothing
+    on file prints `No licence on file` / `Geen lisensie op lêer nie` in words rather than
+    leaving a blank an auditor reads as compliance. No migration — every record already
+    existed, and G32(h) makes that machine-checkable.
+  - **A contractor could have read what the farm paid.** F16 withholds the cost ledger,
+    but `purchase_price_cents` and `supplier` live on the *machine row* a linked
+    contractor may legitimately read — so **RLS alone does not stop a tyre fitter pulling
+    a sale pack and reading the purchase price and who it was bought from.**
+    `authorizeMachinePack` refuses `workshop` and `operator` at the door with a 403 before
+    any query, and **G32(f) asserts the leak is real**, so if RLS ever starts hiding it the
+    assertion fails loudly rather than the refusal quietly becoming unnecessary.
+  - **Accounting export (FR-17.2) + audit location (FR-1.4), `0510`, G33.**
+    `app.partner_journal` / `app.farm_journal`, both SECURITY INVOKER so RLS answers. The
+    document selection is **copied verbatim** from `app.partner_vat_return` and
+    `app.partner_pl` — that is what makes it reconcile, and four assertions keep it copied
+    (revenue, cost, output VAT, input VAT). Judgements inherited rather than re-opened: a
+    written-off invoice stays revenue and comes off again as bad debt ex-VAT (s22 relief
+    stays a claim made knowingly); non-claimable VAT is debited to the expense account it
+    sits on; quotes, drafts and voids are never journalled. **Retired and sold machines are
+    INCLUDED** in the farm journal — deliberately opposite to every dashboard, because
+    money spent on a tractor later sold is still money spent and an export that dropped it
+    would not equal the ledger it claims to export. Asserted, because it is exactly what a
+    later reader would "fix".
+  - **The vendor formats could not be established, so it ships generic and says so.** Xero
+    Central renders through JavaScript and returns a shell; Sage's own import pages 404 and
+    its documentation says only "download the template from inside the product"; and the
+    third-party importers that *do* publish a format **disagree with each other** while both
+    calling it "the Xero format". So the export ships in the two shapes every import wizard
+    reads — separate debit/credit columns, and one signed amount — named by shape, not by
+    vendor, with a card on the screen saying why before any download button.
+  - **Audit location, and the boundary stated rather than assumed.** Five nullable columns
+    on `audit_log` filled from a `fleetwise.*` namespace — never `request.jwt.*`; `user_id`
+    still comes from `auth.uid()`; and **no policy and no helper reads the namespace**,
+    asserted structurally against `pg_policies` and `pg_proc.prosrc`. Measured directly by
+    forging `fleetwise.user_id`, `role=rr_admin` and another farm's id: counts unchanged
+    at 2/1/8 before and after, actor still the real caller. A finding while building it:
+    `set_config(…, true)` is transaction-local and supabase-js issues one request per
+    statement, so the namespace path only works for a caller owning its transaction —
+    which is why `app.audit_context()` also reads PostgREST's `request.headers`, where
+    `x-forwarded-for` and `user-agent` already arrive. Only geo needed help, via one header
+    on the server client. **No browser GPS**: `docs/POPIA.md` §5.2 records why city is the
+    coarsest granularity that still answers the question a human is asking.
+  - **A mutation harness that was silently lying.** JavaScript's `String.replace` treats
+    `$$` in the *replacement* as an escaped `$`, which ate one dollar of a `$$` dollar-quote,
+    produced a mutant that would not parse, and — with no check on the apply exit code —
+    ran the assertions against an **unmutated** database and reported a survivor. The same
+    class of failure Wave 3 recorded. Fixed with a function replacer and a runner that
+    reports `NOT-APPLIED` distinctly. 14 mutations, 14 caught afterwards.
+  - **Observability (NFR-6), at zero bundle cost.** Speaks Sentry's ingest protocol over
+    `fetch` rather than installing the SDK, because the shared first-load bundle has been
+    held at 102 kB all project and most of what the SDK buys is weight a farmer pays for so
+    that we can watch. `onRequestError` covers every Server Component, action and route
+    handler; both client error boundaries report, including a new root `global-error.tsx`
+    for when the layout itself fails; and the nightly cron's two silent swallows now report
+    — a failing engine could previously stay broken for weeks, because its error went only
+    into a JSON response body that Vercel's scheduler reads and nobody else does. 15
+    assertions across three DSN configurations. Opaque uuids only; query strings dropped,
+    because this codebase has put a login credential in one before.
+  - **Both customer-facing document defects fixed.** `/d/[token]` — the page a customer is
+    linked to — called `documentLabel(kind)` and hardcoded an accent band, so the one
+    surface the PAYING party reads was the only one ignoring the partner's wording, their
+    chosen template, and the fact that a VAT-registered partner's invoice must be headed
+    **"Tax invoice"** (VAT Act s20(4)). And the PDF headed the recipient block "To"
+    regardless of `bill_to_label`.
+  - **`0501` was applied to production in pieces.** Found by diffing the `app` schema
+    function-for-function: 79 local, 78 live. Its indexes and its `partner_cashflow_items`
+    restatement had landed; its two `purchase_order_invoiced` functions had not. Nothing
+    calls them yet, so there was no runtime impact — applied anyway, because the property
+    being defended is "repo == production" and its value is that it is unconditional.
+    `docs/SCHEMA_DRIFT.md` gains it as its own class: **count objects, not migrations**, a
+    ledger would have shown `0501` as done while four fifths of it was.
+  - **The documents were audited against the code, and most of them were wrong.**
+    `FLEETWISE_STATUS_CHECKLIST.md` marked **27 items not started; 18 were shipped** —
+    multi-site, per-role visibility, service kits, the parts catalogue, stock, budgets,
+    repair-vs-replace, utilisation, Excel export, the AARTO workflow, POPIA retention, the
+    backup runbook. Anyone planning from it would have rebuilt work that existed. Now 4,
+    three of which this wave closed. The hedge that let it drift — *"sections outside this
+    release retain their last audited status"* — is gone. `CRON.md` documented **7 steps
+    against a route that runs 15**. `SECURITY.md` §1 claimed isolation is "never by
+    application filtering", which stopped being true when the public API shipped; it now
+    names exactly two deliberate exceptions and says a third must be argued for there
+    first, with §5b setting out what the API chokepoint does and does not buy. `README.md`
+    described only the farm half and advertised deferred WhatsApp. `.env.example` told you
+    to set `TEST_DATABASE_URL`, which `run.sh` has never read.
+  - i18n EN/AF at parity (**3 445 leaf keys**). Lint clean; **zero typecheck errors outside
+    a concurrently-edited voice-assistant refactor** that is not part of this wave and was
+    deliberately left uncommitted.
+
 > Update this "current status" block at the end of every session.

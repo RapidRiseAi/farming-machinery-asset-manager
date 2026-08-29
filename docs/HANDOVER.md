@@ -35,11 +35,11 @@ as unverified no matter how confident the code comments sound.
 | | |
 |---|---|
 | Branch | `main` (all work merged and pushed) |
-| Migrations in repo | 109 files, `0001` → `0486` plus two dated voice-assistant files |
+| Migrations in repo | 125 files, `0001` → `0510` plus the dated voice-assistant/POPIA/selected-farm files |
 | Hosted demo project | `nmqtcvdwtyggxjjgtnzm` — financial schema verified applied; **known assistant drift, see §5** |
-| Isolation suite | `supabase/tests/rls_isolation.sql`, 48 pass banners — **green** |
+| Isolation suite | **four** files under `supabase/tests/` — `rls_isolation`, `public_api_and_qr`, `post_release_popia`, `selected_farm_administration` — **63 pass banners, green** |
 | Gates | `pnpm db:test`, `typecheck`, `lint`, `build` all green; shared first-load JS flat at **102 kB** |
-| i18n | EN/AF at parity, **3 075 leaf keys**, plus professional-tone overlays |
+| i18n | EN/AF at parity, **3 445 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
 `FleetWise!demo1`. The partner used for most testing is `tj@tjservice.example`; the farm
@@ -121,10 +121,11 @@ All of it compiles and has passing DB-level tests; none has been run against the
 external thing. **Every item here is blocked on a secret the founder holds**, which is why
 it is still on this list.
 
-1. **Email has never sent.** `RESEND_API_KEY` and `EMAIL_FROM` are unset, so every send path
-   returns "email is not switched on". PDFs generate and every attempt is logged, but no
-   message has left the system. Set the keys and send one document and one statement to a
-   real inbox.
+1. ~~**Email has never sent.**~~ **Done.** The keys are set and a real statement was built,
+   accepted by Resend and logged against the document (`document_emails`: `status=sent`,
+   `provider=resend`, a provider id, `error=null`). Sent to an RFC 2606 reserved address so
+   no live mailbox was touched. This unblocked scheduled reports (`0506`), which now ride
+   the same path on the nightly cron.
 2. **The PayFast ITN callback is untested.** It needs live or sandbox merchant credentials
    and a real payment. The three signing behaviours are proven (order preserved, PHP
    `urlencode` with `+` and uppercase hex, empty fields omitted); the round trip is not.
@@ -181,20 +182,35 @@ it is still on this list.
 
 ## 6. Not built at all
 
-* **Purchase-order receipts against several invoices.** One expense per order (partial
-  unique index), so a supplier who part-ships and invoices twice can only link the first.
-* **Supplier statements and remittance advice.** Suppliers are records now (G18), so
-  "what did I buy from this business this year" and a remittance to send with a payment
-  are both a short step away.
-* Multi-currency (everything is ZAR, integer cents).
-* Payroll.
-* WhatsApp Stage 2 (BSP API) — Stage 1 is manual; the queue and `deliver_after` are ready.
-* **Commitment-aware reordering.** `app.stock_needs_reorder` is deliberately its own
-  function so this is a one-place change. Today it is "at or below the minimum you set".
-  `service_kit_items` already says what each service consumes and
-  `app.recalc_machine_service` already knows what falls due, so "you have 2 filters and the
-  250-hour service next week needs 6" needs no new tables — only a judgement about how far
-  ahead to look, which is better made by somebody who has run a farm store.
+Three items that stood here in the previous revision have since shipped, and are recorded
+so nobody rebuilds them: **purchase orders invoiced more than once** (`0501` — the
+uniqueness moved to the supplier's own invoice number rather than being dropped),
+**supplier statements and remittance advice** (`0502`, G25), and **commitment-aware
+reordering** (`0503`, G26 — the lookahead is a farm setting, and the meter projection uses
+the observed rate rather than the utilisation capacity, or every 250-hour service would be
+"due within 30 days" for ever).
+
+What genuinely remains:
+
+* **Multi-currency.** Everything is ZAR, integer cents.
+* **Payroll.**
+* **A self-hosted licence SKU** (FR-19.4, P2).
+* **WhatsApp Stage 2** (BSP API) — Stage 1 is manual; the queue and `deliver_after` are
+  ready and waiting on an account.
+* **Bank-feed import beyond `0470`** — statements are imported from CSV with column
+  mapping; there is no live feed.
+* **Named Sage/Xero export variants.** The accounting export (`0510`) ships in the two
+  shapes every import wizard reads — separate debit/credit columns, and a single signed
+  amount — deliberately named by shape rather than by vendor. Neither vendor's native
+  column set could be established from a primary source: Xero Central renders through
+  JavaScript and returns a shell, Sage's own import pages 404 and its documentation says
+  only "download the template from inside the product", and the third-party importers that
+  do publish a format **disagree with each other** while both calling it "the Xero format".
+  Adding a named variant later is a formatting change that touches none of the arithmetic.
+
+Excluded by decision rather than absence: **fuel-card import and GPS telematics**
+(`SCOPE §13`, reaffirmed August 2026), and **customer-to-contractor payment processing**
+(customers pay by EFT; invoices already carry the banking details).
 
 ---
 
@@ -226,8 +242,20 @@ it is still on this list.
 
 ## 8. Suggested order of work for the next session
 
-1. Run the schema fingerprint (§2) before trusting anything about production.
-2. Unblock §4 — all four items need only credentials, and email is the biggest gap against
-   AutoVault.
-3. Then pick from §6. Bank reconciliation is the one every partner does monthly; the
-   commitment-aware reorder rule is the cheapest genuine improvement.
+1. **Run the schema fingerprint (§2) before trusting anything about production.** It has
+   earned itself twice: once finding a debugging back door that existed only on the live
+   database, and once finding `0501` applied in *pieces* — its indexes and one function
+   restatement had landed while two functions had not. Count objects, not migrations.
+2. **Apply `0506`–`0510` to the hosted project** if that has not already happened. Nothing
+   in this wave is applied there yet.
+3. **Decide the one open POPIA question** in `docs/POPIA.md` §5.2: whether erasure should
+   scrub `audit_log.ip` and `user_agent` for the subject's own rows, or keep the §4.4
+   audit-log exception as it stands. An IP is more identifying than most of what remains in
+   an audit row, so it is a real choice rather than a formality. One line either way.
+4. **Harden the F16 boundary** described in `docs/SECURITY.md` §5c: the eleven `_perm`
+   SELECT policies do not call `app.partner_machine_visible`, so the only thing stopping a
+   grant row lifting a linked contractor out of their access scope is the
+   `app.is_farm_side()` call inside `app.has_permission`. One remote guard carrying the
+   whole model. Cheap to make local, and worth doing before anyone widens `is_farm_side`.
+5. Then pick from §6. Multi-currency is the largest; a named Sage or Xero export variant is
+   the smallest and needs only one confirmed column set from inside either product.

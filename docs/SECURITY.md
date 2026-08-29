@@ -10,10 +10,19 @@ docs: [`POPIA.md`](POPIA.md) and [`BACKUP.md`](BACKUP.md).
 ## 1. Tenant isolation — Row-Level Security is the default guarantor
 
 Multi-tenant isolation (farm-to-farm and external-workshop) is enforced by Postgres
-Row-Level Security, never by application filtering. This is the product's foundational
-ground rule. The narrow `SECURITY DEFINER` RPCs documented below are the deliberate
-exception: because their owner can bypass RLS, each one repeats tenant, user, role and
-record-visibility checks inside the same database transaction.
+Row-Level Security, not by application filtering. This is the product's foundational ground
+rule, and it holds for every request carrying a user session.
+
+There are exactly **two** deliberate exceptions, both documented rather than discovered:
+
+1. The narrow `SECURITY DEFINER` RPCs described below. Because their owner can bypass RLS,
+   each one repeats tenant, user, role and record-visibility checks inside the same database
+   transaction.
+2. The **public API** (`/api/v1`), where the caller holds a token rather than a user session,
+   so there is no `auth.uid()` for a policy to judge. It is guarded by a single application
+   chokepoint instead — see §5b, which states plainly what that does and does not buy.
+
+If you are adding a third, it needs to be argued for here first.
 
 - **Every business table** carries a `farm_id` and has RLS **enabled *and* forced**
   (`force row level security` — so even the table owner is subject to policy). Policies
@@ -94,6 +103,103 @@ server route/action that first validates the token**, then writes on the worker'
 A leaked or guessed URL can only reach the one machine its token addresses, and only
 through the narrow validated actions — never the database directly.
 
+## 5b. The public API — the one path RLS does not judge
+
+This section exists because §1 says row-level security is the sole guarantor, and the public
+API (`/api/v1`, migration `0508`) is a deliberate, single exception. It is documented here
+rather than left to be discovered.
+
+**Why there is an exception.** RLS decides using `auth.uid()`. An API token is not a Supabase
+user session, so there is no `auth.uid()` for a policy to judge, and a token holder cannot be
+made to look like one without handing the request a way to choose an identity. That approach
+was explicitly rejected: `public._f14_probe`, removed from production by migration `0440`,
+did exactly that — it let a caller rewrite `request.jwt.claims`, which is the more dangerous
+shape precisely because every policy still passes while answering for somebody else. G11 now
+asserts that nothing outside the test harness may rewrite those claims.
+
+**What guards it instead.** A single chokepoint in `src/lib/api-tokens.ts`:
+
+- The **credential derives the farm.** No public route accepts a farm id in any form — path,
+  query or body — so there is no parameter to tamper with.
+- Every service-role query goes through `apiSelect`, which applies the farm and soft-delete
+  predicates **before** a route can add its own narrower filters. A route can restrict what it
+  reads; it cannot widen it, and it cannot remove those predicates.
+- The exposed surface is a **closed resource map** with deliberately small projections, so a
+  new table is not reachable by default and adding one is a visible edit.
+- Tokens are stored **hashed**; the plaintext is shown once at creation and never again. A
+  short prefix is kept so a farm can tell two tokens apart.
+- Reachability is gated on the `api_access` entitlement, and routes answer **403** rather than
+  redirecting — a 302 to HTML hands an API client a body full of markup.
+
+**The honest limitation.** This path is application-enforced, not policy-enforced. Its
+correctness rests on every route going through the chokepoint rather than on the database
+refusing. That is why the resource map is closed, why the assertions in
+`supabase/tests/public_api_and_qr.sql` test cross-farm reads directly, and why a reviewer
+should treat any new query in `src/app/api/v1/**` that does not call `apiSelect` as a defect.
+
+## 5c. Per-user permission grants
+
+Migration `0507` lets a farm grant a named permission to one person on top of their role.
+Two properties matter for this document:
+
+- The grants are enforced **in RLS**, as additional permissive policies (suffixed `_perm` so a
+  later `create or replace` of a base policy cannot silently take them with it), not in the
+  UI. A screen that forgets to check is therefore not a hole.
+- They are **additive only**. A grant can widen what one person sees; it can never narrow it,
+  and with no grant rows present every persona sees exactly what their role gave them before
+  `0507` existed.
+
+A user cannot grant themselves anything, and the grant policies are farm-scoped like every
+other table. Note also the invariant on `partners`: rows with `farm_id is null` are the
+RR-curated global suggestions, and no farm-level grant may reach them.
+
+**Who may administer a grant is no longer `0507`'s rule.**
+`20260820180000_selected_farm_administration.sql` drops and recreates `upg_sel/ins/upd/del`,
+replacing `has_farm_access` + the caller's *primary*-farm role with
+`app.effective_farm_role(auth.uid(), farm_id)` — the caller's role **on that farm**. It is a
+tightening: someone who owns their home farm but is only an operator on a second farm can no
+longer administer grants there. The twenty `_perm` policies themselves are untouched, which
+is exactly what the `_perm` suffix was for. Read that migration, not `0507`, for the write
+rules.
+
+One consequence worth knowing: `upg_sel` no longer hides revoked (soft-deleted) rows from
+administrators — only from the grantee. That is deliberate, and `toggleUserPermission` relies
+on it to reopen the existing unique row rather than collide with it.
+
+**Defence in depth, deliberately.** Two guards are doubled and a future "remove the redundant
+clause" tidy-up would be removing one of two locks: `users.active` is checked in both
+`app.is_farm_side()` and `app.has_farm_access()`, and the global-partner exclusion is enforced
+both as `farm_id is not null` in the policy and as a null check inside `app.has_permission`.
+G30 mutation-tests both pairs; breaking either lock alone changes nothing, which is the point.
+
+**A known single point of failure, not yet hardened.** The eleven `_perm` SELECT policies do
+not call `app.partner_machine_visible`, so the only thing preventing a grant row from lifting
+a linked contractor clean out of the F16 access scope is the `app.is_farm_side()` call inside
+`app.has_permission`. That is one remote guard carrying the whole F16 model. Adding
+`app.is_farm_side()` to those policies directly would make it local and cheap; it is worth
+doing before anyone widens `is_farm_side`. G30 pins the current behaviour, so a regression
+fails loudly rather than silently.
+
+## 5d. Error reporting (NFR-6)
+
+Errors are reported by speaking Sentry's ingest protocol over `fetch` (`src/lib/observability.ts`),
+not by installing the SDK. Security-relevant properties:
+
+- **Env-gated.** With `SENTRY_DSN` unset nothing leaves the server; errors go to the log.
+- **Identifiers only.** A report carries the user id and farm id as opaque uuids — enough to
+  tell one farm's outage from a general one — and never a name, email, phone number or row
+  content.
+- **Query strings are dropped**, deliberately. This codebase has put a login credential in a
+  query string before (the contractor `action_link`, fixed in the backend/security pass), and
+  an error reporter must not become the thing that exfiltrates the next one.
+- The browser-facing endpoint `/api/observability` is **unauthenticated by design**, because
+  the errors most worth seeing happen on signed-out screens (login, the public QR page, the
+  customer document link). It is built for anyone to post to it: every field is length-capped,
+  nothing is written to Postgres, and the reported identity is never trusted — what lands in
+  the report is what the server knows, not what the caller claimed.
+
+---
+
 ## 6. Auditability & integrity
 
 - **Append-only `audit_log`** (trigger `app_audit`, `0008`) records `insert/update/delete`
@@ -156,7 +262,9 @@ through the narrow validated actions — never the database directly.
       prefix.
 - [ ] Restrict database network access / use the pooler; keep Postgres non-public where
       possible.
-- [ ] Enable **Sentry** (`SENTRY_DSN`) for error observability (NFR-6, in the setup guide).
+- [ ] Set `SENTRY_DSN` to switch error reporting on. The reporting layer itself is built and
+      tested (§5d); with no DSN it falls through to the server log, so this is a configuration
+      step, not outstanding work.
 - [ ] Keep Supabase, Next.js, and dependencies patched; run `pnpm audit` in CI.
 - [ ] Confirm all Storage buckets remain **private** (migration `0200`); serve via signed
       URLs only.
@@ -167,4 +275,7 @@ through the narrow validated actions — never the database directly.
   a bounded per-instance limit. A product-wide distributed WAF/rate-limit policy beyond
   Vercel/Supabase defaults is not yet custom-built.
 - "From where" (IP/device) is not yet on the audit trail (FR-1.4 partial).
+- The **public API is application-enforced, not policy-enforced** (§5b). Its correctness
+  rests on every route going through `apiSelect` rather than on the database refusing. Treat
+  any query under `src/app/api/v1/**` that bypasses the chokepoint as a defect.
 - Formal load/pen-test not yet performed (NFR-1/§24 production-readiness gate).

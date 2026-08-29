@@ -7,7 +7,7 @@
  * Every one of those records is already in this product. What was missing was a way to
  * hand somebody a bundle.
  *
- * Three deliberate decisions live in this file.
+ * Four deliberate decisions live in this file.
  *
  * 1. ONE MULTI-SECTION PDF PER PACK, never a ZIP.
  *    An auditor sitting at a farm-office table wants a document, not an archive to
@@ -33,6 +33,18 @@
  *    stakes, because the auditor is the one who has to read it. Enum values, dates,
  *    headings, the footer and the "what is missing" sentences are all translated; the
  *    only untranslated strings in a pack are the farm's own data.
+ *
+ * 4. COLUMN WIDTHS ARE MEASURED, NOT GUESSED.
+ *    `Pdf.table()` cuts an over-wide cell with an ellipsis (the 0505 `fit()` fix). That is
+ *    right for a free-text fault description and wrong for two things: a column HEADING,
+ *    where the reader loses the name of what they are looking at and cannot recover it
+ *    from context; and a fixed-format value that IS the evidence — "Resolved 09 May 2026"
+ *    printed as "Resolved 09…" removes the date an auditor came to see, and
+ *    "250 hours / 12 months" printed as "250 hours / 12 m…" is not an interval. Every
+ *    width below was set by measuring the header and the worst-case enum value at 9pt in
+ *    BOTH languages: Afrikaans is the binding constraint more often than English
+ *    ("Binnekort verskuldig" is 94pt against "Due soon" at 41pt), so a table sized by eye
+ *    on an English screen truncates for exactly the farms that need the translation.
  *
  * Money is integer cents ex-VAT throughout and is rendered with `rands()` — never
  * `toLocaleString`, for the reason set out in src/lib/money.ts.
@@ -501,7 +513,7 @@ function faultTable(
   const headers = withMachine
     ? [t("packs.date", locale), t("packs.asset", locale), t("packs.problem", locale), t("faults.urgency", locale), t("packs.outcome", locale)]
     : [t("packs.date", locale), t("packs.problem", locale), t("faults.urgency", locale), t("packs.outcome", locale)];
-  const widths = withMachine ? [66, 108, 190, 65, 70] : [70, 250, 80, 99];
+  const widths = withMachine ? [62, 100, 163, 76, 98] : [70, 244, 80, 105];
   const rows = faults.map((f) => {
     const outcome =
       f.status === "resolved"
@@ -577,7 +589,7 @@ export async function buildCompliancePack(
           ? personName(m.assigned_operator_id, issuer, locale)
           : t("packs.notOnFile", locale),
       ]),
-      [116, 84, 72, 74, 78, 75],
+      [112, 74, 80, 70, 78, 85],
     );
   }
 
@@ -693,7 +705,7 @@ export async function buildCompliancePack(
         t("packs.lastServiced", locale),
       ],
       svcRows.map((r) => r.cells),
-      [140, 110, 78, 82, 89],
+      [120, 120, 64, 98, 97],
     );
     pdf.gap(4);
     // The tasks themselves, for the machines that are behind — a count is a finding,
@@ -709,7 +721,7 @@ export async function buildCompliancePack(
           intervalWord(l, locale),
           l.last_done_date ? shortDate(l.last_done_date, locale) : t("packs.neverDone", locale),
         ]),
-        [130, 180, 100, 89],
+        [124, 172, 100, 103],
       );
     }
   }
@@ -852,7 +864,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
           : NONE,
         serviceWord(l.status, locale),
       ]),
-      [130, 84, 108, 108, 69],
+      [111, 100, 100, 100, 88],
     );
     pdf.gap(6);
   }
@@ -868,7 +880,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
         enumLabel("jobStatus", j.status, locale),
         rands(j.total_cents),
       ]),
-      [70, 92, 175, 82, 80],
+      [70, 106, 161, 82, 80],
       [false, false, false, false, true],
     );
   }
@@ -1024,7 +1036,7 @@ export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Pro
           : NONE,
         serviceWord(l.status, locale),
       ]),
-      [130, 84, 108, 108, 69],
+      [111, 100, 100, 100, 88],
     );
   }
 
@@ -1042,7 +1054,7 @@ export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Pro
         j.work_performed ?? NONE,
         enumLabel("jobStatus", j.status, locale),
       ]),
-      [70, 92, 60, 190, 87],
+      [70, 106, 56, 180, 87],
     );
   }
 

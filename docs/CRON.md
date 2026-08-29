@@ -19,13 +19,37 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
    reminders honouring per-farm lead thresholds (`warranty_lead_days`,
    `warranty_hours_lead`, `licence_lead_days`), quiet hours, and a **weekly** re-notify
    while expired (F6 / FR-4.7 / FR-13.3).
-6. `cron_enqueue_weekly_digest` → `app.enqueue_weekly_digest()` — **Mondays only**
-   (Africa/Johannesburg). One `weekly_digest` per active farm (Scope §4.7 msg 5). The
-   route decides it is Monday; the SQL just enqueues.
-7. **Web Push delivery** (`deliverPush`) — for every queued row that is now deliverable
-   (past its quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
-   to each recipient's subscribed devices, honouring the per-user `notify_push` toggle.
-   No-ops gracefully when the VAPID env keys are unset (see `.env.example`).
+6. `cron_enqueue_work_request_reminders` → `app.enqueue_work_request_reminders()` —
+   chases `quoted` / `invoiced` work requests still outstanding, weekly, deduped from the
+   notification queue itself rather than a new column (F13).
+7. `cron_enqueue_aarto_nomination_reminders` → AARTO nomination deadlines (G2).
+8. `cron_enqueue_document_reminders` → expire stale quotes, chase overdue invoices (G2).
+9. `cron_generate_recurring_invoices` → standing invoices whose date has come round (G8).
+   Idempotent: it keys on the period it last raised, so a double-fired night, a retry and
+   the partner's own "raise it now" all go through the same guard and cannot bill twice.
+10. `cron_generate_recurring_expenses` → costs that repeat (G19). Same idempotency shape.
+11. `cron_enqueue_low_stock` → parts at or below their reorder point (0451).
+12. `cron_enqueue_stock_shortfall` → parts the next N days of scheduled services need but
+    the shelf does not have (0503). This engine and the one above are **order-independent**:
+    0503 replaced 0451's so that an item which is both low and short raises the shortfall
+    line only, whichever runs first — one shelf, one sentence a week.
+13. `cron_enqueue_weekly_digest` → **Mondays only** (Africa/Johannesburg). One
+    `weekly_digest` per active farm (Scope §4.7 msg 5). The route decides it is Monday; the
+    SQL just enqueues.
+14. **Scheduled report delivery** (`runDueReportSchedules`) — renders and emails any report
+    schedule now due (0506). A TypeScript step rather than an RPC, because it renders the
+    report and sends mail; it runs AFTER the database steps so every attachment reflects the
+    same final state a person would see on /reports.
+15. **Web Push delivery** (`deliverPush`) — for every queued row that is now deliverable
+    (past its quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
+    to each recipient's subscribed devices, honouring the per-user `notify_push` toggle.
+    No-ops gracefully when the VAPID env keys are unset (see `.env.example`).
+
+**A failed step is now reported, not swallowed.** Each engine's error is captured to the
+observability layer (`NFR-6`, env-gated on `SENTRY_DSN`; otherwise the server log) and the
+pass **continues** — step 7 failing must not stop steps 8 through 15. Until this was added,
+a broken engine could stay broken for weeks: the failure went only into this route's JSON
+response body, which is returned to Vercel's scheduler and read by nobody.
 
 In-app is the always-on channel. **Web Push** (F6) is self-hosted (VAPID, no external
 provider) and layered on top of the same `notifications` rows. WhatsApp (Stage 2 / BSP

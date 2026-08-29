@@ -172,6 +172,11 @@ export default async function AppLayout({
   const cashflow: NavItemData = { href: "/cashflow", label: t("cash.nav", locale), icon: "dashboard" };
   const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "parts" };
   const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "reports" };
+  // Hand the books over (FR-17.2). Last among the money screens on both sides, because it
+  // is the end of the month rather than part of running it — and the only one of them a
+  // FARM ever sees, which is why it is declared outside `booksItems`. `download` is the
+  // banking glyph, which no farm-side nav shows, so the two never appear side by side.
+  const accounting: NavItemData = { href: "/accounting", label: t("nav.accounting", locale), icon: "download" };
   // Did this month make money, who owes me, who do I owe (0460). Sits FIRST among the
   // money screens because it is the one you open without a document in mind.
   const money: NavItemData = { href: "/money", label: t("nav.money", locale), icon: "reports" };
@@ -205,7 +210,7 @@ export default async function AppLayout({
   // by both shells, so the phone and the desktop can never disagree about what a
   // partner's product includes.
   const booksItems: NavItemData[] = booksAllowed
-    ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat]
+    ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, accounting]
     : [];
   const moreItems: NavItemData[] = isWorkshop
     ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
@@ -221,6 +226,7 @@ export default async function AppLayout({
         checklists,
         ...(finesAllowed ? [fines] : []),
         ...(reportsAllowed ? [reports] : []),
+        ...(reportsAllowed && isManagerPlus ? [accounting] : []),
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
@@ -233,6 +239,7 @@ export default async function AppLayout({
     ...(dashAllowed ? [dashboard] : []),
     ...(isManagerPlus ? [inbox] : []),
     ...(reportsAllowed ? [reports] : []),
+    ...(reportsAllowed && isManagerPlus ? [accounting] : []),
   ];
   const groups: { key: string; label: string; items: NavItemData[] }[] = isOperator
     ? [
