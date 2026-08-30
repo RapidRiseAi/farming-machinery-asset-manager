@@ -253,10 +253,13 @@ erasure question was decided (erasure now scrubs `audit_log.ip` and `user_agent`
    `0501` applied in *pieces* (its indexes had landed, two of its functions had not), and
    `0510` missing entirely while code depending on it was already pushed. **Count objects,
    not migrations** — a ledger would have shown all three as done.
-2. **Re-measure the shared first-load bundle.** It read 103 kB against the 102 kB held all
-   project. Every route added in wave 4 is 374 B and server-only, and the shell imports an
-   assistant client component from work that was being edited concurrently — so the reading
-   was not measuring wave 4. A clean number is free once that work is committed.
+2. ~~Re-measure the shared first-load bundle.~~ **Measured — it is not this wave.** A/B on the
+   same machine, same `node_modules`, `.next` cleared both times: `855930f` (before any of
+   the wave-4 work) reads **103 kB**, and `99d8136` (everything, including the three agents
+   and the voice assistant) reads **103 kB**. Identical, so nothing in wave 4 cost a byte of
+   the shared bundle. The step up from the 102 kB held all project happened in the earlier
+   91-file release. If the kilobyte is ever worth chasing, bisect between that release and
+   `855930f` — not through wave 4.
 3. **Finish the voice-assistant work** that was in flight during wave 4 and deliberately left
    uncommitted (`src/lib/assistant/**`, `src/components/assistant/**`, the assistant route,
    and an admin page). It typechecks now; it was mid-rename when wave 4 was committed around it.
