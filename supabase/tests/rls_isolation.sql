@@ -14137,3 +14137,185 @@ do $$ declare ok boolean := false; v_city text; v_user uuid; begin
 end $$;
 
 select 'ALL G33 ACCOUNTING-EXPORT & AUDIT-LOCATION TESTS PASSED' as result;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- G34 — TWO HARDENINGS: ERASURE CLEARS LOCATION, AND THE PARTNER GUARD IS LOCAL
+--
+-- Both were founder decisions taken after the G30/G33 verification pass, and both are
+-- deliberately low-risk. That is exactly why they need assertions: a change that is
+-- supposed to alter nothing is the easiest kind to get wrong unnoticed.
+--
+--   1. 20260829130000 — public.erase_personal_data now nulls ip / geo_* / user_agent on the
+--      SUBJECT's own audit rows. The rest of audit_log is retained by the documented §4.4
+--      exception, and the point of the change is that the integrity record does not need an
+--      IP address.
+--
+--   2. 20260829130100 — the eleven `_perm` SELECT policies now call app.is_farm_side()
+--      directly, as well as through app.has_permission. Two locks instead of one remote
+--      one. This must change NO visibility whatsoever, so the assertions below are mostly
+--      negative: the interesting result is that nothing moved.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, status, plan) values
+  ('8c000000-0000-0000-0000-000000000001', 'Erasure Farm', 'active', 'complete');
+insert into workshops (id, name, kind) values
+  ('8c100000-0000-0000-0000-000000000001', 'Guard Contractors', 'mechanic');
+insert into workshop_links (workshop_id, farm_id, status) values
+  ('8c100000-0000-0000-0000-000000000001', '8c000000-0000-0000-0000-000000000001', 'active');
+
+-- users.id references auth.users, so the shim rows come first (the pattern every other
+-- section in this file uses).
+insert into auth.users (id, email) values
+  ('8c200000-0000-0000-0000-000000000001', 'owner@erasure.test'),
+  ('8c200000-0000-0000-0000-000000000002', 'driver@erasure.test'),
+  ('8c200000-0000-0000-0000-000000000003', 'staff@guard.test');
+
+insert into users (id, email, name, role, farm_id, active) values
+  ('8c200000-0000-0000-0000-000000000001', 'owner@erasure.test',  'Owner E',  'owner',    '8c000000-0000-0000-0000-000000000001', true),
+  ('8c200000-0000-0000-0000-000000000002', 'driver@erasure.test', 'Driver E', 'operator', '8c000000-0000-0000-0000-000000000001', true);
+insert into users (id, email, name, role, workshop_id, active) values
+  ('8c200000-0000-0000-0000-000000000003', 'staff@guard.test', 'Guard Staff', 'workshop', '8c100000-0000-0000-0000-000000000001', true);
+
+insert into machines (id, farm_id, name, type, status, assigned_operator_id) values
+  ('8c300000-0000-0000-0000-000000000001', '8c000000-0000-0000-0000-000000000001', 'Assigned Tractor', 'tractor', 'active', '8c200000-0000-0000-0000-000000000002'),
+  ('8c300000-0000-0000-0000-000000000002', '8c000000-0000-0000-0000-000000000001', 'Other Tractor',    'tractor', 'active', null);
+
+-- Audit rows carrying location: one written BY the subject, one written by somebody else
+-- ABOUT nothing to do with them. Only the first is the subject's to erase.
+insert into audit_log (farm_id, user_id, entity, entity_id, action, diff, ip, geo_country, geo_region, geo_city, user_agent) values
+  ('8c000000-0000-0000-0000-000000000001', '8c200000-0000-0000-0000-000000000002',
+   'machines', '8c300000-0000-0000-0000-000000000001', 'update', '{"a":1}'::jsonb,
+   '203.0.113.10'::inet, 'ZA', 'Free State', 'Bethlehem', 'Mozilla/5.0 subject'),
+  ('8c000000-0000-0000-0000-000000000001', '8c200000-0000-0000-0000-000000000001',
+   'machines', '8c300000-0000-0000-0000-000000000002', 'update', '{"b":2}'::jsonb,
+   '203.0.113.20'::inet, 'ZA', 'Gauteng', 'Pretoria', 'Mozilla/5.0 owner');
+
+-- ── (a) The eleven policies carry the guard LOCALLY ──────────────────────────
+-- Counted by predicate, not by name: a policy renamed but left without the guard would
+-- still pass a name check.
+do $$ declare n int; begin
+  select count(*) into n
+    from pg_policies
+   where schemaname = 'public'
+     and policyname like '%\_sel\_perm'
+     and qual like '%is_farm_side%';
+  if n <> 11 then
+    raise exception 'G34 FAIL [LOCAL GUARD]: % of the 11 _sel_perm policies call app.is_farm_side() directly', n;
+  end if;
+end $$;
+
+-- ── (b) …and they still gate on the permission, not merely on being farm-side ──
+-- The obvious way to get (a) passing while breaking the feature is to replace the
+-- has_permission call rather than adding to it.
+do $$ declare n int; begin
+  select count(*) into n
+    from pg_policies
+   where schemaname = 'public'
+     and policyname like '%\_sel\_perm'
+     and qual like '%has_permission%';
+  if n <> 11 then
+    raise exception 'G34 FAIL [PERMISSION GATE]: only % of the 11 _sel_perm policies still call app.has_permission', n;
+  end if;
+end $$;
+
+-- ── (c) NEGATIVE: an operator with no grant sees exactly what they saw ────────
+do $$ declare n bigint; begin
+  set local role authenticated;
+  perform _t_login('8c200000-0000-0000-0000-000000000002');
+  select count(*) into n from machines where farm_id = '8c000000-0000-0000-0000-000000000001';
+  if n <> 1 then
+    raise exception 'G34 FAIL [BASELINE]: the operator sees % machines, expected only their assigned one', n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (d) NEGATIVE: a grant still widens a FARM-SIDE person ────────────────────
+-- The guard must not have broken the feature it is protecting. This is the positive
+-- control for (e): if this stops working, (e) passes for the wrong reason.
+do $$ declare n bigint; begin
+  insert into user_permission_grants (user_id, farm_id, permission, granted_by)
+  values ('8c200000-0000-0000-0000-000000000002', '8c000000-0000-0000-0000-000000000001',
+          'see_all_vehicles', '8c200000-0000-0000-0000-000000000001');
+
+  set local role authenticated;
+  perform _t_login('8c200000-0000-0000-0000-000000000002');
+  select count(*) into n from machines where farm_id = '8c000000-0000-0000-0000-000000000001';
+  if n <> 2 then
+    raise exception 'G34 FAIL [GRANT STILL WORKS]: a granted operator sees % machines, expected 2 - the local guard broke the feature', n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (e) A CONTRACTOR holding the same grant is still held at the F16 scope ────
+-- The whole reason the guard was made local. A grant row must never lift a linked
+-- contractor out of their access scope, and now two independent locks say so.
+do $$ declare n bigint; begin
+  insert into user_permission_grants (user_id, farm_id, permission, granted_by)
+  values ('8c200000-0000-0000-0000-000000000003', '8c000000-0000-0000-0000-000000000001',
+          'see_all_vehicles', '8c200000-0000-0000-0000-000000000001');
+
+  set local role authenticated;
+  perform _t_login('8c200000-0000-0000-0000-000000000003');
+  select count(*) into n from machines where farm_id = '8c000000-0000-0000-0000-000000000001';
+  if n <> 0 then
+    raise exception 'G34 FAIL [CONTRACTOR]: a contractor holding see_all_vehicles read % machines - the grant lifted them out of the F16 scope', n;
+  end if;
+  reset role;
+end $$;
+
+-- ── (f) Erasure clears the subject's own location, and only theirs ────────────
+do $$
+declare
+  v_subject_rows int;
+  v_other_ip     inet;
+  v_diff_kept    jsonb;
+begin
+  set local role authenticated;
+  perform _t_login('8c200000-0000-0000-0000-000000000001');       -- the owner erases the driver
+  perform public.erase_personal_data('8c200000-0000-0000-0000-000000000002', 'G34 test');
+  reset role;
+
+  -- The subject's own rows: every location column gone.
+  select count(*) into v_subject_rows
+    from audit_log
+   where user_id = '8c200000-0000-0000-0000-000000000002'
+     and (ip is not null or user_agent is not null
+          or geo_country is not null or geo_region is not null or geo_city is not null);
+  if v_subject_rows <> 0 then
+    raise exception 'G34 FAIL [ERASURE]: % of the erased person''s audit rows still carry a location', v_subject_rows;
+  end if;
+
+  -- Somebody else's row is untouched — this is not a blanket wipe.
+  select ip into v_other_ip
+    from audit_log
+   where user_id = '8c200000-0000-0000-0000-000000000001'
+     and entity_id = '8c300000-0000-0000-0000-000000000002'
+   limit 1;
+  if v_other_ip is null then
+    raise exception 'G34 FAIL [OVER-ERASURE]: erasing one person cleared another person''s location';
+  end if;
+
+  -- And the integrity record itself survives, which is the whole §4.4 argument.
+  select diff into v_diff_kept
+    from audit_log
+   where user_id = '8c200000-0000-0000-0000-000000000002'
+     and entity = 'machines'
+   limit 1;
+  if v_diff_kept is null then
+    raise exception 'G34 FAIL [INTEGRITY]: erasure destroyed the audit diff - only the location was meant to go';
+  end if;
+end $$;
+
+-- ── (g) The erasure is reported, so an operator can prove it happened ─────────
+do $$ declare n int; begin
+  select count(*) into n
+    from audit_log
+   where entity = 'data_subject_erasure'
+     and entity_id = '8c200000-0000-0000-0000-000000000002'
+     and diff ? 'audit_location_scrubbed';
+  if n <> 1 then
+    raise exception 'G34 FAIL [PROOF]: the erasure compliance entry does not report audit_location_scrubbed';
+  end if;
+end $$;
+
+select 'ALL G34 HARDENING TESTS PASSED' as result;

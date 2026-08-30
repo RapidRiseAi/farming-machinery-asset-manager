@@ -245,13 +245,23 @@ already returns the subject's `audit_log` actions and those rows now carry locat
 correct: it is the subject's own data and they are entitled to see what was recorded about
 where they were believed to be. No change to the RPC was needed or made.
 
-**One open decision for the founder.** `public.erase_personal_data` anonymises the person and
-leaves de-identified structural history behind, `audit_log` included, by the §4.4 choice. The
-location columns are therefore **not** separately scrubbed — the same decision applied
-consistently. It is called out here rather than left implicit because **an IP is more
-identifying than most of what remains in an audit row**, and a reasonable person could want
-the opposite answer. If so, the change is a `set ip = null, user_agent = null` for the
-subject's own rows inside that RPC: a one-line decision, not a redesign.
+**Erasure clears the location columns.** Founder decision, August 2026, implemented in
+migration `20260829130000`. `public.erase_personal_data` nulls `ip`, `geo_country`,
+`geo_region`, `geo_city` and `user_agent` on the **subject's own** audit rows.
+
+The reasoning, because the §4.4 exception pulls the other way and someone will ask: that
+exception exists to protect the **integrity record** — the diff, the entity, the timestamp,
+the actor link — and a legal-retention argument rests on those. None of them needs an IP
+address. An IP is simultaneously the most identifying field in the row and the least
+load-bearing, so on an explicit erasure request it is exactly the field that should go. The
+action itself stays correctly attributed, to a now-anonymised actor.
+
+Only the subject's own rows. An audit entry recording somebody *else* acting — against this
+person or otherwise — carries that other person's location, which is not the subject's to
+erase. The count is reported in the `data_subject_erasure` compliance entry and in the RPC's
+return value, so an operator can show what was cleared. Proven in `rls_isolation.sql` §G34,
+including that erasing one person leaves another person's location intact and that the audit
+diff itself survives.
 
 ---
 

@@ -1694,4 +1694,61 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     a concurrently-edited voice-assistant refactor** that is not part of this wave and was
     deliberately left uncommitted.
 
+- **Wave 4b — two hardenings taken as decisions, and 115 translation keys that were never
+  merged** (migrations `20260829130000`, `20260829130100`; suite section **G34**; 64 banners
+  across four files, green; every new surface driven in a browser against the demo project):
+  - **Both open decisions from wave 4 were taken and shipped.** Erasure now clears
+    `audit_log.ip` / `geo_*` / `user_agent` on the SUBJECT's own rows
+    (`20260829130000`) — the §4.4 exception exists to protect the *integrity record*, and the
+    diff, entity, timestamp and actor link do not need an IP address. And the F16 contractor
+    guard is now **local** to the eleven `_perm` policies (`20260829130100`) rather than
+    reached only through `app.has_permission`, so two independent locks must fail before a
+    grant row could lift a linked contractor out of their access scope.
+  - **Both are dated, not numbered, and that is load-bearing.** Migrations apply in filename
+    GLOB order, so a `2026…` name sorts AFTER `05…`. `public.erase_personal_data` had already
+    been restated three times, most recently by `20260820165542` — a `0511` would have been
+    silently overwritten by the dated files that follow it. The function was **extracted from
+    the current definition, not retyped**; hand-transcribing a body has now gone wrong three
+    times in this project.
+  - **A hardening that changes nothing is the easiest kind to get wrong unnoticed**, so G34 is
+    mostly negative assertions, and the proof is numeric on BOTH sides. Locally: every
+    persona's counts unchanged. On production, measured across the change: owner 15/54/7/5,
+    operator 1/5/1/1, contractor 4/0/3/4 — **identical cell for cell**. G34 also carries the
+    positive control (a granted *operator* must still gain the wider fleet) so the contractor
+    assertion cannot pass for the wrong reason.
+  - **Mutation-tested, and the first attempt was a no-op that passed.** The M2 mutant inserted
+    comment lines *before* the `set` clause instead of disabling it, so the scrub still ran
+    and the assertion "passed" against unmutated code — the same class of silent-harness
+    failure recorded in wave 3 and again by the accounting agent. Redone by deleting the whole
+    statement: `G34 FAIL [ERASURE]` fires, and reinstating the 0507 predicate fires
+    `G34 FAIL [LOCAL GUARD]`.
+  - **The live drive found what nothing else could: 115 i18n keys that were never merged.**
+    `/reports/schedules` rendered raw keys — `reportSchedules.title`, `reportSchedules.lead`
+    and 85 more. The `0506` feature had shipped with its i18n fragment unmerged. Chasing it
+    properly rather than patching one page found the real extent: 87 static keys, 12 dynamic
+    (`family.*` / `format.*`, invisible to a static grep), 3 run statuses, a pre-existing
+    `fuel.date` — and **12 `reportEmail.*` keys, which are the body of the emailed report
+    itself**. Every scheduled report would have gone out reading `reportEmail.greeting` to
+    accountants and banks, which is precisely who the feature exists to send to.
+  - **Why nothing caught it, and what now will.** The suite tests the database; typecheck sees
+    `t("reportSchedules.title")` as a valid string; lint has no opinion; the build succeeds.
+    Only opening the page finds it. A sweep now walks all 438 source files, extracts every
+    static `t()` key and every dynamic `` t(`stem.${…}`) `` stem, and checks both dictionaries:
+    **0 missing in EN, 0 missing in AF, no empty dynamic stem.** Worth promoting to a gate.
+  - **Driven live as four roles**: `/accounting` renders with the honesty card about the
+    export being generic; `journal.csv` returns 200 with correct debit/credit columns; the
+    packs sit inside the "Papers & licence" tab rather than costing 150px above the fold; an
+    operator neither sees the card nor can reach the route (**403**); a **contractor is refused
+    the sale pack**, which is the whole reason that refusal lives in the route rather than in
+    RLS; and a compliance pack returns a real PDF (4 909 bytes, `%PDF-`).
+  - i18n EN/AF at parity (**3 560 leaf keys**). Gates green (typecheck + lint + build +
+    `db:test`).
+  - **Two environment notes for the next reader.** The Windows temp directory was cleaned
+    mid-session, destroying the portable Postgres *installation* (not just its data) and the
+    Playwright install with it; both were rebuilt, Postgres from the zonky embedded
+    distribution on Maven Central (22 MB in under two seconds, against ~24 KB/s from EDB's
+    350 MB installer). And deleting `.next` under a running `next start` leaves a half-broken
+    server answering on port 3000 — a `pkill` that reports success may not free the port, so
+    kill the listener by PID and wait for it.
+
 > Update this "current status" block at the end of every session.

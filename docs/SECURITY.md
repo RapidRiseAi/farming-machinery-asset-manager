@@ -172,13 +172,26 @@ clause" tidy-up would be removing one of two locks: `users.active` is checked in
 both as `farm_id is not null` in the policy and as a null check inside `app.has_permission`.
 G30 mutation-tests both pairs; breaking either lock alone changes nothing, which is the point.
 
-**A known single point of failure, not yet hardened.** The eleven `_perm` SELECT policies do
-not call `app.partner_machine_visible`, so the only thing preventing a grant row from lifting
-a linked contractor clean out of the F16 access scope is the `app.is_farm_side()` call inside
-`app.has_permission`. That is one remote guard carrying the whole F16 model. Adding
-`app.is_farm_side()` to those policies directly would make it local and cheap; it is worth
-doing before anyone widens `is_farm_side`. G30 pins the current behaviour, so a regression
-fails loudly rather than silently.
+**The contractor guard is local, deliberately doubled.** The eleven `_perm` SELECT policies
+each call `app.is_farm_side()` directly, as well as reaching it through `app.has_permission`
+(migration `20260829130100`). Before that, one remote guard inside one function carried the
+whole F16 model for eleven tables that never mentioned it — so someone widening
+`is_farm_side` for an unrelated reason had no local signal that eleven contractor boundaries
+moved with it.
+
+It changed no visibility, and that is asserted rather than assumed: `app.has_permission`
+already returned false for a workshop user, so the added clause is a no-op today. G34 pins
+it from both sides — the policies must still gate on the permission (not merely on being
+farm-side), a granted *operator* must still gain the wider fleet, and a contractor holding
+the same grant must still see nothing. Measured on production across the change: owner
+15/54/7/5, operator 1/5/1/1, contractor 4/0/3/4 — identical cell for cell.
+
+This joins the two guards `0507` already doubles: `users.active` is checked in both
+`app.is_farm_side()` and `app.has_farm_access()`, and the global `partners` rows are excluded
+both by `farm_id is not null` in the policy and by a null check inside `app.has_permission`.
+**A future "remove the redundant clause" tidy-up would be removing one of two locks in each
+case** — G30 and G34 mutation-test all three pairs, and breaking either lock alone changes
+nothing, which is the point.
 
 ## 5d. Error reporting (NFR-6)
 

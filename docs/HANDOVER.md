@@ -242,20 +242,24 @@ Excluded by decision rather than absence: **fuel-card import and GPS telematics*
 
 ## 8. Suggested order of work for the next session
 
-1. **Run the schema fingerprint (§2) before trusting anything about production.** It has
-   earned itself twice: once finding a debugging back door that existed only on the live
-   database, and once finding `0501` applied in *pieces* — its indexes and one function
-   restatement had landed while two functions had not. Count objects, not migrations.
-2. **Apply `0506`–`0510` to the hosted project** if that has not already happened. Nothing
-   in this wave is applied there yet.
-3. **Decide the one open POPIA question** in `docs/POPIA.md` §5.2: whether erasure should
-   scrub `audit_log.ip` and `user_agent` for the subject's own rows, or keep the §4.4
-   audit-log exception as it stands. An IP is more identifying than most of what remains in
-   an audit row, so it is a real choice rather than a formality. One line either way.
-4. **Harden the F16 boundary** described in `docs/SECURITY.md` §5c: the eleven `_perm`
-   SELECT policies do not call `app.partner_machine_visible`, so the only thing stopping a
-   grant row lifting a linked contractor out of their access scope is the
-   `app.is_farm_side()` call inside `app.has_permission`. One remote guard carrying the
-   whole model. Cheap to make local, and worth doing before anyone widens `is_farm_side`.
-5. Then pick from §6. Multi-currency is the largest; a named Sage or Xero export variant is
-   the smallest and needs only one confirmed column set from inside either product.
+Four items from the previous revision are done and are recorded here so nobody repeats them:
+`0506`–`0510` are applied to the hosted project and verified against live data; the POPIA
+erasure question was decided (erasure now scrubs `audit_log.ip` and `user_agent` — migration
+`20260829130000`); the F16 contractor guard was made local to the eleven `_perm` policies
+(`20260829130100`); and the schema fingerprint was run, finding and closing two real gaps.
+
+1. **Run the schema fingerprint (§2) before trusting anything about production.** It has now
+   earned itself three times: a debugging back door that existed only on the live database,
+   `0501` applied in *pieces* (its indexes had landed, two of its functions had not), and
+   `0510` missing entirely while code depending on it was already pushed. **Count objects,
+   not migrations** — a ledger would have shown all three as done.
+2. **Re-measure the shared first-load bundle.** It read 103 kB against the 102 kB held all
+   project. Every route added in wave 4 is 374 B and server-only, and the shell imports an
+   assistant client component from work that was being edited concurrently — so the reading
+   was not measuring wave 4. A clean number is free once that work is committed.
+3. **Finish the voice-assistant work** that was in flight during wave 4 and deliberately left
+   uncommitted (`src/lib/assistant/**`, `src/components/assistant/**`, the assistant route,
+   and an admin page). It typechecks now; it was mid-rename when wave 4 was committed around it.
+4. Then pick from §6. Multi-currency is the largest. A named Sage or Xero export variant is
+   the smallest and needs only one confirmed column set from inside either product — the
+   research is recorded in §6 so it does not have to be repeated.
