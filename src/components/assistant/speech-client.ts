@@ -5,6 +5,8 @@ type AudioConfig = import("microsoft-cognitiveservices-speech-sdk").AudioConfig;
 type SpeechConfig = import("microsoft-cognitiveservices-speech-sdk").SpeechConfig;
 type SpeechRecognizer =
   import("microsoft-cognitiveservices-speech-sdk").SpeechRecognizer;
+type SpeechRecognitionResult =
+  import("microsoft-cognitiveservices-speech-sdk").SpeechRecognitionResult;
 type SpeechSynthesizer =
   import("microsoft-cognitiveservices-speech-sdk").SpeechSynthesizer;
 type SpeakerAudioDestination =
@@ -137,6 +139,8 @@ export class SpeechClientError extends Error {
 export interface SpeechTranscript {
   text: string;
   locale: SpeechLocale;
+  /** Azure's acoustic confidence for a final result, when supplied. */
+  confidence?: number;
   isFinal: boolean;
   resultId: string;
   durationMs: number;
@@ -144,7 +148,10 @@ export interface SpeechTranscript {
 }
 
 export interface SpeechRecognitionOptions {
+  /** Preferred response/transcription locale. */
   locale: SpeechLocale;
+  /** Small candidate set used by Azure source-language identification. */
+  autoDetectLocales?: readonly SpeechLocale[];
   /** Used only for en-ZA. Empty, duplicate, and over-limit entries are discarded. */
   phrases?: readonly string[];
   /** Azure accepts 0-2. Defaults to 1.5. */
@@ -432,19 +439,72 @@ function phraseWeight(value: number | undefined): number {
   return Math.min(2, Math.max(0, value));
 }
 
+function recognitionLocales(options: SpeechRecognitionOptions): SpeechLocale[] {
+  const candidates = options.autoDetectLocales?.length
+    ? options.autoDetectLocales
+    : [options.locale];
+  const result: SpeechLocale[] = [];
+  for (const locale of candidates) {
+    if ((locale === "af-ZA" || locale === "en-ZA") && !result.includes(locale)) {
+      result.push(locale);
+    }
+  }
+  return result.length ? result : [options.locale];
+}
+
+function createRecognizer(
+  sdk: SpeechSdk,
+  speechConfig: SpeechConfig,
+  audioConfig: AudioConfig,
+  options: SpeechRecognitionOptions,
+): SpeechRecognizer {
+  const candidates = recognitionLocales(options);
+  if (candidates.length < 2) {
+    speechConfig.speechRecognitionLanguage = options.locale;
+    return new sdk.SpeechRecognizer(speechConfig, audioConfig);
+  }
+  const detection = sdk.AutoDetectSourceLanguageConfig.fromLanguages(candidates);
+  detection.mode = sdk.LanguageIdMode.Continuous;
+  return sdk.SpeechRecognizer.FromConfig(speechConfig, detection, audioConfig);
+}
+
+function detectedLocale(
+  sdk: SpeechSdk,
+  result: SpeechRecognitionResult,
+  fallback: SpeechLocale,
+): SpeechLocale {
+  try {
+    const detected = sdk.AutoDetectSourceLanguageResult.fromResult(result).language;
+    return detected === "af-ZA" || detected === "en-ZA" ? detected : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function resultConfidence(sdk: SpeechSdk, result: SpeechRecognitionResult): number | undefined {
+  try {
+    const raw = result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!isRecord(parsed) || !Array.isArray(parsed.NBest) || !isRecord(parsed.NBest[0])) return undefined;
+    const value = parsed.NBest[0].Confidence;
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+    return Math.min(1, Math.max(0, value));
+  } catch {
+    return undefined;
+  }
+}
+
 function toTranscript(
+  sdk: SpeechSdk,
   text: string,
   locale: SpeechLocale,
-  result: {
-    resultId: string;
-    duration: number;
-    offset: number;
-  },
+  result: SpeechRecognitionResult,
   isFinal: boolean,
 ): SpeechTranscript {
   return {
     text,
-    locale,
+    locale: detectedLocale(sdk, result, locale),
+    confidence: isFinal ? resultConfidence(sdk, result) : undefined,
     isFinal,
     resultId: result.resultId,
     durationMs: Math.max(0, result.duration / 10_000),
@@ -584,9 +644,9 @@ class AzureBrowserSpeechClient implements SpeechClient {
     let operation: RecognitionOperation | undefined;
     try {
       speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token.token, token.region);
-      speechConfig.speechRecognitionLanguage = options.locale;
+      speechConfig.outputFormat = sdk.OutputFormat.Detailed;
       audioConfig = sdk.AudioConfig.fromWavFileInput(file);
-      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+      recognizer = createRecognizer(sdk, speechConfig, audioConfig, options);
       operation = {
         recognizer,
         audioConfig,
@@ -602,7 +662,9 @@ class AzureBrowserSpeechClient implements SpeechClient {
       const fileOperation = operation;
       const fileRecognizer = recognizer;
 
-      if (options.locale === "en-ZA") {
+      // en-ZA supports runtime phrase lists. Apply the hints whenever that model
+      // is one of the two LID candidates, even when Afrikaans is the reply locale.
+      if (recognitionLocales(options).includes("en-ZA")) {
         const phrases = sanitizePhrases(options.phrases);
         if (phrases.length) {
           const grammar = sdk.PhraseListGrammar.fromRecognizer(recognizer);
@@ -654,7 +716,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
         if (!text || fileOperation.closed) return;
         safeInvoke(
           options.onPartial,
-          toTranscript(text, options.locale, event.result, false),
+          toTranscript(sdk, text, options.locale, event.result, false),
         );
       };
 
@@ -673,7 +735,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
         segments.push(text);
         safeInvoke(
           options.onFinal,
-          toTranscript(text, options.locale, event.result, true),
+          toTranscript(sdk, text, options.locale, event.result, true),
         );
       };
 
@@ -950,10 +1012,10 @@ class AzureBrowserSpeechClient implements SpeechClient {
         token.token,
         token.region,
       );
-      speechConfig.speechRecognitionLanguage = options.locale;
+      speechConfig.outputFormat = sdk.OutputFormat.Detailed;
 
       audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-      recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+      recognizer = createRecognizer(sdk, speechConfig, audioConfig, options);
       operation = {
         recognizer,
         audioConfig,
@@ -967,7 +1029,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
       };
       this.recognitionOperation = operation;
 
-      if (options.locale === "en-ZA") {
+      if (recognitionLocales(options).includes("en-ZA")) {
         const phrases = sanitizePhrases(options.phrases);
         if (phrases.length) {
           const grammar = sdk.PhraseListGrammar.fromRecognizer(recognizer);
@@ -981,7 +1043,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
         if (!text) return;
         safeInvoke(
           options.onPartial,
-          toTranscript(text, options.locale, event.result, false),
+          toTranscript(sdk, text, options.locale, event.result, false),
         );
       };
 
@@ -991,7 +1053,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
           if (text) {
             safeInvoke(
               options.onFinal,
-              toTranscript(text, options.locale, event.result, true),
+              toTranscript(sdk, text, options.locale, event.result, true),
             );
           }
           return;

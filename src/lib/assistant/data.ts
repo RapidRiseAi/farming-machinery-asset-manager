@@ -37,7 +37,21 @@ export async function loadAssistantMachines(
     .not("status", "in", "(retired,sold)")
     .order("name");
   if (scope?.role === "operator") {
-    machinesQuery = machinesQuery.eq("assigned_operator_id", scope.userId);
+    // RLS already understands the additive `see_all_vehicles` grant. Keep the
+    // explicit assignment filter as defence in depth unless that signed-in user
+    // has the active farm-scoped grant.
+    const { data: fullFleetGrant, error: grantError } = await supabase
+      .from("user_permission_grants")
+      .select("id")
+      .eq("farm_id", farmId)
+      .eq("user_id", scope.userId)
+      .eq("permission", "see_all_vehicles")
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    if (grantError || !fullFleetGrant) {
+      machinesQuery = machinesQuery.eq("assigned_operator_id", scope.userId);
+    }
   }
   const machinesResult = await machinesQuery;
   if (machinesResult.error) throw machinesResult.error;
@@ -91,4 +105,27 @@ export async function loadAssistantMachines(
       nextDueReading: due?.next_due_reading == null ? null : Number(due.next_due_reading),
     };
   });
+}
+
+/**
+ * The additive `see_all_vehicles` permission expands what an operator may
+ * inspect, not which machines they may change. Keep this write scope separate
+ * from `loadAssistantMachines` so the assistant cannot offer a confirmation
+ * that the database's assignment checks will reject.
+ */
+export async function loadOperatorWritableMachineIds(
+  supabase: SupabaseClient,
+  farmId: string,
+  userId: string,
+): Promise<string[]> {
+  const result = await supabase
+    .from("machines")
+    .select("id")
+    .eq("farm_id", farmId)
+    .eq("assigned_operator_id", userId)
+    .is("deleted_at", null)
+    .not("status", "in", "(retired,sold)");
+
+  if (result.error) throw result.error;
+  return ((result.data as Array<{ id: string }> | null) ?? []).map((machine) => machine.id);
 }

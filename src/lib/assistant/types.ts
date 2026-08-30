@@ -13,6 +13,49 @@ export type AssistantIntent = (typeof ASSISTANT_INTENTS)[number];
 export type AssistantChannel = "typed" | "voice";
 export type AssistantUrgency = "can_work" | "limping" | "stopped";
 
+export type AssistantNavigation = "none" | "machines" | "faults" | "jobcards" | "work" | "documents";
+
+export type AssistantDocumentStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "declined"
+  | "part_paid"
+  | "paid"
+  | "cancelled"
+  | "expired"
+  | "void"
+  | "written_off";
+
+export type AssistantLocalReadRequest =
+  | { kind: "help" }
+  | { kind: "quote_boundary" }
+  | { kind: "action_boundary"; navigation: AssistantNavigation }
+  | { kind: "navigation"; navigation: Exclude<AssistantNavigation, "none"> }
+  | { kind: "fleet_overview"; machineQuery: string }
+  | { kind: "service_attention"; machineQuery: string }
+  | { kind: "faults"; machineQuery: string; view: "open" | "resolved" | "all" }
+  | {
+      kind: "job_cards";
+      machineQuery: string;
+      view: "active" | "completed" | "all";
+      jobType?: "scheduled_service" | "repair" | "inspection" | "other";
+    }
+  | {
+      kind: "work_requests";
+      machineQuery: string;
+      requestKind?: "repair" | "quote" | "inspection" | "parts" | "other";
+      view: "active" | "all";
+      status?: "requested" | "viewed" | "quoted" | "accepted" | "in_progress" | "completed" | "invoiced" | "closed";
+    }
+  | {
+      kind: "financial_documents";
+      machineQuery: string;
+      documentKind?: "quote" | "invoice";
+      status?: AssistantDocumentStatus;
+      outstandingOnly: boolean;
+    };
+
 export type AssistantMachine = {
   id: string;
   name: string;
@@ -41,11 +84,13 @@ export type AssistantDraft = {
   serviceDate: string | null;
   workPerformed: string | null;
   confidence: number;
+  /** Present only while a deterministic read is waiting for a machine clarification. */
+  localReadRequest?: AssistantLocalReadRequest;
 };
 
 export type AssistantField =
   | {
-      name: "machineId";
+      name: "machineId" | "urgency";
       type: "select";
       label: string;
       options: Array<{ value: string; label: string }>;
@@ -74,7 +119,9 @@ export type AssistantField =
 export type AssistantClarification = {
   interactionId: string;
   machineId?: string;
+  machineQuery?: string;
   description?: string;
+  urgency?: AssistantUrgency;
   workPerformed?: string;
   reading?: number;
   readingDate?: string;
@@ -118,6 +165,7 @@ export type AssistantTurnResponse =
       conversationId: string;
       message: string;
       speakText?: string;
+      action?: { href: string; label: string };
     }
   | {
       kind: "needs_consent";

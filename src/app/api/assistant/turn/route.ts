@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
-import { loadAssistantMachines } from "@/lib/assistant/data";
-import { configuredLlmModel, parseWithLlm } from "@/lib/assistant/llm";
+import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
+import { configuredLlmModel, runAssistantAgent } from "@/lib/assistant/llm";
+import {
+  answerLocalRead,
+  isLocalReadRequest,
+  type AssistantNavigation,
+  type LocalReadRequest,
+} from "@/lib/assistant/local-read";
 import { matchMachine, normalizeAssistantText } from "@/lib/assistant/normalize";
-import { parseDeterministic } from "@/lib/assistant/parser";
 import { missingFields, proposalFor, queryAnswer } from "@/lib/assistant/presentation";
 import { assistantTurnRequestSchema } from "@/lib/assistant/request-schema";
 import type { ParsedAssistantTurnRequest } from "@/lib/assistant/request-schema";
+import {
+  isAssistantWriteIntent,
+  machinesForAssistantDraft,
+  planAssistantRoute,
+  readOnlyWriteTarget,
+} from "@/lib/assistant/routing";
 import {
   createInteraction,
   ensureVoiceCapture,
@@ -17,7 +28,7 @@ import {
   updateInteractionDraft,
   updateVoiceCapture,
 } from "@/lib/assistant/store";
-import type { AssistantDraft, AssistantTurnResponse } from "@/lib/assistant/types";
+import type { AssistantDraft, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,7 +47,9 @@ function mergeClarification(
   return {
     ...draft,
     machineId: values.machineId ?? draft.machineId,
+    machineQuery: values.machineQuery ?? draft.machineQuery,
     description: values.description ?? draft.description,
+    urgency: values.urgency ?? draft.urgency,
     workPerformed: values.workPerformed ?? draft.workPerformed,
     reading: values.reading ?? draft.reading,
     readingDate: values.readingDate ?? draft.readingDate,
@@ -60,6 +73,22 @@ function errorCode(error: unknown): string | null {
 
 function localized(locale: "en-ZA" | "af-ZA", english: string, afrikaans: string): string {
   return locale === "af-ZA" ? afrikaans : english;
+}
+
+function navigationAction(
+  destination: AssistantNavigation,
+  locale: "en-ZA" | "af-ZA",
+): { href: string; label: string } | undefined {
+  const actions = {
+    machines: { href: "/machines", en: "Open machines", af: "Maak masjiene oop" },
+    faults: { href: "/faults", en: "Open faults", af: "Maak foute oop" },
+    jobcards: { href: "/jobcards", en: "Open job cards", af: "Maak werkkaarte oop" },
+    work: { href: "/work", en: "Open work requests", af: "Maak werkversoeke oop" },
+    documents: { href: "/documents", en: "Open quotes and invoices", af: "Maak kwotasies en fakture oop" },
+  } as const;
+  if (destination === "none") return undefined;
+  const action = actions[destination];
+  return { href: action.href, label: locale === "af-ZA" ? action.af : action.en };
 }
 
 export async function POST(request: Request) {
@@ -91,12 +120,26 @@ export async function POST(request: Request) {
     }, 429);
   }
 
-  let machines;
+  let machines: AssistantMachine[];
+  let writableMachines: AssistantMachine[];
   try {
-    machines = await loadAssistantMachines(context.supabase, context.farmId, {
+    const machineScope = {
       role: context.role,
       userId: context.profile.id,
-    });
+    };
+    const [readable, operatorWritableIds] = await Promise.all([
+      loadAssistantMachines(context.supabase, context.farmId, machineScope),
+      context.role === "operator"
+        ? loadOperatorWritableMachineIds(context.supabase, context.farmId, context.profile.id)
+        : Promise.resolve<string[] | null>(null),
+    ]);
+    machines = readable;
+    if (operatorWritableIds) {
+      const writableIds = new Set(operatorWritableIds);
+      writableMachines = machines.filter((machine) => writableIds.has(machine.id));
+    } else {
+      writableMachines = machines;
+    }
   } catch {
     return json({
       kind: "error",
@@ -123,8 +166,15 @@ export async function POST(request: Request) {
       fallbackHref: isOperator ? "/machines" : "/machines/new",
     }, 400);
   }
+  const readScope = {
+    supabase: context.supabase,
+    farmId: context.farmId,
+    role: context.role,
+    machines,
+  };
 
   let captureId: string | null = null;
+  let clarificationCaptureId: string | null = null;
   let interactionId: string | null = null;
   let tier: 0 | 1 | 2 = 1;
   let draft: AssistantDraft;
@@ -154,6 +204,78 @@ export async function POST(request: Request) {
       captureId = previous.voice_capture_id;
       tier = previous.route_tier;
       draft = mergeClarification(previous.tool_args, body.clarification);
+      // A spoken follow-up is a separate utterance with its own capture ID. The
+      // proposal remains linked to the original capture, while this row retains
+      // the follow-up transcript/confidence in the same farm/user audit scope.
+      if (body.channel === "voice" && body.voiceCaptureId && body.voiceCaptureId !== captureId) {
+        clarificationCaptureId = await ensureVoiceCapture({
+          requestedId: body.voiceCaptureId,
+          farmId: context.farmId,
+          userId: context.profile.id,
+          locale: body.locale,
+          transcript: body.input,
+          normalizedTranscript: normalizeAssistantText(body.input),
+          confidence: body.sttConfidence,
+        });
+        await updateVoiceCapture(clarificationCaptureId, context.profile.id, { status: "completed" });
+      }
+      if (isLocalReadRequest(previous.tool_args.localReadRequest)) {
+        const selectedById = body.clarification.machineId
+          ? machines.find((machine) => machine.id === body.clarification?.machineId) ?? null
+          : null;
+        const selectedBySpeech = !selectedById && body.clarification.machineQuery
+          ? matchMachine(body.clarification.machineQuery, machines).machine
+          : null;
+        const selected = selectedById ?? selectedBySpeech;
+        if (!selected) {
+          const retry = await answerLocalRead(previous.tool_args.localReadRequest, readScope, body.locale);
+          await releaseClarification(interactionId, context.farmId, context.profile.id);
+          if (retry.machineOptions?.length) {
+            return json({
+              kind: "clarify",
+              conversationId: interactionId,
+              question: retry.message,
+              fields: [{
+                name: "machineId",
+                type: "select",
+                label: localized(body.locale, "Which machine?", "Watter masjien?"),
+                options: retry.machineOptions.map((machine) => ({ value: machine.id, label: machine.name })),
+              }],
+            });
+          }
+          return json({
+            kind: "error",
+            code: "machine_not_found",
+            message: localized(body.locale, "I could not identify that machine. Please start again with its full name.", "Ek kon nie daardie masjien identifiseer nie. Begin weer met sy volle naam."),
+          }, 400);
+        }
+        const localRequest = {
+          ...previous.tool_args.localReadRequest,
+          machineQuery: selected.name,
+        } as LocalReadRequest;
+        draft = {
+          ...draft,
+          machineId: selected.id,
+          machineQuery: selected.name,
+          localReadRequest: localRequest,
+        };
+        const answer = await answerLocalRead(localRequest, readScope, body.locale);
+        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+          result_status: "answered",
+          confirmation_status: "not_required",
+          response_text: answer.message,
+          completed_at: new Date().toISOString(),
+        }, expectedInteractionStatus);
+        await updateVoiceCapture(captureId, context.profile.id, { status: "completed", machine_id: selected.id });
+        await updateVoiceCapture(clarificationCaptureId, context.profile.id, { machine_id: selected.id });
+        return json({
+          kind: "answer",
+          conversationId: interactionId,
+          message: answer.message,
+          speakText: answer.speakText,
+          action: navigationAction(answer.navigation, body.locale),
+        });
+      }
     } else {
       if (body.channel === "voice") {
         if (body.supersedesVoiceCaptureIds) {
@@ -174,8 +296,63 @@ export async function POST(request: Request) {
         });
       }
 
-      draft = parseDeterministic(body.input, body.locale);
-      if (!draft.intent) {
+      const routePlan = planAssistantRoute(body.input, body.locale);
+      draft = routePlan.draft;
+      if (routePlan.kind === "local") {
+        const answer = await answerLocalRead(routePlan.request, readScope, body.locale);
+        if (answer.machineOptions?.length) {
+          draft = { ...draft, localReadRequest: routePlan.request };
+          interactionId = await createInteraction({
+            farmId: context.farmId,
+            userId: context.profile.id,
+            captureId,
+            channel: body.channel,
+            locale: body.locale,
+            tier: 1,
+            input: body.input,
+            draft,
+            resultStatus: "proposed",
+            responseText: answer.message,
+          });
+          await updateVoiceCapture(captureId, context.profile.id, { status: "parsed" });
+          return json({
+            kind: "clarify",
+            conversationId: interactionId,
+            question: answer.message,
+            fields: [{
+              name: "machineId",
+              type: "select",
+              label: localized(body.locale, "Which machine?", "Watter masjien?"),
+              options: answer.machineOptions.map((machine) => ({ value: machine.id, label: machine.name })),
+            }],
+          });
+        }
+        interactionId = await createInteraction({
+          farmId: context.farmId,
+          userId: context.profile.id,
+          captureId,
+          channel: body.channel,
+          locale: body.locale,
+          tier: 1,
+          input: body.input,
+          draft,
+          resultStatus: "answered",
+          responseText: answer.message,
+          completedAt: new Date().toISOString(),
+        });
+        await updateVoiceCapture(captureId, context.profile.id, {
+          status: "completed",
+          ...(answer.machineId ? { machine_id: answer.machineId } : {}),
+        });
+        return json({
+          kind: "answer",
+          conversationId: interactionId,
+          message: answer.message,
+          speakText: answer.speakText,
+          action: navigationAction(answer.navigation, body.locale),
+        });
+      }
+      if (routePlan.kind === "optional_ai") {
         if (!context.profile.ai_processing_opt_in || !context.profile.ai_processing_consent_version) {
           interactionId = await createInteraction({
             farmId: context.farmId,
@@ -262,14 +439,38 @@ export async function POST(request: Request) {
         }
 
         try {
-          const llm = await parseWithLlm(body.input, body.locale, requestedModel, request.signal);
-          draft = llm.draft;
+          const agent = await runAssistantAgent({
+            text: body.input,
+            locale: body.locale,
+            model: requestedModel,
+            abortSignal: request.signal,
+          });
           tier = 2;
           provider = "vercel-ai-gateway";
-          model = llm.model;
-          inputTokens = llm.inputTokens;
-          outputTokens = llm.outputTokens;
-          latencyMs = llm.latencyMs;
+          model = agent.model;
+          inputTokens = agent.inputTokens;
+          outputTokens = agent.outputTokens;
+          latencyMs = agent.latencyMs;
+          if (agent.kind === "answer") {
+            await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+              result_status: "answered",
+              confirmation_status: "not_required",
+              response_text: agent.answer,
+              input_tokens: inputTokens,
+              output_tokens: outputTokens,
+              latency_ms: latencyMs,
+              completed_at: new Date().toISOString(),
+            }, expectedInteractionStatus);
+            await updateVoiceCapture(captureId, context.profile.id, { status: "completed" });
+            return json({
+              kind: "answer",
+              conversationId: interactionId,
+              message: agent.answer,
+              speakText: agent.answer,
+              action: navigationAction(agent.navigation, body.locale),
+            });
+          }
+          draft = agent.draft;
           await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
             input_tokens: inputTokens,
             output_tokens: outputTokens,
@@ -330,12 +531,45 @@ export async function POST(request: Request) {
       );
     }
 
-    const selectedMachine = draft.machineId ? machines.find((machine) => machine.id === draft.machineId) ?? null : null;
-    const match = selectedMachine ? { machine: selectedMachine, alternatives: [], ambiguous: false, score: 1 } : matchMachine(draft.machineQuery ?? body.input, machines);
+    const readOnlyTarget = readOnlyWriteTarget(draft, body.input, machines, writableMachines);
+    if (readOnlyTarget || (isAssistantWriteIntent(draft.intent) && writableMachines.length === 0)) {
+      if (interactionId) {
+        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+          result_status: "failed",
+          response_text: "The selected machine is visible but is not assigned for operator changes.",
+          error_code: "machine_not_assigned",
+          completed_at: new Date().toISOString(),
+        }, expectedInteractionStatus).catch(() => undefined);
+      }
+      await updateVoiceCapture(captureId, context.profile.id, {
+        status: "cancelled",
+        error_code: "machine_not_assigned",
+      });
+      return json(
+        {
+          kind: "error",
+          code: "machine_not_assigned",
+          message: localized(
+            body.locale,
+            readOnlyTarget
+              ? `${readOnlyTarget.name} is visible to you, but it is not assigned to you. Ask a manager to assign it before reporting a fault. Nothing was saved.`
+              : "No machines are assigned to you for changes. Ask a manager to assign one before reporting a fault. Nothing was saved.",
+            readOnlyTarget
+              ? `${readOnlyTarget.name} is vir jou sigbaar, maar dit is nie aan jou toegewys nie. Vra 'n bestuurder om dit toe te wys voordat jy 'n fout aanmeld. Niks is gestoor nie.`
+              : "Geen masjiene is aan jou toegewys vir veranderinge nie. Vra 'n bestuurder om een toe te wys voordat jy 'n fout aanmeld. Niks is gestoor nie.",
+          ),
+        },
+        403,
+      );
+    }
+
+    const intentMachines = machinesForAssistantDraft(draft, machines, writableMachines);
+    const selectedMachine = draft.machineId ? intentMachines.find((machine) => machine.id === draft.machineId) ?? null : null;
+    const match = selectedMachine ? { machine: selectedMachine, alternatives: [], ambiguous: false, score: 1 } : matchMachine(draft.machineQuery ?? body.input, intentMachines);
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
 
-    const missing = missingFields(draft, machines, body.locale, match.ambiguous ? match.alternatives : undefined);
+    const missing = missingFields(draft, intentMachines, body.locale, match.ambiguous ? match.alternatives : undefined);
     if (missing) {
       if (interactionId) {
         await updateInteractionDraft(
@@ -366,10 +600,11 @@ export async function POST(request: Request) {
         });
       }
       await updateVoiceCapture(captureId, context.profile.id, { status: "parsed", machine_id: draft.machineId });
+      await updateVoiceCapture(clarificationCaptureId, context.profile.id, { machine_id: draft.machineId });
       return json({ kind: "clarify", conversationId: interactionId, ...missing });
     }
 
-    const machine = machines.find((candidate) => candidate.id === draft.machineId)!;
+    const machine = intentMachines.find((candidate) => candidate.id === draft.machineId)!;
     if (draft.intent === "query_asset_status" || draft.intent === "query_service_due") {
       const answer = queryAnswer(draft, machine, body.locale);
       if (interactionId) {
@@ -401,6 +636,7 @@ export async function POST(request: Request) {
         });
       }
       await updateVoiceCapture(captureId, context.profile.id, { status: "completed", machine_id: machine.id });
+      await updateVoiceCapture(clarificationCaptureId, context.profile.id, { machine_id: machine.id });
       return json({ kind: "answer", conversationId: interactionId, message: answer, speakText: answer });
     }
 
@@ -435,6 +671,7 @@ export async function POST(request: Request) {
       status: "awaiting_confirmation",
       machine_id: machine.id,
     });
+    await updateVoiceCapture(clarificationCaptureId, context.profile.id, { machine_id: machine.id });
     return json({
       kind: "confirm",
       conversationId: interactionId,

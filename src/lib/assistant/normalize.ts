@@ -1,8 +1,18 @@
 import type { AssistantMachine } from "./types";
 
 const SPOKEN_NAME_REPLACEMENTS: Array<[RegExp, string]> = [
+  // Common single-consonant Afrikaans transcript/spelling variant.
+  [/\braporteer\b/g, "rapporteer"],
   [/\b(?:djon|john|jong)\s+(?:deer|deere|deur)\b/g, "john deere"],
   [/\bmacy\s+ferguson\b/g, "massey ferguson"],
+  [/\bmer(?:c|s)(?:edes|adies|edis|edys|edez)(?:[ -]+benz)?\b/g, "mercedes benz"],
+  [/\bmer\s+say\s+this(?:[ -]+benz)?\b/g, "mercedes benz"],
+  // Observed from the af-ZA recognizer when Willem says "Mercedes trok".
+  // Keep these contextual to truck/trok so ordinary Afrikaans words are not
+  // globally rewritten into a vehicle brand.
+  [/\bverkeerdes\s+(trok|truck)\b/g, "mercedes benz $1"],
+  [/\bmerk(?:ie|e)?\s+(?:dis|des)\s+(trok|truck)\b/g, "mercedes benz $1"],
+  [/\bmerk\s+jy\s+dis\s+(trok|truck)\b/g, "mercedes benz $1"],
   [/\bnew\s+hollandt?\b/g, "new holland"],
 ];
 
@@ -94,4 +104,3 @@ export function matchMachine(input: string, machines: AssistantMachine[]): Machi
     alternatives: ranked.filter((r) => r.score >= Math.max(0.5, first.score - 0.2)).slice(0, 5).map((r) => r.machine),
   };
 }
-

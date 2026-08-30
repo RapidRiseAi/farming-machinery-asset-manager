@@ -17,7 +17,9 @@ export const assistantTurnRequestSchema = z
       .object({
         interactionId: z.uuid(),
         machineId: postgresUuidSchema.optional(),
+        machineQuery: z.string().trim().min(1).max(160).optional(),
         description: z.string().trim().min(1).max(2000).optional(),
+        urgency: z.enum(["can_work", "limping", "stopped"]).optional(),
         workPerformed: z.string().trim().max(2000).optional(),
         reading: z.number().min(0).optional(),
         readingDate: z.iso.date().optional(),

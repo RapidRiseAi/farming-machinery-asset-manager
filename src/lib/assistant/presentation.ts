@@ -25,7 +25,7 @@ function machineStatusLabel(status: string, locale: AssistantLocale): string {
 }
 
 function urgencyLabel(urgency: AssistantDraft["urgency"], locale: AssistantLocale): string {
-  const value = urgency ?? "can_work";
+  const value = urgency ?? "stopped";
   const labels = af(locale)
     ? { can_work: "Kan nog werk", limping: "Sukkel", stopped: "Gestop" }
     : { can_work: "Can still work", limping: "Limping", stopped: "Stopped" };
@@ -39,6 +39,15 @@ export function missingFields(
   machineOptions?: AssistantMachine[],
 ): { question: string; fields: AssistantField[] } | null {
   const fields: AssistantField[] = [];
+  // The symptom is the natural first follow-up to a generic request. Entity
+  // and safety questions follow one at a time.
+  if (draft.intent === "report_fault" && !draft.description?.trim()) {
+    fields.push({
+      name: "description",
+      type: "text",
+      label: af(locale) ? "Wat is die probleem?" : "What is the problem?",
+    });
+  }
   if (!draft.machineId) {
     const candidates = machineOptions?.length ? machineOptions : machines;
     fields.push({
@@ -49,11 +58,22 @@ export function missingFields(
     });
   }
 
-  if (draft.intent === "report_fault" && !draft.description?.trim()) {
+  if (draft.intent === "report_fault" && !draft.urgency) {
     fields.push({
-      name: "description",
-      type: "text",
-      label: af(locale) ? "Wat is die probleem?" : "What is the problem?",
+      name: "urgency",
+      type: "select",
+      label: af(locale) ? "Kan die masjien nog veilig werk?" : "Can the machine still operate safely?",
+      options: af(locale)
+        ? [
+            { value: "can_work", label: "Ja, dit kan nog werk" },
+            { value: "limping", label: "Dit werk, maar sukkel" },
+            { value: "stopped", label: "Nee, dit het gestop" },
+          ]
+        : [
+            { value: "can_work", label: "Yes, it can still work" },
+            { value: "limping", label: "It works with limitations" },
+            { value: "stopped", label: "No, it has stopped" },
+          ],
     });
   }
   if (draft.intent === "log_reading" && draft.reading == null) {
@@ -93,10 +113,8 @@ export function missingFields(
 
   if (fields.length === 0) return null;
   return {
-    question: af(locale)
-      ? "Ek het nog ’n bietjie inligting nodig voordat ons kan voortgaan."
-      : "I need a little more information before we can continue.",
-    fields,
+    question: fields[0].label,
+    fields: [fields[0]],
   };
 }
 

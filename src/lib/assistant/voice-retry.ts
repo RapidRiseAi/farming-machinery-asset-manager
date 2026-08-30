@@ -2,7 +2,7 @@ import type { AssistantTurnRequest } from "./types";
 
 export type PendingAssistantTranscript = Pick<
   AssistantTurnRequest,
-  "locale" | "channel" | "voiceCaptureId" | "supersedesVoiceCaptureIds"
+  "locale" | "channel" | "voiceCaptureId" | "supersedesVoiceCaptureIds" | "sttConfidence"
 >;
 
 export const MAX_SUPERSEDED_VOICE_CAPTURES = 5;
@@ -13,6 +13,7 @@ export function pendingTranscriptFor(request: AssistantTurnRequest): PendingAssi
     channel: request.channel,
     voiceCaptureId: request.voiceCaptureId,
     supersedesVoiceCaptureIds: request.supersedesVoiceCaptureIds,
+    sttConfidence: request.sttConfidence,
   };
 }
 

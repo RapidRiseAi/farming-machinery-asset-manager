@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createSpeechClient,
   SpeechClientError,
@@ -42,6 +42,8 @@ import {
   pendingTranscriptFor,
   type PendingAssistantTranscript,
 } from "@/lib/assistant/voice-retry";
+import { recognitionLocales, speechVocabulary, voiceForLocale } from "@/lib/assistant/speech-plan";
+import { clarificationFromSpeech } from "@/lib/assistant/spoken-clarification";
 
 type Phase =
   | "idle"
@@ -62,7 +64,8 @@ type Capabilities = {
 };
 
 type Completion = { message: string; href?: string };
-const ASSISTANT_TURN_TIMEOUT_MS = 20_000;
+type ClarifyTurn = Extract<AssistantTurnResponse, { kind: "clarify" }>;
+const ASSISTANT_TURN_TIMEOUT_MS = 30_000;
 
 function responseError(value: unknown, locale: Lang): AssistantTurnResponse {
   if (value && typeof value === "object" && "kind" in value) return value as AssistantTurnResponse;
@@ -139,11 +142,19 @@ export function AssistantClient({
   const transcriptRef = useRef("");
   const finalSegmentsRef = useRef<string[]>([]);
   const finalIdsRef = useRef(new Set<string>());
+  const confidenceTotalRef = useRef(0);
+  const confidenceWeightRef = useRef(0);
   const captureIdRef = useRef<string | null>(null);
   const lastRequestRef = useRef<AssistantTurnRequest | null>(null);
+  const spokenClarificationRef = useRef<{
+    turn: ClarifyTurn;
+    field: ClarifyTurn["fields"][number];
+    request: AssistantTurnRequest;
+  } | null>(null);
   const resultRegionRef = useRef<HTMLHeadingElement | null>(null);
   const operationRef = useRef(0);
   const mountedRef = useRef(true);
+  const machineVocabulary = useMemo(() => speechVocabulary(machines), [machines]);
 
   const getSpeech = useCallback(() => {
     if (!speechRef.current) speechRef.current = createSpeechClient();
@@ -226,6 +237,7 @@ export function AssistantClient({
     setTypedInput("");
     setFieldValues({});
     lastRequestRef.current = null;
+    spokenClarificationRef.current = null;
     setPhase("idle");
     update();
     setOfflineCaptures([]);
@@ -333,9 +345,18 @@ export function AssistantClient({
       lastRequestRef.current = null;
       try {
         const wav = await offlineCaptureToWav(capture);
+        let confidenceTotal = 0;
+        let confidenceWeight = 0;
         const text = await getSpeech().recognizeFile(wav, {
           locale: capture.locale,
-          phrases: capture.locale === "en-ZA" ? machines.flatMap((machine) => [machine.name, ...machine.aliases]) : undefined,
+          autoDetectLocales: recognitionLocales(capture.locale),
+          phrases: machineVocabulary,
+          onFinal: (result) => {
+            if (result.confidence == null) return;
+            const weight = Math.max(1, result.durationMs);
+            confidenceTotal += result.confidence * weight;
+            confidenceWeight += weight;
+          },
         });
         if (!mountedRef.current || operation !== operationRef.current) return;
         transcriptRef.current = text;
@@ -344,6 +365,7 @@ export function AssistantClient({
           locale: capture.locale,
           channel: "voice",
           voiceCaptureId: capture.id,
+          sttConfidence: confidenceWeight > 0 ? confidenceTotal / confidenceWeight : undefined,
         });
         await deleteOfflineCapture(capture.id, offlineContextKey);
         await refreshOfflineCaptures();
@@ -362,7 +384,7 @@ export function AssistantClient({
         }
       }
     },
-    [getSpeech, locale, machines, offlineContextKey, phase, refreshOfflineCaptures],
+    [getSpeech, locale, machineVocabulary, offlineContextKey, phase, refreshOfflineCaptures],
   );
 
   const removeOfflineCaptures = async (capture?: OfflineVoiceCapture) => {
@@ -448,14 +470,20 @@ export function AssistantClient({
     if (recordingRequestedRef.current || (phase !== "idle" && phase !== "error")) return;
     recordingRequestedRef.current = true;
     const operation = ++operationRef.current;
+    const spokenFollowUp = navigator.onLine && turn?.kind === "clarify" && turn.fields.length === 1 && lastRequestRef.current
+      ? { turn, field: turn.fields[0], request: lastRequestRef.current }
+      : null;
+    spokenClarificationRef.current = spokenFollowUp;
     setError(null);
-    setTurn(null);
+    if (!spokenFollowUp) setTurn(null);
     setCompletion(null);
     setPendingTranscript(null);
     setTranscript("");
     transcriptRef.current = "";
     finalSegmentsRef.current = [];
     finalIdsRef.current = new Set();
+    confidenceTotalRef.current = 0;
+    confidenceWeightRef.current = 0;
     captureIdRef.current = crypto.randomUUID();
     setPhase("requesting_permission");
 
@@ -487,7 +515,8 @@ export function AssistantClient({
     try {
       await getSpeech().startRecognition({
         locale: speechLanguage,
-        phrases: speechLanguage === "en-ZA" ? machines.flatMap((machine) => [machine.name, ...machine.aliases]) : undefined,
+        autoDetectLocales: recognitionLocales(speechLanguage),
+        phrases: machineVocabulary,
         onPartial: (result) => {
           if (!mountedRef.current || operation !== operationRef.current) return;
           const prefix = finalSegmentsRef.current.join(" ");
@@ -500,6 +529,11 @@ export function AssistantClient({
           if (finalIdsRef.current.has(result.resultId)) return;
           finalIdsRef.current.add(result.resultId);
           finalSegmentsRef.current.push(result.text);
+          if (result.confidence != null) {
+            const weight = Math.max(1, result.durationMs);
+            confidenceTotalRef.current += result.confidence * weight;
+            confidenceWeightRef.current += weight;
+          }
           const value = finalSegmentsRef.current.join(" ").trim();
           transcriptRef.current = value;
           setTranscript(value);
@@ -572,6 +606,9 @@ export function AssistantClient({
         locale: speechLanguage,
         channel: "voice",
         voiceCaptureId: captureIdRef.current ?? crypto.randomUUID(),
+        sttConfidence: confidenceWeightRef.current > 0
+          ? confidenceTotalRef.current / confidenceWeightRef.current
+          : undefined,
       });
       lastRequestRef.current = null;
       setPhase("idle");
@@ -592,12 +629,37 @@ export function AssistantClient({
     setPendingTranscript(null);
     setTranscript(input);
     transcriptRef.current = input;
+    spokenClarificationRef.current = null;
     await submitRequest({ input, locale: speechLanguage, channel: "typed" });
   };
 
   const interpretTranscript = async () => {
     const input = transcriptRef.current.trim();
     if (!pendingTranscript || !input || (phase !== "idle" && phase !== "error")) return;
+    const spokenFollowUp = spokenClarificationRef.current;
+    if (spokenFollowUp) {
+      const clarification = clarificationFromSpeech(
+        spokenFollowUp.turn.conversationId,
+        spokenFollowUp.field,
+        input,
+      );
+      if (!clarification) {
+        setTurn(spokenFollowUp.turn);
+        setError(t("assistant.fillRequired", locale));
+        return;
+      }
+      const continuation: AssistantTurnRequest = {
+        ...spokenFollowUp.request,
+        ...pendingTranscript,
+        input,
+        clarification,
+      };
+      delete continuation.supersedesVoiceCaptureIds;
+      spokenClarificationRef.current = null;
+      setPendingTranscript(null);
+      await submitRequest(continuation);
+      return;
+    }
     setPendingTranscript(null);
     await submitRequest({ ...pendingTranscript, input });
   };
@@ -637,6 +699,7 @@ export function AssistantClient({
       if (field.name === "reading") clarification.reading = Number(raw);
       else if (field.name === "machineId") clarification.machineId = raw;
       else if (field.name === "description") clarification.description = raw;
+      else if (field.name === "urgency") clarification.urgency = raw as AssistantClarification["urgency"];
       else if (field.name === "workPerformed") clarification.workPerformed = raw;
       else if (field.name === "readingDate") clarification.readingDate = raw;
       else if (field.name === "serviceDate") clarification.serviceDate = raw;
@@ -707,7 +770,13 @@ export function AssistantClient({
       }
       const previous = lastRequestRef.current;
       setConsentUpdating(false);
-      if (previous) await submitRequest({ ...previous, clarification: undefined });
+      if (previous) {
+        // The first no-consent attempt already moved a voice capture out of the
+        // insertable state. Re-submit voice text as a fresh, explicitly linked
+        // capture; typed requests can be retried unchanged.
+        const voiceRetry = freshVoiceRetryFor(previous);
+        await submitRequest({ ...previous, ...(voiceRetry ?? {}), clarification: undefined });
+      }
       else setPhase("idle");
     } catch {
       if (!mountedRef.current || operation !== operationRef.current) return;
@@ -726,9 +795,8 @@ export function AssistantClient({
     setError(null);
     setPhase("speaking");
     try {
-      // Ollie Multilingual was preferred in the founder voice test and pronounced
-      // machinery names such as John Deere cleanly in both supported languages.
-      await getSpeech().speak(text, { voice: "ollie" });
+      const responseLocale = lastRequestRef.current?.locale ?? speechLanguage;
+      await getSpeech().speak(text, { voice: voiceForLocale(responseLocale) });
       if (mountedRef.current && operation === operationRef.current) setPhase("idle");
     } catch (caught) {
       if (!mountedRef.current || operation !== operationRef.current) return;
@@ -770,6 +838,7 @@ export function AssistantClient({
     setTypedInput("");
     transcriptRef.current = "";
     lastRequestRef.current = null;
+    spokenClarificationRef.current = null;
     setPhase("idle");
   };
 
@@ -799,6 +868,10 @@ export function AssistantClient({
   const isListening = phase === "listening" || phase === "requesting_permission";
   const isBusy = ["stopping", "interpreting", "committing", "speaking"].includes(phase);
   const answerText = turn?.kind === "answer" ? turn.message : completion?.message;
+  const answerSpeechText = turn?.kind === "answer" ? (turn.speakText ?? turn.message) : completion?.message;
+  const confirmationSpeechText = turn?.kind === "confirm"
+    ? [turn.proposal.title, ...turn.proposal.facts.map((fact) => `${fact.label}: ${fact.value}`)].join(". ")
+    : null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -824,6 +897,7 @@ export function AssistantClient({
               setTranscript("");
               transcriptRef.current = "";
               lastRequestRef.current = null;
+              spokenClarificationRef.current = null;
             }}
             className={cn(
               "focus-ring min-h-[48px] rounded-lg px-3 text-sm font-semibold transition-colors",
@@ -834,6 +908,7 @@ export function AssistantClient({
           </button>
         ))}
       </div>
+      <p className="-mt-3 text-xs leading-5 text-sand-500">{t("assistant.languageHint", locale)}</p>
 
       <Card className="overflow-hidden text-center">
         <div aria-live="polite" aria-atomic="true" className="mb-4">
@@ -932,6 +1007,9 @@ export function AssistantClient({
         <Card>
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{t("assistant.missingTitle", locale)}</h2>
           <p className="mt-1 text-sm text-sand-600">{turn.question}</p>
+          <Button className="mt-3" size="sm" variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(turn.question)}>
+            {t("assistant.readAloud", locale)}
+          </Button>
           <div className="mt-4 space-y-4">
             {turn.fields.map((field) => (
               <Field key={field.name} label={field.label} htmlFor={`assistant-${field.name}`} required>
@@ -969,6 +1047,9 @@ export function AssistantClient({
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{turn.proposal.title}</h2>
           <p className="mt-1 text-sm text-sand-600">{t("assistant.confirmExplain", locale)}</p>
           <p className="mt-1 text-xs text-sand-500">{t("assistant.proposalExpiry", locale)}</p>
+          <Button className="mt-3" size="sm" variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(confirmationSpeechText ?? turn.proposal.title)}>
+            {t("assistant.readAloud", locale)}
+          </Button>
           <dl className="mt-4 divide-y divide-sand-200 rounded-lg border border-sand-200 bg-white px-4">
             {turn.proposal.facts.map((fact) => (
               <div key={fact.label} className="grid gap-1 py-3 sm:grid-cols-[9rem_1fr] sm:gap-4">
@@ -1001,7 +1082,10 @@ export function AssistantClient({
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{completion ? t("assistant.successTitle", locale) : t("assistant.answerTitle", locale)}</h2>
           <p className="mt-2 text-sm leading-6 text-sand-800">{answerText}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(answerText)}>{t("assistant.readAloud", locale)}</Button>
+            <Button variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(answerSpeechText ?? answerText)}>{t("assistant.readAloud", locale)}</Button>
+            {turn?.kind === "answer" && turn.action ? (
+              <Link href={turn.action.href} className={buttonVariants()}>{turn.action.label}</Link>
+            ) : null}
             {completion?.href ? <Link href={completion.href} className={buttonVariants()}>{t("assistant.openRecord", locale)}</Link> : null}
             <Button variant="ghost" onClick={() => void reset()}>{t("assistant.newRequest", locale)}</Button>
           </div>

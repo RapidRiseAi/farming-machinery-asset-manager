@@ -141,7 +141,7 @@
     "doNotSave": "Do not save",
     "confirmSave": "Confirm and save",
     "consentTitle": "Allow optional AI help?",
-    "consentBody": "Only the difficult transcript text, chosen language, and current date are sent to the optional AI provider. Machine lists and database records are not sent. You can withdraw this permission at any time; Azure Speech still works without it, and nothing is saved without confirmation.",
+    "consentBody": "Only the difficult transcript text, chosen language, and current date are sent to the optional AI provider. Machine lists and database records are not sent. You can withdraw this permission at any time; Azure Speech still works without it, and no operational change is saved without separate confirmation.",
     "consentSkip": "Not now",
     "consentAllow": "Allow AI help",
     "consentWithdraw": "Withdraw AI permission",

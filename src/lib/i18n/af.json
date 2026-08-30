@@ -141,7 +141,7 @@
     "doNotSave": "Moenie stoor nie",
     "confirmSave": "Bevestig en stoor",
     "consentTitle": "Laat opsionele AI-hulp toe?",
-    "consentBody": "Net die moeilike transkripsieteks, gekose taal en huidige datum word na die opsionele AI-verskaffer gestuur. Masjienlyste en databasisrekords word nie gestuur nie. Jy kan dié toestemming enige tyd terugtrek; Azure Speech werk steeds daarsonder, en niks word sonder bevestiging gestoor nie.",
+    "consentBody": "Net die moeilike transkripsieteks, gekose taal en huidige datum word na die opsionele AI-verskaffer gestuur. Masjienlyste en databasisrekords word nie gestuur nie. Jy kan dié toestemming enige tyd terugtrek; Azure Speech werk steeds daarsonder, en geen operasionele verandering word sonder afsonderlike bevestiging gestoor nie.",
     "consentSkip": "Nie nou nie",
     "consentAllow": "Laat AI-hulp toe",
     "consentWithdraw": "Trek AI-toestemming terug",
