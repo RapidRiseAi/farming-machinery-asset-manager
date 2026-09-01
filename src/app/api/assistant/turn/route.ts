@@ -14,6 +14,7 @@ import { assistantTurnRequestSchema } from "@/lib/assistant/request-schema";
 import type { ParsedAssistantTurnRequest } from "@/lib/assistant/request-schema";
 import {
   isAssistantWriteIntent,
+  matchAssistantMachine,
   machinesForAssistantDraft,
   planAssistantRoute,
   readOnlyWriteTarget,
@@ -564,8 +565,7 @@ export async function POST(request: Request) {
     }
 
     const intentMachines = machinesForAssistantDraft(draft, machines, writableMachines);
-    const selectedMachine = draft.machineId ? intentMachines.find((machine) => machine.id === draft.machineId) ?? null : null;
-    const match = selectedMachine ? { machine: selectedMachine, alternatives: [], ambiguous: false, score: 1 } : matchMachine(draft.machineQuery ?? body.input, intentMachines);
+    const match = matchAssistantMachine(draft, body.input, machines, writableMachines);
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
 

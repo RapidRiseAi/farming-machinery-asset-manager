@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  matchAssistantMachine,
   machinesForAssistantDraft,
   readOnlyWriteTarget,
 } from "./routing";
@@ -100,4 +101,33 @@ test("does not block an assigned write or any read", () => {
     ),
     null,
   );
+});
+
+test("preserves ambiguity across assigned and read-only machines", () => {
+  const secondJohnDeere: AssistantMachine = {
+    ...readOnly,
+    name: "John Deere 6120M",
+    make: "John Deere",
+    model: "6120M",
+    aliases: [],
+  };
+  const match = matchAssistantMachine(
+    draft({ intent: "report_fault", machineQuery: "John Deere", description: "broken window" }),
+    "Report a broken window on John Deere",
+    [assigned, secondJohnDeere],
+    [assigned],
+  );
+  assert.equal(match.machine, null);
+  assert.equal(match.ambiguous, true);
+  assert.deepEqual(match.alternatives.map((machine) => machine.id).sort(), [assigned.id, secondJohnDeere.id].sort());
+});
+
+test("still resolves a read-only machine for a status question", () => {
+  const match = matchAssistantMachine(
+    draft({ intent: "query_asset_status", machineQuery: "Mercedes trok" }),
+    "What is the status of the Mercedes truck?",
+    [assigned, readOnly],
+    [assigned],
+  );
+  assert.equal(match.machine?.id, readOnly.id);
 });

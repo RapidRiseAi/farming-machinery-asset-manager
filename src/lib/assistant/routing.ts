@@ -1,5 +1,5 @@
 import { parseLocalReadRequest, type LocalReadRequest } from "./local-read";
-import { matchMachine } from "./normalize";
+import { matchMachine, type MachineMatch } from "./normalize";
 import { parseDeterministic } from "./parser";
 import type { AssistantDraft, AssistantLocale, AssistantMachine } from "./types";
 
@@ -50,4 +50,34 @@ export function readOnlyWriteTarget(
   const candidate = byId ?? matchMachine(draft.machineQuery ?? input, readableMachines).machine;
   if (!candidate || writableMachines.some((machine) => machine.id === candidate.id)) return null;
   return candidate;
+}
+
+/**
+ * Match writes against their writable scope without losing ambiguity that is
+ * visible in the broader read scope. Removing a read-only candidate must never
+ * make a vague phrase look uniquely assigned to a different machine.
+ */
+export function matchAssistantMachine(
+  draft: AssistantDraft,
+  input: string,
+  readableMachines: AssistantMachine[],
+  writableMachines: AssistantMachine[],
+): MachineMatch {
+  const candidates = machinesForAssistantDraft(draft, readableMachines, writableMachines);
+  if (draft.machineId) {
+    const selected = candidates.find((machine) => machine.id === draft.machineId) ?? null;
+    return {
+      machine: selected,
+      alternatives: selected ? [] : candidates,
+      ambiguous: false,
+      score: selected ? 1 : 0,
+    };
+  }
+
+  const query = draft.machineQuery ?? input;
+  if (isAssistantWriteIntent(draft.intent)) {
+    const readableMatch = matchMachine(query, readableMachines);
+    if (readableMatch.ambiguous) return readableMatch;
+  }
+  return matchMachine(query, candidates);
 }
