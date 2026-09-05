@@ -67,6 +67,68 @@ The F8 RPCs (`export_personal_data`, `erase_personal_data`) are granted to
 helper `app.assert_can_manage_person` is revoked from everyone (callable only from inside
 the definers).
 
+### 2b. The default-privileges trap — a standing hazard for EVERY new table
+
+`0102_grants.sql` contains, and must keep containing:
+
+```sql
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+```
+
+That is a **future-tense** grant. Every table created in `public` afterwards is born with
+full CRUD granted to `authenticated`, years later, without anybody writing a `GRANT`.
+
+The consequence is easy to miss because the code reads correctly. A migration that
+carefully says *"we deliberately do not grant SELECT on this table"* is making a true
+statement about itself and a false statement about the database.
+
+**Measured, not theorised.** The SaaS-billing tables were written with a column-level
+grant enumerating only the safe columns of `billing_payment_methods`, and no table-level
+grant at all. Before an explicit `revoke` was added,
+`has_column_privilege('authenticated', 'billing_payment_methods', 'authorization_code',
+'SELECT')` returned **true** — the Paystack charging credential was readable by any
+signed-in user's session.
+
+**The rule for every new table: `revoke all … from authenticated` FIRST, then grant back
+exactly what is meant.** Not as tidiness — as the thing that actually decides.
+
+Note also what did *not* save it. RLS filters **rows**; the owner is legitimately entitled
+to their own payment-method row, and the leak was a **column** of it. RLS is the tenant
+guarantor (§1); it is not a column guarantor, and where a single column is a credential
+the privilege system is the only lock that fits.
+
+`supabase/tests/billing_subscription.sql` §(d)/(e) assert both directions, and the
+mutation suite confirms a re-grant is caught rather than merely disapproved of.
+
+### 2c. Payment credentials (SaaS billing)
+
+`billing_payment_methods.authorization_code` is a **charging credential**: with our
+Paystack secret key it can take money from a customer's card. Handling:
+
+- **Column-level grant only.** `authenticated` receives SELECT on the display columns
+  (brand, last four, expiry, bank) and on nothing else. A browser doing `select=*` gets a
+  permission error — deliberately, because an error is a bug report and a silently-omitted
+  column is a leak nobody notices. Adding a column to that table therefore defaults to
+  invisible.
+- **One reader.** `paymentMethodCredential()` in `src/lib/billing/service.ts` is the only
+  code that reads it; what it returns goes straight into an adapter call and never into a
+  log, an error, a Sentry extra or a response body.
+- **`billing_webhook_events` is service-role only** — no policy and no grant for
+  `authenticated`. A payload carries the customer's email and the full authorization
+  object; the admin screens read attempts and payments instead, which is the same story
+  with the credential removed.
+- **No `NEXT_PUBLIC_` secret.** `PAYSTACK_SECRET_KEY` is server-only. The hosted-checkout
+  flow needs no public key in the browser, so none exists.
+- **Signature before parse.** The webhook verifies HMAC-SHA512 over the *raw* body with
+  `timingSafeEqual` before parsing or trusting any field, and re-verifies the transaction
+  server-to-server before recording a cent. A signature proves the message came from
+  Paystack; it does not prove the contents match the invoice we meant to charge.
+- No card PAN or CVV is stored, and there is no column that could hold one.
+
+Isolation here is still RLS plus grants, not application filtering, so §1's rule is
+unchanged and billing is **not** a third exception to it.
+
 ## 3. Encryption & credentials (inherited from Supabase/Postgres)
 
 - **In transit:** all client↔Supabase and client↔Vercel traffic is **TLS 1.2+/HTTPS**.

@@ -126,7 +126,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 - ✅ FR-18.2 (P1) Rand, ZA dates/units
 
 ### §19 Billing, plans & entitlements
-- 🟡 FR-19.1 (P0) Per-vehicle billing, 4 tiers — tiers ✅ + price display ✅ (F5); **charging ⏸️ (Paystack)**
+- 🟡 FR-19.1 (P0) Per-vehicle billing, 4 tiers — tiers ✅, price display ✅ (F5), **billing engine BUILT ✅** (Paystack adapter, versioned price catalogue, immutable invoices, dunning/grace/downgrade, webhook + reconciliation; see `docs/BILLING.md`). **Charging remains OFF** and cannot be switched on until two things happen: the founder confirms which price table is real (decisions #7) and `BILLING_CHARGING_ENABLED=true` is set. The price catalogue ships EMPTY, so nothing can be billed by accident.
 - ✅ FR-19.2 (P0) Entitlements gated by plan — **F5**
 - 🟡 FR-19.3 (P1) Annual pre-pay / asset-count pricing / export-on-cancel — asset-count ✅, annual flag ✅; billing engine ⏸️
 - ❌ FR-19.4 (P2) Self-hosted licence SKU
@@ -187,7 +187,7 @@ These were introduced by `FLEETWISE_VOICE_WHATSAPP_BILLING_SPEC.md` and are **no
 ### Provider-dependent
 - **Voice AI** (Azure + optional Vercel AI Gateway) — live MVP; complete physical-device QA, S0 pilot provisioning, Afrikaans evaluation and processor/DPA sign-off before a wider pilot
 - **WhatsApp** (Meta Cloud API) — §16.1/16.2 + spec extras
-- **Billing charging** (Paystack) — §19.1/19.3 engine on top of F5's framework + affiliate/DebiCheck
+- **Billing go-live** — the engine is built; what is outstanding is a DECISION and a switch, not code: confirm the price table, seed one price version, add the Paystack key to Preview, exercise it there, then set `BILLING_CHARGING_ENABLED=true` in production. Affiliate commissions and DebiCheck remain later phases and are deliberately not built.
 
 ---
 

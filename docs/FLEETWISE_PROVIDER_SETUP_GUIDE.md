@@ -26,7 +26,25 @@ Each section separates:
 
 ## 1. Feature C — Billing (Paystack) 💳
 
-**🔧 What we build in code:** the whole billing engine in-house — nightly `asset_counts`, period-close → `invoices`/`invoice_lines`, SA-VAT (prices are **VAT-inclusive** per your decision), dunning, entitlement gating (F5), affiliate commissions — with Paystack behind a one-file adapter (`src/lib/billing/*`). Subscription state lives in our Postgres, not Paystack.
+**🔧 Already BUILT (not a plan):** the billing engine is in the repo and tested — a
+versioned price catalogue, immutable invoices carrying a full VAT snapshot, nightly asset
+counts, invoice generation, card storage, recurring charges, webhook verification and
+reconciliation, dunning → grace → downgrade → restore, and an owner + admin UI. Paystack
+sits behind `src/lib/billing/paystack.ts`; subscription state lives in our Postgres, not at
+Paystack, because the amount changes with each farm's active vehicle count.
+
+> **Nothing charges anyone yet, and nothing can.** The price catalogue ships EMPTY (the
+> founder price table is unconfirmed — see decision #7) and `BILLING_CHARGING_ENABLED` is
+> unset. Both would have to be changed on purpose.
+
+**➡️ The step-by-step setup checklist is now [`PAYSTACK_GO_LIVE.md`](PAYSTACK_GO_LIVE.md).**
+It supersedes the summary below, which is kept for context. Full design and runbook:
+[`BILLING.md`](BILLING.md).
+
+Two things people get wrong at setup: there is **no separate webhook secret** (Paystack
+signs webhooks with the same API secret key you use for the API), and
+**charge-authorization / recurring must be confirmed enabled** on the account — otherwise
+the first payment works and every renewal fails.
 
 **✅ You set up / obtain:**
 1. **Register a Paystack account** at paystack.com as the **South African** business (Paystack supports SA-registered businesses; Stripe does not).

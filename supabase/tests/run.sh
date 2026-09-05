@@ -62,4 +62,24 @@ if [ -f "$ROOT/supabase/tests/selected_farm_administration.sql" ]; then
   pg "$DB" < "$ROOT/supabase/tests/selected_farm_administration.sql"
 fi
 
+if [ -f "$ROOT/supabase/tests/operator_cost_confidentiality.sql" ]; then
+  echo "==> running operator cost-confidentiality tests"
+  pg "$DB" < "$ROOT/supabase/tests/operator_cost_confidentiality.sql"
+fi
+
+if [ -f "$ROOT/supabase/tests/public_qr_capture.sql" ]; then
+  echo "==> running public QR atomic-capture tests"
+  pg "$DB" < "$ROOT/supabase/tests/public_qr_capture.sql"
+fi
+
+if [ -f "$ROOT/supabase/tests/jobcard_tenant_bindings.sql" ]; then
+  echo "==> running job-card tenant-binding tests"
+  pg "$DB" < "$ROOT/supabase/tests/jobcard_tenant_bindings.sql"
+fi
+
+if [ -f "$ROOT/supabase/tests/billing_subscription.sql" ]; then
+  echo "==> running SaaS subscription billing isolation tests"
+  pg "$DB" < "$ROOT/supabase/tests/billing_subscription.sql"
+fi
+
 echo "==> OK"

@@ -1751,4 +1751,165 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     server answering on port 3000 — a `pkill` that reports success may not free the port, so
     kill the listener by PID and wait for it.
 
+- **Official Colour Palette + the UI/UX audit fixed** (no migration; gates green;
+  shared first-load JS flat at **103 kB**; `design:lint` 0 violations, down from 291):
+  - **The palette is now the app's**, from `FleetWise_Official_Colour_Palette.pdf`:
+    Green `#00572C`, Gold `#EAA50C`, Black, Warm Cream `#F7F3E8`, White, Charcoal
+    `#242824`, Warm Grey `#E6E2D7`. Applied by **redefining the `brand`/`sand` scales**
+    rather than renaming ~1,900 classes, so every existing `text-sand-500` re-coloured
+    at once. Two anchors cannot do their brand-assigned job accessibly and needed
+    derived shades (documented in `docs/DESIGN.md` §1): **gold is 1.92:1 on cream** so it
+    is a FILL, never text — `gold-600` is the shade that carries text; and **Warm Grey is
+    1.17:1**, a surface tint and an invisible border, so `sand-300` is the shade that
+    reaches the 3:1 SC 1.4.11 owes. Every step was solved numerically and verified, not
+    picked by eye. `docs/DESIGN.md` is the contract.
+  - **Audit findings closed.** `maximum-scale=1` removed — pinch-zoom had been disabled
+    for every user, a hard **WCAG 1.4.4** failure, verified gone in the served HTML.
+    `viewport-fit=cover` added, which is why `.pb-safe` (3 uses) and `.h-safe-tabbar`
+    (0 uses) had been silently resolving to 0px. Manifest + `themeColor` unified on the
+    brand green (they were `#16a34a` / `#166534` / `#00572c` — three greens, one of them
+    stock Tailwind and in no token file). **Skip link** added (a keyboard user tabbed
+    through up to 24 nav links on every navigation). First **`not-found.tsx`** — a bad id
+    used to drop you on Next's default 404, unstyled, outside the shell, English only.
+    Mobile "More" sheet now carries the **same groups the sidebar computes** (it was a
+    flat 21-item list for a books partner whose desktop had 3 named sections); duplicate
+    `partnerSettings` removed. **Login asked for your email twice** — one form now, two
+    submits via `formAction`, plus the first "forgot password" affordance. The
+    **unknown-sticker QR page** — the one screen a farm worker may ever see — gained the
+    wordmark and a route onward, still zero-anon-DB.
+  - **Images**: all 13 raw `<img>` → new `<Photo>` (intrinsic dimensions, lazy, async
+    decode, real alt). Zero had dimensions or lazy loading before, so the machines list
+    fetched every photo at once and shifted layout as each landed. Recorded honestly in
+    `lib/storage-image.ts`: Storage resizing is **paid and env-gated off**, and the
+    **batch `createSignedUrls` takes no `transform`** (only the single-object call does,
+    and the signature covers the transformation) — so lists take the no-server-support
+    wins and say so rather than pretending.
+  - **Tables**: 10 hand-rolled tables → the kit, recovering **67 header cells** that had
+    no `scope="col"`. Kept out of it deliberately: `role="presentation"` email layout
+    tables, and the printed-document miniature, both exempted with reasons.
+  - **DARK MODE**, and the architecture that makes it possible. The five semantic
+    surface tokens in `globals.css` were defined and referenced **zero** times — that
+    missing layer was *why* there was no dark theme. Now the `sand` scale is CSS
+    variables and **flips per theme**: a step is a ROLE (distance from the ground), and
+    every dark step was solved to the same contrast duty its light twin owes. `brand`
+    does NOT flip — a green button is green in both themes — so green-as-text moved to
+    `text-brand-ink` (the deep `#00572C` is 7.89:1 on cream and **1.27:1** on near-black).
+    Three states honoured: system, and an explicit choice winning in **both** directions.
+  - **A real pre-existing bug**: `text-status-warn` (15 uses) and `text-status-bad` (4)
+    were defined in **no version** of the config. Tailwind emits nothing for an unknown
+    token, so those cells — including the 60-day debtors column — rendered as ordinary
+    body text. Defined, and `design:lint` now fails on any undefined token.
+  - **Errors stop leaking codes.** 259 redirect paths, 232 carrying raw English or a raw
+    Postgres message, rendered verbatim by pages that fell through to printing the code.
+    New `lib/errors.ts` maps **107 codes → translated sentences** and never returns the
+    code; 31 render sites routed through it. `Field`'s `error` prop was passed a value
+    **once in the whole app** and `aria-invalid` was never true — `SelectField`/
+    `TextareaField` now wire both (only `TextField` did).
+  - **Three new gates, all mutation-tested** (each rule proven to fire before being
+    trusted): `pnpm design:lint` (palette, type scale, gold misuse, images, tables,
+    undefined tokens, viewport, manifest + a 12-case contrast contract),
+    `pnpm errors:check` (every emitted code resolves in EN and AF — it caught a code
+    my own first regex had truncated), and the existing `i18n:parity`.
+  - **Type scale**: 32 distinct sizes → 9, with 151 arbitrary `text-[1.05rem]`-style
+    one-offs remapped. `em` sizing is deliberately exempt (relative icon sizing).
+  - **Verified in a browser**, both themes, at 412px: **0 contrast failures measured on
+    real rendered pixels**, 0 tap targets under 48px, 0 overflow, 0 JS errors. All three
+    theme states proven, including surviving a reload.
+  - i18n EN/AF at parity (**3 633 leaf keys**). Gates: typecheck, lint, build,
+    `design:lint`, `errors:check`, `i18n:parity` — all green.
+  - **NOT verified**: only the four pre-auth surfaces could be rendered. `.env.local`
+    here comes from `vercel pull` with every secret redacted to `"[SENSITIVE]"`, so no
+    authenticated screen was driven and `db:test` was not run (no schema change was made).
+    A pass over the 61 authenticated screens with working credentials is the outstanding
+    work — dark mode especially, which is correct by construction and by contrast maths
+    but has been *seen* on three pages.
+
+
+- **FleetWise SaaS subscription billing — Paystack** (migrations `20260903160000`,
+  `20260903160100`, `20260903160200`; branch `claude/paystack-saas-billing` off `e298808`;
+  suite `supabase/tests/billing_subscription.sql`, 17 sections / 110+ assertions, green;
+  **mutation-tested 8/8 caught with a passing control**; **NOTHING CHARGES ANYONE AND
+  NOTHING CAN**):
+  - **The scope boundary is the design.** This is farms paying Rapid Rise for software —
+    one direction. It is not the money between a farm and its contractors
+    (`partner_documents`/`partner_payments`), and the dormant PayFast seam in
+    `src/lib/payments/*` was not touched, read or imported. Every table is prefixed
+    `billing_`; §(k) asserts no billing function's `prosrc` mentions a partner table. No
+    Paystack transfer, split, subaccount or payout exists anywhere.
+  - **Two locks stop any charge, and both are deliberate.** `billing_price_versions` ships
+    **EMPTY** — the founder doc (R44/R73/R89/R250) and shipped `entitlements.ts`
+    (R39/R69/R99/POA) disagree, so no price was chosen and with no active version the
+    generator raises nothing. And `BILLING_CHARGING_ENABLED` is unset: every method that
+    would move money checks it **before making any network request**, asserted on an
+    injected fetch spy rather than on a return value. The conflict is recorded as founder
+    decision **#7**, with #8 (not VAT-registered) and #9 (dunning policy, PROPOSED).
+  - **Subscription state lives in Postgres, not at Paystack** — the amount changes with
+    each farm's vehicle count, so a provider-side Plan object would be wrong the moment a
+    tractor is sold. Paystack only moves money.
+  - **Two plans, and the reason there are two.** `farms.plan` stays the EFFECTIVE plan that
+    every existing gate resolves from; `billing_subscriptions.plan` is the COMMERCIAL plan
+    they bought. Dunning writes the former and keeps the latter, so the downgrade needed
+    **no new entitlement code at all** and recovery restores the exact prior state.
+    Nothing is ever deleted for non-payment; §(l) asserts machines, job cards, cost
+    entries and invoices are unchanged in count across a downgrade.
+  - **VAT**: Rapid Rise is not registered, so `app.billing_force_vat_rate` forces every
+    invoice to 0% and a null VAT number — overruling the caller, mirroring the partner-side
+    guard in `0401`. No VAT line, never headed "Tax invoice" (VAT Act s20(4)). The full
+    machinery is built anyway: registering is a flag flip that restates **no** historical
+    invoice, asserted in §(h2).
+  - **The double-charge problem is solved by a unique index, not by checking.**
+    `billing_payment_attempts_inflight_uq` permits at most one `pending`/`unknown` attempt
+    per invoice, and *claiming is inserting that row*, so the second worker loses on a
+    duplicate key in the same instant. A lost HTTP response settles **`unknown`**, never
+    `failed`, which BLOCKS the invoice until `transaction/verify` on that exact reference
+    resolves it. Nothing charges again to resolve an unknown.
+  - **Three defects found by RUNNING what reading called correct.** (1) A boolean singleton
+    primary key on `billing_settings` broke the shared `app_audit()` trigger, which casts
+    `id` to uuid — it would have failed the first time anybody edited the dunning policy.
+    (2) **`0102_grants.sql`'s `ALTER DEFAULT PRIVILEGES` meant `authenticated` COULD read
+    `billing_payment_methods.authorization_code`** — a Paystack charging credential — because
+    a migration saying "we deliberately do not grant this" was true of itself and false of
+    the database. RLS does not help: it filters ROWS and this is a COLUMN. Fixed with an
+    explicit `revoke` before every grant, and written into `SECURITY.md` §2b as a standing
+    hazard for every future table. (3) The invoice generator created invoices as `open` and
+    then inserted their lines, which `app.billing_freeze_invoice_line` refuses — **every
+    invoice would have aborted**. It now assembles as `draft` and issues in the same
+    transaction.
+  - **A mutation survived the first pass**, which is why §(h3) exists: the suite tested the
+    VAT *arithmetic* but never that the *guard* forces the rate to zero, so disabling the
+    guard went unnoticed. Re-run: 8/8 caught.
+  - **184 i18n keys would have shipped missing.** The UI agent was cut off before writing
+    its fragments, and nothing catches this — parity only compares EN to AF, so both were
+    equally wrong. The billing screens would have rendered `adminBilling.colFarm` to users,
+    exactly as `/reports/schedules` did in wave 4b. Written in genuine EN + AF (195 keys),
+    merged behind a guard that refuses a fragment that is not itself at parity, overwrites
+    an existing key, or ships Afrikaans identical to English — which caught one. A sweep of
+    all **470** source files now shows **0 missing in EN, 0 in AF**, dynamic stems included.
+    **Worth promoting to a gate**; it still is not one.
+  - Adapter `src/lib/billing/paystack.ts` behind the existing seam (`index.ts` gained the
+    `case`, plus `getSaasBillingProvider()` returning **null** for no-op rather than a stub
+    that pretends). Config read lazily and fail-closed. Routes: hosted-checkout init,
+    informational-only callback (never grants access), signature-verified webhook, and a
+    **separate** `/api/cron/billing` at 03:20 so a billing failure cannot disrupt the
+    maintenance pass. Owner `/billing` and rr_admin `/admin/billing` with kill-switch state
+    in words.
+  - Paystack's contract was **verified against their live documentation**, not assumed:
+    HMAC-SHA512 of the raw body keyed with the API secret (no separate webhook secret), the
+    `charge_authorization` fields, "only the email used to create an authorization can
+    charge it" (why `authorization_email` is stored beside the code), "only use the code if
+    `reusable` is true", the retry cadence (3 min × 4 then hourly for 72 h — which is why
+    the route returns 200 for anything recorded), and the IP allowlist. The allowlist is
+    **deliberately not enforced**: the HMAC is stronger, the source IP behind Vercel's proxy
+    is an attacker-influenced forwarded header, and a provider IP change would silently
+    break every payment.
+  - Verified: 82 TS tests, all migrations applying to a fresh Postgres in order (138 files),
+    the suite, the mutation suite, and TS-vs-SQL VAT agreement across 140 (amount, rate)
+    pairs. Gates green — typecheck, lint, build, `design:lint`, `errors:check`,
+    `i18n:parity` (**3 842** leaf keys). Shared first-load JS unchanged at **103 kB**.
+  - **NOT verified — no credentials existed in this session**: no live or test Paystack call
+    has ever been made, the webhook has never received a real delivery, the cron has not run
+    on Vercel, and `pnpm db:test` could not run (no Postgres in PATH — PGlite stood in,
+    which is a real Postgres but not the project's own harness). Docs:
+    `docs/BILLING.md` (design + runbook) and `docs/PAYSTACK_GO_LIVE.md` (the manual steps).
+
 > Update this "current status" block at the end of every session.

@@ -58,3 +58,139 @@ export interface BillingAdapter {
   /** Cancel the farm's subscription (export-on-cancel handled elsewhere). */
   cancel(farmId: string): Promise<BillingResult>;
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SaaS subscription billing (Paystack) — farms paying Rapid Rise for FleetWise
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// SCOPE BOUNDARY. Everything below is ONE direction: our customer paying us for
+// software. It is not, and must never become, the money that moves between a farm and
+// its contractors — that is `partner_documents` / `partner_payments` (F14/G1–G10), and
+// FleetWise deliberately does not sit in the middle of it. Nothing here may reference
+// `src/lib/payments/*`, `PAYFAST_*`, or `workshops.plan`.
+//
+// WHERE SUBSCRIPTION STATE LIVES. Here, in our database — not at the provider. Paystack
+// moves money and nothing else: it holds no plan, no price, no period, no entitlement.
+// The amount changes with the farm's billable vehicle count, so a fixed provider-side
+// "Plan" object would be wrong the moment a farmer sells a tractor. `BillingAdapter`
+// above is therefore mostly a no-op for this provider (see `paystack.ts`), and the four
+// methods on `SaasBillingProvider` are the ones that actually do work.
+//
+// THE TWO-PART SAFETY SWITCH.
+//   BILLING_PROVIDER=paystack        → adapter active; webhooks reconcile; READS ONLY.
+//   BILLING_CHARGING_ENABLED=true    → additionally permits new charges.
+// `chargingEnabled` is `enabled && BILLING_CHARGING_ENABLED === "true"`. Default is off,
+// and anything that would create a charge returns `{ ok:false, deferred:true }` while it
+// is. Configuration is read LAZILY inside each call — a missing key never throws at
+// import time and never breaks the rest of FleetWise.
+
+/**
+ * The only channel a subscription may be taken on. A recurring bill needs a REUSABLE
+ * authorization, and only a card produces one — EFT/USSD/QR authorizations are one-shot,
+ * so a farm set up on one would appear configured and then fail every renewal.
+ */
+export type PaystackChannel = "card";
+
+export type CheckoutInit = {
+  farmId: string;
+  invoiceId: string;
+  /** OUR reference, already persisted on `billing_payment_attempts` before this call. */
+  reference: string;
+  /** VAT-inclusive integer cents (ZAR subunits). */
+  amountCents: number;
+  email: string;
+  /** Absolute, built from `NEXT_PUBLIC_SITE_URL` — never from the `Host` header. */
+  callbackUrl: string;
+  metadata: Record<string, string>;
+};
+
+export type CheckoutSession =
+  | { ok: true; authorizationUrl: string; accessCode: string; reference: string }
+  | { ok: false; deferred: true; reason: string }
+  | { ok: false; deferred: false; reason: string; retryable: boolean };
+
+/**
+ * A stored card, as Paystack describes it. NEVER leaves the server: `authorizationCode`
+ * is a charging credential (see the column comment in migration ...160100) and belongs
+ * in the same mental category as a password.
+ */
+export type StoredAuthorization = {
+  authorizationCode: string;
+  reusable: boolean;
+  brand: string | null;
+  last4: string | null;
+  expMonth: string | null;
+  expYear: string | null;
+  cardType: string | null;
+  bank: string | null;
+  countryCode: string | null;
+  bin: string | null;
+  signature: string | null;
+};
+
+export type VerifiedTransaction = {
+  reference: string;
+  /** Paystack's own transaction id. 0 when the response did not carry one. */
+  transactionId: number;
+  status: "success" | "failed" | "abandoned" | "pending";
+  amountCents: number;
+  currency: string;
+  channel: string | null;
+  gatewayResponse: string | null;
+  paidAt: string | null;
+  customerCode: string | null;
+  customerEmail: string | null;
+  /** Present ONLY for a reusable card. NEVER leaves the server. */
+  authorization: StoredAuthorization | null;
+  /**
+   * Why `authorization` is null despite Paystack having sent one. Set to
+   * `"not_reusable"` when the transaction carried an authorization that may not be
+   * charged again — so the caller can tell the farmer their card cannot be stored,
+   * rather than the refusal being silently invisible.
+   */
+  authorizationRefused?: "not_reusable" | null;
+  metadata: Record<string, unknown>;
+};
+
+export type VerifyResult =
+  | { ok: true; transaction: VerifiedTransaction }
+  | { ok: false; deferred: true; reason: string }
+  | { ok: false; deferred: false; reason: string; retryable: boolean };
+
+export type ChargeRequest = {
+  farmId: string;
+  invoiceId: string;
+  /** OUR reference, already persisted before this call. */
+  reference: string;
+  amountCents: number;
+  /** SERVER-ONLY charging credential. Never log it, never return it, never redirect with it. */
+  authorizationCode: string;
+  /** MUST be the email the authorization was created against, or Paystack refuses. */
+  email: string;
+  metadata: Record<string, string>;
+};
+
+/**
+ * The provider contract for SaaS subscription billing.
+ *
+ * `verifyTransaction` and `verifyWebhookSignature` MUST keep working with charging
+ * switched off: reconciliation of a payment already taken is not a new charge, and
+ * switching the kill switch on must never orphan money that is already in flight.
+ */
+export interface SaasBillingProvider {
+  readonly provider: string;
+  /** A real provider is configured (`BILLING_PROVIDER` + a secret key). */
+  readonly enabled: boolean;
+  /** Configured AND the charging kill switch is on. */
+  readonly chargingEnabled: boolean;
+
+  /** Hosted checkout — the first payment, which is also how the card gets stored. */
+  initializeCheckout(init: CheckoutInit): Promise<CheckoutSession>;
+  /** Ask what happened to one reference. The ONLY safe recovery from a lost response. */
+  verifyTransaction(reference: string): Promise<VerifyResult>;
+  /** A scheduled recurring charge against a stored authorization. */
+  chargeAuthorization(req: ChargeRequest): Promise<VerifyResult>;
+  /** HMAC-SHA512 of the RAW body against the secret key, compared timing-safely. */
+  verifyWebhookSignature(rawBody: string, signature: string | null): boolean;
+}

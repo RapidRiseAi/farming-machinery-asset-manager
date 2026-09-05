@@ -128,3 +128,39 @@ get `notifications.deliver_after` set to the next window end; outside the window
 "deliverable" when `deliver_after IS NULL OR deliver_after <= now()`. Unread state is
 `read_at IS NULL`; set `read_at = now()` when the user opens it. Index
 `notifications_user_unread_idx` supports the `(user_id, unread)` listing.
+
+---
+
+# Billing cron — subscriptions, invoices, charges
+
+The route `GET /api/cron/billing` runs the SaaS subscription-billing pass. It is a
+**separate route on a separate schedule** (03:20, twenty minutes after the maintenance
+pass) and that separation is deliberate: a billing failure must not disrupt maintenance
+jobs, and a maintenance failure must not stop money being collected. Same
+`Authorization: Bearer ${CRON_SECRET}` check as the nightly route.
+
+Steps, in order:
+
+1. **reconcile stuck attempts** — `reconcileStuckAttempts`. FIRST, and that matters: an
+   attempt in `unknown` (an HTTP response we lost) BLOCKS its invoice, so it must be
+   resolved before anything else is attempted. It calls `transaction/verify` on that exact
+   reference. It never charges again to resolve an unknown.
+2. `cron_capture_billing_snapshots` — one billable-vehicle count per farm per day, so a
+   bill saying "37 vehicles" is answerable months later.
+3. `cron_generate_billing_invoices` — raises invoices whose period has come round.
+   Idempotent twice over: a unique index on (farm, period) and an advancing
+   `next_billing_on`. With no ACTIVE price version it raises nothing, which is the state
+   the system currently ships in.
+4. **run charges** — `runBillingCharges`. claim → charge outside any transaction → settle.
+5. `cron_apply_billing_downgrades` — grace expired: lowers the EFFECTIVE plan only.
+   Deletes nothing.
+6. `cron_close_billing_cancellations` — cancellations that have reached their period end.
+7. `cron_enqueue_billing_reminders` — payment-failure chasers to owner/manager, weekly,
+   deduped from the notification queue itself. Works with no WhatsApp.
+
+As in the nightly route, a failing step is reported and the pass CONTINUES. Repeated
+execution is safe throughout.
+
+**Nothing here charges anyone unless BOTH `BILLING_PROVIDER=paystack` and
+`BILLING_CHARGING_ENABLED=true` are set.** With charging off, steps 1–3 and 5–7 still run
+and step 4 reconciles without charging. See `docs/BILLING.md`.
