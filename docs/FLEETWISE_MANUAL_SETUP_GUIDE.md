@@ -89,35 +89,45 @@ Supabase Auth in the cloud, so local dev logs into the real demo accounts.
 
 All passwords: **`FleetWise!demo1`**. (Change or delete these before any real use.)
 
+> **Every demo account delivers to one inbox.** They are Gmail plus-addresses on
+> `therandomneon@gmail.com`, so `+owner`, `+driver`, `+tj` and the rest all arrive in
+> that single mailbox while remaining genuinely separate accounts. That matters: the
+> point of a persona is that RLS answers differently for it, and a shared login would
+> test nothing. One password for all of them, so switching is: sign out, type a
+> different address.
+>
+> Supabase does not normalise plus-addressing, so each is a distinct `auth.users` row.
+> All 14 were verified to sign in after the change.
+
 ### Farmer-side — *Weltevrede Boerdery* (Complete plan → every feature unlocked)
 | Role | Email | What to test |
 |---|---|---|
-| **Owner** | `danie@weltevrede.example` | Everything: dashboard, reports, inbox, settings, team, partners, admin-of-own-farm. Also has a 2nd farm → **site switcher**. |
-| **Manager** | `piet@weltevrede.example` | Same as owner minus a few owner-only settings. |
-| **Mechanic** | `johan@weltevrede.example` | Job cards, faults, service kits, parts, checklists. |
-| **Operator** | `thabo@weltevrede.example` | **Per-role visibility** — sees only the *Groen John Deere* (the machine assigned to them). |
-| **Operator** | `sipho@weltevrede.example` | Operator with no assigned machine (contrast). |
+| **Owner** | `therandomneon+owner@gmail.com` | Everything: dashboard, reports, inbox, settings, team, partners, admin-of-own-farm. Also has a 2nd farm → **site switcher**. |
+| **Manager** | `therandomneon+manager@gmail.com` | Same as owner minus a few owner-only settings. |
+| **Mechanic** | `therandomneon+mechanic@gmail.com` | Job cards, faults, service kits, parts, checklists. |
+| **Operator** | `therandomneon+driver2@gmail.com` | **Per-role visibility** — sees only the *Groen John Deere* (the machine assigned to them). |
+| **Operator** | `therandomneon+driver@gmail.com` | Operator with no assigned machine (contrast). |
 
 ### Platform admin
 | Role | Email | What to test |
 |---|---|---|
-| **RR admin** | `admin@fleetwise.dev` | `/admin/farms` — create farms, set plans/billing, usage stats, logged impersonation, global template/parts/partner libraries. |
+| **RR admin** | `therandomneon+admin@gmail.com` | `/admin/farms` — create farms, set plans/billing, usage stats, logged impersonation, global template/parts/partner libraries. |
 
 ### Contractors — one per type (each logs into the **aggregated contractor dashboard** `/contractor`)
 | Type | Email | Notes |
 |---|---|---|
-| **Mechanic** | `tj@tjservice.example` | Linked to **both** farms → dashboard aggregates across Weltevrede + Rooikoppies. Plan: **pro** (client-analytics unlocked). |
-| **Auto electrician** | `sparky@voltauto.example` | Has an open "alternator" request. |
-| **Parts supplier** | `sales@agripartsdepot.example` | Has a **quoted** parts request; parts-catalogue shortcut. Plan: pro. |
-| **Panel beater** | `info@panelworx.example` | Has a "quote" request (door dent). |
-| **Tyre** | `fitment@karootyre.example` | Has an **in-progress** request. |
-| **Towing** | `dispatch@bolandtow.example` | Recovery contractor. Plan: pro. |
-| **Other / handyman** | `general@doall.example` | Generic contractor view. |
+| **Mechanic** | `therandomneon+tj@gmail.com` | Linked to **both** farms → dashboard aggregates across Weltevrede + Rooikoppies. Plan: **pro** (client-analytics unlocked). |
+| **Auto electrician** | `therandomneon+volt@gmail.com` | Has an open "alternator" request. |
+| **Parts supplier** | `therandomneon+parts@gmail.com` | Has a **quoted** parts request; parts-catalogue shortcut. Plan: pro. |
+| **Panel beater** | `therandomneon+panel@gmail.com` | Has a "quote" request (door dent). |
+| **Tyre** | `therandomneon+tyre@gmail.com` | Has an **in-progress** request. |
+| **Towing** | `therandomneon+towing@gmail.com` | Recovery contractor. Plan: pro. |
+| **Other / handyman** | `therandomneon+handyman@gmail.com` | Generic contractor view. |
 
 ### Second farm — *Rooikoppies Plaas* (Professional plan)
 | Role | Email | Notes |
 |---|---|---|
-| **Owner** | `hendrik@rooikoppies.example` | 3 vehicles; one request out to the TJ mechanic (cross-farm). |
+| **Owner** | `therandomneon+owner2@gmail.com` | 3 vehicles; one request out to the TJ mechanic (cross-farm). |
 
 **Suggested test flow:** log in as **Danie** → create a work request from a machine's
 "Get something done" card to a contractor → log in as that **contractor** (`/contractor`)
