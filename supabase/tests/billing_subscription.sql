@@ -1264,11 +1264,17 @@ declare
     'billing_advance_period','due_billing_charges','claim_billing_charge',
     'settle_billing_attempt','billing_register_failure','billing_apply_downgrades',
     'billing_restore_after_payment','enqueue_billing_reminders','billing_close_cancellations',
-    'billing_rollup_invoice_payments'];
+    'billing_rollup_invoice_payments','start_billing_subscription'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations'];
+  -- The wrappers service.ts calls by name. Separate from the cron list because they
+  -- exist for a different reason: PostgREST exposes `public` only, so without these the
+  -- charging path is unreachable no matter how the `app` functions are granted.
+  v_rpc_fns text[] := array[
+    'billing_due_charges','billing_claim_charge','billing_settle_attempt',
+    'billing_generate_invoices','billing_start_subscription'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1290,6 +1296,7 @@ begin
       from pg_proc p join pg_namespace n2 on n2.oid = p.pronamespace
      where (n2.nspname = 'app'    and p.proname = any (v_app_fns))
         or (n2.nspname = 'public' and p.proname = any (v_cron_fns))
+        or (n2.nspname = 'public' and p.proname = any (v_rpc_fns))
   loop
     n := n + 1;
 
@@ -1337,10 +1344,10 @@ begin
     end if;
   end loop;
 
-  if n <> array_length(v_app_fns, 1) + array_length(v_cron_fns, 1) then
+  if n <> array_length(v_app_fns, 1) + array_length(v_cron_fns, 1) + array_length(v_rpc_fns, 1) then
     raise exception 'BILLING FAIL [j]: found % of the % billing functions this suite knows about. '
       'A rename or a drop must fail here rather than silently shrinking the sweep.',
-      n, array_length(v_app_fns, 1) + array_length(v_cron_fns, 1);
+      n, array_length(v_app_fns, 1) + array_length(v_cron_fns, 1) + array_length(v_rpc_fns, 1);
   end if;
 
   -- Completeness the other way round: nothing may touch a billing table from outside the
@@ -1353,6 +1360,7 @@ begin
        and p.prosrc ~ 'billing_(invoices|invoice_lines|subscriptions|payments|payment_methods|payment_attempts|settings|price_versions|asset_snapshots|webhook_events|invoice_ref_seq)'
        and not (n2.nspname = 'app'    and p.proname = any (v_app_fns))
        and not (n2.nspname = 'public' and p.proname = any (v_cron_fns))
+       and not (n2.nspname = 'public' and p.proname = any (v_rpc_fns))
   loop
     raise exception 'BILLING FAIL [j]: %.% reads or writes a billing table but is not in this '
       'suite''s lockdown sweep', r.nspname, r.proname;
@@ -1490,6 +1498,97 @@ begin
     raise exception 'BILLING FAIL [l]: after recovery prev=% status=% failures=%, expected null/active/0',
       v_prev, v_status, n;
   end if;
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (m) The RPC surface the application actually calls.
+--
+-- This section exists because its absence cost the entire feature. Every engine
+-- function lives in schema `app` and is revoked from everyone — correct, they move
+-- money — but PostgREST exposes `public` and `graphql_public` ONLY. So each
+-- `supabase.rpc("billing_…")` in src/lib/billing/service.ts resolved to no function
+-- at all, and the charging path failed at its first statement: raising an invoice,
+-- claiming a charge, settling an attempt, listing what was due.
+--
+-- Nothing caught it. The TypeScript tests mock the Supabase client, so they assert
+-- the ARGUMENTS are right and never that the function is reachable; this suite built
+-- a database from the migrations and never called it the way the app does; the build
+-- compiles a string. It was found by inventorying every rpc() name against pg_proc.
+--
+-- The names AND the parameter names below are copied from `BILLING_RPC` and its call
+-- sites. Parameter names matter as much as the function name: PostgREST resolves by
+-- the named arguments in the JSON body, so a rename breaks the call as completely as
+-- a deletion. If you change either, change src/lib/billing/service.ts in the same
+-- commit — that is the whole point of this section.
+-- ═════════════════════════════════════════════════════════════════════════════
+do $$
+declare
+  r         record;
+  v_oid     oid;
+  v_missing text := '';
+  v_leaked  text := '';
+begin
+  raise notice '── BILLING (m): the rpc surface service.ts calls ─────────────────';
+
+  for r in
+    select * from (values
+      ('billing_due_charges',        'p_limit integer'),
+      ('billing_claim_charge',       'p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint'),
+      ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text'),
+      ('billing_generate_invoices',  'p_only uuid'),
+      ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer')
+    ) as t(fn, args)
+  loop
+    select p.oid into v_oid
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = r.fn
+       and pg_get_function_identity_arguments(p.oid) = r.args;
+
+    if v_oid is null then
+      v_missing := v_missing || ' public.' || r.fn || '(' || r.args || ')';
+    else
+      -- Reachable is not the same as open. These raise invoices and record payments;
+      -- a farmer's browser holds an `authenticated` JWT and must never call them.
+      if has_function_privilege('authenticated', v_oid, 'EXECUTE')
+         or has_function_privilege('anon', v_oid, 'EXECUTE') then
+        v_leaked := v_leaked || ' ' || r.fn;
+      end if;
+    end if;
+    v_oid := null;
+  end loop;
+
+  if v_missing <> '' then
+    raise exception 'BILLING FAIL [m]: service.ts calls these and they do not exist:%', v_missing;
+  end if;
+  if v_leaked <> '' then
+    raise exception 'BILLING FAIL [m]: money-moving rpc executable by anon/authenticated:%', v_leaked;
+  end if;
+
+  raise notice '   5 wrappers present, correctly named, service_role only';
+end $$;
+
+-- One live subscription per farm, refused with a sentence rather than a duplicate key.
+do $$
+declare v_farm uuid := 'b1000000-0000-0000-0000-000000000001'; v_id uuid; v_before bigint;
+begin
+  select count(*) into v_before from billing_subscriptions where farm_id = v_farm and deleted_at is null;
+  if v_before < 1 then
+    raise exception 'BILLING FAIL [m]: fixture expected a subscription on farm %, found %', v_farm, v_before;
+  end if;
+
+  begin
+    v_id := public.billing_start_subscription(v_farm, 'professional', 'monthly', 0);
+    raise exception 'BILLING FAIL [m]: a SECOND subscription was created (%) for farm %', v_id, v_farm;
+  exception when unique_violation then
+    null;   -- the refusal we want
+  end;
+
+  if (select count(*) from billing_subscriptions where farm_id = v_farm and deleted_at is null) <> v_before then
+    raise exception 'BILLING FAIL [m]: the refused start still changed the subscription count';
+  end if;
+
+  raise notice '   a second subscription for the same farm is refused';
 end $$;
 
 
