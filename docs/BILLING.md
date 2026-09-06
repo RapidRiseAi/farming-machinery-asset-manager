@@ -84,23 +84,38 @@ this codebase has one idea about "an issuer who may not charge VAT", not two.
 > The guard is not covered by the VAT *arithmetic* tests, which feed it a rate. It has its
 > own section, §(h3), added after a mutation that disabled the guard survived the suite.
 
-## 5. Prices, and why the catalogue is empty
+## 5. Prices
 
 `billing_price_versions` holds a **versioned** price list: one row per (version, plan,
 billing period), priced per vehicle per month, **VAT-inclusive**, in integer cents.
 
-**It ships empty, deliberately.** There is an unresolved conflict:
+**RESOLVED 2026-09-04.** The founder confirmed the founder document, and migration
+`20260904120000` seeded the `launch-2026` generation:
+
+| Plan | Per vehicle / month (VAT-incl) | Annual (10 months) |
+|---|---|---|
+| Essential | R44,00 | R440,00 |
+| Professional | R73,00 | R730,00 |
+| Complete | R89,00 | R890,00 |
+| Done-For-You | R250,00 | R2 500,00 |
+
+`src/lib/entitlements.ts` carries the same figures, and a test reads the migration itself
+to prove the quoted price and the invoiced price agree. **Seeding a price releases only the
+FIRST lock** — invoices can now be raised, and with `BILLING_CHARGING_ENABLED` unset nothing
+can be charged. The conflict this replaced was:
 
 | Source | Essential | Professional | Complete | Done-For-You |
 |---|---|---|---|---|
 | `FLEETWISE_FOUNDER_DECISIONS.md` #1 | R44 | R73 | R89 | R250 |
 | shipped `src/lib/entitlements.ts` | R39 | R69 | R99 | POA |
 
-Both claim to be VAT-inclusive, so only the numbers are in dispute. With no `active` price
-version, `app.generate_billing_invoices` raises nothing and there is nothing to charge —
-the safest possible resting state. **Seed nothing until the founder confirms.**
+Both claimed to be VAT-inclusive, so only the numbers were in dispute — which is why the
+catalogue shipped EMPTY rather than guessing: with no `active` price version
+`app.generate_billing_invoices` raises nothing, and there is nothing to charge.
 
-When confirmed, it is one INSERT per plan and period:
+**Repricing later never edits these rows.** A non-draft price version's money columns are
+frozen, so a new price is a new generation: retire `launch-2026` and insert the next one.
+Invoices already issued keep the price they were raised under. The shape is:
 
 ```sql
 insert into billing_price_versions

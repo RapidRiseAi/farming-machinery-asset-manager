@@ -6,30 +6,32 @@ deliberately.
 
 `docs/BILLING.md` explains how the system works. This file is only the checklist.
 
-> **Nothing is charging anyone right now, and nothing can.** Two independent things
-> prevent it, and both would have to be changed on purpose:
+> **Nothing is charging anyone right now, and nothing can.** There were two independent
+> locks. Prices are now confirmed and seeded, so one is released; the other still holds:
 >
-> 1. The price catalogue (`billing_price_versions`) is **empty**. With no active price
->    version the invoice generator raises no invoice, so there is nothing to charge.
+> 1. ~~The price catalogue is empty.~~ **Released 2026-09-04** — prices confirmed and
+>    seeded, so invoices can now be RAISED.
 > 2. `BILLING_CHARGING_ENABLED` is unset. Every code path that would move money checks it
->    first and returns without making a network request.
+>    first and returns **without making a network request**. Nothing can be CHARGED.
 
 ---
 
-## 0. The decision that blocks everything else
+## 0. ✅ Prices — CONFIRMED 2026-09-04
 
-**Which price table is real?**
+The founder document was confirmed correct and is seeded: **Essential R44 / Professional
+R73 / Complete R89 / Done-For-You R250** per vehicle per month, VAT-inclusive, with annual
+charging ten months (two free). Migration `20260904120000`.
+
+That releases the first of the two locks. **`BILLING_CHARGING_ENABLED` is still unset, so
+nothing can be charged** — invoices can now be raised and watched first, which is exactly
+the order you want. The superseded conflict, for the record:
 
 | Source | Essential | Professional | Complete | Done-For-You |
 |---|---|---|---|---|
 | `docs/FLEETWISE_FOUNDER_DECISIONS.md` #1 | R44 | R73 | R89 | R250 |
 | shipped `src/lib/entitlements.ts` | R39 | R69 | R99 | POA |
 
-Both say VAT-inclusive, so only the numbers are in dispute. I have **not** picked one and
-have **not** seeded either. Until you confirm, the catalogue stays empty and billing
-cannot start.
-
-Also outstanding, both with tested defaults you can accept or change
+Still outstanding, both with tested defaults you can accept or change
 (`docs/FLEETWISE_FOUNDER_DECISIONS.md` rows 8 and 9):
 
 - **Dunning policy** — 14-day trial; retries at 3, 7 and 14 days; 7-day grace; then the
@@ -129,7 +131,11 @@ Then, in `billing_settings` (one row), fill in the selling identity that appears
 invoices: `legal_name`, `trading_name`, `reg_number`, `billing_address`, `billing_email`.
 Leave `vat_registered` **false** until you actually register.
 
-**Do not insert anything into `billing_price_versions` yet.** That is step 0.
+The price catalogue is seeded by the fourth migration:
+
+```
+supabase/migrations/20260904120000_saas_billing_launch_prices.sql
+```
 
 ## 6. Test it in Preview (me or you, once keys exist)
 
@@ -148,8 +154,7 @@ With test keys, in Preview only. Paystack's test cards are in their docs.
 
 Do not do any of this until steps 0–6 are done and you are satisfied.
 
-1. Confirm the final price table, and seed exactly one active price version per plan and
-   period. This is a single INSERT — `docs/BILLING.md` has the statement.
+1. ~~Confirm the final price table.~~ Done — `launch-2026` is seeded.
 2. Set the live webhook URL in Paystack.
 3. Set `PAYSTACK_SECRET_KEY` (live) and `BILLING_PROVIDER=paystack` in **production**,
    with `BILLING_CHARGING_ENABLED` still **`false`**.

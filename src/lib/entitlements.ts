@@ -88,11 +88,28 @@ export type PlanPrice = {
   perVehicleMonthlyCents: number | null;
 };
 
+/**
+ * CONFIRMED BY THE FOUNDER, 4 September 2026: R44 / R73 / R89 / R250.
+ *
+ * These previously read 3900 / 6900 / 9900 / null, which disagreed with
+ * `docs/FLEETWISE_FOUNDER_DECISIONS.md` #1. The founder confirmed the DOCUMENT was
+ * correct, so these are corrected to match. Two sources of truth for a price is worse
+ * than either of them: a screen quoting R39 while the invoice says R44 is how a customer
+ * stops trusting the bill.
+ *
+ * This table is DISPLAY. The money that is actually charged comes from
+ * `billing_price_versions` (seeded by migration 20260904120000 with exactly these
+ * figures), because an invoice must be defensible from its own snapshot years later.
+ * `supabase/tests/billing_subscription.sql` §(0) asserts the two agree, so they cannot
+ * drift apart again silently.
+ */
 export const PLAN_PRICING: Record<Plan, PlanPrice> = {
-  essential: { perVehicleMonthlyCents: 3900 },
-  professional: { perVehicleMonthlyCents: 6900 },
-  complete: { perVehicleMonthlyCents: 9900 },
-  done_for_you: { perVehicleMonthlyCents: null },
+  essential: { perVehicleMonthlyCents: 4400 },
+  professional: { perVehicleMonthlyCents: 7300 },
+  complete: { perVehicleMonthlyCents: 8900 },
+  // The founder document gives a real figure where this was previously "price on
+  // application", so Done-For-You now quotes and invoices like any other plan.
+  done_for_you: { perVehicleMonthlyCents: 25000 },
 };
 
 /** Annual pre-pay gives 2 months free (pay for 10). Effective monthly = list × 10/12. */

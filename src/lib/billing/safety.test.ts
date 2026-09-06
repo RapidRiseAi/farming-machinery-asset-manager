@@ -16,6 +16,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  ANNUAL_MONTHS_CHARGED,
+  PLANS,
+  PLAN_PRICING,
+  subscriptionSubtotalCents,
+} from "@/lib/entitlements";
 
 import {
   billingCallbackUrl,
@@ -527,6 +536,79 @@ test("date arithmetic crosses a month end and a leap day correctly", () => {
   assert.equal(addDays("2024-02-28", 1), "2024-02-29"); // 2024 is
   assert.equal(addDays("2026-12-31", 1), "2027-01-01");
   assert.equal(daysBetween("2026-09-01", "2026-09-15"), 14);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 7b. The quoted price and the invoiced price are the same number
+// ══════════════════════════════════════════════════════════════════════════════
+// `PLAN_PRICING` is what a farmer is QUOTED on screen. `billing_price_versions` is what
+// they are actually INVOICED. These two have already drifted apart once — the shipped
+// code said R39/R69/R99 while the founder document said R44/R73/R89 — and a quote that
+// does not match the bill is how somebody stops trusting the bill.
+//
+// So this reads the seeding migration itself rather than a copy of the numbers: a
+// constant duplicated into a test proves only that the test agrees with itself.
+// The SQL side asserts the same figures in the suite's section (0), so a change to
+// either one without the other fails on both sides.
+
+test("PLAN_PRICING matches the prices the seeding migration actually inserts", () => {
+  const sql = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260904120000_saas_billing_launch_prices.sql"),
+    "utf8"
+  );
+
+  for (const plan of PLANS) {
+    // ('launch-2026', '<plan>', 'monthly',  4400,  1, 0, 'active', …)
+    const row = new RegExp(
+      `'launch-2026',\\s*'${plan}',\\s*'monthly',\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)`
+    ).exec(sql);
+    assert.ok(row, `the migration has no monthly row for ${plan}`);
+
+    const [, cents, months, vatBps] = row;
+    assert.equal(
+      PLAN_PRICING[plan].perVehicleMonthlyCents,
+      Number(cents),
+      `${plan}: entitlements.ts says ${PLAN_PRICING[plan].perVehicleMonthlyCents} but the ` +
+        `migration invoices ${cents}. The quote and the bill must be the same number.`
+    );
+    assert.equal(Number(months), 1, `${plan} monthly must charge one month`);
+    assert.equal(
+      Number(vatBps),
+      0,
+      `${plan}: Rapid Rise is not VAT-registered, so the seeded rate must be 0`
+    );
+
+    // Annual carries the SAME unit price and charges ten months. Expressing the discount
+    // as months rather than a reduced unit price keeps "what do we charge per vehicle" a
+    // question with one answer.
+    const annual = new RegExp(
+      `'launch-2026',\\s*'${plan}',\\s*'annual',\\s*(\\d+),\\s*(\\d+)`
+    ).exec(sql);
+    assert.ok(annual, `the migration has no annual row for ${plan}`);
+    assert.equal(Number(annual[1]), Number(cents), `${plan}: annual unit price must equal monthly`);
+    assert.equal(Number(annual[2]), ANNUAL_MONTHS_CHARGED, `${plan}: annual must charge 10 months`);
+  }
+});
+
+test("the confirmed figures are the founder-document ones", () => {
+  // Named explicitly so that changing a price is a deliberate act with a failing test
+  // attached, not something that slips through in a diff full of other work.
+  assert.equal(PLAN_PRICING.essential.perVehicleMonthlyCents, 4400);
+  assert.equal(PLAN_PRICING.professional.perVehicleMonthlyCents, 7300);
+  assert.equal(PLAN_PRICING.complete.perVehicleMonthlyCents, 8900);
+  assert.equal(PLAN_PRICING.done_for_you.perVehicleMonthlyCents, 25000);
+});
+
+test("a year on the annual plan costs ten months, not twelve", () => {
+  for (const plan of PLANS) {
+    const monthly = subscriptionSubtotalCents(plan, "monthly", 12);
+    const annual = subscriptionSubtotalCents(plan, "annual", 12);
+    assert.ok(monthly != null && annual != null);
+    if (monthly != null && annual != null) {
+      assert.equal(annual, monthly * ANNUAL_MONTHS_CHARGED, `${plan}: annual should be 10 × monthly`);
+      assert.equal(monthly * 12 - annual, monthly * 2, `${plan}: the saving should be exactly two months`);
+    }
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -1828,7 +1828,7 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
 - **FleetWise SaaS subscription billing — Paystack** (migrations `20260903160000`,
   `20260903160100`, `20260903160200`; branch `claude/paystack-saas-billing` off `e298808`;
   suite `supabase/tests/billing_subscription.sql`, 17 sections / 110+ assertions, green;
-  **mutation-tested 8/8 caught with a passing control**; **NOTHING CHARGES ANYONE AND
+  **mutation-tested 10/10 caught with a passing control**; **NOTHING CHARGES ANYONE AND
   NOTHING CAN**):
   - **The scope boundary is the design.** This is farms paying Rapid Rise for software —
     one direction. It is not the money between a farm and its contractors
@@ -1836,7 +1836,17 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     `src/lib/payments/*` was not touched, read or imported. Every table is prefixed
     `billing_`; §(k) asserts no billing function's `prosrc` mentions a partner table. No
     Paystack transfer, split, subaccount or payout exists anywhere.
-  - **Two locks stop any charge, and both are deliberate.** `billing_price_versions` ships
+  - **PRICES CONFIRMED 2026-09-04 (migration `20260904120000`).** The founder confirmed the
+    founder document: Essential **R44** / Professional **R73** / Complete **R89** /
+    Done-For-You **R250** per vehicle per month, VAT-inclusive, annual charging ten months.
+    Seeded as the `launch-2026` generation, and `src/lib/entitlements.ts` corrected from
+    R39/R69/R99/POA to match — a screen quoting R39 while the invoice says R44 is worse than
+    either number alone. A test reads the migration itself to prove the two agree, and §(0)
+    asserts the same figures in SQL, so they cannot drift apart silently again. **This
+    releases the FIRST lock only**: invoices can now be RAISED, and with
+    `BILLING_CHARGING_ENABLED` still unset nothing can be CHARGED. Mutations M9/M10 prove
+    the price assertions fire.
+  - **Two locks stopped any charge, and both were deliberate.** `billing_price_versions` shipped
     **EMPTY** — the founder doc (R44/R73/R89/R250) and shipped `entitlements.ts`
     (R39/R69/R99/POA) disagree, so no price was chosen and with no active version the
     generator raises nothing. And `BILLING_CHARGING_ENABLED` is unset: every method that
