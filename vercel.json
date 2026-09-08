@@ -5,8 +5,9 @@
       "schedule": "0 3 * * *"
     },
     {
+      "//": "TEMPORARY — moved off 03:20 to prove the SCHEDULER fires, not just the route. Revert to '20 3 * * *' once seen.",
       "path": "/api/cron/billing",
-      "schedule": "20 3 * * *"
+      "schedule": "0 16 * * *"
     }
   ]
 }
