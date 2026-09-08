@@ -721,6 +721,32 @@ export function adminTotals(rows: AdminBillingRow[]): {
 }
 
 /**
+ * Farms that are not on a subscription yet.
+ *
+ * These are invisible on the list above, which is built from subscriptions — so before
+ * this existed, a farm with no subscription simply did not appear on the billing console
+ * at all, and nothing in the product could put one there. `beginCheckout` refuses with
+ * `billing-no-subscription`, so such a farm could never start paying.
+ *
+ * Deliberately derived from the two lists the page has already loaded rather than a third
+ * query: an administrator opening this screen has asked for the state of billing, and the
+ * farms missing from it are part of that answer.
+ *
+ * A non-active farm is EXCLUDED. Signing up a suspended or closed farm is not an
+ * oversight to be corrected with one click; it is a decision that belongs on the farm's
+ * own admin page, where the status can be changed first.
+ */
+export function farmsWithoutSubscription(
+  subs: SubscriptionRow[] | null | undefined,
+  farms: FarmBillingRow[] | null | undefined,
+): FarmBillingRow[] {
+  const covered = new Set((subs ?? []).map((s) => s.farm_id));
+  return (farms ?? [])
+    .filter((f) => !covered.has(f.id) && f.status === "active")
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
  * Is there any price at all that could be charged today?
  *
  * `billing_price_versions` ships EMPTY on purpose, so this is `false` in every

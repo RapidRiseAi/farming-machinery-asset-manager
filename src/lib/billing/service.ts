@@ -13,12 +13,14 @@
  * nightly engines already are. `BILLING_RPC` is the single place those names appear, so
  * a rename is one edit rather than a hunt.
  *
- * NOTE FOR THE ORCHESTRATOR: `app.due_billing_charges`, `app.claim_billing_charge`,
- * `app.settle_billing_attempt` and `app.generate_billing_invoices(uuid)` ship WITHOUT a
- * `public.*` wrapper, so they are currently unreachable from the app. The wrapper SQL is
- * in `scratchpad/pending/agent2/billing_public_wrappers.sql`. Until it is applied these
- * calls return PGRST202 and the worker reports the step as failed rather than silently
- * doing nothing.
+ * That gap was real and shipped: `app.due_billing_charges`, `app.claim_billing_charge`,
+ * `app.settle_billing_attempt` and `app.generate_billing_invoices(uuid)` went out with no
+ * `public.*` wrapper at all, so every call on the charging path answered PGRST202 and the
+ * whole feature was unreachable. Migration `20260906120000` adds them. Nothing here
+ * caught it — the tests in this directory mock the Supabase client, so they assert the
+ * ARGUMENTS and never that the function exists — which is why the isolation suite now
+ * carries section (m), asserting each name AND its parameter names against `pg_proc`.
+ * If you add an entry below, add it there in the same commit.
  *
  * ── The credential rule ──────────────────────────────────────────────────────
  * `authorization_code` / `authorization_email` are a charging credential. They are read
@@ -48,6 +50,17 @@ export const BILLING_RPC = {
   applyDowngrades: "cron_apply_billing_downgrades",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
+  // Putting a farm ON a subscription (20260906120000). Nothing did this before, so a
+  // farm could never start paying: `beginCheckout` refuses without one.
+  startSubscription: "billing_start_subscription",
+  // Telling the customer (20260907120000). Claiming is what makes a send exactly-once
+  // across the webhook/verify race; `release` hands the claim back when a send failed,
+  // so a receipt nobody received does not stay marked as sent.
+  receiptsDue: "billing_receipts_due",
+  claimReceipt: "billing_claim_receipt",
+  releaseReceipt: "billing_release_receipt",
+  failureNoticesDue: "billing_failure_notices_due",
+  claimFailureNotice: "billing_claim_failure_notice",
 } as const;
 
 /** `billing_attempt_kind`. */

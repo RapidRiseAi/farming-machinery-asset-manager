@@ -1264,7 +1264,9 @@ declare
     'billing_advance_period','due_billing_charges','claim_billing_charge',
     'settle_billing_attempt','billing_register_failure','billing_apply_downgrades',
     'billing_restore_after_payment','enqueue_billing_reminders','billing_close_cancellations',
-    'billing_rollup_invoice_payments','start_billing_subscription'];
+    'billing_rollup_invoice_payments','start_billing_subscription',
+    'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
+    'billing_receipts_due','billing_failure_notices_due'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1274,7 +1276,9 @@ declare
   -- charging path is unreachable no matter how the `app` functions are granted.
   v_rpc_fns text[] := array[
     'billing_due_charges','billing_claim_charge','billing_settle_attempt',
-    'billing_generate_invoices','billing_start_subscription'];
+    'billing_generate_invoices','billing_start_subscription',
+    'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
+    'billing_receipts_due','billing_failure_notices_due'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1537,7 +1541,12 @@ begin
       ('billing_claim_charge',       'p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint'),
       ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text'),
       ('billing_generate_invoices',  'p_only uuid'),
-      ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer')
+      ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer'),
+      ('billing_receipts_due',         'p_limit integer'),
+      ('billing_claim_receipt',        'p_invoice uuid'),
+      ('billing_release_receipt',      'p_invoice uuid, p_error text'),
+      ('billing_failure_notices_due',  'p_limit integer'),
+      ('billing_claim_failure_notice', 'p_attempt uuid')
     ) as t(fn, args)
   loop
     select p.oid into v_oid
@@ -1550,6 +1559,9 @@ begin
     else
       -- Reachable is not the same as open. These raise invoices and record payments;
       -- a farmer's browser holds an `authenticated` JWT and must never call them.
+      if not has_function_privilege('service_role', v_oid, 'EXECUTE') then
+        v_missing := v_missing || ' service_role EXECUTE on public.' || r.fn;
+      end if;
       if has_function_privilege('authenticated', v_oid, 'EXECUTE')
          or has_function_privilege('anon', v_oid, 'EXECUTE') then
         v_leaked := v_leaked || ' ' || r.fn;
@@ -1565,7 +1577,7 @@ begin
     raise exception 'BILLING FAIL [m]: money-moving rpc executable by anon/authenticated:%', v_leaked;
   end if;
 
-  raise notice '   5 wrappers present, correctly named, service_role only';
+  raise notice '   every wrapper service.ts names is present, correctly named, service_role only';
 end $$;
 
 -- One live subscription per farm, refused with a sentence rather than a duplicate key.

@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { MAX_WEBHOOK_BODY_BYTES } from "@/lib/billing/config";
 import { getSaasProvider } from "@/lib/billing/service";
 import { handlePaystackWebhook } from "@/lib/billing/webhook";
+import { sendDueReceipts } from "@/lib/billing/receipt";
 import { captureError } from "@/lib/observability";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -80,6 +81,24 @@ export async function POST(request: Request) {
     const supabase = createServiceClient();
     const provider = await getSaasProvider();
     const result = await handlePaystackWebhook({ rawBody, signature, supabase, provider });
+
+    // Email the receipt AFTER answering. Paystack wants a prompt 200 and retries for
+    // three days if it does not get one; rendering a PDF and waiting on a mail provider
+    // is not work to keep it waiting for. `after()` runs once the response is sent, in
+    // the same invocation.
+    //
+    // Safe to call unconditionally: it sends only for invoices that are paid and not yet
+    // receipted, and the claim means the nightly pass cannot double it up.
+    if (result.status === 200) {
+      after(async () => {
+        try {
+          await sendDueReceipts(supabase, { limit: 5 });
+        } catch (err) {
+          captureError(err, { where: "billing:webhook:receipt" });
+        }
+      });
+    }
+
     return NextResponse.json({ ok: result.status === 200, outcome: result.outcome }, {
       status: result.status,
     });

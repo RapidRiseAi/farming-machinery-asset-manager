@@ -26,6 +26,7 @@ import {
   SUBSCRIPTION_COLUMNS,
   SUBSCRIPTION_LOOK,
   adminBillingRows,
+  farmsWithoutSubscription,
   adminTotals,
   anyActivePrice,
   billingLook,
@@ -48,6 +49,7 @@ import { Stat } from "@/components/ui/stat";
 import { Flash } from "@/components/ui/flash";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { GetStarted } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -56,7 +58,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { AdminIcon, CheckIcon, LockIcon, SearchIcon, WarningIcon } from "@/components/ui/icons";
 
 // Written by Agent 2. Imported, never re-declared.
-import { adminReconcileAttempt, adminRetryCharge, adminSetPlan } from "./actions";
+import {
+  adminReconcileAttempt,
+  adminRetryCharge,
+  adminSetPlan,
+  adminStartSubscription,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +132,7 @@ export default async function AdminBillingPage({
   const farms = (farmData as FarmBillingRow[] | null) ?? [];
 
   const rows = adminBillingRows(subs, farms);
+  const unbilled = farmsWithoutSubscription(subs, farms);
   const totals = adminTotals(rows);
   const priced = anyActivePrice(prices);
 
@@ -232,6 +240,97 @@ export default async function AdminBillingPage({
         </dl>
         <p className="mt-3 text-sm text-sand-600">{t("adminBilling.switchNote", locale)}</p>
       </Card>
+
+      {/* ── Farms that cannot pay yet, because nothing has put them on a plan ── */}
+      {unbilled.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("adminBilling.startTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm text-sand-600">{t("adminBilling.startLead", locale)}</p>
+
+          <ul className="mt-4 flex flex-col gap-4">
+            {unbilled.map((farm) => (
+              <li key={farm.id} className="rounded-lg border border-sand-300 p-3 sm:p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-sand-900">{farm.name}</span>
+                  <span className="text-sm text-sand-600">
+                    {t("adminBilling.startVehicles", locale).replace(
+                      "{count}",
+                      String(farm.asset_count),
+                    )}
+                  </span>
+                </div>
+
+                <form
+                  action={adminStartSubscription}
+                  className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
+                >
+                  <input type="hidden" name="farm_id" value={farm.id} />
+                  <Field
+                    label={t("adminBilling.changePlanField", locale)}
+                    htmlFor={`start-plan-${farm.id}`}
+                    className="flex-1"
+                  >
+                    <Select
+                      id={`start-plan-${farm.id}`}
+                      name="plan"
+                      defaultValue={farm.plan}
+                    >
+                      {PLANS.map((p) => (
+                        <option key={p} value={p}>
+                          {t(`plan.${p}`, locale)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label={t("adminBilling.changePeriodField", locale)}
+                    htmlFor={`start-period-${farm.id}`}
+                    className="flex-1"
+                  >
+                    <Select
+                      id={`start-period-${farm.id}`}
+                      name="billing_period"
+                      defaultValue={farm.billing_period}
+                    >
+                      {BILLING_PERIODS.map((b) => (
+                        <option key={b} value={b}>
+                          {t(`billingPeriod.${b}`, locale)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label={t("adminBilling.startTrialField", locale)}
+                    htmlFor={`start-trial-${farm.id}`}
+                    hint={t("adminBilling.startTrialHint", locale).replace(
+                      "{days}",
+                      String(settings?.trial_days ?? 0),
+                    )}
+                    className="sm:w-32"
+                  >
+                    <Input
+                      id={`start-trial-${farm.id}`}
+                      name="trial_days"
+                      type="number"
+                      min={0}
+                      max={365}
+                      inputMode="numeric"
+                      placeholder={String(settings?.trial_days ?? 0)}
+                    />
+                  </Field>
+                  <SubmitButton variant="primary">
+                    {t("adminBilling.startAction", locale)}
+                  </SubmitButton>
+                </form>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-3 text-xs text-sand-500">{t("adminBilling.startNote", locale)}</p>
+        </Card>
+      ) : null}
 
       {/* ── The price list. Empty on purpose, and it says so. ───────────────── */}
       <Card flush>
@@ -473,7 +572,7 @@ export default async function AdminBillingPage({
             <p className="text-sm text-sand-600">{t("adminBilling.changeLead", locale)}</p>
             <form action={adminSetPlan} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
               <input type="hidden" name="farmId" value={selected.sub.farm_id} />
-              <input type="hidden" name="subscriptionId" value={selected.sub.id} />
+              <input type="hidden" name="subscription_id" value={selected.sub.id} />
               <Field
                 label={t("adminBilling.changePlanField", locale)}
                 htmlFor="billing-plan"
@@ -494,7 +593,7 @@ export default async function AdminBillingPage({
               >
                 <Select
                   id="billing-period"
-                  name="billingPeriod"
+                  name="billing_period"
                   defaultValue={selected.sub.billing_period}
                 >
                   {BILLING_PERIODS.map((b) => (
@@ -591,7 +690,7 @@ export default async function AdminBillingPage({
                   closeLabel={t("ui.close", locale)}
                 >
                   <input type="hidden" name="farmId" value={selected.sub.farm_id} />
-                  <input type="hidden" name="invoiceId" value={offer.invoice.id} />
+                  <input type="hidden" name="invoice_id" value={offer.invoice.id} />
                 </ConfirmDialog>
               </div>
             ) : null}
@@ -683,7 +782,7 @@ export default async function AdminBillingPage({
                     closeLabel={t("ui.close", locale)}
                   >
                     <input type="hidden" name="farmId" value={selected.sub.farm_id} />
-                    <input type="hidden" name="attemptId" value={a.id} />
+                    <input type="hidden" name="attempt_id" value={a.id} />
                   </ConfirmDialog>
                 ))}
               </div>

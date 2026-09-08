@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { sendDueFailureNotices, sendDueReceipts } from "@/lib/billing/receipt";
 import { BILLING_RPC } from "@/lib/billing/service";
 import { reconcileStuckAttempts, runBillingCharges } from "@/lib/billing/worker";
 import { captureError } from "@/lib/observability";
@@ -113,6 +114,42 @@ export async function GET(request: Request) {
 
   // 7 ── Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);
+
+  // 8 ── Email what step 7 could only put in the app.
+  //
+  // Both are SAFETY NETS as much as senders. The receipt is normally emailed the moment
+  // the webhook lands; this pass catches the ones where that request died, where the
+  // mailbox was full, or where email was not configured at the time. Both claim before
+  // sending, so running this twice sends nothing twice.
+  try {
+    const receipts = await sendDueReceipts(supabase);
+    steps["receipts"] =
+      receipts.skipped && !receipts.considered
+        ? `skipped (${receipts.reasons[0] ?? "nothing due"})`
+        : `ok (considered ${receipts.considered}, sent ${receipts.sent}, ` +
+          `skipped ${receipts.skipped}, failed ${receipts.failed})`;
+    for (const message of receipts.reasons.slice(0, 5)) {
+      if (receipts.failed) captureError(new Error(message), { where: "cron:billing:receipts" });
+    }
+  } catch (err) {
+    steps["receipts"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+    captureError(err, { where: "cron:billing:receipts" });
+  }
+
+  try {
+    const notices = await sendDueFailureNotices(supabase);
+    steps["failure_notices"] =
+      notices.skipped && !notices.considered
+        ? `skipped (${notices.reasons[0] ?? "nothing due"})`
+        : `ok (considered ${notices.considered}, sent ${notices.sent}, ` +
+          `skipped ${notices.skipped}, failed ${notices.failed})`;
+    for (const message of notices.reasons.slice(0, 5)) {
+      if (notices.failed) captureError(new Error(message), { where: "cron:billing:notices" });
+    }
+  } catch (err) {
+    steps["failure_notices"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+    captureError(err, { where: "cron:billing:notices" });
+  }
 
   const ok = Object.values(steps).every((s) => s.startsWith("ok") || s.startsWith("skipped"));
   return NextResponse.json(

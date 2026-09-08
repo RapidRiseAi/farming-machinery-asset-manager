@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import {
+  BILLING_RPC,
   adminSetSubscriptionPlan,
   getAttemptById,
   getInvoiceById,
@@ -171,6 +172,66 @@ export async function adminSetPlan(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/billing");
   redirect("/admin/billing?saved=plan");
+}
+
+/**
+ * Put a farm on a subscription.
+ *
+ * Nothing in the product did this. `beginCheckout` refuses with
+ * `billing-no-subscription`, so a farm could never start paying and the whole feature was
+ * reachable only by hand-writing a row into `billing_subscriptions` — which is not a way
+ * to onboard a paying customer.
+ *
+ * The rules live in `app.start_billing_subscription`, not here: the trial length comes
+ * from `billing_settings` so policy is set in one place, the "one live subscription per
+ * farm" refusal is the unique index turned into a sentence, and `current_period_start` is
+ * left null so the first BILLED period starts when billing starts rather than on the day
+ * somebody pressed this button.
+ *
+ * `p_trial_days` is offered because the two cases that need it are real: a farm onboarded
+ * mid-cycle who negotiated their own trial, and a test that needs an invoice today rather
+ * than in a fortnight. Left blank, the farm gets the standard trial.
+ *
+ * This does NOT charge anything. It creates the subscription; the first invoice is raised
+ * by the nightly pass (or immediately, when the trial is zero), and payment still needs
+ * the farm to add a card.
+ */
+export async function adminStartSubscription(formData: FormData): Promise<void> {
+  await requireRrAdmin();
+
+  const farmId = String(formData.get("farm_id") ?? "").trim();
+  const plan = String(formData.get("plan") ?? "").trim();
+  const billingPeriod = String(formData.get("billing_period") ?? "").trim();
+  const trialRaw = String(formData.get("trial_days") ?? "").trim();
+
+  if (!/^[0-9a-f-]{36}$/i.test(farmId)) bounce("missing-id");
+  if (!(PLANS as readonly string[]).includes(plan)) bounce("billing-bad-plan");
+  if (!(BILLING_PERIODS as readonly string[]).includes(billingPeriod)) bounce("billing-bad-period");
+
+  // Blank means "use the policy". A number means this farm, deliberately, gets that many
+  // days — including zero, which is how a test gets an invoice it can actually pay.
+  let trialDays: number | null = null;
+  if (trialRaw !== "") {
+    const n = Number(trialRaw);
+    if (!Number.isInteger(n) || n < 0 || n > 365) bounce("billing-bad-trial");
+    trialDays = n;
+  }
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.rpc(BILLING_RPC.startSubscription, {
+    p_farm: farmId,
+    p_plan: plan,
+    p_period: billingPeriod,
+    p_trial_days: trialDays,
+  });
+  if (error) {
+    // The one refusal worth its own message: they already have one, and the admin should
+    // be told that rather than "save failed".
+    bounce(error.code === "23505" ? "billing-already-subscribed" : "billing-save-failed");
+  }
+
+  revalidatePath("/admin/billing");
+  redirect("/admin/billing?saved=subscription");
 }
 
 /**

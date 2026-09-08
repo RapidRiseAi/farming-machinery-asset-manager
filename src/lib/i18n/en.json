@@ -3921,7 +3921,24 @@
     "okAdded": "Added.",
     "needInvite": "Enter an email address, a name and a role.",
     "needPassword": "Enter your password, or use the sign-in link instead.",
-    "inviteRole": "You can invite a manager, a mechanic or an operator."
+    "inviteRole": "You can invite a manager, a mechanic or an operator.",
+    "billingUnavailable": "Card payments are not switched on at the moment. Nothing has been charged.",
+    "billingNoSubscription": "This farm is not on a subscription yet, so there is nothing to pay.",
+    "billingNothingDue": "There is nothing to pay right now.",
+    "billingInFlight": "A payment on this bill is already in progress. Give it a moment before trying again.",
+    "billingBelowMinimum": "The amount is below the R1,00 minimum that a card payment allows.",
+    "billingNoCard": "There is no saved card to charge.",
+    "billingNoEmail": "We need a billing email address before a card can be added.",
+    "billingDeclined": "The card was declined. Nothing was charged.",
+    "billingMismatch": "The payment did not match what we expected, so it was not recorded. Nothing was charged twice.",
+    "billingCheckoutFailed": "We could not start the payment. Nothing has been charged.",
+    "billingReconcileFailed": "We could not check that payment with the provider. Try again shortly.",
+    "billingAlreadyCancelled": "This subscription has already been cancelled.",
+    "billingNotCancelling": "This subscription is not due to end, so there is nothing to resume.",
+    "billingAlreadySubscribed": "That farm already has a subscription.",
+    "billingBadPlan": "Choose a valid plan.",
+    "billingBadPeriod": "Choose monthly or annual.",
+    "billingBadTrial": "Trial days must be a whole number between 0 and 365."
   },
   "billing": {
     "title": "Billing",
@@ -4123,6 +4140,51 @@
     "chooseFarmBody": "Pick a subscription from the list to see its invoices, attempts and payments.",
     "blockedTitle": "Rapid Rise administrators only",
     "blockedBody": "This page shows every customer's billing, so it is limited to Rapid Rise staff.",
-    "colAction": "Action"
+    "colAction": "Action",
+    "startTitle": "Farms not on a subscription",
+    "startLead": "These farms cannot pay yet: nothing has put them on a plan, so there is no bill to raise and no card to add.",
+    "startVehicles": "{count} vehicles",
+    "startTrialField": "Trial days",
+    "startTrialHint": "Blank = {days}",
+    "startAction": "Start",
+    "startNote": "This creates the subscription and charges nothing. The first bill is raised when the trial ends, and the farm still has to add a card before anything can be collected."
+  },
+  "billingReceipt": {
+    "title": "Receipt",
+    "subtitle": "Your FleetWise subscription",
+    "from": "From",
+    "to": "Billed to",
+    "regNumber": "Company registration",
+    "reference": "Receipt number",
+    "paidOn": "Paid on",
+    "period": "Period covered",
+    "perVehicleMonth": "per vehicle per month",
+    "colDescription": "Description",
+    "colVehicles": "Vehicles",
+    "colMonths": "Months",
+    "colAmount": "Amount",
+    "subtotal": "Subtotal",
+    "vat": "VAT",
+    "totalPaid": "Total paid",
+    "paidWith": "Paid with",
+    "paymentRef": "Payment reference",
+    "vatNumber": "VAT number",
+    "notVatRegistered": "No VAT has been charged. The supplier is not a registered VAT vendor.",
+    "keepThis": "Keep this receipt for your records."
+  },
+  "billingReceiptEmail": {
+    "subject": "Receipt {ref} — {amount} received",
+    "greeting": "Hello {name},",
+    "body": "Thank you. We have received {amount} for your FleetWise subscription covering {period}. Your receipt number is {ref}.",
+    "attached": "A PDF receipt is attached for your records."
+  },
+  "billingFailureEmail": {
+    "subject": "We could not collect {amount} for your FleetWise subscription",
+    "greeting": "Hello {name},",
+    "body": "We tried to charge your card {amount} for your FleetWise subscription, and it did not go through.",
+    "willRetry": "We will try again on {date}.",
+    "noMoreRetries": "We have stopped retrying for now.",
+    "graceEnds": "If it is still unpaid on {date}, your plan will be reduced. Nothing you have captured is deleted.",
+    "whatToDo": "Open FleetWise and go to Billing to update your card or pay now."
   }
 }

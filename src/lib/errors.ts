@@ -122,6 +122,36 @@ const CODE_KEYS: Record<string, string> = {
   "bad-plan": "errors.badValues",
   "wrong-direction": "errors.wrongDirection",
   "save-failed": "errors.saveFailed",
+
+  // ── Subscription billing ──────────────────────────────────────────────────
+  // None of these were mapped, so every refusal on /billing and /admin/billing
+  // rendered as the generic apology — including the ones a person can act on
+  // ("there is no saved card", "a payment is already in progress"). Several of
+  // them are about MONEY, where "Something didn't work" is the least useful
+  // sentence available: the first question is always whether they were charged,
+  // so each of these answers it.
+  "billing-unavailable": "errors.billingUnavailable",
+  "billing-site-url-missing": "errors.billingUnavailable",
+  "billing-no-subscription": "errors.billingNoSubscription",
+  "billing-nothing-due": "errors.billingNothingDue",
+  "billing-in-flight": "errors.billingInFlight",
+  // A lost claim and an in-flight attempt are the same thing to the reader:
+  // somebody else is already paying this, wait rather than press again.
+  "billing-claim-failed": "errors.billingInFlight",
+  "billing-below-minimum": "errors.billingBelowMinimum",
+  "billing-no-card": "errors.billingNoCard",
+  "billing-no-email": "errors.billingNoEmail",
+  "billing-declined": "errors.billingDeclined",
+  "billing-mismatch": "errors.billingMismatch",
+  "billing-checkout-failed": "errors.billingCheckoutFailed",
+  "billing-reconcile-failed": "errors.billingReconcileFailed",
+  "billing-already-cancelled": "errors.billingAlreadyCancelled",
+  "billing-not-cancelling": "errors.billingNotCancelling",
+  "billing-already-subscribed": "errors.billingAlreadySubscribed",
+  "billing-bad-plan": "errors.billingBadPlan",
+  "billing-bad-period": "errors.billingBadPeriod",
+  "billing-bad-trial": "errors.billingBadTrial",
+  "billing-save-failed": "errors.saveFailed",
   "more-than-owed": "errors.moreThanOwed",
   "refund-too-big": "errors.refundTooBig",
   "not-an-invoice": "errors.notAnInvoice",

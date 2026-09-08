@@ -3921,7 +3921,24 @@
     "okAdded": "Bygevoeg.",
     "needInvite": "Voer ’n e-posadres, ’n naam en ’n rol in.",
     "needPassword": "Voer jou wagwoord in, of gebruik eerder die aanmeldskakel.",
-    "inviteRole": "Jy kan ’n bestuurder, ’n werktuigkundige of ’n operateur nooi."
+    "inviteRole": "Jy kan ’n bestuurder, ’n werktuigkundige of ’n operateur nooi.",
+    "billingUnavailable": "Kaartbetalings is tans nie aangeskakel nie. Niks is gehef nie.",
+    "billingNoSubscription": "Hierdie plaas is nog nie op 'n intekening nie, so daar is niks om te betaal nie.",
+    "billingNothingDue": "Daar is tans niks om te betaal nie.",
+    "billingInFlight": "'n Betaling op hierdie rekening is reeds aan die gang. Gee dit 'n oomblik voordat jy weer probeer.",
+    "billingBelowMinimum": "Die bedrag is minder as die minimum van R1,00 wat 'n kaartbetaling toelaat.",
+    "billingNoCard": "Daar is geen gestoorde kaart om te hef nie.",
+    "billingNoEmail": "Ons het 'n rekening-e-posadres nodig voordat 'n kaart bygevoeg kan word.",
+    "billingDeclined": "Die kaart is geweier. Niks is gehef nie.",
+    "billingMismatch": "Die betaling stem nie ooreen met wat ons verwag het nie, en is dus nie aangeteken nie. Niks is dubbel gehef nie.",
+    "billingCheckoutFailed": "Ons kon nie die betaling begin nie. Niks is gehef nie.",
+    "billingReconcileFailed": "Ons kon nie daardie betaling by die verskaffer nagaan nie. Probeer binnekort weer.",
+    "billingAlreadyCancelled": "Hierdie intekening is reeds gekanselleer.",
+    "billingNotCancelling": "Hierdie intekening gaan nie eindig nie, so daar is niks om te hervat nie.",
+    "billingAlreadySubscribed": "Daardie plaas het reeds 'n intekening.",
+    "billingBadPlan": "Kies 'n geldige pakket.",
+    "billingBadPeriod": "Kies maandeliks of jaarliks.",
+    "billingBadTrial": "Proefdae moet 'n heelgetal tussen 0 en 365 wees."
   },
   "billing": {
     "title": "Rekening",
@@ -4123,6 +4140,51 @@
     "chooseFarmBody": "Kies 'n intekening uit die lys om sy fakture, pogings en betalings te sien.",
     "blockedTitle": "Slegs Rapid Rise-administrateurs",
     "blockedBody": "Hierdie bladsy wys elke kliënt se rekeninge, dus is dit tot Rapid Rise-personeel beperk.",
-    "colAction": "Aksie"
+    "colAction": "Aksie",
+    "startTitle": "Plase sonder 'n intekening",
+    "startLead": "Hierdie plase kan nog nie betaal nie: niks het hulle op 'n pakket geplaas nie, so daar is geen rekening om op te stel of kaart om by te voeg nie.",
+    "startVehicles": "{count} voertuie",
+    "startTrialField": "Proefdae",
+    "startTrialHint": "Leeg = {days}",
+    "startAction": "Begin",
+    "startNote": "Dit skep die intekening en hef niks nie. Die eerste rekening word opgestel wanneer die proeftydperk eindig, en die plaas moet steeds 'n kaart byvoeg voordat enigiets ingevorder kan word."
+  },
+  "billingReceipt": {
+    "title": "Kwitansie",
+    "subtitle": "Jou FleetWise-intekening",
+    "from": "Van",
+    "to": "Gefaktureer aan",
+    "regNumber": "Maatskappyregistrasie",
+    "reference": "Kwitansienommer",
+    "paidOn": "Betaal op",
+    "period": "Tydperk gedek",
+    "perVehicleMonth": "per voertuig per maand",
+    "colDescription": "Beskrywing",
+    "colVehicles": "Voertuie",
+    "colMonths": "Maande",
+    "colAmount": "Bedrag",
+    "subtotal": "Subtotaal",
+    "vat": "BTW",
+    "totalPaid": "Totaal betaal",
+    "paidWith": "Betaal met",
+    "paymentRef": "Betalingsverwysing",
+    "vatNumber": "BTW-nommer",
+    "notVatRegistered": "Geen BTW is gehef nie. Die verskaffer is nie 'n geregistreerde BTW-ondernemer nie.",
+    "keepThis": "Hou hierdie kwitansie vir jou rekords."
+  },
+  "billingReceiptEmail": {
+    "subject": "Kwitansie {ref} — {amount} ontvang",
+    "greeting": "Hallo {name},",
+    "body": "Dankie. Ons het {amount} ontvang vir jou FleetWise-intekening vir die tydperk {period}. Jou kwitansienommer is {ref}.",
+    "attached": "'n PDF-kwitansie is aangeheg vir jou rekords."
+  },
+  "billingFailureEmail": {
+    "subject": "Ons kon nie {amount} vir jou FleetWise-intekening invorder nie",
+    "greeting": "Hallo {name},",
+    "body": "Ons het probeer om {amount} vir jou FleetWise-intekening van jou kaart af te trek, en dit het nie deurgegaan nie.",
+    "willRetry": "Ons sal weer op {date} probeer.",
+    "noMoreRetries": "Ons het vir eers opgehou probeer.",
+    "graceEnds": "As dit op {date} steeds onbetaald is, sal jou pakket verminder word. Niks wat jy vasgelê het, word uitgevee nie.",
+    "whatToDo": "Maak FleetWise oop en gaan na Rekening om jou kaart op te dateer of nou te betaal."
   }
 }
