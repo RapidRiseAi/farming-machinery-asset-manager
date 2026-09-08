@@ -143,9 +143,15 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   pdf.gap();
 
   if (d.payment) {
+    // Spelled out rather than masked with bullets. `sanitize()` in doc.ts maps "•" to "-"
+    // for every PDF in the product (the standard PDF fonts have no bullet glyph), so
+    // "VISA ••••4081" reached the customer as "VISA ----4081", which reads as a redaction
+    // or a typo rather than a card number. Changing the shared map would restyle every
+    // other document, so the receipt says it in words instead — and in the reader's
+    // language, which bullets could never do.
     const card =
       d.payment.cardBrand && d.payment.last4
-        ? `${d.payment.cardBrand.toUpperCase()} ••••${d.payment.last4}`
+        ? `${d.payment.cardBrand.toUpperCase()} ${t("billingReceipt.cardEnding", L)} ${d.payment.last4}`
         : d.payment.channel || "—";
     pdf.kv(t("billingReceipt.paidWith", L), card);
     if (d.payment.reference) {

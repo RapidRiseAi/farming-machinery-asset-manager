@@ -4170,7 +4170,8 @@
     "paymentRef": "Betalingsverwysing",
     "vatNumber": "BTW-nommer",
     "notVatRegistered": "Geen BTW is gehef nie. Die verskaffer is nie 'n geregistreerde BTW-ondernemer nie.",
-    "keepThis": "Hou hierdie kwitansie vir jou rekords."
+    "keepThis": "Hou hierdie kwitansie vir jou rekords.",
+    "cardEnding": "eindig op"
   },
   "billingReceiptEmail": {
     "subject": "Kwitansie {ref} — {amount} ontvang",

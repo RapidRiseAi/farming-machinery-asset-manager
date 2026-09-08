@@ -4170,7 +4170,8 @@
     "paymentRef": "Payment reference",
     "vatNumber": "VAT number",
     "notVatRegistered": "No VAT has been charged. The supplier is not a registered VAT vendor.",
-    "keepThis": "Keep this receipt for your records."
+    "keepThis": "Keep this receipt for your records.",
+    "cardEnding": "ending"
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref} — {amount} received",
