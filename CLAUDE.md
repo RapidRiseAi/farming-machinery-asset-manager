@@ -1977,4 +1977,62 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     checkout callback is built from it. The Rooikoppies owner's email is a `.example`
     address, which Paystack may reject.
 
+
+- **The first real payment, and the four things it exposed** (migrations `20260906120000`,
+  `20260907120000`; commits `bc24279`/`4cae862`/`716c928` on `main`; every migration applied
+  to the demo project and driven against it):
+  - **A live Paystack payment completed end to end** — hosted checkout → signed webhook →
+    ledger → receipts. Invoice `FW-2026-000001`, R219,00 (3 x R73), Visa ••••4081 stored
+    `reusable=true`. **1 payment row, not 2**, despite the webhook and the callback verifying
+    the same transaction **0.558 seconds apart**: the unique index on the transaction id did
+    its job under a real race rather than a simulated one.
+  - **The charging path had never been reachable.** Every engine function lives in `app` and
+    PostgREST exposes `public` only, so all four `supabase.rpc("billing_…")` calls resolved
+    to nothing. Found by inventorying every `.rpc()` name against `pg_proc` on the live
+    database. Suite section **(m)** now asserts each name AND its parameter names — PostgREST
+    resolves overloads by the named arguments, so a rename breaks the call as completely as a
+    deletion. Mutation-tested: renaming `p_limit` fires (m) and passes (j).
+  - **Nothing could put a farm on a subscription.** `beginCheckout` refuses without one, so
+    the feature was reachable only by hand-writing a row. `app.start_billing_subscription`
+    reads the trial from `billing_settings` and leaves `current_period_start` NULL so the
+    first BILLED period begins when billing begins, not on the day the button was pressed.
+    `/admin/billing` now lists farms with no subscription and starts one.
+  - **Every button on `/admin/billing` was dead.** The forms posted `attemptId`, `invoiceId`,
+    `subscriptionId`, `billingPeriod`; the actions read the snake_case names. So reconcile,
+    retry-charge and change-plan all bounced with `?error=missing-id` and did nothing.
+    `FormData.get` returns `string | null` whichever you ask for, so it typechecks and builds
+    — only pressing the button finds it. And the error rendered as the generic apology
+    regardless, because **not one of the twenty billing codes was mapped in `lib/errors.ts`**;
+    they are now, and the ones about money answer first whether anything was charged.
+  - **Receipts and failure notices** (`20260907120000`). Paystack's receipt carries the amount
+    and a reference and nothing else — not our invoice number, the period, "3 vehicles at
+    R73", the registration number, or the VAT position. There is now a branded PDF emailed on
+    payment, rendered from the invoice's own frozen snapshot so a copy reprinted next year
+    shows the company as it was. A failed renewal now emails too, per attempt, instead of
+    writing an in-app alert a farmer who is not logged in will never see. Sending is CLAIMED
+    the way charging is; a failed send hands the claim back with the reason, a failed notice
+    does not (re-sending "your payment failed" nightly over a full mailbox harasses the
+    customer about our problem). The receipt goes out via `after()`, so Paystack still gets a
+    prompt 200. **Proven by generating bytes**: five PDFs rendered and their text decoded out
+    of the compressed streams — reference, reg number, card, amount all present; Afrikaans
+    fully translated; the VAT branch correct in both directions; 0 header truncations in
+    either language.
+  - **Demo accounts point at one real inbox.** All 14 were on `.example` domains, which cannot
+    receive mail and which Paystack may reject. Now Gmail plus-addresses on one mailbox,
+    changed across `auth.users`, the `auth.identities` JSON and `public.users` together,
+    piloted on one and verified by a real sign-in before the other thirteen were touched;
+    14/14 authenticate afterwards.
+  - **Two environment notes.** `.env.local` here comes from `vercel pull` and its
+    `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` are PLACEHOLDERS (the service key's JWT
+    payload is just `{"role":"service_role"}` and returns 401); the ANON key is real, which is
+    what made verifying the renamed logins possible. So the cron route cannot be triggered
+    from here.
+  - i18n EN/AF at parity (**3,898 leaf keys**). Gates green in an isolated worktree —
+    typecheck, lint, build — shared first-load JS flat at **103 kB**; suite green at 141 files.
+  - **Still unverified**: the automatic renewal (`charge_authorization`) has never run — it is
+    a different endpoint and a different code path from hosted checkout. `FW-2026-000002` is
+    staged and due so one press of "Retry payment" exercises it. Email has never actually
+    sent: `RESEND_API_KEY`/`EMAIL_FROM` must be set in Vercel or the pass reports
+    `skipped (email-not-configured)` and claims nothing.
+
 > Update this "current status" block at the end of every session.
