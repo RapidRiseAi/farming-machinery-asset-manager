@@ -2035,4 +2035,68 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     sent: `RESEND_API_KEY`/`EMAIL_FROM` must be set in Vercel or the pass reports
     `skipped (email-not-configured)` and claims nothing.
 
+
+- **Billing driven end to end on production, and the four things that were still only
+  assumed** (migrations `20260909120000`, `20260909140000`; commits `60e1941`/`57995f0`/
+  `869c483` on `main`; both migrations applied from disk over a direct Postgres connection):
+  - **The credentials changed what could be tested, and that is the headline.** `.env.local`
+    came from `vercel pull`, which CANNOT decrypt secrets — it writes placeholders. So the
+    service key was a 76-char stub whose JWT payload was literally `{"role":"service_role"}`,
+    `RESEND_API_KEY` was `[SENSITIVE]` (truthy, so `emailConfigured()` said yes and Resend
+    refused it), and `PAYSTACK_SECRET_KEY` was absent — the founder had added it under the
+    name `PAYSTACK_TEST_KEY`, which the code does not read. With the real values in place,
+    plus a direct `DATABASE_URL`, everything below became reachable from here. **The `#` in
+    the database password broke URL parsing** and was percent-encoded to `%23`.
+  - **The first reconciliation this system has ever had.** Both directions: every payment we
+    recorded exists at Paystack with the same amount, reference and currency; and — the
+    direction that matters — **every successful Paystack transaction was recorded by us**,
+    which is what catches a farmer who paid while the webhook went missing. 5 payments,
+    R1 095,00 on both sides, 0 discrepancies, balance agreeing exactly.
+  - **The `unknown` guard ran for the first time.** Claim → charge the LIVE Paystack API →
+    settle `unknown` as though the response were lost. Proven: the invoice is BLOCKED, a
+    second claim is refused, reconciliation resolves it by verifying that exact reference,
+    and **exactly one payment** exists afterwards. This is the mechanism that stops a double
+    charge and nothing had ever exercised it.
+  - **The whole nightly pass ran on production** — all nine steps, same functions, same
+    order as the cron route — and charged a due invoice unattended. The webhook signature is
+    now proven NON-circularly: 5 real Paystack deliveries, every one `signature_verified`,
+    every one processed clean. Until now we only ever checked our HMAC against our own HMAC.
+  - **Three defects found.** (1) `formatNotification` knew thirty templates and **not one
+    billing template**, while the dunning engine has been writing `billing_payment_failed`
+    since it shipped — `default: return template` meant a farmer whose card was declined read
+    that literal string in their alert centre. (2) **Card expiry was stored and read by
+    nothing**: `exp_month`/`exp_year` sat there since the table was created, so a card
+    stopping walked the farm down the entire 31-day ladder as though they had refused to pay.
+    (3) The `/admin/billing` forms/actions field-name mismatch, fixed earlier in the week.
+  - **A design call reversed after watching it fail.** `20260907120000` gave receipts a
+    release and deliberately withheld one from failure notices, to avoid nightly re-sends
+    over a full mailbox. The local run failed on the bad Resend key and stamped the attempt
+    notified anyway — exactly the shape where a farmer is NEVER told and loses their plan 31
+    days later in silence. A duplicate email is an annoyance; that is not. `20260909140000`
+    gives notices the same release, and the live run confirmed both come back into the queue
+    with the reason recorded.
+  - **Suite sections (n) and (o)**, 12 mutations, 12 caught, two controls survived. (n) drives
+    the dunning ladder rather than hand-setting where it ends — §(l) reached a downgrade by
+    WRITING `status='grace'` onto the row, so `billing_register_failure` had never been
+    called and the retry offsets had never run. Each rung is asserted against the **setting**
+    that produced it, because the offsets are configuration and an engine with them baked in
+    would pass every other assertion while the screen did nothing. (o) hammers the card-expiry
+    arithmetic — "12/28" means the END of December — and its last assertion is the one that
+    would have caught defect 1: every billing template this database actually PRODUCES must
+    be one the renderer was taught, judged on real rows because SQL cannot call TypeScript.
+  - **Repo == production**, measured after applying: 48 billing functions byte-identical,
+    3 differing ONLY by CRLF (the known Windows-checkout artifact on `0410`/`0432`), 0 real
+    drift, 0 missing. The `constraint` category still differs 174/69 because PGlite records
+    NOT NULL in `pg_constraint` and Supabase's build does not — NOT-NULL-ness itself is
+    compared in the `column` category, which matches.
+  - Demo state: **5 paid invoices, R1 095,00**, subscription active, next billing 2027-02-06,
+    one stored Visa (test-mode, expiring 12/2030). i18n EN/AF at parity (**3,906 leaf keys**).
+    Typecheck, lint and an isolated build green; suite green at 146 files.
+  - **Still unproven**: a REAL Paystack decline (test mode always accepts a valid stored
+    authorization, so this needs a declining card stored through hosted checkout in a
+    browser); grace → downgrade → restore on PRODUCTION rather than PGlite; the annual
+    invoice on production. **Not built**: receipt download from `/billing`, refunds,
+    proration, and the self-serve sign-up + quota model planned in
+    `docs/SIGNUP_AND_QUOTA_BILLING.md`.
+
 > Update this "current status" block at the end of every session.
