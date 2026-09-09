@@ -1266,11 +1266,12 @@ declare
     'billing_restore_after_payment','enqueue_billing_reminders','billing_close_cancellations',
     'billing_rollup_invoice_payments','start_billing_subscription',
     'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
-    'billing_receipts_due','billing_failure_notices_due'];
+    'billing_receipts_due','billing_failure_notices_due',
+    'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
-    'cron_close_billing_cancellations'];
+    'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1278,19 +1279,19 @@ declare
     'billing_due_charges','billing_claim_charge','billing_settle_attempt',
     'billing_generate_invoices','billing_start_subscription',
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
-    'billing_receipts_due','billing_failure_notices_due'];
+    'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
   v_auth_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
-    'billing_advance_period'];
+    'billing_advance_period','billing_card_expiry_on'];
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
   -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
   v_svc_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
-    'billing_advance_period','billable_asset_count'];
+    'billing_advance_period','billable_asset_count','billing_card_expiry_on'];
   r record; n integer := 0;
 begin
   raise notice '── BILLING (j): every billing function locked down ──────────────';
@@ -1925,6 +1926,220 @@ begin
   raise notice '   one decline, one notice, however many passes run';
 end $$;
 
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (o) The card expires, and somebody is told before it does
+--
+-- `exp_month`/`exp_year` had been stored since the table was created and read by
+-- NOTHING. A card lasts about three years; on the day it stops, the stored authorization
+-- fails and the farm is walked down the entire dunning ladder as though they had refused
+-- to pay. They did not refuse — nobody told them.
+--
+-- The arithmetic is the part most likely to be quietly wrong, and wrong by exactly one
+-- month: "12/28" on a card means the END of December 2028, not the 1st. A month early and
+-- the product nags farmers about cards that are fine; a month late and the warning arrives
+-- after the decline it existed to prevent.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- An owner to notify. Without one `app.notify_farm` writes nothing, and the dedupe
+-- assertion below would pass by counting zero against zero.
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-000000000009', 'billing.owner9@example.invalid');
+
+insert into users (id, farm_id, workshop_id, role, name, email, active) values
+  ('b1a00000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009', null,
+   'owner', 'Billing Owner Dunning', 'billing.owner9@example.invalid', true);
+
+do $$
+declare
+  v_d date;
+begin
+  raise notice '── BILLING (o): card expiry, told before it stops ───────────────';
+
+  -- The LAST day of the printed month, in every shape a provider sends.
+  v_d := app.billing_card_expiry_on('12', '2028');
+  if v_d is distinct from date '2028-12-31' then
+    raise exception 'BILLING FAIL [o]: 12/2028 resolved to %, expected 2028-12-31 (the END of the month)', v_d;
+  end if;
+
+  v_d := app.billing_card_expiry_on('02', '2028');
+  if v_d is distinct from date '2028-02-29' then
+    raise exception 'BILLING FAIL [o]: 02/2028 resolved to % — a leap February is 29 days', v_d;
+  end if;
+
+  v_d := app.billing_card_expiry_on('02', '2027');
+  if v_d is distinct from date '2027-02-28' then
+    raise exception 'BILLING FAIL [o]: 02/2027 resolved to %, expected 2027-02-28', v_d;
+  end if;
+
+  -- A two-digit year is the shape printed on the card itself.
+  v_d := app.billing_card_expiry_on('12', '28');
+  if v_d is distinct from date '2028-12-31' then
+    raise exception 'BILLING FAIL [o]: two-digit 12/28 resolved to %, expected 2028-12-31', v_d;
+  end if;
+
+  -- A single-digit month, which some providers send unpadded.
+  v_d := app.billing_card_expiry_on('3', '2029');
+  if v_d is distinct from date '2029-03-31' then
+    raise exception 'BILLING FAIL [o]: unpadded 3/2029 resolved to %, expected 2029-03-31', v_d;
+  end if;
+
+  -- Provider data is text and may be anything. Unreadable is NULL — a card this engine
+  -- says nothing about — never an exception raised inside a 3am cron.
+  if app.billing_card_expiry_on('ab', '2028') is not null then
+    raise exception 'BILLING FAIL [o]: a non-numeric month produced a date';
+  end if;
+  if app.billing_card_expiry_on('13', '2028') is not null then
+    raise exception 'BILLING FAIL [o]: month 13 produced a date';
+  end if;
+  if app.billing_card_expiry_on('00', '2028') is not null then
+    raise exception 'BILLING FAIL [o]: month 00 produced a date';
+  end if;
+  if app.billing_card_expiry_on(null, '2028') is not null
+     or app.billing_card_expiry_on('12', null) is not null then
+    raise exception 'BILLING FAIL [o]: a null part produced a date';
+  end if;
+
+  raise notice '   expiry is the last day of the printed month, leap years included';
+end $$;
+
+-- ── Who is listed, and who deliberately is not ──────────────────────────────
+do $$
+declare
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
+  v_card uuid := 'b1700000-0000-0000-0000-000000000009';
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000009';
+  v_soon date := (current_date + 20);
+  n integer;
+begin
+  update billing_subscriptions
+     set status = 'active', cancel_at_period_end = false, failed_attempt_count = 0,
+         next_retry_on = null, grace_ends_on = null
+   where id = v_sub;
+
+  -- Far future: nothing to say.
+  update billing_payment_methods set exp_month = '12', exp_year = '2099' where id = v_card;
+  select count(*) into n from app.billing_cards_expiring(45) c where c.payment_method_id = v_card;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [o]: warned about a card expiring in 2099';
+  end if;
+
+  -- Inside the window.
+  update billing_payment_methods
+     set exp_month = to_char(v_soon, 'MM'), exp_year = to_char(v_soon, 'YYYY')
+   where id = v_card;
+  select count(*) into n from app.billing_cards_expiring(45) c where c.payment_method_id = v_card;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [o]: a card expiring this month is not listed (found %)', n;
+  end if;
+
+  -- ALREADY expired still counts. The renewal is going to fail and the farmer needs the
+  -- sentence more than ever; a window that only looks forward goes quiet at the worst moment.
+  update billing_payment_methods set exp_month = '01', exp_year = '2020' where id = v_card;
+  select count(*) into n from app.billing_cards_expiring(45) c where c.payment_method_id = v_card;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [o]: an ALREADY EXPIRED card dropped out of the list';
+  end if;
+
+  -- A cancelled subscription is never charged again, so its card expiring is not news.
+  update billing_subscriptions set status = 'cancelled' where id = v_sub;
+  select count(*) into n from app.billing_cards_expiring(45) c where c.payment_method_id = v_card;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [o]: warned a CANCELLED farm about a card nothing will charge';
+  end if;
+  update billing_subscriptions set status = 'active' where id = v_sub;
+
+  -- A card on file that is not the one that will be charged is not news either.
+  update billing_subscriptions set default_payment_method_id = null where id = v_sub;
+  select count(*) into n from app.billing_cards_expiring(45) c where c.payment_method_id = v_card;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [o]: warned about a card that is not the default';
+  end if;
+  update billing_subscriptions set default_payment_method_id = v_card where id = v_sub;
+
+  raise notice '   expiring and expired listed; cancelled and non-default are not';
+end $$;
+
+-- ── Told once, not every night ──────────────────────────────────────────────
+do $$
+declare
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
+  n0 bigint; n1 bigint; n2 bigint; v_sent integer;
+begin
+  select count(*) into n0 from notifications
+   where farm_id = v_farm and template = 'billing_card_expiring';
+
+  v_sent := app.enqueue_billing_card_expiry(45);
+  select count(*) into n1 from notifications
+   where farm_id = v_farm and template = 'billing_card_expiring';
+
+  if n1 <= n0 then
+    raise exception 'BILLING FAIL [o]: the engine reported % sent and wrote nothing (% → %)',
+      v_sent, n0, n1;
+  end if;
+
+  -- The nightly pass runs every night. It must not tell them every night.
+  perform app.enqueue_billing_card_expiry(45);
+  perform app.enqueue_billing_card_expiry(45);
+  select count(*) into n2 from notifications
+   where farm_id = v_farm and template = 'billing_card_expiring';
+
+  if n2 <> n1 then
+    raise exception 'BILLING FAIL [o]: three passes produced % alerts, expected % — a farmer '
+      'told nightly for six weeks stops reading them', n2 - n0, n1 - n0;
+  end if;
+
+  raise notice '   one alert per card, however many nights the cron runs';
+end $$;
+
+-- ── The renderer knows every template this database emits ──────────────────
+-- Four billing templates were being WRITTEN by the dunning engine and rendered by
+-- nothing: `formatNotification` ends `default: return template`, so a farmer whose card
+-- was declined read the literal string "billing_payment_failed" in their alert centre —
+-- the same failure wave 4b found on /reports/schedules, on the one message that most has
+-- to be legible.
+--
+-- SQL cannot call the TypeScript renderer, so this asserts the other half of the contract
+-- against real rows rather than by reading function source: every billing notification
+-- this database actually PRODUCES must be one of the four the renderer was taught. A
+-- fifth template added to an engine without touching format.ts fails right here.
+do $$
+declare
+  v_known text[] := array[
+    'billing_payment_failed', 'billing_grace_ending',
+    'billing_downgraded', 'billing_card_expiring'
+  ];
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000009';
+  r record; n integer;
+begin
+  -- Drive the dunning reminder engine too, so this is judged on what BOTH engines emit
+  -- rather than only on the card one this section added.
+  update billing_subscriptions set status = 'past_due', next_retry_on = current_date + 3
+   where id = v_sub;
+  perform app.enqueue_billing_reminders();
+  update billing_subscriptions set status = 'grace', grace_ends_on = current_date + 7
+   where id = v_sub;
+  perform app.enqueue_billing_reminders();
+
+  select count(*) into n from notifications where template like 'billing%';
+  if n < 2 then
+    raise exception 'BILLING FAIL [o]: only % billing notifications exist, so this assertion '
+      'would pass without proving anything', n;
+  end if;
+
+  for r in select distinct template from notifications where template like 'billing%' loop
+    if not (r.template = any (v_known)) then
+      raise exception 'BILLING FAIL [o]: this database emits notification template "%" and '
+        'src/lib/notifications/format.ts has no case for it — it renders as its own '
+        'template name in the farmer''s alert centre', r.template;
+    end if;
+  end loop;
+
+  update billing_subscriptions
+     set status = 'active', grace_ends_on = null, next_retry_on = null where id = v_sub;
+
+  raise notice '   all % billing alerts use a template the renderer knows', n;
+end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
 select 'ALL BILLING SUBSCRIPTION TESTS PASSED' as result;

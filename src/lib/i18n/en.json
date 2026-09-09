@@ -788,7 +788,13 @@
     "tplPaymentClaimedPartner": "Someone says they have paid invoice {number} ({amount}), reference {reference}. Worth checking your bank.",
     "tplRecurringRaised": "{schedule}: invoice {number} has been raised",
     "tplLowStock": "Only {on_hand} {unit} of {part} left — you reorder at {reorder_point}.",
-    "tplStockShort": "The next {days} days need {committed} {unit} of {part} and you have {on_hand} — {short} short."
+    "tplStockShort": "The next {days} days need {committed} {unit} of {part} and you have {on_hand} — {short} short.",
+    "tplBillingPaymentFailed": "Your FleetWise subscription payment did not go through. We will try again on {date}.",
+    "tplBillingPaymentFailedFinal": "Your FleetWise subscription payment did not go through and we have stopped retrying. Update your card to carry on.",
+    "tplBillingGraceEnding": "Your FleetWise subscription is unpaid. If it is not settled by {date} your plan will be reduced. Nothing will be deleted.",
+    "tplBillingGraceEndingSoon": "Your FleetWise subscription is unpaid and your plan will be reduced soon. Nothing will be deleted.",
+    "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted — pay to get it back.",
+    "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment."
   },
   "settings": {
     "title": "Settings",
@@ -1311,7 +1317,8 @@
     "work": "Contractor update",
     "aarto": "AARTO fine",
     "documents": "Quotes & invoices",
-    "stock": "Store"
+    "stock": "Store",
+    "billing": "Billing"
   },
   "prefs": {
     "title": "Your alert preferences",

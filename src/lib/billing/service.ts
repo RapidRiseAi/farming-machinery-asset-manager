@@ -50,6 +50,9 @@ export const BILLING_RPC = {
   applyDowngrades: "cron_apply_billing_downgrades",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
+  // The card that is about to stop working (20260909120000). exp_month/exp_year had
+  // been stored since the table was created and read by nothing.
+  cardExpiry: "cron_enqueue_billing_card_expiry",
   // Putting a farm ON a subscription (20260906120000). Nothing did this before, so a
   // farm could never start paying: `beginCheckout` refuses without one.
   startSubscription: "billing_start_subscription",

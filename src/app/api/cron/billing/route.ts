@@ -34,6 +34,12 @@ import { createServiceClient } from "@/lib/supabase/service";
  *  7. enqueue reminders         — tell the farm, after every state above has settled, so a
  *                                 farmer is never told they are past due minutes before a
  *                                 successful charge in the same pass clears it.
+ *  8. card expiry               — the card that is about to stop working. After the
+ *                                 charges, because one expiring this month may have been
+ *                                 charged fine tonight.
+ *  9. receipts + failure emails — what step 7 could only put in the app. Both claim
+ *                                 before sending, so this pass is a safety net for a
+ *                                 send that died rather than a second sender.
  *
  * ── Re-running is safe ────────────────────────────────────────────────────────
  * Every step is idempotent by construction rather than by a guard in this file: invoice
@@ -115,7 +121,15 @@ export async function GET(request: Request) {
   // 7 ── Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);
 
-  // 8 ── Email what step 7 could only put in the app.
+  // 8 ── The card that is about to stop working.
+  //
+  // Deliberately AFTER the charges: a card expiring this month may still have been
+  // charged successfully tonight, and warning before we know is a sentence we might have
+  // to take back. Warn, never block — an expired card often still works, so refusing to
+  // try would turn a probable success into a certain failure.
+  await run("card_expiry", BILLING_RPC.cardExpiry);
+
+  // 9 ── Email what step 7 could only put in the app.
   //
   // Both are SAFETY NETS as much as senders. The receipt is normally emailed the moment
   // the webhook lands; this pass catches the ones where that request died, where the

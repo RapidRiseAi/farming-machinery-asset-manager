@@ -6,6 +6,7 @@
 import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
+import { shortDate } from "@/lib/format";
 
 export type NotePayload = Record<string, unknown>;
 
@@ -163,6 +164,34 @@ export function formatNotification(
         locale,
         { machine: m, deadline: String(p.deadline ?? ""), notice: String(p.notice_number ?? "") }
       );
+    // ── Subscription billing ────────────────────────────────────────────────
+    // These four were being WRITTEN by the dunning engine and rendered by nothing. With
+    // `default: return template` below, a farmer whose card was declined read the literal
+    // string "billing_payment_failed" in their alert centre — the same failure wave 4b
+    // found on /reports/schedules, on the one message that most has to be legible.
+    case "billing_payment_failed":
+      return p.next_retry_on
+        ? fill("notifications.tplBillingPaymentFailed", locale, {
+            date: shortDate(String(p.next_retry_on), locale),
+          })
+        : t("notifications.tplBillingPaymentFailedFinal", locale);
+    case "billing_grace_ending":
+      return p.grace_ends_on
+        ? fill("notifications.tplBillingGraceEnding", locale, {
+            date: shortDate(String(p.grace_ends_on), locale),
+          })
+        : t("notifications.tplBillingGraceEndingSoon", locale);
+    case "billing_downgraded":
+      // Says what was lost AND that nothing was deleted, because the first question a
+      // farmer asks is whether their records are still there.
+      return fill("notifications.tplBillingDowngraded", locale, {
+        plan: p.plan ? t(`plan.${String(p.plan)}`, locale) : "",
+      });
+    case "billing_card_expiring":
+      return fill("notifications.tplBillingCardExpiring", locale, {
+        card: `${String(p.card_brand ?? "").toUpperCase()} ${String(p.last4 ?? "")}`.trim(),
+        date: p.expires_on ? shortDate(String(p.expires_on), locale) : "",
+      });
     default:
       return template;
   }
@@ -195,6 +224,8 @@ export function notificationTitle(template: string, locale: Lang): string {
                   ? "stock"
                 : template.startsWith("aarto_")
                   ? "aarto"
+                : template.startsWith("billing_")
+                  ? "billing"
                   : template;
   return t(`pushTitle.${family}`, locale);
 }
@@ -220,6 +251,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   if (template === "stock_short") return "/parts#next";
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
+  // Every billing alert is about the same one page, and it is not a machine.
+  if (template.startsWith("billing_")) return "/billing";
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";
 }
