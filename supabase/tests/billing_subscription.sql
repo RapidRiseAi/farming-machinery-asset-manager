@@ -1267,7 +1267,8 @@ declare
     'billing_rollup_invoice_payments','start_billing_subscription',
     'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
     'billing_receipts_due','billing_failure_notices_due',
-    'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry'];
+    'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
+    'release_billing_failure_notice'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1279,7 +1280,8 @@ declare
     'billing_due_charges','billing_claim_charge','billing_settle_attempt',
     'billing_generate_invoices','billing_start_subscription',
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
-    'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring'];
+    'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
+    'billing_release_failure_notice'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.

@@ -64,6 +64,7 @@ export const BILLING_RPC = {
   releaseReceipt: "billing_release_receipt",
   failureNoticesDue: "billing_failure_notices_due",
   claimFailureNotice: "billing_claim_failure_notice",
+  releaseFailureNotice: "billing_release_failure_notice",
 } as const;
 
 /** `billing_attempt_kind`. */

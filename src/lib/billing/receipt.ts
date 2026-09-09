@@ -408,12 +408,15 @@ export async function sendDueFailureNotices(
       out.sent += 1;
     } catch (err) {
       const reason = err instanceof Error ? err.message : "send failed";
+      // Hand the claim back, exactly as the receipt does. This reverses the call made in
+      // 20260907120000, which withheld the release to avoid nightly re-sends over a full
+      // mailbox. Driving it showed the harm runs the other way: a transient provider
+      // error meant the farmer was NEVER told their payment failed and lost their plan
+      // 31 days later without warning, while the cost of retrying a dead address is a
+      // line in a log. Never being told is worse than being told twice.
+      await supabase.rpc(BILLING_RPC.releaseFailureNotice, { p_attempt: row.attempt_id });
       out.failed += 1;
       out.reasons.push(reason);
-      // No release here, deliberately. A failure notice is not a receipt: re-sending a
-      // "your payment failed" mail on every nightly pass because a mailbox was full
-      // would harass the customer over our problem. The next FAILED ATTEMPT raises a
-      // fresh row with its own claim, which is the natural retry.
     }
   }
 
