@@ -1604,6 +1604,328 @@ begin
 end $$;
 
 
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (n) The dunning ladder, driven rather than hand-set
+--
+-- Section (l) proves a downgrade deletes nothing, but it gets there by WRITING
+-- `status = 'grace', grace_ends_on = current_date - 1` straight onto the row. So it tests
+-- the two ends of the ladder and never the ladder: `app.billing_register_failure` was
+-- never called, the retry offsets were never exercised, and no subscription had ever
+-- travelled active → past_due → grace under its own power.
+--
+-- That matters more than the arithmetic sections, because this is the half where the
+-- product takes something away from a paying customer. A ladder that fires a rung early
+-- narrows a farm's access while their money is still in flight; one that never reaches
+-- grace lets a non-payer run for ever. Neither shows up in a total.
+--
+-- Its own fixture (farm 9), because farms One, Two and Zero are already carrying the
+-- arithmetic, the zero-vehicle case and section (l)'s restore.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000009', 'Billing Farm Dunning', 'complete', 'active',
+   'monthly', 'dunning@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status, assigned_operator_id) values
+  ('b1300000-0000-0000-0000-000000000091', 'b1000000-0000-0000-0000-000000000009',
+   'Dunning Tractor', 'tractor', 'hours', 'active', null);
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009',
+   'complete', 'monthly', 'active', current_date, current_date + 29, current_date);
+
+insert into billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('b1700000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009',
+   'AUTH_b9synthetic', 'dunning@billing.invalid', 'visa', '9999', '12', '2030',
+   true, true, 'active');
+
+update billing_subscriptions set default_payment_method_id = 'b1700000-0000-0000-0000-000000000009'
+ where id = 'b1600000-0000-0000-0000-000000000009';
+
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('b1800000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009',
+  'b1600000-0000-0000-0000-000000000009', 'B9-INV-0001', 'draft',
+  current_date, current_date + 29, current_date, current_date,
+  'complete', 'monthly', 1, 8900, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('b1800000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009', 0,
+  'FleetWise complete — 1 vehicle(s)', 1, 1, 8900, 8900, 8900, 0);
+
+update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000009';
+
+-- ── The four rungs, each measured against the SETTING that produced it ───────
+do $$
+declare
+  v_sub   uuid := 'b1600000-0000-0000-0000-000000000009';
+  v_farm  uuid := 'b1000000-0000-0000-0000-000000000009';
+  s       public.billing_subscriptions%rowtype;
+  v_off   integer[];
+  v_grace integer;
+  i       integer;
+begin
+  raise notice '── BILLING (n): the dunning ladder, driven ──────────────────────';
+
+  select retry_offsets_days, grace_days into v_off, v_grace
+    from billing_settings where singleton;
+  if array_length(v_off, 1) is null or array_length(v_off, 1) < 1 then
+    raise exception 'BILLING FAIL [n]: no retry ladder is configured, so this section proves nothing';
+  end if;
+
+  -- Each failure inside the ladder must land past_due, count up by exactly one, and set
+  -- the retry date from the SETTING at that rung — not from a constant in the function.
+  for i in 1 .. array_length(v_off, 1) loop
+    perform app.billing_register_failure(v_sub, 'test decline ' || i);
+    select * into s from billing_subscriptions where id = v_sub;
+
+    if s.status <> 'past_due' then
+      raise exception 'BILLING FAIL [n]: failure % left status %, expected past_due', i, s.status;
+    end if;
+    if s.failed_attempt_count <> i then
+      raise exception 'BILLING FAIL [n]: failure % counted %, expected %',
+        i, s.failed_attempt_count, i;
+    end if;
+    if s.next_retry_on is distinct from (current_date + v_off[i]) then
+      raise exception 'BILLING FAIL [n]: failure % set next_retry_on to %, expected % (offset % from settings)',
+        i, s.next_retry_on, current_date + v_off[i], v_off[i];
+    end if;
+    if s.grace_ends_on is not null then
+      raise exception 'BILLING FAIL [n]: failure % started the grace clock while retries remain', i;
+    end if;
+
+    -- The rung a customer feels: while the retry date is in the future, this invoice must
+    -- NOT be offered to a worker. A ladder that keeps charging every night is not a ladder.
+    if v_off[i] > 0 and exists (
+      select 1 from app.due_billing_charges(50) d
+       where d.subscription_id = v_sub
+    ) then
+      raise exception 'BILLING FAIL [n]: invoice still chargeable at rung % though next_retry_on is %',
+        i, s.next_retry_on;
+    end if;
+  end loop;
+
+  -- One more failure than the ladder has rungs: retries are exhausted, so access continues
+  -- on the grace clock rather than being cut the moment a card stops working.
+  perform app.billing_register_failure(v_sub, 'test decline final');
+  select * into s from billing_subscriptions where id = v_sub;
+
+  if s.status <> 'grace' then
+    raise exception 'BILLING FAIL [n]: exhausting the ladder left status %, expected grace', s.status;
+  end if;
+  if s.next_retry_on is not null then
+    raise exception 'BILLING FAIL [n]: grace still carries a retry date (%)', s.next_retry_on;
+  end if;
+  if s.grace_ends_on is distinct from (current_date + v_grace) then
+    raise exception 'BILLING FAIL [n]: grace ends %, expected % (grace_days = % from settings)',
+      s.grace_ends_on, current_date + v_grace, v_grace;
+  end if;
+
+  -- Grace has NOT expired, so nothing may be taken away yet.
+  perform app.billing_apply_downgrades();
+  select plan into s.plan from farms where id = v_farm;
+  if s.plan <> 'complete' then
+    raise exception 'BILLING FAIL [n]: downgraded a farm whose grace has not run out (plan is now %)', s.plan;
+  end if;
+
+  raise notice '   % rungs + grace, each date from billing_settings', array_length(v_off, 1);
+end $$;
+
+-- ── The ladder follows the POLICY, not a constant ────────────────────────────
+-- The offsets and the grace period are configuration (founder decision #9, still
+-- PROPOSED). If the engine had them baked in, every assertion above would still pass
+-- while the setting on the screen did nothing — the "captured, stored, then ignored"
+-- failure this project has already found twice on the partner side.
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000009';
+  v_old_off integer[]; v_old_grace integer;
+  s public.billing_subscriptions%rowtype;
+begin
+  select retry_offsets_days, grace_days into v_old_off, v_old_grace
+    from billing_settings where singleton;
+
+  update billing_settings set retry_offsets_days = '{1,2}', grace_days = 3 where singleton;
+  update billing_subscriptions
+     set status = 'active', failed_attempt_count = 0, next_retry_on = null,
+         grace_ends_on = null, plan_before_downgrade = null, downgraded_at = null
+   where id = v_sub;
+
+  perform app.billing_register_failure(v_sub, 'policy rung 1');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.next_retry_on is distinct from (current_date + 1) then
+    raise exception 'BILLING FAIL [n]: changed the policy to {1,2} and rung 1 still landed on % (expected %)',
+      s.next_retry_on, current_date + 1;
+  end if;
+
+  perform app.billing_register_failure(v_sub, 'policy rung 2');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.next_retry_on is distinct from (current_date + 2) then
+    raise exception 'BILLING FAIL [n]: rung 2 landed on % under policy {1,2} (expected %)',
+      s.next_retry_on, current_date + 2;
+  end if;
+
+  perform app.billing_register_failure(v_sub, 'policy exhausted');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'grace' or s.grace_ends_on is distinct from (current_date + 3) then
+    raise exception 'BILLING FAIL [n]: a two-rung policy did not reach grace on day 3 (status %, ends %)',
+      s.status, s.grace_ends_on;
+  end if;
+
+  update billing_settings
+     set retry_offsets_days = v_old_off, grace_days = v_old_grace where singleton;
+
+  raise notice '   the ladder reads billing_settings — a shorter policy shortens it';
+end $$;
+
+-- ── Grace expiring, and the whole way back ───────────────────────────────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000009';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
+  s public.billing_subscriptions%rowtype;
+  v_plan farm_plan; v_target farm_plan; n integer;
+begin
+  select downgrade_to_plan into v_target from billing_settings where singleton;
+
+  update billing_subscriptions
+     set status = 'grace', grace_ends_on = current_date - 1, failed_attempt_count = 9
+   where id = v_sub;
+
+  n := app.billing_apply_downgrades();
+  if n < 1 then
+    raise exception 'BILLING FAIL [n]: grace expired and apply_downgrades touched nothing';
+  end if;
+
+  select * into s from billing_subscriptions where id = v_sub;
+  select plan into v_plan from farms where id = v_farm;
+
+  if v_plan <> v_target then
+    raise exception 'BILLING FAIL [n]: effective plan is % after downgrade, expected %', v_plan, v_target;
+  end if;
+  if s.status <> 'downgraded' then
+    raise exception 'BILLING FAIL [n]: subscription status is % after downgrade', s.status;
+  end if;
+  -- The COMMERCIAL plan must be remembered, or recovery cannot give back what they bought.
+  if s.plan <> 'complete' then
+    raise exception 'BILLING FAIL [n]: the bought plan was rewritten to % by a downgrade', s.plan;
+  end if;
+  if s.plan_before_downgrade <> 'complete' then
+    raise exception 'BILLING FAIL [n]: plan_before_downgrade is %, so recovery has nothing to restore',
+      s.plan_before_downgrade;
+  end if;
+
+  -- Paying puts it all back, in one call, with no memory of the failures.
+  perform app.billing_restore_after_payment(v_sub);
+  select * into s from billing_subscriptions where id = v_sub;
+  select plan into v_plan from farms where id = v_farm;
+
+  if v_plan <> 'complete' then
+    raise exception 'BILLING FAIL [n]: payment did not restore the plan (still %)', v_plan;
+  end if;
+  if s.status <> 'active' or s.failed_attempt_count <> 0
+     or s.next_retry_on is not null or s.grace_ends_on is not null
+     or s.plan_before_downgrade is not null then
+    raise exception 'BILLING FAIL [n]: after payment status=% failures=% retry=% grace=% prev=%',
+      s.status, s.failed_attempt_count, s.next_retry_on, s.grace_ends_on, s.plan_before_downgrade;
+  end if;
+
+  raise notice '   grace expired → downgraded → paid → restored, nothing forgotten';
+end $$;
+
+-- ── Recovering from the MIDDLE of the ladder, not only from the bottom ───────
+-- The likely case: a farmer notices the email at rung two and pays. If restore only
+-- worked from `downgraded`, they would keep being chased after settling.
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000009';
+  s public.billing_subscriptions%rowtype;
+begin
+  update billing_subscriptions
+     set status = 'active', failed_attempt_count = 0, next_retry_on = null, grace_ends_on = null
+   where id = v_sub;
+
+  perform app.billing_register_failure(v_sub, 'mid-ladder');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'past_due' or s.next_retry_on is null then
+    raise exception 'BILLING FAIL [n]: mid-ladder setup did not reach past_due';
+  end if;
+
+  perform app.billing_restore_after_payment(v_sub);
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'active' or s.failed_attempt_count <> 0 or s.next_retry_on is not null then
+    raise exception 'BILLING FAIL [n]: paying at rung 1 left status=% failures=% retry=%',
+      s.status, s.failed_attempt_count, s.next_retry_on;
+  end if;
+
+  raise notice '   paying mid-ladder clears the chase, not just the downgrade';
+end $$;
+
+-- ── A cancelling subscription comes back non_renewing, not active ────────────
+-- Someone who cancelled and then paid an outstanding invoice has settled a debt, not
+-- changed their mind. Restoring them to `active` would silently re-subscribe them.
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000009';
+  s public.billing_subscriptions%rowtype;
+begin
+  update billing_subscriptions
+     set status = 'past_due', cancel_at_period_end = true, failed_attempt_count = 1
+   where id = v_sub;
+
+  perform app.billing_restore_after_payment(v_sub);
+  select * into s from billing_subscriptions where id = v_sub;
+
+  if s.status <> 'non_renewing' then
+    raise exception 'BILLING FAIL [n]: a cancelling farm that paid came back as %, expected non_renewing',
+      s.status;
+  end if;
+
+  update billing_subscriptions set cancel_at_period_end = false where id = v_sub;
+  raise notice '   paying while cancelling settles the debt without re-subscribing';
+end $$;
+
+-- ── Telling them: the failure notice is claimed exactly once ─────────────────
+do $$
+declare
+  v_att uuid := 'b1a10000-0000-0000-0000-000000000009';
+  v_first boolean; v_second boolean; n integer;
+begin
+  insert into billing_payment_attempts (id, farm_id, invoice_id, subscription_id,
+    payment_method_id, attempt_ref, kind, status, amount_incl_cents, failure_reason)
+  values (v_att, 'b1000000-0000-0000-0000-000000000009',
+    'b1800000-0000-0000-0000-000000000009', 'b1600000-0000-0000-0000-000000000009',
+    'b1700000-0000-0000-0000-000000000009', 'B9-REF-FAILED', 'charge_authorization',
+    'failed', 8900, 'Insufficient funds');
+
+  select count(*) into n from app.billing_failure_notices_due(50) d where d.attempt_id = v_att;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [n]: a failed attempt is not queued for a notice (found %)', n;
+  end if;
+
+  v_first  := app.claim_billing_failure_notice(v_att);
+  v_second := app.claim_billing_failure_notice(v_att);
+  if not v_first then
+    raise exception 'BILLING FAIL [n]: the first claim on a failure notice was refused';
+  end if;
+  if v_second then
+    raise exception 'BILLING FAIL [n]: the SAME failure notice was claimed twice — the farm '
+      'would be emailed about one decline more than once';
+  end if;
+
+  select count(*) into n from app.billing_failure_notices_due(50) d where d.attempt_id = v_att;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [n]: a claimed notice is still queued (found %)', n;
+  end if;
+
+  raise notice '   one decline, one notice, however many passes run';
+end $$;
+
+
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
 select 'ALL BILLING SUBSCRIPTION TESTS PASSED' as result;
 
