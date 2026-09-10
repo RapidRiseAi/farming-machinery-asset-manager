@@ -1269,11 +1269,13 @@ declare
     'billing_receipts_due','billing_failure_notices_due',
     'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
     'release_billing_failure_notice','invoice_chargeable_now',
-    'billing_price_for_subscription'];
+    'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
+    'apply_pending_plan_changes','billing_guard_farm_plan'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
-    'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry'];
+    'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
+    'cron_apply_pending_plan_changes'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1282,7 +1284,8 @@ declare
     'billing_generate_invoices','billing_start_subscription',
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
-    'billing_release_failure_notice','billing_invoice_chargeable_now'];
+    'billing_release_failure_notice','billing_invoice_chargeable_now',
+    'billing_plan_quote','billing_change_plan'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1295,7 +1298,7 @@ declare
   v_svc_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billable_asset_count','billing_card_expiry_on',
-    'billing_price_for_subscription'];
+    'billing_price_for_subscription','billing_plan_change_quote'];
   r record; n integer := 0;
 begin
   raise notice '── BILLING (j): every billing function locked down ──────────────';
@@ -1554,7 +1557,9 @@ begin
       ('billing_claim_failure_notice', 'p_attempt uuid'),
       -- The manual path added by 20260910140000. A SEPARATE function, not a flag on
       -- the automatic one, so the nightly cadence cannot be relaxed by accident.
-      ('billing_invoice_chargeable_now', 'p_invoice uuid')
+      ('billing_invoice_chargeable_now', 'p_invoice uuid'),
+      ('billing_plan_quote',  'p_sub uuid, p_plan farm_plan, p_period billing_period'),
+      ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period')
     ) as t(fn, args)
   loop
     select p.oid into v_oid
@@ -3159,6 +3164,409 @@ begin
   end if;
 
   raise notice '   a plan change re-pins rather than charging a price for a plan they left';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (t) Changing plan — two half-controls made into one whole one
+--
+-- There are two plans on a farm and that is correct: `farms.plan` is EFFECTIVE (every
+-- entitlement gate resolves from it) and `billing_subscriptions.plan` is COMMERCIAL (what
+-- they bought). Before 20260910180000 there was a screen for each and nothing that moved
+-- both, so:
+--
+--   upgrade through /admin/billing  -> billed Complete, still gated at Professional
+--   upgrade through /admin/farms    -> Complete features, still billed Professional
+--   downgrade through /admin/billing -> smaller bill, every feature still open
+--
+-- and no self-serve path at all. The founder's decisions: an upgrade charges the pro-rata
+-- difference NOW and switches features on immediately; a downgrade takes effect at period
+-- end with no refund and nothing to reverse.
+--
+-- The fixture uses its own price versions with obviously synthetic round figures, because
+-- section (s) leaves the catalogue mid-price-rise and arithmetic that depended on that
+-- would be asserting something about another section.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Retire what (s) left active for complete/monthly, then seed a clean pair.
+update billing_price_versions set status = 'retired'
+ where plan = 'complete' and billing_period = 'monthly' and status = 'active';
+
+insert into billing_price_versions (id, version_label, plan, billing_period,
+  per_vehicle_monthly_incl_cents, months_charged, vat_rate_bps, status) values
+  ('b1500000-0000-0000-0000-000000000011', 'b1-t', 'professional', 'monthly', 2000, 1, 0, 'active'),
+  ('b1500000-0000-0000-0000-000000000012', 'b1-t', 'complete',     'monthly', 4000, 1, 0, 'active'),
+  ('b1500000-0000-0000-0000-000000000013', 'b1-t', 'essential',    'monthly', 1000, 1, 0, 'active'),
+  ('b1500000-0000-0000-0000-000000000014', 'b1-t', 'done_for_you', 'monthly', 8000, 1, 0, 'active');
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000024', 'Billing Farm Upgrade', 'professional', 'active', 'monthly', 'upgrade@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000025', 'Billing Farm Guarded', 'professional', 'active', 'monthly', 'guarded@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000026', 'Billing Farm Unbilled', 'professional', 'active', 'monthly', 'unbilled@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000241', 'b1000000-0000-0000-0000-000000000024', 'Up A', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000242', 'b1000000-0000-0000-0000-000000000024', 'Up B', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000243', 'b1000000-0000-0000-0000-000000000024', 'Up C', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000251', 'b1000000-0000-0000-0000-000000000025', 'Guard A', 'tractor', 'hours', 'active');
+
+-- Nine days into a thirty-day period: 21 days remain, including today.
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, price_version_id) values
+  ('b1600000-0000-0000-0000-000000000024', 'b1000000-0000-0000-0000-000000000024',
+   'professional', 'monthly', 'active', current_date - 9, current_date + 20, current_date + 21,
+   'b1500000-0000-0000-0000-000000000011'),
+  ('b1600000-0000-0000-0000-000000000025', 'b1000000-0000-0000-0000-000000000025',
+   'professional', 'monthly', 'active', current_date - 9, current_date + 20, current_date + 21,
+   'b1500000-0000-0000-0000-000000000011');
+
+-- ── The half that was missing: BOTH plans move, and the money is real ───────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000024';
+  q      record;
+  r      jsonb;
+  s      public.billing_subscriptions%rowtype;
+  inv    public.billing_invoices%rowtype;
+  v_plan farm_plan;
+  n      bigint;
+begin
+  raise notice '── BILLING (t): a plan change moves the bill AND the features ───';
+
+  -- The quote, before anything is committed. The screen shows this; the engine must
+  -- charge exactly it, or the customer was told one number and billed another.
+  select * into q from app.billing_plan_change_quote(v_sub, 'complete', 'monthly');
+  if q.kind <> 'upgrade_now' then
+    raise exception 'BILLING FAIL [t]: a rank increase on the same term quoted as "%"', q.kind;
+  end if;
+  if q.days_in_period <> 30 or q.days_remaining <> 21 then
+    raise exception 'BILLING FAIL [t]: the quote counted % of % days, expected 21 of 30 '
+      '(today counts — somebody upgrading this morning has the whole of today)',
+      q.days_remaining, q.days_in_period;
+  end if;
+  -- (4000 - 2000) x 21/30 = 1400 per vehicle, x 3 vehicles = 4200.
+  if q.charge_now_cents <> 4200 then
+    raise exception 'BILLING FAIL [t]: the quote is % cents, expected 4200 '
+      '((4000-2000) x 21/30 x 3 vehicles)', q.charge_now_cents;
+  end if;
+
+  r := app.change_billing_plan(v_sub, 'complete', 'monthly');
+  if r->>'applied' <> 'now' then
+    raise exception 'BILLING FAIL [t]: an upgrade was not applied immediately (%)', r->>'applied';
+  end if;
+
+  -- THE DEFECT. Both of these were half-true before, and which half depended on which
+  -- screen the administrator happened to open.
+  select * into s from billing_subscriptions where id = v_sub;
+  select plan into v_plan from farms where id = v_farm;
+  if s.plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: the COMMERCIAL plan is still % — they are not being '
+      'billed for what they bought', s.plan;
+  end if;
+  if v_plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: the EFFECTIVE plan is still % — they paid more and '
+      'got nothing. Every entitlement gate in the product resolves from farms.plan.', v_plan;
+  end if;
+
+  -- The money, and the invoice saying what it is for.
+  if (r->>'charged_cents')::bigint <> q.charge_now_cents then
+    raise exception 'BILLING FAIL [t]: quoted % and charged % — the screen and the engine '
+      'must not disagree', q.charge_now_cents, (r->>'charged_cents')::bigint;
+  end if;
+  select * into inv from billing_invoices where id = (r->>'invoice_id')::uuid;
+  if inv.status <> 'open' then
+    raise exception 'BILLING FAIL [t]: the pro-rata invoice is % rather than open', inv.status;
+  end if;
+  if inv.period_start <> current_date or inv.period_end <> s.current_period_end then
+    raise exception 'BILLING FAIL [t]: the pro-rata invoice covers % .. %, expected today .. % '
+      '— they have already paid for the earlier part of this period at the old rate',
+      inv.period_start, inv.period_end, s.current_period_end;
+  end if;
+  -- The invoice's own arithmetic. `app.billing_derive_invoice_totals` computes
+  -- total = unit x count x months, so a unit price is the only place the rounding can sit
+  -- without the document disagreeing with itself.
+  if inv.total_incl_cents <> inv.unit_price_incl_cents * inv.asset_count * inv.months_charged then
+    raise exception 'BILLING FAIL [t]: the invoice total % is not % x % x %',
+      inv.total_incl_cents, inv.unit_price_incl_cents, inv.asset_count, inv.months_charged;
+  end if;
+  if inv.plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: the pro-rata invoice names plan %', inv.plan;
+  end if;
+
+  -- Grandfathering follows them onto the new plan, or their next full invoice would be
+  -- priced by a lookup that no longer has an answer.
+  if s.price_version_id is distinct from 'b1500000-0000-0000-0000-000000000012'::uuid then
+    raise exception 'BILLING FAIL [t]: the upgrade did not re-pin the price version (%)',
+      s.price_version_id;
+  end if;
+
+  -- Exactly one invoice. An upgrade is not a billing date.
+  select count(*) into n from billing_invoices where farm_id = v_farm;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [t]: an upgrade produced % invoices', n;
+  end if;
+
+  raise notice '   upgrade: both plans moved, R42,00 charged for 21 of 30 days';
+end $$;
+
+-- ── A downgrade takes nothing away from a period they have paid for ─────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000024';
+  r      jsonb;
+  s      public.billing_subscriptions%rowtype;
+  v_plan farm_plan;
+  n0     bigint; n1 bigint;
+begin
+  select count(*) into n0 from billing_invoices where farm_id = v_farm;
+  select * into s from billing_subscriptions where id = v_sub;
+
+  r := app.change_billing_plan(v_sub, 'professional', 'monthly');
+  if r->>'applied' <> 'scheduled' then
+    raise exception 'BILLING FAIL [t]: a downgrade was applied immediately (%) — they paid '
+      'for this period at the higher plan', r->>'applied';
+  end if;
+  if (r->>'effective_on')::date <> s.current_period_end + 1 then
+    raise exception 'BILLING FAIL [t]: the downgrade lands on %, expected % (the day after '
+      'the period they paid for ends)', r->>'effective_on', s.current_period_end + 1;
+  end if;
+
+  -- NOTHING moved today.
+  select * into s from billing_subscriptions where id = v_sub;
+  select plan into v_plan from farms where id = v_farm;
+  if s.plan <> 'complete' or v_plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: a scheduled downgrade changed a plan today (% / %)',
+      s.plan, v_plan;
+  end if;
+  if s.pending_plan <> 'professional' or s.pending_plan_on is null then
+    raise exception 'BILLING FAIL [t]: the downgrade was not recorded (% on %)',
+      s.pending_plan, s.pending_plan_on;
+  end if;
+  select count(*) into n1 from billing_invoices where farm_id = v_farm;
+  if n1 <> n0 then
+    raise exception 'BILLING FAIL [t]: a downgrade raised % invoice(s). There is no refund '
+      'and no credit note, which is the whole reason it waits for period end.', n1 - n0;
+  end if;
+
+  -- The date has not arrived: the cron step must leave it alone.
+  if app.apply_pending_plan_changes() <> 0 then
+    raise exception 'BILLING FAIL [t]: a scheduled change was applied before its date';
+  end if;
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: the plan moved early';
+  end if;
+
+  -- The date arrives.
+  update billing_subscriptions set pending_plan_on = current_date where id = v_sub;
+  if app.apply_pending_plan_changes() <> 1 then
+    raise exception 'BILLING FAIL [t]: the scheduled change did not land on its date — the '
+      'farm goes on being billed for a plan they asked to leave';
+  end if;
+  select * into s from billing_subscriptions where id = v_sub;
+  select plan into v_plan from farms where id = v_farm;
+  if s.plan <> 'professional' or v_plan <> 'professional' then
+    raise exception 'BILLING FAIL [t]: after the scheduled date the plans are % / %',
+      s.plan, v_plan;
+  end if;
+  if s.pending_plan is not null or s.pending_plan_on is not null then
+    raise exception 'BILLING FAIL [t]: the pending change was not cleared, so it will be '
+      'applied again every night';
+  end if;
+  -- Re-priced onto the plan they moved to. The version they were grandfathered on belongs
+  -- to the plan they left.
+  if s.price_version_id is distinct from 'b1500000-0000-0000-0000-000000000011'::uuid then
+    raise exception 'BILLING FAIL [t]: the scheduled change did not re-price (%)',
+      s.price_version_id;
+  end if;
+
+  raise notice '   downgrade: scheduled, nothing taken away, lands on its date';
+end $$;
+
+-- ── A term change is scheduled too, in either direction ─────────────────────
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000024';
+  r     jsonb;
+  s     public.billing_subscriptions%rowtype;
+begin
+  -- professional/monthly -> professional/annual: the SAME rank. Not a downgrade, and not
+  -- something to charge for today either — a term is a commitment, and charging ten months
+  -- mid-period would bill for time they have not agreed to yet.
+  r := app.change_billing_plan(v_sub, 'professional', 'annual');
+  if r->>'applied' <> 'scheduled' then
+    raise exception 'BILLING FAIL [t]: a term change was applied immediately (%)', r->>'applied';
+  end if;
+
+  -- An UPGRADE supersedes it: asking for more than the thing you asked to give up is
+  -- unambiguous about which you meant.
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.pending_plan is null then
+    raise exception 'BILLING FAIL [t]: the term change was not recorded';
+  end if;
+  -- A DIFFERENT plan on purpose. A second proration for the same farm, window and plan
+  -- on the same day is the duplicate charge billing_invoices_proration_uq refuses, and
+  -- refusing it is right; this block is about superseding, not about that.
+  r := app.change_billing_plan(v_sub, 'done_for_you', 'monthly');
+  if r->>'applied' <> 'now' then
+    raise exception 'BILLING FAIL [t]: the upgrade did not apply (%)', r->>'applied';
+  end if;
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.pending_plan is not null then
+    raise exception 'BILLING FAIL [t]: an upgrade left a pending % change queued behind it, '
+      'so the farm would silently drop back later', s.pending_plan;
+  end if;
+
+  raise notice '   a term change waits; an upgrade supersedes a queued change';
+end $$;
+
+-- ── A farm downgraded for NON-PAYMENT does not buy its features back ────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000025';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000025';
+  r      jsonb;
+  s      public.billing_subscriptions%rowtype;
+  v_plan farm_plan;
+begin
+  -- The state the dunning engine leaves: the EFFECTIVE plan reduced, and what it held
+  -- remembered so payment can restore it exactly.
+  update farms set plan = 'essential' where id = v_farm;
+  update billing_subscriptions
+     set status = 'downgraded', plan_before_downgrade = 'professional', downgraded_at = now()
+   where id = v_sub;
+
+  r := app.change_billing_plan(v_sub, 'complete', 'monthly');
+  if r->>'applied' <> 'now' then
+    raise exception 'BILLING FAIL [t]: the upgrade was refused (%)', r->>'applied';
+  end if;
+
+  select plan into v_plan from farms where id = v_farm;
+  if v_plan <> 'essential' then
+    raise exception 'BILLING FAIL [t]: buying an upgrade handed the features back to a farm '
+      'that has not paid (plan is now %). This is the one thing adminSetSubscriptionPlan '
+      'was right to protect, and it must survive the fix.', v_plan;
+  end if;
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.plan_before_downgrade <> 'complete' then
+    raise exception 'BILLING FAIL [t]: the upgrade was not recorded as what they will be '
+      'restored to (%) — paying would put them back on the plan they just left', s.plan_before_downgrade;
+  end if;
+
+  -- And paying gives them the plan they actually bought, not the one they had before.
+  perform app.billing_restore_after_payment(v_sub);
+  select plan into v_plan from farms where id = v_farm;
+  if v_plan <> 'complete' then
+    raise exception 'BILLING FAIL [t]: after paying, the farm is on % rather than the '
+      'complete plan it upgraded to', v_plan;
+  end if;
+
+  raise notice '   an upgrade while downgraded is remembered, not granted, until they pay';
+end $$;
+
+-- ── The second writer is closed ────────────────────────────────────────────
+do $$
+declare
+  v_farm     uuid := 'b1000000-0000-0000-0000-000000000025';
+  v_unbilled uuid := 'b1000000-0000-0000-0000-000000000026';
+  v_plan     farm_plan;
+  v_raised   boolean := false;
+begin
+  -- /admin/farms/[id] wrote farms.plan straight past billing. Fixing the function is not
+  -- enough while that door is open.
+  begin
+    update farms set plan = 'done_for_you' where id = v_farm;
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    select plan into v_plan from farms where id = v_farm;
+    raise exception 'BILLING FAIL [t]: a farm with a live subscription had its EFFECTIVE plan '
+      'set to % directly, so the bill and the features are now out of step — which is '
+      'exactly the defect', v_plan;
+  end if;
+
+  -- A farm nobody is billing is untouched. That is Weltevrede, and setting a plan on a
+  -- comped or demo account is normal.
+  update farms set plan = 'done_for_you' where id = v_unbilled;
+  select plan into v_plan from farms where id = v_unbilled;
+  if v_plan <> 'done_for_you' then
+    raise exception 'BILLING FAIL [t]: the guard blocked a farm with no subscription';
+  end if;
+
+  raise notice '   farms.plan cannot be moved past billing, and unbilled farms are free';
+end $$;
+
+-- ── Two changes that deliberately charge nothing, and one that is refused ───
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000024';
+  q      record;
+  r      jsonb;
+  n0     bigint; n1 bigint;
+  v_ok   boolean := false;
+begin
+  -- Put the farm back on professional, one day before the period ends. The remaining
+  -- fraction is then 1/30 of R20,00 x 3 = 200 cents... still chargeable. Shrink the fleet
+  -- to one vehicle so the prorated delta lands under Paystack's R1,00 floor.
+  update billing_subscriptions
+     set plan = 'professional', price_version_id = 'b1500000-0000-0000-0000-000000000011',
+         current_period_start = current_date - 29, current_period_end = current_date,
+         pending_plan = null, pending_billing_period = null, pending_plan_on = null,
+         pending_plan_set_at = null
+   where id = v_sub;
+  update farms set plan = 'professional' where id = v_farm;
+  update machines set status = 'sold'
+   where id in ('b1300000-0000-0000-0000-000000000242', 'b1300000-0000-0000-0000-000000000243');
+
+  select * into q from app.billing_plan_change_quote(v_sub, 'complete', 'monthly');
+  -- (4000-2000) x 1/30 = 67 cents for the single remaining vehicle.
+  if q.charge_now_cents >= 100 then
+    raise exception 'BILLING FAIL [t]: the fixture does not produce a sub-R1,00 delta (% cents)',
+      q.charge_now_cents;
+  end if;
+
+  select count(*) into n0 from billing_invoices where farm_id = v_farm;
+  r := app.change_billing_plan(v_sub, 'complete', 'monthly');
+  select count(*) into n1 from billing_invoices where farm_id = v_farm;
+
+  if r->>'applied' <> 'now' then
+    raise exception 'BILLING FAIL [t]: a sub-minimum upgrade was refused rather than applied';
+  end if;
+  if n1 <> n0 then
+    raise exception 'BILLING FAIL [t]: an invoice for % cents was raised. Paystack will not '
+      'process it, so it would sit OPEN for ever — and an open invoice blocks the farm''s '
+      'next real charge through the in-flight guard. Losing under a rand is cheaper than '
+      'jamming somebody''s account.', q.charge_now_cents;
+  end if;
+  if (r->>'charged_cents')::bigint <> 0 then
+    raise exception 'BILLING FAIL [t]: reported charging % with no invoice', r->>'charged_cents';
+  end if;
+
+  -- Asking for the plan you are already on is not an error and not a charge.
+  r := app.change_billing_plan(v_sub, 'complete', 'monthly');
+  if r->>'applied' <> 'no_change' then
+    raise exception 'BILLING FAIL [t]: re-selecting the current plan did something (%)',
+      r->>'applied';
+  end if;
+
+  -- A cancelled subscription is replaced, not changed. Letting a plan change revive one
+  -- would reintroduce the S5 resurrection defect by another door.
+  update billing_subscriptions set status = 'cancelled', ended_on = current_date where id = v_sub;
+  begin
+    r := app.change_billing_plan(v_sub, 'done_for_you', 'monthly');
+  exception when check_violation then
+    v_ok := true;
+  end;
+  if not v_ok then
+    raise exception 'BILLING FAIL [t]: a CANCELLED subscription accepted a plan change';
+  end if;
+
+  raise notice '   nothing unpayable is ever raised, and an ended subscription is not revived';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;

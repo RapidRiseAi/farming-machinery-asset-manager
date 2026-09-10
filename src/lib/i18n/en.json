@@ -4165,7 +4165,10 @@
     "dunningGraceRetryValue": "Every {days} days",
     "dunningGraceRetryOff": "Not retried",
     "dunningDowngrade": "Plan after grace runs out",
-    "dunningNote": "Nothing is ever deleted for non-payment — the plan is reduced and the farm keeps every record. Paying restores exactly what they had. These values are changed in the database, and the audit log records who changed them."
+    "dunningNote": "Nothing is ever deleted for non-payment — the plan is reduced and the farm keeps every record. Paying restores exactly what they had. These values are changed in the database, and the audit log records who changed them.",
+    "savedPlanNow": "Upgraded. The features are on now and the difference for the rest of this period has been invoiced.",
+    "savedPlanScheduled": "Scheduled. Nothing changes until the period they have already paid for ends — there is no refund to make.",
+    "savedPlanUnchanged": "They were already on that plan. Nothing was changed and nothing was charged."
   },
   "billingReceipt": {
     "title": "Receipt",

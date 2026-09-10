@@ -4165,7 +4165,10 @@
     "dunningGraceRetryValue": "Elke {days} dae",
     "dunningGraceRetryOff": "Word nie herprobeer nie",
     "dunningDowngrade": "Plan nadat grasie verstryk",
-    "dunningNote": "Niks word ooit weens wanbetaling uitgevee nie — die plan word verminder en die plaas behou elke rekord. Betaling herstel presies wat hulle gehad het. Hierdie waardes word in die databasis verander, en die ouditlog teken aan wie dit verander het."
+    "dunningNote": "Niks word ooit weens wanbetaling uitgevee nie — die plan word verminder en die plaas behou elke rekord. Betaling herstel presies wat hulle gehad het. Hierdie waardes word in die databasis verander, en die ouditlog teken aan wie dit verander het.",
+    "savedPlanNow": "Opgegradeer. Die kenmerke is nou aan en die verskil vir die res van hierdie tydperk is gefaktureer.",
+    "savedPlanScheduled": "Geskeduleer. Niks verander voordat die tydperk waarvoor hulle reeds betaal het, eindig nie — daar is geen terugbetaling om te maak nie.",
+    "savedPlanUnchanged": "Hulle was reeds op daardie plan. Niks is verander nie en niks is gehef nie."
   },
   "billingReceipt": {
     "title": "Kwitansie",

@@ -7,7 +7,7 @@ import { requireProfile } from "@/lib/auth";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import {
   BILLING_RPC,
-  adminSetSubscriptionPlan,
+  changeSubscriptionPlan,
   getAttemptById,
   getInvoiceById,
   providerState,
@@ -140,14 +140,17 @@ export async function adminRetryCharge(formData: FormData): Promise<void> {
 }
 
 /**
- * Change what a farm has BOUGHT.
+ * Change a farm's plan — the bill and the features together.
  *
- * Writes `billing_subscriptions.plan` — the COMMERCIAL plan — and deliberately not
- * `farms.plan`, which is the EFFECTIVE plan every entitlement gate resolves from. They
- * differ only while a farm is downgraded for non-payment, and the engine owns that
- * reconciliation in both directions. An admin screen that wrote both would be the one
- * place able to silently un-downgrade a farm that has not paid, which is exactly the
- * mistake the two-plan split exists to make impossible.
+ * This used to write `billing_subscriptions.plan` alone, so an upgrade charged more and
+ * granted nothing while a downgrade charged less and took nothing away. The rules now live
+ * in `app.change_billing_plan`: a rank increase on the same term applies immediately and
+ * raises a pro-rata invoice; everything else is scheduled for period end; and a farm
+ * downgraded for NON-PAYMENT has the upgrade recorded as what it will be restored to
+ * rather than handed back, which is the protection the old half-write was reaching for.
+ *
+ * Those rules are in SQL because two screens call them, and a rule in one screen is a rule
+ * the other one does not have.
  *
  * The plan and the period are validated against the shipped vocabulary rather than passed
  * through: they arrive in a form body, and the column is an enum whose rejection would
@@ -163,7 +166,7 @@ export async function adminSetPlan(formData: FormData): Promise<void> {
   if (!(BILLING_PERIODS as readonly string[]).includes(billingPeriod)) bounce("billing-bad-period");
 
   const supabase = createServiceClient();
-  const { error } = await adminSetSubscriptionPlan(supabase, {
+  const { result, error } = await changeSubscriptionPlan(supabase, {
     subscriptionId,
     plan,
     billingPeriod,
@@ -171,7 +174,17 @@ export async function adminSetPlan(formData: FormData): Promise<void> {
   if (error) bounce("billing-save-failed");
 
   revalidatePath("/admin/billing");
-  redirect("/admin/billing?saved=plan");
+  // Say which of the three things happened. "Saved" is not enough when one branch has
+  // just charged somebody money and another has queued a change for three weeks' time.
+  redirect(
+    `/admin/billing?saved=${
+      result?.applied === "scheduled"
+        ? "plan-scheduled"
+        : result?.applied === "no_change"
+          ? "plan-unchanged"
+          : "plan"
+    }`,
+  );
 }
 
 /**

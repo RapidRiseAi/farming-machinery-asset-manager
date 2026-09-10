@@ -94,7 +94,14 @@ export async function GET(request: Request) {
   // 2 ── What each farm is billed for, recorded before it is billed.
   await run("asset_snapshots", BILLING_RPC.captureSnapshots);
 
-  // 3 ── Raise the period's invoices. Nothing happens with no active price version.
+  // 3 ── Downgrades and term changes the customer asked for, landing on their date.
+  //
+  // BEFORE the generator, and that ordering is the whole point: a change due today has
+  // to be applied before today's invoice is priced, or the farm is billed one more period
+  // at the plan they asked to leave and has to be refunded for it.
+  await run("apply_plan_changes", BILLING_RPC.applyPendingPlans);
+
+  // 4 ── Raise the period's invoices. Nothing happens with no active price version.
   await run("generate_invoices", BILLING_RPC.cronGenerateInvoices);
 
   // 4 ── The charges themselves.

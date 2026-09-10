@@ -46,6 +46,12 @@ export const BILLING_RPC = {
   // flag on `dueCharges`: it drops the retry timer, which paces the nightly pass and
   // must never be relaxed by something that could be passed the wrong way round.
   invoiceChargeableNow: "billing_invoice_chargeable_now",
+  // Changing plan (20260910180000). The quote is separate from the commit so a screen can
+  // price the change before anybody presses anything, and BOTH are service-role only —
+  // they are SECURITY DEFINER, so a grant to `authenticated` would let any signed-in user
+  // price a change on somebody else's subscription and learn their fleet size on the way.
+  planQuote: "billing_plan_quote",
+  changePlan: "billing_change_plan",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -57,6 +63,10 @@ export const BILLING_RPC = {
   // The card that is about to stop working (20260909120000). exp_month/exp_year had
   // been stored since the table was created and read by nothing.
   cardExpiry: "cron_enqueue_billing_card_expiry",
+  // Scheduled downgrades and term changes (20260910180000). Runs BEFORE the generator:
+  // a change due today has to land before today's invoice is priced, or the farm is
+  // billed one more period at the plan they asked to leave.
+  applyPendingPlans: "cron_apply_pending_plan_changes",
   // Putting a farm ON a subscription (20260906120000). Nothing did this before, so a
   // farm could never start paying: `beginCheckout` refuses without one.
   startSubscription: "billing_start_subscription",
@@ -1012,29 +1022,81 @@ export async function resumeSubscription(
   return { error: null };
 }
 
+/** What a plan change would do, and cost, before anybody commits to it. */
+export type PlanChangeQuote = {
+  /** upgrade_now | scheduled | no_change | unavailable */
+  kind: string;
+  effective_on: string | null;
+  vehicles: number;
+  days_remaining: number;
+  days_in_period: number;
+  old_period_cents: number;
+  new_period_cents: number;
+  charge_now_cents: number;
+  new_unit_cents: number;
+  new_months: number;
+  reason: string | null;
+};
+
 /**
- * Change what a farm has BOUGHT. Rapid Rise only.
+ * Price a plan change without making it.
  *
- * This writes `billing_subscriptions.plan` — the COMMERCIAL plan — and deliberately not
- * `farms.plan`, which is the EFFECTIVE plan every entitlement gate resolves from. The two
- * are reconciled by the engine (a downgrade for non-payment writes `farms.plan` and
- * remembers what it held; payment restores it), and an admin screen writing both would be
- * the one place able to silently un-downgrade a farm that has not paid.
+ * The owner's screen has to be able to say "R42,00 now, then R267,00 a month" before they
+ * press anything, and the engine must then charge exactly that — a screen and an engine
+ * that disagree about a price is worse than either number alone.
  */
-export async function adminSetSubscriptionPlan(
+export async function planChangeQuote(
   supabase: SupabaseClient,
   input: { subscriptionId: string; plan: string; billingPeriod: string },
-): Promise<{ error: ServiceError | null }> {
-  const { error } = await supabase
-    .from("billing_subscriptions")
-    .update({
-      plan: input.plan,
-      billing_period: input.billingPeriod,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.subscriptionId);
-  if (error) return { error: { message: redactMessage(error.message), code: error.code } };
-  return { error: null };
+): Promise<{ quote: PlanChangeQuote | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.planQuote, {
+    p_sub: input.subscriptionId,
+    p_plan: input.plan,
+    p_period: input.billingPeriod,
+  });
+  if (error) return { quote: null, error: { message: redactMessage(error.message), code: error.code } };
+  const rows = (data ?? []) as PlanChangeQuote[];
+  return { quote: rows[0] ?? null, error: null };
+}
+
+/** What actually happened, as `app.change_billing_plan` reports it. */
+export type PlanChangeResult = {
+  applied: "now" | "scheduled" | "no_change";
+  plan?: string;
+  billing_period?: string;
+  charged_cents?: number;
+  invoice_id?: string;
+  invoice_ref?: string;
+  effective_on?: string;
+  reason?: string | null;
+};
+
+/**
+ * Change what a farm is billed for AND what it can use, together.
+ *
+ * This replaced `adminSetSubscriptionPlan`, which wrote `billing_subscriptions.plan` and
+ * nothing else — so an upgrade charged more and granted nothing, and a downgrade charged
+ * less and took nothing away. Its reasoning for writing only half was sound: an admin
+ * screen that wrote both would be the one place able to silently un-downgrade a farm that
+ * has not paid. That concern is now handled INSIDE the engine, which writes
+ * `plan_before_downgrade` instead of `farms.plan` for a farm in that state, so the
+ * upgrade is honoured when they pay and not before.
+ *
+ * Everything else that makes this safe also lives in SQL — the rank rule, the proration,
+ * the refusal to raise an unpayable invoice — because two screens call it and a rule in
+ * one screen is a rule the other does not have.
+ */
+export async function changeSubscriptionPlan(
+  supabase: SupabaseClient,
+  input: { subscriptionId: string; plan: string; billingPeriod: string },
+): Promise<{ result: PlanChangeResult | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.changePlan, {
+    p_sub: input.subscriptionId,
+    p_plan: input.plan,
+    p_period: input.billingPeriod,
+  });
+  if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { result: (data ?? null) as PlanChangeResult | null, error: null };
 }
 
 /**

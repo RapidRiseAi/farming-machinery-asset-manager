@@ -196,7 +196,20 @@ export default async function AdminBillingPage({
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.saved ? t("ui.savedChanges", locale) : undefined} />
+      <Flash
+        tone="success"
+        message={
+          sp.saved === "plan"
+            ? t("adminBilling.savedPlanNow", locale)
+            : sp.saved === "plan-scheduled"
+              ? t("adminBilling.savedPlanScheduled", locale)
+              : sp.saved === "plan-unchanged"
+                ? t("adminBilling.savedPlanUnchanged", locale)
+                : sp.saved
+                  ? t("ui.savedChanges", locale)
+                  : undefined
+        }
+      />
 
       {/* ── The safety switch, in words ─────────────────────────────────────── */}
       <Card>
