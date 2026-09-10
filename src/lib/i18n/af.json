@@ -4154,7 +4154,18 @@
     "startTrialField": "Proefdae",
     "startTrialHint": "Leeg = {days}",
     "startAction": "Begin",
-    "startNote": "Dit skep die intekening en hef niks nie. Die eerste rekening word opgestel wanneer die proeftydperk eindig, en die plaas moet steeds 'n kaart byvoeg voordat enigiets ingevorder kan word."
+    "startNote": "Dit skep die intekening en hef niks nie. Die eerste rekening word opgestel wanneer die proeftydperk eindig, en die plaas moet steeds 'n kaart byvoeg voordat enigiets ingevorder kan word.",
+    "dunningTitle": "Wat gebeur wanneer 'n kaart misluk",
+    "dunningRetries": "Outomatiese herprobeer",
+    "dunningRetriesValue": "{count} — ná {days} dae",
+    "dunningRetriesNone": "Geen opgestel nie",
+    "dunningGrace": "Grasietydperk",
+    "dunningGraceValue": "{days} dae se volle toegang",
+    "dunningGraceRetry": "Herprobeer tydens grasie",
+    "dunningGraceRetryValue": "Elke {days} dae",
+    "dunningGraceRetryOff": "Word nie herprobeer nie",
+    "dunningDowngrade": "Plan nadat grasie verstryk",
+    "dunningNote": "Niks word ooit weens wanbetaling uitgevee nie — die plan word verminder en die plaas behou elke rekord. Betaling herstel presies wat hulle gehad het. Hierdie waardes word in die databasis verander, en die ouditlog teken aan wie dit verander het."
   },
   "billingReceipt": {
     "title": "Kwitansie",

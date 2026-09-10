@@ -207,6 +207,12 @@ export type BillingSettingsRow = {
   billing_email: string | null;
   trial_days: number;
   grace_days: number;
+  /**
+   * Days between card retries while a subscription is in GRACE (20260910160000).
+   * 0 means grace is not retried at all, which is what this product did until the
+   * founder decided otherwise on 2026-09-10.
+   */
+  grace_retry_days: number;
   retry_offsets_days: number[] | null;
   downgrade_to_plan: string;
 };
@@ -558,7 +564,7 @@ export const PRICE_COLUMNS =
  */
 export const SETTINGS_COLUMNS =
   "vat_registered, vat_rate_bps, legal_name, support_email, billing_email, " +
-  "trial_days, grace_days, retry_offsets_days, downgrade_to_plan";
+  "trial_days, grace_days, grace_retry_days, retry_offsets_days, downgrade_to_plan";
 
 /**
  * The farm row, for the EFFECTIVE plan.

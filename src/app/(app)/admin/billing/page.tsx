@@ -241,6 +241,58 @@ export default async function AdminBillingPage({
         <p className="mt-3 text-sm text-sand-600">{t("adminBilling.switchNote", locale)}</p>
       </Card>
 
+      {/* ── What happens when a card fails, in words ─────────────────────────── */}
+      {/*
+        Every value here was already being fetched and rendered nowhere. The policy that
+        decides when a paying customer loses access was invisible to the only person who
+        can change it — which is how `prorate_annual_additions` and the card-expiry
+        columns came to be stored and read by nothing.
+
+        Read-only on purpose: a text field beside these invites an edit nobody reviewed.
+        They are changed in SQL, and the audit trigger records who did it.
+      */}
+      {settings ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("adminBilling.dunningTitle", locale)}</CardTitle>
+          </CardHeader>
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            <dt className="text-sand-600">{t("adminBilling.dunningRetries", locale)}</dt>
+            <dd className="font-medium text-sand-900 sm:text-right">
+              {settings.retry_offsets_days?.length
+                ? t("adminBilling.dunningRetriesValue", locale)
+                    .replace("{count}", String(settings.retry_offsets_days.length))
+                    .replace("{days}", settings.retry_offsets_days.join(", "))
+                : t("adminBilling.dunningRetriesNone", locale)}
+            </dd>
+
+            <dt className="text-sand-600">{t("adminBilling.dunningGrace", locale)}</dt>
+            <dd className="font-medium text-sand-900 sm:text-right">
+              {t("adminBilling.dunningGraceValue", locale).replace(
+                "{days}",
+                String(settings.grace_days),
+              )}
+            </dd>
+
+            <dt className="text-sand-600">{t("adminBilling.dunningGraceRetry", locale)}</dt>
+            <dd className="font-medium text-sand-900 sm:text-right">
+              {settings.grace_retry_days > 0
+                ? t("adminBilling.dunningGraceRetryValue", locale).replace(
+                    "{days}",
+                    String(settings.grace_retry_days),
+                  )
+                : t("adminBilling.dunningGraceRetryOff", locale)}
+            </dd>
+
+            <dt className="text-sand-600">{t("adminBilling.dunningDowngrade", locale)}</dt>
+            <dd className="font-medium text-sand-900 sm:text-right">
+              {t(`plan.${settings.downgrade_to_plan}`, locale)}
+            </dd>
+          </dl>
+          <p className="mt-3 text-sm text-sand-600">{t("adminBilling.dunningNote", locale)}</p>
+        </Card>
+      ) : null}
+
       {/* ── Farms that cannot pay yet, because nothing has put them on a plan ── */}
       {unbilled.length > 0 ? (
         <Card>

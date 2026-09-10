@@ -4154,7 +4154,18 @@
     "startTrialField": "Trial days",
     "startTrialHint": "Blank = {days}",
     "startAction": "Start",
-    "startNote": "This creates the subscription and charges nothing. The first bill is raised when the trial ends, and the farm still has to add a card before anything can be collected."
+    "startNote": "This creates the subscription and charges nothing. The first bill is raised when the trial ends, and the farm still has to add a card before anything can be collected.",
+    "dunningTitle": "What happens when a card fails",
+    "dunningRetries": "Automatic retries",
+    "dunningRetriesValue": "{count} — after {days} days",
+    "dunningRetriesNone": "None configured",
+    "dunningGrace": "Grace period",
+    "dunningGraceValue": "{days} days of full access",
+    "dunningGraceRetry": "Retry during grace",
+    "dunningGraceRetryValue": "Every {days} days",
+    "dunningGraceRetryOff": "Not retried",
+    "dunningDowngrade": "Plan after grace runs out",
+    "dunningNote": "Nothing is ever deleted for non-payment — the plan is reduced and the farm keeps every record. Paying restores exactly what they had. These values are changed in the database, and the audit log records who changed them."
   },
   "billingReceipt": {
     "title": "Receipt",

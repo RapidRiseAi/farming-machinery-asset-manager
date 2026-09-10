@@ -1268,7 +1268,8 @@ declare
     'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
     'billing_receipts_due','billing_failure_notices_due',
     'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
-    'release_billing_failure_notice','invoice_chargeable_now'];
+    'release_billing_failure_notice','invoice_chargeable_now',
+    'billing_price_for_subscription'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1287,13 +1288,14 @@ declare
   -- a billing screen at all. None of them can move money or read a credential.
   v_auth_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
-    'billing_advance_period','billing_card_expiry_on'];
+    'billing_advance_period','billing_card_expiry_on','billing_price_for_subscription'];
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
   -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
   v_svc_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
-    'billing_advance_period','billable_asset_count','billing_card_expiry_on'];
+    'billing_advance_period','billable_asset_count','billing_card_expiry_on',
+    'billing_price_for_subscription'];
   r record; n integer := 0;
 begin
   raise notice '── BILLING (j): every billing function locked down ──────────────';
@@ -1673,11 +1675,12 @@ declare
   s       public.billing_subscriptions%rowtype;
   v_off   integer[];
   v_grace integer;
+  v_gretry integer;
   i       integer;
 begin
   raise notice '── BILLING (n): the dunning ladder, driven ──────────────────────';
 
-  select retry_offsets_days, grace_days into v_off, v_grace
+  select retry_offsets_days, grace_days, grace_retry_days into v_off, v_grace, v_gretry
     from billing_settings where singleton;
   if array_length(v_off, 1) is null or array_length(v_off, 1) < 1 then
     raise exception 'BILLING FAIL [n]: no retry ladder is configured, so this section proves nothing';
@@ -1723,8 +1726,22 @@ begin
   if s.status <> 'grace' then
     raise exception 'BILLING FAIL [n]: exhausting the ladder left status %, expected grace', s.status;
   end if;
-  if s.next_retry_on is not null then
-    raise exception 'BILLING FAIL [n]: grace still carries a retry date (%)', s.next_retry_on;
+  -- Grace is RETRIED now (founder decision, 2026-09-10; migration 20260910160000). It
+  -- used to clear this date and never present the card again, so a farm whose money
+  -- simply arrived late was downgraded without ever being asked twice.
+  --
+  -- Asserted against the SETTING, both ways: 0 means the weekly retry is switched off
+  -- and the date must be null, which is the old behaviour exactly. A test that only
+  -- knew one of those would pass for a policy nobody chose.
+  if v_gretry > 0 then
+    if s.next_retry_on is distinct from (current_date + v_gretry) then
+      raise exception 'BILLING FAIL [n]: grace set next_retry_on to %, expected % '
+        '(grace_retry_days = % from settings) — a card that failed on the 1st very often '
+        'works on the 25th, and nothing would ask', s.next_retry_on,
+        current_date + v_gretry, v_gretry;
+    end if;
+  elsif s.next_retry_on is not null then
+    raise exception 'BILLING FAIL [n]: grace_retry_days is 0 but grace still carries a retry date (%)', s.next_retry_on;
   end if;
   if s.grace_ends_on is distinct from (current_date + v_grace) then
     raise exception 'BILLING FAIL [n]: grace ends %, expected % (grace_days = % from settings)',
@@ -2824,6 +2841,324 @@ begin
   end if;
 
   raise notice '   a payment settles the debt; it does not resurrect the subscription';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (s) Two founder decisions, and the code that assumed the opposite of both
+--
+-- GRACE IS RETRIED. Until 20260910160000, exhausting the retry ladder set
+-- `next_retry_on = null` and `app.due_billing_charges` never looked at `grace` at all,
+-- so from that moment nothing presented the card again. A farm whose money simply
+-- arrived the following week was downgraded without ever being asked twice.
+--
+-- A PRICE RISE DOES NOT REPRICE EXISTING CUSTOMERS. The generator resolved its price
+-- with `app.billing_active_price`, and `billing_price_versions_active_uq` permits one
+-- active row per (plan, period) — so publishing a new price necessarily retired the old
+-- one and moved EVERY existing farm onto the new figure at their next invoice. Silently:
+-- a farmer's debit order would just go up.
+--
+-- Both are settings-or-data decisions rather than constants, so both are asserted against
+-- the thing that produced them. An engine with the policy baked in passes every other
+-- assertion in this file while the screen that configures it does nothing.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000020', 'Billing Farm Grace Retry', 'complete', 'active', 'monthly', 'graceretry@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000021', 'Billing Farm Grandfathered', 'complete', 'active', 'monthly', 'grandfathered@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000022', 'Billing Farm New Customer', 'complete', 'active', 'monthly', 'newcustomer@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000201', 'b1000000-0000-0000-0000-000000000020', 'Grace Tractor', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000211', 'b1000000-0000-0000-0000-000000000021', 'Old Price Tractor', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000221', 'b1000000-0000-0000-0000-000000000022', 'New Price Tractor', 'tractor', 'hours', 'active');
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-000000000020', 'complete', 'monthly', 'active', current_date, current_date + 29, current_date + 30),
+  ('b1600000-0000-0000-0000-000000000021', 'b1000000-0000-0000-0000-000000000021', 'complete', 'monthly', 'active', null, null, current_date);
+
+insert into billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('b1700000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-000000000020', 'AUTH_b20', 'graceretry@billing.invalid', 'visa', '2020', '12', '2030', true, true, 'active');
+
+update billing_subscriptions set default_payment_method_id = 'b1700000-0000-0000-0000-000000000020'
+ where id = 'b1600000-0000-0000-0000-000000000020';
+
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('b1800000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-000000000020',
+  'b1600000-0000-0000-0000-000000000020', 'B20-INV-0001', 'draft',
+  current_date - 30, current_date - 1, current_date - 30, current_date - 1,
+  'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('b1800000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-000000000020', 0,
+  'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
+
+update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000020';
+
+-- ── The card is presented again while the farm is in grace ──────────────────
+do $$
+declare
+  v_sub    uuid := 'b1600000-0000-0000-0000-000000000020';
+  v_inv    uuid := 'b1800000-0000-0000-0000-000000000020';
+  s        public.billing_subscriptions%rowtype;
+  v_off    integer[];
+  v_gretry integer;
+  v_ends   date;
+  i        integer;
+  n        bigint;
+begin
+  raise notice '── BILLING (s): grace retries, and a price nobody agreed to ─────';
+
+  select retry_offsets_days, grace_retry_days into v_off, v_gretry
+    from billing_settings where singleton;
+  if v_gretry <= 0 then
+    raise exception 'BILLING FAIL [s]: grace_retry_days is %, so this whole section is a '
+      'statement about a switched-off feature', v_gretry;
+  end if;
+
+  -- POSITIVE CONTROL: chargeable before anything fails.
+  select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [s]: the invoice is not chargeable to begin with (%)', n;
+  end if;
+
+  -- Down the whole ladder, into grace, under its own power.
+  for i in 1 .. array_length(v_off, 1) + 1 loop
+    perform app.billing_register_failure(v_sub, 'test decline ' || i);
+  end loop;
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'grace' then
+    raise exception 'BILLING FAIL [s]: the ladder did not reach grace (status %)', s.status;
+  end if;
+  v_ends := s.grace_ends_on;
+
+  -- Armed, from the setting.
+  if s.next_retry_on is distinct from (current_date + v_gretry) then
+    raise exception 'BILLING FAIL [s]: grace set next_retry_on to %, expected % (grace_retry_days = %)',
+      s.next_retry_on, current_date + v_gretry, v_gretry;
+  end if;
+
+  -- But not yet. A ladder that charges every night is not a ladder, and that is as true
+  -- in grace as it is on the rungs above it.
+  select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [s]: a farm in grace is chargeable % days early (% rows)',
+      v_gretry, n;
+  end if;
+
+  -- The retry date arrives. THIS is the assertion the whole change exists for: before
+  -- 20260910160000 `grace` was not in the shortlist at all, so this was 0 for ever.
+  update billing_subscriptions set next_retry_on = current_date where id = v_sub;
+  select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [s]: a farm in GRACE whose retry date has arrived is still '
+      'not offered to the charging worker (% rows). Their card is never presented again and '
+      'they are downgraded without ever being asked twice.', n;
+  end if;
+
+  -- That retry fails too. The date must re-arm, and grace must NOT be extended by it —
+  -- three failed retries would otherwise buy three extra weeks of full access.
+  --
+  -- Grace is AGED five days first, and that is load-bearing. Without it the assertion
+  -- cannot fail: a mutant that recomputes `current_date + grace_days` instead of
+  -- coalescing produces the identical date, because everything here happens on one day.
+  -- Ageing the row is the same move section (p) uses to simulate a month passing — the
+  -- only way a test can move a clock it does not control.
+  update billing_subscriptions set grace_ends_on = grace_ends_on - 5 where id = v_sub;
+  v_ends := (select grace_ends_on from billing_subscriptions where id = v_sub);
+
+  perform app.billing_register_failure(v_sub, 'grace retry declined');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'grace' then
+    raise exception 'BILLING FAIL [s]: a failed grace retry moved the status to %', s.status;
+  end if;
+  if s.next_retry_on is distinct from (current_date + v_gretry) then
+    raise exception 'BILLING FAIL [s]: a failed grace retry did not re-arm the date (%)',
+      s.next_retry_on;
+  end if;
+  if s.grace_ends_on is distinct from v_ends then
+    raise exception 'BILLING FAIL [s]: a failed grace retry pushed grace from % to % — '
+      'failing to pay would then buy more time to not pay', v_ends, s.grace_ends_on;
+  end if;
+
+  -- Switched OFF, which is what grace_retry_days = 0 means. A null date here must read as
+  -- "do not retry", never as "no reason to wait" — the opposite of what it means on a
+  -- live subscription, and the reason the two arms of that clause are written separately.
+  update billing_subscriptions set next_retry_on = null where id = v_sub;
+  select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [s]: a grace subscription with NO retry date was charged '
+      '(% rows) — with grace_retry_days = 0 that is every night, for the whole grace period', n;
+  end if;
+
+  -- And a DOWNGRADED farm is still never charged automatically. The ladder has to end
+  -- somewhere; from here it is the customer's move, through app.invoice_chargeable_now.
+  update billing_subscriptions set status = 'downgraded', next_retry_on = current_date where id = v_sub;
+  select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [s]: a DOWNGRADED farm is being charged by the nightly pass '
+      '(% rows) — the ladder never ends', n;
+  end if;
+  select count(*) into n from app.invoice_chargeable_now(v_inv);
+  if n <> 1 then
+    raise exception 'BILLING FAIL [s]: and they cannot pay by hand either (% rows)', n;
+  end if;
+
+  raise notice '   grace is retried on its date, not before, and buys no extra time';
+end $$;
+
+-- ── A price rise does not reach a farm that already signed up ───────────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000021';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000021';
+  v_new  uuid := 'b1500000-0000-0000-0000-000000000009';
+  s      public.billing_subscriptions%rowtype;
+  inv    public.billing_invoices%rowtype;
+  n      bigint;
+begin
+  -- Invoice one, at today's price.
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [s]: the grandfathering fixture raised no first invoice';
+  end if;
+  select * into inv from billing_invoices where farm_id = v_farm;
+  if inv.unit_price_incl_cents <> 1234 then
+    raise exception 'BILLING FAIL [s]: the first invoice was raised at %, expected 1234',
+      inv.unit_price_incl_cents;
+  end if;
+
+  -- The first invoice PINS the version. `price_version_label` was already being written
+  -- and read by nothing; the id is what makes it load-bearing.
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.price_version_id is distinct from 'b1500000-0000-0000-0000-000000000001'::uuid then
+    raise exception 'BILLING FAIL [s]: the first invoice did not pin the price version (%)',
+      s.price_version_id;
+  end if;
+
+  -- RAPID RISE RAISES ITS PRICES. `billing_price_versions_active_uq` allows one active row
+  -- per (plan, period), so publishing a new price necessarily retires the old one — which
+  -- is precisely why the old lookup moved every existing customer without being asked to.
+  update billing_price_versions set status = 'retired'
+   where id = 'b1500000-0000-0000-0000-000000000001';
+  insert into billing_price_versions (id, version_label, plan, billing_period,
+    per_vehicle_monthly_incl_cents, months_charged, vat_rate_bps, status)
+  values (v_new, 'b1-raised', 'complete', 'monthly', 9999, 1, 0, 'active');
+
+  -- Next month.
+  update billing_subscriptions set next_billing_on = current_date where id = v_sub;
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [s]: no second invoice after the price rise';
+  end if;
+  select * into inv from billing_invoices
+   where farm_id = v_farm order by period_start desc limit 1;
+
+  if inv.unit_price_incl_cents <> 1234 then
+    raise exception 'BILLING FAIL [s]: an existing farm was repriced from 1234 to % without '
+      'anybody deciding to. Their debit order goes up with no notice and no record of a '
+      'decision.', inv.unit_price_incl_cents;
+  end if;
+  if inv.price_version_label <> 'b1-synthetic' then
+    raise exception 'BILLING FAIL [s]: the invoice says it was priced at version "%" while '
+      'charging the old figure — one of the two is a lie', inv.price_version_label;
+  end if;
+
+  -- NEGATIVE CONTROL. The new price must genuinely be live, or "unchanged" above is a
+  -- statement about a version nobody activated. A brand-new customer pays 9999.
+  insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+    current_period_start, current_period_end, next_billing_on)
+  values ('b1600000-0000-0000-0000-000000000022', 'b1000000-0000-0000-0000-000000000022',
+    'complete', 'monthly', 'active', null, null, current_date);
+  if app.generate_billing_invoices('b1600000-0000-0000-0000-000000000022') <> 1 then
+    raise exception 'BILLING FAIL [s]: the new customer was not invoiced';
+  end if;
+  select * into inv from billing_invoices where farm_id = 'b1000000-0000-0000-0000-000000000022';
+  if inv.unit_price_incl_cents <> 9999 then
+    raise exception 'BILLING FAIL [s]: a NEW customer was charged % rather than the new price '
+      '9999 — the grandfathering assertion above therefore proves nothing',
+      inv.unit_price_incl_cents;
+  end if;
+
+  -- CLEARING the pin must NOT reprice them. This is the case that protects every farm
+  -- that existed before pinning did — Rooikoppies on production has a null pin right
+  -- now — because the price they have been paying is already recorded on their own
+  -- invoices. Pinning them at their next invoice instead would grandfather them onto
+  -- whatever is active THEN, so a price rise published tomorrow would still reach every
+  -- existing customer exactly once, which is the entire thing this is meant to prevent.
+  update billing_subscriptions set price_version_id = null, next_billing_on = current_date
+   where id = v_sub;
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [s]: no invoice after the pin was cleared';
+  end if;
+  select * into inv from billing_invoices
+   where farm_id = v_farm order by period_start desc limit 1;
+  if inv.unit_price_incl_cents <> 1234 then
+    raise exception 'BILLING FAIL [s]: a farm with NO pin was charged % rather than the '
+      '1234 its own invoices show it has been paying. Every customer who predates this migration would be moved onto the new price exactly once.', inv.unit_price_incl_cents;
+  end if;
+  -- And it re-pins from what it charged, so the fallback is needed once and then not.
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.price_version_id is distinct from 'b1500000-0000-0000-0000-000000000001'::uuid then
+    raise exception 'BILLING FAIL [s]: the invoice did not re-pin from the price it actually charged (%)', s.price_version_id;
+  end if;
+
+  -- THE DELIBERATE MOVE. A repricing NAMES the version the farm is going onto, because
+  -- an absence is not a decision — clearing a field is a strange way to say "put them on
+  -- the new price", and it is the shape most likely to happen by accident.
+  update billing_subscriptions set price_version_id = v_new, next_billing_on = current_date
+   where id = v_sub;
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [s]: no invoice after the farm was repriced';
+  end if;
+  select * into inv from billing_invoices
+   where farm_id = v_farm order by period_start desc limit 1;
+  if inv.unit_price_incl_cents <> 9999 then
+    raise exception 'BILLING FAIL [s]: naming the new version did not move the farm onto '
+      'it (charged %) — so there is no way to reprice anybody at all',
+      inv.unit_price_incl_cents;
+  end if;
+
+  raise notice '   an existing farm keeps its price; a new one pays the new one';
+end $$;
+
+-- ── A pin that no longer fits is not honoured ───────────────────────────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000021';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000021';
+  inv    public.billing_invoices%rowtype;
+  s      public.billing_subscriptions%rowtype;
+begin
+  -- The farm moves to professional/annual, whose active synthetic price is 4444 charged
+  -- over 10 months. The pin it is carrying is a complete/monthly version: honouring it
+  -- would charge a price for a plan the farm is not on, which is worse than repricing.
+  update billing_subscriptions
+     set plan = 'professional', billing_period = 'annual', next_billing_on = current_date
+   where id = v_sub;
+
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [s]: no invoice after the plan change';
+  end if;
+  select * into inv from billing_invoices
+   where farm_id = v_farm order by created_at desc, period_start desc limit 1;
+
+  if inv.unit_price_incl_cents <> 4444 or inv.months_charged <> 10 then
+    raise exception 'BILLING FAIL [s]: after moving to professional/annual the farm was '
+      'charged %c over % months, expected 4444 over 10 — a pin for a plan they are no '
+      'longer on was honoured', inv.unit_price_incl_cents, inv.months_charged;
+  end if;
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.price_version_id is distinct from 'b1500000-0000-0000-0000-000000000002'::uuid then
+    raise exception 'BILLING FAIL [s]: the subscription was not re-pinned onto the version it '
+      'was actually charged (%)', s.price_version_id;
+  end if;
+
+  raise notice '   a plan change re-pins rather than charging a price for a plan they left';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
