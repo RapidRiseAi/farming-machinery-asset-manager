@@ -65,6 +65,41 @@ import {
 /** How long a `pending` attempt may live before it is treated as stuck. */
 export const STALE_PENDING_MINUTES = 30;
 
+/**
+ * Settle, and hand back whether it actually worked.
+ *
+ * `settleBillingAttempt` returns `{ error }` and all sixteen call sites in this codebase
+ * ignored it (S6). That matters most in the success branch: settling `succeeded` is the
+ * ONLY thing that inserts a `billing_payments` row, so a failure there means Paystack has
+ * charged the customer's card and FleetWise has recorded nothing — while the worker
+ * returns `succeeded` and the nightly summary calls the pass healthy.
+ *
+ * ── Why the non-success callers deliberately do not act on the return ─────────
+ * A settle that fails leaves the attempt `pending`, and `pending` is precisely what
+ * `reconcileStuckAttempts` collects and resolves by verifying the reference against the
+ * provider. So for `failed`, `abandoned` and `unknown` the recovery is already correct
+ * and unchanged; there is nothing for the caller to decide.
+ *
+ * The success branch is the one where the OUTCOME would otherwise be a lie, so that is
+ * the branch that reads this. Its reason goes into `summary.errors`, which the cron route
+ * already drains into `captureError` — so the case that matters reports itself through
+ * the seam that exists rather than through a new import. This module deliberately pulls
+ * in nothing from Next: `@/lib/observability` requires `server-only`, and importing it
+ * here killed the entire worker test file on load.
+ *
+ * `where` is carried for the same reason the reason string is: so a future caller that
+ * DOES need to report has the context to hand without re-deriving it.
+ */
+async function settleOrReport(
+  supabase: SupabaseClient,
+  input: Parameters<typeof settleBillingAttempt>[1],
+  where: string,
+): Promise<string | null> {
+  const { error } = await settleBillingAttempt(supabase, input);
+  if (!error) return null;
+  return `${where}: ${error.message}`;
+}
+
 /** Why a charge was not attempted. None of these is an error. */
 export type SkipReason =
   | "charging-disabled"
@@ -271,28 +306,28 @@ async function settleChargeResult(
       // Nothing was sent: the kill switch moved, or the provider is unconfigured. The
       // attempt is abandoned rather than left unknown, because an unknown would block
       // every later attempt on this invoice on behalf of a request that never left here.
-      await settleBillingAttempt(supabase, {
+      await settleOrReport(supabase, {
         attemptId,
         status: "abandoned",
         failureReason: reason,
-      });
+      }, "billing:settle-abandoned");
       return { result: "abandoned", invoiceId, attemptId, reason };
     }
     if (input.result.retryable) {
       // We do not know whether Paystack received it. `unknown` is the honest answer and
       // the reconciler resolves it by verifying this exact reference — never by charging.
-      await settleBillingAttempt(supabase, {
+      await settleOrReport(supabase, {
         attemptId,
         status: "unknown",
         failureReason: reason,
-      });
+      }, "billing:settle-unknown");
       return { result: "unknown", invoiceId, attemptId, reason };
     }
-    await settleBillingAttempt(supabase, {
+    await settleOrReport(supabase, {
       attemptId,
       status: "failed",
       failureReason: reason,
-    });
+    }, "billing:settle-failed");
     return { result: "failed", invoiceId, attemptId, reason };
   }
 
@@ -309,53 +344,72 @@ async function settleChargeResult(
       // Field NAMES only. One of the values is an amount of money and another is somebody's
       // farm; neither belongs in a stored reason.
       const reason = `provider success did not match the expected charge: ${match.mismatches.join(", ")}`;
-      await settleBillingAttempt(supabase, {
+      await settleOrReport(supabase, {
         attemptId,
         status: "unknown",
         failureReason: reason,
-      });
+      }, "billing:settle-unknown");
       return { result: "unknown", invoiceId, attemptId, reason };
     }
-    await settleBillingAttempt(supabase, {
-      attemptId,
-      status: "succeeded",
-      transactionId: txn.transactionId || null,
-      providerRef: txn.reference,
-      gatewayResponse: txn.gatewayResponse,
-      paidCents: txn.amountCents,
-      channel: txn.channel,
-    });
+    const unrecorded = await settleOrReport(
+      supabase,
+      {
+        attemptId,
+        status: "succeeded",
+        transactionId: txn.transactionId || null,
+        providerRef: txn.reference,
+        gatewayResponse: txn.gatewayResponse,
+        paidCents: txn.amountCents,
+        channel: txn.channel,
+      },
+      "billing:charge:settle-succeeded",
+    );
+    if (unrecorded) {
+      // The provider took the money and we could not write it down. Reporting
+      // `succeeded` here would be a lie with a number attached, and the invoice would go
+      // on looking unpaid for ever with nobody looking for it.
+      //
+      // `unknown` is the honest word and it is also the useful one: the attempt is still
+      // `pending` in the database, which is exactly what the reconciler collects, so the
+      // next nightly pass verifies this reference against the provider and settles it.
+      return {
+        result: "unknown",
+        invoiceId,
+        attemptId,
+        reason: `charged at the provider but not recorded: ${redactMessage(unrecorded, 200)}`,
+      };
+    }
     return { result: "succeeded", invoiceId, attemptId };
   }
 
   if (txn.status === "pending") {
     const reason = "provider has not resolved this transaction yet";
-    await settleBillingAttempt(supabase, { attemptId, status: "unknown", failureReason: reason });
+    await settleOrReport(supabase, { attemptId, status: "unknown", failureReason: reason }, "billing:settle-unknown");
     return { result: "unknown", invoiceId, attemptId, reason };
   }
 
   if (txn.status === "abandoned") {
     const reason = redactMessage(txn.gatewayResponse ?? "abandoned", 300);
-    await settleBillingAttempt(supabase, {
+    await settleOrReport(supabase, {
       attemptId,
       status: "abandoned",
       transactionId: txn.transactionId || null,
       providerRef: txn.reference,
       gatewayResponse: txn.gatewayResponse,
       failureReason: reason,
-    });
+    }, "billing:settle-abandoned");
     return { result: "abandoned", invoiceId, attemptId, reason };
   }
 
   const reason = redactMessage(txn.gatewayResponse ?? "declined", 300);
-  await settleBillingAttempt(supabase, {
+  await settleOrReport(supabase, {
     attemptId,
     status: "failed",
     transactionId: txn.transactionId || null,
     providerRef: txn.reference,
     gatewayResponse: txn.gatewayResponse,
     failureReason: reason,
-  });
+  }, "billing:settle-failed");
   return { result: "failed", invoiceId, attemptId, reason };
 }
 
@@ -425,6 +479,11 @@ export async function runBillingCharges(
       case "unknown":
         summary.claimed += 1;
         summary.unknown += 1;
+        // An `unknown` is the one outcome that means "we do not know whether the customer
+        // was charged", and it BLOCKS the invoice until somebody or the reconciler settles
+        // it. It belongs in `errors`, which is what the cron route drains into Sentry —
+        // until now it incremented a counter in a JSON body that only Vercel reads.
+        if (outcome.reason) summary.errors.push(outcome.reason);
         break;
       case "abandoned":
         summary.claimed += 1;
@@ -544,11 +603,11 @@ export async function reconcileAttempt(
     // needed hand-written SQL against production, because there is deliberately no admin
     // action that settles an attempt.
     if (verified.retryable === false && verified.answered) {
-      await settleBillingAttempt(supabase, {
+      await settleOrReport(supabase, {
         attemptId: attempt.id,
         status: "abandoned",
         failureReason: reason,
-      });
+      }, "billing:settle-abandoned");
       await noteReconciliation(
         supabase,
         attempt.id,
@@ -559,11 +618,11 @@ export async function reconcileAttempt(
     }
 
     if (attempt.status === "pending") {
-      await settleBillingAttempt(supabase, {
+      await settleOrReport(supabase, {
         attemptId: attempt.id,
         status: "unknown",
         failureReason: reason,
-      });
+      }, "billing:settle-unknown");
     }
     await noteReconciliation(
       supabase,
@@ -585,7 +644,7 @@ export async function reconcileAttempt(
       // happen when the provider is describing a transaction we do not recognise.
       return { result: "refused", attemptId: attempt.id, reason };
     }
-    await settleBillingAttempt(supabase, {
+    await settleOrReport(supabase, {
       attemptId: attempt.id,
       status: "succeeded",
       transactionId: txn.transactionId || null,
@@ -593,7 +652,7 @@ export async function reconcileAttempt(
       gatewayResponse: txn.gatewayResponse,
       paidCents: txn.amountCents,
       channel: txn.channel,
-    });
+    }, "billing:settle-succeeded");
     await captureCardIfOffered(supabase, attempt, txn);
     await noteReconciliation(
       supabase,
@@ -615,18 +674,21 @@ export async function reconcileAttempt(
   }
 
   const status = txn.status === "abandoned" ? "abandoned" : "failed";
-  await settleBillingAttempt(supabase, {
+  await settleOrReport(supabase, {
     attemptId: attempt.id,
     status,
     transactionId: txn.transactionId || null,
     providerRef: txn.reference,
     gatewayResponse: txn.gatewayResponse,
     failureReason: redactMessage(txn.gatewayResponse ?? status, 240),
-  });
+    // A REVERSAL settles as `failed` — the money came back, so the invoice is not paid —
+    // but must not dun the farm. Their card worked; we or their bank sent it back.
+    dun: !txn.reversed,
+  }, "billing:settle-unknown");
   await noteReconciliation(
     supabase,
     attempt.id,
-    `provider reports ${status}`,
+    txn.reversed ? "provider reports the payment was REVERSED" : `provider reports ${status}`,
     attempt.reconcile_note,
   );
   return { result: status, attemptId: attempt.id };

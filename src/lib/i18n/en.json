@@ -794,7 +794,9 @@
     "tplBillingGraceEnding": "Your FleetWise subscription is unpaid. If it is not settled by {date} your plan will be reduced. Nothing will be deleted.",
     "tplBillingGraceEndingSoon": "Your FleetWise subscription is unpaid and your plan will be reduced soon. Nothing will be deleted.",
     "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted — pay to get it back.",
-    "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment."
+    "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
+    "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
+    "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). The invoice in FleetWise still reads as paid — check whether the plan and the ledger should change."
   },
   "settings": {
     "title": "Settings",

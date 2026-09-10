@@ -794,7 +794,9 @@
     "tplBillingGraceEnding": "Jou FleetWise-intekening is onbetaald. As dit nie teen {date} vereffen is nie, sal jou pakket verminder word. Niks sal uitgevee word nie.",
     "tplBillingGraceEndingSoon": "Jou FleetWise-intekening is onbetaald en jou pakket sal binnekort verminder word. Niks sal uitgevee word nie.",
     "tplBillingDowngraded": "Jou pakket is na {plan} verminder omdat die intekening onbetaald is. Niks is uitgevee nie — betaal om dit terug te kry.",
-    "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling."
+    "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling.",
+    "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
+    "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). Die faktuur in FleetWise lees steeds as betaald — gaan na of die plan en die grootboek moet verander."
   },
   "settings": {
     "title": "Instellings",

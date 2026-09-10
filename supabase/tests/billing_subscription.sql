@@ -1270,7 +1270,7 @@ declare
     'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
     'release_billing_failure_notice','invoice_chargeable_now',
     'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
-    'apply_pending_plan_changes','billing_guard_farm_plan'];
+    'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1285,7 +1285,7 @@ declare
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
     'billing_release_failure_notice','billing_invoice_chargeable_now',
-    'billing_plan_quote','billing_change_plan'];
+    'billing_plan_quote','billing_change_plan','billing_notify_rr'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1547,7 +1547,7 @@ begin
     select * from (values
       ('billing_due_charges',        'p_limit integer'),
       ('billing_claim_charge',       'p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint'),
-      ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text'),
+      ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text, p_dun boolean'),
       ('billing_generate_invoices',  'p_only uuid'),
       ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer'),
       ('billing_receipts_due',         'p_limit integer'),
@@ -1559,7 +1559,8 @@ begin
       -- the automatic one, so the nightly cadence cannot be relaxed by accident.
       ('billing_invoice_chargeable_now', 'p_invoice uuid'),
       ('billing_plan_quote',  'p_sub uuid, p_plan farm_plan, p_period billing_period'),
-      ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period')
+      ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period'),
+      ('billing_notify_rr',   'p_farm uuid, p_template text, p_payload jsonb')
     ) as t(fn, args)
   loop
     select p.oid into v_oid
@@ -2134,7 +2135,9 @@ do $$
 declare
   v_known text[] := array[
     'billing_payment_failed', 'billing_grace_ending',
-    'billing_downgraded', 'billing_card_expiring'
+    'billing_downgraded', 'billing_card_expiring',
+    -- Addressed to Rapid Rise rather than the farm (20260910200000).
+    'billing_dispute', 'billing_refund'
   ];
   v_sub uuid := 'b1600000-0000-0000-0000-000000000009';
   r record; n integer;
@@ -3567,6 +3570,252 @@ begin
   end if;
 
   raise notice '   nothing unpayable is ever raised, and an ended subscription is not revived';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (u) Registering for VAT, and a reversal that is not a decline
+--
+-- S4. `app.billing_force_vat_rate` runs BEFORE INSERT OR UPDATE on billing_invoices and
+-- stamps the seller's VAT number onto any row that has none. On an insert that is right.
+-- On an UPDATE to an invoice raised BEFORE Rapid Rise registered — every one of which has
+-- `seller_vat_number` null by design — it changes a field inside the frozen pricing
+-- snapshot, and `c_billing_invoices_freeze` (which sorts after the `a_` guard) raises.
+--
+-- The cost is not cosmetic. `app.billing_rollup_invoice_payments` updates the invoice when
+-- a payment is recorded, so the first payment against any pre-registration invoice after
+-- registering aborted the whole transaction — the one that inserted the payment row and
+-- settled the attempt. Paystack had the money and FleetWise had nothing.
+--
+-- §(h2) already asserted that registering restates no historical invoice. It asserted the
+-- VALUES and never that a later write to such an invoice survives, which is the gap this
+-- section closes.
+--
+-- And: `mapStatus` folds Paystack's `reversed` into `failed`, correctly — the money came
+-- back, so the invoice is not paid. But `failed` is also what starts the dunning ladder,
+-- and a reversal is our refund or a chargeback: the customer's card worked perfectly.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- The first fixture user in this suite who is not attached to a farm. Nothing in
+-- billing had ever addressed Rapid Rise before; every alert went to a farm's owners.
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-00000000000a', 'billing.rr@example.invalid');
+
+insert into users (id, farm_id, workshop_id, role, name, email, active) values
+  ('b1a00000-0000-0000-0000-00000000000a', null, null, 'rr_admin',
+   'Billing Rapid Rise', 'billing.rr@example.invalid', true);
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000030', 'Billing Farm VAT', 'complete', 'active', 'monthly', 'vat@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000301', 'b1000000-0000-0000-0000-000000000030', 'VAT Tractor', 'tractor', 'hours', 'active');
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-000000000030',
+   'complete', 'monthly', 'active', current_date, current_date + 29, current_date + 30);
+
+insert into billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('b1700000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-000000000030',
+   'AUTH_b30', 'vat@billing.invalid', 'visa', '3030', '12', '2030', true, true, 'active');
+
+update billing_subscriptions set default_payment_method_id = 'b1700000-0000-0000-0000-000000000030'
+ where id = 'b1600000-0000-0000-0000-000000000030';
+
+-- Raised while NOT registered: vat_rate_bps 0, seller_vat_number null. That null is the
+-- whole problem — it is what the guard reaches for on every later update.
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('b1800000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-000000000030',
+  'b1600000-0000-0000-0000-000000000030', 'B30-INV-0001', 'draft',
+  current_date, current_date + 29, current_date, current_date,
+  'complete', 'monthly', 1, 5000, 1, 'b1500000-0000-0000-0000-000000000012', 'b1-t', 0);
+
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('b1800000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-000000000030', 0,
+  'FleetWise complete — 1 vehicle(s)', 1, 1, 5000, 5000, 5000, 0);
+
+update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000030';
+
+do $$
+declare
+  v_inv  uuid := 'b1800000-0000-0000-0000-000000000030';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000030';
+  inv    public.billing_invoices%rowtype;
+  v_was_registered boolean;
+  v_was_number     text;
+  n      bigint;
+  v_raised boolean := false;
+begin
+  raise notice '── BILLING (u): registering for VAT, and a reversal ─────────────';
+
+  select vat_registered, vat_number into v_was_registered, v_was_number
+    from billing_settings where singleton;
+
+  select * into inv from billing_invoices where id = v_inv;
+  if inv.seller_vat_number is not null or inv.vat_rate_bps <> 0 then
+    raise exception 'BILLING FAIL [u]: the fixture is not a pre-registration invoice (% / %)',
+      inv.seller_vat_number, inv.vat_rate_bps;
+  end if;
+
+  -- RAPID RISE REGISTERS FOR VAT.
+  update billing_settings set vat_registered = true, vat_number = '4991234567' where singleton;
+
+  -- The moment that used to abort: recording a payment against that old invoice. The
+  -- rollup updates the invoice, the guard stamps the VAT number onto it, and the freeze
+  -- raises — taking the payment row and the attempt settlement down with it.
+  begin
+    insert into billing_payments (farm_id, invoice_id, amount_incl_cents,
+      provider, provider_reference, provider_transaction_id, channel)
+    values (v_farm, v_inv, 5000, 'paystack', 'B30-PAY-0001', 830000001, 'card');
+  exception when others then
+    raise exception 'BILLING FAIL [u]: recording a payment against a pre-registration '
+      'invoice failed after registering for VAT (%). Paystack has the money; FleetWise '
+      'records nothing, and the attempt stays in flight.', sqlerrm;
+  end;
+
+  select count(*) into n from billing_payments where invoice_id = v_inv;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [u]: the payment was not recorded (% rows)', n;
+  end if;
+
+  -- And registering restated nothing. §(h2) asserts this for values that are never
+  -- written again; this asserts it survives a write.
+  select * into inv from billing_invoices where id = v_inv;
+  if inv.seller_vat_number is not null then
+    raise exception 'BILLING FAIL [u]: an invoice issued before registration now carries the '
+      'VAT number % — a customer''s copy from last year would restate itself', inv.seller_vat_number;
+  end if;
+  if inv.vat_rate_bps <> 0 then
+    raise exception 'BILLING FAIL [u]: a pre-registration invoice now charges VAT at %', inv.vat_rate_bps;
+  end if;
+  if inv.status <> 'paid' then
+    raise exception 'BILLING FAIL [u]: the invoice is % rather than paid', inv.status;
+  end if;
+
+  -- NEGATIVE CONTROL. The freeze must still bite: skipping the stamp must not have turned
+  -- into "the VAT fields on an issued invoice are editable". Making tampering LOUD is that
+  -- trigger's entire job.
+  begin
+    update billing_invoices set vat_rate_bps = 1500 where id = v_inv;
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [u]: the VAT rate on an ISSUED invoice was editable — the '
+      'guard stopped stamping and took the freeze with it';
+  end if;
+
+  -- And the guard still does its job on an INSERT: a new invoice raised now DOES carry
+  -- the number. Otherwise "it stopped stamping" would be the whole story.
+  insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+    period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+    unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+  values ('b1800000-0000-0000-0000-000000000031', v_farm,
+    'b1600000-0000-0000-0000-000000000030', 'B30-INV-0002', 'draft',
+    current_date + 30, current_date + 59, current_date + 30, current_date + 30,
+    'complete', 'monthly', 1, 5000, 1, 'b1500000-0000-0000-0000-000000000012', 'b1-t', 1500);
+  select * into inv from billing_invoices where id = 'b1800000-0000-0000-0000-000000000031';
+  if inv.seller_vat_number is distinct from '4991234567' then
+    raise exception 'BILLING FAIL [u]: a NEW invoice raised after registering does not carry '
+      'the VAT number (%) — the guard has stopped working entirely', inv.seller_vat_number;
+  end if;
+
+  -- Put the settings back, so nothing after this inherits a registration this section
+  -- invented.
+  update billing_settings set vat_registered = v_was_registered, vat_number = v_was_number
+   where singleton;
+
+  raise notice '   a payment lands on a pre-registration invoice, and nothing is restated';
+end $$;
+
+-- ── A reversal settles the attempt without dunning the customer ─────────────
+do $$
+declare
+  v_inv  uuid := 'b1800000-0000-0000-0000-000000000031';
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000030';
+  v_att  uuid;
+  s0     public.billing_subscriptions%rowtype;
+  s1     public.billing_subscriptions%rowtype;
+begin
+  update billing_invoices set status = 'open' where id = v_inv;
+  select * into s0 from billing_subscriptions where id = v_sub;
+
+  -- The provider says this transaction was REVERSED. The invoice is not paid — that part
+  -- is unchanged — but their card worked, and walking them towards a downgrade for a
+  -- refund we issued is both wrong and the kind of thing that gets talked about.
+  v_att := app.claim_billing_charge(v_inv, 'B30-REF-REVERSED', 'charge_authorization', 5000);
+  if v_att is null then
+    raise exception 'BILLING FAIL [u]: could not claim a charge to reverse';
+  end if;
+  perform app.settle_billing_attempt(v_att, 'failed', null, null, null,
+                                     'reversed at the provider', null, null, false);
+
+  select * into s1 from billing_subscriptions where id = v_sub;
+  if s1.status <> s0.status or s1.failed_attempt_count <> s0.failed_attempt_count
+     or s1.next_retry_on is distinct from s0.next_retry_on then
+    raise exception 'BILLING FAIL [u]: a REVERSAL walked the farm from %/% to %/% down the '
+      'dunning ladder. Their card worked; we sent the money back.',
+      s0.status, s0.failed_attempt_count, s1.status, s1.failed_attempt_count;
+  end if;
+
+  -- NEGATIVE CONTROL. A real decline must still dun, or the assertion above is a statement
+  -- about dunning being broken rather than about the reversal being handled.
+  v_att := app.claim_billing_charge(v_inv, 'B30-REF-DECLINE', 'charge_authorization', 5000);
+  perform app.settle_billing_attempt(v_att, 'failed', null, null, null, 'Insufficient funds');
+  select * into s1 from billing_subscriptions where id = v_sub;
+  if s1.status <> 'past_due' or s1.failed_attempt_count <> s0.failed_attempt_count + 1 then
+    raise exception 'BILLING FAIL [u]: a real decline left the subscription at %/% — the '
+      'reversal assertion above therefore proves nothing',
+      s1.status, s1.failed_attempt_count;
+  end if;
+
+  raise notice '   a reversal settles the attempt and leaves the customer alone';
+end $$;
+
+-- ── Rapid Rise is told when money goes back, or is being taken back ─────────
+do $$
+declare
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000030';
+  n0 bigint; n1 bigint; v_sent integer;
+begin
+  -- A dispute and a refund were `outcome: "ignored"` — recorded in billing_webhook_events,
+  -- because every signed delivery is, and then nothing. South Africa gives roughly 48
+  -- BUSINESS HOURS to answer a dispute before Paystack accepts it for us and takes the
+  -- money out of a payout, so silence is expensive.
+  select count(*) into n0 from notifications where template like 'billing_dispute%';
+
+  v_sent := app.notify_rr_billing(v_farm, 'billing_dispute',
+    jsonb_build_object('event', 'charge.dispute.create', 'amount_incl_cents', 5000));
+
+  select count(*) into n1 from notifications where template like 'billing_dispute%';
+  if v_sent < 1 or n1 <= n0 then
+    raise exception 'BILLING FAIL [u]: a dispute alerted % administrator(s) and wrote % rows. '
+      'A clock nobody can see is a clock that always runs out.', v_sent, n1 - n0;
+  end if;
+
+  -- Addressed to RAPID RISE, not to the farm. A dispute is our problem, and telling the
+  -- farmer their payment is disputed is both useless to them and alarming.
+  if exists (
+    select 1 from notifications n
+      join users u on u.id = n.user_id
+     where n.template = 'billing_dispute' and u.role <> 'rr_admin'
+  ) then
+    raise exception 'BILLING FAIL [u]: a dispute alert was addressed to somebody who is not '
+      'a Rapid Rise administrator';
+  end if;
+
+  -- An event we cannot place against a farm is not an alert: notifications.farm_id is NOT
+  -- NULL, so a null farm would raise rather than warn anybody.
+  if app.notify_rr_billing(null, 'billing_dispute', '{}'::jsonb) <> 0 then
+    raise exception 'BILLING FAIL [u]: an unplaceable event claimed to have alerted somebody';
+  end if;
+
+  raise notice '   a dispute reaches Rapid Rise, and only Rapid Rise';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;

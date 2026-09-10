@@ -171,6 +171,18 @@ function mapStatus(raw: unknown): VerifiedTransaction["status"] {
 }
 
 /**
+ * Did the provider actually say `reversed`?
+ *
+ * `mapStatus` folds it into `failed` and that fold is right for the INVOICE. It is wrong
+ * for the CUSTOMER: `failed` is what `app.settle_billing_attempt` reads as a decline, and
+ * a decline starts the retry ladder. A reversal means their card worked and somebody sent
+ * the money back, so this keeps the fact the fold loses.
+ */
+function isReversed(raw: unknown): boolean {
+  return (str(raw) ?? "").toLowerCase() === "reversed";
+}
+
+/**
  * An authorization is accepted ONLY when Paystack says it may be charged again.
  *
  * A one-off authorization (some 3DS flows, some cards) comes back `reusable: false`.
@@ -216,6 +228,7 @@ export function toVerifiedTransaction(data: Record<string, unknown>): VerifiedTr
     reference: str(data.reference) ?? "",
     transactionId: Number.isSafeInteger(idRaw) && idRaw > 0 ? idRaw : 0,
     status: mapStatus(data.status),
+    reversed: isReversed(data.status),
     amountCents: Number.isSafeInteger(amountRaw) ? amountRaw : 0,
     currency: (str(data.currency) ?? "").toUpperCase(),
     channel: str(data.channel),

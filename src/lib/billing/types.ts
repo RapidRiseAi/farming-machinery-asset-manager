@@ -150,6 +150,15 @@ export type VerifiedTransaction = {
    * rather than the refusal being silently invisible.
    */
   authorizationRefused?: "not_reusable" | null;
+  /**
+   * True when the provider's own word was `reversed`.
+   *
+   * `status` folds that into `failed`, because an invoice whose money came back is not
+   * paid. But a reversal is OUR refund or a chargeback — the customer's card worked — and
+   * `failed` is also what starts the dunning ladder. Keeping the distinction here is what
+   * lets the settle suppress the dunning without changing the invoice treatment.
+   */
+  reversed?: boolean;
   metadata: Record<string, unknown>;
 };
 

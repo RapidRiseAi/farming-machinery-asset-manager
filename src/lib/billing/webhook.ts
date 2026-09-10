@@ -52,6 +52,7 @@ import type { SaasBillingProvider, VerifiedTransaction } from "./types";
 import {
   finishWebhookEvent,
   getAttemptByReference,
+  notifyRapidRise,
   recordWebhookEvent,
   redactMessage,
   settleBillingAttempt,
@@ -72,6 +73,48 @@ export const WEBHOOK_PROVIDER = "paystack";
  */
 const SUCCESS_EVENTS = new Set(["charge.success", "transaction.success"]);
 const FAILURE_EVENTS = new Set(["charge.failed", "invoice.payment_failed"]);
+
+/**
+ * Events that mean money is going back, or is being taken back.
+ *
+ * These were `outcome: "ignored"` — recorded, like every signed delivery, and then nothing.
+ *
+ * A DISPUTE is the urgent one. South Africa gives roughly 48 BUSINESS HOURS to respond
+ * before Paystack accepts the dispute on our behalf and takes the amount out of a payout.
+ * A clock nobody can see is a clock that always runs out, so this alerts Rapid Rise
+ * immediately and without quiet hours.
+ *
+ * A REFUND is not urgent but it is a ledger fact: the invoice still reads `paid` and the
+ * farm still has its plan. What a refund SHOULD do to both is a founder decision and is
+ * deliberately not made here — being told is the part with no downside.
+ */
+const DISPUTE_EVENTS = new Set([
+  "charge.dispute.create",
+  "charge.dispute.remind",
+  "charge.dispute.resolve",
+]);
+const REFUND_EVENTS = new Set([
+  "refund.pending",
+  "refund.processing",
+  "refund.processed",
+  "refund.failed",
+]);
+
+/**
+ * The reference a dispute or refund event is about.
+ *
+ * Paystack does not put it in the same place for every family: a charge event carries
+ * `data.reference`, while dispute and refund payloads nest the transaction. All three
+ * shapes are read rather than guessed at, and an event we cannot place is alerted anyway
+ * with whatever it did carry — a dispute nobody can match is still a dispute.
+ */
+function relatedReference(data: Record<string, unknown>): string | null {
+  const direct = asString(data.reference);
+  if (direct) return direct;
+  const nested = isObject(data.transaction) ? asString(data.transaction.reference) : null;
+  if (nested) return nested;
+  return asString(data.transaction_reference);
+}
 
 export type WebhookResult =
   /** Nothing was recorded and nothing happened. */
@@ -183,6 +226,44 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
     // about our own integration, not noise) and refused.
     await finishWebhookEvent(supabase, record.id, { error: "payload was not valid JSON" });
     return { status: 200, outcome: "refused", reason: "malformed payload", eventType };
+  }
+
+  // Money going the other way. Nothing in the ledger moves here — see the note on
+  // DISPUTE_EVENTS — but somebody is told, which is what was missing.
+  if (DISPUTE_EVENTS.has(eventType) || REFUND_EVENTS.has(eventType)) {
+    const data = isObject(parsed) && isObject(parsed.data) ? parsed.data : {};
+    const reference = relatedReference(data);
+    const attempt = reference ? await getAttemptByReference(supabase, reference) : null;
+
+    const alerted = attempt
+      ? await notifyRapidRise(supabase, {
+          farmId: attempt.farm_id,
+          template: DISPUTE_EVENTS.has(eventType) ? "billing_dispute" : "billing_refund",
+          payload: {
+            event: eventType,
+            reference: reference ?? null,
+            invoice_id: attempt.invoice_id,
+            amount_incl_cents: attempt.amount_incl_cents,
+          },
+        })
+      : 0;
+
+    await finishWebhookEvent(supabase, record.id, {
+      // Not an error in the sense of "we failed" — but an event we could not place against
+      // a farm is one nobody can act on, and it must not read as handled.
+      error: attempt ? null : "no payment attempt matches this reference",
+      farmId: attempt?.farm_id,
+      invoiceId: attempt?.invoice_id,
+      attemptId: attempt?.id,
+    });
+    return {
+      status: 200,
+      outcome: attempt ? "processed" : "refused",
+      reason: attempt
+        ? `alerted ${alerted} administrator(s)`
+        : "could not match this event to a payment we made",
+      eventType,
+    };
   }
 
   const actionable = SUCCESS_EVENTS.has(eventType) || FAILURE_EVENTS.has(eventType);

@@ -192,6 +192,20 @@ export function formatNotification(
         card: `${String(p.card_brand ?? "").toUpperCase()} ${String(p.last4 ?? "")}`.trim(),
         date: p.expires_on ? shortDate(String(p.expires_on), locale) : "",
       });
+    // ── Addressed to Rapid Rise, not to the farm ───────────────────────────
+    // A dispute carries roughly 48 BUSINESS HOURS before Paystack accepts it on our
+    // behalf and takes the amount out of a payout, so the deadline is in the sentence
+    // rather than left for the reader to already know.
+    case "billing_dispute":
+      return fill("notifications.tplBillingDispute", locale, {
+        amount: rands(Number(p.amount_incl_cents ?? 0)),
+        event: String(p.event ?? ""),
+      });
+    case "billing_refund":
+      return fill("notifications.tplBillingRefund", locale, {
+        amount: rands(Number(p.amount_incl_cents ?? 0)),
+        event: String(p.event ?? ""),
+      });
     default:
       return template;
   }
@@ -251,7 +265,11 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   if (template === "stock_short") return "/parts#next";
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
-  // Every billing alert is about the same one page, and it is not a machine.
+  // Disputes and refunds are addressed to Rapid Rise, whose billing screen is a different
+  // one — sending an rr_admin to a farm's own /billing page would show them nothing they
+  // can act on.
+  if (template === "billing_dispute" || template === "billing_refund") return "/admin/billing";
+  // Every other billing alert is about the same one page, and it is not a machine.
   if (template.startsWith("billing_")) return "/billing";
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";

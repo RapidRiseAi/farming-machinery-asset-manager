@@ -972,3 +972,79 @@ test("a manual retry is still refused with charging switched off", async () => {
   assert.equal(outcome.reason, "charging-disabled");
   assert.equal(rpcCalls.length, 0, "the switch is checked before any database call");
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Charged, and not recorded
+//
+// `settleBillingAttempt` returns `{ error }` and all sixteen call sites ignored it (S6).
+// The one that costs money is the success branch: settling `succeeded` is the ONLY thing
+// that inserts a `billing_payments` row, so if that RPC fails the provider has taken the
+// customer's money and FleetWise has recorded nothing — while the worker returns
+// `succeeded` and the nightly summary calls the pass healthy.
+//
+// The recovery already existed: a failed settle leaves the attempt `pending`, which is
+// what the reconciler collects. What was missing was an outcome that told the truth.
+// ═════════════════════════════════════════════════════════════════════════════
+
+test("a charge the provider took but we could not record is never reported as succeeded", async () => {
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      return { ok: true, transaction: txn({ reference: req.reference }) };
+    },
+  });
+
+  const { client, rpcCalls } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) => {
+      if (name === "billing_claim_charge") return { data: ATTEMPT, error: null };
+      // The settle fails. Everything before it succeeded, including the charge.
+      if (name === "billing_settle_attempt") {
+        return { data: null, error: { message: "could not reach the database", code: "08006" } };
+      }
+      return { data: null, error: null };
+    },
+  });
+
+  const outcome = await chargeOneInvoice(client, provider, due());
+
+  assert.notEqual(
+    outcome.result,
+    "succeeded",
+    "the provider took the money and nothing was written down — reporting success here is a lie with a number attached",
+  );
+  assert.equal(outcome.result, "unknown");
+  assert.match(String(outcome.reason), /not recorded/i);
+  // The attempt therefore stays as the claim left it, which is exactly what
+  // reconcileStuckAttempts collects — so the next pass verifies this reference and settles it.
+  assert.equal(settleCalls(rpcCalls).length, 1, "it tried once and did not retry blindly");
+});
+
+test("a pass containing an unrecorded charge does not count it as succeeded", async () => {
+  // The summary is what the cron route turns into a Sentry report and a status line. If it
+  // counts this as a success, nobody ever looks.
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      return { ok: true, transaction: txn({ reference: req.reference }) };
+    },
+  });
+  const { client } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) => {
+      if (name === "billing_due_charges") return { data: [due()], error: null };
+      if (name === "billing_claim_charge") return { data: ATTEMPT, error: null };
+      if (name === "billing_settle_attempt") {
+        return { data: null, error: { message: "could not reach the database", code: "08006" } };
+      }
+      return { data: null, error: null };
+    },
+  });
+
+  const summary = await runBillingCharges(client, { provider });
+
+  assert.equal(summary.succeeded, 0, "an unrecorded charge is not a success");
+  assert.equal(summary.unknown, 1);
+  assert.ok(
+    summary.errors.some((e) => /not recorded/i.test(e)),
+    "the reason must reach summary.errors, which is what the cron route reports to Sentry",
+  );
+});

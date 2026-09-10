@@ -52,6 +52,8 @@ export const BILLING_RPC = {
   // price a change on somebody else's subscription and learn their fleet size on the way.
   planQuote: "billing_plan_quote",
   changePlan: "billing_change_plan",
+  // Disputes and refunds, addressed to Rapid Rise rather than the farm (20260910200000).
+  notifyRr: "billing_notify_rr",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -132,6 +134,12 @@ export type SettleInput = {
   failureReason?: string | null;
   paidCents?: number | null;
   channel?: string | null;
+  /**
+   * Whether a `failed` settle should start the dunning ladder. False for a REVERSAL: the
+   * money came back so the invoice is not paid, but the customer's card worked and they
+   * must not be walked towards a downgrade for a refund we issued (20260910200000).
+   */
+  dun?: boolean;
 };
 
 /** Anything this layer can return instead of throwing. */
@@ -305,6 +313,7 @@ export async function settleBillingAttempt(
     p_failure_reason: input.failureReason ? redactMessage(input.failureReason, 300) : null,
     p_paid_cents: input.paidCents ?? null,
     p_channel: input.channel ?? null,
+    p_dun: input.dun ?? true,
   });
   if (error) return { error: { message: redactMessage(error.message), code: error.code } };
   return { error: null };
@@ -1020,6 +1029,31 @@ export async function resumeSubscription(
     .is("ended_on", null);
   if (error) return { error: { message: redactMessage(error.message), code: error.code } };
   return { error: null };
+}
+
+/**
+ * Tell Rapid Rise something about a farm's billing that only they can act on.
+ *
+ * Shaped like `app.notify_farm` and landing in the same alert centre, but addressed to
+ * the rr_admins rather than the farm's owners and managers: a dispute or a refund is our
+ * problem, not the farmer's. No quiet hours either — a dispute carries roughly 48 business
+ * hours, and holding the alert until 07:00 spends part of a clock that cannot be paused.
+ *
+ * A failure to alert is deliberately NOT thrown. The webhook has to answer 200: Paystack
+ * retries anything else for 72 hours, and our failing to raise an in-app notice is not a
+ * reason to be sent the same dispute forty times.
+ */
+export async function notifyRapidRise(
+  supabase: SupabaseClient,
+  input: { farmId: string; template: string; payload: Record<string, unknown> },
+): Promise<number> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.notifyRr, {
+    p_farm: input.farmId,
+    p_template: input.template,
+    p_payload: input.payload,
+  });
+  if (error) return 0;
+  return typeof data === "number" ? data : 0;
 }
 
 /** What a plan change would do, and cost, before anybody commits to it. */
