@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { vehicleSlotsFree } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -329,6 +330,18 @@ export async function syncClientVehicles(formData: FormData) {
     id: string; name: string; make: string | null; model: string | null;
     reg_no: string | null; serial_no: string | null; year: number | null; notes: string | null;
   }[];
+
+  // The farm's vehicle ceiling applies here too, and this is the path where the wording
+  // matters most: the person pressing the button is the CONTRACTOR, who is not the one
+  // paying and cannot fix it. "Upgrade your plan" would be nonsense to them.
+  //
+  // Refused before any copy, because a partial sync is the worst outcome — `synced_at`
+  // closes the offer, so the farmer would be left with half a fleet and the contractor
+  // with no way to finish it.
+  const slotsFree = await vehicleSlotsFree(supabase, client.farm_id);
+  if (slotsFree !== null && vehicles.length > slotsFree) {
+    redirect(`/contractor/clients/${clientId}?error=vehicle-limit-client`);
+  }
 
   let copied = 0;
   let failed = 0;

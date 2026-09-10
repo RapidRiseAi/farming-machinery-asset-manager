@@ -3947,7 +3947,10 @@
     "billingAlreadySubscribed": "Daardie plaas het reeds 'n intekening.",
     "billingBadPlan": "Kies 'n geldige pakket.",
     "billingBadPeriod": "Kies maandeliks of jaarliks.",
-    "billingBadTrial": "Proefdae moet 'n heelgetal tussen 0 en 365 wees."
+    "billingBadTrial": "Proefdae moet 'n heelgetal tussen 0 en 365 wees.",
+    "vehicleLimitReached": "Jy het elke voertuigplek op jou plan gebruik. Voeg meer plekke by op die rekeningskerm, of tree 'n voertuig af wat jy nie meer gebruik nie.",
+    "vehicleLimitImport": "Daardie lêer het meer voertuie as die plekke wat jy oor het, so niks is ingevoer nie. Voeg plekke by op die rekeningskerm, of voer minder rye in.",
+    "vehicleLimitClient": "Hierdie plaas het elke voertuigplek op sy plan gebruik, so niks is gekopieer nie. Vra hulle om plekke by te voeg voordat jy weer sinkroniseer."
   },
   "billing": {
     "title": "Rekening",

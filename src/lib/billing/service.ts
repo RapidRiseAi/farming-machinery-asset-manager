@@ -54,6 +54,9 @@ export const BILLING_RPC = {
   changePlan: "billing_change_plan",
   // Disputes and refunds, addressed to Rapid Rise rather than the farm (20260910200000).
   notifyRr: "billing_notify_rr",
+  // How many vehicle slots are left (20260910230000). The only wrapper here a signed-in
+  // user may call — see the v_pub_auth_ok note in the suite's section (j).
+  vehicleAllowance: "farm_vehicle_allowance",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -1029,6 +1032,60 @@ export async function resumeSubscription(
     .is("ended_on", null);
   if (error) return { error: { message: redactMessage(error.message), code: error.code } };
   return { error: null };
+}
+
+/** How many vehicle slots a farm has, and how many are left. */
+export type VehicleAllowance = {
+  /** FALSE means no quota was ever bought: no ceiling, and `remaining` is meaningless. */
+  enforced: boolean;
+  quota: number | null;
+  used: number;
+  remaining: number | null;
+};
+
+/**
+ * Ask how much room a farm has left for another vehicle.
+ *
+ * This is NOT the guarantee. `app.billing_enforce_vehicle_quota` is a trigger on
+ * `machines`, so the ceiling holds for every creation path — including ones nobody has
+ * written yet — and cannot be raced by two tabs adding the same vehicle. This exists so
+ * the refusal is a sentence a farmer can act on instead of a Postgres error, and if the
+ * two ever disagree the trigger wins.
+ *
+ * Returns null when the answer cannot be established, and callers treat that as "do not
+ * block": refusing a farmer because a read failed would be the wrong way to be careful.
+ */
+export async function vehicleAllowance(
+  supabase: SupabaseClient,
+  farmId: string,
+): Promise<VehicleAllowance | null> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.vehicleAllowance, { p_farm: farmId });
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  return {
+    enforced: r.enforced === true,
+    quota: typeof r.quota === "number" ? r.quota : null,
+    used: typeof r.used === "number" ? r.used : 0,
+    remaining: typeof r.remaining === "number" ? r.remaining : null,
+  };
+}
+
+/**
+ * How many more vehicles this farm may add, or null when there is no ceiling.
+ *
+ * Reads `enforced` rather than `remaining`, deliberately. A caller that tested
+ * `remaining <= 0` would block every farm that never bought a quota — which is every farm
+ * that existed before the quota model, and every farm an administrator creates.
+ */
+export async function vehicleSlotsFree(
+  supabase: SupabaseClient,
+  farmId: string,
+): Promise<number | null> {
+  const a = await vehicleAllowance(supabase, farmId);
+  if (!a || !a.enforced) return null;
+  return a.remaining ?? 0;
 }
 
 /**

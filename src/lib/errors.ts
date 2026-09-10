@@ -132,6 +132,13 @@ const CODE_KEYS: Record<string, string> = {
   // so each of these answers it.
   "billing-unavailable": "errors.billingUnavailable",
   "billing-site-url-missing": "errors.billingUnavailable",
+  // The vehicle ceiling (20260910230000). Three codes rather than one, because the person
+  // reading them is different each time: the owner adding a vehicle can buy more slots,
+  // the owner importing a sheet needs to know the whole file was refused, and the
+  // CONTRACTOR cannot fix it at all and must be told whose limit it is.
+  "vehicle-limit-reached": "errors.vehicleLimitReached",
+  "vehicle-limit-import": "errors.vehicleLimitImport",
+  "vehicle-limit-client": "errors.vehicleLimitClient",
   "billing-no-subscription": "errors.billingNoSubscription",
   "billing-nothing-due": "errors.billingNothingDue",
   "billing-in-flight": "errors.billingInFlight",

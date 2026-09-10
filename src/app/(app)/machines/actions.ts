@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { vehicleSlotsFree } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
@@ -94,6 +95,19 @@ export async function createMachine(formData: FormData) {
   const current_reading = numOrNull(formData, "current_reading");
 
   const supabase = await createClient();
+
+  // The ceiling. The GUARANTEE is the trigger on `machines` (20260910230000) — it covers
+  // every creation path, including ones nobody has written yet, and cannot be raced by two
+  // tabs adding the same vehicle. This is here only so the refusal is a sentence a farmer
+  // can act on rather than a Postgres check_violation.
+  //
+  // `null` means there is no ceiling on this farm (no quota was ever bought), which is
+  // every farm that predates the quota model. It must never be read as "no room".
+  const free = await vehicleSlotsFree(supabase, profile.farm_id);
+  if (free !== null && free < 1) {
+    redirect("/machines/new?error=vehicle-limit-reached");
+  }
+
   const assigned_operator_id = await validOperatorId(supabase, profile.farm_id, str(formData, "assigned_operator_id"));
   const { data, error } = await supabase
     .from("machines")
@@ -253,6 +267,16 @@ export async function importMachines(formData: FormData) {
 
   const today = new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
+
+  // Refused BEFORE a single row is written. The trigger would abort the whole insert
+  // anyway — which is what makes an import all-or-nothing rather than a fleet that
+  // silently stops at the limit — but "50 rows into 10 free slots" is a different quality
+  // of answer from a constraint violation. Same rule read the same way: null is "no
+  // ceiling", not "no room".
+  const slotsFree = await vehicleSlotsFree(supabase, profile.farm_id);
+  if (slotsFree !== null && valid.length > slotsFree) {
+    redirect("/machines/import?error=vehicle-limit-import");
+  }
   const { error } = await supabase.from("machines").insert(
     valid.map((m) => ({
       farm_id: profile.farm_id,

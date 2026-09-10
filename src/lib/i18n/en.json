@@ -3947,7 +3947,10 @@
     "billingAlreadySubscribed": "That farm already has a subscription.",
     "billingBadPlan": "Choose a valid plan.",
     "billingBadPeriod": "Choose monthly or annual.",
-    "billingBadTrial": "Trial days must be a whole number between 0 and 365."
+    "billingBadTrial": "Trial days must be a whole number between 0 and 365.",
+    "vehicleLimitReached": "You have used every vehicle slot on your plan. Add more slots on the billing screen, or retire a vehicle you no longer run.",
+    "vehicleLimitImport": "That file has more vehicles than you have slots left, so nothing was imported. Add slots on the billing screen, or import fewer rows.",
+    "vehicleLimitClient": "This farm has used every vehicle slot on its plan, so nothing was copied. Ask them to add slots before you sync again."
   },
   "billing": {
     "title": "Billing",

@@ -1270,7 +1270,8 @@ declare
     'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
     'release_billing_failure_notice','invoice_chargeable_now',
     'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
-    'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing'];
+    'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing',
+    'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1285,20 +1286,34 @@ declare
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
     'billing_release_failure_notice','billing_invoice_chargeable_now',
-    'billing_plan_quote','billing_change_plan','billing_notify_rr'];
+    'billing_plan_quote','billing_change_plan','billing_notify_rr',
+    'farm_vehicle_allowance'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
   v_auth_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
-    'billing_advance_period','billing_card_expiry_on','billing_price_for_subscription'];
+    'billing_advance_period','billing_card_expiry_on','billing_price_for_subscription',
+    'farm_vehicle_allowance'];
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
   -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
   v_svc_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billable_asset_count','billing_card_expiry_on',
-    'billing_price_for_subscription','billing_plan_change_quote'];
+    'billing_price_for_subscription','billing_plan_change_quote',
+    'farm_vehicle_allowance','billing_billable_units'];
+  -- PUBLIC wrappers a signed-in user may call. Until 20260910230000 this list was empty
+  -- and did not exist, because every public.billing_* wrapper raises an invoice, settles a
+  -- payment or reads a charging credential — a blanket refusal was the whole rule.
+  --
+  -- A member of this list has to pass all four: it only READS; it is scoped to a farm the
+  -- caller can already reach (public.farm_vehicle_allowance filters on app.has_farm_access,
+  -- so it cannot be used as a fleet-size oracle for an arbitrary farm id); it returns no
+  -- money and no credential; and the screen genuinely needs it, because the alternative is
+  -- the UI and the database guard computing the same limit separately and eventually
+  -- disagreeing about whether a farmer may add a bakkie.
+  v_pub_auth_ok text[] := array['farm_vehicle_allowance'];
   r record; n integer := 0;
 begin
   raise notice '── BILLING (j): every billing function locked down ──────────────';
@@ -1324,7 +1339,8 @@ begin
     end if;
 
     if has_function_privilege('authenticated', r.oid, 'EXECUTE')
-       and not (r.nspname = 'app' and r.proname = any (v_auth_ok)) then
+       and not (r.nspname = 'app' and r.proname = any (v_auth_ok))
+       and not (r.nspname = 'public' and r.proname = any (v_pub_auth_ok)) then
       raise exception 'BILLING FAIL [j]: %.% is executable by `authenticated`. Only the five '
         'read-only helpers are, and a new one must be argued for here first.',
         r.nspname, r.proname;
@@ -1545,23 +1561,24 @@ begin
 
   for r in
     select * from (values
-      ('billing_due_charges',        'p_limit integer'),
-      ('billing_claim_charge',       'p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint'),
-      ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text, p_dun boolean'),
-      ('billing_generate_invoices',  'p_only uuid'),
-      ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer'),
-      ('billing_receipts_due',         'p_limit integer'),
-      ('billing_claim_receipt',        'p_invoice uuid'),
-      ('billing_release_receipt',      'p_invoice uuid, p_error text'),
-      ('billing_failure_notices_due',  'p_limit integer'),
-      ('billing_claim_failure_notice', 'p_attempt uuid'),
+      ('billing_due_charges',        'p_limit integer', false),
+      ('billing_claim_charge',       'p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint', false),
+      ('billing_settle_attempt',     'p_attempt uuid, p_status billing_attempt_status, p_transaction_id bigint, p_provider_ref text, p_gateway_response text, p_failure_reason text, p_paid_cents bigint, p_channel text, p_dun boolean', false),
+      ('billing_generate_invoices',  'p_only uuid', false),
+      ('billing_start_subscription', 'p_farm uuid, p_plan farm_plan, p_period billing_period, p_trial_days integer', false),
+      ('billing_receipts_due',         'p_limit integer', false),
+      ('billing_claim_receipt',        'p_invoice uuid', false),
+      ('billing_release_receipt',      'p_invoice uuid, p_error text', false),
+      ('billing_failure_notices_due',  'p_limit integer', false),
+      ('billing_claim_failure_notice', 'p_attempt uuid', false),
       -- The manual path added by 20260910140000. A SEPARATE function, not a flag on
       -- the automatic one, so the nightly cadence cannot be relaxed by accident.
-      ('billing_invoice_chargeable_now', 'p_invoice uuid'),
-      ('billing_plan_quote',  'p_sub uuid, p_plan farm_plan, p_period billing_period'),
-      ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period'),
-      ('billing_notify_rr',   'p_farm uuid, p_template text, p_payload jsonb')
-    ) as t(fn, args)
+      ('billing_invoice_chargeable_now', 'p_invoice uuid', false),
+      ('billing_plan_quote',  'p_sub uuid, p_plan farm_plan, p_period billing_period', false),
+      ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period', false),
+      ('billing_notify_rr',   'p_farm uuid, p_template text, p_payload jsonb', false),
+      ('farm_vehicle_allowance', 'p_farm uuid', true)
+    ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -1576,8 +1593,11 @@ begin
       if not has_function_privilege('service_role', v_oid, 'EXECUTE') then
         v_missing := v_missing || ' service_role EXECUTE on public.' || r.fn;
       end if;
-      if has_function_privilege('authenticated', v_oid, 'EXECUTE')
-         or has_function_privilege('anon', v_oid, 'EXECUTE') then
+      -- `anon` is refused for everything, without exception. `authenticated` is refused
+      -- for everything that moves money — which is all of these but one. See the
+      -- v_pub_auth_ok note in section (j) for the four tests that one had to pass.
+      if has_function_privilege('anon', v_oid, 'EXECUTE')
+         or (has_function_privilege('authenticated', v_oid, 'EXECUTE') and not r.browser_ok) then
         v_leaked := v_leaked || ' ' || r.fn;
       end if;
     end if;
@@ -3816,6 +3836,286 @@ begin
   end if;
 
   raise notice '   a dispute reaches Rapid Rise, and only Rapid Rise';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (v) A quota of vehicle slots, and the ceiling that makes it mean something
+--
+-- Until 20260910230000 billing was purely METERED: count the machines that are not
+-- deleted, retired or sold, and charge that many. So the bill moved on its own — add a
+-- bakkie in March and March costs R73 more, with nobody having agreed to it and no screen
+-- having offered the choice.
+--
+-- The founder's model is a QUOTA: "how many vehicles?" is answered at sign-up, the price
+-- is quoted against that number, and that number is billed until they change it.
+--
+-- THE RISK IN THIS CHANGE IS NOT THE NEW BEHAVIOUR, IT IS THE OLD ONE. Every subscription
+-- that exists when this ships has no quota, and so does every farm an administrator
+-- creates. If "no quota" meant "quota of zero" they would all be repriced, or locked out
+-- of adding a vehicle, on the night it landed. Half of this section is about that.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000040', 'Billing Farm Quota',    'complete', 'active', 'monthly', 'quota@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000041', 'Billing Farm Metered',  'complete', 'active', 'monthly', 'metered@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000042', 'Billing Farm No Sub',   'complete', 'active', 'monthly', 'nosub@billing.invalid');
+
+-- Farm 40 buys THREE slots and uses two of them.
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000401', 'b1000000-0000-0000-0000-000000000040', 'Quota Tractor A', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000402', 'b1000000-0000-0000-0000-000000000040', 'Quota Tractor B', 'tractor', 'hours', 'active');
+
+-- Farm 41 is METERED — the shape every pre-existing subscription has — with four vehicles.
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000411', 'b1000000-0000-0000-0000-000000000041', 'Metered A', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000412', 'b1000000-0000-0000-0000-000000000041', 'Metered B', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000413', 'b1000000-0000-0000-0000-000000000041', 'Metered C', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000414', 'b1000000-0000-0000-0000-000000000041', 'Metered D', 'tractor', 'hours', 'active');
+
+-- Farm 42 has NO subscription row at all — a demo farm, or anyone onboarded before billing.
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000421', 'b1000000-0000-0000-0000-000000000042', 'No-Sub A', 'tractor', 'hours', 'active');
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, asset_quota) values
+  ('b1600000-0000-0000-0000-000000000040', 'b1000000-0000-0000-0000-000000000040',
+   'complete', 'monthly', 'active', null, null, current_date, 3),
+  ('b1600000-0000-0000-0000-000000000041', 'b1000000-0000-0000-0000-000000000041',
+   'complete', 'monthly', 'active', null, null, current_date, null);
+
+-- ── What is billed: the slots bought, not the vehicles counted ──────────────
+do $$
+declare
+  inv   public.billing_invoices%rowtype;
+  v_qty integer;
+begin
+  raise notice '── BILLING (v): a quota of slots, and its ceiling ───────────────';
+
+  -- Farm 40: three slots bought, two vehicles on file. The invoice is for THREE.
+  if app.generate_billing_invoices('b1600000-0000-0000-0000-000000000040') <> 1 then
+    raise exception 'BILLING FAIL [v]: the quota farm was not invoiced';
+  end if;
+  select * into inv from billing_invoices where farm_id = 'b1000000-0000-0000-0000-000000000040';
+  select app.billable_asset_count('b1000000-0000-0000-0000-000000000040') into v_qty;
+  if v_qty <> 2 then
+    raise exception 'BILLING FAIL [v]: the fixture has % vehicles, expected 2 — the point is '
+      'that the invoice does NOT match this number', v_qty;
+  end if;
+  if inv.asset_count <> 3 then
+    raise exception 'BILLING FAIL [v]: a farm that bought 3 slots and uses 2 was invoiced for % '
+      '— they are paying for what they bought, and the invoice has to say so', inv.asset_count;
+  end if;
+  if inv.total_incl_cents <> 3 * inv.unit_price_incl_cents then
+    raise exception 'BILLING FAIL [v]: the total % does not equal 3 x %',
+      inv.total_incl_cents, inv.unit_price_incl_cents;
+  end if;
+
+  -- Farm 41: NO quota. Metered, exactly as before this migration existed.
+  if app.generate_billing_invoices('b1600000-0000-0000-0000-000000000041') <> 1 then
+    raise exception 'BILLING FAIL [v]: the metered farm was not invoiced';
+  end if;
+  select * into inv from billing_invoices where farm_id = 'b1000000-0000-0000-0000-000000000041';
+  if inv.asset_count <> 4 then
+    raise exception 'BILLING FAIL [v]: a subscription with NO quota was invoiced for % rather '
+      'than its 4 counted vehicles. Every subscription that existed before this migration '
+      'has a null quota, so this is the assertion that stops the whole customer base being '
+      'repriced on the night it ships.', inv.asset_count;
+  end if;
+
+  raise notice '   the quota farm is billed 3 of 3; the metered farm is billed its 4';
+end $$;
+
+-- ── The ceiling, and everything it must NOT refuse ──────────────────────────
+do $$
+declare
+  v_farm  uuid := 'b1000000-0000-0000-0000-000000000040';
+  v_raised boolean;
+  n       bigint;
+begin
+  -- One slot left of three. Filling it must work — a ceiling that refuses the last slot
+  -- somebody paid for is worse than no ceiling, because they can see the number.
+  begin
+    insert into machines (id, farm_id, name, type, meter_type, status) values
+      ('b1300000-0000-0000-0000-000000000403', v_farm, 'Quota Tractor C', 'tractor', 'hours', 'active');
+  exception when check_violation then
+    raise exception 'BILLING FAIL [v]: a farm with 3 slots and 2 vehicles was refused its THIRD. '
+      'They are paying for a slot the product will not let them use.';
+  end;
+
+  -- And the fourth must not.
+  v_raised := false;
+  begin
+    insert into machines (id, farm_id, name, type, meter_type, status) values
+      ('b1300000-0000-0000-0000-000000000404', v_farm, 'One Too Many', 'tractor', 'hours', 'active');
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [v]: a farm with 3 slots took a 4th vehicle. The ceiling is '
+      'the only thing making a quota mean anything.';
+  end if;
+
+  -- The refusal is in the DATABASE, not in three server actions. That is the whole design
+  -- decision: a fourth creation path added later inherits it, and two tabs adding the
+  -- fourth vehicle at the same moment cannot race past a check-then-insert.
+  select count(*) into n from machines where farm_id = v_farm and deleted_at is null;
+  if n <> 3 then
+    raise exception 'BILLING FAIL [v]: the farm has % machines after a refused insert', n;
+  end if;
+
+  -- A RETIRED machine is not billed, so filing one at the ceiling must be allowed. This is
+  -- the direction a naive `count(*) >= quota` gets wrong.
+  begin
+    insert into machines (id, farm_id, name, type, meter_type, status) values
+      ('b1300000-0000-0000-0000-000000000405', v_farm, 'Already Retired', 'tractor', 'hours', 'retired');
+  exception when check_violation then
+    raise exception 'BILLING FAIL [v]: a farm at its ceiling could not file a RETIRED machine. '
+      'It is not billed and does not count, so refusing it charges them for history.';
+  end;
+
+  -- But bringing it BACK is an addition, and must be refused like any other.
+  v_raised := false;
+  begin
+    update machines set status = 'active' where id = 'b1300000-0000-0000-0000-000000000405';
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [v]: a retired machine was returned to service on a farm at '
+      'its ceiling — the fleet grew by one with nobody paying for it';
+  end if;
+
+  -- And an ordinary edit on a full farm must not fail. A ceiling that stops somebody
+  -- correcting a registration number is a bug wearing a policy''s clothes.
+  begin
+    update machines set name = 'Quota Tractor C (renamed)'
+     where id = 'b1300000-0000-0000-0000-000000000403';
+  exception when check_violation then
+    raise exception 'BILLING FAIL [v]: a farm at its ceiling could not EDIT a machine it '
+      'already owns. Only the transition into the billable set is an addition.';
+  end;
+
+  raise notice '   the 4th is refused, a retired one is not, and editing still works';
+end $$;
+
+-- ── All-or-nothing, which is what a CSV import needs ────────────────────────
+do $$
+declare
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000042';
+  n0 bigint; n1 bigint; v_raised boolean := false;
+begin
+  -- Give farm 42 a subscription with two slots and one vehicle already on file, then try
+  -- to import three at once. A partial import that stopped at the limit would leave a
+  -- farmer believing their fleet was loaded when it was not — worse than a clean refusal.
+  insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+    current_period_start, current_period_end, next_billing_on, asset_quota)
+  values ('b1600000-0000-0000-0000-000000000042', v_farm, 'complete', 'monthly', 'active',
+          null, null, current_date + 30, 2);
+
+  select count(*) into n0 from machines where farm_id = v_farm and deleted_at is null;
+
+  begin
+    insert into machines (id, farm_id, name, type, meter_type, status) values
+      ('b1300000-0000-0000-0000-000000000422', v_farm, 'Import 1', 'tractor', 'hours', 'active'),
+      ('b1300000-0000-0000-0000-000000000423', v_farm, 'Import 2', 'tractor', 'hours', 'active'),
+      ('b1300000-0000-0000-0000-000000000424', v_farm, 'Import 3', 'tractor', 'hours', 'active');
+  exception when check_violation then
+    v_raised := true;
+  end;
+
+  if not v_raised then
+    raise exception 'BILLING FAIL [v]: three vehicles went into one free slot';
+  end if;
+  select count(*) into n1 from machines where farm_id = v_farm and deleted_at is null;
+  if n1 <> n0 then
+    raise exception 'BILLING FAIL [v]: a refused import still wrote % row(s). A half-loaded '
+      'fleet the farmer believes is complete is worse than a clean refusal.', n1 - n0;
+  end if;
+
+  raise notice '   an over-quota import writes nothing at all';
+end $$;
+
+-- ── Nobody who was here before is locked out ────────────────────────────────
+do $$
+declare
+  a record;
+begin
+  -- Farm 41: a subscription with NO quota. It has four vehicles and must be able to add a
+  -- fifth, because it never bought a number and nobody ever offered it one.
+  begin
+    insert into machines (id, farm_id, name, type, meter_type, status) values
+      ('b1300000-0000-0000-0000-000000000415', 'b1000000-0000-0000-0000-000000000041',
+       'Metered E', 'tractor', 'hours', 'active');
+  exception when check_violation then
+    raise exception 'BILLING FAIL [v]: a subscription with NO quota was refused a new vehicle. '
+      'Every subscription that predates this migration has one, so this is the whole '
+      'customer base losing the ability to add a bakkie on the night it ships.';
+  end;
+
+  select * into a from app.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000041');
+  if a.enforced then
+    raise exception 'BILLING FAIL [v]: a subscription with no quota reports an enforced ceiling';
+  end if;
+  if a.used <> 5 then
+    raise exception 'BILLING FAIL [v]: the metered farm reports % vehicles, expected 5', a.used;
+  end if;
+  -- `remaining` is NULL, deliberately. A caller that read `remaining <= 0` as "blocked"
+  -- without checking `enforced` would lock out every grandfathered farm, so the value it
+  -- reads must not be a number that happens to look like a limit.
+  if a.remaining is not null then
+    raise exception 'BILLING FAIL [v]: an unenforced allowance reports remaining = %, which a '
+      'caller could read as a limit', a.remaining;
+  end if;
+
+  -- And a farm with NO SUBSCRIPTION ROW AT ALL — a demo farm, and every farm an
+  -- administrator creates by hand today.
+  insert into farms (id, name, plan, status, billing_period, billing_email) values
+    ('b1000000-0000-0000-0000-000000000043', 'Billing Farm Bare', 'complete', 'active', 'monthly', 'bare@billing.invalid');
+  insert into machines (id, farm_id, name, type, meter_type, status) values
+    ('b1300000-0000-0000-0000-000000000431', 'b1000000-0000-0000-0000-000000000043', 'Bare A', 'tractor', 'hours', 'active');
+
+  select * into a from app.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000043');
+  if a.enforced or a.quota is not null then
+    raise exception 'BILLING FAIL [v]: a farm with no subscription reports an enforced ceiling '
+      'of % — every farm onboarded before billing existed would stop being able to add a '
+      'vehicle on the day this shipped', a.quota;
+  end if;
+  if a.used <> 1 then
+    raise exception 'BILLING FAIL [v]: the bare farm reports % vehicles, expected 1', a.used;
+  end if;
+
+  raise notice '   no quota means no ceiling, for a metered sub and for no sub at all';
+end $$;
+
+-- ── The allowance is not a fleet-size oracle ────────────────────────────────
+do $$
+declare n bigint;
+begin
+  -- The wrapper is deliberately callable by a signed-in user, so it has to answer only
+  -- about farms that user can already reach. Otherwise anybody holding a farm id learns
+  -- how many vehicles a competitor runs.
+  perform public._t_login('b1a00000-0000-0000-0000-000000000006');   -- Farm Two's owner
+  set local role authenticated;
+
+  select count(*) into n from public.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000040');
+  if n <> 0 then
+    raise exception 'BILLING FAIL [v]: another farm''s owner read the quota farm''s allowance '
+      '(% row(s)) — that is a fleet-size oracle for anybody with a farm id', n;
+  end if;
+
+  -- POSITIVE CONTROL, and it has to be the SAME caller so that the only thing that differs
+  -- is which farm was asked about. Their own farm answers.
+  select count(*) into n from public.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000002');
+  if n <> 1 then
+    raise exception 'BILLING FAIL [v]: the same owner reading their OWN farm got % row(s) — so '
+      'the zero above was the function refusing everybody, not isolation working', n;
+  end if;
+
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims', '', false);
+
+  raise notice '   the allowance answers about your own farm and no other';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;

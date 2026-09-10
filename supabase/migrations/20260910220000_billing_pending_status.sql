@@ -1,0 +1,25 @@
+-- 20260910220000_billing_pending_status.sql
+-- One line, and it is on its own for a reason Postgres imposes.
+--
+-- `alter type ... add value` may run inside a transaction on PostgreSQL 12+, but the new
+-- value CANNOT BE USED until that transaction commits. Every migration here is applied
+-- inside a transaction, so a single file that both adds `pending` and references it — in a
+-- check constraint, a partial index, a default, anything evaluated eagerly — fails with
+-- "unsafe use of new value of enum type".
+--
+-- Splitting it is the standard answer and it is cheap. The file that follows
+-- (20260910230000) is where `pending` is actually used.
+--
+-- WHAT IT IS FOR
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Self-serve sign-up creates the farm, the owner and the subscription BEFORE taking any
+-- money, and `pending` is the state in between. See docs/SIGNUP_AND_QUOTA_BILLING.md §2 —
+-- the tempting alternative, taking the money and then creating the farm, leaves money
+-- taken with nothing to attach it to if anything fails in between. An abandoned sign-up
+-- leaves a row nobody can log into, which is tidy-up-able; a payment with no farm is a
+-- refund and an apology.
+--
+-- It mirrors what `beginCheckout` already does with charge attempts: claim the row before
+-- contacting Paystack, precisely so a lost response is recoverable rather than a mystery.
+
+alter type billing_subscription_status add value if not exists 'pending';
