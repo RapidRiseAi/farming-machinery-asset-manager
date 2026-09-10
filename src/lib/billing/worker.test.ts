@@ -30,6 +30,7 @@ import type { DueCharge } from "./service";
 import {
   chargeOneInvoice,
   reconcileStuckAttempts,
+  retryInvoiceCharge,
   runBillingCharges,
 } from "./worker";
 
@@ -856,4 +857,118 @@ test("a provider outage still leaves the unknown blocking", async () => {
   assert.equal(summary.outcomes[0].result, "still-open");
   assert.equal(summary.stillOpen, 1);
   assert.equal(settleCalls(rpcCalls).length, 0);
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// "Try again" — the manual path
+//
+// It used to rebuild the AUTOMATIC shortlist (`billing_due_charges`) and look for the
+// invoice in it. That shortlist carries the retry timer, so after a decline the owner's
+// button answered "nothing is due" for three days while the invoice was unpaid; and it
+// carries `status in ('active','past_due')`, so from the moment a farm entered grace the
+// stored card was never presented again by anything at all.
+//
+// Which RPC is called is therefore the whole assertion. Both functions return the same
+// row shape, so a test that only checked the OUTCOME would pass against either.
+// ═════════════════════════════════════════════════════════════════════════════
+
+test("a manual retry asks the manual function, not the nightly shortlist", async () => {
+  let charged = 0;
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      charged += 1;
+      // Echo the reference we minted. matchesExpectedCharge checks it, and a provider
+      // describing some OTHER transaction must never be treated as this one succeeding.
+      return { ok: true, transaction: txn({ reference: req.reference }) };
+    },
+  });
+
+  const { client, rpcCalls } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) => {
+      if (name === "billing_invoice_chargeable_now") return { data: [due()], error: null };
+      // The nightly shortlist is deliberately EMPTY here: this invoice is inside its
+      // retry window, which is exactly the state the old code could not charge in.
+      if (name === "billing_due_charges") return { data: [], error: null };
+      if (name === "billing_claim_charge") return { data: ATTEMPT, error: null };
+      return { data: null, error: null };
+    },
+  });
+
+  const outcome = await retryInvoiceCharge(client, { invoiceId: INVOICE, farmId: FARM }, { provider });
+
+  assert.equal(outcome.result, "succeeded");
+  assert.equal(charged, 1, "a customer who wants to pay must be able to");
+  assert.equal(
+    rpcCalls.filter((c) => c.name === "billing_due_charges").length,
+    0,
+    "the manual path must not consult the shortlist that carries the retry timer",
+  );
+  const asked = rpcCalls.filter((c) => c.name === "billing_invoice_chargeable_now");
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0].args.p_invoice, INVOICE, "keyed on the invoice, by name");
+  assert.equal(settleCalls(rpcCalls)[0].args.p_status, "succeeded");
+});
+
+test("a manual retry cannot spend another farm's invoice", async () => {
+  // `app.invoice_chargeable_now` is keyed on the invoice alone, so unlike the shortlist
+  // it cannot do the tenancy check for us. This is that check.
+  const provider = fakeProvider({
+    async chargeAuthorization() {
+      throw new Error("a cross-farm retry must never reach the provider");
+    },
+  });
+  const { client, rpcCalls } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) =>
+      name === "billing_invoice_chargeable_now"
+        ? { data: [due({ farm_id: "99999999-9999-4999-8999-999999999999" })], error: null }
+        : { data: null, error: null },
+  });
+
+  const outcome = await retryInvoiceCharge(client, { invoiceId: INVOICE, farmId: FARM }, { provider });
+
+  assert.equal(outcome.result, "skipped");
+  assert.equal(outcome.reason, "nothing-due");
+  assert.equal(rpcCalls.filter((c) => c.name === "billing_claim_charge").length, 0);
+});
+
+test("a manual retry on a blocked invoice claims nothing", async () => {
+  // No row means: paid, nothing outstanding, no usable card, an attempt already in
+  // flight, or a farm that has been deleted or cancelled. Every one of those is "not
+  // now" and none of them is an error the owner should see as a failure.
+  const provider = fakeProvider({
+    async chargeAuthorization() {
+      throw new Error("nothing was chargeable; nothing may be charged");
+    },
+  });
+  const { client, rpcCalls } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) =>
+      name === "billing_invoice_chargeable_now" ? { data: [], error: null } : { data: null, error: null },
+  });
+
+  const outcome = await retryInvoiceCharge(client, { invoiceId: INVOICE, farmId: FARM }, { provider });
+
+  assert.equal(outcome.result, "skipped");
+  assert.equal(outcome.reason, "nothing-due");
+  assert.equal(rpcCalls.filter((c) => c.name === "billing_claim_charge").length, 0);
+});
+
+test("a manual retry is still refused with charging switched off", async () => {
+  const provider = fakeProvider({
+    chargingEnabled: false,
+    async chargeAuthorization() {
+      throw new Error("the kill switch must hold on every path, buttons included");
+    },
+  });
+  const { client, rpcCalls } = fakeSupabase({
+    rpc: () => ({ data: null, error: null }),
+  });
+
+  const outcome = await retryInvoiceCharge(client, { invoiceId: INVOICE, farmId: FARM }, { provider });
+
+  assert.equal(outcome.result, "skipped");
+  assert.equal(outcome.reason, "charging-disabled");
+  assert.equal(rpcCalls.length, 0, "the switch is checked before any database call");
 });

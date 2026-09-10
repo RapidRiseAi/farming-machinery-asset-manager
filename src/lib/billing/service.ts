@@ -42,6 +42,10 @@ import type {
 /** Names of the `public.*` wrappers over the `app.*` billing engine. */
 export const BILLING_RPC = {
   dueCharges: "billing_due_charges",
+  // The MANUAL path (20260910140000). Deliberately a separate function rather than a
+  // flag on `dueCharges`: it drops the retry timer, which paces the nightly pass and
+  // must never be relaxed by something that could be passed the wrong way round.
+  invoiceChargeableNow: "billing_invoice_chargeable_now",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -227,6 +231,28 @@ export async function dueBillingCharges(
   const { data, error } = await supabase.rpc(BILLING_RPC.dueCharges, { p_limit: limit });
   if (error) return { rows: [], error: { message: redactMessage(error.message), code: error.code } };
   return { rows: (data ?? []) as DueCharge[], error: null };
+}
+
+/**
+ * Is THIS invoice chargeable right now, because a person has asked?
+ *
+ * Same row shape as `dueBillingCharges`, so the worker hands it to identical code. The
+ * difference is entirely in the SQL (see 20260910140000): no retry window, and `grace`,
+ * `non_renewing` and `downgraded` are included — a farm being chased for money must be
+ * able to pay, which was precisely what "Try again" could not do.
+ *
+ * Everything else is the same, the in-flight block included. It returns at most one row.
+ */
+export async function invoiceChargeableNow(
+  supabase: SupabaseClient,
+  invoiceId: string,
+): Promise<{ row: DueCharge | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.invoiceChargeableNow, {
+    p_invoice: invoiceId,
+  });
+  if (error) return { row: null, error: { message: redactMessage(error.message), code: error.code } };
+  const rows = (data ?? []) as DueCharge[];
+  return { row: rows[0] ?? null, error: null };
 }
 
 /**

@@ -46,6 +46,7 @@ import {
   claimBillingCharge,
   dueBillingCharges,
   getAttemptById,
+  invoiceChargeableNow,
   getInvoiceById,
   getSaasProvider,
   newAttemptReference,
@@ -442,12 +443,25 @@ export async function runBillingCharges(
 }
 
 /**
- * Charge one specific invoice now, on request.
+ * Charge one specific invoice now, because a person asked.
  *
- * Used by the owner's "try again" and by Rapid Rise's admin retry. It rebuilds the same
- * shortlist row `app.due_billing_charges` would have produced, so a manual retry is
- * subject to every condition the automatic path is — including the in-flight block, which
- * is the one a "just try it again" button would otherwise be the perfect way to bypass.
+ * Used by the owner's "Try again" and by Rapid Rise's admin retry, and it goes through
+ * `app.invoice_chargeable_now` — NOT the nightly shortlist.
+ *
+ * It used to rebuild the automatic shortlist and look for the invoice in it. That
+ * shortlist carries `coalesce(next_retry_on, current_date) <= current_date`, so after a
+ * decline this answered "nothing is due" for the whole retry interval while the invoice
+ * was plainly unpaid; and it carries `status in ('active','past_due')`, so from the
+ * moment a farm entered grace the stored card was never presented again by anything —
+ * not the cron, and not the customer pressing the button.
+ *
+ * The retry timer exists to stop the MACHINE hammering a card, which issuers penalise.
+ * A person pressing a button is a different act and is bounded by their patience.
+ *
+ * What is NOT relaxed: the in-flight block. `claimBillingCharge` is still the only way to
+ * take a charge and `billing_payment_attempts_inflight_uq` still permits exactly one
+ * attempt per invoice — "just try it again" is the perfect way to charge somebody twice.
+ * The farm is re-checked here too, because the function is keyed on the invoice alone.
  */
 export async function retryInvoiceCharge(
   supabase: SupabaseClient,
@@ -462,15 +476,15 @@ export async function retryInvoiceCharge(
     return { result: "skipped", invoiceId: input.invoiceId, reason: "charging-disabled" };
   }
 
-  const { rows, error } = await dueBillingCharges(supabase, opts.limit ?? 200);
+  const { row, error } = await invoiceChargeableNow(supabase, input.invoiceId);
   if (error) return { result: "error", invoiceId: input.invoiceId, reason: error.message };
 
-  const due = rows.find(
-    (r) => r.invoice_id === input.invoiceId && r.farm_id === input.farmId,
-  );
+  // Keyed on the invoice, so the tenancy check is ours to make. A farm must never be
+  // able to spend somebody else's invoice into a charge.
+  const due = row && row.farm_id === input.farmId ? row : null;
   if (!due) {
-    // Not on the shortlist: already paid, nothing outstanding, no usable card, or an
-    // attempt in flight. All of those are "not now", none of them is an error.
+    // Already paid, nothing outstanding, no usable card, an attempt in flight, or a farm
+    // that has been deleted or cancelled. All of those are "not now", none is an error.
     return { result: "skipped", invoiceId: input.invoiceId, reason: "nothing-due" };
   }
 

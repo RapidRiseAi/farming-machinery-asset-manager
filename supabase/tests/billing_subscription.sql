@@ -1268,7 +1268,7 @@ declare
     'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
     'billing_receipts_due','billing_failure_notices_due',
     'billing_card_expiry_on','billing_cards_expiring','enqueue_billing_card_expiry',
-    'release_billing_failure_notice'];
+    'release_billing_failure_notice','invoice_chargeable_now'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1281,7 +1281,7 @@ declare
     'billing_generate_invoices','billing_start_subscription',
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
-    'billing_release_failure_notice'];
+    'billing_release_failure_notice','billing_invoice_chargeable_now'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1549,7 +1549,10 @@ begin
       ('billing_claim_receipt',        'p_invoice uuid'),
       ('billing_release_receipt',      'p_invoice uuid, p_error text'),
       ('billing_failure_notices_due',  'p_limit integer'),
-      ('billing_claim_failure_notice', 'p_attempt uuid')
+      ('billing_claim_failure_notice', 'p_attempt uuid'),
+      -- The manual path added by 20260910140000. A SEPARATE function, not a flag on
+      -- the automatic one, so the nightly cadence cannot be relaxed by accident.
+      ('billing_invoice_chargeable_now', 'p_invoice uuid')
     ) as t(fn, args)
   loop
     select p.oid into v_oid
@@ -2497,6 +2500,330 @@ begin
   end if;
 
   raise notice '   abandoned frees the invoice and leaves the farm alone; failed still duns';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (r) Who may be charged, and when — the three ways this ledger got it wrong
+--
+-- S7  Nothing on the charging path ever looked at the FARM. Every condition in the
+--     generator and in the charging shortlist is about the SUBSCRIPTION row, so a farm
+--     that had been soft-deleted, suspended or cancelled went on being invoiced every
+--     month and charged against its stored card.
+--
+-- S11 `retryInvoiceCharge` rebuilds the AUTOMATIC shortlist, which carries the retry
+--     timer. So after a decline the owner's "Try again" answered "nothing is due" for
+--     three days, while the invoice was unpaid and the farm was walking towards a
+--     downgrade. And once retries are exhausted the subscription is `grace` and then
+--     `downgraded` — neither is in that shortlist, so from that moment the stored card
+--     was never presented again by anything at all.
+--
+-- S5  `app.billing_restore_after_payment` read only `cancel_at_period_end`, so a payment
+--     landing after an IMMEDIATE cancellation set the subscription back to `active` with
+--     `ended_on` sitting in the past. Exactly what happens when somebody cancels while a
+--     charge is in flight — which is the entire premise of the `unknown` state.
+--
+-- Its own fixture: four farms in four different conditions, because the whole point is
+-- that the condition of the FARM is what these functions were not reading.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000014', 'Billing Farm Live',      'complete', 'active',    'monthly', 'live@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000015', 'Billing Farm Suspended', 'complete', 'suspended', 'monthly', 'suspended@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000016', 'Billing Farm Deleted',   'complete', 'active',    'monthly', 'deleted@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000017', 'Billing Farm Ended',     'complete', 'cancelled', 'monthly', 'ended@billing.invalid');
+
+update farms set deleted_at = now() where id = 'b1000000-0000-0000-0000-000000000016';
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000141', 'b1000000-0000-0000-0000-000000000014', 'Live Tractor',      'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000151', 'b1000000-0000-0000-0000-000000000015', 'Suspended Tractor', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000161', 'b1000000-0000-0000-0000-000000000016', 'Deleted Tractor',   'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000171', 'b1000000-0000-0000-0000-000000000017', 'Ended Tractor',     'tractor', 'hours', 'active');
+
+-- All four due today, all four with both period columns NULL — the state
+-- `app.start_billing_subscription` leaves and the state the generator selects on.
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000014', 'b1000000-0000-0000-0000-000000000014', 'complete', 'monthly', 'active', null, null, current_date),
+  ('b1600000-0000-0000-0000-000000000015', 'b1000000-0000-0000-0000-000000000015', 'complete', 'monthly', 'active', null, null, current_date),
+  ('b1600000-0000-0000-0000-000000000016', 'b1000000-0000-0000-0000-000000000016', 'complete', 'monthly', 'active', null, null, current_date),
+  ('b1600000-0000-0000-0000-000000000017', 'b1000000-0000-0000-0000-000000000017', 'complete', 'monthly', 'active', null, null, current_date);
+
+insert into billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('b1700000-0000-0000-0000-000000000014', 'b1000000-0000-0000-0000-000000000014', 'AUTH_b14', 'live@billing.invalid',      'visa', '1414', '12', '2030', true, true, 'active'),
+  ('b1700000-0000-0000-0000-000000000015', 'b1000000-0000-0000-0000-000000000015', 'AUTH_b15', 'suspended@billing.invalid', 'visa', '1515', '12', '2030', true, true, 'active'),
+  ('b1700000-0000-0000-0000-000000000016', 'b1000000-0000-0000-0000-000000000016', 'AUTH_b16', 'deleted@billing.invalid',   'visa', '1616', '12', '2030', true, true, 'active'),
+  ('b1700000-0000-0000-0000-000000000017', 'b1000000-0000-0000-0000-000000000017', 'AUTH_b17', 'ended@billing.invalid',     'visa', '1717', '12', '2030', true, true, 'active');
+
+update billing_subscriptions s set default_payment_method_id = pm.id
+  from billing_payment_methods pm
+ where pm.farm_id = s.farm_id
+   and s.id in ('b1600000-0000-0000-0000-000000000014','b1600000-0000-0000-0000-000000000015',
+                'b1600000-0000-0000-0000-000000000016','b1600000-0000-0000-0000-000000000017');
+
+-- ── S7(a): a farm that has left is not sold another month ───────────────────
+do $$
+declare
+  v_live uuid := 'b1600000-0000-0000-0000-000000000014';
+  r record; n bigint;
+begin
+  raise notice '── BILLING (r): who may be charged, and when ────────────────────';
+
+  -- POSITIVE CONTROL FIRST. If the live farm is not invoiced, every zero below is a
+  -- statement about a broken fixture rather than about the gate.
+  if app.generate_billing_invoices(v_live) <> 1 then
+    raise exception 'BILLING FAIL [r]: the ACTIVE farm was not invoiced, so nothing below proves anything';
+  end if;
+
+  for r in
+    select * from (values
+      ('b1600000-0000-0000-0000-000000000015'::uuid, 'suspended', 'a farm Rapid Rise has suspended'),
+      ('b1600000-0000-0000-0000-000000000016'::uuid, 'deleted',   'a farm that has been deleted'),
+      ('b1600000-0000-0000-0000-000000000017'::uuid, 'cancelled', 'a farm that has been cancelled')
+    ) as t(sub, label, human)
+  loop
+    n := app.generate_billing_invoices(r.sub);
+    if n <> 0 then
+      raise exception 'BILLING FAIL [r]: % was invoiced (% raised). Selling another month to '
+        'somebody who has left is the one billing mistake a customer certainly notices.',
+        r.human, n;
+    end if;
+  end loop;
+
+  raise notice '   generation: active invoiced, suspended/deleted/cancelled not';
+end $$;
+
+-- ── S7(b): and is not charged — with one deliberate exception ───────────────
+-- Invoices raised by hand rather than by the generator, because the generator's own
+-- invoice falls due `payment_terms_days` from now (7 by default) and so is not yet
+-- chargeable. These are dated in the past, which is the state that matters here.
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values
+  ('b1800000-0000-0000-0000-000000000014', 'b1000000-0000-0000-0000-000000000014', 'b1600000-0000-0000-0000-000000000014', 'B14-INV-0001', 'draft', current_date - 60, current_date - 31, current_date - 60, current_date, 'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0),
+  ('b1800000-0000-0000-0000-000000000015', 'b1000000-0000-0000-0000-000000000015', 'b1600000-0000-0000-0000-000000000015', 'B15-INV-0001', 'draft', current_date - 60, current_date - 31, current_date - 60, current_date, 'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0),
+  ('b1800000-0000-0000-0000-000000000016', 'b1000000-0000-0000-0000-000000000016', 'b1600000-0000-0000-0000-000000000016', 'B16-INV-0001', 'draft', current_date - 60, current_date - 31, current_date - 60, current_date, 'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0),
+  ('b1800000-0000-0000-0000-000000000017', 'b1000000-0000-0000-0000-000000000017', 'b1600000-0000-0000-0000-000000000017', 'B17-INV-0001', 'draft', current_date - 60, current_date - 31, current_date - 60, current_date, 'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+select i.id, i.farm_id, 0, 'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0
+  from billing_invoices i where i.invoice_ref in ('B14-INV-0001','B15-INV-0001','B16-INV-0001','B17-INV-0001');
+
+update billing_invoices set status = 'open'
+ where invoice_ref in ('B14-INV-0001','B15-INV-0001','B16-INV-0001','B17-INV-0001');
+
+do $$
+declare r record; n bigint;
+begin
+  for r in
+    select * from (values
+      ('b1800000-0000-0000-0000-000000000014'::uuid, 1::bigint, 'an ACTIVE farm must be charged'),
+      -- The asymmetry, and it is deliberate. Suspension WITHHOLDS the service; it does
+      -- not forgive what has already been supplied and invoiced. A later reader who
+      -- "tidies" this into one rule will break one half of it, so both are pinned.
+      ('b1800000-0000-0000-0000-000000000015'::uuid, 1::bigint, 'a SUSPENDED farm still owes for the months it had'),
+      ('b1800000-0000-0000-0000-000000000016'::uuid, 0::bigint, 'a DELETED farm must never be charged'),
+      ('b1800000-0000-0000-0000-000000000017'::uuid, 0::bigint, 'a CANCELLED farm must never be charged')
+    ) as t(inv, want, human)
+  loop
+    select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = r.inv;
+    if n <> r.want then
+      raise exception 'BILLING FAIL [r]: %; the shortlist returned % row(s), expected %',
+        r.human, n, r.want;
+    end if;
+  end loop;
+
+  raise notice '   charging: active + suspended offered, deleted + cancelled not';
+end $$;
+
+-- ── S11: the retry timer paces the MACHINE. It must not refuse a person. ────
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000014';
+  v_inv uuid := 'b1800000-0000-0000-0000-000000000014';
+  s     public.billing_subscriptions%rowtype;
+  v_off integer[];
+  auto  bigint; manual bigint;
+  i     integer;
+begin
+  select retry_offsets_days into v_off from billing_settings where singleton;
+
+  -- CONTROL: before any decline, both paths agree. So a later difference is the retry
+  -- window and not something incidental about this invoice.
+  select count(*) into auto   from app.due_billing_charges(50) d where d.invoice_id = v_inv;
+  select count(*) into manual from app.invoice_chargeable_now(v_inv);
+  if auto <> 1 or manual <> 1 then
+    raise exception 'BILLING FAIL [r]: before any decline the two paths disagree (auto %, manual %)',
+      auto, manual;
+  end if;
+
+  -- One decline. The machine now waits; the person must not have to.
+  perform app.billing_register_failure(v_sub, 'test decline');
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.next_retry_on is distinct from (current_date + v_off[1]) then
+    raise exception 'BILLING FAIL [r]: the decline did not set a retry date, so this proves nothing';
+  end if;
+
+  select count(*) into auto   from app.due_billing_charges(50) d where d.invoice_id = v_inv;
+  select count(*) into manual from app.invoice_chargeable_now(v_inv);
+  if auto <> 0 then
+    raise exception 'BILLING FAIL [r]: the nightly pass ignored its own retry window (% rows) — '
+      'a ladder that charges every night is not a ladder', auto;
+  end if;
+  if manual <> 1 then
+    raise exception 'BILLING FAIL [r]: after a decline the owner pressing "Try again" is told '
+      'nothing is due, for % days, while the invoice is unpaid and the farm is walking '
+      'towards a downgrade', v_off[1];
+  end if;
+
+  -- Exhaust the ladder into GRACE. This is where the automatic path stops for ever:
+  -- `billing_register_failure` sets next_retry_on = null and status = 'grace', and
+  -- neither `grace` nor `downgraded` is in the automatic shortlist at all.
+  for i in 1 .. array_length(v_off, 1) loop
+    perform app.billing_register_failure(v_sub, 'test decline ' || i);
+  end loop;
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'grace' then
+    raise exception 'BILLING FAIL [r]: the ladder did not reach grace (status %)', s.status;
+  end if;
+
+  select count(*) into manual from app.invoice_chargeable_now(v_inv);
+  if manual <> 1 then
+    raise exception 'BILLING FAIL [r]: a farm in GRACE cannot pay with the card already on '
+      'file. That is the most valuable button in this product and it does nothing.';
+  end if;
+
+  -- And after the downgrade, which is the state the whole "nothing is deleted, pay and
+  -- you get it back" promise is made about. If the card cannot be presented here, that
+  -- promise has no mechanism behind it.
+  update billing_subscriptions set status = 'downgraded' where id = v_sub;
+  select count(*) into manual from app.invoice_chargeable_now(v_inv);
+  if manual <> 1 then
+    raise exception 'BILLING FAIL [r]: a DOWNGRADED farm cannot pay their way back with the '
+      'card on file, so the recovery the downgrade design promises cannot happen';
+  end if;
+
+  raise notice '   the person can pay at every rung; the machine still waits its turn';
+end $$;
+
+-- ── S11: and the manual path relaxes NOTHING else ───────────────────────────
+do $$
+declare
+  v_inv uuid := 'b1800000-0000-0000-0000-000000000014';
+  v_att uuid;
+  n bigint;
+begin
+  -- "Just try it again" is the perfect way to charge somebody twice. The in-flight
+  -- block is the guard, and the manual path must be subject to it exactly as the
+  -- nightly pass is.
+  v_att := app.claim_billing_charge(v_inv, 'B14-REF-INFLIGHT', 'manual_retry', 1234);
+  if v_att is null then
+    raise exception 'BILLING FAIL [r]: the manual path could not claim a charge at all';
+  end if;
+
+  select count(*) into n from app.invoice_chargeable_now(v_inv);
+  if n <> 0 then
+    raise exception 'BILLING FAIL [r]: an invoice with an attempt IN FLIGHT is still offered to '
+      'the manual path (% rows) — pressing the button twice would charge twice', n;
+  end if;
+
+  perform app.settle_billing_attempt(v_att, 'unknown', null, null, null, 'connection reset');
+  select count(*) into n from app.invoice_chargeable_now(v_inv);
+  if n <> 0 then
+    raise exception 'BILLING FAIL [r]: an UNKNOWN attempt no longer blocks the manual path '
+      '(% rows). Recovery is verifying that reference, never a fresh charge.', n;
+  end if;
+
+  -- A cancelled farm cannot be charged by hand either — the gate is about the farm, not
+  -- about which button was pressed.
+  select count(*) into n from app.invoice_chargeable_now('b1800000-0000-0000-0000-000000000017');
+  if n <> 0 then
+    raise exception 'BILLING FAIL [r]: a CANCELLED farm can be charged through the manual path';
+  end if;
+
+  perform app.settle_billing_attempt(v_att, 'abandoned', null, null, null, 'reference not found');
+
+  raise notice '   the manual path relaxes the timer and nothing else';
+end $$;
+
+-- ── S5: a payment never brings a cancelled subscription back to life ────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000017';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000017';
+  s      public.billing_subscriptions%rowtype;
+  v_plan farm_plan;
+  v_end  date;
+begin
+  -- The state `setCancellation({immediate:true})` writes, plus a farm mid-ladder and a
+  -- plan already taken down by a downgrade — the worst case, and a realistic one: a
+  -- farm cancels precisely because they have been downgraded.
+  update farms set plan = 'essential' where id = v_farm;
+  update billing_subscriptions
+     set status = 'cancelled', cancel_at_period_end = false, cancelled_at = now(),
+         ended_on = current_date, failed_attempt_count = 3, next_retry_on = current_date + 3,
+         grace_ends_on = current_date + 7, plan_before_downgrade = 'complete'
+   where id = v_sub;
+  select ended_on into v_end from billing_subscriptions where id = v_sub;
+
+  perform app.billing_restore_after_payment(v_sub);
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'cancelled' then
+    raise exception 'BILLING FAIL [r]: a payment resubscribed a farm that had CANCELLED '
+      '(status is now %). They would be billed again next month having done nothing — and '
+      'this is exactly what happens when somebody cancels while a charge is in flight.',
+      s.status;
+  end if;
+  if s.ended_on is distinct from v_end then
+    raise exception 'BILLING FAIL [r]: the cancellation date moved from % to %', v_end, s.ended_on;
+  end if;
+  select plan into v_plan from farms where id = v_farm;
+  if v_plan <> 'essential' then
+    raise exception 'BILLING FAIL [r]: a cancelled farm was given its old plan back (%)', v_plan;
+  end if;
+  -- Still tidied up: the row must not sit there claiming a farm that has left is three
+  -- payments behind and due a retry next week.
+  if s.failed_attempt_count <> 0 or s.next_retry_on is not null or s.grace_ends_on is not null then
+    raise exception 'BILLING FAIL [r]: the dunning state was left on a cancelled subscription '
+      '(% failures, retry %, grace %)', s.failed_attempt_count, s.next_retry_on, s.grace_ends_on;
+  end if;
+
+  -- NEGATIVE CONTROL. The status must be CAPABLE of moving, or the assertion above is a
+  -- statement about a function that does nothing.
+  update billing_subscriptions
+     set status = 'past_due', cancel_at_period_end = false, ended_on = null,
+         cancelled_at = null, failed_attempt_count = 2, next_retry_on = current_date + 3,
+         plan_before_downgrade = 'complete'
+   where id = v_sub;
+  perform app.billing_restore_after_payment(v_sub);
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'active' then
+    raise exception 'BILLING FAIL [r]: a live past_due subscription was not restored to active '
+      '(got %) — the cancelled assertion above therefore proves nothing', s.status;
+  end if;
+  select plan into v_plan from farms where id = v_farm;
+  if v_plan <> 'complete' then
+    raise exception 'BILLING FAIL [r]: a live farm did not get its plan back on payment (%)', v_plan;
+  end if;
+
+  -- And the pre-existing period-end case is untouched: paying while you are cancelling
+  -- at period end keeps you cancelling at period end.
+  update billing_subscriptions
+     set status = 'past_due', cancel_at_period_end = true, ended_on = null
+   where id = v_sub;
+  perform app.billing_restore_after_payment(v_sub);
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'non_renewing' then
+    raise exception 'BILLING FAIL [r]: paying while cancelling at period end gave status %, '
+      'expected non_renewing', s.status;
+  end if;
+
+  raise notice '   a payment settles the debt; it does not resurrect the subscription';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
