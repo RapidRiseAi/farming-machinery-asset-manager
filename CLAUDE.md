@@ -2099,4 +2099,106 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     proration, and the self-serve sign-up + quota model planned in
     `docs/SIGNUP_AND_QUOTA_BILLING.md`.
 
+- **The billing audit, and the five defects that stopped revenue silently** (migrations
+  `20260910120000`, `20260910140000`; commits `e25b55a`/`c909986` on `main`; suite sections
+  **(p) (q) (r)**, 17 SQL mutations + 4 TS mutations, all caught, controls survived; both
+  migrations applied to production from disk and each defect then DRIVEN against the live
+  database inside a rolled-back transaction):
+  - **Every one of these stops money with no operational symptom.** No error, no failing
+    cron, no alert — the only evidence is money that quietly stops arriving from a customer
+    who is still using the product. That is why they are grouped: the shared failure is a
+    ledger that reports success while doing nothing.
+  - **S1 — every farm was invoiced ONCE, ever.** `app.generate_billing_invoices` computed
+    its period as `coalesce(current_period_start, next_billing_on)` and then wrote
+    `current_period_start` back onto the subscription. The second time a farm came due,
+    `coalesce` found the value the function itself had written, recomputed the identical
+    period, lost to `billing_invoices_farm_period_uq`, and hit the `continue` — which skips
+    the block that advances `next_billing_on`. The row is then stuck: due today, for ever,
+    producing nothing, while the function returns 0 and the cron reports
+    `generate_invoices: ok`. It also burned an invoice number per failed attempt, so the
+    numbering acquired permanent gaps. Fixed to `coalesce(current_period_end + 1, …)` — a
+    value the function reads but never rewrites into its own input. **Production was
+    ARMED**: Rooikoppies had `current_period_start` set, so it would have raised nothing
+    again.
+  - **Why nothing caught it, which is the transferable part.** Every test of that generator
+    hand-advanced `current_period_start` first — the suite at §(i2), and every staging
+    script used to drive production that week. That is exactly the column the bug fails to
+    advance, so priming it made a broken generator produce the right answer for the wrong
+    reason. Section **(p)** drives three consecutive billing dates moving ONLY
+    `next_billing_on`, asserts contiguity in both directions (a gap is a month nobody is
+    billed for; an overlap is a month billed twice), and runs the third pass three days
+    LATE — a cron that runs late must bill the period that was owed, not a shorter one
+    starting today.
+  - **S2 — an `unknown` attempt could never be resolved.** `reconcileAttempt` handled
+    `deferred` and `pending`; an attempt already at `unknown` fell through to `still-open`
+    for ever. So a charge whose request never reached Paystack jammed its invoice
+    permanently: never charged again, never `past_due`, no reminder, no failure email, and
+    on every screen indistinguishable from a customer who was paid up.
+  - **The obvious fix was wrong, and dangerously so.** Settling `abandoned` on
+    `retryable === false` looks right until you read the adapter: `retryable: false` is
+    produced by FOUR situations and only one is Paystack answering. A missing API key, a
+    reference we never managed to send and a malformed 200 are all non-retryable, and none
+    is an answer about the customer's money. Since `abandoned` UNBLOCKS the invoice, the
+    broad version hands an in-flight `unknown` back to the charging queue because OUR
+    config broke. `VerifyResult` therefore gains a **required** `answered`, set only where
+    Paystack returned its own `status:false` envelope; the worker requires
+    `retryable === false && answered`. Required rather than optional so the compiler forces
+    the next adapter to decide — it found all three call sites.
+  - **S7 — the charging path never looked at the FARM.** `farms.deleted_at` and
+    `farms.status` were read nowhere on it; `farms` was selected only to copy a name onto
+    an invoice snapshot. A soft-deleted, suspended or cancelled farm went on being invoiced
+    and charged. Now: generation requires `trial`/`active`; charging refuses DELETED and
+    CANCELLED but still offers SUSPENDED — suspension withholds the service, it does not
+    forgive what was already supplied. **The asymmetry is pinned in both directions**,
+    because tidying it into one rule breaks one half.
+  - **S11 — "Try again" told a paying customer nothing was due.** `retryInvoiceCharge`
+    rebuilt the AUTOMATIC shortlist, which carries `next_retry_on` — so after a decline the
+    owner's button answered "nothing is due" for three days. Worse and not in the original
+    finding: once retries are exhausted the status is `grace` and then `downgraded`, and
+    NEITHER is in that shortlist, so from the moment a farm entered grace **the stored card
+    was never presented again by anything** — not the cron, not the customer. The UI has
+    been offering that button in `past_due`, `grace` AND `downgraded` since it shipped: it
+    was visible and dead in all three. New `app.invoice_chargeable_now` is a SEPARATE
+    function, not a flag on the automatic one, so the nightly cadence cannot be relaxed by
+    something passed the wrong way round. It drops the retry window and admits `grace`,
+    `non_renewing` and `downgraded` — the last is what gives the downgrade design's "pay
+    and get it back" promise any mechanism at all. It relaxes NOTHING else: the in-flight
+    block still holds, and the farm check moved into the caller because the function is
+    keyed on the invoice alone.
+  - **S5 — a payment resurrected a cancelled subscription.**
+    `billing_restore_after_payment` read only `cancel_at_period_end`, so a payment landing
+    after an IMMEDIATE cancellation set the row back to `active` with `ended_on` in the
+    past, to be billed again next month. Not exotic — it is what happens when somebody
+    cancels while a charge is in flight, which is the whole premise of `unknown`.
+  - **A mutation harness that reported two survivors it had never applied.**
+    `String.prototype.replace` with a string pattern replaces only the FIRST match, and the
+    first match for both period mutants was the copy of that line quoted in the migration's
+    own header comment. The mutants edited prose, the function was untouched, the suite
+    passed, and both were reported as SURVIVED. Fourth instance of this class in this
+    project. The harness now requires the anchor to occur **exactly once** — "never
+    applied" and "survived" have to be different words or a mutation run is theatre.
+  - **Also worth knowing for the next editor**: `supabase/tests/billing_subscription.sql`
+    has MIXED line endings in the working tree (CRLF from the Windows checkout, LF in
+    blocks appended by scripts), so a multi-line literal match works in one region and
+    silently fails in another. Match on `\r?\n`. Git normalises on commit, so the blob is
+    uniform.
+  - Gates: 222 TS tests, typecheck, lint, and the billing suite green. Every migration
+    byte-identical between repo and production after applying.
+  - **Put to the founder, not decided**: whether the nightly pass should keep trying the
+    card during GRACE. It currently never does, which leaves money uncollected from
+    customers still using the product — but the dunning cadence is founder decision #9.
+  - **Still open from the audit**: S3 (plan change is two half-controls — `/admin/farms`
+    writes `farms.plan`, `/admin/billing` writes `billing_subscriptions.plan`, neither
+    touches the other, so an upgrade charges more and grants nothing while a downgrade
+    charges less and keeps everything; no proration, no self-serve), S4 (registering for
+    VAT makes every pre-registration invoice un-updatable), S6 (15 `settleBillingAttempt`
+    call sites discard the error), S8 (a price rise silently reprices existing customers;
+    `price_version_label` is written and never read), S9, S10, S12. **From the Paystack
+    research**: the Starter Business **R80,000 lifetime collections cap** must be cleared
+    before go-live; disputes (`charge.dispute.*`) are unhandled and SA gives 48 business
+    hours before Paystack auto-accepts; refunds are ignored entirely; `reversed` maps to
+    `failed`, which duns a farm you refunded. **Not started**: the receipt PDF redesign,
+    and the sign-up + quota + upgrade/downgrade build in
+    `docs/SIGNUP_AND_QUOTA_BILLING.md`.
+
 > Update this "current status" block at the end of every session.
