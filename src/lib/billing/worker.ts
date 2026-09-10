@@ -101,7 +101,7 @@ export type ChargeSummary = {
 export type ReconcileOutcome =
   | { result: "succeeded"; attemptId: string }
   | { result: "failed"; attemptId: string }
-  | { result: "abandoned"; attemptId: string }
+  | { result: "abandoned"; attemptId: string; reason?: string }
   | { result: "still-open"; attemptId: string; reason: string }
   | { result: "refused"; attemptId: string; reason: string }
   | { result: "error"; attemptId: string; reason: string };
@@ -508,10 +508,42 @@ export async function reconcileAttempt(
     if (verified.deferred) {
       return { result: "still-open", attemptId: attempt.id, reason };
     }
-    // A stale `pending` whose verification we could not complete is promoted to
-    // `unknown`: it is genuinely unknown, and `unknown` is the status that BLOCKS the
-    // invoice. Leaving it `pending` would let the charging worker pick the invoice up
-    // again while we still cannot say whether money moved.
+    // Two conditions, and BOTH are load-bearing.
+    //
+    //   retryable === false  — this is not a 5xx, a 429, a timeout or an unreadable body,
+    //                          so it is not the "ask again in a minute" case.
+    //
+    //   answered === true    — and Paystack PROCESSED the query, returning its own
+    //                          `status:false` envelope. For `transaction/verify` that is
+    //                          "no such transaction": not ambiguity, a fact. No money
+    //                          moved under this reference.
+    //
+    // `!retryable` alone would be wrong, and dangerously so: a missing API key, a
+    // malformed 200 and a reference we never managed to send are all non-retryable, and
+    // each of them would then close an attempt we know nothing about and hand its invoice
+    // back to the charging queue — which is how the same farm gets charged twice.
+    //
+    // Without the terminal case an `unknown` could never be resolved by this path: a
+    // charge whose request never reached Paystack jammed its invoice permanently. The
+    // farm was never charged again, never went `past_due`, never got a reminder or a
+    // failure email, and looked exactly like a customer who was paid up. Clearing it
+    // needed hand-written SQL against production, because there is deliberately no admin
+    // action that settles an attempt.
+    if (verified.retryable === false && verified.answered) {
+      await settleBillingAttempt(supabase, {
+        attemptId: attempt.id,
+        status: "abandoned",
+        failureReason: reason,
+      });
+      await noteReconciliation(
+        supabase,
+        attempt.id,
+        `provider does not know this reference — no money moved: ${reason}`,
+        attempt.reconcile_note,
+      );
+      return { result: "abandoned", attemptId: attempt.id, reason };
+    }
+
     if (attempt.status === "pending") {
       await settleBillingAttempt(supabase, {
         attemptId: attempt.id,

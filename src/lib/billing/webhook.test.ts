@@ -664,6 +664,7 @@ test("an unverifiable event is recorded, answered 200, and left to the reconcile
       deferred: false,
       reason: "payment provider timed out",
       retryable: true,
+      answered: false,
     })),
   });
 

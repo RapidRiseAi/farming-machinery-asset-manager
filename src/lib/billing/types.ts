@@ -156,7 +156,30 @@ export type VerifiedTransaction = {
 export type VerifyResult =
   | { ok: true; transaction: VerifiedTransaction }
   | { ok: false; deferred: true; reason: string }
-  | { ok: false; deferred: false; reason: string; retryable: boolean };
+  | {
+      ok: false;
+      deferred: false;
+      reason: string;
+      /**
+       * True when we could not REACH the provider — a timeout, a 5xx, a 429, an
+       * unreadable body. Whether money moved is genuinely unknown.
+       */
+      retryable: boolean;
+      /**
+       * True ONLY when the provider processed the query and answered about THIS
+       * reference: a `status:false` envelope, which for `transaction/verify` means "no
+       * such transaction". It is deliberately NOT the inverse of `retryable`. A missing
+       * API key, an unparseable 200 and a reference we never managed to send are all
+       * non-retryable, and not one of them is an answer about the customer's money.
+       *
+       * The reconciler settles an attempt `abandoned` — which UNBLOCKS its invoice for
+       * charging — only on `retryable === false && answered`. Widening that to plain
+       * `!retryable` would unblock an in-flight `unknown` because OUR configuration
+       * broke, and charging again on an attempt we never resolved is the exact failure
+       * the whole claim/settle design exists to prevent.
+       */
+      answered: boolean;
+    };
 
 export type ChargeRequest = {
   farmId: string;

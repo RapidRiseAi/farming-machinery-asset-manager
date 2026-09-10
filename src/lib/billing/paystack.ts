@@ -110,7 +110,10 @@ type PaystackEnvelope = {
 
 type ApiResult =
   | { ok: true; data: Record<string, unknown>; message: string }
-  | { ok: false; reason: string; retryable: boolean };
+  // `answered` = Paystack processed this request and refused it, as opposed to us being
+  // unable to ask. See the note on `VerifyResult.answered` — the reconciler's decision to
+  // close an attempt turns on this distinction and not on `retryable`.
+  | { ok: false; reason: string; retryable: boolean; answered: boolean };
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -388,13 +391,28 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
       return { ok: false, deferred: true, reason: "billing provider is not configured" };
     }
     if (!nonEmpty(reference)) {
-      return { ok: false, deferred: false, reason: "reference is required", retryable: false };
+      // We never asked about anything, so there is nothing to have been answered.
+      return {
+        ok: false,
+        deferred: false,
+        reason: "reference is required",
+        retryable: false,
+        answered: false,
+      };
     }
 
     const res = await this.request(`/transaction/verify/${encodeURIComponent(reference.trim())}`, {
       method: "GET",
     });
-    if (!res.ok) return { ok: false, deferred: false, reason: res.reason, retryable: res.retryable };
+    if (!res.ok) {
+      return {
+        ok: false,
+        deferred: false,
+        reason: res.reason,
+        retryable: res.retryable,
+        answered: res.answered,
+      };
+    }
     return { ok: true, transaction: toVerifiedTransaction(res.data) };
   }
 
@@ -408,7 +426,9 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
       (nonEmpty(req.reference) ? null : "reference is required") ??
       (nonEmpty(req.authorizationCode) ? null : "no stored card for this farm") ??
       (nonEmpty(req.email) ? null : "authorization email is required");
-    if (invalid) return { ok: false, deferred: false, reason: invalid, retryable: false };
+    if (invalid) {
+      return { ok: false, deferred: false, reason: invalid, retryable: false, answered: false };
+    }
 
     const res = await this.request("/transaction/charge_authorization", {
       method: "POST",
@@ -424,7 +444,15 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
         metadata: this.metadataFor(req.metadata, req.farmId, req.invoiceId),
       }),
     });
-    if (!res.ok) return { ok: false, deferred: false, reason: res.reason, retryable: res.retryable };
+    if (!res.ok) {
+      return {
+        ok: false,
+        deferred: false,
+        reason: res.reason,
+        retryable: res.retryable,
+        answered: res.answered,
+      };
+    }
     return { ok: true, transaction: toVerifiedTransaction(res.data) };
   }
 
@@ -509,7 +537,16 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
 
   private async request(path: string, init: RequestInit): Promise<ApiResult> {
     const cfg = paystackConfig();
-    if (!cfg.ok) return { ok: false, reason: "billing provider is not configured", retryable: false };
+    // Not retryable in the "try again in a minute" sense, but emphatically NOT an answer:
+    // our key is missing, so nobody has asked Paystack anything.
+    if (!cfg.ok) {
+      return {
+        ok: false,
+        reason: "billing provider is not configured",
+        retryable: false,
+        answered: false,
+      };
+    }
 
     const doFetch: FetchLike =
       this.fetchImpl ??
@@ -537,6 +574,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
         ok: false,
         reason: timedOut ? "payment provider timed out" : "payment provider unreachable",
         retryable: true,
+        answered: false,
       };
     }
 
@@ -560,6 +598,10 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
         ok: false,
         reason: message || `payment provider returned ${res.status}`,
         retryable,
+        // A 404 for a verify carries `status:false` — Paystack telling us, in its own
+        // envelope, that it has never heard of this reference. A 502 from a proxy in
+        // front of the API carries no envelope at all and answers nothing.
+        answered: body ? body.status !== true : false,
       };
     }
 
@@ -567,15 +609,32 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
       // A 200 with `status:false` is a refusal, not an outage: a declined charge, a bad
       // reference, an authorization that may not be reused. Terminal.
       if (body) {
-        return { ok: false, reason: message || "payment provider refused the request", retryable: false };
+        return {
+          ok: false,
+          reason: message || "payment provider refused the request",
+          retryable: false,
+          answered: true,
+        };
       }
       // A 200 that is not JSON at all is almost always a proxy or an error page in
       // front of the API, which is transient and therefore unknown, not refused.
-      return { ok: false, reason: "payment provider returned an unreadable response", retryable: true };
+      return {
+        ok: false,
+        reason: "payment provider returned an unreadable response",
+        retryable: true,
+        answered: false,
+      };
     }
 
     if (!isObject(body.data)) {
-      return { ok: false, reason: "payment provider returned no data", retryable: false };
+      // A 200 with `status:true` and no data object is malformed, not a refusal. We have
+      // no answer about the reference, so this must never close an attempt.
+      return {
+        ok: false,
+        reason: "payment provider returned no data",
+        retryable: false,
+        answered: false,
+      };
     }
 
     return { ok: true, data: body.data, message };

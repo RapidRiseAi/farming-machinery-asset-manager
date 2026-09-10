@@ -2143,6 +2143,362 @@ begin
   raise notice '   all % billing alerts use a template the renderer knows', n;
 end $$;
 
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (p) A SECOND month. And a third. Driven by the generator alone.
+--
+-- Every other section in this file, and every staging script used to drive production,
+-- hand-wrote `current_period_start` before calling the generator. That is the exact
+-- column the defect failed to advance, so priming it made a broken generator look
+-- correct: the function read back the value the TEST had supplied instead of the value
+-- IT had written, and produced the right answer for the wrong reason.
+--
+-- What the defect actually did (measured, not reasoned about — three consecutive billing
+-- dates, moving only `next_billing_on`):
+--
+--     run 1  ->  1 invoice   10 Sep .. 09 Oct, next_billing_on 10 Oct
+--     run 2  ->  0 invoices  period UNCHANGED, next_billing_on dragged back to today
+--     run 3  ->  0 invoices  identical
+--
+-- Every farm was invoiced ONCE, ever. There is no error and no alert — the function
+-- returns 0, which the cron reports as `generate_invoices: ok` — so the only symptom is
+-- money that stops arriving, months later, for a customer who is still using the product.
+--
+-- The clock is advanced here by moving `next_billing_on` and NOTHING else, because that
+-- is the only field that really changes when a month passes. The period the generator
+-- then chooses must follow `current_period_end + 1`, not the date the cron happened to
+-- fire — which is also why the third run below is deliberately three days LATE.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000011', 'Billing Farm Consecutive', 'complete', 'active',
+   'monthly', 'consecutive@billing.invalid'),
+  ('b1000000-0000-0000-0000-000000000012', 'Billing Farm Consecutive Annual', 'professional',
+   'active', 'annual', 'consecutive.annual@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000111', 'b1000000-0000-0000-0000-000000000011',
+   'Consecutive Tractor A', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000112', 'b1000000-0000-0000-0000-000000000011',
+   'Consecutive Tractor B', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000121', 'b1000000-0000-0000-0000-000000000012',
+   'Consecutive Harvester', 'harvester', 'hours', 'active');
+
+-- Exactly the row `app.start_billing_subscription` leaves behind: both period columns
+-- NULL, so the first BILLED period begins when billing begins and not on the day somebody
+-- pressed a button. Nothing else in this suite starts a subscription from that state.
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000011', 'b1000000-0000-0000-0000-000000000011',
+   'complete', 'monthly', 'active', null, null, current_date),
+  ('b1600000-0000-0000-0000-000000000012', 'b1000000-0000-0000-0000-000000000012',
+   'professional', 'annual', 'active', null, null, current_date);
+
+do $$
+declare
+  v_sub   uuid := 'b1600000-0000-0000-0000-000000000011';
+  v_farm  uuid := 'b1000000-0000-0000-0000-000000000011';
+  s       public.billing_subscriptions%rowtype;
+  inv     public.billing_invoices%rowtype;
+  prev    public.billing_invoices%rowtype;
+  v_made  integer;
+  n       bigint;
+  seq0    bigint;
+  seq1    bigint;
+  i       integer;
+begin
+  raise notice '── BILLING (p): consecutive periods, generator only ─────────────';
+
+  -- POSITIVE CONTROL. Nothing exists yet, so "a second invoice appeared" cannot be an
+  -- artifact of a fixture that already had one.
+  select count(*) into n from billing_invoices where farm_id = v_farm;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [p]: the fixture already carries % invoices', n;
+  end if;
+  select last_value into seq0 from billing_invoice_ref_seq;
+
+  for i in 1 .. 3 loop
+    -- "A month passed." The ONLY faithful change. On run 3 the cron is three days late,
+    -- which must shift nothing: a late pass bills the period that was owed, not a
+    -- shorter one starting today.
+    if i > 1 then
+      update billing_subscriptions
+         set next_billing_on = current_date - case when i = 3 then 3 else 0 end
+       where id = v_sub;
+    end if;
+
+    v_made := app.generate_billing_invoices(v_sub);
+
+    if v_made <> 1 then
+      raise exception 'BILLING FAIL [p]: billing date % produced % invoices, expected 1. '
+        'A generator that recomputes the period from a column it wrote itself bills a farm '
+        'once and then silently returns 0 for ever, which the cron reports as healthy.',
+        i, v_made;
+    end if;
+
+    select count(*) into n from billing_invoices where farm_id = v_farm;
+    if n <> i then
+      raise exception 'BILLING FAIL [p]: after % billing dates the farm has % invoices', i, n;
+    end if;
+
+    select * into inv from billing_invoices
+     where farm_id = v_farm order by period_start desc limit 1;
+    select * into s from billing_subscriptions where id = v_sub;
+
+    if inv.period_end < inv.period_start then
+      raise exception 'BILLING FAIL [p]: invoice % covers a period that ends before it starts (% .. %)',
+        inv.invoice_ref, inv.period_start, inv.period_end;
+    end if;
+
+    -- The symptom a human would eventually see: the row stuck on "due today" for ever.
+    if s.next_billing_on <= current_date then
+      raise exception 'BILLING FAIL [p]: after billing date % the subscription is still due on % '
+        '(today is %) — it will be reconsidered every night and produce nothing',
+        i, s.next_billing_on, current_date;
+    end if;
+    if s.next_billing_on is distinct from (inv.period_end + 1) then
+      raise exception 'BILLING FAIL [p]: next_billing_on is % but the period just billed ends % '
+        '— the next charge would not line up with the period it pays for',
+        s.next_billing_on, inv.period_end;
+    end if;
+    if s.current_period_start is distinct from inv.period_start
+       or s.current_period_end is distinct from inv.period_end then
+      raise exception 'BILLING FAIL [p]: the subscription says % .. % while the invoice it just '
+        'raised says % .. %', s.current_period_start, s.current_period_end,
+        inv.period_start, inv.period_end;
+    end if;
+
+    -- CONTIGUITY. Not merely "a second invoice exists" — the second period must begin the
+    -- day after the first ended. A gap is a month nobody is billed for; an overlap is a
+    -- month billed twice, and the customer notices that one.
+    if prev.id is not null then
+      if inv.period_start <> prev.period_end + 1 then
+        raise exception 'BILLING FAIL [p]: period % starts % but the previous one ended % — '
+          'that is a % day %', i, inv.period_start, prev.period_end,
+          abs(inv.period_start - (prev.period_end + 1)),
+          case when inv.period_start > prev.period_end + 1 then 'gap' else 'overlap' end;
+      end if;
+      if inv.invoice_ref = prev.invoice_ref then
+        raise exception 'BILLING FAIL [p]: two periods share the invoice number %', inv.invoice_ref;
+      end if;
+    end if;
+    prev := inv;
+  end loop;
+
+  -- Same day, asked again: still three. Fixing the advance must not have cost the
+  -- idempotence section (f) proves, and the two properties pull in opposite directions.
+  if app.generate_billing_invoices(v_sub) <> 0 then
+    raise exception 'BILLING FAIL [p]: the generator raised a second invoice for a period '
+      'that is not due yet';
+  end if;
+  select count(*) into n from billing_invoices where farm_id = v_farm;
+  if n <> 3 then
+    raise exception 'BILLING FAIL [p]: % invoices after a repeat run, expected 3', n;
+  end if;
+
+  -- Invoice numbering. Every failed insert inside the generator still burns a value off
+  -- the sequence, so the broken version left permanent gaps in the numbers a customer and
+  -- an auditor both read — the sequence had reached 3 while exactly one invoice existed.
+  select last_value into seq1 from billing_invoice_ref_seq;
+  if seq1 - seq0 <> 3 then
+    raise exception 'BILLING FAIL [p]: 3 invoices consumed % invoice numbers — the numbering '
+      'now has permanent gaps in it', seq1 - seq0;
+  end if;
+
+  raise notice '   3 consecutive monthly periods, no gap, no overlap, 3 numbers used';
+end $$;
+
+-- ── The same thing on an ANNUAL term, where a lost period costs a year ───────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000012';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000012';
+  a      public.billing_invoices%rowtype;
+  b      public.billing_invoices%rowtype;
+begin
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [p]: the annual subscription raised no first invoice';
+  end if;
+  select * into a from billing_invoices where farm_id = v_farm;
+
+  update billing_subscriptions set next_billing_on = current_date where id = v_sub;
+
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [p]: an annual customer was invoiced once and never again. '
+      'On a monthly term that is a month of revenue; here it is a YEAR, and the farm keeps '
+      'the product throughout because nothing marks them unpaid.';
+  end if;
+  select * into b from billing_invoices
+   where farm_id = v_farm and id <> a.id;
+
+  if b.period_start <> a.period_end + 1 then
+    raise exception 'BILLING FAIL [p]: annual year two starts % but year one ended %',
+      b.period_start, a.period_end;
+  end if;
+  -- Ten months charged for twelve is the annual discount (founder decision, §(0)/(h)).
+  -- It has to survive into the SECOND year too, or year two is quietly repriced.
+  if b.months_charged <> a.months_charged then
+    raise exception 'BILLING FAIL [p]: annual year one charged % months and year two charged % '
+      '— the discount does not survive a renewal', a.months_charged, b.months_charged;
+  end if;
+  if b.unit_price_incl_cents <> a.unit_price_incl_cents then
+    raise exception 'BILLING FAIL [p]: year two repriced from % to % without anybody deciding to',
+      a.unit_price_incl_cents, b.unit_price_incl_cents;
+  end if;
+
+  raise notice '   two consecutive annual terms, contiguous, priced the same';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (q) The other end of the `unknown` guard: something has to let go
+--
+-- Section (g) proves an `unknown` attempt BLOCKS its invoice, which is exactly right —
+-- charging again to find out what happened is how a farm gets billed twice. But nothing
+-- in this file proved anything ever UNBLOCKS it, and until this week nothing did: a
+-- charge whose request never reached Paystack sat in `unknown` for ever. The reconciler
+-- asked, Paystack answered "no such transaction", and the code fell through to
+-- "still open" on every pass. The farm was never charged again, never went `past_due`,
+-- never got a reminder or a failure email, and looked on every screen like a customer who
+-- was paid up. Clearing it needed hand-written SQL against production.
+--
+-- `src/lib/billing/worker.ts` now settles such an attempt `abandoned`. That is a claim
+-- about SQL as much as about TypeScript, and this section is the SQL half: `abandoned`
+-- must free the invoice, and — the part that is easy to get wrong — must NOT dun a farm
+-- whose card is perfectly good and who has done nothing at all.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000013', 'Billing Farm Ghost', 'complete', 'active',
+   'monthly', 'ghost@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000131', 'b1000000-0000-0000-0000-000000000013',
+   'Ghost Tractor', 'tractor', 'hours', 'active');
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('b1600000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-000000000013',
+   'complete', 'monthly', 'active', current_date, current_date + 29, current_date + 30);
+
+insert into billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('b1700000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-000000000013',
+   'AUTH_b13synthetic', 'ghost@billing.invalid', 'visa', '1313', '12', '2030',
+   true, true, 'active');
+
+update billing_subscriptions set default_payment_method_id = 'b1700000-0000-0000-0000-000000000013'
+ where id = 'b1600000-0000-0000-0000-000000000013';
+
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('b1800000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-000000000013',
+  'b1600000-0000-0000-0000-000000000013', 'B13-INV-0001', 'draft',
+  current_date, current_date + 29, current_date, current_date,
+  'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('b1800000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-000000000013', 0,
+  'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
+
+update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000013';
+
+do $$
+declare
+  v_inv  uuid := 'b1800000-0000-0000-0000-000000000013';
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000013';
+  v_att  uuid;
+  a      public.billing_payment_attempts%rowtype;
+  s0     public.billing_subscriptions%rowtype;
+  s1     public.billing_subscriptions%rowtype;
+  n      bigint;
+begin
+  raise notice '── BILLING (q): a jammed unknown can be let go, without dunning ─';
+
+  select * into s0 from billing_subscriptions where id = v_sub;
+
+  -- POSITIVE CONTROL, the same discipline (g) uses: prove the invoice is offered BEFORE
+  -- anything blocks it, or every zero below is a statement about an empty queue.
+  select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [q]: the invoice is not chargeable to begin with (% rows)', n;
+  end if;
+
+  -- The lost response. We charged, we never heard back, so we do not know whether the
+  -- farmer's card was debited.
+  v_att := app.claim_billing_charge(v_inv, 'B13-REF-GHOST', 'charge_authorization', 1234);
+  if v_att is null then
+    raise exception 'BILLING FAIL [q]: the charge could not be claimed';
+  end if;
+  perform app.settle_billing_attempt(v_att, 'unknown', null, null, null, 'connection reset');
+
+  select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [q]: an unknown attempt did not block its invoice (% rows)', n;
+  end if;
+
+  -- The reconciler asked Paystack about THAT reference and Paystack answered that it has
+  -- never heard of it. No money moved. `abandoned`, deliberately not `failed`.
+  perform app.settle_billing_attempt(v_att, 'abandoned', null, null, null,
+                                     'Transaction reference not found');
+
+  select * into a from billing_payment_attempts where id = v_att;
+  if a.status <> 'abandoned' then
+    raise exception 'BILLING FAIL [q]: the attempt is % rather than abandoned', a.status;
+  end if;
+  if a.resolved_at is null then
+    raise exception 'BILLING FAIL [q]: an abandoned attempt has no resolved_at, so it still '
+      'reads as in flight to anybody querying the ledger';
+  end if;
+
+  -- The farm was not punished for our lost packet. `failed` would have called
+  -- `app.billing_register_failure` and started them down the ladder towards a downgrade.
+  --
+  -- Asserted BEFORE the queue check below, deliberately. `billing_register_failure` also
+  -- sets `next_retry_on`, which takes the invoice off the queue as a side effect — so in
+  -- the other order a mutant that duns on `abandoned` is caught by the queue assertion
+  -- and this one, the one that actually states the property, never fires at all.
+  select * into s1 from billing_subscriptions where id = v_sub;
+  if s1.status <> s0.status
+     or s1.failed_attempt_count <> s0.failed_attempt_count
+     or s1.next_retry_on is distinct from s0.next_retry_on
+     or s1.grace_ends_on is distinct from s0.grace_ends_on then
+    raise exception 'BILLING FAIL [q]: a request that never reached the provider moved the farm '
+      'from %/% to %/% — their card is fine and they have done nothing',
+      s0.status, s0.failed_attempt_count, s1.status, s1.failed_attempt_count;
+  end if;
+
+  -- No money was recorded, because none moved.
+  select count(*) into n from billing_payments where invoice_id = v_inv;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [q]: closing an attempt invented % payment row(s)', n;
+  end if;
+
+  -- THE POINT: the invoice is chargeable again. Without this the farm is never billed
+  -- again and nothing anywhere says so.
+  select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [q]: after the attempt was closed the invoice is still not '
+      'offered for charging (% rows) — it is jammed for ever and the farm silently stops '
+      'being billed', n;
+  end if;
+
+  -- NEGATIVE CONTROL. The four fields above must be capable of moving, or "unchanged"
+  -- was a statement about dunning being broken rather than about `abandoned` being safe.
+  v_att := app.claim_billing_charge(v_inv, 'B13-REF-DECLINE', 'charge_authorization', 1234);
+  perform app.settle_billing_attempt(v_att, 'failed', null, null, null, 'Insufficient funds');
+  select * into s1 from billing_subscriptions where id = v_sub;
+  if s1.status <> 'past_due' or s1.failed_attempt_count <> s0.failed_attempt_count + 1 then
+    raise exception 'BILLING FAIL [q]: a real decline left the subscription at %/% — the '
+      '"abandoned changes nothing" assertion above therefore proves nothing',
+      s1.status, s1.failed_attempt_count;
+  end if;
+
+  raise notice '   abandoned frees the invoice and leaves the farm alone; failed still duns';
+end $$;
+
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
 select 'ALL BILLING SUBSCRIPTION TESTS PASSED' as result;
 

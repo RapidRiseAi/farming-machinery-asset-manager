@@ -383,6 +383,8 @@ test("a timeout AFTER a provider-side success settles unknown, and reconciliatio
         deferred: false,
         reason: "payment provider timed out",
         retryable: true,
+        // Nobody answered — that is the whole point of this case.
+        answered: false,
       };
     },
   });
@@ -469,6 +471,8 @@ test("a terminal decline settles failed, not unknown", async () => {
         deferred: false,
         reason: "Insufficient funds",
         retryable: false,
+        // Paystack processed the charge and refused it. A decline IS an answer.
+        answered: true,
       };
     },
   });
@@ -700,4 +704,156 @@ test("reconciliation refuses a verified success that does not match, and leaves 
   assert.equal(summary.stillOpen, 1);
   assert.equal(summary.outcomes[0].result, "refused");
   assert.equal(settleCalls(rpcCalls).length, 0, "a mismatch settles nothing at all");
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// An `unknown` that nothing could ever resolve
+//
+// (g) in the SQL suite proves an `unknown` attempt BLOCKS its invoice. Nothing proved
+// anything ever unblocks it. Before this branch existed, a charge whose request never
+// reached Paystack — a DNS failure, a proxy refusing it, a reference we mangled — settled
+// `unknown` and stayed there for ever: `verifyTransaction` answered "no such transaction"
+// on every pass, the reconciler fell through to `still-open`, and the invoice was never
+// offered to a worker again. The farm was never charged, never went `past_due`, never got
+// a reminder or a failure email, and on every screen looked exactly like a customer who
+// was paid up. Revenue stopped for that farm with no operational symptom whatsoever.
+//
+// The pair below is the whole point. Both are non-retryable; only one is an ANSWER.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** One attempt sitting in `unknown`, as `unresolvedAttempts` would hand it over. */
+function unknownAttemptTable(ref = "REF-GHOST") {
+  return (ctx: QueryCtx): Result =>
+    ctx.table === "billing_payment_attempts" && ctx.kind === "select"
+      ? {
+          data: [
+            {
+              id: ATTEMPT,
+              farm_id: FARM,
+              invoice_id: INVOICE,
+              subscription_id: null,
+              payment_method_id: CARD,
+              attempt_ref: ref,
+              kind: "charge_authorization",
+              status: "unknown",
+              amount_incl_cents: AMOUNT,
+              currency: "ZAR",
+              provider: "paystack",
+              provider_transaction_id: null,
+              requested_at: "2026-09-01T00:00:00.000Z",
+              reconciled_at: null,
+              reconcile_note: null,
+            },
+          ],
+          error: null,
+        }
+      : { data: null, error: null };
+}
+
+test("a reference the provider has never heard of is closed, and the invoice is freed", async () => {
+  let charged = 0;
+  const provider = fakeProvider({
+    async verifyTransaction() {
+      // Paystack's own answer for a reference it does not hold: a 404 carrying
+      // `status:false`. It processed the question. No money moved under this reference.
+      return {
+        ok: false,
+        deferred: false,
+        reason: "Transaction reference not found",
+        retryable: false,
+        answered: true,
+      };
+    },
+    async chargeAuthorization() {
+      charged += 1;
+      throw new Error("reconciliation must never charge");
+    },
+  });
+
+  const { client, rpcCalls } = fakeSupabase({
+    table: unknownAttemptTable(),
+    rpc: () => ({ data: null, error: null }),
+  });
+
+  const summary = await reconcileStuckAttempts(client, { provider });
+
+  assert.equal(summary.checked, 1);
+  assert.equal(summary.outcomes[0].result, "abandoned");
+  assert.equal(summary.stillOpen, 0, "an attempt nobody can ever resolve must not stay open");
+  assert.equal(charged, 0, "resolving an unknown is never done by charging again");
+
+  const settled = settleCalls(rpcCalls);
+  assert.equal(settled.length, 1);
+  assert.equal(settled[0].args.p_attempt, ATTEMPT);
+  // `abandoned`, NOT `failed`. `failed` would run `billing_register_failure` and start a
+  // farm down the dunning ladder for a request that never reached the provider — their
+  // card is fine and they have done nothing wrong.
+  assert.equal(settled[0].args.p_status, "abandoned");
+  assert.match(String(settled[0].args.p_failure_reason), /reference not found/i);
+});
+
+test("an unknown is NOT closed when the failure is ours rather than the provider's", async () => {
+  // Every one of these is `retryable: false`, and not one is an answer about the
+  // customer's money. Closing an attempt on any of them would hand a possibly-charged
+  // invoice back to the charging queue — the double charge this whole design prevents.
+  const ourFaults = [
+    { reason: "billing provider is not configured", answered: false },
+    { reason: "reference is required", answered: false },
+    { reason: "payment provider returned no data", answered: false },
+  ];
+
+  for (const fault of ourFaults) {
+    const provider = fakeProvider({
+      async verifyTransaction() {
+        return {
+          ok: false,
+          deferred: false,
+          reason: fault.reason,
+          retryable: false,
+          answered: fault.answered,
+        };
+      },
+    });
+    const { client, rpcCalls } = fakeSupabase({
+      table: unknownAttemptTable(),
+      rpc: () => ({ data: null, error: null }),
+    });
+
+    const summary = await reconcileStuckAttempts(client, { provider });
+
+    assert.equal(summary.outcomes[0].result, "still-open", `"${fault.reason}" must not close an attempt`);
+    assert.equal(summary.stillOpen, 1, `"${fault.reason}" must leave the invoice blocked`);
+    assert.equal(
+      settleCalls(rpcCalls).length,
+      0,
+      `"${fault.reason}" is not an answer about the money and must settle nothing`,
+    );
+  }
+});
+
+test("a provider outage still leaves the unknown blocking", async () => {
+  // The control for the pair above: retryable AND unanswered is the ordinary outage, and
+  // it must behave exactly as it always has. If this ever changed to `abandoned`, the
+  // two assertions above would still pass while every timeout freed an invoice.
+  const provider = fakeProvider({
+    async verifyTransaction() {
+      return {
+        ok: false,
+        deferred: false,
+        reason: "payment provider timed out",
+        retryable: true,
+        answered: false,
+      };
+    },
+  });
+  const { client, rpcCalls } = fakeSupabase({
+    table: unknownAttemptTable(),
+    rpc: () => ({ data: null, error: null }),
+  });
+
+  const summary = await reconcileStuckAttempts(client, { provider });
+
+  assert.equal(summary.outcomes[0].result, "still-open");
+  assert.equal(summary.stillOpen, 1);
+  assert.equal(settleCalls(rpcCalls).length, 0);
 });
