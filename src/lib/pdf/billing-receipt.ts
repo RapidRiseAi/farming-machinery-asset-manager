@@ -80,9 +80,36 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
     // No partner branding here: this document is FROM Rapid Rise, so it carries the
     // product's own identity rather than a workshop's letterhead.
     poweredBy: false,
+    // The engine's default stamp is `<name> · generated <ISO date>` — an English word and
+    // an ISO date at the foot of a page that is translated everywhere else. Overriding it
+    // HERE rather than in the engine leaves partner letterheads, job cards and machine
+    // files untouched. "Generated", not "issued": the engine stamps TODAY, so a receipt
+    // reprinted next year would be claiming the wrong issue date.
+    footer: `${sellerName(d)} · ${t("billingReceipt.generatedOn", L)} ${shortDate(new Date(), L)}`,
   });
 
   pdf.header(t("billingReceipt.subtitle", L));
+
+  // ── The two facts somebody opens a receipt for ────────────────────────────
+  // How much, and is it settled. Everything below is the supporting detail, and it used to
+  // come first with the total as one `kv` row among eight — the same visual weight as the
+  // payment reference.
+  pdf.totalBlock(
+    t("billingReceipt.totalPaid", L),
+    rands(d.totalInclCents),
+    d.paidAt
+      ? `${t("billingReceipt.paidInFull", L)} — ${shortDate(d.paidAt, L)}`
+      : t("billingReceipt.paidInFull", L),
+  );
+
+  // The reference next, because it is what somebody quotes when they ring about it.
+  pdf.kv(t("billingReceipt.reference", L), d.invoiceRef);
+  pdf.kv(
+    t("billingReceipt.period", L),
+    `${shortDate(d.periodStart, L)} – ${shortDate(d.periodEnd, L)}`,
+  );
+  pdf.gap();
+  pdf.hr();
 
   // ── Who charged, and who was charged ──────────────────────────────────────
   pdf.heading(t("billingReceipt.from", L));
@@ -104,13 +131,9 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   pdf.hr();
 
   // ── What it was for ───────────────────────────────────────────────────────
-  pdf.kv(t("billingReceipt.reference", L), d.invoiceRef);
-  if (d.paidAt) pdf.kv(t("billingReceipt.paidOn", L), shortDate(d.paidAt, L));
-  pdf.kv(
-    t("billingReceipt.period", L),
-    `${shortDate(d.periodStart, L)} – ${shortDate(d.periodEnd, L)}`,
-  );
-  pdf.gap();
+  // The reference, the period and the date are at the top now, beside the amount. This is
+  // the itemisation: what the money bought.
+  pdf.heading(t("billingReceipt.whatFor", L));
 
   const perVehicle = `${rands(d.unitPriceInclCents)} ${t("billingReceipt.perVehicleMonth", L)}`;
   pdf.table(
@@ -132,15 +155,20 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   pdf.gap();
 
   // ── The money ─────────────────────────────────────────────────────────────
+  // The total itself is in the block at the top and is deliberately NOT repeated here: one
+  // figure, in one place, is the whole point of putting it where the eye lands first. The
+  // split is still shown when there is one, because a farmer reclaiming input VAT needs
+  // the ex-VAT figure and the VAT figure separately.
   if (d.vatRateBps > 0) {
     pdf.kv(t("billingReceipt.subtotal", L), rands(d.subtotalExVatCents));
+    // `vatPercent` already returns "15%". This line used to append a second sign and
+    // print "VAT (15%%)" to every VAT-registered customer, in both languages.
     pdf.kv(
-      `${t("billingReceipt.vat", L)} (${vatPercent(d.vatRateBps)}%)`,
+      `${t("billingReceipt.vat", L)} (${vatPercent(d.vatRateBps)})`,
       rands(d.vatCents),
     );
+    pdf.gap();
   }
-  pdf.kv(t("billingReceipt.totalPaid", L), rands(d.totalInclCents));
-  pdf.gap();
 
   if (d.payment) {
     // Spelled out rather than masked with bullets. `sanitize()` in doc.ts maps "•" to "-"

@@ -4221,7 +4221,10 @@
     "vatNumber": "VAT number",
     "notVatRegistered": "No VAT has been charged. The supplier is not a registered VAT vendor.",
     "keepThis": "Keep this receipt for your records.",
-    "cardEnding": "ending"
+    "cardEnding": "ending",
+    "paidInFull": "Paid in full",
+    "whatFor": "What this covers",
+    "generatedOn": "generated"
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref} — {amount} received",

@@ -4221,7 +4221,10 @@
     "vatNumber": "BTW-nommer",
     "notVatRegistered": "Geen BTW is gehef nie. Die verskaffer is nie 'n geregistreerde BTW-ondernemer nie.",
     "keepThis": "Hou hierdie kwitansie vir jou rekords.",
-    "cardEnding": "eindig op"
+    "cardEnding": "eindig op",
+    "paidInFull": "Ten volle betaal",
+    "whatFor": "Wat dit dek",
+    "generatedOn": "geskep"
   },
   "billingReceiptEmail": {
     "subject": "Kwitansie {ref} — {amount} ontvang",

@@ -9,7 +9,14 @@ const CONTENT_W = PAGE_W - 2 * MARGIN;
 const INK = rgb(0.15, 0.13, 0.11);
 const MUTED = rgb(0.42, 0.39, 0.34);
 const RULE = rgb(0.9, 0.88, 0.84);
-const BRAND = rgb(0.08, 0.5, 0.24);
+// FleetWise green, #00572C, from FleetWise_Official_Colour_Palette.pdf and docs/DESIGN.md
+// §1 — the same value `brand-500` resolves to on screen. It used to be rgb(0.08, 0.5,
+// 0.24), roughly #14803D, which is a green that appears in no token file and nowhere in
+// the app: every FleetWise-branded PDF was printing off-brand. Only the FALLBACK moves; a
+// partner who has chosen their own colour is untouched.
+const BRAND = rgb(0, 0.3412, 0.1725);
+// A wash of the same green for a panel a reader's eye should land on first.
+const BRAND_WASH = rgb(0.9, 0.94, 0.91);
 
 /** Space kept clear at the right of a table cell, so two columns never touch. */
 const TABLE_GUTTER = 5;
@@ -217,6 +224,55 @@ export class Pdf {
       this.page.drawText(extra, { x: MARGIN + 160, y: this.y, size: 10, font: this.font, color: INK });
       this.y -= step;
     }
+  }
+
+  /**
+   * The one number the reader came for.
+   *
+   * A receipt answers "how much, and is it settled?" before anything else, and the total
+   * used to be a `kv` row carrying the same weight as the payment reference. This gives it
+   * a panel and a size that matches its importance, with the settled-ness said in words
+   * beside it rather than left to be inferred from the word "receipt".
+   */
+  totalBlock(label: string, amount: string, caption?: string) {
+    const h = caption ? 62 : 48;
+    this.ensure(h + 12);
+    const w = PAGE_W - MARGIN * 2;
+    this.page.drawRectangle({
+      x: MARGIN,
+      y: this.y - h,
+      width: w,
+      height: h,
+      color: this.accentStyle === "plain" ? rgb(0.97, 0.96, 0.94) : BRAND_WASH,
+    });
+    this.page.drawText(sanitize(label), {
+      x: MARGIN + 14,
+      y: this.y - 22,
+      size: 9,
+      font: this.bold,
+      color: MUTED,
+    });
+    const size = 22;
+    const width = this.bold.widthOfTextAtSize(sanitize(amount), size);
+    this.page.drawText(sanitize(amount), {
+      // Right-aligned, like every other money figure in this engine. A total that lines up
+      // with the column above it is read as the same kind of thing.
+      x: PAGE_W - MARGIN - 14 - width,
+      y: this.y - 30,
+      size,
+      font: this.bold,
+      color: this.accentStyle === "plain" ? INK : this.accent,
+    });
+    if (caption) {
+      this.page.drawText(sanitize(caption), {
+        x: MARGIN + 14,
+        y: this.y - 46,
+        size: 9,
+        font: this.font,
+        color: MUTED,
+      });
+    }
+    this.y -= h + 12;
   }
 
   hr() {
