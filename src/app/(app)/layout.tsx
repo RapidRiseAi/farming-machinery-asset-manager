@@ -58,11 +58,17 @@ export default async function AppLayout({
   // customer base. It is role-independent by construction too: an operator cannot read the
   // subscription row itself, so a layout that queried the table directly would fail OPEN
   // for exactly the people who never look at billing.
+  //
+  // 'closed' is the other end of the same story (20260911180000): a farm that cancelled,
+  // or that walked the whole dunning ladder and then sat past the lapsed window, or that
+  // Rapid Rise suspended. Until that migration the gate had no such state and NOTHING ever
+  // took access away — a farm that stopped paying kept the product on the downgrade plan
+  // for ever, and a farm that cancelled kept all of it.
   if (profile.farm_id && profile.role !== "rr_admin" && profile.role !== "workshop") {
     const gateClient = await createClient();
-    if ((await farmBillingGate(gateClient, profile.farm_id)) === "pending") {
-      redirect("/activate");
-    }
+    const gate = await farmBillingGate(gateClient, profile.farm_id);
+    if (gate === "pending") redirect("/activate");
+    if (gate === "closed") redirect("/closed");
   }
 
   const locale = profile.lang;

@@ -4279,5 +4279,18 @@
     },
     "choosePlan": "Choose a plan",
     "howOften": "How often you pay"
+  },
+  "closed": {
+    "title": "Your FleetWise farm is closed",
+    "reason": {
+      "cancelled": "You cancelled this subscription, and the period it was paid up to has ended.",
+      "unpaid": "We could not collect payment for this farm, and the time we hold an account open afterwards has passed.",
+      "suspended": "This account has been put on hold by Rapid Rise."
+    },
+    "since": "Since {date}.",
+    "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
+    "reopen": "Reopen my farm and pay",
+    "download": "Download my records",
+    "help": "Anything else, email {email} and a person will sort it out."
   }
 }

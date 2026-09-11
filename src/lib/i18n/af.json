@@ -4279,5 +4279,18 @@
     },
     "choosePlan": "Kies 'n plan",
     "howOften": "Hoe gereeld jy betaal"
+  },
+  "closed": {
+    "title": "Jou FleetWise-plaas is gesluit",
+    "reason": {
+      "cancelled": "Jy het hierdie intekening gekanselleer, en die tydperk waarvoor dit betaal was, is verby.",
+      "unpaid": "Ons kon nie betaling vir hierdie plaas invorder nie, en die tyd wat ons 'n rekening daarna oophou, is verby.",
+      "suspended": "Hierdie rekening is deur Rapid Rise op hou geplaas."
+    },
+    "since": "Sedert {date}.",
+    "dataSafe": "Niks is uitgevee nie. Elke voertuig, diens, werkkaart, fout en koste is steeds hier, en dit behoort steeds aan jou.",
+    "reopen": "Heropen my plaas en betaal",
+    "download": "Laai my rekords af",
+    "help": "Vir enigiets anders, e-pos {email} en 'n mens sal dit regmaak."
   }
 }

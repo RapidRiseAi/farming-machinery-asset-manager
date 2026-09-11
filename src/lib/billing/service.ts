@@ -59,6 +59,10 @@ export const BILLING_RPC = {
   // v_pub_auth_ok note in the suite's section (j) for the four tests they had to pass.
   vehicleAllowance: "farm_vehicle_allowance",
   billingGate: "farm_billing_gate",
+  // Coming back after lapsing (20260911180000). Service-role only: it clears the
+  // cancellation fields, which is precisely what S5 stops a stray charge from doing, so it
+  // must only ever be reached from an action that has established who is asking.
+  reopenSubscription: "billing_reopen_subscription",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -1054,13 +1058,43 @@ export async function resumeSubscription(
  * query failed is a far worse outcome than letting an unpaid one through for one page
  * load, and the unpaid case has no data to reach anyway.
  */
+export type BillingGate = "ok" | "pending" | "closed";
+
 export async function farmBillingGate(
   supabase: SupabaseClient,
   farmId: string,
-): Promise<"ok" | "pending"> {
+): Promise<BillingGate> {
   const { data, error } = await supabase.rpc(BILLING_RPC.billingGate, { p_farm: farmId });
+  // Fail OPEN, deliberately and unchanged. This runs in the layout of every authenticated
+  // farm screen, so a transient database error must not lock the entire customer base out
+  // of a product they have paid for. The gate's job is to stop somebody who has not paid,
+  // and the cost of missing one of those for a few minutes is far below the cost of
+  // shutting everybody out.
   if (error) return "ok";
-  return data === "pending" ? "pending" : "ok";
+  if (data === "pending") return "pending";
+  if (data === "closed") return "closed";
+  return "ok";
+}
+
+/**
+ * Put a lapsed farm back to PENDING with an invoice to pay.
+ *
+ * Deliberately not a payment path of its own: it produces exactly the state a fresh
+ * sign-up is in, so `/activate` and `app.settle_billing_attempt` take the money down the
+ * one route that has been driven end to end on production. A second route would be a
+ * second thing to keep correct.
+ */
+export async function reopenFarmSubscription(
+  supabase: SupabaseClient,
+  farmId: string,
+  byUserId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.rpc(BILLING_RPC.reopenSubscription, {
+    p_farm: farmId,
+    p_by: byUserId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 /** What buying or giving back vehicle slots would do, and cost, before anybody commits. */
