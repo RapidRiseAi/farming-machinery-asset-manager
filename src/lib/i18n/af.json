@@ -4213,5 +4213,15 @@
     "noMoreRetries": "Ons het vir eers opgehou probeer.",
     "graceEnds": "As dit op {date} steeds onbetaald is, sal jou pakket verminder word. Niks wat jy vasgelê het, word uitgevee nie.",
     "whatToDo": "Maak FleetWise oop en gaan na Rekening om jou kaart op te dateer of nou te betaal."
+  },
+  "activate": {
+    "title": "Nog een stap",
+    "lead": "Jou plaas is opgestel. Dit gaan oop sodra die eerste betaling deurkom.",
+    "plan": "Plan",
+    "vehicles": "Voertuie",
+    "amount": "Nou betaalbaar",
+    "pay": "Betaal en maak my plaas oop",
+    "payAmount": "Betaal {amount} en maak my plaas oop",
+    "note": "Jy word na Paystack geneem om met 'n kaart te betaal. Jou kaartbesonderhede bereik nooit FleetWise nie. Die plan hernu elke maand en jy kan dit enige tyd op die rekeningskerm kanselleer."
   }
 }

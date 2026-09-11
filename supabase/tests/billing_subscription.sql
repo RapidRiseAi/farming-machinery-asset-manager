@@ -1271,7 +1271,8 @@ declare
     'release_billing_failure_notice','invoice_chargeable_now',
     'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
     'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing',
-    'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota'];
+    'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota',
+    'farm_billing_gate'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1287,14 +1288,14 @@ declare
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
     'billing_release_failure_notice','billing_invoice_chargeable_now',
     'billing_plan_quote','billing_change_plan','billing_notify_rr',
-    'farm_vehicle_allowance'];
+    'farm_vehicle_allowance','farm_billing_gate'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
   v_auth_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billing_card_expiry_on','billing_price_for_subscription',
-    'farm_vehicle_allowance'];
+    'farm_vehicle_allowance','farm_billing_gate'];
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
   -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
@@ -1302,7 +1303,7 @@ declare
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billable_asset_count','billing_card_expiry_on',
     'billing_price_for_subscription','billing_plan_change_quote',
-    'farm_vehicle_allowance','billing_billable_units'];
+    'farm_vehicle_allowance','billing_billable_units','farm_billing_gate'];
   -- PUBLIC wrappers a signed-in user may call. Until 20260910230000 this list was empty
   -- and did not exist, because every public.billing_* wrapper raises an invoice, settles a
   -- payment or reads a charging credential — a blanket refusal was the whole rule.
@@ -1313,7 +1314,7 @@ declare
   -- money and no credential; and the screen genuinely needs it, because the alternative is
   -- the UI and the database guard computing the same limit separately and eventually
   -- disagreeing about whether a farmer may add a bakkie.
-  v_pub_auth_ok text[] := array['farm_vehicle_allowance'];
+  v_pub_auth_ok text[] := array['farm_vehicle_allowance', 'farm_billing_gate'];
   r record; n integer := 0;
 begin
   raise notice '── BILLING (j): every billing function locked down ──────────────';
@@ -1577,7 +1578,8 @@ begin
       ('billing_plan_quote',  'p_sub uuid, p_plan farm_plan, p_period billing_period', false),
       ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period', false),
       ('billing_notify_rr',   'p_farm uuid, p_template text, p_payload jsonb', false),
-      ('farm_vehicle_allowance', 'p_farm uuid', true)
+      ('farm_vehicle_allowance', 'p_farm uuid', true),
+      ('farm_billing_gate', 'p_farm uuid', true)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
@@ -2057,7 +2059,16 @@ declare
   v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
   v_card uuid := 'b1700000-0000-0000-0000-000000000009';
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000009';
-  v_soon date := (current_date + 20);
+  -- THIS month, not `current_date + 20`. A card expires at the END of its printed month,
+  -- so "+20 days" silently means "the end of next month" for most of any given month: run
+  -- on the 10th of September it resolved to 30 September (20 days, inside the 45-day
+  -- window); run on the 11th it resolved to 31 October (50 days, outside it). The
+  -- assertion passed for the first third of the month and failed for the rest, with
+  -- nothing about the engine having changed.
+  --
+  -- The end of the current month is at most 31 days away, so it is always inside the
+  -- window whatever day this runs.
+  v_soon date := current_date;
   n integer;
 begin
   update billing_subscriptions
@@ -4116,6 +4127,194 @@ begin
   perform pg_catalog.set_config('request.jwt.claims', '', false);
 
   raise notice '   the allowance answers about your own farm and no other';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (w) A farm that has not paid gets no access. Everybody else is untouched.
+--
+-- The rule is "a subscription EXISTS and it is pending" — never "there is no active
+-- subscription". Weltevrede Boerdery is on production with twelve vehicles and no
+-- subscription row at all, and so is every farm onboarded before billing existed, so the
+-- second reading would lock out the whole customer base on the day it shipped.
+--
+-- The other way to get this wrong is subtler and is why `app.farm_billing_gate` is
+-- SECURITY DEFINER. The SELECT policy on every billing table is
+-- `using (app.is_farm_billing_admin(farm_id))`, so a layout reading the subscription
+-- through the CALLER'S client gets a row for an owner and nothing for an operator — and
+-- "nothing" reads as "no subscription, therefore fine". A gate that holds for owners and
+-- fails open for drivers is worse than no gate, because it looks like it works.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000050', 'Billing Farm Pending', 'professional', 'active', 'monthly', 'pending@billing.invalid');
+
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-000000000050', 'pending.owner@billing.invalid'),
+  ('b1a00000-0000-0000-0000-000000000051', 'pending.driver@billing.invalid');
+
+insert into users (id, farm_id, workshop_id, role, name, email, active) values
+  ('b1a00000-0000-0000-0000-000000000050', 'b1000000-0000-0000-0000-000000000050', null,
+   'owner', 'Pending Owner', 'pending.owner@billing.invalid', true),
+  ('b1a00000-0000-0000-0000-000000000051', 'b1000000-0000-0000-0000-000000000050', null,
+   'operator', 'Pending Driver', 'pending.driver@billing.invalid', true);
+
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, asset_quota) values
+  ('b1600000-0000-0000-0000-000000000050', 'b1000000-0000-0000-0000-000000000050',
+   'professional', 'monthly', 'pending', null, null, current_date, 5);
+
+do $$
+declare v_gate text;
+begin
+  raise notice '── BILLING (w): no access until somebody has paid ───────────────';
+
+  -- The farm that signed up and has not paid.
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
+  if v_gate <> 'pending' then
+    raise exception 'BILLING FAIL [w]: a farm whose subscription is PENDING reports "%" — it '
+      'has paid nothing and would have full access', v_gate;
+  end if;
+
+  -- Farm One: a live subscription. Unchanged.
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000001') into v_gate;
+  if v_gate <> 'ok' then
+    raise exception 'BILLING FAIL [w]: a farm with a LIVE subscription reports "%"', v_gate;
+  end if;
+
+  -- THE ONE THAT MATTERS: no subscription row at all. Every farm that predates billing,
+  -- and every farm an administrator creates by hand today.
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000043') into v_gate;
+  if v_gate <> 'ok' then
+    raise exception 'BILLING FAIL [w]: a farm with NO subscription row reports "%". That is '
+      'Weltevrede and every farm onboarded before billing existed — the entire customer '
+      'base locked out on the day this shipped.', v_gate;
+  end if;
+
+  raise notice '   pending blocks; live and no-subscription do not';
+end $$;
+
+-- ── It answers the same for a driver as for the owner ───────────────────────
+do $$
+declare v_owner text; v_driver text; v_sub_rows integer;
+begin
+  -- The layout was going to read `billing_subscriptions` directly. Prove why it must not:
+  -- the same query returns a row to the owner and nothing to the operator.
+  perform public._t_login('b1a00000-0000-0000-0000-000000000050');
+  set local role authenticated;
+  select count(*)::integer into v_sub_rows from billing_subscriptions
+   where farm_id = 'b1000000-0000-0000-0000-000000000050';
+  select public.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_owner;
+  reset role;
+
+  if v_sub_rows <> 1 then
+    raise exception 'BILLING FAIL [w]: the OWNER cannot read their own subscription (% rows), '
+      'so the comparison below proves nothing', v_sub_rows;
+  end if;
+
+  perform public._t_login('b1a00000-0000-0000-0000-000000000051');
+  set local role authenticated;
+  select count(*)::integer into v_sub_rows from billing_subscriptions
+   where farm_id = 'b1000000-0000-0000-0000-000000000050';
+  select public.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_driver;
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims', '', false);
+
+  -- This is the trap, stated as an assertion rather than a comment: the operator genuinely
+  -- cannot see the subscription row.
+  if v_sub_rows <> 0 then
+    raise exception 'BILLING FAIL [w]: an OPERATOR can read the subscription row (% rows). If '
+      'that is now allowed, the SECURITY DEFINER argument in 20260911100000 needs revisiting '
+      '— not deleting', v_sub_rows;
+  end if;
+
+  -- And yet the gate must answer identically for both, because the farm has not paid and
+  -- it is the FARM that is gated, not the person.
+  if v_owner <> 'pending' or v_driver <> 'pending' then
+    raise exception 'BILLING FAIL [w]: the gate says "%" to the owner and "%" to the driver. '
+      'The one that reads "ok" walks straight into a farm that has paid nothing.',
+      v_owner, v_driver;
+  end if;
+
+  raise notice '   the driver is gated exactly as the owner is, despite seeing no billing row';
+end $$;
+
+-- ── And it is not an oracle about farms you cannot reach ────────────────────
+do $$
+declare v_gate text;
+begin
+  perform public._t_login('b1a00000-0000-0000-0000-000000000006');   -- Farm Two's owner
+  set local role authenticated;
+
+  select public.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
+  if v_gate is not null then
+    raise exception 'BILLING FAIL [w]: another farm''s owner learned that farm 50 is "%"', v_gate;
+  end if;
+
+  -- POSITIVE CONTROL, same caller, their own farm.
+  select public.farm_billing_gate('b1000000-0000-0000-0000-000000000002') into v_gate;
+  if v_gate is null then
+    raise exception 'BILLING FAIL [w]: the same owner got null for their OWN farm, so the '
+      'null above was the function refusing everybody rather than isolation working';
+  end if;
+
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims', '', false);
+
+  raise notice '   the gate answers about your own farm and no other';
+end $$;
+
+-- ── Paying is what opens the door ───────────────────────────────────────────
+do $$
+declare v_gate text;
+begin
+  -- The whole point of `pending`: it is a state somebody LEAVES by paying. The activation
+  -- path is `app.settle_billing_attempt` marking an invoice paid, which is exercised
+  -- end-to-end elsewhere; here it is enough that the gate follows the status.
+  update billing_subscriptions set status = 'active'
+   where id = 'b1600000-0000-0000-0000-000000000050';
+
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
+  if v_gate <> 'ok' then
+    raise exception 'BILLING FAIL [w]: a farm that has paid still reports "%" — they would be '
+      'charged and then shut out, which is the worst outcome available', v_gate;
+  end if;
+
+  raise notice '   activating the subscription opens the farm';
+end $$;
+
+-- ── A subscription that was soft-deleted does not gate for ever ─────────────
+do $$
+declare v_gate text;
+begin
+  -- Put it back to pending so the block below is measuring the soft-delete and not the
+  -- status.
+  update billing_subscriptions set status = 'pending'
+   where id = 'b1600000-0000-0000-0000-000000000050';
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
+  if v_gate <> 'pending' then
+    raise exception 'BILLING FAIL [w]: the fixture is not pending again (%), so the '
+      'soft-delete assertion below would prove nothing', v_gate;
+  end if;
+
+  -- Soft-delete is how everything in this product is removed. A gate that ignored
+  -- `deleted_at` would leave a farm locked out by a subscription row that no longer counts
+  -- for anything else — invoicing, charging and dunning all skip it — with no way to
+  -- clear it short of hand-written SQL.
+  update billing_subscriptions set deleted_at = now()
+   where id = 'b1600000-0000-0000-0000-000000000050';
+
+  select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
+  if v_gate <> 'ok' then
+    raise exception 'BILLING FAIL [w]: a SOFT-DELETED pending subscription still reports "%". '
+      'Every other engine skips a deleted row; this one would lock the farm out for ever.',
+      v_gate;
+  end if;
+
+  update billing_subscriptions set deleted_at = null, status = 'active'
+   where id = 'b1600000-0000-0000-0000-000000000050';
+
+  raise notice '   a deleted subscription row stops gating, like every other engine';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;

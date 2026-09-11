@@ -54,9 +54,11 @@ export const BILLING_RPC = {
   changePlan: "billing_change_plan",
   // Disputes and refunds, addressed to Rapid Rise rather than the farm (20260910200000).
   notifyRr: "billing_notify_rr",
-  // How many vehicle slots are left (20260910230000). The only wrapper here a signed-in
-  // user may call — see the v_pub_auth_ok note in the suite's section (j).
+  // How many vehicle slots are left (20260910230000), and whether the farm has paid at
+  // all (20260911100000). The only two wrappers here a signed-in user may call — see the
+  // v_pub_auth_ok note in the suite's section (j) for the four tests they had to pass.
   vehicleAllowance: "farm_vehicle_allowance",
+  billingGate: "farm_billing_gate",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",
@@ -1032,6 +1034,28 @@ export async function resumeSubscription(
     .is("ended_on", null);
   if (error) return { error: { message: redactMessage(error.message), code: error.code } };
   return { error: null };
+}
+
+/**
+ * May this farm be used at all?
+ *
+ * `"pending"` means a subscription row exists and has not been paid for. Everything else —
+ * including NO subscription row at all — is `"ok"`, and that is the load-bearing half:
+ * Weltevrede has twelve vehicles and no subscription, as does every farm onboarded before
+ * billing existed, so a gate written as "no active subscription" would lock out the whole
+ * customer base. See 20260911100000.
+ *
+ * A read failure returns `"ok"`. Shutting a paying farm out of their own records because a
+ * query failed is a far worse outcome than letting an unpaid one through for one page
+ * load, and the unpaid case has no data to reach anyway.
+ */
+export async function farmBillingGate(
+  supabase: SupabaseClient,
+  farmId: string,
+): Promise<"ok" | "pending"> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.billingGate, { p_farm: farmId });
+  if (error) return "ok";
+  return data === "pending" ? "pending" : "ok";
 }
 
 /** How many vehicle slots a farm has, and how many are left. */

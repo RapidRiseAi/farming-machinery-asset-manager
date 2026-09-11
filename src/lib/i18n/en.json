@@ -4213,5 +4213,15 @@
     "noMoreRetries": "We have stopped retrying for now.",
     "graceEnds": "If it is still unpaid on {date}, your plan will be reduced. Nothing you have captured is deleted.",
     "whatToDo": "Open FleetWise and go to Billing to update your card or pay now."
+  },
+  "activate": {
+    "title": "One step left",
+    "lead": "Your farm is set up. It opens as soon as the first payment goes through.",
+    "plan": "Plan",
+    "vehicles": "Vehicles",
+    "amount": "To pay now",
+    "pay": "Pay and open my farm",
+    "payAmount": "Pay {amount} and open my farm",
+    "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen."
   }
 }

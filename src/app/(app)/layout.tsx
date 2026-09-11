@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   currentPlan,
@@ -9,6 +10,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
+import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { countInboxUnread } from "@/lib/inbox";
 import { t } from "@/lib/i18n";
@@ -44,6 +46,25 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { profile, plan } = await currentPlan();
+
+  // A farm that signed up and has not paid gets no app at all — just the screen that takes
+  // the payment. This is the only place the check lives, because this layout wraps every
+  // authenticated farm screen and nothing else: /login, the public QR page, the API routes
+  // and /activate itself all sit outside it, so /activate cannot bounce to itself.
+  //
+  // `farmBillingGate` answers "pending" ONLY when a subscription row exists and has not
+  // been paid. No subscription row at all is "ok" — that is Weltevrede and every farm
+  // onboarded before billing existed, and the inverse reading would lock out the whole
+  // customer base. It is role-independent by construction too: an operator cannot read the
+  // subscription row itself, so a layout that queried the table directly would fail OPEN
+  // for exactly the people who never look at billing.
+  if (profile.farm_id && profile.role !== "rr_admin" && profile.role !== "workshop") {
+    const gateClient = await createClient();
+    if ((await farmBillingGate(gateClient, profile.farm_id)) === "pending") {
+      redirect("/activate");
+    }
+  }
+
   const locale = profile.lang;
   // The EN/AF control shows the LANGUAGE choice, which is independent of tone — a
   // professional-tone Afrikaans user must still see AF selected, not "af-pro".
