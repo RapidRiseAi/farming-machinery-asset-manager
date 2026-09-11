@@ -3983,7 +3983,10 @@
     "signupPlan": "Kies asseblief een van die planne wat gewys word.",
     "tankName": "Gee die tenk 'n naam.",
     "tankAndLitres": "Kies 'n tenk en tik in hoeveel liter.",
-    "pickTank": "Kies 'n tenk."
+    "pickTank": "Kies 'n tenk.",
+    "termsRequired": "Merk asseblief die blokkie om te sê jy stem met die voorwaardes saam.",
+    "termsStale": "Die voorwaardes het verander terwyl jy dit ingevul het. Lees dit asseblief weer en merk die blokkie.",
+    "billingNotPaid": "Daar is nog nie 'n kwitansie nie — hierdie faktuur is nie betaal nie."
   },
   "billing": {
     "title": "Rekening",
@@ -4092,7 +4095,9 @@
     "slotsUsing": "Jy gebruik {used} van {quota}.",
     "slotsNoneYet": "Hierdie intekening word gehef op die voertuie wat getel word, nie op 'n getal wat jy gekies het nie.",
     "slotsSubmit": "Dateer plekke op",
-    "slotsRule": "Meer plekke is dadelik joune en jy betaal die verskil vir die dae wat oor is in hierdie tydperk. Minder begin aan die einde van die tydperk waarvoor jy reeds betaal het, en jy kan nie onder die voertuie gaan wat jy gebruik nie — tree eers een af."
+    "slotsRule": "Meer plekke is dadelik joune en jy betaal die verskil vir die dae wat oor is in hierdie tydperk. Minder begin aan die einde van die tydperk waarvoor jy reeds betaal het, en jy kan nie onder die voertuie gaan wat jy gebruik nie — tree eers een af.",
+    "colReceipt": "Kwitansie",
+    "downloadReceipt": "Laai af"
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -4295,7 +4300,12 @@
       "done_for_you": "Alles in Volledig, plus API-toegang en persoonlike opstelling."
     },
     "choosePlan": "Kies 'n plan",
-    "howOften": "Hoe gereeld jy betaal"
+    "howOften": "Hoe gereeld jy betaal",
+    "termsPre": "Ek het die",
+    "termsLink": "gebruiksvoorwaardes",
+    "termsAnd": "en die",
+    "privacyLink": "privaatheidskennisgewing",
+    "termsPost": " gelees en stem daarmee saam."
   },
   "closed": {
     "title": "Jou FleetWise-plaas is gesluit",

@@ -94,7 +94,13 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v : null;
 }
 
-async function loadReceipt(
+/**
+ * Assemble a receipt from the INVOICE's own frozen snapshots.
+ *
+ * Exported so the download route can serve the same document the customer was emailed,
+ * rather than a second rendering that could drift from it.
+ */
+export async function loadReceipt(
   supabase: SupabaseClient,
   invoiceId: string,
   locale: Lang,

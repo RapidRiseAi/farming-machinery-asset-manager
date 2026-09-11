@@ -658,6 +658,7 @@ export default async function BillingPage({
                   <Th className="text-right">{t("billing.colTotal", locale)}</Th>
                   <Th>{t("billing.colPaid", locale)}</Th>
                   <Th>{t("billing.colStatus", locale)}</Th>
+                  <Th>{t("billing.colReceipt", locale)}</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -696,6 +697,21 @@ export default async function BillingPage({
                           tone={look.tone}
                           shape={look.shape}
                         />
+                      </Td>
+                      <Td>
+                        {/* Paid only. The document says "Paid in full", so offering it for
+                            money that has not arrived would be a false record of payment —
+                            the route refuses as well, this is just the affordance. */}
+                        {inv.status === "paid" ? (
+                          <a
+                            href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
+                            className="text-sm font-medium text-brand-ink underline"
+                          >
+                            {t("billing.downloadReceipt", locale)}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-sand-500">—</span>
+                        )}
                       </Td>
                     </Tr>
                   );

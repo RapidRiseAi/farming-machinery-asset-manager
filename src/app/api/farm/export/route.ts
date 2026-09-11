@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireProfile, currentFarmId, effectiveFarmRole } from "@/lib/auth";
+import { getProfile, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -60,7 +60,12 @@ const TABLES: Array<{ name: string; order?: string }> = [
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const profile = await requireProfile();
+  // Not `requireProfile`, which redirects: a caller following that redirect would save the
+  // login page as their data export. Same reasoning as the receipt route and the VAT ones.
+  const profile = await getProfile();
+  if (!profile || !profile.active) {
+    return NextResponse.json({ error: "auth" }, { status: 401 });
+  }
   const farmId = await currentFarmId(profile);
   if (!farmId) {
     return NextResponse.json({ error: "no-farm" }, { status: 403 });

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
+import { TERMS_VERSION } from "@/lib/legal";
 import { deviceLocale } from "@/lib/locale";
 import { errorMessage } from "@/lib/errors";
 import { PLANS, perVehicleMonthlyCents, ANNUAL_MONTHS_CHARGED } from "@/lib/entitlements";
@@ -133,6 +134,30 @@ export default async function SignUpPage({
             <p className="mt-1 text-xs text-sand-700">{t("signup.passwordHint", locale)}</p>
           </div>
         </div>
+
+        {/* An explicit tick, not a line of small print. ECTA §43 and the Consumer
+            Protection Act both want the terms available BEFORE the transaction and an
+            affirmative act — and "by continuing you agree" is weaker precisely because the
+            visitor need never have seen it. The links open in a new tab so a half-filled
+            form is not thrown away by somebody who stops to read.
+
+            The version travels with the form, so what gets recorded is what this page
+            rendered rather than whatever is current by the time the submit lands. */}
+        <input type="hidden" name="terms_version" value={TERMS_VERSION} />
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sand-300 bg-surface-1 p-4">
+          <input type="checkbox" name="terms" required className="mt-1 size-5" />
+          <span className="text-sm text-sand-800">
+            {t("signup.termsPre", locale)}{" "}
+            <a href="/terms" target="_blank" rel="noopener" className="font-medium text-brand-ink underline">
+              {t("signup.termsLink", locale)}
+            </a>{" "}
+            {t("signup.termsAnd", locale)}{" "}
+            <a href="/privacy" target="_blank" rel="noopener" className="font-medium text-brand-ink underline">
+              {t("signup.privacyLink", locale)}
+            </a>
+            {t("signup.termsPost", locale)}
+          </span>
+        </label>
 
         <button
           type="submit"

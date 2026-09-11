@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
 import { deviceLocale } from "@/lib/locale";
+import { TERMS_VERSION } from "@/lib/legal";
 import type { BillingPeriod } from "@/lib/entitlements";
 
 /** The most vehicles somebody may buy on the public form without talking to us first. */
@@ -53,6 +54,13 @@ export async function signUp(formData: FormData): Promise<void> {
   if (!Number.isFinite(vehicles) || vehicles < 1) bounce("signup-vehicles");
   if (vehicles > MAX_SELF_SERVE_VEHICLES) bounce("signup-too-many");
 
+  // The tick is required, and the VERSION is checked rather than trusted. The form posts
+  // what the page rendered, so a deploy between load and submit cannot record agreement to
+  // wording the visitor never saw — but a posted value is still a posted value, and storing
+  // an arbitrary string somebody typed into a form is not a record of anything.
+  if (String(formData.get("terms") ?? "") !== "on") bounce("terms-required");
+  if (String(formData.get("terms_version") ?? "") !== TERMS_VERSION) bounce("terms-stale");
+
   // A plan with no published price is either bespoke or simply not on sale. Refused here
   // as well as in SQL, so the visitor gets a sentence rather than a failed transaction.
   if (perVehicleMonthlyCents(plan, period) == null) bounce("signup-plan-unavailable");
@@ -96,6 +104,14 @@ export async function signUp(formData: FormData): Promise<void> {
     await svc.auth.admin.deleteUser(userId).catch(() => {});
     bounce("signup-failed");
   }
+
+  // What they agreed to, and when. Written after the farm exists because the user row is
+  // created by `billing_create_pending_signup`, and deliberately NOT backfilled onto
+  // anybody else: recording a consent nobody gave is worse than recording none.
+  await svc
+    .from("users")
+    .update({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })
+    .eq("id", userId);
 
   // Prove the address works. The auth user is already confirmed — it has to be, or they
   // could not sign in and pay in the next two lines — so this is OUR check, it gates

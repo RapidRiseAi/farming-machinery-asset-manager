@@ -3983,7 +3983,10 @@
     "signupPlan": "Please choose one of the plans shown.",
     "tankName": "Give the tank a name.",
     "tankAndLitres": "Choose a tank and enter how many litres.",
-    "pickTank": "Choose a tank."
+    "pickTank": "Choose a tank.",
+    "termsRequired": "Please tick the box to say you agree to the terms.",
+    "termsStale": "The terms changed while you were filling this in. Please read them again and tick the box.",
+    "billingNotPaid": "There is no receipt yet — this invoice has not been paid."
   },
   "billing": {
     "title": "Billing",
@@ -4092,7 +4095,9 @@
     "slotsUsing": "You are using {used} of {quota}.",
     "slotsNoneYet": "This subscription is billed on the vehicles it counts, not on a number you chose.",
     "slotsSubmit": "Update slots",
-    "slotsRule": "More slots are yours immediately and you pay the difference for the days left this period. Fewer start at the end of the period you have already paid for, and you cannot go below the vehicles you are running — retire one first."
+    "slotsRule": "More slots are yours immediately and you pay the difference for the days left this period. Fewer start at the end of the period you have already paid for, and you cannot go below the vehicles you are running — retire one first.",
+    "colReceipt": "Receipt",
+    "downloadReceipt": "Download"
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -4295,7 +4300,12 @@
       "done_for_you": "Everything in Complete, plus API access and hands-on setup."
     },
     "choosePlan": "Choose a plan",
-    "howOften": "How often you pay"
+    "howOften": "How often you pay",
+    "termsPre": "I have read and agree to the",
+    "termsLink": "terms of use",
+    "termsAnd": "and the",
+    "privacyLink": "privacy notice",
+    "termsPost": "."
   },
   "closed": {
     "title": "Your FleetWise farm is closed",

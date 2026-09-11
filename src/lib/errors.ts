@@ -147,6 +147,11 @@ const CODE_KEYS: Record<string, string> = {
   // Emitted twice by /signup when the posted plan or period is not one we sell. It was
   // never mapped, so the product's own front door answered with the generic apology.
   "signup-plan": "errors.signupPlan",
+  "terms-required": "errors.termsRequired",
+  // The wording was redeployed between the page loading and the form arriving, so what
+  // they ticked is not what we publish. Ask again rather than record the wrong version.
+  "terms-stale": "errors.termsStale",
+  "billing-not-paid": "errors.billingNotPaid",
   "signup-plan-unavailable": "errors.signupPlanUnavailable",
   // fuel/actions.ts bounces with raw English sentences — `bounce("Enter a tank name")` —
   // which `norm()` turns into these. Unmapped, they fell through to the fallback, so the
