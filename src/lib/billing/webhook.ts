@@ -50,6 +50,7 @@ import { MAX_WEBHOOK_BODY_BYTES } from "./config";
 import { matchesExpectedCharge } from "./paystack";
 import type { SaasBillingProvider, VerifiedTransaction } from "./types";
 import {
+  BILLING_RPC,
   finishWebhookEvent,
   getAttemptByReference,
   notifyRapidRise,
@@ -114,6 +115,29 @@ function relatedReference(data: Record<string, unknown>): string | null {
   const nested = isObject(data.transaction) ? asString(data.transaction.reference) : null;
   if (nested) return nested;
   return asString(data.transaction_reference);
+}
+
+/**
+ * The refund's own reference — NOT the transaction's.
+ *
+ * This is the idempotency key: `billing_payments_ref_uq` is what stops a redelivery
+ * recording the same refund twice, and Paystack retries for 72 hours. Using the
+ * TRANSACTION reference here would collide with the original payment's row and silently
+ * refuse every refund as a duplicate.
+ */
+function refundReference(data: Record<string, unknown>): string | null {
+  return (
+    asString(data.refund_reference) ??
+    asString(data.reference) ??
+    (isObject(data.refund) ? asString(data.refund.reference) : null)
+  );
+}
+
+/** Paystack sends money in the smallest unit, which for ZAR is cents. */
+function refundAmountCents(data: Record<string, unknown>): number | null {
+  const raw = data.amount;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
 export type WebhookResult =
@@ -228,12 +252,41 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
     return { status: 200, outcome: "refused", reason: "malformed payload", eventType };
   }
 
-  // Money going the other way. Nothing in the ledger moves here — see the note on
-  // DISPUTE_EVENTS — but somebody is told, which is what was missing.
+  // Money going the other way.
+  //
+  // A PROCESSED refund moves the ledger (20260911210000): it is recorded as a negative
+  // payment, which makes the invoice unpaid again — and both charging shortlists exclude a
+  // refunded invoice, so it cannot be re-charged the following night. Everything else in
+  // this family only alerts: `pending` and `processing` mean the money has not left yet,
+  // `failed` means it never will, and a DISPUTE is money at risk rather than money moved.
+  //
+  // The subscription is untouched in every case. A refund the customer asked for should end
+  // their plan and one we issue for our own mistake should not, and a webhook cannot tell
+  // those apart — docs/BILLING.md §11b. That is what the alert is for.
   if (DISPUTE_EVENTS.has(eventType) || REFUND_EVENTS.has(eventType)) {
     const data = isObject(parsed) && isObject(parsed.data) ? parsed.data : {};
     const reference = relatedReference(data);
     const attempt = reference ? await getAttemptByReference(supabase, reference) : null;
+
+    let ledger: string | null = null;
+    if (eventType === "refund.processed" && reference) {
+      const amount = refundAmountCents(data);
+      const refundRef = refundReference(data);
+      if (amount == null) {
+        ledger = "refund carried no usable amount";
+      } else if (!refundRef) {
+        // Without its own reference there is no idempotency key, and Paystack's 72 hours of
+        // retries would record the same refund again and again.
+        ledger = "refund carried no reference of its own";
+      } else {
+        const { data: outcome, error } = await supabase.rpc(BILLING_RPC.recordRefund, {
+          p_txn_reference: reference,
+          p_refund_reference: refundRef,
+          p_amount_cents: amount,
+        });
+        ledger = error ? `ledger error: ${error.message}` : String(outcome ?? "unknown");
+      }
+    }
 
     const alerted = attempt
       ? await notifyRapidRise(supabase, {
@@ -260,7 +313,7 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
       status: 200,
       outcome: attempt ? "processed" : "refused",
       reason: attempt
-        ? `alerted ${alerted} administrator(s)`
+        ? `alerted ${alerted} administrator(s)${ledger ? `; ${ledger}` : ""}`
         : "could not match this event to a payment we made",
       eventType,
     };

@@ -63,6 +63,11 @@ export const BILLING_RPC = {
   // cancellation fields, which is precisely what S5 stops a stray charge from doing, so it
   // must only ever be reached from an action that has established who is asking.
   reopenSubscription: "billing_reopen_subscription",
+  // Money we gave back (20260911210000). Named here rather than inlined at the call site
+  // so suite section (m) — which asserts every RPC name AND its parameter names against
+  // pg_proc — covers it: PostgREST resolves overloads by named argument, so a rename
+  // breaks the call as completely as a deletion.
+  recordRefund: "billing_record_refund",
   claimCharge: "billing_claim_charge",
   settleAttempt: "billing_settle_attempt",
   generateInvoices: "billing_generate_invoices",

@@ -1273,7 +1273,8 @@ declare
     'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing',
     'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota',
     'farm_billing_gate','create_pending_signup',
-    'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups'];
+    'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups',
+    'billing_reopen_subscription','billing_record_refund'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1290,14 +1291,17 @@ declare
     'billing_release_failure_notice','billing_invoice_chargeable_now',
     'billing_plan_quote','billing_change_plan','billing_notify_rr',
     'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup',
-    'billing_quota_quote','billing_change_quota'];
+    'billing_quota_quote','billing_change_quota','billing_reopen_subscription',
+    'billing_record_refund'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
   v_auth_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billing_card_expiry_on','billing_price_for_subscription',
-    'farm_vehicle_allowance','farm_billing_gate'];
+    'farm_vehicle_allowance'];
+  -- The unscoped app.farm_billing_gate helper is service-only; browser sessions
+  -- reach the public wrapper, which checks access to the requested farm first.
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
   -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
@@ -1305,7 +1309,8 @@ declare
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
     'billing_advance_period','billable_asset_count','billing_card_expiry_on',
     'billing_price_for_subscription','billing_plan_change_quote',
-    'farm_vehicle_allowance','billing_billable_units','farm_billing_gate'];
+    'farm_vehicle_allowance','billing_billable_units','farm_billing_gate',
+    'billing_reopen_subscription'];
   -- PUBLIC wrappers a signed-in user may call. Until 20260910230000 this list was empty
   -- and did not exist, because every public.billing_* wrapper raises an invoice, settles a
   -- payment or reads a charging credential — a blanket refusal was the whole rule.
@@ -1589,7 +1594,14 @@ begin
        'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer',
        false),
       ('billing_quota_quote',  'p_sub uuid, p_quota integer', false),
-      ('billing_change_quota', 'p_sub uuid, p_quota integer', false)
+      ('billing_change_quota', 'p_sub uuid, p_quota integer', false),
+      ('billing_reopen_subscription', 'p_farm uuid, p_by uuid', false),
+      -- Recording money we gave back (20260911210000). Service-role only: it writes a
+      -- payment row, and a browser that could call it could forge a refund against its
+      -- own invoice and make the debt disappear.
+      ('billing_record_refund',
+       'p_txn_reference text, p_refund_reference text, p_amount_cents bigint, p_at timestamp with time zone',
+       false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
@@ -4888,10 +4900,10 @@ begin
     raise exception 'BILLING FAIL [y]: the sweep hard-deleted an invoice';
   end if;
 
-  -- And the gate now says ok, because the subscription is gone: a swept farm is not a
-  -- farm being held at the payment screen, it is a farm that no longer exists.
-  if app.farm_billing_gate(v_farm_d) <> 'ok' then
-    raise exception 'BILLING FAIL [y]: a swept farm is still reported as pending';
+  -- The lifecycle gate closes deleted farms before checking subscription state.
+  -- Sweeping must never grant access just because the subscription was also deleted.
+  if app.farm_billing_gate(v_farm_d) is distinct from 'closed' then
+    raise exception 'BILLING FAIL [y]: a swept farm is not reported as closed';
   end if;
 
   raise notice '   the unpaid one is swept, the part-paid one is left alone, nothing deleted';
