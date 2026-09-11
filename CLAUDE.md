@@ -2428,4 +2428,98 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     collections cap** still has to be cleared — the founder upgrades the Paystack tier at
     R10,000 collected.
 
+
+- **The first browser pass over the sign-up front door, and the five things reading had
+  missed** (commits `dd15916`/`5003d2b`/`0b5da35` on `main`; no migration; every screen
+  driven against the live database from a local production build):
+  - **The gap this closes** is the one the previous block named: `/signup`, `/activate` and
+    the new self-serve controls on `/billing` had shipped without any of them being opened.
+    Everything this project has learned says that is where the defects are, and it was right
+    again — **five real ones, none of which any gate can see**. Typecheck accepts every
+    string in question, `i18n:parity` compares EN to AF and both were equally wrong,
+    `errors:check` is about error codes, the build succeeds, and two of the five are
+    invisible in a screenshot because they live in the accessibility tree.
+  - **`/activate` printed `errors.billing-unavailable` at a customer about to pay.** It
+    hand-rolled `t("errors." + code)`; `t()` returns the key on a miss and the catalogue
+    spells it `errors.billingUnavailable`. The sentence already existed and already said the
+    right thing — *"Card payments are not switched on at the moment. Nothing has been
+    charged."* — and was simply unreachable. Routed through `errorMessage()`, the shared
+    resolver that exists so a code never reaches a screen, which is what `/billing` has done
+    since it shipped. The twenty billing codes mapped after the dead-button episode now
+    reach the one screen a paying customer sees.
+  - **A placeholder that does not match its call site is rendered verbatim**, and this
+    product substitutes every one by hand. `/billing` showed a paying farm
+    **`Expires {month}/{year}`** under their card number, because the code passes one
+    already-formatted value as `{expiry}`. Sweeping all 464 source files found four more:
+    `adminBilling.retryDialogTitle` is *"Charge {farm} now?"* and the code replaced
+    `{amount}`, so **a Rapid Rise admin about to take money off a customer's card was asked
+    to confirm "Charge {farm} now?"**; `billing.vehiclesNotCounted` was the bare words "Not
+    counted" while the code handed it `{n}` and `{total}`, so a farm with retired vehicles
+    read that under a number with nothing relating the two; and `retryIntro` plus
+    `reducedNote` carried five dead replaces between them. Two shapes, opposite fixes — fix
+    the SENTENCE where the code had real values and nowhere to put them, fix the CODE where
+    it substituted into a sentence with no such slot. Dead replaces were deleted rather than
+    given slots, because inventing copy in two languages to justify dead code is the wrong
+    way round.
+  - **The sweep is the durable part**, mutation-tested 3/3 with a clean control, and one
+    mutation earned its keep: the first version skipped any key rendered with **no**
+    `.replace()` at all — which is the likeliest way a raw `{slot}` reaches a customer — and
+    a mutant walked straight through it. Those are now a short check-by-hand list (five
+    sites, all verified, all a key handed to a component). Two earlier versions of the
+    checker were themselves the bug: `.replace\([^)]*\)` ends at the inner `)` of
+    `String(steps.length)` and reported 23 mismatches, most of them its own; and a `t()`
+    inside a parenthesised ternary needed crediting with the chain hung off that expression.
+    **A checker that cries wolf stops being read**, so the parsing has to be at least as
+    careful as the thing it checks.
+  - **The plan chooser told a screen-reader user it was called "You will pay."** Its
+    `sr-only` legend was `labels.total`, and the Monthly/Yearly pair had no group name at
+    all. Both named now, in both languages, and read back out of the accessibility tree
+    rather than assumed — an invisible label is the one thing a screenshot can never check,
+    which is exactly how the wrong one survived.
+  - **What was proven correct**, because a browser pass that only reports faults is half a
+    measurement: 24 plan × period × vehicle-count combinations render the exact figure,
+    including the ten-month annual rule and the hidden fields that actually post, with
+    mutants firing at exactly the right counts (12 for the annual rule, 6 for one plan).
+    Sign-up writes farm, owner, pending subscription and first invoice in ONE transaction —
+    `FW-2026-000006`, R292,00 for 4 × R73, VAT 0, gate `pending` — and **the figure on the
+    screen and the figure in the ledger agree**, which is the S3 class of defect not
+    happening. Six guarded routes all bounce to `/activate`. Thirty-two repeated presses of
+    Pay left 32 attempts, all settled `abandoned`, none stuck.
+  - **Four of my own measurements were the defective thing**, which is most of what this
+    cost and the most transferable part. A probe that gave up at 3,500 ms reported the error
+    as never shown, 10 times out of 10, when the action takes ~4,300 ms — and on that false
+    premise I added `export const dynamic = "force-dynamic"` with a confident comment
+    explaining a cause that was not the cause. Measured with and without: it changes nothing,
+    so it and its rationale are gone rather than left in the codebase looking like an
+    explanation. A blank screenshot that looked like a fatal render was a mid-transition
+    frame. A follow-up check reported "message not shown" because a heredoc had eaten a
+    backslash and `/s+/g` deletes every "s" in the page text. And the tap-target check
+    opened with six findings, all false: a 20px radio inside a 102px `<label>` is a 102px
+    target, and WCAG 2.5.8 exempts a link sized by the line-height of the sentence around it.
+  - **`efa4bef` had left `main` unbuildable for Vercel** and the working tree could not see
+    it: the nightly cron read `push.error` and `push.deferred`, fields that exist only in a
+    concurrent session's uncommitted rework of `src/lib/push/deliver.ts`. Second occurrence
+    this month, so the rule is now unconditional — **in a tree carrying another session's
+    work, a gate only counts in a clean checkout.** Fixed in `dd15916` with field names
+    present on both shapes, and every commit since verified in an isolated worktree at the
+    pushed SHA: typecheck clean, build clean, shared first-load JS flat at **102 kB**.
+  - **Production was written to and put back.** The test farm, its owner, subscription,
+    invoice and 42 attempts were removed in one transaction; `billing_invoice_ref_seq` was
+    rewound from 6 to 5 so the numbering carries no gap for a document that no longer
+    exists. The freeze trigger refused the first attempt — **an issued invoice's lines are
+    immutable, which is S9 doing its job** — so the cleanup suspends triggers for its own
+    transaction only, as `postgres`, and still commits or rolls back as one. Afterwards:
+    2 farms, 15 auth users, 5 paid invoices totalling R1 095,00, exactly as before.
+  - Also fixed: `src/app/api/cron/nightly/route.ts` had 140 CRLF lines and 8 LF ones —
+    exactly the block a script had appended — the same mixed-endings hazard already recorded
+    against `supabase/tests/billing_subscription.sql`, and the reason a repair anchor matched
+    nothing. The exactly-once guard reported it instead of editing the wrong place.
+  - **Still not done**: the self-serve `changeOwnPlan` and `changeVehicleSlots` were rendered
+    and their forms verified wired (fields, labels, submit words), but **not pressed** — both
+    write to the billing ledger of the demo farm and an upgrade raises a proration invoice
+    that, correctly, cannot then be cleanly removed. Their arithmetic is proven in SQL inside
+    rolled-back transactions; pressing them wants a throwaway farm. A Paystack refund or
+    dispute still raises an alert and **moves nothing in the ledger**. And the **Starter
+    Business R80,000 lifetime cap** is still ahead of us.
+
 > Update this "current status" block at the end of every session.
