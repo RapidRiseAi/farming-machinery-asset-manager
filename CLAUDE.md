@@ -2399,10 +2399,26 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - Mutation-tested throughout, controls included: the receipt rig puts back the doubled
     percent, the untranslated footer and the duplicate total and requires each assertion to
     fire, with a reworded-comment control that must survive.
-  - Gates: typecheck and lint clean, i18n EN/AF at parity (**3 983 leaf keys** in the
-    committed blobs). Both dictionaries and several app files still carry another session's
-    in-flight work, so every commit staged only its own hunks, built from HEAD via
+  - **"It typechecks" was a statement about a file that is not in the repo, and `main` was
+    broken for a while because of it.** `efa4bef` shipped a nightly cron reading
+    `push.error` and `push.deferred` off `deliverPush`'s result; neither field is on the
+    COMMITTED `DeliverResult` — both exist only in the concurrent session's uncommitted
+    rework of `src/lib/push/deliver.ts`, which was sitting in the working tree when the gate
+    ran. Three errors, invisible here, fatal on Vercel. Found by checking out the pushed
+    commit into an isolated worktree and typechecking THAT; fixed in `dd15916` with field
+    names present on both shapes, so it keeps compiling when that session lands its rework.
+    **Second occurrence this month** — the rule is now unconditional: in a tree carrying
+    another session's work, a gate only counts in a clean checkout.
+  - That checkout also gave the real build numbers: typecheck clean, lint clean, `next build`
+    green, shared first-load JS flat at **102 kB**. i18n EN/AF at parity (**3 983 leaf keys**
+    in the committed blobs). Both dictionaries and several app files still carry the other
+    session's in-flight work, so every commit staged only its own hunks, built from HEAD via
     `git hash-object -w` + `git update-index --cacheinfo`.
+  - **A second mixed-line-endings file.** `src/app/api/cron/nightly/route.ts` held 140 CRLF
+    lines and 8 LF ones — exactly the block a script had appended — so the first repair
+    attempt matched nothing. Same hazard already recorded against
+    `supabase/tests/billing_subscription.sql`. The exactly-once anchor guard reported it
+    instead of editing the wrong place; the file is uniform again.
   - **Every open item from the billing audit is now closed** (S1–S12). **Still not done:**
     none of `/signup`, `/activate` or the new `/billing` controls has been opened in a
     browser; a Paystack refund or dispute raises an alert but **moves nothing in the
