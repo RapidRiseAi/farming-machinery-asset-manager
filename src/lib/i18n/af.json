@@ -70,7 +70,8 @@
     "themeLight": "Lig",
     "themeDark": "Donker",
     "billing": "Rekening",
-    "adminBilling": "Intekeninge"
+    "adminBilling": "Intekeninge",
+    "account": "Jou rekening"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -2036,7 +2037,10 @@
     "accountingTitle": "Rekeningkunde-uitvoer",
     "accountingWhat": "Jou boeke vir 'n tydperk as 'n algemene joernaal — elke faktuur, betaling en aankoop as dubbelinskrywingsreëls wat jou rekenmeester kan invoer.",
     "accountingDoes": "Kies 'n tydperk en sien wat in die lêer is voordat jy dit stuur\nLaai dit af met debiet- en kredietkolomme, of een bedragkolom met tekens\nLaai die rekeningelys af sodat jou rekenmeester dit een keer kan aanpas",
-    "accountingNote": "Dit is 'n algemene joernaal, nie 'n Sage- of Xero-lêer nie. Die kolomme word een keer in jou rekenmeester se sagteware aangepas en daarna werk dit sommer net."
+    "accountingNote": "Dit is 'n algemene joernaal, nie 'n Sage- of Xero-lêer nie. Die kolomme word een keer in jou rekenmeester se sagteware aangepas en daarna werk dit sommer net.",
+    "accountTitle": "Jou rekening",
+    "accountWhat": "Dit gaan oor JOU, nie die plaas nie. Die plaas se eie instellings is onder Instellings.",
+    "accountDoes": "Verander jou naam\nVerander die e-posadres waarop ons jou bereik\nStel of verander jou wagwoord\nBevestig jou e-posadres"
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -3966,7 +3970,20 @@
     "billingQuotaBelowFleet": "Jy gebruik meer voertuie as dit. Tree eers een af of verkoop dit, en kom dan terug om jou plekke te verminder.",
     "billingQuotaFailed": "Ons kon nie nou jou voertuigplekke verander nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer.",
     "billingPlanInvalid": "Dit is nie 'n plan wat ons aanbied nie. Kies een uit die lys.",
-    "billingPlanFailed": "Ons kon nie nou jou plan verander nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer."
+    "billingPlanFailed": "Ons kon nie nou jou plan verander nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer.",
+    "nameRequired": "'n Naam word benodig.",
+    "tooLong": "Dit is langer as wat ons kan stoor. Maak dit asseblief korter.",
+    "passwordShort": "'n Wagwoord het ten minste 8 karakters nodig.",
+    "passwordMismatch": "Die twee wagwoorde is nie dieselfde nie.",
+    "passwordFailed": "Ons kon nie die wagwoord verander nie. Probeer weer, of gebruik eerder die aanmeldskakel.",
+    "emailUnchanged": "Dit is reeds jou e-posadres.",
+    "emailFailed": "Ons kon nie na daardie adres stuur nie. Kontroleer dit en probeer weer.",
+    "emailNotConfigured": "E-pos is nog nie hier aangeskakel nie. Daar is niks aan jou kant verkeerd nie — sê vir ons en ons sal dit regmaak.",
+    "noEmail": "Daar is geen e-posadres op hierdie rekening nie.",
+    "signupPlan": "Kies asseblief een van die planne wat gewys word.",
+    "tankName": "Gee die tenk 'n naam.",
+    "tankAndLitres": "Kies 'n tenk en tik in hoeveel liter.",
+    "pickTank": "Kies 'n tenk."
   },
   "billing": {
     "title": "Rekening",
@@ -4292,5 +4309,63 @@
     "reopen": "Heropen my plaas en betaal",
     "download": "Laai my rekords af",
     "help": "Vir enigiets anders, e-pos {email} en 'n mens sal dit regmaak."
+  },
+  "account": {
+    "title": "Jou rekening",
+    "lead": "Jou naam, die adres waarop ons jou bereik, en jou wagwoord.",
+    "nameTitle": "Jou naam",
+    "nameLabel": "Naam",
+    "save": "Stoor",
+    "emailTitle": "E-posadres",
+    "emailWhy": "Kwitansies, betalingsprobleme en die aanmeldskakel gaan almal hierheen. As dit verkeerd is, bereik niks jou nie.",
+    "verified": "Bevestig op {date}.",
+    "unverified": "Nog nie bevestig nie. Ons weet nie of pos hierdie adres bereik nie.",
+    "resend": "Stuur die bevestiging weer",
+    "newEmailLabel": "Nuwe e-posadres",
+    "newEmailHint": "Ons stuur 'n skakel daarheen. Die verandering gebeur eers wanneer jy dit volg.",
+    "changeEmail": "Verander my e-pos",
+    "passwordTitle": "Wagwoord",
+    "passwordWhy": "Jy kan ook sonder een aanmeld, met die skakel wat ons jou e-pos. 'n Wagwoord is net vinniger.",
+    "newPassword": "Nuwe wagwoord",
+    "passwordHint": "Ten minste 8 karakters.",
+    "newPasswordAgain": "Tik dit weer",
+    "changePassword": "Verander my wagwoord",
+    "savedName": "Naam gestoor.",
+    "savedEmail": "Kyk by die nuwe adres — die verandering gebeur wanneer jy die skakel volg.",
+    "savedPassword": "Wagwoord verander.",
+    "savedVerification": "Gestuur. Kyk in jou inkassie."
+  },
+  "verify": {
+    "verified": {
+      "title": "E-pos bevestig",
+      "body": "Dankie. Kwitansies en enige betalingsprobleme sal jou by hierdie adres bereik."
+    },
+    "already": {
+      "title": "Reeds bevestig",
+      "body": "Hierdie adres is vantevore bevestig. Daar is niks verder om te doen nie."
+    },
+    "expired": {
+      "title": "Daardie skakel het verval",
+      "body": "Bevestigingskakels hou 'n paar dae. Meld aan en vra 'n nuwe een aan."
+    },
+    "invalid": {
+      "title": "Daardie skakel het nie gewerk nie",
+      "body": "Dit is dalk reeds gebruik, of onvolledig gekopieer. Meld aan en vra 'n nuwe een aan."
+    },
+    "continue": "Gaan voort",
+    "getAnother": "Stuur vir my nog een"
+  },
+  "verifyEmail": {
+    "subject": "Bevestig jou e-pos vir {app}",
+    "greeting": "Hallo {name},",
+    "greetingNoName": "Hallo,",
+    "why": "Bevestig asseblief hierdie adres sodat jou kwitansies, en enige probleem met 'n betaling, jou werklik bereik.",
+    "button": "Bevestig my e-posadres",
+    "expiry": "Die skakel werk vir {hours} uur.",
+    "ignore": "As jy nie geregistreer het nie, kan jy dit ignoreer — niks sal gebeur nie."
+  },
+  "gate": {
+    "signedInAs": "Aangemeld as {email}",
+    "signOut": "Meld af"
   }
 }

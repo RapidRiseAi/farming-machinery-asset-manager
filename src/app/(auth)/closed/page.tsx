@@ -10,6 +10,7 @@ import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Flash } from "@/components/ui/flash";
 import { MachinesIcon } from "@/components/ui/icons";
+import { signOut } from "@/app/(app)/actions";
 import { reopenFarm } from "./actions";
 
 /**
@@ -126,6 +127,17 @@ export default async function ClosedPage({
           {t("closed.help", locale).replace("{email}", "team@rapidriseai.com")}
         </p>
       </div>
+
+      {/* The same dead end /activate had: this screen catches every app route, so without
+          a way out somebody on the wrong account is stuck on it. */}
+      <form action={signOut} className="text-center">
+        <p className="text-xs text-sand-600">
+          {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "—")}
+        </p>
+        <button type="submit" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
+          {t("gate.signOut", locale)}
+        </button>
+      </form>
     </main>
   );
 }

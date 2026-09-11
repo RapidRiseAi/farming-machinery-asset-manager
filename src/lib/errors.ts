@@ -144,7 +144,17 @@ const CODE_KEYS: Record<string, string> = {
   "signup-farm": "errors.signupFarm",
   "signup-vehicles": "errors.signupVehicles",
   "signup-too-many": "errors.signupTooMany",
+  // Emitted twice by /signup when the posted plan or period is not one we sell. It was
+  // never mapped, so the product's own front door answered with the generic apology.
+  "signup-plan": "errors.signupPlan",
   "signup-plan-unavailable": "errors.signupPlanUnavailable",
+  // fuel/actions.ts bounces with raw English sentences — `bounce("Enter a tank name")` —
+  // which `norm()` turns into these. Unmapped, they fell through to the fallback, so the
+  // sentence the author wrote was the one thing nobody read. Mapped here rather than by
+  // editing that file, which also makes them translated.
+  "enter-a-tank-name": "errors.tankName",
+  "enter-a-tank-and-litres": "errors.tankAndLitres",
+  "pick-a-tank": "errors.pickTank",
   "signup-failed": "errors.signupFailed",
   // Self-serve plan and slot changes (20260911140000).
   "billing-quota-invalid": "errors.billingQuotaInvalid",
@@ -175,6 +185,21 @@ const CODE_KEYS: Record<string, string> = {
   "billing-bad-period": "errors.billingBadPeriod",
   "billing-bad-trial": "errors.billingBadTrial",
   "billing-save-failed": "errors.saveFailed",
+
+  // ── Somebody's own account (20260911190000) ───────────────────────────────
+  // Until these shipped there was no way for anyone to change their own password or email
+  // at all, so there were no codes for it either.
+  "name-required": "errors.nameRequired",
+  "too-long": "errors.tooLong",
+  "password-short": "errors.passwordShort",
+  "password-mismatch": "errors.passwordMismatch",
+  "password-failed": "errors.passwordFailed",
+  "email-unchanged": "errors.emailUnchanged",
+  "email-failed": "errors.emailFailed",
+  // An operator problem, and the sentence says so — a farmer reading "we could not send"
+  // will check their own spelling for something that is entirely ours.
+  "email-not-configured": "errors.emailNotConfigured",
+  "no-email": "errors.noEmail",
   "more-than-owed": "errors.moreThanOwed",
   "refund-too-big": "errors.refundTooBig",
   "not-an-invoice": "errors.notAnInvoice",

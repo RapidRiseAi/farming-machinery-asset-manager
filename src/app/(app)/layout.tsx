@@ -224,6 +224,10 @@ export default async function AppLayout({
   // Every role, including drivers and contractors: putting it on the phone is the
   // point of an offline-first product, and it was reachable from nowhere.
   const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
+  // Your own name, address and password — as opposed to /settings, which is the FARM's.
+  // Every role, deliberately: until this shipped nobody in the product could change their
+  // own password at all, and a driver needs that as much as an owner does.
+  const account: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "team" };
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
   // Billing is the OWNER's business and Rapid Rise's — the same audience
@@ -247,7 +251,7 @@ export default async function AppLayout({
     ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, accounting]
     : [];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, account, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -266,6 +270,7 @@ export default async function AppLayout({
         ...(isManagerPlus ? [team, settings] : []),
         ...(isOwner ? [billing] : []),
         ...(isAdmin ? [admin, adminBilling, billing] : []),
+        account,
         install,
       ];
 
@@ -312,7 +317,7 @@ export default async function AppLayout({
     who is allowed to reach it.
   */
   const tailItems: NavItemData[] = isWorkshop
-    ? [partnerSettings, parts, install]
+    ? [partnerSettings, parts, account, install]
     : [
         ...(canParts ? [parts] : []),
         ...(canPartners ? [partners] : []),
@@ -322,6 +327,7 @@ export default async function AppLayout({
         ...(isManagerPlus ? [settings] : []),
         ...(isOwner ? [billing] : []),
         ...(isAdmin ? [admin, adminBilling, billing] : []),
+        account,
         install,
       ];
 

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { PLANS, BILLING_PERIODS, perVehicleMonthlyCents, type Plan } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { sendVerificationEmail } from "@/lib/email/verify";
+import { deviceLocale } from "@/lib/locale";
 import type { BillingPeriod } from "@/lib/entitlements";
 
 /** The most vehicles somebody may buy on the public form without talking to us first. */
@@ -94,6 +96,18 @@ export async function signUp(formData: FormData): Promise<void> {
     await svc.auth.admin.deleteUser(userId).catch(() => {});
     bounce("signup-failed");
   }
+
+  // Prove the address works. The auth user is already confirmed — it has to be, or they
+  // could not sign in and pay in the next two lines — so this is OUR check, it gates
+  // nothing, and its failure is swallowed on purpose. A farm that has paid and cannot be
+  // emailed is a support problem; a farm that could not sign up because our mail provider
+  // was down is a lost customer. `/account` carries the resend.
+  await sendVerificationEmail(svc, {
+    userId,
+    email,
+    name,
+    locale: await deviceLocale(),
+  }).catch(() => undefined);
 
   // Sign them in with the password they just chose, so they arrive at /activate as
   // themselves rather than at a login screen wondering whether any of that worked.

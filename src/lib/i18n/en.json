@@ -70,7 +70,8 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "billing": "Billing",
-    "adminBilling": "Subscriptions"
+    "adminBilling": "Subscriptions",
+    "account": "Your account"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -2036,7 +2037,10 @@
     "accountingTitle": "Accounting export",
     "accountingWhat": "Your books for a period as a general journal — every invoice, payment and purchase as double-entry lines your accountant can import.",
     "accountingDoes": "Pick a period and see what is in the file before you send it\nDownload it with debit and credit columns, or one signed amount column\nDownload the list of accounts so your accountant can map them once",
-    "accountingNote": "It is a generic journal, not a Sage or Xero file. The columns are mapped once in your accountant's software and then it just works."
+    "accountingNote": "It is a generic journal, not a Sage or Xero file. The columns are mapped once in your accountant's software and then it just works.",
+    "accountTitle": "Your account",
+    "accountWhat": "This is about YOU, not the farm. The farm's own settings live under Settings.",
+    "accountDoes": "Change your name\nChange the email address we reach you on\nSet or change your password\nConfirm your email address"
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -3966,7 +3970,20 @@
     "billingQuotaBelowFleet": "You are running more vehicles than that. Retire or sell one first, then come back and reduce your slots.",
     "billingQuotaFailed": "We could not change your vehicle slots just then, and nothing was charged. Please try again in a moment.",
     "billingPlanInvalid": "That is not a plan we offer. Pick one from the list.",
-    "billingPlanFailed": "We could not change your plan just then, and nothing was charged. Please try again in a moment."
+    "billingPlanFailed": "We could not change your plan just then, and nothing was charged. Please try again in a moment.",
+    "nameRequired": "A name is needed.",
+    "tooLong": "That is longer than we can store. Please shorten it.",
+    "passwordShort": "A password needs at least 8 characters.",
+    "passwordMismatch": "The two passwords are not the same.",
+    "passwordFailed": "We could not change the password. Try again, or use the sign-in link instead.",
+    "emailUnchanged": "That is already your email address.",
+    "emailFailed": "We could not send to that address. Check it and try again.",
+    "emailNotConfigured": "Email is not switched on here yet. Nothing is wrong on your side — tell us and we will sort it.",
+    "noEmail": "There is no email address on this account.",
+    "signupPlan": "Please choose one of the plans shown.",
+    "tankName": "Give the tank a name.",
+    "tankAndLitres": "Choose a tank and enter how many litres.",
+    "pickTank": "Choose a tank."
   },
   "billing": {
     "title": "Billing",
@@ -4292,5 +4309,63 @@
     "reopen": "Reopen my farm and pay",
     "download": "Download my records",
     "help": "Anything else, email {email} and a person will sort it out."
+  },
+  "account": {
+    "title": "Your account",
+    "lead": "Your name, the address we reach you on, and your password.",
+    "nameTitle": "Your name",
+    "nameLabel": "Name",
+    "save": "Save",
+    "emailTitle": "Email address",
+    "emailWhy": "Receipts, payment problems and the sign-in link all go here. If it is wrong, nothing reaches you.",
+    "verified": "Confirmed on {date}.",
+    "unverified": "Not confirmed yet. We do not know whether mail reaches this address.",
+    "resend": "Send the confirmation again",
+    "newEmailLabel": "New email address",
+    "newEmailHint": "We send a link there. The change only happens once you follow it.",
+    "changeEmail": "Change my email",
+    "passwordTitle": "Password",
+    "passwordWhy": "You can also sign in without one, using the link we email you. A password is just quicker.",
+    "newPassword": "New password",
+    "passwordHint": "At least 8 characters.",
+    "newPasswordAgain": "Type it again",
+    "changePassword": "Change my password",
+    "savedName": "Name saved.",
+    "savedEmail": "Check the new address — the change happens when you follow the link we sent.",
+    "savedPassword": "Password changed.",
+    "savedVerification": "Sent. Check your inbox."
+  },
+  "verify": {
+    "verified": {
+      "title": "Email confirmed",
+      "body": "Thank you. Receipts and any payment problems will reach you at this address."
+    },
+    "already": {
+      "title": "Already confirmed",
+      "body": "This address was confirmed before. There is nothing else to do."
+    },
+    "expired": {
+      "title": "That link has expired",
+      "body": "Confirmation links last a few days. Sign in and ask for another one."
+    },
+    "invalid": {
+      "title": "That link did not work",
+      "body": "It may have been used already, or copied incompletely. Sign in and ask for another one."
+    },
+    "continue": "Carry on",
+    "getAnother": "Send me another"
+  },
+  "verifyEmail": {
+    "subject": "Confirm your email for {app}",
+    "greeting": "Hello {name},",
+    "greetingNoName": "Hello,",
+    "why": "Please confirm this address so your receipts, and any problem with a payment, actually reach you.",
+    "button": "Confirm my email address",
+    "expiry": "The link works for {hours} hours.",
+    "ignore": "If you did not sign up, you can ignore this — nothing will happen."
+  },
+  "gate": {
+    "signedInAs": "Signed in as {email}",
+    "signOut": "Sign out"
   }
 }

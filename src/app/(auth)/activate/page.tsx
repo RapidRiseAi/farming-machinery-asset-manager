@@ -7,6 +7,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { farmBillingGate } from "@/lib/billing/service";
 import { Button } from "@/components/ui/button";
+import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
 import { MachinesIcon } from "@/components/ui/icons";
@@ -121,6 +122,19 @@ export default async function ActivatePage({
 
         <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
       </div>
+
+      {/* Every app route bounces here, and until now there was no way off the screen —
+          somebody signed in to the wrong account, or on a shared farm-office machine, had
+          one button and no exit. Saying WHO they are signed in as is half of it: "this is
+          not me" cannot be acted on if the page never says who "me" is. */}
+      <form action={signOut} className="text-center">
+        <p className="text-xs text-sand-600">
+          {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "—")}
+        </p>
+        <button type="submit" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
+          {t("gate.signOut", locale)}
+        </button>
+      </form>
     </main>
   );
 }
