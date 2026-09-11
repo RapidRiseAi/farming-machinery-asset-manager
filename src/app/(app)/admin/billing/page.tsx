@@ -726,14 +726,13 @@ export default async function AdminBillingPage({
                   triggerVariant="danger"
                   triggerLabel={t("adminBilling.retryTrigger", locale)}
                   triggerIcon={<CheckIcon />}
-                  title={t("adminBilling.retryDialogTitle", locale).replace(
-                    "{amount}",
-                    rands(offer.amountCents),
-                  )}
-                  intro={t("adminBilling.retryIntro", locale)
-                    .replace("{amount}", rands(offer.amountCents))
-                    .replace("{farm}", farmName)
-                    .replace("{ref}", offer.invoice.invoice_ref)}
+                  /* The title is "Charge {farm} now?" and this replaced {amount}, so an
+                     administrator about to take money off a customer's card was asked
+                     "Charge {farm} now?". The intro has no placeholders at all; its three
+                     replaces did nothing. The farm and the bill are named in `facts`
+                     below, which is where they belong. */
+                  title={t("adminBilling.retryDialogTitle", locale).replace("{farm}", farmName)}
+                  intro={t("adminBilling.retryIntro", locale)}
                   facts={[
                     { label: t("adminBilling.retryFactFarm", locale), value: farmName },
                     {

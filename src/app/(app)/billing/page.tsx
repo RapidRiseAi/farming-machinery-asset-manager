@@ -344,9 +344,11 @@ export default async function BillingPage({
 
         {diverged && sub ? (
           <p className="mt-3 rounded-lg bg-sand-50 px-3 py-2.5 text-sm text-sand-700">
-            {t("billing.reducedNote", locale)
-              .replace("{plan}", t(`plan.${farm?.plan ?? commercialPlan}`, locale))
-              .replace("{bought}", t(`plan.${sub.plan}`, locale))}
+            {/* The sentence has no {plan}/{bought} slots, so these two replaces did
+                nothing. Naming both plans here would be an improvement, but it is a copy
+                decision in two languages rather than a bug fix — the card above already
+                states the plan in force. */}
+            {t("billing.reducedNote", locale)}
           </p>
         ) : null}
 
