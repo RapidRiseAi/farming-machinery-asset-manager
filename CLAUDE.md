@@ -2522,4 +2522,127 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     dispute still raises an alert and **moves nothing in the ledger**. And the **Starter
     Business R80,000 lifetime cap** is still ahead of us.
 
+
+- **Everything before a farm can use the product: the door closes, the account is yours, and
+  the paperwork exists** (migrations `20260911180000`, `20260911190000`, `20260911200000`;
+  commits `4777bf6`/`23401a4`/`901a189`/`cb09a8f` on `main`; every migration applied to
+  production from disk, every screen driven in a browser):
+  - **The question was "what still has to be built before a stranger can sign up and pay",
+    and the answer began with a revenue leak.** `app.farm_billing_gate` blocked exactly one
+    state — a subscription that exists and is `pending` — and answered `ok` to everything
+    else. The lifecycle engines around it were already complete: `billing_close_cancellations`
+    moves non_renewing to cancelled at period end, `billing_apply_downgrades` moves grace to
+    downgraded and drops `farms.plan`. **Both terminal states then answered `ok`.** So a farm
+    that stopped paying kept the product on Essential for ever, a farm that cancelled kept
+    all of it, and `farms.status` ('suspended'/'cancelled') was read by no policy, no helper
+    and no layout. The only customer the product ever refused was one who had never paid.
+  - **One more gate state, not a read-only mode.** Letting a lapsed farm browse but not write
+    means every one of ~200 server actions has to check, and one missed action is a write
+    path into an account nobody is paying for — F7 exists in this codebase because UI-only
+    enforcement is not enforcement. One screen can be proved correct; two hundred guards
+    cannot. So `closed` sends every app route to `/closed`, and the promise "nothing is
+    deleted" is kept by `/api/farm/export` instead: the whole history as one JSON file,
+    reachable precisely BECAUSE it sits outside the gated layout. Every read there goes
+    through the caller's own client with no hand-written `farm_id` filter, so scoping stays
+    RLS's job and a table added later cannot leak by omission.
+  - **`lapsed_grace_days` is a SETTING** (default 30) beside the retry offsets, so the
+    commercial policy changes without a migration — including a very large value, which
+    restores the old never-close behaviour exactly. The mutation that bakes 30 into the
+    function passes every other assertion, which is why one exists.
+  - **Reopening reuses the path that works.** It produces a PENDING subscription with an
+    invoice — the exact state a fresh sign-up is in — and sends them to `/activate`. No
+    second payment route to keep correct. It MUST clear `ended_on`, and that is the sharp
+    edge: `billing_restore_after_payment` refuses any subscription carrying it (S5, and
+    rightly — an in-flight charge landing after a cancellation must not resubscribe
+    somebody). A reopen that left it set would take the money and leave the door shut, which
+    is worse than offering no reopen at all.
+  - **Nobody could change their own password.** The only `updateUser` call in the codebase
+    was the admin path on the team screen. Combined with password recovery BEING the magic
+    link, and with `/signup` creating the auth user `email_confirm: true` so the address was
+    trusted on sight, one typo meant no receipts, no dunning warning, and a lockout only
+    Rapid Rise could undo. `/account` now does name, email and password, and verification is
+    ours rather than Supabase's — holding the user unconfirmed would stop them signing in,
+    and `signUp` signs them in to pay. It gates nothing; it prompts. Only the SHA-256 of the
+    token is stored, because `public.users` is readable by the rest of the farm and RLS
+    filters rows, not columns — the `authorization_code` lesson, applied before it bit.
+  - **A link in an email must never be built from a request header.** New `siteUrl()` reads
+    configuration only and returns null rather than guessing: a forged `Origin` would have us
+    email a victim a link to another domain, over our name, from our verified sending
+    address. That is a phishing email we wrote ourselves.
+  - **`errors:check` could not see most of what it guards.** It scans for a literal
+    `?error=<code>` and skips anything interpolated — but the common shape here is a
+    `bounce()` helper that interpolates, so every code in billing, admin-billing, activate,
+    closed and account was invisible. Proven by injecting an unmapped code and watching it
+    report "Clean". Widened, it sees **150 codes instead of 107** and immediately found four
+    that resolved to nothing: `signup-plan`, emitted twice on the product's own front door,
+    and three raw English sentences used as codes in `fuel/actions.ts`
+    (`bounce("Enter a tank name")`) which fell through to the fallback — so the sentence the
+    author wrote was the one thing nobody ever read. Its first widening was wrong the other
+    way, counting the operands of a comparison as emitted codes and inventing six errors that
+    cannot happen; a checker that invents work stops being trusted.
+  - **`scripts/error_coverage.mjs` and `scripts/design_lint.mjs` are UNTRACKED.** Never
+    committed, not on `main`, not in CI, and their `package.json` entries are uncommitted
+    too — while this file describes both as shipped gates. My widening of the first is left
+    in the working tree for whoever owns that branch; the four code-side fixes it found are
+    committed. `i18n:parity` is committed and does run.
+  - **Terms and a privacy notice, written from the code rather than at it.** There were none
+    — no `/terms`, no `/privacy`, nothing referenced from the sign-up form, nothing recorded.
+    Every clause now describes something the software actually does: the lapse window from
+    `farm_billing_gate`, "nothing is deleted" from the export route, the refund position from
+    BILLING.md §11b, 99.5% from BACKUP.md, the sub-processors from POPIA.md. Five of those
+    clauses are asserted against the rendered page, so a drift between the wording and the
+    product fails a test. **The contract is the one string in this product that is
+    deliberately not a translation key** — a translated clause is a second document that can
+    disagree with the first, and "which version binds" is the question nobody wants to answer
+    in front of a magistrate.
+  - **The tick is enforced on the server and the VERSION travels with the form**, so what is
+    recorded is what the page rendered rather than whatever is current when the submit lands
+    — and it is validated against what we publish, because storing an arbitrary string
+    somebody typed into a form is not a record of anything. Existing accounts are deliberately
+    NOT backfilled: stamping "accepted" onto fourteen rows created before any terms existed
+    would record a consent nobody gave.
+  - **Two more places where the server did its part and the screen never rendered it.** The
+    receipt PDF was reachable only from `sendDueReceipts`, so it existed in exactly one place
+    — an email — and a bounce left the customer with no way to get the document their
+    bookkeeping needs. And `/api/billing/callback` computes a careful four-state outcome and
+    redirects to `/billing?checkout=<state>`, which **`/billing` has never read**: somebody
+    who had just handed over a card was told nothing at all. Both fixed; the second is the
+    same shape as the `/activate?error=` defect found earlier the same day.
+  - **A file endpoint must refuse, not redirect.** Both new routes used `requireProfile()`,
+    which redirects — measured with curl, an unauthenticated receipt request answered
+    `307 -> /login`, so anything following redirects would save the HTML login page as
+    `FW-2026-000005.pdf`. No data ever reached an anonymous caller; it is about giving an
+    honest answer, and it is the rule the VAT routes already set. My own first check called
+    it "SERVED — WRONG" because it only read the status after following the redirect.
+  - **Proof.** 32 SQL assertions against the live schema inside a rolled-back transaction,
+    with the two real production farms asked first and last — "both still read ok" is what
+    catches a gate change that locks out the customer base. Mutation-tested 7/7 with a
+    surviving control, and three of those runs found faults in the HARNESS rather than the
+    code: a fire detector that missed `FAIL same row, window set to 3650 days` because it
+    anchored the label straight after FAIL; a dropped connection counted as seven catches
+    because any `ERROR:` read as a fire (there are three outcomes now, and "the suite did not
+    run" is one of them); and a mutant that survived twice — first because the probe never
+    loaded the migration being mutated, then because the fixture had no stale period for the
+    bug to reuse. Then 76 browser assertions across four drives: the gate, the account, the
+    paperwork and the checkout states.
+  - **Production was written to and put back each time.** Test farms, owners, subscriptions,
+    invoices and attempts removed in one transaction; `billing_invoice_ref_seq` rewound so the
+    numbering carries no gap for documents that no longer exist. The freeze trigger refused
+    the first cleanup — an issued invoice's lines are immutable, which is S9 doing its job —
+    so the cleanup suspends triggers for its own transaction only, as `postgres`. Afterwards,
+    every time: 2 farms, 15 auth users, 5 paid invoices totalling R1 095,00, sequence at 5.
+  - 159 migrations apply to a fresh database. Every commit verified in an isolated worktree
+    at the pushed SHA: typecheck clean, build clean, shared first-load JS flat at **102 kB**.
+    i18n EN/AF at parity (**4 085 leaf keys**).
+  - **Still needs the founder, and only the founder**: decide `lapsed_grace_days` (it is live
+    at 30 and it will close accounts); have a lawyer read `src/lib/legal.ts` and then bump
+    `TERMS_VERSION`; set `RESEND_API_KEY`/`EMAIL_FROM`/`NEXT_PUBLIC_SITE_URL` in Vercel
+    Production (verification refuses to send without the last one, rather than emailing a
+    broken link); and clear the Paystack **Starter Business R80,000 lifetime cap**. Written
+    up as §9 and §10 of `docs/PAYSTACK_GO_LIVE.md`.
+  - **Still never done**: a real Paystack DECLINE (test mode accepts every valid stored
+    authorization, so it needs a declining card through hosted checkout in a browser); the
+    billing cron firing on Vercel's own schedule rather than by hand; and a refund or dispute
+    moving anything in the ledger — both still only raise an alert.
+
 > Update this "current status" block at the end of every session.

@@ -191,3 +191,104 @@ Stated plainly so nobody mistakes "built" for "proven end to end":
   assertion suite. That is a genuine database, but it is not the project's own harness.
 
 Give me test keys and I can close the first two.
+
+---
+
+## 9. Added 11 September 2026 — the sign-up and lifecycle work
+
+Five things that did not exist before this date now do, and three of them need a decision
+from you rather than a deployment.
+
+### 9.1 Decide how long a lapsed farm stays open — `lapsed_grace_days`
+
+**This is live and it will close accounts.** Until today nothing ever took access away: a
+farm that stopped paying kept the product on the Essential plan for ever, and a farm that
+cancelled kept all of it. `app.farm_billing_gate` now answers `closed` once a subscription
+has been `cancelled` or `downgraded` for longer than this window.
+
+```sql
+-- Look at it
+select lapsed_grace_days from public.billing_settings where singleton;
+
+-- Change it (no migration, no deploy)
+update public.billing_settings set lapsed_grace_days = 30 where singleton;
+```
+
+- **30** is the default and what is set now.
+- **0** closes the day after the terminal event.
+- **3650** effectively restores the old behaviour of never closing, if this turns out to be
+  too sharp in practice. That is a supported setting, not a hack.
+
+Whatever you choose, `/terms` says *"If the account stays unpaid beyond that, we close it"*
+without naming a number, so changing the window does not make the terms wrong. Naming a
+number there would.
+
+### 9.2 Have the terms and the privacy notice read by a lawyer
+
+`/terms` and `/privacy` are live, linked from the sign-up form, and the tick is enforced on
+the server. They are accurate — every clause describes something the software actually does,
+and several were written by reading the code — **but they are not legal advice and nobody
+qualified has read them.**
+
+Before a stranger pays:
+
+1. Have someone qualified read `src/lib/legal.ts` (the wording lives there, not in the
+   dictionaries — see the note at the top of that file for why a contract is the one string
+   in this product that is deliberately not translated).
+2. Apply whatever they say.
+3. **Bump `TERMS_VERSION`** in the same file. Every sign-up records the version it was shown,
+   so the question "what did this person actually agree to" has an answer.
+
+### 9.3 Email is now part of signing up
+
+A verification link goes out at sign-up. If email is not configured the sign-up still
+works — deliberately, because a mail outage must not cost a customer — but nobody is ever
+asked to confirm their address, and the address is the only way back into the account.
+
+- `RESEND_API_KEY` and `EMAIL_FROM` must be set in Vercel Production. (Verified working from
+  a developer machine on 11 September: Resend accepted the message.)
+- **`NEXT_PUBLIC_SITE_URL` must be correct**, and this is new: the verification link is built
+  from configuration ONLY and never from a request header, because a forged `Origin` would
+  have us email somebody a link to another domain over our own name. If it is unset or not a
+  real http(s) URL, `sendVerificationEmail` **refuses to send** rather than emailing a broken
+  link. Nothing else breaks, but nobody gets verified.
+
+### 9.4 Two quality gates are not in CI
+
+`scripts/error_coverage.mjs` and `scripts/design_lint.mjs` are **untracked** — they exist
+only in one developer working tree, are not on `main`, and the `package.json` entries for
+`errors:check` and `design:lint` are uncommitted too. `CLAUDE.md` describes both as shipped.
+
+`i18n:parity` IS committed and does run.
+
+Whoever owns the UI/palette branch should land them. Until that happens, the two checks that
+catch "a raw error code reached a customer" and "this colour token is not defined" only run
+when somebody remembers to run them by hand.
+
+### 9.5 What is now testable that was not
+
+Nothing here needs you, but it is worth knowing the shape changed:
+
+- A farm can be driven all the way to `closed` and back to paying without anybody at Rapid
+  Rise touching the database — `/closed` offers reopen and a full data export.
+- A person can change their own name, email and password at `/account`. Before today nobody
+  could change a password at all.
+- A paid invoice's receipt can be fetched at any time from `/billing`, not only from the one
+  email it was sent in.
+
+---
+
+## 10. The honest state of it, 11 September 2026
+
+**Proven on production:** a live Paystack payment end to end; the webhook signature on five
+real deliveries; reconciliation in both directions; the `unknown`-attempt guard; the whole
+nightly pass; sign-up creating a farm, owner, subscription and invoice in one transaction;
+the gate closing and reopening; email verification sending through Resend.
+
+**Still never done:** a real Paystack DECLINE (test mode accepts every valid stored
+authorization, so this needs a declining card put through hosted checkout in a browser); the
+billing cron firing on Vercel's schedule rather than being run by hand; and a refund or
+dispute moving anything in the ledger — both still only raise an alert.
+
+**Still ahead of you:** the Starter Business **R80,000 lifetime collections cap**. Upgrade to
+Registered Business before you get near it.
