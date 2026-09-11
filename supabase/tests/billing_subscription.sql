@@ -4897,7 +4897,215 @@ begin
   raise notice '   the unpaid one is swept, the part-paid one is left alone, nothing deleted';
 end $$;
 
-do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (z) A declined first payment must not open the farm
+--
+-- The worst defect found in this billing system, and it was latent until self-serve
+-- sign-up shipped in the same week.
+--
+-- `app.billing_register_failure` moved any subscription to 'past_due'. For a paying farm
+-- that is the dunning ladder. For a PENDING sign-up it moved them out of 'pending' — and
+-- `app.farm_billing_gate` reads 'pending' as "keep them out" and everything else as "let
+-- them in". So a customer whose first card was DECLINED was handed the product.
+--
+-- Also here: the two invoice snapshots that were documented as frozen and were not, and a
+-- zero-total invoice that could never be finished.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-000000000090', 'declined@billing.invalid');
+
+do $$
+declare
+  v_sub  uuid;
+  v_farm uuid;
+  v_inv  uuid;
+  v_att  uuid;
+  s      public.billing_subscriptions%rowtype;
+  i      integer;
+begin
+  raise notice '── BILLING (z): a declined first payment opens nothing ──────────';
+
+  v_sub := app.create_pending_signup('b1a00000-0000-0000-0000-000000000090',
+    'declined@billing.invalid', 'Declined Person', 'Declined Boerdery', 'complete', 'monthly', 3);
+  select farm_id into v_farm from billing_subscriptions where id = v_sub;
+  select id into v_inv from billing_invoices where subscription_id = v_sub;
+
+  -- POSITIVE CONTROL: shut before anything happens, or the assertions below prove nothing.
+  if app.farm_billing_gate(v_farm) <> 'pending' then
+    raise exception 'BILLING FAIL [z]: a brand-new sign-up is not gated to begin with';
+  end if;
+
+  -- Their card is declined. Four times, so the ladder would certainly have run.
+  for i in 1 .. 4 loop
+    perform app.billing_register_failure(v_sub, 'Insufficient funds');
+  end loop;
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'pending' then
+    raise exception 'BILLING FAIL [z]: four DECLINED payments moved the sign-up to "%". The '
+      'gate reads anything but pending as "let them in", so failing to pay would be a way '
+      'of getting in.', s.status;
+  end if;
+  if app.farm_billing_gate(v_farm) <> 'ok' is not false then
+    -- (belt and braces: the gate itself, not just the status it reads)
+    null;
+  end if;
+  if app.farm_billing_gate(v_farm) <> 'pending' then
+    raise exception 'BILLING FAIL [z]: the farm opened after a declined payment';
+  end if;
+
+  -- The failure is still RECORDED. "Their card was declined four times" is worth knowing
+  -- when they ring, and throwing it away to fix the status would be the wrong trade.
+  if s.failed_attempt_count <> 4 or s.last_failure_code is null then
+    raise exception 'BILLING FAIL [z]: the declines were not recorded (% failures, reason %)',
+      s.failed_attempt_count, s.last_failure_code;
+  end if;
+  -- And no retry ladder was started: there is nothing to chase. They owe nothing until
+  -- they decide to buy.
+  if s.next_retry_on is not null or s.grace_ends_on is not null then
+    raise exception 'BILLING FAIL [z]: a pending sign-up was put on the dunning ladder '
+      '(retry %, grace %)', s.next_retry_on, s.grace_ends_on;
+  end if;
+
+  -- NEGATIVE CONTROL. A PAYING farm must still be dunned by the very same call, or the
+  -- assertion above is a statement about dunning being broken.
+  perform app.billing_register_failure('b1600000-0000-0000-0000-000000000009', 'test decline');
+  select * into s from billing_subscriptions where id = 'b1600000-0000-0000-0000-000000000009';
+  if s.status <> 'past_due' then
+    raise exception 'BILLING FAIL [z]: a live subscription was not dunned (status %) — the '
+      'pending assertion above therefore proves nothing', s.status;
+  end if;
+
+  -- And paying still works: the invoice is there, untouched, and settling it opens the farm.
+  perform app.change_billing_quota(v_sub, 3);   -- no-op; proves the sub is still usable
+  insert into billing_payment_methods (farm_id, authorization_code, authorization_email,
+    card_brand, last4, exp_month, exp_year, reusable, is_default, status)
+  values (v_farm, 'AUTH_declined', 'declined@billing.invalid', 'visa', '9090',
+          '12', '2030', true, true, 'active');
+  update billing_subscriptions s2 set default_payment_method_id = pm.id
+    from billing_payment_methods pm where pm.farm_id = v_farm and s2.id = v_sub;
+
+  v_att := app.claim_billing_charge(v_inv, 'Z-REF-0001', 'initial_checkout',
+    (select total_incl_cents from billing_invoices where id = v_inv));
+  perform app.settle_billing_attempt(v_att, 'succeeded', 990090, 'Z-REF-0001', 'Approved',
+    null, (select total_incl_cents from billing_invoices where id = v_inv), 'card');
+
+  if app.farm_billing_gate(v_farm) <> 'ok' then
+    raise exception 'BILLING FAIL [z]: they paid and the farm is still shut';
+  end if;
+
+  raise notice '   declines are recorded and change nothing; paying opens it';
+end $$;
+
+-- ── Who an invoice was from and for is part of what is frozen ───────────────
+do $$
+declare
+  v_inv uuid := 'b1800000-0000-0000-0000-000000000001';
+  v_raised boolean;
+  s     public.billing_invoices%rowtype;
+begin
+  select * into s from billing_invoices where id = v_inv;
+  if s.status = 'draft' then
+    raise exception 'BILLING FAIL [z]: the fixture invoice is a draft, so the freeze would '
+      'not apply and the assertions below would pass for the wrong reason';
+  end if;
+
+  -- The seller. A copy reprinted next year must show the company AS IT WAS.
+  v_raised := false;
+  begin
+    update billing_invoices
+       set seller_snapshot = jsonb_build_object('legal_name', 'Somebody Else (Pty) Ltd')
+     where id = v_inv;
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [z]: the SELLER on an issued invoice was editable. The '
+      'figures were frozen and the company name was not, which is the half a tax authority '
+      'would care about most.';
+  end if;
+
+  -- And the customer.
+  v_raised := false;
+  begin
+    update billing_invoices
+       set bill_to_snapshot = jsonb_build_object('name', 'A Different Farm')
+     where id = v_inv;
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [z]: the CUSTOMER on an issued invoice was editable';
+  end if;
+
+  -- NEGATIVE CONTROL: a draft is still being assembled, and the generator writes its
+  -- snapshots as it builds it. Freezing a draft would break every invoice ever raised.
+  insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+    period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+    unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+  values ('b1800000-0000-0000-0000-0000000000f1', 'b1000000-0000-0000-0000-000000000001',
+    'b1600000-0000-0000-0000-000000000001', 'BZ-INV-DRAFT', 'draft',
+    current_date - 400, current_date - 371, current_date - 400, current_date - 400,
+    'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+  update billing_invoices
+     set seller_snapshot = jsonb_build_object('legal_name', 'Still Being Written')
+   where id = 'b1800000-0000-0000-0000-0000000000f1';
+
+  raise notice '   an issued invoice''s seller and customer are frozen; a draft is not';
+end $$;
+
+-- ── A draft is nobody's bill, however much has been paid against it ─────────
+do $$
+declare
+  v_inv uuid := 'b1800000-0000-0000-0000-0000000000f2';
+  s     public.billing_invoices%rowtype;
+begin
+  -- The audit called this "a zero-total invoice can never reach paid". Half true, and
+  -- not reachable the way it implies: `billing_payments_nonzero_ck` forbids a zero
+  -- payment, so the rollup never runs on such an invoice at all. The generator refusing
+  -- to bill a farm with nothing to bill is the real guard, and section (i) asserts it.
+  --
+  -- What IS reachable is the ORDERING. `v_total > 0 and v_paid >= v_total` was tested
+  -- before `status = 'draft'`, so a draft carrying a payment flipped to 'paid' while it
+  -- was still being written — and the generator assembles every invoice as a draft.
+  insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+    period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+    unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+  values (v_inv, 'b1000000-0000-0000-0000-000000000001',
+    'b1600000-0000-0000-0000-000000000001', 'BZ-INV-DRAFT2', 'draft',
+    current_date - 800, current_date - 771, current_date - 800, current_date - 800,
+    'complete', 'monthly', 1, 1234, 1, 'b1500000-0000-0000-0000-000000000001', 'b1-synthetic', 0);
+
+  insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider,
+                                provider_reference, provider_transaction_id, channel)
+  values ('b1000000-0000-0000-0000-000000000001', v_inv, 1234, 'paystack',
+          'BZ-DRAFT-PAY', 890000002, 'card');
+
+  select * into s from billing_invoices where id = v_inv;
+  if s.status <> 'draft' then
+    raise exception 'BILLING FAIL [z]: a DRAFT invoice became "%" because a payment '
+      'covered it. The generator assembles every invoice as a draft and issues it in the '
+      'same transaction; one that settles itself halfway through is not finished.', s.status;
+  end if;
+  if s.amount_paid_cents <> 1234 then
+    raise exception 'BILLING FAIL [z]: the payment was not rolled up (% paid)', s.amount_paid_cents;
+  end if;
+
+  -- And once it IS issued, the same payment settles it.
+  update billing_invoices set status = 'open' where id = v_inv;
+  insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider,
+                                provider_reference, provider_transaction_id, channel)
+  values ('b1000000-0000-0000-0000-000000000001', v_inv, 1, 'paystack',
+          'BZ-DRAFT-PAY-2', 890000003, 'card');
+  select * into s from billing_invoices where id = v_inv;
+  if s.status <> 'paid' then
+    raise exception 'BILLING FAIL [z]: an ISSUED invoice covered by its payments is "%"', s.status;
+  end if;
+
+  raise notice '   a draft stays a draft; an issued invoice settles';
+end $$;do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
 select 'ALL BILLING SUBSCRIPTION TESTS PASSED' as result;
 
 rollback;

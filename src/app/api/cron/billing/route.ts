@@ -4,6 +4,7 @@ import { sendDueFailureNotices, sendDueReceipts } from "@/lib/billing/receipt";
 import { BILLING_RPC } from "@/lib/billing/service";
 import { reconcileStuckAttempts, runBillingCharges } from "@/lib/billing/worker";
 import { captureError } from "@/lib/observability";
+import { bearerMatches } from "@/lib/security/bearer";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -58,7 +59,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  // Constant-time. A plain `!==` stops at the first wrong byte, so how long the refusal
+  // takes says how much of the token was right — and this route runs the whole billing
+  // pass and is reachable from the public internet.
+  if (!bearerMatches(authHeader, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

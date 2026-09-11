@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
+import { bearerMatches } from "@/lib/security/bearer";
 import { deliverPush } from "@/lib/push/deliver";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
 
@@ -42,7 +43,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  // Constant-time. A plain `!==` stops at the first wrong byte, so how long the refusal
+  // takes says how much of the token was right — and this route runs the whole billing
+  // pass and is reachable from the public internet.
+  if (!bearerMatches(authHeader, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -121,7 +125,14 @@ export async function GET(request: Request) {
   // Web Push for everything just enqueued and now deliverable (no-op if VAPID unset).
   try {
     const push = await deliverPush(supabase);
-    steps["push_delivery"] = push.skipped ? `skipped (${push.skipped})` : `ok (pushed ${push.pushed})`;
+    if (!push.ok) {
+      steps["push_delivery"] = `error: ${push.error ?? "delivery-failed"} (${push.deferred} retained for retry)`;
+      captureError(new Error(steps["push_delivery"]), { where: "cron:push_delivery", extra: push });
+    } else {
+      steps["push_delivery"] = push.skipped
+        ? `skipped (${push.skipped})`
+        : `ok (pushed ${push.pushed}, deferred ${push.deferred})`;
+    }
   } catch (err) {
     steps["push_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
     // Same reasoning as `run` above: a delivery failure here means the whole night's alerts
