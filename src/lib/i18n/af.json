@@ -4097,7 +4097,11 @@
     "slotsSubmit": "Dateer plekke op",
     "slotsRule": "Meer plekke is dadelik joune en jy betaal die verskil vir die dae wat oor is in hierdie tydperk. Minder begin aan die einde van die tydperk waarvoor jy reeds betaal het, en jy kan nie onder die voertuie gaan wat jy gebruik nie — tree eers een af.",
     "colReceipt": "Kwitansie",
-    "downloadReceipt": "Laai af"
+    "downloadReceipt": "Laai af",
+    "checkoutPaid": "Betaling ontvang. Jou plaas is oop en jou kwitansie is per e-pos op pad.",
+    "checkoutPending": "Paystack het jou betaling en bevestig dit nog. Dit neem gewoonlik 'n paar sekondes — herlaai netnou. Moenie weer betaal nie.",
+    "checkoutFailed": "Daardie betaling het nie deurgegaan nie en niks is gehef nie. Probeer weer, of gebruik 'n ander kaart.",
+    "checkoutUnknown": "Ons kon nie bevestig wat met daardie betaling gebeur het nie. Kyk na die faktuurlys hieronder voordat jy weer probeer, en sê vir ons as dit verkeerd lyk."
   },
   "adminBilling": {
     "title": "Intekeninge",

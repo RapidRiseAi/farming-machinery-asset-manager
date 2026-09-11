@@ -4097,7 +4097,11 @@
     "slotsSubmit": "Update slots",
     "slotsRule": "More slots are yours immediately and you pay the difference for the days left this period. Fewer start at the end of the period you have already paid for, and you cannot go below the vehicles you are running — retire one first.",
     "colReceipt": "Receipt",
-    "downloadReceipt": "Download"
+    "downloadReceipt": "Download",
+    "checkoutPaid": "Payment received. Your farm is open and your receipt is on its way by email.",
+    "checkoutPending": "Paystack has your payment and is still confirming it. This usually takes a few seconds — refresh in a moment. Do not pay again.",
+    "checkoutFailed": "That payment did not go through and nothing has been charged. Try again, or use a different card.",
+    "checkoutUnknown": "We could not confirm what happened to that payment. Check the invoice list below before trying again, and tell us if it looks wrong."
   },
   "adminBilling": {
     "title": "Subscriptions",

@@ -117,7 +117,7 @@ export const dynamic = "force-dynamic";
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; checkout?: string }>;
 }) {
   const profile = await requireRole(["owner", "rr_admin"]);
   const locale = profile.lang;
@@ -270,6 +270,24 @@ export default async function BillingPage({
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.savedChanges", locale) : undefined} />
+
+      {/* Back from Paystack. The callback computes this state carefully and then nothing
+          rendered it, so somebody who had just handed over a card was told nothing at all.
+          "Pending" gets its own sentence rather than being folded into failure: it is the
+          ordinary case where the webhook is a second behind the browser, and telling
+          somebody their payment failed when it is merely in flight makes them pay twice. */}
+      {sp.checkout === "paid" ? (
+        <Flash tone="success" message={t("billing.checkoutPaid", locale)} />
+      ) : null}
+      {sp.checkout === "pending" ? (
+        <Flash tone="info" message={t("billing.checkoutPending", locale)} />
+      ) : null}
+      {sp.checkout === "failed" ? (
+        <Flash tone="error" message={t("billing.checkoutFailed", locale)} />
+      ) : null}
+      {sp.checkout === "unknown" ? (
+        <Flash tone="warning" message={t("billing.checkoutUnknown", locale)} />
+      ) : null}
 
       {/* What has gone wrong, in the order a worried person needs it: what happened,
           what to do, and that nothing has been deleted. */}
