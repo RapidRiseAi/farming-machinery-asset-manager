@@ -2315,4 +2315,101 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     does the plan end immediately, at period end, or not at all? The alert fires today and
     nothing moves.
 
+
+- **The front door, slots a farm buys, a declined first payment that opened the app, and a
+  receipt that read like an invoice** (migrations `20260911120000`, `20260911140000`,
+  `20260911160000`; commits `78c65d8`/`111def1`/`efa4bef`/`ec99872` on `main`; every
+  migration applied to production from disk and each behaviour driven against the live
+  database inside a rolled-back transaction):
+  - **A farm can now sign itself up** (`20260911120000`). `/signup` sits in `(public)` with
+    **zero anon DB access** — the plan prices come from `entitlements.ts`, not a query — and
+    `app.create_pending_signup` writes the farm, the owner, a `pending` subscription and the
+    first invoice in ONE transaction, so a half-made farm cannot exist. The generator's
+    pending arm is deliberately narrow: a `pending` subscription is admitted **only while it
+    has no invoice at all**, so somebody who opened the page and walked away does not
+    accumulate a monthly invoice for ever.
+  - **Farms buy vehicle SLOTS; the product had been counting them** (`20260911140000`).
+    `pending_quota`/`pending_quota_on` plus `app.billing_quota_change_quote` and
+    `app.change_billing_quota`: buying more slots is charged immediately with proration, and
+    giving slots back takes effect at period end — the direction that costs the customer
+    money is the one that waits. Slot purchases needed their **own invoice `kind = 'slots'`**
+    because two of them in one period collide on `billing_invoices_proration_uq`'s
+    `(farm, period, plan)` key. `/billing` gained `changeOwnPlan` and `changeVehicleSlots`,
+    so an owner no longer has to ask Rapid Rise to change either.
+  - **The dormant sweep, and a plpgsql trap that made it dangerous.**
+    `app.sweep_dormant_signups(p_days default 7)` clears sign-ups that never paid. Its
+    `not exists` guard referenced `s.id` — the LOOP's record variable — inside the query that
+    FEEDS the loop. plpgsql substitutes NULL there, so the guard passed for everybody and the
+    sweep took a **paid** sign-up. Caught by suite section (y), not by reading; fixed to
+    `billing_subscriptions.id`.
+  - **A declined first payment opened the farm (S10).** `billing_register_failure` moved a
+    `pending` subscription to `past_due`, and `app.farm_billing_gate` reads anything but
+    `pending` as "let them in" — so failing to pay was the way IN. Two independently
+    plausible pieces, each correct alone. Guarded in `20260911160000`, with S9
+    (`seller_snapshot`/`bill_to_snapshot` added to the invoice freeze list, so a receipt
+    reprinted next year cannot be restated) and S12 (the rollup reordered to test
+    `status = 'draft'` first).
+  - **S12's finding was half wrong and the migration says so.** The audit claimed a
+    zero-total invoice could never reach `paid`; `billing_payments_nonzero_ck` forbids a zero
+    payment, so the rollup never runs on one. The header records the correction rather than
+    leaving the claim standing, and the assertion moved to the case that IS reachable — a
+    draft invoice flipping to paid.
+  - **`src/lib/security/bearer.ts`** — both cron routes compared their bearer token with
+    `===`. Now hashed and compared with `timingSafeEqual`; hashing first because
+    `timingSafeEqual` throws on unequal lengths, and the length is itself a leak. 8 tests.
+  - **The receipt PDF** (`ec99872`). It answered neither of the two questions somebody opens
+    a receipt for: the total was a `kv` row eight down, carrying the same weight as the
+    payment reference, and nothing said PAID except the word "Receipt". The amount and
+    "Paid in full" now lead in a `totalBlock`, with the itemisation under "What this covers".
+    The engine's default brand green was `rgb(0.08, 0.5, 0.24)` — ≈#14803D, a green in no
+    token file and nowhere in the app — so **every FleetWise-branded PDF has been printing
+    off-brand**; corrected to #00572C. Only the fallback moved; a partner's own colour is
+    untouched.
+  - **Two receipt defects that only the rendered BYTES could find.** `VAT (15%%)`, in both
+    languages: `vatPercent()` already returns "15%" and the template appended a second sign —
+    the only site in the codebase that does, and a doubled `%` is a valid string. And the
+    footer stamped `FleetWise · generated 2026-09-11` under a page translated everywhere
+    else; it now supplies its own footer through the engine's `brand.footer` hook, leaving
+    partner letterheads and job cards alone. **"Generated", not "issued"** — the engine
+    stamps TODAY, so a reprint next year must not claim that as the issue date.
+  - **The reader was broken in a way that looked exactly like a broken document**: 35
+    assertions failing across six receipts. Not compression — the streams ARE deflated and
+    `inflateSync` succeeds. This engine EMBEDS its fonts, so pdf-lib writes **hex strings**
+    (`<466C…> Tj`) rather than the parenthesised literals a standard-14 font gets. A related
+    near-miss: the em and en dashes appeared to be missing from every receipt; they are not —
+    `0x97`/`0x96` are those dashes in WinAnsi and `sanitize()`'s `EXTRA` set keeps them on
+    purpose. Checking the code points before "fixing" the engine avoided breaking something
+    that works.
+  - **`server-only` must not be stubbed in `node_modules`.** The rig needed the marker
+    resolvable outside Next and a local stub was the obvious fix; it is the wrong one.
+    `server-only` exists to FAIL a build when server code reaches a client bundle, and this
+    codebase keeps a service-role key and a Paystack secret behind exactly that line. It is
+    also not an installed package (Next resolves it through its own bundler alias), so a stub
+    is undeclared, unversioned and wiped by the next `pnpm install`. The substitution now
+    lives in a **loader** beside the script. Both layers have to be patched: tsx transpiles
+    TypeScript to CommonJS, so the ESM `resolve` hook never sees the specifier and only the
+    `require` path does — registering one looks like it works until the import happens.
+  - **Refund policy, decided by the founder (11 September 2026), written up as `BILLING.md`
+    §11b.** There is no refund control in the product and there is not going to be one: a
+    refund is made through Paystack by whoever handles the support request. A refund the
+    customer **asked for** cancels the subscription immediately; a refund Rapid Rise issues
+    because **something broke** is on us and the farm keeps its subscription. FleetWise
+    cannot tell the two apart from a webhook, so nothing is automatic — `refund.*` raises a
+    `billing_refund` alert to Rapid Rise and a human decides.
+  - Mutation-tested throughout, controls included: the receipt rig puts back the doubled
+    percent, the untranslated footer and the duplicate total and requires each assertion to
+    fire, with a reworded-comment control that must survive.
+  - Gates: typecheck and lint clean, i18n EN/AF at parity (**3 983 leaf keys** in the
+    committed blobs). Both dictionaries and several app files still carry another session's
+    in-flight work, so every commit staged only its own hunks, built from HEAD via
+    `git hash-object -w` + `git update-index --cacheinfo`.
+  - **Every open item from the billing audit is now closed** (S1–S12). **Still not done:**
+    none of `/signup`, `/activate` or the new `/billing` controls has been opened in a
+    browser; a Paystack refund or dispute raises an alert but **moves nothing in the
+    ledger** (no negative-payment model on the SaaS side — the partner side has one at
+    `0422` and the SaaS side could follow, but it needs a decision about what a part-refund
+    means for a period already supplied); and the **Starter Business R80,000 lifetime
+    collections cap** still has to be cleared — the founder upgrades the Paystack tier at
+    R10,000 collected.
+
 > Update this "current status" block at the end of every session.
