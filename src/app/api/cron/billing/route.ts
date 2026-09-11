@@ -136,6 +136,10 @@ export async function GET(request: Request) {
   // try would turn a probable success into a certain failure.
   await run("card_expiry", BILLING_RPC.cardExpiry);
 
+  // Sign-ups nobody finished. Soft-deleted after a week, and never one that has taken
+  // money — a part-paid sign-up is a conversation, not a dormant row (20260911140000).
+  await run("sweep_dormant_signups", BILLING_RPC.sweepDormant);
+
   // 9 ── Email what step 7 could only put in the app.
   //
   // Both are SAFETY NETS as much as senders. The receipt is normally emailed the moment

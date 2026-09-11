@@ -3961,7 +3961,12 @@
     "signupVehicles": "Choose at least one vehicle.",
     "signupTooMany": "That is more vehicles than we can set up online. Send us a message and we will do it with you.",
     "signupPlanUnavailable": "That plan is not on sale online. Send us a message and we will set it up with you.",
-    "signupFailed": "We could not set up your farm just then, and nothing was charged. Please try again in a moment."
+    "signupFailed": "We could not set up your farm just then, and nothing was charged. Please try again in a moment.",
+    "billingQuotaInvalid": "Choose at least one vehicle slot.",
+    "billingQuotaBelowFleet": "You are running more vehicles than that. Retire or sell one first, then come back and reduce your slots.",
+    "billingQuotaFailed": "We could not change your vehicle slots just then, and nothing was charged. Please try again in a moment.",
+    "billingPlanInvalid": "That is not a plan we offer. Pick one from the list.",
+    "billingPlanFailed": "We could not change your plan just then, and nothing was charged. Please try again in a moment."
   },
   "billing": {
     "title": "Billing",
@@ -4062,7 +4067,15 @@
       "cancelledBody": "Nothing has been deleted. Start again whenever you like and it will all be where you left it.",
       "trialingTitle": "You are on trial",
       "trialingBody": "Everything is open while you try it. Nothing is charged during the trial."
-    }
+    },
+    "changePlanTitle": "Change your plan",
+    "changePlanNote": "Moving up happens straight away and you pay the difference for the days left this period. Moving down starts at the end of the period you have already paid for.",
+    "changePlanSubmit": "Change plan",
+    "slotsTitle": "Vehicle slots",
+    "slotsUsing": "You are using {used} of {quota}.",
+    "slotsNoneYet": "This subscription is billed on the vehicles it counts, not on a number you chose.",
+    "slotsSubmit": "Update slots",
+    "slotsRule": "More slots are yours immediately and you pay the difference for the days left this period. Fewer start at the end of the period you have already paid for, and you cannot go below the vehicles you are running — retire one first."
   },
   "adminBilling": {
     "title": "Subscriptions",

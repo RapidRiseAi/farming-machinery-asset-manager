@@ -74,6 +74,11 @@ export const BILLING_RPC = {
   // a change due today has to land before today's invoice is priced, or the farm is
   // billed one more period at the plan they asked to leave.
   applyPendingPlans: "cron_apply_pending_plan_changes",
+  // Vehicle slots bought or given back (20260911140000), and the tidy-up after a sign-up
+  // nobody finished.
+  quotaQuote: "billing_quota_quote",
+  changeQuota: "billing_change_quota",
+  sweepDormant: "cron_sweep_dormant_signups",
   // Putting a farm ON a subscription (20260906120000). Nothing did this before, so a
   // farm could never start paying: `beginCheckout` refuses without one.
   startSubscription: "billing_start_subscription",
@@ -1056,6 +1061,55 @@ export async function farmBillingGate(
   const { data, error } = await supabase.rpc(BILLING_RPC.billingGate, { p_farm: farmId });
   if (error) return "ok";
   return data === "pending" ? "pending" : "ok";
+}
+
+/** What buying or giving back vehicle slots would do, and cost, before anybody commits. */
+export type QuotaQuote = {
+  /** 'increase_now' | 'scheduled' | 'no_change' | 'unavailable' */
+  kind: string;
+  effective_on: string | null;
+  current_quota: number | null;
+  new_quota: number;
+  in_use: number;
+  days_remaining: number;
+  days_in_period: number;
+  charge_now_cents: number;
+  reason: string | null;
+};
+
+/**
+ * Quote a change to the number of vehicle slots.
+ *
+ * Buying more is an upgrade and is charged pro-rata immediately; giving some back waits
+ * for the period already paid for; and asking for fewer slots than the farm is actually
+ * running is refused, because honouring it would mean deleting real vehicles.
+ */
+export async function quotaQuote(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  quota: number,
+): Promise<{ quote: QuotaQuote | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.quotaQuote, {
+    p_sub: subscriptionId,
+    p_quota: quota,
+  });
+  if (error) return { quote: null, error: { message: redactMessage(error.message), code: error.code } };
+  const row = Array.isArray(data) ? data[0] : data;
+  return { quote: (row as QuotaQuote) ?? null, error: null };
+}
+
+/** Apply it. Returns what actually happened, which is not always what was asked for. */
+export async function changeQuota(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  quota: number,
+): Promise<{ result: Record<string, unknown> | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.changeQuota, {
+    p_sub: subscriptionId,
+    p_quota: quota,
+  });
+  if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { result: (data as Record<string, unknown>) ?? null, error: null };
 }
 
 /** How many vehicle slots a farm has, and how many are left. */

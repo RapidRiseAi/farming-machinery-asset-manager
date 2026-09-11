@@ -3961,7 +3961,12 @@
     "signupVehicles": "Kies ten minste een voertuig.",
     "signupTooMany": "Dit is meer voertuie as wat ons aanlyn kan opstel. Stuur vir ons 'n boodskap en ons doen dit saam met jou.",
     "signupPlanUnavailable": "Daardie plan is nie aanlyn te koop nie. Stuur vir ons 'n boodskap en ons stel dit saam met jou op.",
-    "signupFailed": "Ons kon nie nou jou plaas opstel nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer."
+    "signupFailed": "Ons kon nie nou jou plaas opstel nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer.",
+    "billingQuotaInvalid": "Kies ten minste een voertuigplek.",
+    "billingQuotaBelowFleet": "Jy gebruik meer voertuie as dit. Tree eers een af of verkoop dit, en kom dan terug om jou plekke te verminder.",
+    "billingQuotaFailed": "Ons kon nie nou jou voertuigplekke verander nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer.",
+    "billingPlanInvalid": "Dit is nie 'n plan wat ons aanbied nie. Kies een uit die lys.",
+    "billingPlanFailed": "Ons kon nie nou jou plan verander nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer."
   },
   "billing": {
     "title": "Rekening",
@@ -4062,7 +4067,15 @@
       "cancelledBody": "Niks is uitgevee nie. Begin weer wanneer jy wil en alles sal wees waar jy dit gelos het.",
       "trialingTitle": "Jy is op proef",
       "trialingBody": "Alles is oop terwyl jy dit toets. Niks word gedurende die proeftydperk gehef nie."
-    }
+    },
+    "changePlanTitle": "Verander jou plan",
+    "changePlanNote": "Opgradeer gebeur dadelik en jy betaal die verskil vir die dae wat oor is in hierdie tydperk. Afgradeer begin aan die einde van die tydperk waarvoor jy reeds betaal het.",
+    "changePlanSubmit": "Verander plan",
+    "slotsTitle": "Voertuigplekke",
+    "slotsUsing": "Jy gebruik {used} van {quota}.",
+    "slotsNoneYet": "Hierdie intekening word gehef op die voertuie wat getel word, nie op 'n getal wat jy gekies het nie.",
+    "slotsSubmit": "Dateer plekke op",
+    "slotsRule": "Meer plekke is dadelik joune en jy betaal die verskil vir die dae wat oor is in hierdie tydperk. Minder begin aan die einde van die tydperk waarvoor jy reeds betaal het, en jy kan nie onder die voertuie gaan wat jy gebruik nie — tree eers een af."
   },
   "adminBilling": {
     "title": "Intekeninge",

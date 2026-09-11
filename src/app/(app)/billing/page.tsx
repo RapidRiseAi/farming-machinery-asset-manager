@@ -59,10 +59,13 @@ import { AdminIcon, DocumentsIcon, InfoIcon, LockIcon, WarningIcon } from "@/com
 // two different implementations.
 import {
   cancelSubscription,
+  changeOwnPlan,
+  changeVehicleSlots,
   replacePaymentMethod,
   retryPayment,
   startCheckout,
 } from "./actions";
+import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +126,11 @@ export default async function BillingPage({
   // rr_admin has no farm of its own; in support mode `currentFarmId` narrows to the
   // customer being helped, which is exactly the farm whose bill should be on screen.
   const farmId = profile.role === "rr_admin" ? await currentFarmId(profile) : profile.farm_id;
+
+  // Who may change what the farm pays. The same rule `requireBillingAdmin` enforces in the
+  // actions — owner, or Rapid Rise — and it is enforced THERE regardless of this. Hiding a
+  // control is not a guard; this only spares a manager a button that would refuse them.
+  const canManage = profile.role === "owner" || profile.role === "rr_admin";
 
   const header = (
     <div className="flex flex-wrap items-center gap-2">
@@ -348,6 +356,50 @@ export default async function BillingPage({
             {t("billing.noSubBody", locale)}
           </p>
         ) : null}
+
+        {sub && canManage ? (
+          <form action={changeOwnPlan} className="mt-4 border-t border-sand-200 pt-4">
+            <p className="text-sm font-semibold text-sand-900">
+              {t("billing.changePlanTitle", locale)}
+            </p>
+            <p className="mt-1 text-sm text-sand-600">{t("billing.changePlanNote", locale)}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <label className="sr-only" htmlFor="plan">
+                {t("billing.planField", locale)}
+              </label>
+              <select
+                id="plan"
+                name="plan"
+                defaultValue={sub.plan}
+                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+              >
+                {PLANS.map((p) => (
+                  <option key={p} value={p}>
+                    {t(`plan.${p}`, locale)}
+                  </option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor="billing_period">
+                {t("billing.periodField", locale)}
+              </label>
+              <select
+                id="billing_period"
+                name="billing_period"
+                defaultValue={sub.billing_period}
+                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+              >
+                {BILLING_PERIODS.map((p) => (
+                  <option key={p} value={p}>
+                    {t(`billingPeriod.${p}`, locale)}
+                  </option>
+                ))}
+              </select>
+              <SubmitButton variant="secondary">
+                {t("billing.changePlanSubmit", locale)}
+              </SubmitButton>
+            </div>
+          </form>
+        ) : null}
       </Card>
 
       {/* ── What is being counted, and the rule, in words ───────────────────── */}
@@ -368,6 +420,39 @@ export default async function BillingPage({
             : t("billing.vehiclesAllCounted", locale).replace("{total}", String(assets.total))}
         </p>
         <p className="mt-2 text-sm text-sand-600">{t("billing.vehiclesRule", locale)}</p>
+
+        {sub && canManage ? (
+          <form action={changeVehicleSlots} className="mt-4 border-t border-sand-200 pt-4">
+            <p className="text-sm font-semibold text-sand-900">
+              {t("billing.slotsTitle", locale)}
+            </p>
+            <p className="mt-1 text-sm text-sand-600">
+              {sub.asset_quota == null
+                ? t("billing.slotsNoneYet", locale)
+                : t("billing.slotsUsing", locale)
+                    .replace("{used}", String(assets.billable))
+                    .replace("{quota}", String(sub.asset_quota))}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <label className="sr-only" htmlFor="quota">
+                {t("billing.slotsTitle", locale)}
+              </label>
+              <input
+                id="quota"
+                name="quota"
+                type="number"
+                inputMode="numeric"
+                min={Math.max(assets.billable, 1)}
+                defaultValue={sub.asset_quota ?? Math.max(assets.billable, 1)}
+                className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+              />
+              <SubmitButton variant="secondary">
+                {t("billing.slotsSubmit", locale)}
+              </SubmitButton>
+            </div>
+            <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
+          </form>
+        ) : null}
       </Card>
 
       {/* ── The estimate. `unpriced` is today's state and is said in words. ─── */}

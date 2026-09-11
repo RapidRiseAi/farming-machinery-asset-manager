@@ -146,6 +146,12 @@ const CODE_KEYS: Record<string, string> = {
   "signup-too-many": "errors.signupTooMany",
   "signup-plan-unavailable": "errors.signupPlanUnavailable",
   "signup-failed": "errors.signupFailed",
+  // Self-serve plan and slot changes (20260911140000).
+  "billing-quota-invalid": "errors.billingQuotaInvalid",
+  "billing-quota-below-fleet": "errors.billingQuotaBelowFleet",
+  "billing-quota-failed": "errors.billingQuotaFailed",
+  "billing-plan-invalid": "errors.billingPlanInvalid",
+  "billing-plan-failed": "errors.billingPlanFailed",
   "vehicle-limit-reached": "errors.vehicleLimitReached",
   "vehicle-limit-import": "errors.vehicleLimitImport",
   "vehicle-limit-client": "errors.vehicleLimitClient",

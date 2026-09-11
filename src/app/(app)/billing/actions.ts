@@ -14,12 +14,15 @@ import {
   activePaymentMethod,
   beginCheckout,
   billingContactEmail,
+  changeQuota,
+  changeSubscriptionPlan,
   deactivatePaymentMethod,
   farmSubscription,
   openInvoiceForFarm,
   resumeSubscription,
   setCancellation,
 } from "@/lib/billing/service";
+import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -83,6 +86,84 @@ async function requireBillingAdmin(): Promise<{ profile: Profile; farmId: string
  * response lost between here and there is recoverable by verifying it rather than by
  * trying again.
  */
+/**
+ * Buy more vehicle slots, or give some back.
+ *
+ * The SCREEN does not decide what happens — \`app.change_billing_quota\` does, and it
+ * applies the founder's rules: more slots are charged pro-rata and available
+ * immediately; fewer wait for the period already paid for; and fewer than the farm is
+ * actually running is refused outright, because the only way to honour it would be to
+ * delete real vehicles.
+ *
+ * The answer comes back as a WORD rather than a number, so the screen can say which of
+ * those three happened — which is the part a farmer actually needs to read.
+ */
+export async function changeVehicleSlots(formData: FormData): Promise<void> {
+  const { farmId } = await requireBillingAdmin();
+  const quota = Number.parseInt(String(formData.get("quota") ?? ""), 10);
+  if (!Number.isFinite(quota) || quota < 1) bounce("billing-quota-invalid");
+
+  const supabase = createServiceClient();
+  const sub = await farmSubscription(supabase, farmId);
+  if (!sub) bounce("billing-no-subscription");
+
+  const { result, error } = await changeQuota(supabase, sub.id, quota);
+  if (error) {
+    // The engine's refusals arrive as check_violation with a sentence attached. The one
+    // worth separating is "retire or sell a vehicle first", because it is the only
+    // refusal the farmer can do something about themselves.
+    if (/retire or sell/i.test(error.message)) bounce("billing-quota-below-fleet");
+    bounce("billing-quota-failed");
+  }
+
+  const applied = String(result?.applied ?? "");
+  revalidatePath("/billing");
+  redirect(
+    applied === "scheduled"
+      ? "/billing?saved=slots-scheduled"
+      : applied === "no_change"
+        ? "/billing?saved=no-change"
+        : "/billing?saved=slots-added",
+  );
+}
+
+/**
+ * Move to a different plan, from the owner's own screen.
+ *
+ * \`app.change_billing_plan\` moves BOTH plans together — the commercial one on the
+ * subscription and the effective one on the farm — which is the half that used to be
+ * missing, and it keeps the non-payment exception: a farm downgraded for not paying is
+ * not handed its features back by asking for a bigger plan.
+ */
+export async function changeOwnPlan(formData: FormData): Promise<void> {
+  const { farmId } = await requireBillingAdmin();
+  const plan = String(formData.get("plan") ?? "");
+  const period = String(formData.get("billing_period") ?? "");
+  if (!(PLANS as readonly string[]).includes(plan)) bounce("billing-plan-invalid");
+  if (!(BILLING_PERIODS as readonly string[]).includes(period)) bounce("billing-plan-invalid");
+
+  const supabase = createServiceClient();
+  const sub = await farmSubscription(supabase, farmId);
+  if (!sub) bounce("billing-no-subscription");
+
+  const { result, error } = await changeSubscriptionPlan(supabase, {
+    subscriptionId: sub.id,
+    plan,
+    billingPeriod: period,
+  });
+  if (error) bounce("billing-plan-failed");
+
+  const applied = String(result?.applied ?? "");
+  revalidatePath("/billing");
+  redirect(
+    applied === "scheduled"
+      ? "/billing?saved=plan-scheduled"
+      : applied === "no_change"
+        ? "/billing?saved=no-change"
+        : "/billing?saved=plan-changed",
+  );
+}
+
 export async function startCheckout(): Promise<void> {
   const { profile, farmId } = await requireBillingAdmin();
   const supabase = createServiceClient();

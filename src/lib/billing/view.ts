@@ -46,7 +46,11 @@ export const PAYMENT_METHOD_COLUMNS =
   "country_code, bin, reusable, is_default, status, last_used_at, removed_at, created_at";
 
 export const SUBSCRIPTION_COLUMNS =
-  "id, farm_id, plan, billing_period, status, price_version_label, trial_ends_on, " +
+  // `asset_quota` is the number of vehicle slots BOUGHT (20260910230000). Null means this
+  // subscription predates the quota model and is still metered on what it counts, which is
+  // why the screen has to distinguish the two rather than showing 0.
+  "id, farm_id, plan, billing_period, status, asset_quota, pending_quota, pending_quota_on, " +
+  "price_version_label, trial_ends_on, " +
   "anchor_day, current_period_start, current_period_end, next_billing_on, " +
   "default_payment_method_id, cancel_at_period_end, cancellation_reason, cancelled_at, " +
   "ended_on, failed_attempt_count, last_failure_code, last_failure_at, next_retry_on, " +
@@ -85,6 +89,9 @@ export type SubscriptionRow = {
   plan: string;
   billing_period: string;
   status: string;
+  asset_quota: number | null;
+  pending_quota: number | null;
+  pending_quota_on: string | null;
   price_version_label: string | null;
   trial_ends_on: string | null;
   anchor_day: number | null;

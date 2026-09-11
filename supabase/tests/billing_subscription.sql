@@ -1272,12 +1272,13 @@ declare
     'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
     'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing',
     'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota',
-    'farm_billing_gate','create_pending_signup'];
+    'farm_billing_gate','create_pending_signup',
+    'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
-    'cron_apply_pending_plan_changes'];
+    'cron_apply_pending_plan_changes','cron_sweep_dormant_signups'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1288,7 +1289,8 @@ declare
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
     'billing_release_failure_notice','billing_invoice_chargeable_now',
     'billing_plan_quote','billing_change_plan','billing_notify_rr',
-    'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup'];
+    'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup',
+    'billing_quota_quote','billing_change_quota'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1585,7 +1587,9 @@ begin
       -- mint farms and owners.
       ('billing_create_pending_signup',
        'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer',
-       false)
+       false),
+      ('billing_quota_quote',  'p_sub uuid, p_quota integer', false),
+      ('billing_change_quota', 'p_sub uuid, p_quota integer', false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
@@ -4599,6 +4603,298 @@ begin
   end if;
 
   raise notice '   a refused sign-up writes nothing at all';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (y) Buying more slots, giving some back, and clearing up after the ones who never paid
+--
+-- Buying slots is a plan upgrade with a different noun, so it takes the same answer the
+-- founder gave for plans: charge the pro-rata difference immediately. Giving them back is
+-- a downgrade and waits for the period they paid for.
+--
+-- The assertion that matters most is the refusal: a quota BELOW what the farm is actually
+-- running cannot be allowed, because the only way to honour it would be to delete three
+-- real vehicles, and nothing in this product destroys a farmer's records to make a billing
+-- change fit.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into farms (id, name, plan, status, billing_period, billing_email) values
+  ('b1000000-0000-0000-0000-000000000070', 'Billing Farm Slots', 'complete', 'active', 'monthly', 'slots@billing.invalid');
+
+insert into machines (id, farm_id, name, type, meter_type, status) values
+  ('b1300000-0000-0000-0000-000000000701', 'b1000000-0000-0000-0000-000000000070', 'Slot A', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000702', 'b1000000-0000-0000-0000-000000000070', 'Slot B', 'tractor', 'hours', 'active'),
+  ('b1300000-0000-0000-0000-000000000703', 'b1000000-0000-0000-0000-000000000070', 'Slot C', 'tractor', 'hours', 'active');
+
+-- A 30-day period, ten days in. Enough remaining for the pro-rata to be a real fraction
+-- rather than a rounding accident.
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, asset_quota) values
+  ('b1600000-0000-0000-0000-000000000070', 'b1000000-0000-0000-0000-000000000070',
+   'complete', 'monthly', 'active', current_date - 10, current_date + 19, current_date + 20, 5);
+
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000070';
+  q     record;
+  v_unit bigint;
+  v_expected bigint;
+begin
+  raise notice '── BILLING (y): slots bought, slots given back, rows swept ──────';
+
+  -- Five bought, three in use. Going to eight is an increase and is charged now.
+  select * into q from app.billing_quota_change_quote(v_sub, 8);
+  if q.kind <> 'increase_now' then
+    raise exception 'BILLING FAIL [y]: buying more slots reported "%", expected increase_now', q.kind;
+  end if;
+  if q.current_quota <> 5 or q.new_quota <> 8 or q.in_use <> 3 then
+    raise exception 'BILLING FAIL [y]: quote says % -> % with % in use; expected 5 -> 8 with 3',
+      q.current_quota, q.new_quota, q.in_use;
+  end if;
+
+  -- 30-day period, 10 days gone, so 20 remaining INCLUSIVE of today. The same convention
+  -- the plan quote uses, and the reason it is asserted here is that an off-by-one gives
+  -- away or overcharges a day on every single upgrade.
+  if q.days_in_period <> 30 or q.days_remaining <> 20 then
+    raise exception 'BILLING FAIL [y]: % of % days remaining, expected 20 of 30',
+      q.days_remaining, q.days_in_period;
+  end if;
+
+  select per_vehicle_monthly_incl_cents into v_unit
+    from app.billing_price_for_subscription(v_sub);
+  v_expected := round(v_unit::numeric * 20 / 30)::bigint * 3;
+  if q.charge_now_cents <> v_expected then
+    raise exception 'BILLING FAIL [y]: charging %c for 3 extra slots; 20/30 of %c each is %c',
+      q.charge_now_cents, v_unit, v_expected;
+  end if;
+
+  raise notice '   3 more slots, 20 of 30 days, charged %c', q.charge_now_cents;
+end $$;
+
+-- ── It actually happens, and it produces a payable invoice ──────────────────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000070';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000070';
+  r      jsonb;
+  s      public.billing_subscriptions%rowtype;
+  inv    public.billing_invoices%rowtype;
+  a      record;
+begin
+  r := app.change_billing_quota(v_sub, 8);
+  if r->>'applied' <> 'now' then
+    raise exception 'BILLING FAIL [y]: buying slots was applied as "%"', r->>'applied';
+  end if;
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.asset_quota <> 8 then
+    raise exception 'BILLING FAIL [y]: the subscription still has % slots', s.asset_quota;
+  end if;
+
+  -- The pro-rata invoice is for the SLOTS ADDED, not the new total: the first five are
+  -- already paid for to the end of this period.
+  select * into inv from billing_invoices
+   where subscription_id = v_sub and kind = 'slots';
+  if inv.asset_count <> 3 then
+    raise exception 'BILLING FAIL [y]: the pro-rata invoice is for % vehicles, expected the 3 '
+      'added — billing all 8 would charge twice for the five already paid', inv.asset_count;
+  end if;
+  if inv.status <> 'open' then
+    raise exception 'BILLING FAIL [y]: the pro-rata invoice is "%" — a draft can never be '
+      'paid, and the customer has already been given the slots', inv.status;
+  end if;
+  if inv.total_incl_cents <> (r->>'charged_cents')::bigint then
+    raise exception 'BILLING FAIL [y]: quoted %c and invoiced %c — the screen and the bill '
+      'must not disagree', (r->>'charged_cents')::bigint, inv.total_incl_cents;
+  end if;
+
+  -- And the ceiling moved with it: the farm can now actually add the vehicles it paid for.
+  select * into a from app.farm_vehicle_allowance(v_farm);
+  if a.quota <> 8 or a.remaining <> 5 then
+    raise exception 'BILLING FAIL [y]: after buying 3 slots the allowance says %/% — they '
+      'paid for room they still cannot use', a.remaining, a.quota;
+  end if;
+
+  raise notice '   the slots are theirs, the invoice matches the quote, the ceiling moved';
+end $$;
+
+-- ── Giving slots back waits, and never goes below the fleet ─────────────────
+do $$
+declare
+  v_sub uuid := 'b1600000-0000-0000-0000-000000000070';
+  q     record;
+  r     jsonb;
+  s     public.billing_subscriptions%rowtype;
+  v_raised boolean := false;
+begin
+  -- Eight bought, three in use. Down to four is allowed, and waits.
+  select * into q from app.billing_quota_change_quote(v_sub, 4);
+  if q.kind <> 'scheduled' then
+    raise exception 'BILLING FAIL [y]: giving slots back reported "%" — they bought this '
+      'period and must keep what they paid for', q.kind;
+  end if;
+  if q.charge_now_cents <> 0 then
+    raise exception 'BILLING FAIL [y]: giving slots back charged %c', q.charge_now_cents;
+  end if;
+
+  r := app.change_billing_quota(v_sub, 4);
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.asset_quota <> 8 then
+    raise exception 'BILLING FAIL [y]: a reduction took effect immediately (quota is now %) — '
+      'they paid for 8 slots to the end of this period', s.asset_quota;
+  end if;
+  if s.pending_quota <> 4 then
+    raise exception 'BILLING FAIL [y]: the reduction was not recorded (pending_quota %)',
+      s.pending_quota;
+  end if;
+
+  -- BELOW the fleet: refused, and told what to do. Honouring it would need three real
+  -- vehicles deleted.
+  select * into q from app.billing_quota_change_quote(v_sub, 2);
+  if q.kind <> 'unavailable' or q.reason not like '%retire%' then
+    raise exception 'BILLING FAIL [y]: asking for fewer slots than vehicles reported "%" (%)',
+      q.kind, q.reason;
+  end if;
+  begin
+    perform app.change_billing_quota(v_sub, 2);
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [y]: a farm running 3 vehicles was put on a 2-slot plan';
+  end if;
+
+  -- Asking for MORE cancels a reduction they had scheduled: wanting more than the number
+  -- you asked to give up is unambiguous about which you meant.
+  perform app.change_billing_quota(v_sub, 9);
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.pending_quota is not null then
+    raise exception 'BILLING FAIL [y]: buying more left a reduction to % still scheduled',
+      s.pending_quota;
+  end if;
+
+  raise notice '   a reduction waits, is refused below the fleet, and is cancelled by an increase';
+end $$;
+
+-- ── The scheduled reduction lands, and is re-checked against the fleet ──────
+do $$
+declare
+  v_sub  uuid := 'b1600000-0000-0000-0000-000000000070';
+  v_farm uuid := 'b1000000-0000-0000-0000-000000000070';
+  s      public.billing_subscriptions%rowtype;
+begin
+  -- Schedule a drop to 4, then let the farm grow to 6 vehicles before it lands — which is
+  -- exactly what a month is for. Applying the scheduled number blind would put the
+  -- subscription below its own fleet and make the ceiling refuse vehicles that are
+  -- already there.
+  update billing_subscriptions
+     set pending_quota = 4, pending_quota_on = current_date, pending_quota_set_at = now()
+   where id = v_sub;
+  insert into machines (id, farm_id, name, type, meter_type, status) values
+    ('b1300000-0000-0000-0000-000000000704', v_farm, 'Slot D', 'tractor', 'hours', 'active'),
+    ('b1300000-0000-0000-0000-000000000705', v_farm, 'Slot E', 'tractor', 'hours', 'active'),
+    ('b1300000-0000-0000-0000-000000000706', v_farm, 'Slot F', 'tractor', 'hours', 'active');
+
+  perform app.apply_pending_plan_changes();
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.pending_quota is not null then
+    raise exception 'BILLING FAIL [y]: the scheduled reduction did not land';
+  end if;
+  if s.asset_quota <> 6 then
+    raise exception 'BILLING FAIL [y]: the reduction landed at % with 6 vehicles on the farm. '
+      'Below the fleet means the ceiling now refuses vehicles that already exist.',
+      s.asset_quota;
+  end if;
+
+  raise notice '   the reduction lands at the fleet size, not below it';
+end $$;
+
+-- ── Sweeping a sign-up nobody finished ──────────────────────────────────────
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-000000000080', 'dormant@billing.invalid'),
+  ('b1a00000-0000-0000-0000-000000000081', 'paid.up@billing.invalid');
+
+do $$
+declare
+  v_dormant uuid;
+  v_paid    uuid;
+  v_farm_d  uuid;
+  v_inv     uuid;
+  s         public.billing_subscriptions%rowtype;
+  f         public.farms%rowtype;
+  u         public.users%rowtype;
+  i         public.billing_invoices%rowtype;
+  n         integer;
+begin
+  v_dormant := app.create_pending_signup('b1a00000-0000-0000-0000-000000000080',
+    'dormant@billing.invalid', 'Never Paid', 'Dormant Boerdery', 'complete', 'monthly', 3);
+  v_paid := app.create_pending_signup('b1a00000-0000-0000-0000-000000000081',
+    'paid.up@billing.invalid', 'Part Paid', 'Part Paid Boerdery', 'complete', 'monthly', 2);
+
+  -- Too new to sweep. A sign-up abandoned this morning may well be somebody finishing
+  -- their coffee.
+  n := app.sweep_dormant_signups(7);
+  if n <> 0 then
+    raise exception 'BILLING FAIL [y]: swept % sign-up(s) that are minutes old', n;
+  end if;
+
+  -- Age them both, and put a payment against one. Somebody who has paid ANYTHING is a
+  -- conversation, not a dormant row, however long they have sat there.
+  update billing_subscriptions set created_at = now() - interval '30 days'
+   where id in (v_dormant, v_paid);
+  select id into v_inv from billing_invoices where subscription_id = v_paid;
+  insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider,
+                                provider_reference, provider_transaction_id, channel)
+  select farm_id, v_inv, 100, 'paystack', 'PART-PAY-Y', 880000001, 'card'
+    from billing_invoices where id = v_inv;
+
+  n := app.sweep_dormant_signups(7);
+  if n <> 1 then
+    raise exception 'BILLING FAIL [y]: swept % sign-up(s), expected exactly the unpaid one', n;
+  end if;
+
+  -- The paid one is untouched.
+  select * into s from billing_subscriptions where id = v_paid;
+  if s.deleted_at is not null or s.status <> 'pending' then
+    raise exception 'BILLING FAIL [y]: a sign-up that had PAID something was swept';
+  end if;
+
+  -- And the dormant one is soft-deleted everywhere, with nothing destroyed.
+  select farm_id into v_farm_d from billing_subscriptions where id = v_dormant;
+  select * into s from billing_subscriptions where id = v_dormant;
+  select * into f from farms where id = v_farm_d;
+  select * into u from users where id = 'b1a00000-0000-0000-0000-000000000080';
+  select * into i from billing_invoices where subscription_id = v_dormant;
+
+  if s.deleted_at is null or f.deleted_at is null or u.deleted_at is null then
+    raise exception 'BILLING FAIL [y]: the sweep left something live (sub %, farm %, user %)',
+      s.deleted_at, f.deleted_at, u.deleted_at;
+  end if;
+  if u.active then
+    raise exception 'BILLING FAIL [y]: the swept owner can still sign in';
+  end if;
+  if i.status <> 'void' then
+    raise exception 'BILLING FAIL [y]: the unpaid invoice is "%" rather than void — it would '
+      'sit in the ledger for ever as money somebody owes', i.status;
+  end if;
+
+  -- Nothing was DELETED. Same promise the non-payment downgrade makes.
+  if not exists (select 1 from farms where id = v_farm_d) then
+    raise exception 'BILLING FAIL [y]: the sweep hard-deleted a farm';
+  end if;
+  if not exists (select 1 from billing_invoices where subscription_id = v_dormant) then
+    raise exception 'BILLING FAIL [y]: the sweep hard-deleted an invoice';
+  end if;
+
+  -- And the gate now says ok, because the subscription is gone: a swept farm is not a
+  -- farm being held at the payment screen, it is a farm that no longer exists.
+  if app.farm_billing_gate(v_farm_d) <> 'ok' then
+    raise exception 'BILLING FAIL [y]: a swept farm is still reported as pending';
+  end if;
+
+  raise notice '   the unpaid one is swept, the part-paid one is left alone, nothing deleted';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
