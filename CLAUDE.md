@@ -2201,4 +2201,118 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     and the sign-up + quota + upgrade/downgrade build in
     `docs/SIGNUP_AND_QUOTA_BILLING.md`.
 
+- **Production-readiness pass: grace, prices, plans, refunds, quotas and the gate**
+  (migrations `20260910160000`, `20260910180000`, `20260910200000`, `20260910220000`,
+  `20260910230000`, `20260911100000`; commits `691f36e`/`e7c8d7a`/`dcf5115`/`7c67c63`/
+  `60fab9b` on `main`; suite sections **(s) (t) (u) (v) (w)**; every migration applied to
+  production and each behaviour then DRIVEN against the live database inside a rolled-back
+  transaction):
+  - **Four founder decisions taken 2026-09-10**, all recommended options: a mid-cycle
+    UPGRADE charges the pro-rata difference immediately; a DOWNGRADE takes effect at period
+    end with no refund; GRACE is retried weekly; and a price rise does NOT reach farms that
+    already signed up. Plus: the Paystack Starter Business **R80 000 lifetime cap** is not a
+    launch blocker at this volume — the founder upgrades to Registered Business at R10 000
+    collected (recorded in memory as `paystack-account-tier`).
+  - **Grace is retried (`20260910160000`).** Exhausting the ladder set `next_retry_on = null`
+    and `grace` was not in the charging shortlist at all, so from the moment a farm entered
+    grace **nothing presented the card again** — not that night, not ever. A card that failed
+    on the 1st very often works on the 25th. `grace_retry_days` joins the audited settings
+    row; 0 restores the old behaviour exactly, which is why the grace arm tests
+    `next_retry_on is not null` rather than coalescing: in grace a null date means the retry
+    is OFF and must never read as "charge now". Grace itself is not extended by a retry.
+  - **A price rise stops reaching existing customers (same migration).**
+    `billing_price_versions_active_uq` permits one active row per (plan, period), so
+    publishing a new price necessarily retired the old one and every existing farm's next
+    invoice was raised at the new figure — silently, no notice, no decision recorded.
+    `billing_subscriptions.price_version_id` pins what they bought; the pin is honoured even
+    once that version is RETIRED, because a retired price is exactly what a grandfathered
+    customer is still paying. It is ignored only when it no longer fits the plan they are
+    on. Clearing it is how somebody is deliberately moved.
+  - **S3 — plan change was two half-controls (`20260910180000`).** `/admin/farms/[id]` wrote
+    `farms.plan`; `/admin/billing` wrote `billing_subscriptions.plan`; neither touched the
+    other. So an upgrade through billing charged Complete money and stayed gated at
+    Professional, an upgrade through the farm screen gave the features away, and a downgrade
+    reduced the bill while leaving everything open. There was no self-serve path at all. The
+    two-plan split is still deliberate — it is what lets a non-payment downgrade restore the
+    exact prior state — so the fix is one function that moves both together, with proration
+    on an upgrade and a scheduled `pending_plan` on a downgrade.
+  - **S4 — registering for VAT broke every earlier invoice (`20260910200000`).** The VAT
+    guard stamps the seller's number onto any invoice that has none; on an UPDATE to a
+    pre-registration invoice that changes a frozen snapshot field and the freeze raises. So
+    the first payment against any old invoice after registering **aborted the transaction
+    that recorded it** — Paystack has the money, FleetWise has nothing. §(h2) asserted the
+    values and never that a later write survives.
+  - **S6 — charged, and not recorded.** `settleBillingAttempt` returns `{error}` and all
+    sixteen call sites ignored it. It is the only thing that inserts a payment row, so a
+    failure in the success branch means the card was charged, nothing was written down, and
+    the worker still returned `succeeded`. It now reports `unknown` with the reason — and
+    `unknown` outcomes now reach `summary.errors`, which the cron drains into Sentry. Until
+    then **no `unknown`, from any cause, had ever been reported anywhere**.
+  - **A reversal is not a decline.** `reversed` folds into `failed` (right for the invoice)
+    and `failed` starts the dunning ladder (wrong for the customer — their card worked and
+    we sent the money back). `settle_billing_attempt` gained `p_dun`; the old 8-argument
+    overload was DROPPED, because two overloads reachable over PostgREST, which resolves by
+    named arguments, is an ambiguity waiting to pick one.
+  - **Disputes and refunds reached nobody.** Both were `outcome: "ignored"` — recorded in
+    `billing_webhook_events` and then nothing. South Africa gives roughly **48 business
+    hours** to answer a dispute before Paystack accepts it for us and takes the money from a
+    payout. They now alert Rapid Rise and only Rapid Rise, farm-scoped for RLS but
+    rr_admin-addressed, no quiet hours, deep-linking to `/admin/billing`. What a refund does
+    to the ledger and the plan is deliberately NOT decided here.
+  - **The quota model (`20260910220000` + `20260910230000`).** Billing was metered: count
+    the machines, charge that many, so the bill moved on its own. Farms now BUY slots.
+    **A null quota means "bill what you count, no ceiling"** — every subscription that
+    exists has one, and the inverse would have repriced the whole customer base to nothing
+    and locked them out of adding a vehicle. Two of section (v)'s mutants are caught by
+    EARLIER sections whose fixtures the defect destroys, which is the blast radius shown
+    rather than described.
+  - **The ceiling is a TRIGGER, not three checks.** There are three creation paths
+    (`createMachine`, CSV `importMachines`, and a contractor's `syncClientVehicles`).
+    A trigger covers every path including ones nobody has written, cannot be raced by two
+    tabs, and gives CSV import all-or-nothing for free. The actions keep a pre-check purely
+    for the wording, and the contractor gets a different sentence because they are not the
+    one paying. Three things it must NOT refuse, all asserted: filling the last slot bought,
+    filing an already-retired machine, and editing a machine on a full farm.
+  - **The access gate (`20260911100000`).** "A subscription EXISTS and is pending", never
+    "there is no active subscription" — Weltevrede has twelve vehicles and no subscription
+    row. It is SECURITY DEFINER because the billing SELECT policy admits only a farm's
+    billing admin: a layout reading the table through the caller's client gets a row for an
+    owner and **nothing for an operator**, and "nothing" reads as "no subscription,
+    therefore fine". A gate correct for one role and wrong for the rest is worse than no
+    gate. `/activate` lives in `(auth)` so it cannot bounce to itself.
+  - **What the mutation runs bought this time.** A mutant that claimed to break two
+    functions changed only one, because the harness applied one (from, to) pair per mutant —
+    and its SURVIVED line read as evidence for something nobody had tested. The harness now
+    takes a list of edits with the exactly-once guard on each. Another mutant was malformed
+    and produced a SQL syntax error rather than testing anything; a mutant that cannot parse
+    tests the parser. Three assertions in (v) were "caught" only as raw `check_violation`
+    stack traces and were rewritten to say which rule broke.
+  - **Section (o) was date-flaky and 11 September 2026 is the day it tripped.** It picked
+    its "expiring soon" card as `current_date + 20`, and a card expires at the END of its
+    printed month — so on the 10th that meant 30 September (inside the 45-day window) and on
+    the 11th it meant 31 October (outside it). It passed for the first third of a month and
+    failed for the rest with nothing about the engine having changed. Now pinned to the
+    current month, whose end is at most 31 days away.
+  - **Two enumerating sections had to be widened, and both refused the work until it was
+    argued for.** (j) had never had an allowlist for a `public.*` wrapper a browser may call,
+    because until now every one moved money; `farm_vehicle_allowance` and `farm_billing_gate`
+    had to pass four written-down tests. (m) now records per row whether a wrapper is
+    browser-callable, rather than dropping it and losing the parameter-name guard (m) exists
+    for. `anon` is still refused everything, without exception.
+  - **Concurrent-session discipline.** `machines/actions.ts`, `(app)/layout.tsx` and both
+    dictionaries carry another session's in-flight work, so each commit staged ONLY its own
+    hunks — built from HEAD and typechecked in place first, because "it compiled in the
+    working tree" is a statement about a different file. HEAD's layout had to be typechecked
+    against HEAD's `nav.tsx`, since that session's `MoreMenu` has already moved to a `groups`
+    API.
+  - Gates green throughout: 228 TS tests, typecheck, lint, `design:lint`, `errors:check`,
+    i18n parity (**3 950 leaf keys**).
+  - **Still to build**: the public sign-up route itself (plan picker, vehicle count, live
+    price, details form — `/activate` and everything behind it exists and is proven, but
+    nothing creates the pending farm yet); self-serve "change plan" and "add vehicles" on
+    `/billing`; the dormant-pending sweep on the nightly cron; the receipt PDF redesign; and
+    audit items S9/S10/S12. **Needs a founder decision**: when Rapid Rise refunds a farm,
+    does the plan end immediately, at period end, or not at all? The alert fires today and
+    nothing moves.
+
 > Update this "current status" block at the end of every session.
