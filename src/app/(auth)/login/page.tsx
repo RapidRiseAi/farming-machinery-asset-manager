@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { LoginForm } from "./login-form";
 import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
@@ -8,7 +10,7 @@ import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; sent?: string }>;
+  searchParams: Promise<{ error?: string; sent?: string; resume?: string }>;
 }) {
   const sp = await searchParams;
   // Pre-auth there is no profile to read a language from, so the device decides:
@@ -49,6 +51,11 @@ export default async function LoginPage({
           <p className="mt-1 text-sm text-sand-500">{t("auth.welcomeSub", locale)}</p>
         </div>
       </div>
+      {sp.resume ? (
+        <p className="rounded-xl border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
+          {t("auth.resume", locale)}
+        </p>
+      ) : null}
       <LoginForm error={errorMessage} sent={sp.sent} locale={locale} />
       {/* Much of the workforce this is built for has no work email — they use the QR
           stickers, which need no login at all. The login screen never said so, so
@@ -57,6 +64,13 @@ export default async function LoginPage({
         <p className="font-semibold text-sand-900">{t("auth.noEmailTitle", locale)}</p>
         <p className="mt-1 text-sm leading-relaxed text-sand-600">{t("auth.noEmailBody", locale)}</p>
       </div>
+
+      <p className="text-center text-sm text-sand-600">
+        {t("auth.noAccount", locale)}{" "}
+        <Link href="/signup" className="font-medium text-brand-ink underline">
+          {t("auth.startTrial", locale)}
+        </Link>
+      </p>
 
       <div className="flex justify-center">
         <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />

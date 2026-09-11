@@ -273,6 +273,35 @@ tested at these values:
 Failures notify the owner and manager in-app, and by email and push through the existing
 delivery layer. **Billing works with no WhatsApp anywhere near it.**
 
+## 11b. Refunds and disputes
+
+**Founder decision, 11 September 2026.** There is no refund button in FleetWise and there
+is not going to be one. A refund is made through Paystack by whoever is handling the
+conversation, and what happens to the subscription depends on *why*:
+
+| Why the refund | What happens to the subscription |
+|---|---|
+| **They asked for it** | Cancel it **immediately**. They wanted out; give them out. |
+| **Something broke on our side** | **Leave it running.** The fault was ours; they keep the plan. |
+
+FleetWise cannot tell these apart — Paystack's webhook says a refund happened and nothing
+more — so **nothing is automatic**. The `refund.*` events raise a `billing_refund` alert
+to Rapid Rise (and only Rapid Rise; the farmer does not need to be told their own refund
+went through) whose wording states both branches, so the person reading it knows which one
+they are in. Immediate cancellation is `setCancellation({immediate: true})` on the
+subscription, and since `20260910200000` a late payment can no longer resurrect it.
+
+**Disputes are the urgent case.** `charge.dispute.*` raises the same kind of alert, and it
+names the deadline because the deadline is the whole point: South Africa gives roughly
+**48 business hours** to respond before Paystack accepts the dispute on our behalf and
+takes the amount out of a payout. Both alerts skip quiet hours, for that reason.
+
+**What is deliberately not built:** a refund does not write a negative payment into
+`billing_payments`, so the ledger still shows the invoice as paid. The partner side does
+model refunds that way (`0422`) and the SaaS side could follow, but it needs a decision
+about what a part-refund means for a period that has already been supplied. Until then the
+alert is the record, and the Paystack dashboard is the source of truth for the money.
+
 ## 12. The kill switch
 
 Two parts, both required before a single rand can move:

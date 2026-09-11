@@ -1272,7 +1272,7 @@ declare
     'billing_price_for_subscription','billing_plan_change_quote','change_billing_plan',
     'apply_pending_plan_changes','billing_guard_farm_plan','notify_rr_billing',
     'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota',
-    'farm_billing_gate'];
+    'farm_billing_gate','create_pending_signup'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1288,7 +1288,7 @@ declare
     'billing_receipts_due','billing_failure_notices_due','billing_cards_expiring',
     'billing_release_failure_notice','billing_invoice_chargeable_now',
     'billing_plan_quote','billing_change_plan','billing_notify_rr',
-    'farm_vehicle_allowance','farm_billing_gate'];
+    'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1579,7 +1579,13 @@ begin
       ('billing_change_plan', 'p_sub uuid, p_plan farm_plan, p_period billing_period', false),
       ('billing_notify_rr',   'p_farm uuid, p_template text, p_payload jsonb', false),
       ('farm_vehicle_allowance', 'p_farm uuid', true),
-      ('farm_billing_gate', 'p_farm uuid', true)
+      ('farm_billing_gate', 'p_farm uuid', true),
+      -- The sign-up route runs with the service key: an anonymous visitor has no database
+      -- access at all in this product, and a wrapper a browser could call would let anybody
+      -- mint farms and owners.
+      ('billing_create_pending_signup',
+       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer',
+       false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
@@ -4315,6 +4321,284 @@ begin
    where id = 'b1600000-0000-0000-0000-000000000050';
 
   raise notice '   a deleted subscription row stops gating, like every other engine';
+end $$;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (x) Signing up: one transaction, one invoice, and no access until it is paid
+--
+-- A sign-up writes a farm, an owner, a subscription and its first invoice. Done as four
+-- round trips, any failure after the second leaves a farm with no owner or an owner who
+-- cannot be invoiced, and nothing to roll back. So it is one function and one transaction.
+--
+-- The narrow part is the generator. It did not consider `pending` at all, so a new sign-up
+-- had nothing to pay. Adding `pending` to the status list on its own would have been worse
+-- than leaving it out: the nightly pass would raise an invoice a month, for ever, against
+-- every abandoned sign-up. A pending subscription is invoiced ONCE.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+insert into auth.users (id, email) values
+  ('b1a00000-0000-0000-0000-000000000060', 'signup.owner@billing.invalid'),
+  ('b1a00000-0000-0000-0000-000000000061', 'signup.second@billing.invalid');
+
+do $$
+declare
+  v_sub   uuid;
+  v_farm  uuid;
+  inv     public.billing_invoices%rowtype;
+  s       public.billing_subscriptions%rowtype;
+  u       public.users%rowtype;
+  f       public.farms%rowtype;
+  v_gate  text;
+  n       bigint;
+begin
+  raise notice '── BILLING (x): the front door ──────────────────────────────────';
+
+  v_sub := app.create_pending_signup(
+    'b1a00000-0000-0000-0000-000000000060', 'Signup.Owner@Billing.Invalid ',
+    ' Danie Kruger ', '  Kruger Boerdery  ', 'complete', 'monthly', 4);
+
+  select * into s from billing_subscriptions where id = v_sub;
+  v_farm := s.farm_id;
+  select * into f from farms where id = v_farm;
+  select * into u from users where id = 'b1a00000-0000-0000-0000-000000000060';
+
+  -- The farm, the owner and the subscription all exist, and the whitespace a person
+  -- actually types has been dealt with rather than stored.
+  if f.name <> 'Kruger Boerdery' then
+    raise exception 'BILLING FAIL [x]: the farm is named "%" — untrimmed input was stored', f.name;
+  end if;
+  if u.role <> 'owner' or u.farm_id <> v_farm then
+    raise exception 'BILLING FAIL [x]: the signer-up is % on farm %, expected owner on %',
+      u.role, u.farm_id, v_farm;
+  end if;
+  if u.email <> 'signup.owner@billing.invalid' then
+    raise exception 'BILLING FAIL [x]: the email was stored as "%" rather than lower-cased', u.email;
+  end if;
+
+  -- PENDING, and therefore shut. This is the assertion that stops a farm being usable
+  -- before anybody has paid for it.
+  if s.status <> 'pending' then
+    raise exception 'BILLING FAIL [x]: a brand-new sign-up is "%" — they have paid nothing', s.status;
+  end if;
+  select app.farm_billing_gate(v_farm) into v_gate;
+  if v_gate <> 'pending' then
+    raise exception 'BILLING FAIL [x]: the gate says "%" to a farm that has not paid', v_gate;
+  end if;
+
+  -- The quota they chose is what they are billed for, not the zero vehicles they have.
+  if s.asset_quota <> 4 then
+    raise exception 'BILLING FAIL [x]: the subscription bought % slots, expected 4', s.asset_quota;
+  end if;
+  select count(*) into n from billing_invoices where farm_id = v_farm;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [x]: a sign-up produced % invoices, expected exactly 1. '
+      'With none, beginCheckout refuses and they can never pay.', n;
+  end if;
+  select * into inv from billing_invoices where farm_id = v_farm;
+  if inv.asset_count <> 4 then
+    raise exception 'BILLING FAIL [x]: the first invoice is for % vehicles, expected the 4 '
+      'they chose — they have no machines yet, so a metered reading would bill them nothing',
+      inv.asset_count;
+  end if;
+  if inv.status <> 'open' or inv.total_incl_cents <= 0 then
+    raise exception 'BILLING FAIL [x]: the first invoice is % for %c', inv.status, inv.total_incl_cents;
+  end if;
+
+  -- And the price is the CATALOGUE price, not anything the sign-up screen passed in. A
+  -- screen quoting one figure while the invoice says another is what makes people stop
+  -- trusting a bill.
+  declare v_catalogue bigint;
+  begin
+    select per_vehicle_monthly_incl_cents into v_catalogue
+      from app.billing_active_price('complete', 'monthly');
+    -- Read from the CATALOGUE rather than hardcoded: earlier sections deliberately retire
+    -- and republish this price to test grandfathering, so a literal here would assert the
+    -- order sections happen to run in. The property is that the sign-up screen cannot
+    -- influence what is charged.
+    if v_catalogue is null then
+      raise exception 'BILLING FAIL [x]: there is no active complete/monthly price, so the '
+        'assertion below would pass for the wrong reason';
+    end if;
+    if inv.unit_price_incl_cents <> v_catalogue then
+      raise exception 'BILLING FAIL [x]: billed %c per vehicle; the active complete/monthly '
+        'price is %c. The sign-up screen does not get to decide what is charged.',
+        inv.unit_price_incl_cents, v_catalogue;
+    end if;
+  end;
+
+  raise notice '   farm + owner + pending subscription + one invoice, all or nothing';
+end $$;
+
+-- ── A pending sign-up is invoiced ONCE, however many nights pass ────────────
+do $$
+declare
+  v_sub uuid;
+  n bigint;
+  i integer;
+begin
+  select id into v_sub from billing_subscriptions
+   where farm_id = (select farm_id from users where id = 'b1a00000-0000-0000-0000-000000000060');
+
+  -- Three billing dates arrive and nobody has paid. Without the "only if it has no
+  -- invoice" clause, an abandoned sign-up accrues paper for ever against a farm that
+  -- cannot even be logged into.
+  for i in 1 .. 3 loop
+    update billing_subscriptions set next_billing_on = current_date where id = v_sub;
+    perform app.generate_billing_invoices(v_sub);
+  end loop;
+
+  select count(*) into n from billing_invoices where subscription_id = v_sub;
+  if n <> 1 then
+    raise exception 'BILLING FAIL [x]: an abandoned sign-up has accrued % invoices. Nobody '
+      'can log into that farm to see them, and nothing will ever collect them.', n;
+  end if;
+
+  raise notice '   three billing dates, still one invoice';
+end $$;
+
+-- ── Paying is what opens it, and then it bills like everybody else ──────────
+do $$
+declare
+  v_sub  uuid;
+  v_farm uuid;
+  v_inv  uuid;
+  v_att  uuid;
+  s      public.billing_subscriptions%rowtype;
+  v_gate text;
+  n      bigint;
+begin
+  select id, farm_id into v_sub, v_farm from billing_subscriptions
+   where farm_id = (select farm_id from users where id = 'b1a00000-0000-0000-0000-000000000060');
+  select id into v_inv from billing_invoices where subscription_id = v_sub;
+
+  -- A card, and the payment. Exactly the path hosted checkout takes.
+  insert into billing_payment_methods (farm_id, authorization_code, authorization_email,
+    card_brand, last4, exp_month, exp_year, reusable, is_default, status)
+  values (v_farm, 'AUTH_signup', 'signup.owner@billing.invalid', 'visa', '6060',
+          '12', '2030', true, true, 'active');
+  update billing_subscriptions s2 set default_payment_method_id = pm.id
+    from billing_payment_methods pm where pm.farm_id = v_farm and s2.id = v_sub;
+
+  v_att := app.claim_billing_charge(v_inv, 'SIGNUP-REF-0001', 'initial_checkout',
+                                    (select total_incl_cents from billing_invoices where id = v_inv));
+  if v_att is null then
+    raise exception 'BILLING FAIL [x]: the first payment could not even be claimed';
+  end if;
+  perform app.settle_billing_attempt(v_att, 'succeeded', 990001, 'SIGNUP-REF-0001',
+                                     'Approved', null,
+                                     (select total_incl_cents from billing_invoices where id = v_inv),
+                                     'card');
+
+  select * into s from billing_subscriptions where id = v_sub;
+  if s.status <> 'active' then
+    raise exception 'BILLING FAIL [x]: they paid and the subscription is still "%". They '
+      'would be charged and then shut out, which is the worst outcome available.', s.status;
+  end if;
+  select app.farm_billing_gate(v_farm) into v_gate;
+  if v_gate <> 'ok' then
+    raise exception 'BILLING FAIL [x]: the farm is still gated after payment ("%")', v_gate;
+  end if;
+
+  -- And from here it is an ordinary subscription: the next billing date produces the next
+  -- invoice, exactly as section (p) proves for everybody else.
+  update billing_subscriptions set next_billing_on = current_date where id = v_sub;
+  if app.generate_billing_invoices(v_sub) <> 1 then
+    raise exception 'BILLING FAIL [x]: an activated sign-up did not bill on its next date — '
+      'the "invoice a pending subscription once" rule has leaked into the paid state';
+  end if;
+  select count(*) into n from billing_invoices where subscription_id = v_sub;
+  if n <> 2 then
+    raise exception 'BILLING FAIL [x]: % invoices after activation and one renewal, expected 2', n;
+  end if;
+
+  raise notice '   paying opens the farm, and then it renews like any other';
+end $$;
+
+-- ── What it refuses, and what it leaves behind when it does ─────────────────
+do $$
+declare
+  v_farms0 bigint; v_users0 bigint; v_subs0 bigint;
+  v_farms1 bigint; v_users1 bigint; v_subs1 bigint;
+  v_raised boolean;
+begin
+  select count(*) into v_farms0 from farms;
+  select count(*) into v_users0 from users;
+  select count(*) into v_subs0 from billing_subscriptions;
+
+  -- A plan nobody has priced — either bespoke (price on application) or simply not
+  -- published yet. Signing somebody up for one produces a farm that can never be invoiced
+  -- and therefore never opened: a customer who has paid and cannot get in.
+  --
+  -- The combination is UNPRICED here on purpose rather than by hoping: earlier sections
+  -- seed and retire prices to test grandfathering, so picking a plan and assuming nobody
+  -- priced it would make this assertion depend on the order sections happen to run in.
+  update billing_price_versions set status = 'retired'
+   where plan = 'done_for_you' and billing_period = 'monthly' and status = 'active';
+  v_raised := false;
+  begin
+    perform app.create_pending_signup('b1a00000-0000-0000-0000-000000000061',
+      'signup.second@billing.invalid', 'Second', 'Second Farm', 'done_for_you', 'monthly', 2);
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [x]: signed somebody up to a plan with no price';
+  end if;
+
+  -- Zero vehicles is not a subscription.
+  --
+  -- Three independent things refuse this: the guard at the top of create_pending_signup,
+  -- `billing_subscriptions_quota_ck`, and — because a zero-vehicle subscription bills
+  -- nothing — the generator skipping it and the invoice count failing. That is a good
+  -- state to be in, but the three are NOT interchangeable from where the customer sits, so
+  -- the message is asserted and not just the refusal: the guard says "choose at least one
+  -- vehicle", the fallback says "could not raise the first invoice", and the second is a
+  -- sentence about our plumbing offered to somebody who left a field on 0.
+  v_raised := false;
+  declare v_msg text;
+  begin
+    begin
+      perform app.create_pending_signup('b1a00000-0000-0000-0000-000000000061',
+        'signup.second@billing.invalid', 'Second', 'Second Farm', 'complete', 'monthly', 0);
+    exception when check_violation then
+      v_raised := true;
+      v_msg := sqlerrm;
+    end;
+    if not v_raised then
+      raise exception 'BILLING FAIL [x]: signed somebody up for zero vehicles';
+    end if;
+    if v_msg not like '%at least one vehicle%' then
+      raise exception 'BILLING FAIL [x]: zero vehicles was refused with "%" — correct, but by '
+        'a later lock. The person picked a number; tell them about the number.', v_msg;
+    end if;
+  end;
+
+  -- A farm with no name.
+  v_raised := false;
+  begin
+    perform app.create_pending_signup('b1a00000-0000-0000-0000-000000000061',
+      'signup.second@billing.invalid', 'Second', '   ', 'complete', 'monthly', 2);
+  exception when check_violation then
+    v_raised := true;
+  end;
+  if not v_raised then
+    raise exception 'BILLING FAIL [x]: signed up a farm with no name';
+  end if;
+
+  -- NOTHING was left behind by any of them. This is the whole reason it is one function:
+  -- a refusal halfway through must not leave a farm with no owner, or an owner who can
+  -- never be invoiced, with no transaction to undo it.
+  select count(*) into v_farms1 from farms;
+  select count(*) into v_users1 from users;
+  select count(*) into v_subs1 from billing_subscriptions;
+  if v_farms1 <> v_farms0 or v_users1 <> v_users0 or v_subs1 <> v_subs0 then
+    raise exception 'BILLING FAIL [x]: three refused sign-ups left % farm(s), % user(s) and '
+      '% subscription(s) behind',
+      v_farms1 - v_farms0, v_users1 - v_users0, v_subs1 - v_subs0;
+  end if;
+
+  raise notice '   a refused sign-up writes nothing at all';
 end $$;
 
 do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;

@@ -192,7 +192,10 @@
     "errLinkExpired": "That link has expired or has already been used. Ask for a new one below.",
     "forgotPassword": "Forgotten your password? Use the sign-in link instead — it works without one.",
     "errNeedEmail": "Enter your email address.",
-    "errNeedPassword": "Enter your password, or use the sign-in link instead."
+    "errNeedPassword": "Enter your password, or use the sign-in link instead.",
+    "noAccount": "New to FleetWise?",
+    "startTrial": "Set up your farm",
+    "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment — your farm and your invoice are waiting."
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -796,7 +799,7 @@
     "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted — pay to get it back.",
     "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
-    "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). The invoice in FleetWise still reads as paid — check whether the plan and the ledger should change."
+    "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). If they asked for it, cancel their subscription immediately on this screen. If we refunded because something broke on our side, leave it running — they keep the plan."
   },
   "settings": {
     "title": "Settings",
@@ -3950,7 +3953,15 @@
     "billingBadTrial": "Trial days must be a whole number between 0 and 365.",
     "vehicleLimitReached": "You have used every vehicle slot on your plan. Add more slots on the billing screen, or retire a vehicle you no longer run.",
     "vehicleLimitImport": "That file has more vehicles than you have slots left, so nothing was imported. Add slots on the billing screen, or import fewer rows.",
-    "vehicleLimitClient": "This farm has used every vehicle slot on its plan, so nothing was copied. Ask them to add slots before you sync again."
+    "vehicleLimitClient": "This farm has used every vehicle slot on its plan, so nothing was copied. Ask them to add slots before you sync again.",
+    "signupEmail": "That does not look like an email address. Check it and try again.",
+    "signupPassword": "Your password needs to be at least 8 characters.",
+    "signupName": "Please tell us your name.",
+    "signupFarm": "Please give your farm a name.",
+    "signupVehicles": "Choose at least one vehicle.",
+    "signupTooMany": "That is more vehicles than we can set up online. Send us a message and we will do it with you.",
+    "signupPlanUnavailable": "That plan is not on sale online. Send us a message and we will set it up with you.",
+    "signupFailed": "We could not set up your farm just then, and nothing was charged. Please try again in a moment."
   },
   "billing": {
     "title": "Billing",
@@ -4223,5 +4234,32 @@
     "pay": "Pay and open my farm",
     "payAmount": "Pay {amount} and open my farm",
     "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen."
+  },
+  "signup": {
+    "title": "Start using FleetWise",
+    "lead": "Pick a plan, tell us how many vehicles you run, and you are set up in a minute.",
+    "vehicles": "How many vehicles?",
+    "monthly": "Monthly",
+    "annual": "Yearly",
+    "perMonth": "per month",
+    "perYear": "per year",
+    "total": "You will pay",
+    "annualNote": "Paying yearly costs ten months instead of twelve.",
+    "unavailable": "Talk to us",
+    "farmName": "Farm name",
+    "yourName": "Your name",
+    "email": "Email address",
+    "password": "Choose a password",
+    "passwordHint": "At least 8 characters.",
+    "submit": "Continue to payment",
+    "note": "You pay by card through Paystack. Your farm opens the moment the payment goes through, and you can cancel from the billing screen at any time.",
+    "haveAccount": "Already have a FleetWise account?",
+    "signIn": "Sign in",
+    "blurb": {
+      "essential": "The vehicle register, service reminders, job cards and faults.",
+      "professional": "Everything in Essential, plus the dashboard, diesel and full cost reporting.",
+      "complete": "Everything in Professional, plus traffic fines, multi-site and voice capture.",
+      "done_for_you": "Everything in Complete, plus API access and hands-on setup."
+    }
   }
 }

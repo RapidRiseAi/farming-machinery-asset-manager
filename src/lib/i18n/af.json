@@ -192,7 +192,10 @@
     "errLinkExpired": "Daardie skakel het verstryk of is reeds gebruik. Vra hieronder vir 'n nuwe een.",
     "forgotPassword": "Jou wagwoord vergeet? Gebruik eerder die aanmeldskakel — dit werk sonder een.",
     "errNeedEmail": "Voer jou e-posadres in.",
-    "errNeedPassword": "Voer jou wagwoord in, of gebruik eerder die aanmeldskakel."
+    "errNeedPassword": "Voer jou wagwoord in, of gebruik eerder die aanmeldskakel.",
+    "noAccount": "Nuut by FleetWise?",
+    "startTrial": "Stel jou plaas op",
+    "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling — jou plaas en jou faktuur wag."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -796,7 +799,7 @@
     "tplBillingDowngraded": "Jou pakket is na {plan} verminder omdat die intekening onbetaald is. Niks is uitgevee nie — betaal om dit terug te kry.",
     "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling.",
     "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
-    "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). Die faktuur in FleetWise lees steeds as betaald — gaan na of die plan en die grootboek moet verander."
+    "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). As hulle daarvoor gevra het, kanselleer hul intekening dadelik op hierdie skerm. As ons terugbetaal het omdat iets aan ons kant verkeerd geloop het, laat dit loop — hulle behou die plan."
   },
   "settings": {
     "title": "Instellings",
@@ -3950,7 +3953,15 @@
     "billingBadTrial": "Proefdae moet 'n heelgetal tussen 0 en 365 wees.",
     "vehicleLimitReached": "Jy het elke voertuigplek op jou plan gebruik. Voeg meer plekke by op die rekeningskerm, of tree 'n voertuig af wat jy nie meer gebruik nie.",
     "vehicleLimitImport": "Daardie lêer het meer voertuie as die plekke wat jy oor het, so niks is ingevoer nie. Voeg plekke by op die rekeningskerm, of voer minder rye in.",
-    "vehicleLimitClient": "Hierdie plaas het elke voertuigplek op sy plan gebruik, so niks is gekopieer nie. Vra hulle om plekke by te voeg voordat jy weer sinkroniseer."
+    "vehicleLimitClient": "Hierdie plaas het elke voertuigplek op sy plan gebruik, so niks is gekopieer nie. Vra hulle om plekke by te voeg voordat jy weer sinkroniseer.",
+    "signupEmail": "Dit lyk nie soos 'n e-posadres nie. Gaan dit na en probeer weer.",
+    "signupPassword": "Jou wagwoord moet ten minste 8 karakters wees.",
+    "signupName": "Sê asseblief vir ons jou naam.",
+    "signupFarm": "Gee asseblief 'n naam vir jou plaas.",
+    "signupVehicles": "Kies ten minste een voertuig.",
+    "signupTooMany": "Dit is meer voertuie as wat ons aanlyn kan opstel. Stuur vir ons 'n boodskap en ons doen dit saam met jou.",
+    "signupPlanUnavailable": "Daardie plan is nie aanlyn te koop nie. Stuur vir ons 'n boodskap en ons stel dit saam met jou op.",
+    "signupFailed": "Ons kon nie nou jou plaas opstel nie, en niks is gehef nie. Probeer asseblief oor 'n oomblik weer."
   },
   "billing": {
     "title": "Rekening",
@@ -4223,5 +4234,32 @@
     "pay": "Betaal en maak my plaas oop",
     "payAmount": "Betaal {amount} en maak my plaas oop",
     "note": "Jy word na Paystack geneem om met 'n kaart te betaal. Jou kaartbesonderhede bereik nooit FleetWise nie. Die plan hernu elke maand en jy kan dit enige tyd op die rekeningskerm kanselleer."
+  },
+  "signup": {
+    "title": "Begin met FleetWise",
+    "lead": "Kies 'n plan, sê vir ons hoeveel voertuie jy het, en jy is binne 'n minuut reg.",
+    "vehicles": "Hoeveel voertuie?",
+    "monthly": "Maandeliks",
+    "annual": "Jaarliks",
+    "perMonth": "per maand",
+    "perYear": "per jaar",
+    "total": "Jy betaal",
+    "annualNote": "Jaarliks betaal kos tien maande in plaas van twaalf.",
+    "unavailable": "Praat met ons",
+    "farmName": "Plaasnaam",
+    "yourName": "Jou naam",
+    "email": "E-posadres",
+    "password": "Kies 'n wagwoord",
+    "passwordHint": "Ten minste 8 karakters.",
+    "submit": "Gaan voort na betaling",
+    "note": "Jy betaal per kaart deur Paystack. Jou plaas gaan oop sodra die betaling deurkom, en jy kan enige tyd op die rekeningskerm kanselleer.",
+    "haveAccount": "Het jy reeds 'n FleetWise-rekening?",
+    "signIn": "Teken in",
+    "blurb": {
+      "essential": "Die voertuigregister, diensherinneringe, werkkaarte en foute.",
+      "professional": "Alles in Essensieel, plus die paneelbord, diesel en volledige kosteverslae.",
+      "complete": "Alles in Professioneel, plus verkeersboetes, meerdere plase en stemopname.",
+      "done_for_you": "Alles in Volledig, plus API-toegang en persoonlike opstelling."
+    }
   }
 }

@@ -136,6 +136,16 @@ const CODE_KEYS: Record<string, string> = {
   // reading them is different each time: the owner adding a vehicle can buy more slots,
   // the owner importing a sheet needs to know the whole file was refused, and the
   // CONTRACTOR cannot fix it at all and must be told whose limit it is.
+  // Self-serve sign-up (20260911120000). A visitor who has not signed in yet reads
+  // these, so every one says what to do next rather than what went wrong.
+  "signup-email": "errors.signupEmail",
+  "signup-password": "errors.signupPassword",
+  "signup-name": "errors.signupName",
+  "signup-farm": "errors.signupFarm",
+  "signup-vehicles": "errors.signupVehicles",
+  "signup-too-many": "errors.signupTooMany",
+  "signup-plan-unavailable": "errors.signupPlanUnavailable",
+  "signup-failed": "errors.signupFailed",
   "vehicle-limit-reached": "errors.vehicleLimitReached",
   "vehicle-limit-import": "errors.vehicleLimitImport",
   "vehicle-limit-client": "errors.vehicleLimitClient",
