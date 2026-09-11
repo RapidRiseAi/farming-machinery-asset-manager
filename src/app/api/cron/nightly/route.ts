@@ -126,12 +126,17 @@ export async function GET(request: Request) {
   try {
     const push = await deliverPush(supabase);
     if (!push.ok) {
-      steps["push_delivery"] = `error: ${push.error ?? "delivery-failed"} (${push.deferred} retained for retry)`;
+      // Reported rather than recorded as "ok": a failed delivery means the whole night's
+      // alerts reached nobody's phone. Only fields declared on `DeliverResult` are read
+      // here — an earlier version read `push.error`/`push.deferred`, which exist on a
+      // reworked copy of deliver.ts that is not in the repo, so it compiled in this
+      // working tree and nowhere else.
+      steps["push_delivery"] = `error: delivery-failed (${push.failed} failed, ${push.pruned} pruned)`;
       captureError(new Error(steps["push_delivery"]), { where: "cron:push_delivery", extra: push });
     } else {
       steps["push_delivery"] = push.skipped
         ? `skipped (${push.skipped})`
-        : `ok (pushed ${push.pushed}, deferred ${push.deferred})`;
+        : `ok (pushed ${push.pushed}, failed ${push.failed})`;
     }
   } catch (err) {
     steps["push_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
