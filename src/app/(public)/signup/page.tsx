@@ -74,6 +74,8 @@ export default async function SignUpPage({
             total: t("signup.total", locale),
             annualNote: t("signup.annualNote", locale),
             unavailable: t("signup.unavailable", locale),
+            choosePlan: t("signup.choosePlan", locale),
+            howOften: t("signup.howOften", locale),
           }}
         />
 

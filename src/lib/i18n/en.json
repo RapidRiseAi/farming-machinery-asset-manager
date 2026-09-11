@@ -4276,6 +4276,8 @@
       "professional": "Everything in Essential, plus the dashboard, diesel and full cost reporting.",
       "complete": "Everything in Professional, plus traffic fines, multi-site and voice capture.",
       "done_for_you": "Everything in Complete, plus API access and hands-on setup."
-    }
+    },
+    "choosePlan": "Choose a plan",
+    "howOften": "How often you pay"
   }
 }

@@ -39,6 +39,11 @@ export function PlanPicker({
     total: string;
     annualNote: string;
     unavailable: string;
+    /** Names the plan radio group. It used to be given `total`, so a screen reader
+     *  announced the four plans as "You will pay". */
+    choosePlan: string;
+    /** Names the monthly/yearly pair, which had no group name at all. */
+    howOften: string;
   };
 }) {
   const firstSellable = options.find((o) => o.monthlyCents != null) ?? options[0];
@@ -57,7 +62,9 @@ export function PlanPicker({
       <input type="hidden" name="billing_period" value={period} />
 
       <fieldset className="space-y-2">
-        <legend className="sr-only">{labels.total}</legend>
+        {/* Was `labels.total` — the group of plans is not the total, and an invisible
+            legend is the one label only assistive technology ever reads. */}
+        <legend className="sr-only">{labels.choosePlan}</legend>
         {options.map((o) => {
           const price = period === "annual" ? o.annualCents : o.monthlyCents;
           const selected = o.plan === plan;
@@ -92,7 +99,7 @@ export function PlanPicker({
         })}
       </fieldset>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="group" aria-label={labels.howOften}>
         {(["monthly", "annual"] as const).map((p) => (
           <button
             key={p}

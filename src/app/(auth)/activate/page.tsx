@@ -7,6 +7,8 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { farmBillingGate } from "@/lib/billing/service";
 import { Button } from "@/components/ui/button";
+import { Flash } from "@/components/ui/flash";
+import { errorMessage } from "@/lib/errors";
 import { MachinesIcon } from "@/components/ui/icons";
 import { beginCheckoutAction } from "./actions";
 
@@ -96,10 +98,14 @@ export default async function ActivatePage({
           </dl>
         ) : null}
 
+        {/* `t("errors." + code)` printed the literal `errors.billing-unavailable` at a
+            customer: `t()` returns the key on a miss and the catalogue spells it
+            `errors.billingUnavailable`. `errorMessage()` is the shared resolver that
+            exists so a code never reaches a screen. */}
         {sp.error ? (
-          <p className="mt-4 rounded-lg bg-status-bad/10 p-3 text-sm text-status-bad">
-            {t(`errors.${sp.error}`, locale)}
-          </p>
+          <div className="mt-4">
+            <Flash tone="error" message={errorMessage(sp.error, locale)} />
+          </div>
         ) : null}
 
         <form action={beginCheckoutAction} className="mt-6">

@@ -4276,6 +4276,8 @@
       "professional": "Alles in Essensieel, plus die paneelbord, diesel en volledige kosteverslae.",
       "complete": "Alles in Professioneel, plus verkeersboetes, meerdere plase en stemopname.",
       "done_for_you": "Alles in Volledig, plus API-toegang en persoonlike opstelling."
-    }
+    },
+    "choosePlan": "Kies 'n plan",
+    "howOften": "Hoe gereeld jy betaal"
   }
 }
