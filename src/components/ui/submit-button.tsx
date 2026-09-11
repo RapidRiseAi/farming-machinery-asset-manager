@@ -15,6 +15,14 @@ export type SubmitButtonProps = {
   leftIcon?: ReactNode;
   className?: string;
   disabled?: boolean;
+  /**
+   * Post the enclosing form to a DIFFERENT server action.
+   *
+   * This is what lets one form offer two ways in — sign in with a password, or have a link
+   * emailed — while asking for the address once. Without it the page needs two forms and
+   * two email boxes.
+   */
+  formAction?: (formData: FormData) => void | Promise<void>;
 };
 
 /**
@@ -31,11 +39,13 @@ export function SubmitButton({
   leftIcon,
   className,
   disabled,
+  formAction,
 }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
+      formAction={formAction}
       disabled={disabled || pending}
       aria-busy={pending || undefined}
       className={buttonVariants({ variant, size, fullWidth, className })}

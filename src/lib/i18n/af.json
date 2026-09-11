@@ -196,7 +196,9 @@
     "errNeedPassword": "Voer jou wagwoord in, of gebruik eerder die aanmeldskakel.",
     "noAccount": "Nuut by FleetWise?",
     "startTrial": "Stel jou plaas op",
-    "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling — jou plaas en jou faktuur wag."
+    "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling — jou plaas en jou faktuur wag.",
+    "signInTitle": "Meld aan",
+    "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak — dit vat 'n sekonde."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -4309,7 +4311,16 @@
     "termsLink": "gebruiksvoorwaardes",
     "termsAnd": "en die",
     "privacyLink": "privaatheidskennisgewing",
-    "termsPost": " gelees en stem daarmee saam."
+    "termsPost": " gelees en stem daarmee saam.",
+    "stepPlan": "Kies 'n plan",
+    "stepDetails": "Jou besonderhede",
+    "stepPay": "Stem saam en betaal",
+    "emailHint": "Kwitansies en enigiets oor 'n betaling gaan hierheen.",
+    "assure": {
+      "card": "Paystack neem die betaling. Jou kaartbesonderhede bereik nooit ons nie.",
+      "cancel": "Kanselleer enige tyd vanaf die rekeningskerm.",
+      "open": "Jou plaas maak oop sodra die betaling deurgaan."
+    }
   },
   "closed": {
     "title": "Jou FleetWise-plaas is gesluit",
@@ -4381,5 +4392,37 @@
   "gate": {
     "signedInAs": "Aangemeld as {email}",
     "signOut": "Meld af"
+  },
+  "landing": {
+    "headline": "Elke masjien op jou plaas, op een plek.",
+    "sub": "Wat vir 'n diens verskuldig is, wat gebreek het, waarin die diesel gegaan het, en wat elke masjien jou gekos het. Op 'n foon wat aanhou werk in 'n land sonder sein.",
+    "start": "Begin FleetWise gebruik",
+    "signIn": "Meld aan",
+    "priceFrom": "Vanaf {price} per voertuig per maand. Geen kontrak nie.",
+    "point": {
+      "due": {
+        "title": "Weet wat verskuldig is",
+        "body": "Dienste volgens ure of kilometers, lisensiehernuwings en waarborge — voordat hulle verstryk, nie daarna nie."
+      },
+      "costs": {
+        "title": "Weet wat dit kos",
+        "body": "Elke onderdeel, uur en liter geboek teen die masjien wat dit gebruik het, sodat jy kan sien watter een jou geld opvreet."
+      },
+      "offline": {
+        "title": "Werk sonder sein",
+        "body": "Bestuurders vang lesings, foute en diesel in die land vas. Dit stuur homself op sodra daar weer sein is."
+      }
+    },
+    "trust": {
+      "cancel": "Kanselleer enige tyd vanaf die rekeningskerm — geen oproep nie.",
+      "card": "Jy betaal deur Paystack. Jou kaartbesonderhede bereik nooit ons bedieners nie.",
+      "data": "Jou rekords bly joune, en jy kan dit aflaai wanneer jy wil."
+    },
+    "drivers": "Jou bestuurders het nie elkeen 'n rekening nodig nie. Hulle skandeer die QR-plakker op die masjien en rapporteer 'n fout of 'n lesing sonder om by enigiets aan te meld."
+  },
+  "publicNav": {
+    "terms": "Gebruiksvoorwaardes",
+    "privacy": "Privaatheidskennisgewing",
+    "reg": "Reg."
   }
 }

@@ -1,5 +1,5 @@
 /**
- * FarmGear UI kit. Import from "@/components/ui".
+ * FleetWise UI kit. Import from "@/components/ui".
  * Server-compatible unless a component's file is marked "use client"
  * (Modal, Sheet, Toast, Tabs, SubmitButton, NavLink, MoreMenu).
  */

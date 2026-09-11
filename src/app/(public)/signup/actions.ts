@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
 import { deviceLocale } from "@/lib/locale";
 import { TERMS_VERSION } from "@/lib/legal";
+import { captureError } from "@/lib/observability";
 import type { BillingPeriod } from "@/lib/entitlements";
 
 /** The most vehicles somebody may buy on the public form without talking to us first. */
@@ -127,9 +128,34 @@ export async function signUp(formData: FormData): Promise<void> {
 
   // Sign them in with the password they just chose, so they arrive at /activate as
   // themselves rather than at a login screen wondering whether any of that worked.
+  //
+  // This FAILS intermittently on Vercel and not locally — reproduced on production, where
+  // the same address and password get a token from Supabase Auth when asked directly, and
+  // sign in normally on the live site a minute later. A rate limit on the shared egress IP
+  // is the leading suspect and is not something this code can confirm from the inside.
+  //
+  // So: one retry, because a transient that costs a customer is worth one more round trip;
+  // and the real error is REPORTED rather than swallowed, because "it sent me back to sign
+  // in" was all anybody could say about this until it was reproduced by hand.
   const browser = await createClient();
-  const { error: signInError } = await browser.auth.signInWithPassword({ email, password });
-  if (signInError) redirect("/login?signedup=1");
+  let signInError = (await browser.auth.signInWithPassword({ email, password })).error;
+  if (signInError) {
+    await new Promise((r) => setTimeout(r, 400));
+    signInError = (await browser.auth.signInWithPassword({ email, password })).error;
+  }
+
+  if (signInError) {
+    captureError(signInError, {
+      where: "signup:auto-sign-in",
+      // `captureError`’s extra values must be concrete; both of these are optional on a
+      // Supabase AuthError, so they are made explicit rather than left to widen the type.
+      extra: { status: signInError.status ?? null, code: signInError.code ?? null },
+    });
+    // Everything they paid attention to WORKED — the farm, the owner, the subscription and
+    // the invoice are all committed. Only the session is missing, so hand the login screen
+    // enough to make that a five-second recovery instead of a dead end.
+    redirect(`/login?signedup=1&email=${encodeURIComponent(email)}`);
+  }
 
   redirect("/activate");
 }

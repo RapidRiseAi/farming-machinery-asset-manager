@@ -82,7 +82,10 @@ export function tourFor(role: Role): TourStep[] {
  *
  * localStorage, not the database: finishing a tour is not farm data, it is a property
  * of this person on this device, and it must not cost a write or a migration. The
- * `farmgear:` prefix is kept for continuity with the other keys already in storage.
+ * `farmgear:` prefix is kept DELIBERATELY. It is a browser-storage key, not text anybody
+ * reads, and renaming it would re-run the walkthrough for every person who has already
+ * dismissed it — the product was renamed to FleetWise in F1, which kept every storage
+ * identifier stable for exactly this reason.
  */
 export const TOUR_SEEN_KEY = "farmgear:tour-done";
 export const TOUR_STEP_KEY = "farmgear:tour-step";

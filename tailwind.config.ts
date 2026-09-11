@@ -32,6 +32,10 @@ const config: Config = {
           800: "#14532b",
           900: "#123f23",
           950: "#082915",
+          // Brand green as TEXT. 7.4:1 on white, which `brand-500` is not — this is why
+          // the two are separate, and why every green word in the product should use this
+          // one. Referenced by seven committed files and defined by none of them.
+          ink: "#166534",
         },
         // Sand — warm neutral (stone-like). Body text = 900, secondary = 600,
         // borders = 200, page background = 50.
@@ -53,6 +57,21 @@ const config: Config = {
           ok: "#15803d", // green  — OK        (5.0:1)
           due: "#b45309", // amber  — due soon (5.0:1)
           overdue: "#dc2626", // red — overdue (4.8:1)
+          // Aliases the app already uses by name. `text-status-warn` appears in twelve
+          // committed files and `status-bad` in four, and neither existed here — so
+          // Tailwind emitted nothing and those words rendered in ordinary body colour,
+          // including the amount owed in the debtors column. Same values as the two above,
+          // because that is what every call site means by them.
+          warn: "#b45309",
+          bad: "#dc2626",
+        },
+        // The card a page sits on. `bg-surface` is used by the sign-in screen itself and
+        // `bg-surface-1` by the billing, account and activation screens; without a
+        // definition those boxes have no background at all on a sand page.
+        surface: {
+          DEFAULT: "#ffffff",
+          1: "#ffffff",
+          2: "#faf9f7",
         },
       },
       fontFamily: {

@@ -196,7 +196,9 @@
     "errNeedPassword": "Enter your password, or use the sign-in link instead.",
     "noAccount": "New to FleetWise?",
     "startTrial": "Set up your farm",
-    "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment — your farm and your invoice are waiting."
+    "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment — your farm and your invoice are waiting.",
+    "signInTitle": "Sign in",
+    "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it — this takes a second."
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -4309,7 +4311,16 @@
     "termsLink": "terms of use",
     "termsAnd": "and the",
     "privacyLink": "privacy notice",
-    "termsPost": "."
+    "termsPost": ".",
+    "stepPlan": "Choose a plan",
+    "stepDetails": "Your details",
+    "stepPay": "Agree and pay",
+    "emailHint": "Receipts and anything about a payment go here.",
+    "assure": {
+      "card": "Paystack takes the payment. Your card details never reach us.",
+      "cancel": "Cancel any time from the billing screen.",
+      "open": "Your farm opens the moment the payment goes through."
+    }
   },
   "closed": {
     "title": "Your FleetWise farm is closed",
@@ -4381,5 +4392,37 @@
   "gate": {
     "signedInAs": "Signed in as {email}",
     "signOut": "Sign out"
+  },
+  "landing": {
+    "headline": "Every machine on your farm, in one place.",
+    "sub": "What is due for a service, what broke, what the diesel went into, and what each machine has cost you. On a phone that keeps working in a field with no signal.",
+    "start": "Start using FleetWise",
+    "signIn": "Sign in",
+    "priceFrom": "From {price} per vehicle per month. No contract.",
+    "point": {
+      "due": {
+        "title": "Know what is due",
+        "body": "Services by hours or kilometres, licence renewals and warranties — before they run out, not after."
+      },
+      "costs": {
+        "title": "Know what it costs",
+        "body": "Every part, hour and litre booked against the machine that used it, so you can see which one is eating your money."
+      },
+      "offline": {
+        "title": "Works without signal",
+        "body": "Drivers capture readings, faults and diesel in the field. It sends itself up the moment there is signal again."
+      }
+    },
+    "trust": {
+      "cancel": "Cancel any time, from the billing screen — no phone call.",
+      "card": "You pay through Paystack. Your card details never reach our servers.",
+      "data": "Your records stay yours, and you can download them whenever you like."
+    },
+    "drivers": "Your drivers do not each need an account. They scan the QR sticker on the machine and report a fault or a reading without signing in to anything."
+  },
+  "publicNav": {
+    "terms": "Terms of use",
+    "privacy": "Privacy notice",
+    "reg": "Reg."
   }
 }

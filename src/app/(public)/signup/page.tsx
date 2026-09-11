@@ -1,13 +1,15 @@
 import Link from "next/link";
 
-import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { TERMS_VERSION } from "@/lib/legal";
 import { deviceLocale } from "@/lib/locale";
 import { errorMessage } from "@/lib/errors";
 import { PLANS, perVehicleMonthlyCents, ANNUAL_MONTHS_CHARGED } from "@/lib/entitlements";
-import { MachinesIcon } from "@/components/ui/icons";
-import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Flash } from "@/components/ui/flash";
+import { PublicShell, Tick } from "@/components/public-shell";
 import { PlanPicker } from "./plan-picker";
 import { signUp } from "./actions";
 
@@ -42,28 +44,37 @@ export default async function SignUpPage({
     };
   });
 
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <MachinesIcon className="size-8 text-brand-ink" aria-hidden="true" />
-          <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
-        </div>
-        <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />
-      </div>
+  const step = (nth: number, label: string) => (
+    <div className="flex items-center gap-2.5">
+      <span className="flex size-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+        {nth}
+      </span>
+      <h2 className="font-semibold text-sand-900">{label}</h2>
+    </div>
+  );
 
-      <div>
-        <h1 className="text-2xl font-semibold">{t("signup.title", locale)}</h1>
-        <p className="mt-2 text-sand-700">{t("signup.lead", locale)}</p>
+  return (
+    <PublicShell locale={locale}>
+      <div className="pt-4 sm:pt-10">
+        <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+          {t("signup.title", locale)}
+        </h1>
+        <p className="mt-1.5 text-sand-600">{t("signup.lead", locale)}</p>
       </div>
 
       {sp.error ? (
-        <p className="rounded-lg bg-status-bad/10 p-3 text-sm text-status-bad">
-          {errorMessage(sp.error, locale)}
-        </p>
+        <div className="mt-5">
+          <Flash tone="error" message={errorMessage(sp.error, locale)} />
+        </div>
       ) : null}
 
-      <form action={signUp} className="space-y-6">
+      <form action={signUp} className="mt-5 space-y-4">
+        {/* Step 1 — the plan, the period and the vehicle count all move one number, so
+            they belong in one box. The picker itself is untouched: its arithmetic is
+            proven across 24 plan/period/count combinations. */}
+        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+          {step(1, t("signup.stepPlan", locale))}
+          <div className="mt-4">
         <PlanPicker
           options={options}
           labels={{
@@ -80,60 +91,38 @@ export default async function SignUpPage({
           }}
         />
 
-        <div className="space-y-4 border-t border-sand-300 pt-6">
-          <div>
-            <label htmlFor="farm_name" className="block text-sm font-medium">
-              {t("signup.farmName", locale)}
-            </label>
-            <input
-              id="farm_name"
-              name="farm_name"
-              required
-              autoComplete="organization"
-              className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
-            />
           </div>
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium">
-              {t("signup.yourName", locale)}
-            </label>
-            <input
-              id="name"
-              name="name"
-              required
-              autoComplete="name"
-              className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
-            />
+        </section>
+
+        {/* Step 2 — who they are. On the kit's Field/Input, which carry the 48px floor,
+            real labels that stay put, and `aria-invalid` wiring. The hand-rolled inputs
+            this replaces used `bg-surface-1`, a token committed config never defined, so
+            they had no background at all in production. */}
+        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+          {step(2, t("signup.stepDetails", locale))}
+          <div className="mt-4 space-y-4">
+            <Field label={t("signup.farmName", locale)} htmlFor="farm_name">
+              <Input id="farm_name" name="farm_name" required autoComplete="organization" />
+            </Field>
+            <Field label={t("signup.yourName", locale)} htmlFor="name">
+              <Input id="name" name="name" required autoComplete="name" />
+            </Field>
+            <Field
+              label={t("signup.email", locale)}
+              htmlFor="email"
+              hint={t("signup.emailHint", locale)}
+            >
+              <Input id="email" name="email" type="email" required autoComplete="email" />
+            </Field>
+            <Field
+              label={t("signup.password", locale)}
+              htmlFor="password"
+              hint={t("signup.passwordHint", locale)}
+            >
+              <PasswordInput id="password" name="password" required minLength={8} autoComplete="new-password" />
+            </Field>
           </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
-              {t("signup.email", locale)}
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium">
-              {t("signup.password", locale)}
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
-            />
-            <p className="mt-1 text-xs text-sand-700">{t("signup.passwordHint", locale)}</p>
-          </div>
-        </div>
+        </section>
 
         {/* An explicit tick, not a line of small print. ECTA §43 and the Consumer
             Protection Act both want the terms available BEFORE the transaction and an
@@ -143,8 +132,22 @@ export default async function SignUpPage({
 
             The version travels with the form, so what gets recorded is what this page
             rendered rather than whatever is current by the time the submit lands. */}
+        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+          {step(3, t("signup.stepPay", locale))}
+
+          {/* The three things somebody actually worries about with a card in their hand,
+              next to the button rather than in small print under it. */}
+          <ul className="mt-4 space-y-2">
+            {(["card", "cancel", "open"] as const).map((k) => (
+              <li key={k} className="flex items-start gap-2.5 text-sm text-sand-700">
+                <Tick className="mt-0.5 text-status-ok" />
+                <span>{t(`signup.assure.${k}`, locale)}</span>
+              </li>
+            ))}
+          </ul>
+
         <input type="hidden" name="terms_version" value={TERMS_VERSION} />
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sand-300 bg-surface-1 p-4">
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-sand-200 bg-sand-50 p-4">
           <input type="checkbox" name="terms" required className="mt-1 size-5" />
           <span className="text-sm text-sand-800">
             {t("signup.termsPre", locale)}{" "}
@@ -161,19 +164,20 @@ export default async function SignUpPage({
 
         <button
           type="submit"
-          className="min-h-12 w-full rounded-lg bg-brand-500 px-4 font-semibold text-white sm:min-h-11"
+          className="mt-4 min-h-12 w-full rounded-xl bg-brand-600 px-4 text-base font-semibold text-white shadow-soft transition hover:bg-brand-700 sm:min-h-11"
         >
           {t("signup.submit", locale)}
         </button>
-        <p className="text-xs text-sand-700">{t("signup.note", locale)}</p>
+        <p className="mt-3 text-xs leading-relaxed text-sand-600">{t("signup.note", locale)}</p>
+        </section>
       </form>
 
-      <p className="text-sm text-sand-700">
+      <p className="mt-6 text-center text-sm text-sand-600">
         {t("signup.haveAccount", locale)}{" "}
         <Link href="/login" className="font-medium text-brand-ink underline">
           {t("signup.signIn", locale)}
         </Link>
       </p>
-    </main>
+    </PublicShell>
   );
 }

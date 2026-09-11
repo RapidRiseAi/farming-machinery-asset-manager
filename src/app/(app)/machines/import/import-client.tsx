@@ -45,7 +45,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "farmgear-machines-template.csv";
+    a.download = "fleetwise-machines-template.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
