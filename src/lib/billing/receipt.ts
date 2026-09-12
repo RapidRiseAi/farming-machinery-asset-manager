@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { emailConfigured, sendEmail } from "@/lib/email/resend";
+import { emailConfigProblem, sendEmail } from "@/lib/email/resend";
 import {
   buildBillingReceiptPdf,
   type BillingDocumentKind,
@@ -311,8 +311,14 @@ export async function sendDueReceipts(
   supabase: SupabaseClient,
   opts: { limit?: number } = {},
 ): Promise<NoticeSummary> {
-  if (!emailConfigured()) {
-    return { ...EMPTY, skipped: 1, reasons: ["email-not-configured"] };
+  // Name the actual fault. The cron renders this into its step summary and into the
+  // `cron_runs` ledger, so "something is unset" versus "RESEND_API_KEY is a placeholder,
+  // not a key" is the difference between a line nobody can act on and one that diagnoses
+  // the deployment. `[SENSITIVE]` — what `vercel pull` writes — is truthy, so "unset" was
+  // never even the right guess.
+  const configProblem = emailConfigProblem();
+  if (configProblem) {
+    return { ...EMPTY, skipped: 1, reasons: [`email-not-configured: ${configProblem}`] };
   }
 
   const { data, error } = await supabase.rpc(BILLING_RPC.receiptsDue, {
@@ -388,8 +394,14 @@ export async function sendDueFailureNotices(
   supabase: SupabaseClient,
   opts: { limit?: number } = {},
 ): Promise<NoticeSummary> {
-  if (!emailConfigured()) {
-    return { ...EMPTY, skipped: 1, reasons: ["email-not-configured"] };
+  // Name the actual fault. The cron renders this into its step summary and into the
+  // `cron_runs` ledger, so "something is unset" versus "RESEND_API_KEY is a placeholder,
+  // not a key" is the difference between a line nobody can act on and one that diagnoses
+  // the deployment. `[SENSITIVE]` — what `vercel pull` writes — is truthy, so "unset" was
+  // never even the right guess.
+  const configProblem = emailConfigProblem();
+  if (configProblem) {
+    return { ...EMPTY, skipped: 1, reasons: [`email-not-configured: ${configProblem}`] };
   }
 
   const { data, error } = await supabase.rpc(BILLING_RPC.failureNoticesDue, {
