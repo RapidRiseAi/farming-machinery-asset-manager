@@ -10,6 +10,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DB="${TEST_DB_NAME:-farmapp_test}"
 
+# This runner recreates its database. Restrict it to explicit local test targets,
+# including when a developer's shell contains connection settings for production.
+if [[ ! "$DB" =~ ^[a-z][a-z0-9_]*_test$ ]]; then
+  echo "TEST_DB_NAME must be a simple identifier ending in _test." >&2
+  exit 1
+fi
+if [[ -n "${PGSERVICE:-}" || -n "${PGSERVICEFILE:-}" ]]; then
+  echo "Unset PostgreSQL service configuration before running local tests." >&2
+  exit 1
+fi
+for host in "${PGHOST:-localhost}" "${PGHOSTADDR:-127.0.0.1}"; do
+  case "$host" in
+    localhost|127.0.0.1|::1|/var/run/postgresql|/tmp) ;;
+    *) echo "Database tests require a local PostgreSQL host." >&2; exit 1 ;;
+  esac
+done
+
 # Pick how to reach the cluster as a superuser. Prefer `su postgres` (peer auth);
 # fall back to a plain psql (e.g. in CI where the current user is a superuser).
 if command -v sudo >/dev/null 2>&1 && id postgres >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
@@ -81,5 +98,11 @@ if [ -f "$ROOT/supabase/tests/billing_subscription.sql" ]; then
   echo "==> running SaaS subscription billing isolation tests"
   pg "$DB" < "$ROOT/supabase/tests/billing_subscription.sql"
 fi
+
+echo "==> running atomic offline capture tests"
+pg "$DB" < "$ROOT/supabase/tests/atomic_offline_capture.sql"
+
+echo "==> running notification push delivery tests"
+pg "$DB" < "$ROOT/supabase/tests/notification_push_delivery.sql"
 
 echo "==> OK"

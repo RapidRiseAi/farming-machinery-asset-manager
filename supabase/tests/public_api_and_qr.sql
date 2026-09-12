@@ -570,12 +570,22 @@ end $$;
 -- ── (r) The policy was NOT tightened — a mechanic still edits machines ───────
 -- The failure mode of a fix like this is collateral: lock the sticker, lock the mechanic
 -- out of the vehicle record. `machines_upd` is untouched and must stay untouched.
-do $$ declare v_rows int; begin
+do $$ declare v_rows int := 0; v_denied boolean := false; v_reading uuid; begin
   perform _t_login('8b100000-0000-0000-0000-000000000003');
-  update machines set location = 'Shed 4' where id = '8b300000-0000-0000-0000-000000000001';
-  get diagnostics v_rows = row_count;
-  if v_rows <> 1 then
-    raise exception 'G31 FAIL [COLLATERAL]: a mechanic can no longer edit a machine. Only the public_token column was meant to narrow';
+  begin
+    update machines set location = 'Shed 4' where id = '8b300000-0000-0000-0000-000000000001';
+    get diagnostics v_rows = row_count;
+  exception when insufficient_privilege then v_denied := true;
+  end;
+  if not v_denied and v_rows <> 0 then
+    raise exception 'G31 FAIL [ADMIN ROLE]: a mechanic changed administrative machine fields';
+  end if;
+  v_reading := public.record_meter_reading(
+    '8b000000-0000-0000-0000-000000000001',
+    '8b300000-0000-0000-0000-000000000001', 99999, current_date, null
+  );
+  if v_reading is null then
+    raise exception 'G31 FAIL [COLLATERAL]: mechanic operational reading returned no ID';
   end if;
 end $$;
 

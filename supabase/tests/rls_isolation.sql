@@ -91,11 +91,13 @@ insert into job_card_lines (farm_id, job_card_id, kind, description, qty, unit_c
   ('11111111-1111-1111-1111-111111111111', 'ac111111-1111-1111-1111-111111111111', 'part', 'Oil filter', 1, 15000),
   ('22222222-2222-2222-2222-222222222222', 'bc222222-2222-2222-2222-222222222222', 'part', 'Oil filter', 1, 15000);
 
-insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id)
-select 'ac111111-1111-1111-1111-111111111111', id, '11111111-1111-1111-1111-111111111111'
+insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id, machine_id)
+select 'ac111111-1111-1111-1111-111111111111', id, '11111111-1111-1111-1111-111111111111',
+       'aa111111-1111-1111-1111-111111111111'
   from service_plan_lines where machine_id = 'aa111111-1111-1111-1111-111111111111' limit 1;
-insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id)
-select 'bc222222-2222-2222-2222-222222222222', id, '22222222-2222-2222-2222-222222222222'
+insert into job_card_service_lines (job_card_id, service_plan_line_id, farm_id, machine_id)
+select 'bc222222-2222-2222-2222-222222222222', id, '22222222-2222-2222-2222-222222222222',
+       'bb222222-2222-2222-2222-222222222222'
   from service_plan_lines where machine_id = 'bb222222-2222-2222-2222-222222222222' limit 1;
 
 insert into watch_items (farm_id, machine_id, text) values
@@ -243,7 +245,7 @@ do $$ begin
   perform _t_assert('users',              1, 'workshopW');  -- itself only; team not granted
   perform _t_assert('workshops',          1, 'workshopW');  -- self
   perform _t_assert('workshop_links',     1, 'workshopW');
-  perform _t_assert('sync_log',           1, 'workshopW');  -- Farm A only
+  perform _t_assert('sync_log',           0, 'workshopW');  -- no own submissions; payloads are private
   perform _t_assert('usage_logs',         0, 'workshopW');
 end $$;
 reset role;
@@ -7871,19 +7873,24 @@ do $$ declare fid uuid; blocked boolean := false; begin
   end;
   if not blocked then raise exception 'H2 COMMAND FAIL: operator faulted unassigned machine'; end if;
 
+  fid := public.record_meter_reading(
+    '8a000000-0000-4000-8000-000000000001',
+    '8a200000-0000-4000-8000-000000000001', 110, current_date, null
+  );
+  if fid is null then raise exception 'H2 COMMAND FAIL: assigned operator reading returned no ID'; end if;
   blocked := false;
   begin
     perform public.record_meter_reading(
       '8a000000-0000-4000-8000-000000000001',
-      '8a200000-0000-4000-8000-000000000001', 110, current_date, null
+      '8a200000-0000-4000-8000-000000000002', 110, current_date, null
     );
   exception when insufficient_privilege then blocked := true;
   end;
-  if not blocked then raise exception 'H2 COMMAND FAIL: operator recorded primary-farm reading'; end if;
+  if not blocked then raise exception 'H2 COMMAND FAIL: operator read an unassigned primary-farm machine'; end if;
 end $$;
 
--- The opposite-role person can record on their owner farm but not the secondary farm
--- where their effective role is operator.
+-- The opposite-role person can record on their owner farm and on their assigned
+-- secondary-farm machine, but their owner role cannot grant access to an unassigned one.
 do $$ declare rid uuid; blocked boolean := false; begin
   perform _t_login('8a100000-0000-4000-8000-000000000002');
   rid := public.record_meter_reading(
@@ -7891,14 +7898,19 @@ do $$ declare rid uuid; blocked boolean := false; begin
     '8a200000-0000-4000-8000-000000000002', 110, current_date, null
   );
   if rid is null then raise exception 'H2 COMMAND FAIL: owner reading returned no ID'; end if;
+  rid := public.record_meter_reading(
+    '8a000000-0000-4000-8000-000000000002',
+    '8a200000-0000-4000-8000-000000000003', 210, current_date, null
+  );
+  if rid is null then raise exception 'H2 COMMAND FAIL: assigned secondary operator reading returned no ID'; end if;
   begin
     perform public.record_meter_reading(
       '8a000000-0000-4000-8000-000000000002',
-      '8a200000-0000-4000-8000-000000000003', 210, current_date, null
+      '8a200000-0000-4000-8000-000000000004', 210, current_date, null
     );
   exception when insufficient_privilege then blocked := true;
   end;
-  if not blocked then raise exception 'H2 COMMAND FAIL: secondary operator recorded reading'; end if;
+  if not blocked then raise exception 'H2 COMMAND FAIL: secondary operator read an unassigned machine'; end if;
 end $$;
 
 -- Future and current/newer decreasing readings fail. An older historical reading is
@@ -12130,14 +12142,8 @@ do $$ declare c int; begin
 end $$;
 
 -- ── THE BLAST RADIUS, PINNED BY NAME ─────────────────────────────
--- Counting policies is not enough, and this section learned that the hard way: an
--- assertion that `see_all_vehicles` does not leak COSTS cannot be written as a row
--- count, because an operator ALREADY reads the farm's entire spend (0210/0400 gate
--- cost_entries on partner scope alone). The cell is saturated, so a policy wiring costs
--- into the vehicle grant moves no number and a count-based test passes while the leak
--- is live — measured, by adding exactly that policy and watching this section pass.
---
--- So the reach of `app.has_permission` is pinned STRUCTURALLY instead: every table it
+-- Counting policies is not enough, so the reach of `app.has_permission` is pinned
+-- STRUCTURALLY: every table it
 -- may be consulted for, which command, and under which name. Anything wired to it that
 -- is not on this list is a widening nobody argued for.
 do $$
@@ -12335,16 +12341,13 @@ end $$;
 reset role;
 
 -- The surfaces a grant must never open, measured now so section (d) can show they did
--- not move. Note cost_entries: an operator ALREADY reads the farm's whole spend
--- (0210/0400 gate it on partner scope only, never on the assignment rule). 0507's own
--- header says so, and it is why `see_costs` was left out of the closed set. The number
--- being 2 rather than 0 here is therefore correct, and the point of pinning it is that
--- `see_all_vehicles` must not change it either.
+-- not move. Operator cost visibility defaults closed; `see_all_vehicles` is deliberately
+-- independent and must not open the ledger.
 set role authenticated;
 do $$
 declare
   e text[][] := array[
-    ['cost_entries','2'], ['budgets','0'], ['stock_items','1'],
+    ['cost_entries','0'], ['budgets','0'], ['stock_items','1'],
     ['stock_movements','1'], ['partners','1'], ['users','5']
   ];
   i int; c bigint;
@@ -12419,7 +12422,7 @@ set role authenticated;
 do $$
 declare
   e text[][] := array[
-    ['cost_entries','2'], ['budgets','0'], ['stock_items','1'],
+    ['cost_entries','0'], ['budgets','0'], ['stock_items','1'],
     ['stock_movements','1'], ['partners','1'], ['users','5']
   ];
   i int; c bigint; blocked boolean;
@@ -13373,16 +13376,15 @@ end $$;
 reset role;
 
 -- ─────────────────────────────────────────────────────────────────
--- (f) THE CONTRACTOR LEAK THE ROUTE EXISTS TO CLOSE.
+-- (f) CONTRACTOR FINANCIAL COLUMNS ARE CLOSED AT THE DATABASE BOUNDARY.
 --
 -- F16 narrows a contractor to the vehicles it works on and withholds costs and people
--- without the matching grant. All of that holds — and it is still not enough, because a
--- sale pack prints `purchase_price_cents` and `supplier`, which live on the MACHINE row
--- the contractor is entitled to read. So the refusal has to be in the route, and this
--- asserts why.
+-- without the matching grant. Machine purchase / finance columns are now removed from
+-- ordinary authenticated SELECTs too. The sale-pack route still refuses workshops as a
+-- deliberate product rule and defence in depth.
 -- ─────────────────────────────────────────────────────────────────
 set role authenticated;
-do $$ declare n int; price bigint; supp text; begin
+do $$ declare n int; blocked boolean := false; begin
   perform _t_login('32100000-0000-4000-8000-000000000005');   -- Contractor Z's staff
 
   -- Narrowed to the one machine it has work on.
@@ -13410,16 +13412,22 @@ do $$ declare n int; price bigint; supp text; begin
     raise exception 'G32 FAIL [CONTRACTOR]: read % farm people without see_team', n;
   end if;
 
-  -- THE POINT. These two ARE readable, because they are columns on a machine the
-  -- contractor legitimately works on. A sale pack built for a contractor would print
-  -- what the farm paid and who it bought from. pack-data.ts therefore returns 403 for
-  -- role `workshop` before any query runs. If this assertion ever fails because RLS
-  -- started hiding these columns, the route's refusal can be revisited on purpose.
-  select purchase_price_cents, supplier into price, supp from machines
-   where id = '32200000-0000-4000-8000-000000000001';
-  if price is null or supp is null then
-    raise exception 'G32 FAIL [CONTRACTOR]: purchase price/supplier are now hidden from a '
-      'linked contractor - re-read the workshop refusal in pack-data.ts, it may be stale';
+  -- A raw projection is denied even though the non-financial machine row is visible.
+  begin
+    perform purchase_price_cents from machines
+     where id = '32200000-0000-4000-8000-000000000001';
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'G32 FAIL [CONTRACTOR]: direct machine purchase-price SELECT was allowed';
+  end if;
+
+  -- The checked projection also returns no row without the contractor's see_costs grant.
+  select count(*) into n
+    from public.machine_financials('32200000-0000-4000-8000-000000000001');
+  if n <> 0 then
+    raise exception 'G32 FAIL [CONTRACTOR]: machine_financials returned % rows without see_costs', n;
   end if;
 end $$;
 reset role;
