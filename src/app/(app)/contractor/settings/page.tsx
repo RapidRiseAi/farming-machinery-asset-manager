@@ -105,7 +105,7 @@ export default async function PartnerSettingsPage({
         <div className="overflow-hidden rounded-xl border border-sand-200">
           <div
             className="flex items-center gap-3 px-4 py-3"
-            style={{ backgroundColor: b.brand_primary ?? "#166534", color: onBrand(b.brand_primary ?? "#166534") }}
+            style={{ backgroundColor: b.brand_primary ?? "#00572c", color: onBrand(b.brand_primary ?? "#00572c") }}
           >
             {logoUrl ? (
               <Photo src={logoUrl} alt="" size="thumb" className="h-9 w-9 rounded bg-white/90" imgClassName="object-contain p-0.5" />
@@ -140,7 +140,7 @@ export default async function PartnerSettingsPage({
           locale={locale}
           chosen={chosenTemplate}
           currentLayout={(workshop as { doc_layout?: unknown } | null)?.doc_layout}
-          brandPrimary={b.brand_primary ?? "#166534"}
+          brandPrimary={b.brand_primary ?? "#00572c"}
           businessName={b.name}
           vatRegistered={workshop?.vat_registered !== false}
           logoUrl={logoUrl}
@@ -154,7 +154,7 @@ export default async function PartnerSettingsPage({
       <DocumentLayoutForm
         locale={locale}
         current={(workshop as { doc_layout?: unknown } | null)?.doc_layout}
-        brandPrimary={b.brand_primary ?? "#166534"}
+        brandPrimary={b.brand_primary ?? "#00572c"}
         vatRegistered={workshop?.vat_registered !== false}
         businessName={b.name}
         logoUrl={logoUrl}
@@ -246,7 +246,7 @@ export default async function PartnerSettingsPage({
           <div className="flex flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={t("partnerSettings.brandPrimary", locale)} htmlFor="f-brand_primary" hint={t("partnerSettings.brandPrimaryHint", locale)}>
-                <Input id="f-brand_primary" name="brand_primary" type="color" defaultValue={b.brand_primary ?? "#166534"} className="p-1" />
+                <Input id="f-brand_primary" name="brand_primary" type="color" defaultValue={b.brand_primary ?? "#00572c"} className="p-1" />
               </Field>
               <Field label={t("partnerSettings.brandSecondary", locale)} htmlFor="f-brand_secondary">
                 <Input id="f-brand_secondary" name="brand_secondary" type="color" defaultValue={b.brand_secondary ?? "#1f2937"} className="p-1" />

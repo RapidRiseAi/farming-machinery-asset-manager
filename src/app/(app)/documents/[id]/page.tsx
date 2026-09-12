@@ -214,7 +214,7 @@ export default async function DocumentPage({
   const creditedCents = creditNotes
     .filter((c) => c.status !== "draft" && c.status !== "void")
     .reduce((s, c) => s + c.total_cents, 0);
-  const primary = brand.brand_primary ?? "#166534";
+  const primary = brand.brand_primary ?? "#00572c";
   const vatRegistered = doc.vat_rate_bps > 0;
   const kindLabel = documentTitle(doc.kind, layout, locale, vatRegistered);
   const cell = cellPadding(layout.density);

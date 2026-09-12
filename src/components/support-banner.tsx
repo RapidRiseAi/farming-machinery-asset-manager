@@ -16,13 +16,13 @@ export function SupportBanner({ farmName, locale }: { farmName: string; locale: 
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-gold-300 bg-gold-100 px-4 py-2.5"
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-callout-warn-edge bg-callout-warn-bg px-4 py-2.5"
     >
-      <p className="flex min-w-0 items-center gap-2 text-sm text-gold-900">
+      <p className="flex min-w-0 items-center gap-2 text-sm text-callout-warn-ink">
         <WarningIcon className="shrink-0 text-lg" />
         <span className="min-w-0">
           <span className="font-semibold">{t("admin.supportModeTitle", locale)}</span>{" "}
-          <span className="text-gold-800">
+          <span className="text-callout-warn-ink">
             {t("admin.supportModeBody", locale).replace("{farm}", farmName)}
           </span>
         </span>

@@ -421,7 +421,7 @@ export default async function BillingPage({
                 id="plan"
                 name="plan"
                 defaultValue={sub.plan}
-                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
               >
                 {PLANS.map((p) => (
                   <option key={p} value={p}>
@@ -436,7 +436,7 @@ export default async function BillingPage({
                 id="billing_period"
                 name="billing_period"
                 defaultValue={sub.billing_period}
-                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
               >
                 {BILLING_PERIODS.map((p) => (
                   <option key={p} value={p}>
@@ -494,7 +494,7 @@ export default async function BillingPage({
                 inputMode="numeric"
                 min={Math.max(assets.billable, 1)}
                 defaultValue={sub.asset_quota ?? Math.max(assets.billable, 1)}
-                className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+                className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
               />
               <SubmitButton variant="secondary">
                 {t("billing.slotsSubmit", locale)}

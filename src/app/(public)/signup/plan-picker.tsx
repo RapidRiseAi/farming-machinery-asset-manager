@@ -72,7 +72,7 @@ export function PlanPicker({
             <label
               key={o.plan}
               className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${
-                selected ? "border-brand-500 bg-brand-50" : "border-sand-300 bg-surface-1"
+                selected ? "border-brand-500 bg-brand-tint" : "border-edge bg-surface"
               }`}
             >
               <input
@@ -109,7 +109,7 @@ export function PlanPicker({
             className={`min-h-12 flex-1 rounded-lg border px-4 text-sm font-medium sm:min-h-11 ${
               period === p
                 ? "border-brand-500 bg-brand-500 text-white"
-                : "border-sand-300 bg-surface-1"
+                : "border-sand-300 bg-surface"
             }`}
           >
             {p === "monthly" ? labels.monthly : labels.annual}
@@ -133,7 +133,7 @@ export function PlanPicker({
           max={200}
           value={vehicles}
           onChange={(e) => setVehicles(Number.parseInt(e.target.value, 10))}
-          className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface-1 px-3 sm:min-h-11"
+          className="mt-1 min-h-12 w-full rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
         />
       </div>
 

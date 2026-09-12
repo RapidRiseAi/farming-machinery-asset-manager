@@ -181,7 +181,7 @@ export default async function AppLayout({
   const statements: NavItemData = { href: "/statements", label: t("nav.statements", locale), icon: "reports" };
   // Every change made to a document after it went out. Its own section, because "has
   // anyone been quietly moving numbers" is a question you ask without a document in mind.
-  const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "documents" };
+  const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "correction" };
   // The books' other half (G6): what the partner BOUGHT, and what that means at filing
   // time. Partner-only — a farm never sees its contractor's purchases.
   // What the partner has ON ORDER but not yet been invoiced for. Sits immediately before
@@ -189,29 +189,29 @@ export default async function AppLayout({
   const orders: NavItemData = { href: "/orders", label: t("po.nav", locale), icon: "inbox" };
   // The bank statement queue. `download` rather than `inbox`: orders took the tray, and
   // two adjacent items sharing a glyph is how a nav stops being scannable.
-  const banking: NavItemData = { href: "/banking", label: t("bank.nav", locale), icon: "download" };
+  const banking: NavItemData = { href: "/banking", label: t("bank.nav", locale), icon: "bank" };
   // The supplier book (G18). `partners` is the handshake glyph and reads as "businesses
   // we deal with"; the farm-side partners screen that also uses it is invisible to a
   // workshop, so the two never share a nav.
   const suppliers: NavItemData = { href: "/suppliers", label: t("supplier.navLabel", locale), icon: "partners" };
   // Costs that repeat (G19) - rent, insurance, the monthly parts account. Sits beside
   // expenses because it IS expenses, just the ones you should not have to remember.
-  const recurringExpenses: NavItemData = { href: "/recurring-expenses", label: t("recexp.navLabel", locale), icon: "parts" };
+  const recurringExpenses: NavItemData = { href: "/recurring-expenses", label: t("recexp.navLabel", locale), icon: "cart" };
   // What is ABOUT to happen (G20). /money says what did.
-  const cashflow: NavItemData = { href: "/cashflow", label: t("cash.nav", locale), icon: "dashboard" };
-  const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "parts" };
-  const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "reports" };
+  const cashflow: NavItemData = { href: "/cashflow", label: t("cash.nav", locale), icon: "trending" };
+  const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "receipt" };
+  const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "percent" };
   // Hand the books over (FR-17.2). Last among the money screens on both sides, because it
   // is the end of the month rather than part of running it — and the only one of them a
   // FARM ever sees, which is why it is declared outside `booksItems`. `download` is the
   // banking glyph, which no farm-side nav shows, so the two never appear side by side.
-  const accounting: NavItemData = { href: "/accounting", label: t("nav.accounting", locale), icon: "download" };
+  const accounting: NavItemData = { href: "/accounting", label: t("nav.accounting", locale), icon: "calculator" };
   // Did this month make money, who owes me, who do I owe (0460). Sits FIRST among the
   // money screens because it is the one you open without a document in mind.
-  const money: NavItemData = { href: "/money", label: t("nav.money", locale), icon: "reports" };
+  const money: NavItemData = { href: "/money", label: t("nav.money", locale), icon: "cash" };
   // Bills that go out on their own (G8). The failure it prevents is forgetting, so it
   // sits with the other money screens rather than in a settings corner.
-  const recurring: NavItemData = { href: "/recurring", label: t("nav.recurring", locale), icon: "documents" };
+  const recurring: NavItemData = { href: "/recurring", label: t("nav.recurring", locale), icon: "repeat" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
   // A partner's own client book (F15) — their whole customer list, not only the farms
   // that happened to find them.
@@ -222,7 +222,7 @@ export default async function AppLayout({
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
   const settings: NavItemData = { href: "/settings", label: t("nav.settings", locale), icon: "settings" };
-  const apiTokens: NavItemData = { href: "/settings/api", label: t("nav.apiTokens", locale), icon: "settings" };
+  const apiTokens: NavItemData = { href: "/settings/api", label: t("nav.apiTokens", locale), icon: "key" };
   // Every role, including drivers and contractors: putting it on the phone is the
   // point of an offline-first product, and it was reachable from nowhere.
   const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
@@ -230,8 +230,8 @@ export default async function AppLayout({
   // else's on the farm side — a manager runs the fleet, they do not hold the card — so
   // this is gated on the role rather than on a plan entitlement. The route re-checks it
   // server-side; hiding a nav item is not access control.
-  const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "reports" };
-  const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "admin" };
+  const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "card" };
+  const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "repeat" };
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).

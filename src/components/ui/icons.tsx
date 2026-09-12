@@ -376,6 +376,100 @@ export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
 
 /** String-keyed icon lookup — lets server components pass a serializable
  *  `name` across the client boundary (nav config) instead of a component. */
+/* ── Finance and account glyphs ──────────────────────────────────────────────
+   Added because the nav had five rows sharing the `reports` glyph, four sharing
+   `dashboard` and three each sharing `parts`, `documents` and `download`.
+   Adjacent rows with one icon read as repeated entries, which is what "duplicate
+   options in the side panel" turned out to be. The unused glyphs in this file
+   (square, stop, trash, pin) are not semantic stand-ins for VAT or Cash flow, so
+   the honest fix is more icons, not a reshuffle. */
+
+export const PercentIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 19 19 5" />
+    <circle cx="7.5" cy="7.5" r="2.5" />
+    <circle cx="16.5" cy="16.5" r="2.5" />
+  </Svg>
+);
+
+export const BankIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 10 12 4.5 21 10" />
+    <path d="M5.5 10v8M10 10v8M14 10v8M18.5 10v8" />
+    <path d="M3 21h18" />
+  </Svg>
+);
+
+export const CashIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2.5" y="6.5" width="19" height="11" rx="2" />
+    <circle cx="12" cy="12" r="2.5" />
+    <path d="M6 10.5v3M18 10.5v3" />
+  </Svg>
+);
+
+export const TrendingIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 17.5 9 11.5l3.5 3.5L21 6.5" />
+    <path d="M15.5 6.5H21V12" />
+  </Svg>
+);
+
+export const ReceiptIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h12v18l-3-1.7-3 1.7-3-1.7L6 21V3Z" />
+    <path d="M9.5 8.5h5M9.5 12.5h5" />
+  </Svg>
+);
+
+export const RepeatIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 12a8.5 8.5 0 0 1 14.2-6.3" />
+    <path d="M18 2.5V6h-3.5" />
+    <path d="M20.5 12a8.5 8.5 0 0 1-14.2 6.3" />
+    <path d="M6 21.5V18h3.5" />
+  </Svg>
+);
+
+export const CartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 4h2l2.2 9.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.2L19.5 7H6" />
+    <circle cx="9" cy="19" r="1.5" />
+    <circle cx="17" cy="19" r="1.5" />
+  </Svg>
+);
+
+export const CorrectionIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19 13v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h7" />
+    <path d="M14.5 10.5 21 4l-2-2-6.5 6.5-.5 3 3-.5Z" />
+  </Svg>
+);
+
+export const CardIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+    <path d="M2.5 10h19" />
+    <path d="M6.5 14.5h4" />
+  </Svg>
+);
+
+export const KeyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M10.8 12.2 20 3" />
+    <path d="M16.5 6.5 19 9M14.5 8.5 17 11" />
+  </Svg>
+);
+
+export const CalculatorIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4.5" y="2.5" width="15" height="19" rx="2" />
+    <rect x="7.5" y="5.5" width="9" height="3.5" rx="1" />
+    <path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01" />
+  </Svg>
+);
+
 export const iconByName = {
   dashboard: DashboardIcon,
   machines: MachinesIcon,
@@ -411,6 +505,17 @@ export const iconByName = {
   inbox: InboxIcon,
   signout: SignOutIcon,
   trash: TrashIcon,
+  calculator: CalculatorIcon,
+  percent: PercentIcon,
+  bank: BankIcon,
+  cash: CashIcon,
+  trending: TrendingIcon,
+  receipt: ReceiptIcon,
+  repeat: RepeatIcon,
+  cart: CartIcon,
+  correction: CorrectionIcon,
+  card: CardIcon,
+  key: KeyIcon,
   "chevron-right": ChevronRightIcon,
   "chevron-left": ChevronLeftIcon,
   "chevron-down": ChevronDownIcon,

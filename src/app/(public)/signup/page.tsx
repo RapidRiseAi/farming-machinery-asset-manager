@@ -96,7 +96,7 @@ export default async function SignUpPage({
 
         {/* Step 2 — who they are. On the kit's Field/Input, which carry the 48px floor,
             real labels that stay put, and `aria-invalid` wiring. The hand-rolled inputs
-            this replaces used `bg-surface-1`, a token committed config never defined, so
+            this replaces used `bg-surface`, a token committed config never defined, so
             they had no background at all in production. */}
         <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
           {step(2, t("signup.stepDetails", locale))}

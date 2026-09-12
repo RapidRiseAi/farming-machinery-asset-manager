@@ -90,7 +90,7 @@ export default async function LandingPage() {
       <section className="mx-auto mt-12 grid max-w-4xl gap-4 sm:mt-16 sm:grid-cols-3">
         {points.map((k) => (
           <div key={k} className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-brand-50 text-brand-ink">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-brand-tint text-brand-ink">
               <Tick />
             </span>
             <h2 className="mt-3 font-semibold text-sand-900">

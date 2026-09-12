@@ -76,7 +76,7 @@ export default async function ActivatePage({
         <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
       </div>
 
-      <div className="rounded-2xl border border-sand-300 bg-surface-1 p-6">
+      <div className="rounded-2xl border border-sand-300 bg-surface p-6">
         <h1 className="text-2xl font-semibold">{t("activate.title", locale)}</h1>
         <p className="mt-2 text-sand-700">{t("activate.lead", locale)}</p>
 
