@@ -2912,4 +2912,57 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Both CI jobs green on `bcbd39c`**; production unchanged at 3 farms / 15 machines /
     6 invoices, its one filed supplier untouched.
 
+
+- **Email has actually sent, the guard that hid it for weeks is fixed, and 24 server
+  modules became testable** (commits `0faedd8`/`426ec76`/`eabf53b` on `main`; CI green
+  throughout):
+  - **PROVEN, not assumed.** A real receipt for `FW-2026-000023` was rendered from the
+    invoice's own frozen snapshot, emailed through the real `sendEmail` path, and Resend
+    reports **`last_event: delivered`**. `rapidriseai.com` is verified there and matches
+    `EMAIL_FROM`. Nothing on production moved to do it — the send bypassed
+    `sendDueReceipts`, so no claim was taken and no row changed. "Email has never actually
+    sent" had been on the open list for weeks; it is closed.
+  - **Why it stayed open.** `emailConfigured()` was `Boolean(process.env.RESEND_API_KEY)`,
+    and `vercel pull` CANNOT decrypt secrets — it writes the literal string `[SENSITIVE]`,
+    which is perfectly truthy. So the product reported email as configured, Resend rejected
+    every call, and the nightly pass stamped `receipt_sent_at` on **six invoices whose
+    receipts had never left the building**. All six still read as sent, with a null error.
+    `EMAIL_FROM` was never checked at all, and both senders fall back to an invented address
+    on an unverified domain — a fallback that CANNOT work, which converts one loud
+    configuration error into a silent per-message rejection.
+  - `emailConfigProblem()` now names the fault (missing / placeholder / not a Resend key /
+    not an address) and `emailConfigured()` is its boolean. The guard also lives INSIDE
+    `sendEmail`, because that is reachable on its own. Six tests, opening with the literal
+    `[SENSITIVE]` and closing with the positive control — without which a guard that refused
+    everything would look like a pass.
+  - **The nightly pass now diagnoses the deployment.** `receipts: skipped
+    (email-not-configured)` became `… (email-not-configured: RESEND_API_KEY is a
+    placeholder, not a key)`, recorded in the `cron_runs` ledger rather than returned to a
+    scheduler nobody reads — so the next 03:20 run answers "can production email?" by
+    itself. Only the internal reason strings changed; the user-facing `email-not-configured`
+    CODE that `lib/errors.ts` resolves is untouched. Its two tests hand both senders a
+    Supabase client that THROWS on any access, pinning that a pass which cannot send also
+    does not query for work first.
+  - **`server-only` no longer blocks unit testing.** It is a build-time marker Next resolves
+    through its own bundler alias, so a plain node process cannot load ANY module importing
+    it — **24 modules under `src/`**, every billing, email and PDF module of consequence,
+    none of which could be unit-tested at all. `scripts/test.mjs` now registers a shim for
+    the test process only, deliberately NOT a stub in `node_modules`, which would disarm the
+    guard for the real build; both the ESM resolve hook and the CJS require path are patched,
+    because tsx transpiles to CommonJS and the ESM hook never sees the specifier. **253
+    tests, up from 245.**
+  - **The status checklist had drifted again.** Its own header warns that an earlier revision
+    marked eighteen shipped features as not started; within a fortnight three of the four
+    remaining ❌ items had shipped (audit location, document packs, accounting export) and a
+    🟡 still deferred a billing engine that had been charging real cards for a week. Corrected
+    against the code, each line now carrying the file or migration that settles it. **Exactly
+    one item is genuinely not started: FR-19.4, a self-hosted licence SKU**, which is a
+    packaging decision rather than code.
+  - **Still needing the founder, and only the founder**: set `RESEND_API_KEY`, `EMAIL_FROM`
+    and `NEXT_PUBLIC_SITE_URL` in Vercel **Production** (the nightly ledger will now say
+    plainly whether they are right); clear the Paystack **Starter Business R80 000 lifetime
+    cap**; and decide what a LOST dispute does to a subscription — `charge.dispute.*` still
+    raises an alert and moves nothing in the ledger, and South Africa gives roughly 48
+    business hours before Paystack accepts it on your behalf.
+
 > Update this "current status" block at the end of every session.
