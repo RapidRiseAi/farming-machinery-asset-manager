@@ -63,6 +63,57 @@ function walk(dir, out = []) {
   return out;
 }
 
+
+/**
+ * The DARK token values, read from globals.css rather than copied here — the
+ * same reason `DEFINED` parses the config: a hand-kept copy drifts, and
+ * catching drift is this file's whole job. Returns `{ ink: "#f7f3e8", ... }`.
+ */
+const cssPath = join(SRC, "app", "globals.css");
+const DARK = (() => {
+  const css = existsSync(cssPath) ? readFileSync(cssPath, "utf8") : "";
+  // The explicit-choice block, which is the one a themed screenshot renders.
+  const m = css.match(/:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/);
+  const out = {};
+  if (m)
+    for (const d of m[1].matchAll(/--([a-z0-9-]+):\s*(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})\s*;/g))
+      out[d[1]] =
+        "#" + [d[2], d[3], d[4]].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  return out;
+})();
+
+/** A dark token by name, or a loud marker so a missing one FAILS rather than passes. */
+const dk = (name) => DARK[name] ?? "#MISSING";
+
+/**
+ * The dark theme is declared twice — under `@media (prefers-color-scheme: dark)`
+ * for the system default, and under `[data-theme="dark"]` for an explicit
+ * choice. A token written into one and not the other gives a user whose OS is
+ * dark a different product from one who pressed the button. Parses the media
+ * block the same way and reports any token the two disagree about.
+ */
+const DARK_MEDIA = (() => {
+  const css = existsSync(cssPath) ? readFileSync(cssPath, "utf8") : "";
+  const m = css.match(/:root:not\(\[data-theme="light"\]\)\s*\{([\s\S]*?)\n\s{2}\}/);
+  const out = {};
+  if (m)
+    for (const d of m[1].matchAll(/--([a-z0-9-]+):\s*(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})\s*;/g))
+      out[d[1]] =
+        "#" + [d[2], d[3], d[4]].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  return out;
+})();
+
+const darkBlockDrift = (() => {
+  const names = new Set([...Object.keys(DARK), ...Object.keys(DARK_MEDIA)]);
+  const bad = [];
+  for (const n of names) {
+    const a = DARK[n];
+    const b = DARK_MEDIA[n];
+    if (a !== b) bad.push(`--${n}: [data-theme] ${a ?? "absent"} vs @media ${b ?? "absent"}`);
+  }
+  return bad;
+})();
+
 const twSrcPath = join(ROOT, "tailwind.config.ts");
 const files = existsSync(SRC) ? walk(SRC) : [];
 const rel = (p) => relative(ROOT, p).split(sep).join("/");
@@ -212,6 +263,49 @@ const CONTRACT = [
   ["status-due on cream", "#8a5e05", BRAND.cream, 4.5],
   ["status-overdue on cream", "#b3201f", BRAND.cream, 4.5],
   ["status-ok on cream", BRAND.green, BRAND.cream, 4.5],
+
+  // ── The dark theme ────────────────────────────────────────────────────────
+  //
+  // Everything above is LIGHT: every pair is "on cream", "on white", or a brand
+  // fill. Nothing validated the dark theme, and that single gap is how all of
+  // the following shipped at once while this gate reported 12/12 pass:
+  //
+  //   the selected nav row          1.04:1   bg-gold-50 under an inverting --ink
+  //   every gold CTA                2.12:1   text-sand-950 inverts to white
+  //   table row dividers            1.03:1   divide-sand-100 on a charcoal card
+  //   every status pill ground   1.01-1.09   tuned against white
+  //   ten panels                    no background at all (bg-surface-1)
+  //
+  // A token that must stay legible needs a token AND a test. These are the dark
+  // values, written literally: if globals.css changes one and the pair stops
+  // clearing its threshold, this fails the build.
+  //
+  // --surface 29 33 29 = #1d211d, --surface-raised 39 44 39 = #272c27.
+  ["dark: ink on card surface", dk("ink"), dk("surface"), 4.5],
+  ["dark: ink on page ground", dk("ink"), dk("surface-raised"), 4.5],
+  ["dark: ink-muted on card surface", dk("ink-muted"), dk("surface"), 4.5],
+  ["dark: ink-subtle on card surface", dk("ink-subtle"), dk("surface"), 4.5],
+  ["dark: brand-ink as text on surface", dk("brand-ink"), dk("surface"), 4.5],
+  ["dark: selected nav row ink on accent-tint", dk("ink"), dk("accent-tint"), 4.5],
+  ["dark: selected nav icon on accent-tint", dk("accent-ink"), dk("accent-tint"), 3.0],
+  ["dark: accent-on-fill on the gold fill", dk("accent-on-fill"), dk("accent"), 4.5],
+  ["dark: edge as control border on surface", dk("edge"), dk("surface"), 3.0],
+  // Dividers and hovers are not text: they must be SEEN, not read. The
+  // thresholds are deliberately low, and deliberately not zero — the values
+  // these replaced sat at 1.03:1 and 1.11:1, which is invisible.
+  ["dark: edge-soft divider visible on surface", dk("edge-soft"), dk("surface"), 1.5],
+  ["dark: row hover distinct from surface", dk("row-hover"), dk("surface"), 1.2],
+  ["dark: ok pill ground on surface", dk("callout-ok-bg"), dk("surface"), 1.25],
+  ["dark: warn pill ground on surface", dk("callout-warn-bg"), dk("surface"), 1.25],
+  ["dark: danger pill ground on surface", dk("callout-danger-bg"), dk("surface"), 1.25],
+  ["dark: info pill ground on surface", dk("callout-info-bg"), dk("surface"), 1.25],
+  ["dark: ok ink on its pill", dk("callout-ok-ink"), dk("callout-ok-bg"), 4.5],
+  ["dark: warn ink on its pill", dk("callout-warn-ink"), dk("callout-warn-bg"), 4.5],
+  ["dark: danger ink on its pill", dk("callout-danger-ink"), dk("callout-danger-bg"), 4.5],
+  ["dark: info ink on its pill", dk("callout-info-ink"), dk("callout-info-bg"), 4.5],
+  ["dark: status-ok as text on surface", dk("status-ok"), dk("surface"), 4.5],
+  ["dark: status-due as text on surface", dk("status-due"), dk("surface"), 4.5],
+  ["dark: status-overdue as text on surface", dk("status-overdue"), dk("surface"), 4.5],
 ];
 const contrastFails = CONTRACT.filter(([, a, b, need]) => ratio(a, b) < need);
 
@@ -254,7 +348,13 @@ if (!QUIET) {
   console.log(`\n${"─".repeat(64)}\n  Contrast contract: ${CONTRACT.length - contrastFails.length}/${CONTRACT.length} pass`);
   for (const [name, a, b, need] of contrastFails)
     console.log(`    FAIL ${name} — ${ratio(a, b).toFixed(2)}:1, need ${need}`);
+  if (darkBlockDrift.length) {
+    console.log(`  Dark-theme blocks disagree on ${darkBlockDrift.length} token(s):`);
+    for (const d of darkBlockDrift) console.log(`    ${d}`);
+  } else {
+    console.log("  Dark-theme blocks agree");
+  }
   console.log(`  Violations: ${violations.length}\n`);
 }
 
-process.exit(violations.length || contrastFails.length ? 1 : 0);
+process.exit(violations.length || contrastFails.length || darkBlockDrift.length ? 1 : 0);
