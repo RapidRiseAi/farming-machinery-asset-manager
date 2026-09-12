@@ -91,7 +91,15 @@ const exempt = (rule, file) =>
 const DEFINED = (() => {
   const out = {};
   const src = existsSync(twSrcPath) ? readFileSync(twSrcPath, "utf8") : "";
-  for (const family of ["brand", "gold", "sand", "danger", "status", "callout"]) {
+  for (const family of [
+    "brand", "gold", "sand", "danger", "status", "callout",
+    // The SEMANTIC families were missing, which is how `bg-surface-1` survived in
+    // ten places across six files: the colours map defines surface as
+    // DEFAULT/raised/sunken/hover, so `bg-surface-1` compiled to nothing and every
+    // panel using it painted no background at all. Rule 9 could not see it because
+    // it never looked at this family.
+    "surface", "ink", "edge", "accent",
+  ]) {
     const m = src.match(new RegExp(`\\b${family}:\\s*\\{([\\s\\S]*?)\\n\\s*\\},`));
     const keys = new Set();
     if (m) for (const k of m[1].matchAll(/^\s*"?([a-zA-Z0-9-]+)"?:\s*"/gm)) keys.add(k[1]);
@@ -170,7 +178,7 @@ for (const f of files) {
     //     real: `status-warn` and `status-bad` were used 19 times across 13
     //     files and defined in no version of the config, so the cells meant to
     //     read as a caution rendered as ordinary body text.
-    for (const m of ln.matchAll(/\b(?:text|bg|border|ring|fill|stroke)-(status|brand|gold|sand|danger|callout)-([a-z0-9-]+)/g)) {
+    for (const m of ln.matchAll(/\b(?:text|bg|border|ring|fill|stroke|divide)-(status|brand|gold|sand|danger|callout|surface|ink|edge|accent)-([a-z0-9-]+)/g)) {
       if (!DEFINED[m[1]]?.has(m[2])) add("unknown-token", f, n, `${m[0]} — no such token`);
     }
   });

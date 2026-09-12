@@ -5,7 +5,9 @@ export type BadgeTone = "neutral" | "brand" | "ok" | "warning" | "danger" | "inf
 
 // Tint bg + dark text — every pairing clears WCAG-AA on the tint.
 const TONES: Record<BadgeTone, string> = {
-  neutral: "bg-sand-100 text-sand-700",
+  // bg-sand-100 is 26 30 26 in dark - 1.03:1 against the card, so the chip had
+  // no visible ground. --row-hover is a deliberate step in both themes.
+  neutral: "bg-surface-hover text-ink-muted",
   brand: "bg-brand-tint text-brand-ink",
   ok: "bg-callout-ok-bg text-callout-ok-ink",
   warning: "bg-callout-warn-bg text-callout-warn-ink",
@@ -121,7 +123,7 @@ function ShapeGlyph({ shape, className }: { shape: StatusShape; className?: stri
 
 /** Colour of the shape itself — stronger than the label, so it reads at a glance. */
 const SHAPE_INK: Record<BadgeTone, string> = {
-  neutral: "text-sand-500",
+  neutral: "text-ink-muted",
   brand: "text-brand-ink",
   ok: "text-status-ok",
   warning: "text-status-due",

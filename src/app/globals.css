@@ -201,10 +201,10 @@
 
 
     /* Deep tint of the hue, with its light end as the text. */
-    --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
-    --callout-warn-bg: 46 36 9;     --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
-    --callout-ok-bg: 18 38 27;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
-    --callout-info-bg: 36 40 36;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
+    --callout-danger-bg: 78 40 39;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
+    --callout-warn-bg: 66 51 13;    --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
+    --callout-ok-bg: 28 58 41;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
+    --callout-info-bg: 52 58 52;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
 
     --status-ok: 95 170 132;
     --status-due: 234 165 12;
@@ -270,10 +270,10 @@
     inset 0 1px 0 0 rgb(255 255 255 / 0.06);
 
   /* Deep tint of the hue, with its light end as the text. */
-  --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
-  --callout-warn-bg: 46 36 9;     --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
-  --callout-ok-bg: 18 38 27;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
-  --callout-info-bg: 36 40 36;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
+  --callout-danger-bg: 78 40 39;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
+  --callout-warn-bg: 66 51 13;    --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
+  --callout-ok-bg: 28 58 41;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
+  --callout-info-bg: 52 58 52;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
 
   --status-ok: 95 170 132;
   --status-due: 234 165 12;
