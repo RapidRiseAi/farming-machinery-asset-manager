@@ -296,11 +296,24 @@ names the deadline because the deadline is the whole point: South Africa gives r
 **48 business hours** to respond before Paystack accepts the dispute on our behalf and
 takes the amount out of a payout. Both alerts skip quiet hours, for that reason.
 
-**What is deliberately not built:** a refund does not write a negative payment into
-`billing_payments`, so the ledger still shows the invoice as paid. The partner side does
-model refunds that way (`0422`) and the SaaS side could follow, but it needs a decision
-about what a part-refund means for a period that has already been supplied. Until then the
-alert is the record, and the Paystack dashboard is the source of truth for the money.
+**A refund DOES move the ledger** (`20260911210000`). `refund.processed` calls
+`app.billing_record_refund`, which writes a **negative payment** row; the existing rollup
+then lowers `amount_paid_cents` and the invoice falls back out of `paid`. It is idempotent
+on the refund reference, so a redelivered webhook records it once.
+
+That last part was the trap, and it is worth knowing about before touching any of this: a
+negative payment makes the invoice unpaid, and an unpaid invoice is what the nightly
+charging shortlist looks for. Recording the refund on its own would have refunded a
+customer at nine in the morning and charged them again at 03:20 the next day. So both
+shortlists refuse an invoice carrying a refund — derived from the payment row itself, not
+from a flag, for the same reason `status` is a rollup and never typed.
+
+**What is still deliberately not automatic:** the SUBSCRIPTION, per the table above — a
+webhook cannot tell why the money went back. And **disputes move nothing at all yet**: a
+`charge.dispute.*` event raises its alert and does not touch the ledger, because what a LOST
+dispute should do to a subscription is an open founder decision. The mechanism it would need
+already exists, though — a lost dispute is economically a refund, so `billing_record_refund`
+would give it both halves (a truthful ledger, and no re-charge) without new machinery.
 
 ## 12. The kill switch
 
