@@ -197,8 +197,8 @@
     "noAccount": "New to FleetWise?",
     "startTrial": "Set up your farm",
     "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment — your farm and your invoice are waiting.",
-    "signInTitle": "Sign in",
     "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it — this takes a second.",
+    "signInTitle": "Sign in",
     "resetPassword": "Set a new password instead",
     "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes."
   },
@@ -725,7 +725,8 @@
     "qrLabelsMarked": "Marked — the stickers are on the machines.",
     "deniedTitle": "That part is for the farm office",
     "deniedBody": "You don't have the keys to that page. Here's what you can do.",
-    "language": "Language"
+    "language": "Language",
+    "back": "Back"
   },
   "jobType": {
     "scheduled_service": "Scheduled service",
@@ -1014,6 +1015,9 @@
     "auditPack": "Audit pack"
   },
   "faults": {
+    "pages": "Fault list pages",
+    "previousPage": "Previous active faults",
+    "nextPage": "Next active faults",
     "title": "Faults",
     "report": "Report a fault",
     "machine": "Machine",
@@ -1270,6 +1274,23 @@
     "setupOpen": "Open the setup list"
   },
   "offline": {
+    "mediaTooLarge": "Use a JPEG, PNG or WebP photo under 6 MB and a voice note under 8 MB. Remove or replace the attachment, then try again.",
+    "review": "Review saved captures",
+    "reviewHelp": "These captures are stored on this device. Retry when connected. A rejected capture or conflict stays here: check the machine or job card, export a backup if needed, then record any correction before removing the saved copy. Exports include media and may contain private information.",
+    "storageFailed": "Could not save or read this device's drafts. Your form has not been cleared. Keep it open and try again when connected.",
+    "otherAccount": "Other captures belong to a different account or were saved before account tracking. Sign in to the original account; older unowned captures need support review and will not be submitted automatically.",
+    "retryAll": "Retry saved captures",
+    "emptyQueue": "No saved captures for this account or public QR pages.",
+    "needsReview": "This capture needs review. It has not been discarded. Check permissions, the current reading or whether the job card was locked before recording a correction.",
+    "exportCapture": "Download capture backup",
+    "removeCopy": "Remove saved copy",
+    "removeConfirm": "Remove this capture and its media from this device? Do this only after confirming it was saved correctly or downloading a backup. This cannot be undone.",
+    "types": {
+      "log_reading": "Meter reading",
+      "report_fault": "Fault report",
+      "add_job_line": "Job-card entry",
+      "complete_job": "Job completion"
+    },
     "online": "Online",
     "offline": "Offline",
     "syncing": "Syncing…",
@@ -2062,8 +2083,8 @@
     "otherTitle": "How to install it",
     "otherSteps": "Open the browser menu (the three dots)\nTap “Install app” or “Add to Home screen”\nConfirm — FleetWise is now on your home screen",
     "offlineTitle": "What works without signal",
-    "offline": "Opening the app and seeing what you looked at last\nReporting a problem on a machine\nWriting down hours or kilometres\nRecording diesel you put in",
-    "offlineNote": "Anything you capture without signal is kept on the phone and sent on its own the moment you are back in range. You do not have to remember to do anything.",
+    "offline": "Opening previously loaded pages\nReporting a problem on a machine\nWriting down hours or kilometres\nAdding job-card entries on previously loaded forms",
+    "offlineNote": "Supported captures are kept on this device and retried when you reconnect. Check the sync indicator and review anything still waiting. Fuel capture and pages you have not opened need a connection.",
     "nav": "Install the app"
   },
   "tour": {

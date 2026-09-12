@@ -36,7 +36,7 @@ export default function AppError({
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-6">
       <Card>
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 shrink-0 text-[1.5rem] text-status-overdue">
+          <span className="mt-0.5 shrink-0 text-2xl text-status-overdue">
             <WarningIcon />
           </span>
           <div className="min-w-0">

@@ -42,7 +42,7 @@ export function LifecycleActions({
         button with a red line of text.
       */}
       {noMeter ? (
-        <p className="flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-status-due">
+        <p className="flex flex-wrap items-center gap-1.5 rounded-lg bg-callout-warn-bg px-3 py-2.5 text-sm text-status-due">
           <span className="font-semibold">{t("jobcards.beforeFinish", locale)}</span>
           <span className="text-sand-700">{t("jobcards.needMeterOut", locale)}</span>
         </p>

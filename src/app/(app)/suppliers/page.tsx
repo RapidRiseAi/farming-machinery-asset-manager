@@ -221,7 +221,7 @@ export default async function SuppliersPage({
                           account" is the action, and a bare name does not look like one. */}
                       <Link
                         href={`/suppliers/${row.id}`}
-                        className="focus-ring inline-flex min-h-[2.75rem] items-center rounded text-sm font-medium text-brand-700 underline-offset-2 hover:underline sm:min-h-0"
+                        className="focus-ring inline-flex min-h-[2.75rem] items-center rounded text-sm font-medium text-brand-ink underline-offset-2 hover:underline sm:min-h-0"
                       >
                         {t("supplier.openAccount", locale)}
                       </Link>
@@ -229,7 +229,7 @@ export default async function SuppliersPage({
                   </div>
 
                   <details className="text-sm">
-                    <summary className="focus-ring inline-flex min-h-[2.75rem] cursor-pointer items-center font-medium text-brand-700 sm:min-h-0">
+                    <summary className="focus-ring inline-flex min-h-[2.75rem] cursor-pointer items-center font-medium text-brand-ink sm:min-h-0">
                       {t("supplier.editOpen", locale)}
                     </summary>
 
@@ -288,7 +288,7 @@ export default async function SuppliersPage({
                         triggerIcon={<TrashIcon />}
                         triggerVariant="ghost"
                         triggerSize="sm"
-                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("supplier.deleteTitle", locale)}
                         intro={row.name}
                         consequencesTitle={t("confirm.whatHappens", locale)}

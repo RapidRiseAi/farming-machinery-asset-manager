@@ -137,7 +137,7 @@ export default async function FinesPage({
       <li key={f.id} className="rounded-lg border border-sand-200 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <Link href={`/machines/${f.machine_id}`} className="focus-ring rounded font-medium text-brand-700 hover:underline">
+            <Link href={`/machines/${f.machine_id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">
               {machineLabel(f.machine_id)}
             </Link>
             <p className="mt-0.5 text-sm text-sand-700">
@@ -177,7 +177,7 @@ export default async function FinesPage({
             {/* Identify / re-assign the driver */}
             {nominationPending(f.status) ? (
               <details>
-                <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("fines.identifyDriver", locale)}</summary>
+                <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("fines.identifyDriver", locale)}</summary>
                 <form action={identifyDriver} className="mt-2 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="id" value={f.id} />
                   <Field label={t("fines.driver", locale)} htmlFor={`d-${f.id}`}>
@@ -203,7 +203,7 @@ export default async function FinesPage({
                 triggerSize="sm"
                 triggerIcon={<TrashIcon />}
                 triggerLabel={t("common.delete", locale)}
-                triggerClassName="text-status-overdue hover:bg-red-50"
+                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                 title={t("confirm.deleteFineTitle", locale)}
                 intro={t("confirm.deleteFineIntro", locale)
                   .replace("{notice}", f.notice_number ?? "—")
@@ -271,10 +271,10 @@ export default async function FinesPage({
             <div className="mt-3">
               {/* Suggestion result. */}
               {topSuggestion ? (
-                <p className="mb-3 rounded-lg bg-brand-50 p-3 text-sm text-brand-900">
+                <p className="mb-3 rounded-lg bg-brand-tint p-3 text-sm text-brand-ink">
                   {t("fines.suggested", locale)}:{" "}
                   <span className="font-semibold">{suggestionNames.join(", ")}</span>
-                  <span className="text-brand-700/70"> · {machineLabel(sm)} · {sd}</span>
+                  <span className="text-brand-ink/70"> · {machineLabel(sm)} · {sd}</span>
                 </p>
               ) : (
                 <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-600">{t("fines.noSuggestion", locale)}</p>

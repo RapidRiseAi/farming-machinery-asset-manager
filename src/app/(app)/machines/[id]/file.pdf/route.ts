@@ -1,12 +1,13 @@
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
 
 export const dynamic = "force-dynamic";
 
 type Machine = {
-  id: string; name: string; type: string; make: string | null; model: string | null; year: number | null;
+  id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null; year: number | null;
   serial_no: string | null; reg_no: string | null; meter_type: string; current_reading: number | null;
   current_reading_date: string | null; status: string;
 };
@@ -24,13 +25,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = await createClient();
   const { data } = await supabase
     .from("machines")
-    .select("id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status")
     .eq("id", id).is("deleted_at", null).maybeSingle();
   const m = data as Machine | null;
   if (!m) return new Response("Not found", { status: 404 });
+  const costsVisible = await canViewFarmCosts(supabase, m.farm_id);
 
   const [{ data: jcData }, { data: planData }, { data: faultData }, { data: readingData }, { data: watchData }] = await Promise.all([
-    supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("service_plan_lines").select("task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     supabase.from("faults").select("description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("meter_readings").select("reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(30),
@@ -56,9 +58,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   pdf.kv("Current meter", m.current_reading != null ? `${m.current_reading} ${m.meter_type} (${dash(m.current_reading_date)})` : "—");
 
   pdf.heading("Lifetime stats");
-  pdf.kv("Total spend (ex-VAT)", rands(totalSpend));
+  if (costsVisible) pdf.kv("Total spend (ex-VAT)", rands(totalSpend));
   pdf.kv("Job cards", String(jobCards.length));
-  pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "—");
+  if (costsVisible) pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "—");
 
   pdf.heading("Service plan");
   if (plan.length === 0) pdf.text("No service plan.");
@@ -76,11 +78,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   pdf.heading("Job card history");
   if (jobCards.length === 0) pdf.text("No job cards.");
-  else pdf.table(
+  else if (costsVisible) pdf.table(
     ["Date", "Type", "Status", "Total"],
     jobCards.map((j) => [j.date_out ?? j.created_at.slice(0, 10), j.type.replace(/_/g, " "), j.status.replace(/_/g, " "), rands(j.total_cents)]),
     [110, 160, 130, 99],
     [false, false, false, true],
+  );
+  else pdf.table(
+    ["Date", "Type", "Status"],
+    jobCards.map((j) => [j.date_out ?? j.created_at.slice(0, 10), j.type.replace(/_/g, " "), j.status.replace(/_/g, " ")]),
+    [130, 210, 159],
   );
 
   pdf.heading("Fault history");

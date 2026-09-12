@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Photo } from "@/components/ui/photo";
 import { useRouter } from "next/navigation";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
@@ -246,8 +247,9 @@ export function ChecklistForm({
                 <div className="flex items-center gap-3">
                   {photos[field.id] ? (
                     <span className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photos[field.id].preview} alt={field.label} className="h-20 w-20 rounded-lg object-cover ring-1 ring-sand-200" />
+                      {/* A local object URL, but it still needs a reserved box —
+                          without one the form jumps as the preview appears. */}
+                      <Photo src={photos[field.id].preview} alt={field.label} size="thumb" priority className="h-20 w-20 rounded-lg ring-1 ring-sand-200" />
                       {/* Was a 24px icon-only "✕". Both halves of the house rule were
                           broken: under the 48px floor, and a glyph with no word. */}
                       <button

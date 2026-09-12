@@ -40,9 +40,9 @@ export function CopyField({
       <button
         type="button"
         onClick={copy}
-        className="focus-ring inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-300 bg-white px-3 text-sm font-medium text-sand-800 hover:bg-sand-50"
+        className="focus-ring inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-300 bg-surface px-3 text-sm font-medium text-sand-800 hover:bg-sand-50"
       >
-        {copied ? <CheckIcon className="text-[1.1rem] text-status-ok" /> : <CopyIcon className="text-[1.1rem]" />}
+        {copied ? <CheckIcon className="text-lg text-status-ok" /> : <CopyIcon className="text-lg" />}
         {copied ? copiedLabel : copyLabel}
       </button>
     </div>

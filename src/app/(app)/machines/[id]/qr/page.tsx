@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { requireProfile } from "@/lib/auth";
@@ -43,7 +44,7 @@ export default async function MachineQrPage({
     <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
       <div className="w-full print:hidden">
         <Link href={`/machines/${id}`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm text-sand-500">
-          <ChevronLeftIcon className="text-[1rem]" />
+          <ChevronLeftIcon className="text-base" />
           {machine.name}
         </Link>
       </div>
@@ -51,10 +52,10 @@ export default async function MachineQrPage({
       {sp.reissued ? (
         <Flash tone="success" message={t("qr.reissued", locale)} className="w-full print:hidden" />
       ) : null}
-      {sp.error ? <Flash tone="error" message={sp.error} className="w-full print:hidden" /> : null}
+      {sp.error ? <Flash tone="error" message={errorMessage(sp.error, locale)} className="w-full print:hidden" /> : null}
 
       {/* Print sheet */}
-      <div className="w-full rounded-2xl border border-sand-200 bg-white p-8 text-center shadow-card print:border-2 print:border-sand-900 print:shadow-none">
+      <div className="w-full rounded-2xl border border-sand-200 bg-surface p-8 text-center shadow-card print:border-2 print:border-sand-900 print:shadow-none">
         <h1 className="mb-1 text-2xl font-bold text-sand-900">{machine.name}</h1>
         <p className="mb-4 text-sm text-sand-500">{t("app.name", locale)}</p>
         <div className="mx-auto w-[260px]" dangerouslySetInnerHTML={{ __html: svg }} />

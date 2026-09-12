@@ -65,11 +65,11 @@ export function CommitmentCard({
       ) : (
         <>
           {short > 0 ? (
-            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+            <p className="mt-3 rounded-lg border border-callout-warn-edge bg-callout-warn-bg px-3 py-2 text-sm font-medium text-gold-800">
               {t("reorder.shortCount", locale).replace("{count}", num(short, 0))}
             </p>
           ) : (
-            <p className="mt-3 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900">
+            <p className="mt-3 rounded-lg border border-brand-100 bg-brand-tint px-3 py-2 text-sm font-medium text-brand-ink">
               {t("reorder.allCovered", locale)}
             </p>
           )}

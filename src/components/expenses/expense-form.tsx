@@ -162,7 +162,7 @@ export function ExpenseForm({
           <input
             type="checkbox"
             name="amount_incl_vat"
-            className="h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="h-5 w-5 rounded border-sand-300 text-brand-ink"
             checked={inclusive}
             onChange={(e) => setInclusive(e.target.checked)}
           />
@@ -201,7 +201,7 @@ export function ExpenseForm({
             type="checkbox"
             name="vat_claimable"
             defaultChecked
-            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
           />
           <span>
             {t("expenses.claimable", locale)}
@@ -224,7 +224,7 @@ export function ExpenseForm({
             type="file"
             name="receipt"
             accept="image/*,application/pdf"
-            className="focus-ring block w-full rounded-lg border border-sand-300 bg-white px-3 py-2.5 text-sm text-sand-700 file:mr-3 file:rounded-md file:border-0 file:bg-sand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sand-700"
+            className="focus-ring block w-full rounded-lg border border-sand-300 bg-surface px-3 py-2.5 text-sm text-sand-700 file:mr-3 file:rounded-md file:border-0 file:bg-sand-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sand-700"
           />
         </Field>
 

@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { vehicleSlotsFree } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import {
+  requireCurrentFarmRole,
+  requireFarmRole,
+  requireProfile,
+} from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
 import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
@@ -47,6 +51,18 @@ async function validOperatorId(
   raw: string | null,
 ): Promise<string | null> {
   if (!raw) return null;
+  const { data: membership } = await supabase
+    .from("user_farm_memberships")
+    .select("user_id")
+    .eq("user_id", raw)
+    .eq("farm_id", farmId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (membership) return raw;
+
+  // Compatibility fallback for a primary-farm user created before memberships were
+  // backfilled. Secondary-farm users are resolved by the authoritative row above.
   const { data } = await supabase
     .from("users")
     .select("id")
@@ -56,6 +72,19 @@ async function validOperatorId(
     .is("deleted_at", null)
     .maybeSingle();
   return data ? raw : null;
+}
+
+async function machineFarmId(
+  supabase: SupabaseClient,
+  machineId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("machines")
+    .select("farm_id")
+    .eq("id", machineId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return (data as { farm_id: string } | null)?.farm_id ?? null;
 }
 
 /** Extra optional machine fields shared by create + update. */
@@ -82,8 +111,10 @@ function extraFields(fd: FormData) {
 }
 
 export async function createMachine(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
-  if (!profile.farm_id) redirect("/machines?error=No+farm+context");
+  const { profile, farmId } = await requireCurrentFarmRole(
+    ["owner", "manager"],
+    "/machines?error=forbidden",
+  );
 
   const name = str(formData, "name");
   const type = String(formData.get("type") ?? "");
@@ -103,16 +134,16 @@ export async function createMachine(formData: FormData) {
   //
   // `null` means there is no ceiling on this farm (no quota was ever bought), which is
   // every farm that predates the quota model. It must never be read as "no room".
-  const free = await vehicleSlotsFree(supabase, profile.farm_id);
+  const free = await vehicleSlotsFree(supabase, farmId);
   if (free !== null && free < 1) {
     redirect("/machines/new?error=vehicle-limit-reached");
   }
 
-  const assigned_operator_id = await validOperatorId(supabase, profile.farm_id, str(formData, "assigned_operator_id"));
+  const assigned_operator_id = await validOperatorId(supabase, farmId, str(formData, "assigned_operator_id"));
   const { data, error } = await supabase
     .from("machines")
     .insert({
-      farm_id: profile.farm_id,
+      farm_id: farmId,
       name,
       type,
       make: str(formData, "make"),
@@ -137,7 +168,7 @@ export async function createMachine(formData: FormData) {
   // creation — the machine already exists.
   const attachmentId = await uploadMachinePhotoDataUrl(
     supabase,
-    profile.farm_id,
+    farmId,
     data.id,
     str(formData, "primary_photo_data"),
     profile.id,
@@ -151,9 +182,14 @@ export async function createMachine(formData: FormData) {
 }
 
 export async function updateMachine(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/machines?error=Missing+id");
+
+  const profile = await requireProfile();
+  const supabase = await createClient();
+  const farmId = await machineFarmId(supabase, id);
+  if (!farmId) redirect("/machines?error=not-found");
+  await requireFarmRole(farmId, ["owner", "manager"], `/machines/${id}?error=forbidden`, profile);
 
   const name = str(formData, "name");
   const type = String(formData.get("type") ?? "");
@@ -165,11 +201,11 @@ export async function updateMachine(formData: FormData) {
   const meterInput = String(formData.get("meter_type") ?? "hours");
   const meter_type = inList(METER_TYPES, meterInput) ? meterInput : "hours";
 
-  const supabase = await createClient();
-  // RLS scopes this to the caller's farm; profile.farm_id gates the operator select.
-  const assigned_operator_id = profile.farm_id
-    ? await validOperatorId(supabase, profile.farm_id, str(formData, "assigned_operator_id"))
-    : null;
+  const assigned_operator_id = await validOperatorId(
+    supabase,
+    farmId,
+    str(formData, "assigned_operator_id"),
+  );
   const { error } = await supabase
     .from("machines")
     .update({
@@ -185,7 +221,8 @@ export async function updateMachine(formData: FormData) {
       assigned_operator_id,
       ...extraFields(formData),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("farm_id", farmId);
 
   if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
 
@@ -196,14 +233,18 @@ export async function updateMachine(formData: FormData) {
 /** Return an out-of-service machine to `active` (FR-7.5 revert). Owner/manager only;
  *  RLS scopes the update to the caller's farm. Retired/sold are left untouched. */
 export async function returnMachineToService(formData: FormData) {
-  await requireRole(["owner", "manager"]);
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/machines?error=Missing+id");
+  const profile = await requireProfile();
   const supabase = await createClient();
+  const farmId = await machineFarmId(supabase, id);
+  if (!farmId) redirect("/machines?error=not-found");
+  await requireFarmRole(farmId, ["owner", "manager"], `/machines/${id}?error=forbidden`, profile);
   const { error } = await supabase
     .from("machines")
     .update({ status: "active" })
     .eq("id", id)
+    .eq("farm_id", farmId)
     .eq("status", "out_of_service");
   if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/machines/${id}`);
@@ -215,35 +256,60 @@ export async function returnMachineToService(formData: FormData) {
  *  caller's farm and the composite FK enforces same-farm at write. Owner/manager only.
  *  Refreshes the detail page + list (no redirect) so the gallery/badge flip in place. */
 export async function setPrimaryPhoto(formData: FormData) {
-  await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const attachmentId = String(formData.get("attachment_id") ?? "");
   if (!machineId || !attachmentId) return;
 
+  const profile = await requireProfile();
   const supabase = await createClient();
+  const farmId = await machineFarmId(supabase, machineId);
+  if (!farmId) return;
+  await requireFarmRole(
+    farmId,
+    ["owner", "manager"],
+    `/machines/${machineId}?error=forbidden`,
+    profile,
+  );
   const { data: att } = await supabase
     .from("attachments")
     .select("id")
     .eq("id", attachmentId)
     .eq("parent_type", "machine")
     .eq("parent_id", machineId)
+    .eq("farm_id", farmId)
     .eq("kind", "photo")
     .is("deleted_at", null)
     .maybeSingle();
   if (!att) return; // not this machine's photo — no-op
 
-  await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", machineId);
+  await supabase
+    .from("machines")
+    .update({ primary_attachment_id: attachmentId })
+    .eq("id", machineId)
+    .eq("farm_id", farmId);
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/machines");
 }
 
 /** Clear a machine's primary image (0280). Owner/manager only. */
 export async function clearPrimaryPhoto(formData: FormData) {
-  await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   if (!machineId) return;
+  const profile = await requireProfile();
   const supabase = await createClient();
-  await supabase.from("machines").update({ primary_attachment_id: null }).eq("id", machineId);
+  const farmId = await machineFarmId(supabase, machineId);
+  if (!farmId) return;
+  await requireFarmRole(
+    farmId,
+    ["owner", "manager"],
+    `/machines/${machineId}?error=forbidden`,
+    profile,
+  );
+  await supabase
+    .from("machines")
+    .update({ primary_attachment_id: null })
+    .eq("id", machineId)
+    .eq("farm_id", farmId);
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/machines");
 }
@@ -252,8 +318,10 @@ export async function clearPrimaryPhoto(formData: FormData) {
  *  re-parses and re-validates (the client preview is UX only) and inserts only
  *  the valid rows, farm-scoped. */
 export async function importMachines(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
-  if (!profile.farm_id) redirect("/machines?error=No+farm+context");
+  const { farmId } = await requireCurrentFarmRole(
+    ["owner", "manager"],
+    "/machines?error=forbidden",
+  );
 
   const csv = String(formData.get("csv") ?? "");
   if (!csv.trim()) redirect("/machines/import?error=No+CSV+provided");
@@ -265,21 +333,22 @@ export async function importMachines(formData: FormData) {
   if (valid.length === 0) redirect("/machines/import?error=No+valid+rows");
   if (valid.length > MAX_IMPORT_ROWS) redirect(`/machines/import?error=Too+many+rows`);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const supabase = await createClient();
-
-  // Refused BEFORE a single row is written. The trigger would abort the whole insert
-  // anyway — which is what makes an import all-or-nothing rather than a fleet that
-  // silently stops at the limit — but "50 rows into 10 free slots" is a different quality
-  // of answer from a constraint violation. Same rule read the same way: null is "no
-  // ceiling", not "no room".
-  const slotsFree = await vehicleSlotsFree(supabase, profile.farm_id);
+  // Refused BEFORE a single row is written, naming the shortfall. The trigger would abort
+  // the whole insert anyway — which is what makes an import all-or-nothing rather than a
+  // fleet that silently stops at the limit — but "50 rows into 10 free slots" is a
+  // different quality of answer from a constraint violation.
+  const importClient = await createClient();
+  // Same rule, read the same way: null is "no ceiling", not "no room".
+  const slotsFree = await vehicleSlotsFree(importClient, farmId);
   if (slotsFree !== null && valid.length > slotsFree) {
     redirect("/machines/import?error=vehicle-limit-import");
   }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const supabase = importClient;
   const { error } = await supabase.from("machines").insert(
     valid.map((m) => ({
-      farm_id: profile.farm_id,
+      farm_id: farmId,
       name: m.name,
       type: m.type,
       make: m.make,

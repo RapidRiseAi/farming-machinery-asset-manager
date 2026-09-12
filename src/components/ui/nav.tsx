@@ -21,7 +21,7 @@ function Badge({ count, className }: { count: number; className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-brand-600 px-1 text-[0.62rem] font-bold leading-none text-white",
+        "inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-brand-600 px-1 text-2xs font-bold leading-none text-white",
         className,
       )}
     >
@@ -54,12 +54,12 @@ export function NavLink({
         href={item.href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
-          active ? "text-brand-700" : "text-sand-500",
+          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-2xs font-medium",
+          active ? "text-brand-ink" : "text-sand-500",
         )}
       >
         <span className="relative">
-          <Icon name={item.icon} className="text-[1.4rem]" />
+          <Icon name={item.icon} className="text-xl" />
           {item.badge ? <Badge count={item.badge} className="absolute -right-2.5 -top-1.5" /> : null}
         </span>
         <span className="max-w-full truncate">{item.label}</span>
@@ -74,11 +74,11 @@ export function NavLink({
       className={cn(
         "focus-ring flex min-h-[48px] items-center gap-3 rounded-lg px-3 sm:min-h-[44px] text-sm font-medium transition-colors",
         active
-          ? "bg-brand-50 text-brand-700"
+          ? "bg-brand-tint text-brand-ink"
           : "text-sand-700 hover:bg-sand-100 hover:text-sand-900",
       )}
     >
-      <Icon name={item.icon} className="text-[1.3rem]" />
+      <Icon name={item.icon} className="text-xl" />
       <span className="truncate">{item.label}</span>
       {item.badge ? <Badge count={item.badge} className="ml-auto" /> : null}
     </Link>
@@ -91,21 +91,30 @@ export function NavLink({
  * route is one of its items. The sign-out form is passed in from the server
  * layout so the server action stays server-side.
  */
+export type NavGroup = { key: string; label: string; items: NavItemData[] };
+
 export function MoreMenu({
   label,
   title,
   closeLabel,
-  items,
+  groups,
   signOutSlot,
 }: {
   label: string;
   title: string;
   closeLabel: string;
-  items: NavItemData[];
+  /**
+   * The same grouped shape the desktop sidebar renders. It used to take a flat
+   * `items` array, which is how a books-tier partner ended up with 21
+   * undifferentiated rows on a phone while their sidebar had three named
+   * sections — the two shells describing the product differently.
+   */
+  groups: NavGroup[];
   signOutSlot: ReactNode;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const items = groups.flatMap((g) => g.items);
   const active = items.some(
     (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
   );
@@ -125,40 +134,53 @@ export function MoreMenu({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.68rem] font-medium",
-          active || open ? "text-brand-700" : "text-sand-500",
+          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-2xs font-medium",
+          active || open ? "text-brand-ink" : "text-sand-500",
         )}
       >
         <span className="relative">
-          <MoreIcon className="text-[1.4rem]" />
+          <MoreIcon className="text-xl" />
           {badgeTotal > 0 ? <Badge count={badgeTotal} className="absolute -right-2.5 -top-1.5" /> : null}
         </span>
         <span>{label}</span>
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title={title} closeLabel={closeLabel}>
-        <nav className="flex flex-col">
-          {items.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "focus-ring flex min-h-[52px] items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium",
-                  isActive
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-sand-800 hover:bg-sand-100",
-                )}
-              >
-                <Icon name={item.icon} className="text-[1.35rem] text-sand-500" />
-                <span className="flex-1 truncate">{item.label}</span>
-                {item.badge ? <Badge count={item.badge} /> : null}
-              </Link>
-            );
-          })}
-          <div className="my-1 h-px bg-sand-100" />
+        <nav className="flex flex-col gap-5">
+          {groups.map((group) => (
+            <div key={group.key} className="flex flex-col">
+              <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wider text-sand-500">
+                {group.label}
+              </p>
+              {group.items.map((item) => {
+                const isActive =
+                  pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "focus-ring flex min-h-[52px] items-center gap-3 rounded-lg px-3 text-base font-medium",
+                      // The selected state is the brand accent (gold) plus a
+                      // weight change and aria-current — never colour alone.
+                      isActive
+                        ? "bg-gold-50 font-semibold text-sand-900 ring-1 ring-gold-300"
+                        : "text-sand-800 hover:bg-sand-100",
+                    )}
+                  >
+                    <Icon
+                      name={item.icon}
+                      className={cn("text-xl", isActive ? "text-gold-600" : "text-sand-500")}
+                    />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge ? <Badge count={item.badge} /> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+          <div className="h-px bg-sand-200" />
           {signOutSlot}
         </nav>
       </Sheet>

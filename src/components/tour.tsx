@@ -112,14 +112,14 @@ export function Tour({
         </div>
 
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-[1.35rem] text-brand-700">
+          <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-xl text-brand-ink">
             <Icon name={step.icon as IconName} />
           </span>
           <div className="min-w-0">
             <h2 id="tour-title" className="text-lg font-bold leading-snug text-sand-950">
               {t(`tour.${step.id}Title`, locale)}
             </h2>
-            <p className="mt-1.5 text-[0.95rem] leading-relaxed text-sand-700">
+            <p className="mt-1.5 text-base leading-relaxed text-sand-700">
               {t(`tour.${step.id}Body`, locale)}
             </p>
           </div>

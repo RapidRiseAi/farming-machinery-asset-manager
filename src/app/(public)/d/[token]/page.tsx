@@ -104,8 +104,8 @@ export default async function PublicDocumentPage({
           layout.accent_style === "band"
             ? "rounded-xl px-5 py-4"
             : layout.accent_style === "line"
-              ? "rounded-xl border border-sand-200 border-t-4 bg-white px-5 py-4"
-              : "rounded-xl border border-sand-200 bg-white px-5 py-4"
+              ? "rounded-xl border border-sand-200 border-t-4 bg-surface px-5 py-4"
+              : "rounded-xl border border-sand-200 bg-surface px-5 py-4"
         }
         style={
           layout.accent_style === "band"
@@ -147,7 +147,7 @@ export default async function PublicDocumentPage({
         }
       />
 
-      <section className="rounded-xl border border-sand-200 bg-white p-5">
+      <section className="rounded-xl border border-sand-200 bg-surface p-5">
         <p className="text-sm text-sand-500">{t("pubDoc.for", locale)}</p>
         <h1 className="text-2xl font-bold tracking-tight text-sand-900">
           {label} {doc.number}
@@ -181,7 +181,7 @@ export default async function PublicDocumentPage({
 
       {/* The decision, first — it is why they opened the link. */}
       {open && !voided ? (
-        <section className="rounded-xl border border-sand-200 bg-white p-5">
+        <section className="rounded-xl border border-sand-200 bg-surface p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.decide", locale)}</h2>
           <p className="mt-1 text-sm text-sand-600">{t("pubDoc.decideHint", locale)}</p>
 
@@ -191,7 +191,7 @@ export default async function PublicDocumentPage({
               <Input id="accepted_by" name="accepted_by" required minLength={2} autoComplete="name" />
             </Field>
             <SubmitButton className="self-start">
-              <CheckIcon className="text-[1.1rem]" /> {t("pubDoc.accept", locale)}
+              <CheckIcon className="text-lg" /> {t("pubDoc.accept", locale)}
             </SubmitButton>
           </form>
 
@@ -209,7 +209,7 @@ export default async function PublicDocumentPage({
       ) : null}
 
       {isInvoice && !voided && owed > 0 ? (
-        <section className="rounded-xl border border-sand-200 bg-white p-5">
+        <section className="rounded-xl border border-sand-200 bg-surface p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.howToPay", locale)}</h2>
 
           {/* Pay it now, if the partner has online payment switched on. First, because a
@@ -262,7 +262,7 @@ export default async function PublicDocumentPage({
 
       {/* What it is for. */}
       {lines.length > 0 ? (
-        <section className="rounded-xl border border-sand-200 bg-white p-5">
+        <section className="rounded-xl border border-sand-200 bg-surface p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.items", locale)}</h2>
           <ul className="mt-3 flex flex-col divide-y divide-sand-100">
             {lines.map((l, i) => (
@@ -307,7 +307,7 @@ export default async function PublicDocumentPage({
       ) : null}
 
       {isCredit && corrects ? (
-        <section className="rounded-xl border border-sand-200 bg-white p-5">
+        <section className="rounded-xl border border-sand-200 bg-surface p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.whatThisMeans", locale)}</h2>
           <p className="mt-1 text-sand-700">
             {t("pubDoc.creditExplains", locale)
@@ -318,7 +318,7 @@ export default async function PublicDocumentPage({
       ) : null}
 
       {doc.notes || doc.terms ? (
-        <section className="rounded-xl border border-sand-200 bg-white p-5 text-sm text-sand-700">
+        <section className="rounded-xl border border-sand-200 bg-surface p-5 text-sm text-sand-700">
           {doc.notes ? <p className="whitespace-pre-line">{doc.notes}</p> : null}
           {doc.terms ? <p className="mt-3 whitespace-pre-line text-sand-500">{doc.terms}</p> : null}
         </section>
@@ -326,9 +326,9 @@ export default async function PublicDocumentPage({
 
       <a
         href={`/d/${token}/pdf`}
-        className="focus-ring flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sand-300 bg-white px-4 font-medium text-sand-800 hover:bg-sand-50"
+        className="focus-ring flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sand-300 bg-surface px-4 font-medium text-sand-800 hover:bg-sand-50"
       >
-        <DownloadIcon className="text-[1.15rem]" /> {t("pubDoc.download", locale)}
+        <DownloadIcon className="text-lg" /> {t("pubDoc.download", locale)}
       </a>
 
       <footer className="pt-2 text-center text-sm text-sand-500">

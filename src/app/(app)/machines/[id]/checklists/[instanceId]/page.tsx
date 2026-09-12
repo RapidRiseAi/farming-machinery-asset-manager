@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -73,7 +74,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   return (
     <div className="flex flex-col gap-4">
       <Link href={`/machines/${machine.id}`} className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {machine.name}
       </Link>
 
@@ -99,7 +100,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
               triggerSize="sm"
               triggerIcon={<TrashIcon />}
               triggerLabel={t("common.delete", locale)}
-              triggerClassName="text-status-overdue hover:bg-red-50"
+              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
               title={t("confirm.deleteChecklistInstanceTitle", locale)}
               intro={t("confirm.deleteChecklistInstanceIntro", locale).replace("{date}", dateStr)}
               footnote={t("confirm.softDeleteNote", locale)}
@@ -141,8 +142,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
                     ) : null}
                   </div>
                   {ft === "photo" && url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={url} alt={v.label} className="mt-1 max-h-64 w-full max-w-xs rounded-lg object-cover ring-1 ring-sand-200" />
+                    <Photo src={url} alt={v.label} size="detail" className="mt-1 max-h-64 w-full max-w-xs rounded-lg ring-1 ring-sand-200" />
                   ) : null}
                   {ft === "photo" && !url ? <span className="text-sm text-sand-400">{t("checklists.noPhoto", locale)}</span> : null}
                   {v.notes ? <p className="text-sm text-sand-500">{v.notes}</p> : null}

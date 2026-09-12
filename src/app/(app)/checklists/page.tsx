@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
@@ -61,13 +62,13 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
             href="/checklists/new"
             className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700"
           >
-            <PlusIcon className="text-[1.1rem]" />
+            <PlusIcon className="text-lg" />
             {t("checklists.newTemplate", locale)}
           </Link>
         ) : null}
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {templates.length === 0 ? (
@@ -116,7 +117,7 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                         triggerSize="sm"
                         triggerIcon={<TrashIcon />}
                         triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("confirm.deleteChecklistTemplateTitle", locale).replace("{template}", tpl.name)}
                         intro={t("confirm.deleteChecklistTemplateIntro", locale)}
                         consequencesTitle={t("confirm.whatHappens", locale)}
@@ -133,7 +134,7 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                       </ConfirmDialog>
                     </div>
                   ) : (
-                    <span className="flex items-center text-sand-300"><ChevronRightIcon /></span>
+                    <span className="flex items-center text-sand-400"><ChevronRightIcon /></span>
                   )}
                 </div>
               </Card>

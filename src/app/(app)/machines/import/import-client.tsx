@@ -120,7 +120,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
           </div>
 
           {!mappedName ? (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm font-medium text-status-due" role="alert">
+            <p className="mt-3 rounded-lg bg-callout-warn-bg px-3 py-2.5 text-sm font-medium text-status-due" role="alert">
               {t("machines.mapNoName", locale)}
             </p>
           ) : null}
@@ -131,7 +131,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-sand-900">{h}</p>
                   <p className="truncate text-sm text-sand-500">
-                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-300">—</span>}
+                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-400">—</span>}
                   </p>
                 </div>
                 <label className="w-full sm:w-56">
@@ -161,10 +161,10 @@ export function ImportClient({ locale }: { locale: Lang }) {
 
       {result && result.headerError ? (
         <div
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-800"
+          className="rounded-xl border border-callout-danger-edge bg-callout-danger-bg px-4 py-3.5 text-sm text-callout-danger-ink"
           role="alert"
         >
-          <p className="text-base font-semibold text-red-900">
+          <p className="text-base font-semibold text-danger-800">
             {result.headerError === "empty"
               ? t("machines.err.headerEmptyTitle", locale)
               : t("machines.err.headerNoNameTitle", locale)}
@@ -214,7 +214,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
               {result.rows.map((r) => (
                 <Tr key={r.line}>
                   <Td className="tabular-nums text-sand-500">{r.line}</Td>
-                  <Td className="font-medium">{r.cells.name || <span className="text-sand-300">—</span>}</Td>
+                  <Td className="font-medium">{r.cells.name || <span className="text-sand-400">—</span>}</Td>
                   <Td className="text-sand-600">{r.cells.type || "—"}</Td>
                   <Td>
                     {r.valid ? (

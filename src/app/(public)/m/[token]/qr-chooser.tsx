@@ -47,13 +47,13 @@ export function QrChooser({
           onClick={() => setTask(null)}
           className="focus-ring -ml-1 inline-flex min-h-[48px] w-fit items-center gap-1 rounded-lg px-1 text-base font-medium text-sand-600"
         >
-          <ChevronLeftIcon className="text-[1.2rem]" />
+          <ChevronLeftIcon className="text-lg" />
           {t("qr.back", locale)}
         </button>
-        <h2 className="text-[1.55rem] font-bold leading-tight tracking-tight text-sand-950">
+        <h2 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
           {chosen?.title}
         </h2>
-        <div className="rounded-2xl border border-sand-200 bg-white p-4 shadow-card">
+        <div className="rounded-2xl border border-sand-200 bg-surface p-4 shadow-card">
           {panels[task]}
         </div>
       </section>
@@ -62,7 +62,7 @@ export function QrChooser({
 
   return (
     <section>
-      <h2 className="text-[1.55rem] font-bold leading-tight tracking-tight text-sand-950">
+      <h2 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
         {t("qr.whatDoYouWant", locale)}
       </h2>
       <p className="mt-1 text-sm text-sand-500">{t("qr.noLoginNeeded", locale)}</p>
@@ -73,28 +73,28 @@ export function QrChooser({
               type="button"
               onClick={() => setTask(tile.task)}
               className={cn(
-                "focus-ring flex w-full items-center gap-3.5 rounded-2xl border bg-white px-4 py-4 text-left transition-colors",
+                "focus-ring flex w-full items-center gap-3.5 rounded-2xl border bg-surface px-4 py-4 text-left transition-colors",
                 tile.task === "fault"
-                  ? "border-status-overdue/30 hover:bg-red-50/50"
+                  ? "border-status-overdue/30 hover:bg-callout-danger-bg/50"
                   : "border-sand-200 hover:bg-sand-50",
               )}
             >
               <span
                 className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-[1.5rem]",
-                  tile.task === "fault" ? "bg-red-50 text-status-overdue" : "bg-brand-50 text-brand-700",
+                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl",
+                  tile.task === "fault" ? "bg-callout-danger-bg text-status-overdue" : "bg-brand-tint text-brand-ink",
                 )}
                 aria-hidden
               >
                 {ICONS[tile.task]}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[1.1rem] font-semibold leading-snug text-sand-900">
+                <span className="block text-lg font-semibold leading-snug text-sand-900">
                   {tile.title}
                 </span>
                 <span className="mt-0.5 block text-sm leading-snug text-sand-500">{tile.hint}</span>
               </span>
-              <ChevronRightIcon className="shrink-0 text-[1.3rem] text-sand-300" />
+              <ChevronRightIcon className="shrink-0 text-xl text-sand-400" />
             </button>
           </li>
         ))}

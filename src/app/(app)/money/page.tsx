@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -283,31 +284,29 @@ function AgeingTable({
   nameHeader: string;
 }) {
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <table className="w-full min-w-[34rem] border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-sand-200 text-left text-sand-500">
-            <th className="py-2 pr-3 font-medium">{nameHeader}</th>
-            <th className="py-2 pr-3 text-right font-medium">{t("money.bucketCurrent", locale)}</th>
-            <th className="py-2 pr-3 text-right font-medium">{t("money.bucket30", locale)}</th>
-            <th className="py-2 pr-3 text-right font-medium">{t("money.bucket60", locale)}</th>
-            <th className="py-2 pr-3 text-right font-medium">{t("money.bucket90", locale)}</th>
-            <th className="py-2 text-right font-medium">{t("money.bucketTotal", locale)}</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="min-w-[34rem]">
+        <Thead>
+          <Tr className="text-left text-sand-500">
+            <Th className="font-medium">{nameHeader}</Th>
+            <Th className="text-right font-medium">{t("money.bucketCurrent", locale)}</Th>
+            <Th className="text-right font-medium">{t("money.bucket30", locale)}</Th>
+            <Th className="text-right font-medium">{t("money.bucket60", locale)}</Th>
+            <Th className="text-right font-medium">{t("money.bucket90", locale)}</Th>
+            <Th className="text-right font-medium">{t("money.bucketTotal", locale)}</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
           {rows.map((r) => (
-            <tr key={r.label} className="border-b border-sand-100 last:border-0">
-              <td className="py-2.5 pr-3 text-sand-900">{r.label}</td>
-              <td className="py-2.5 pr-3 text-right tabular-nums text-sand-700">{rands(r.current_cents)}</td>
-              <td className="py-2.5 pr-3 text-right tabular-nums text-sand-700">{rands(r.d30_cents)}</td>
-              <td className="py-2.5 pr-3 text-right tabular-nums text-status-warn">{rands(r.d60_cents)}</td>
-              <td className="py-2.5 pr-3 text-right tabular-nums text-status-overdue">{rands(r.d90_cents)}</td>
-              <td className="py-2.5 text-right font-medium tabular-nums text-sand-900">{rands(r.total_cents)}</td>
-            </tr>
+            <Tr key={r.label}>
+              <Td className="text-sand-900">{r.label}</Td>
+              <Td className="text-right tabular-nums text-sand-700">{rands(r.current_cents)}</Td>
+              <Td className="text-right tabular-nums text-sand-700">{rands(r.d30_cents)}</Td>
+              <Td className="text-right tabular-nums text-status-warn">{rands(r.d60_cents)}</Td>
+              <Td className="text-right tabular-nums text-status-overdue">{rands(r.d90_cents)}</Td>
+              <Td className="text-right font-medium tabular-nums text-sand-900">{rands(r.total_cents)}</Td>
+            </Tr>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </Tbody>
+      </Table>
   );
 }

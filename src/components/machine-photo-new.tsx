@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Photo } from "@/components/ui/photo";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 
@@ -47,8 +48,7 @@ export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
       <input type="hidden" name="primary_photo_data" value={dataUrl} />
       {preview ? (
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt={t("machines.primaryPhoto", locale)} className="h-20 w-20 rounded-lg object-cover ring-1 ring-sand-200" />
+          <Photo src={preview} alt={t("machines.primaryPhoto", locale)} size="thumb" priority className="h-20 w-20 rounded-lg ring-1 ring-sand-200" />
           <button type="button" onClick={clear} className="focus-ring rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
             {t("machines.removePhoto", locale)}
           </button>

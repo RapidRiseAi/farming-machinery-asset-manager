@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 import { isOnline, pendingCount, subscribe } from "@/lib/offline/capture";
 import { flush } from "@/lib/offline/sync";
@@ -68,9 +69,9 @@ export function SyncStatus({ locale }: { locale: Lang }) {
 
   const tone: Record<Mode, string> = {
     online: "border-status-ok/30 bg-status-ok/10 text-status-ok",
-    offline: "border-status-due/40 bg-amber-50 text-status-due",
-    syncing: "border-brand-200 bg-brand-50 text-brand-700",
-    pending: "border-status-due/40 bg-amber-50 text-status-due",
+    offline: "border-status-due/40 bg-callout-warn-bg text-status-due",
+    syncing: "border-brand-200 bg-brand-tint text-brand-ink",
+    pending: "border-status-due/40 bg-callout-warn-bg text-status-due",
   };
   const dot: Record<Mode, string> = {
     online: "bg-status-ok",
@@ -82,9 +83,10 @@ export function SyncStatus({ locale }: { locale: Lang }) {
   const canFlush = online && count > 0 && !syncing;
 
   return (
+    <div className="flex items-center gap-2">
     <button
       type="button"
-      onClick={canFlush ? () => void flush() : undefined}
+      onClick={canFlush ? () => { void flush().catch(() => setSyncing(false)); } : undefined}
       aria-live="polite"
       title={label}
       className={`focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium sm:min-h-[36px] ${tone[mode]} ${canFlush ? "cursor-pointer" : "cursor-default"}`}
@@ -95,5 +97,7 @@ export function SyncStatus({ locale }: { locale: Lang }) {
       <span>{label}</span>
       {count > 0 ? <span>({count})</span> : null}
     </button>
+    {count > 0 ? <Link href="/queue" className="focus-ring rounded px-2 py-2 text-xs underline">{t("offline.review", locale)}</Link> : null}
+    </div>
   );
 }

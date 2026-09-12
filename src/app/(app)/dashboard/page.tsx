@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -68,6 +69,7 @@ export default async function DashboardPage() {
   // Single-farm users are unaffected (RLS already scopes to their one farm); a multi-site
   // user sees the farm chosen in the switcher. rr_admin (farmId null) keeps its all-farms view.
   const farmId = await currentFarmId(profile);
+  const costsVisible = farmId ? await canViewFarmCosts(supabase, farmId) : profile.role === "rr_admin";
   const byFarm = <Q,>(q: Q): Q =>
     farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
 
@@ -82,9 +84,9 @@ export default async function DashboardPage() {
     byFarm(supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours").is("deleted_at", null)),
     byFarm(supabase.from("service_plan_lines").select("machine_id, status, task").is("deleted_at", null)),
     byFarm(supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false })),
-    byFarm(supabase.from("job_cards").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo))),
+    byFarm(supabase.from("job_cards_visible").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo))),
     byFarm(supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"])),
-    byFarm(supabase.from("fuel_issues").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis))),
+    byFarm(supabase.from("fuel_issues_visible").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis))),
     byFarm(supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut)),
     byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null)),
   ]);
@@ -332,7 +334,7 @@ export default async function DashboardPage() {
           nothing about which farm they were looking at. */}
       <header>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950 sm:text-[1.75rem]">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950 sm:text-2xl">
             {t(greetKey, locale).replace("{name}", firstName)}
           </h1>
           <PageInfoButton infoKey="dashboard" locale={locale} />
@@ -354,11 +356,11 @@ export default async function DashboardPage() {
       {/* The two things a farm boss does from this screen, always reachable. */}
       <div className="flex flex-wrap gap-2">
         <Link href="/machines" className={buttonVariants({ variant: "secondary" })}>
-          <MachinesIcon className="text-[1.1rem]" />
+          <MachinesIcon className="text-lg" />
           {t("dashboard.quickCaptureHours", locale)}
         </Link>
         <Link href="/faults" className={buttonVariants({ variant: "primary" })}>
-          <FaultsIcon className="text-[1.1rem]" />
+          <FaultsIcon className="text-lg" />
           {t("dashboard.quickReportProblem", locale)}
         </Link>
       </div>
@@ -377,7 +379,7 @@ export default async function DashboardPage() {
       ) : (
         <Card flush>
           <div className="flex items-baseline justify-between gap-3 px-4 pt-4">
-            <h2 className="text-[1.05rem] font-bold text-sand-900">
+            <h2 className="text-base font-bold text-sand-900">
               {t("dashboard.needsAttention", locale)}
             </h2>
             <span className="text-xs font-medium uppercase tracking-wide text-sand-400">
@@ -405,7 +407,7 @@ export default async function DashboardPage() {
                     className={buttonVariants({ variant: "secondary", className: "shrink-0" })}
                   >
                     {a.ctaLabel}
-                    <ChevronRightIcon className="text-[1rem]" />
+                    <ChevronRightIcon className="text-base" />
                   </Link>
                 </div>
               </li>
@@ -413,7 +415,7 @@ export default async function DashboardPage() {
           </ul>
           {attention.length > 8 ? (
             <div className="border-t border-sand-100 px-4 py-3">
-              <Link href="/faults" className="focus-ring rounded text-sm font-medium text-brand-700">
+              <Link href="/faults" className="focus-ring rounded text-sm font-medium text-brand-ink">
                 {t("ui.viewAll", locale)} →
               </Link>
             </div>
@@ -422,12 +424,12 @@ export default async function DashboardPage() {
       )}
 
       {/* ── What the fleet cost you ──────────────────────────────────────── */}
-      <Card>
+      {costsVisible ? <Card>
         <CardHeader
           action={
-            <Link href="/reports" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+            <Link href="/reports" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-ink">
               {t("dashboard.fullCostReport", locale)}
-              <ChevronRightIcon className="text-[1rem]" />
+              <ChevronRightIcon className="text-base" />
             </Link>
           }
         >
@@ -461,7 +463,7 @@ export default async function DashboardPage() {
             ))}
           </dl>
         ) : null}
-      </Card>
+      </Card> : null}
 
       {/* ── Servicing + the fleet right now ──────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -521,16 +523,16 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader
             action={
-              <Link href="/fuel" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+              <Link href="/fuel" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-ink">
                 {t("nav.fuel", locale)}
-                <ChevronRightIcon className="text-[1rem]" />
+                <ChevronRightIcon className="text-base" />
               </Link>
             }
           >
             <CardTitle>{t("nav.fuel", locale)}</CardTitle>
           </CardHeader>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" valueClassName="text-xl sm:text-3xl" />
+            {costsVisible ? <Stat label={t("dashboard.fuelSpend", locale)} value={rands(fuelSpendMonth)} href="/fuel" valueClassName="text-xl sm:text-3xl" /> : null}
             <Stat label={t("dashboard.fuelLitres", locale)} value={num(fuelLitresMonth, 0)} href="/fuel" valueClassName="text-xl sm:text-3xl" />
             <Stat label={t("dashboard.fuelAnomalies", locale)} value={fuelAnomalyCount} tone={fuelAnomalyCount > 0 ? "overdue" : "default"} href="/fuel" valueClassName="text-xl sm:text-3xl" />
           </div>
@@ -541,7 +543,7 @@ export default async function DashboardPage() {
       {stale.length > 0 ? (
         <Card>
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-50 text-[1.15rem] text-status-due" aria-hidden>
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-callout-warn-bg text-lg text-status-due" aria-hidden>
               <WarningIcon />
             </span>
             <div className="min-w-0">
@@ -573,7 +575,7 @@ export default async function DashboardPage() {
           hint={t("dashboard.noMachinesHint", locale)}
           action={
             <Link href="/machines/new" className={buttonVariants({ variant: "primary" })}>
-              <PlusIcon className="text-[1.1rem]" />
+              <PlusIcon className="text-lg" />
               {t("dashboard.noMachinesAdd", locale)}
             </Link>
           }

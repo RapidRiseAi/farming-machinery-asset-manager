@@ -2,6 +2,7 @@ import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getReportData, parseFilters } from "../data";
 import { buildReportWorkbook } from "@/lib/report-export";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 
 /**
  * Single multi-sheet Excel (.xlsx) workbook covering every report family (FR-11.4). One
@@ -21,7 +22,10 @@ export async function GET(request: Request) {
 
   const sp = Object.fromEntries(new URL(request.url).searchParams);
   const supabase = await createClient();
-  const data = await getReportData(supabase, parseFilters(sp), await currentFarmId(profile));
+  const farmId = await currentFarmId(profile);
+  if (!(await canViewFarmCosts(supabase, farmId)))
+    return new Response("Cost access is disabled", { status: 403 });
+  const data = await getReportData(supabase, parseFilters(sp), farmId);
 
   const workbook = buildReportWorkbook(data, "all");
   return new Response(new Uint8Array(workbook), {

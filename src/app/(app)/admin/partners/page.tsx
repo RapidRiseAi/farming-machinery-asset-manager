@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -37,7 +38,9 @@ export default async function AdminPartnersPage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  await requireRole(["rr_admin"]);
+  // The profile was discarded here, so this page had no locale to translate with.
+  const profile = await requireRole(["rr_admin"]);
+  const locale = profile.lang;
   const sp = await searchParams;
   const supabase = await createClient();
 
@@ -76,7 +79,7 @@ export default async function AdminPartnersPage({
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">Partners</h1>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? "Saved." : undefined} />
 
       <Card>

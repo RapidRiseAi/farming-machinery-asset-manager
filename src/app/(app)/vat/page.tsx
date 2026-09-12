@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -246,48 +247,46 @@ export default async function VatPage({
             {docs.length === 0 ? (
               <AllClear title={t("vat.noSales", locale)} hint={t("vat.noSalesHint", locale)} />
             ) : (
-              <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <table className="w-full min-w-[36rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-sand-200 text-left text-sand-500">
-                      <th className="py-2 pr-3 font-medium">{t("vat.colDate", locale)}</th>
-                      <th className="py-2 pr-3 font-medium">{t("vat.colDocument", locale)}</th>
-                      <th className="py-2 pr-3 font-medium">{t("vat.colCustomer", locale)}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("vat.colExVat", locale)}</th>
-                      <th className="py-2 text-right font-medium">{t("vat.colVat", locale)}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="min-w-[36rem]">
+                  <Thead>
+                    <Tr className="text-left text-sand-500">
+                      <Th className="font-medium">{t("vat.colDate", locale)}</Th>
+                      <Th className="font-medium">{t("vat.colDocument", locale)}</Th>
+                      <Th className="font-medium">{t("vat.colCustomer", locale)}</Th>
+                      <Th className="text-right font-medium">{t("vat.colExVat", locale)}</Th>
+                      <Th className="text-right font-medium">{t("vat.colVat", locale)}</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
                     {docs.map((d) => {
                       const sign = d.kind === "credit_note" ? -1 : 1;
                       const net = sign * Math.max(0, d.subtotal_cents - Math.min(d.discount_cents, d.subtotal_cents));
                       return (
-                        <tr key={d.id} className="border-b border-sand-100 last:border-0">
-                          <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(d.issue_date, locale)}</td>
-                          <td className="py-2.5 pr-3">
-                            <Link href={`/documents/${d.id}`} className="focus-ring rounded text-brand-700 underline-offset-2 hover:underline">
+                        <Tr key={d.id}>
+                          <Td className="whitespace-nowrap text-sand-600">{shortDate(d.issue_date, locale)}</Td>
+                          <Td>
+                            <Link href={`/documents/${d.id}`} className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline">
                               {d.number}
                             </Link>
                             {d.status === "written_off" ? (
                               <Badge tone="danger" className="ml-2">{t("docStatus.written_off", locale)}</Badge>
                             ) : null}
-                          </td>
-                          <td className="py-2.5 pr-3 text-sand-700">{d.bill_to_name}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(net)}</td>
-                          <td className="py-2.5 text-right tabular-nums text-sand-800">{rands(sign * d.vat_cents)}</td>
-                        </tr>
+                          </Td>
+                          <Td className="text-sand-700">{d.bill_to_name}</Td>
+                          <Td className="text-right tabular-nums text-sand-800">{rands(net)}</Td>
+                          <Td className="text-right tabular-nums text-sand-800">{rands(sign * d.vat_cents)}</Td>
+                        </Tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </Tbody>
+                </Table>
             )}
           </Card>
 
           <Card>
             <CardHeader><CardTitle>{t("vat.purchasesTitle", locale)}</CardTitle></CardHeader>
             {unsupportedVat > 0 ? (
-              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mb-3 rounded-lg border border-callout-warn-edge bg-callout-warn-bg px-3 py-2 text-sm text-callout-warn-ink">
                 {t("vat.unsupportedInput", locale)}{" "}
                 <span className="font-semibold tabular-nums">{rands(unsupportedVat)}</span>{" "}
                 {t("vat.unsupportedInputTail", locale)}
@@ -296,41 +295,39 @@ export default async function VatPage({
             {expenses.length === 0 ? (
               <p className="text-sm text-sand-600">
                 {t("vat.noPurchases", locale)}{" "}
-                <Link href="/expenses" className="focus-ring rounded text-brand-700 underline-offset-2 hover:underline">
+                <Link href="/expenses" className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline">
                   {t("vat.capturePurchases", locale)}
                 </Link>
               </p>
             ) : (
-              <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <table className="w-full min-w-[34rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-sand-200 text-left text-sand-500">
-                      <th className="py-2 pr-3 font-medium">{t("vat.colDate", locale)}</th>
-                      <th className="py-2 pr-3 font-medium">{t("expenses.colSupplier", locale)}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("vat.colExVat", locale)}</th>
-                      <th className="py-2 text-right font-medium">{t("vat.colVat", locale)}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="min-w-[34rem]">
+                  <Thead>
+                    <Tr className="text-left text-sand-500">
+                      <Th className="font-medium">{t("vat.colDate", locale)}</Th>
+                      <Th className="font-medium">{t("expenses.colSupplier", locale)}</Th>
+                      <Th className="text-right font-medium">{t("vat.colExVat", locale)}</Th>
+                      <Th className="text-right font-medium">{t("vat.colVat", locale)}</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
                     {expenses.map((e) => (
-                      <tr key={e.id} className="border-b border-sand-100 last:border-0">
-                        <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</td>
-                        <td className="py-2.5 pr-3 text-sand-900">
+                      <Tr key={e.id}>
+                        <Td className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
+                        <Td className="text-sand-900">
                           {e.supplier_name}
                           <span className="block text-xs text-sand-500">{t(`expenseCategory.${e.category}`, locale)}</span>
                           {claimNeedsProof(e) ? (
                             <span className="block text-xs text-status-warn">{t("expenses.receiptMissing", locale)}</span>
                           ) : null}
-                        </td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</td>
-                        <td className="py-2.5 text-right tabular-nums text-sand-800">
+                        </Td>
+                        <Td className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
+                        <Td className="text-right tabular-nums text-sand-800">
                           {e.vat_claimable ? rands(e.vat_cents) : <span className="text-sand-400">{rands(0)}</span>}
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </Tbody>
+                </Table>
             )}
           </Card>
         </>

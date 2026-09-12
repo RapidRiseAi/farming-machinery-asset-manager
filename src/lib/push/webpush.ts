@@ -9,9 +9,11 @@
  * This module is server-only (Node runtime) — never import it into a client component.
  */
 import crypto from "node:crypto";
+import { validateWebPushSubscription } from "./subscription-validation";
 
 export type VapidConfig = { publicKey: string; privateKey: string; subject: string };
 export type PushSub = { endpoint: string; p256dh: string; auth: string };
+export const WEB_PUSH_FETCH_TIMEOUT_MS = 10_000;
 
 /** VAPID config from the environment, or null when push is not configured. */
 export function getVapidConfig(): VapidConfig | null {
@@ -98,13 +100,20 @@ export async function sendWebPush(
   config: VapidConfig,
   ttlSeconds = 24 * 60 * 60
 ): Promise<{ statusCode: number }> {
-  const url = new URL(sub.endpoint);
+  // Revalidate persisted rows at the final network boundary. This protects deployments
+  // that already contain legacy or tampered subscription records.
+  const validated = validateWebPushSubscription(sub);
+  if (!validated) throw new Error("Invalid Web Push subscription");
+
+  const url = new URL(validated.endpoint);
   const audience = `${url.protocol}//${url.host}`;
   const jwt = vapidJwt(audience, config);
-  const body = encryptPayload(Buffer.from(JSON.stringify(payload)), sub.p256dh, sub.auth);
+  const body = encryptPayload(Buffer.from(JSON.stringify(payload)), validated.p256dh, validated.auth);
 
-  const res = await fetch(sub.endpoint, {
+  const res = await fetch(validated.endpoint, {
     method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(WEB_PUSH_FETCH_TIMEOUT_MS),
     headers: {
       TTL: String(ttlSeconds),
       "Content-Encoding": "aes128gcm",

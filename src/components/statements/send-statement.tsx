@@ -74,7 +74,7 @@ export function SendStatement({
   }
 
   return (
-    <div className="w-full rounded-xl border border-sand-200 bg-white p-4">
+    <div className="w-full rounded-xl border border-sand-200 bg-surface p-4">
       <div className="flex flex-col gap-3 sm:max-w-md">
         <Field label={t("email.to", locale)} htmlFor="stmt-email">
           <Input

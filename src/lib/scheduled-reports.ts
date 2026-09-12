@@ -255,6 +255,7 @@ export type DeliveryResult = {
 export async function deliverReportRun(
   supabase: SupabaseClient,
   run: ClaimedRun,
+  options: { serviceRole?: boolean } = {},
 ): Promise<DeliveryResult> {
   const finish = async (r: Omit<DeliveryResult, "runId">, extra: Record<string, unknown> = {}) => {
     await supabase
@@ -287,6 +288,7 @@ export async function deliverReportRun(
         group: run.site,
       },
       run.farm_id,
+      options,
     );
     const grids = reportGrids(data, run.report_key);
     empty = gridsAreEmpty(grids);
@@ -363,7 +365,9 @@ export async function runDueReportSchedules(
   let sent = 0;
   let failed = 0;
   for (const run of runs) {
-    const r = await deliverReportRun(supabase, run);
+    // This worker is reachable only after the service-only claim RPC succeeds.
+    // Interactive "Send it now" keeps deliverReportRun's masked default.
+    const r = await deliverReportRun(supabase, run, { serviceRole: true });
     if (r.status === "sent") sent += 1;
     else failed += 1;
   }

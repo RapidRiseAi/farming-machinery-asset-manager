@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
+import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, effectiveFarmRole } from "@/lib/auth";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { meterReading, shortDate } from "@/lib/format";
@@ -53,19 +56,25 @@ export default async function JobCardDetail({
   const locale = profile.lang;
 
   const supabase = await createClient();
-  const { data } = await supabase.from("job_cards").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+  const { data } = await supabase.from("job_cards_visible").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
   const jc = data as JobCard | null;
   if (!jc) notFound();
+  const [costsVisible, farmRole] = await Promise.all([
+    canViewFarmCosts(supabase, jc.farm_id),
+    effectiveFarmRole(jc.farm_id, profile),
+  ]);
+  const resourceRole = profile.role === "workshop" ? "workshop" : farmRole;
+  const canWork = resourceRole != null && ["owner", "manager", "mechanic", "workshop"].includes(resourceRole);
 
   const [{ data: machineData }, { data: linesData }, { data: planData }, { data: coverData }, { data: attachData }, { data: invoiceData }, { data: catalogueData }, { data: kitData }] = await Promise.all([
     supabase.from("machines").select("name, meter_type").eq("id", jc.machine_id).maybeSingle(),
-    supabase.from("job_card_lines").select("id, kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
+    supabase.from("job_card_lines_visible").select("id, kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
     supabase.from("service_plan_lines").select("id, task, status").eq("machine_id", jc.machine_id).is("deleted_at", null),
     supabase.from("job_card_service_lines").select("service_plan_line_id").eq("job_card_id", id),
     supabase.from("attachments").select("id, kind, storage_path, created_at").eq("parent_type", "job_card").eq("parent_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("cost_entries").select("id, amount_cents, note, occurred_on").eq("source_type", "job_card").eq("source_id", id).eq("type", "invoice").is("deleted_at", null).order("occurred_on", { ascending: false }),
     // Catalogue parts visible to this user (global + own farm, RLS-scoped) → "add from catalogue" (F9).
-    supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
+    supabase.from("parts_catalogue_visible").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
     // This machine's service kits + their live item counts (F9).
     supabase.from("service_kits").select("id, name, service_kit_items(id)").eq("machine_id", jc.machine_id).is("deleted_at", null).is("service_kit_items.deleted_at", null).order("created_at"),
   ]);
@@ -91,13 +100,15 @@ export default async function JobCardDetail({
     }),
   );
   const invoices = (invoiceData as { id: string; amount_cents: number; note: string | null; occurred_on: string }[] | null) ?? [];
-  const canMedia = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
+  const canMedia = canWork;
 
-  const canApprove = profile.role === "owner" || profile.role === "manager";
+  const canApprove = resourceRole === "owner" || resourceRole === "manager";
   const locked = jc.locked;
 
   const lineDetail = (l: Line) =>
-    l.kind === "part"
+    !costsVisible
+      ? l.kind === "part" ? String(l.qty ?? 0) : l.kind === "labour" ? `${l.hours ?? 0}h` : ""
+      : l.kind === "part"
       ? `${l.qty ?? 0} × ${rands(l.unit_cost_cents)}`
       : l.kind === "labour"
         ? `${l.hours ?? 0}h × ${rands(l.rate_cents)}`
@@ -106,13 +117,13 @@ export default async function JobCardDetail({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <Link href="/jobcards" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {t("jobcards.back", locale)}
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
             {machine?.name ?? t("jobcards.title", locale)}
           </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -129,7 +140,7 @@ export default async function JobCardDetail({
           </div>
           <Link
             href={`/machines/${jc.machine_id}`}
-            className="focus-ring mt-1.5 inline-flex items-center gap-1 rounded text-sm font-medium text-brand-700 hover:underline"
+            className="focus-ring mt-1.5 inline-flex items-center gap-1 rounded text-sm font-medium text-brand-ink hover:underline"
           >
             {t("jobcards.openMachine", locale)} →
           </Link>
@@ -140,18 +151,18 @@ export default async function JobCardDetail({
       </div>
 
       {locked ? (
-        <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+        <div className="rounded-lg border border-brand-200 bg-brand-tint px-4 py-3 text-sm text-brand-ink">
           <LockIcon /> {t("jobcards.lockedBanner", locale)}
           {jc.approved_at ? ` · ${t("jobcards.approvedBy", locale)}: ${shortDate(jc.approved_at, locale)}` : ""}
         </div>
       ) : null}
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
       {/* This job so far — the number the owner will ask about, above the lines it is
           made of rather than a page away on the list. */}
-      <Card>
+      {costsVisible ? <Card>
         <p className="text-sm font-medium text-sand-600">{t("jobcards.thisJobSoFar", locale)}</p>
         <p className="mt-0.5 text-3xl font-bold tabular-nums tracking-tight text-sand-950">
           {rands(jc.total_cents)}
@@ -171,7 +182,7 @@ export default async function JobCardDetail({
           </div>
         </dl>
         <p className="mt-2 text-xs text-sand-400">{t("jobcards.exVatNote", locale)}</p>
-      </Card>
+      </Card> : null}
 
       {/* Lines */}
       <Card>
@@ -197,15 +208,15 @@ export default async function JobCardDetail({
                   <span className="ml-2 text-sand-500">{lineDetail(l)}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <span className="font-medium">{rands(l.total_cents)}</span>
-                  {!locked ? (
+                  {costsVisible ? <span className="font-medium">{rands(l.total_cents)}</span> : null}
+                  {canWork && !locked ? (
                     <ConfirmDialog
                       action={removeLine}
                       triggerVariant="ghost"
                       triggerSize="sm"
                       triggerIcon={<TrashIcon />}
                       triggerLabel={t("jobcards.remove", locale)}
-                      triggerClassName="text-status-overdue hover:bg-red-50"
+                      triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                       title={t("confirm.removeLineTitle", locale).replace(
                         "{line}",
                         l.description ?? l.part_no ?? "—",
@@ -224,8 +235,8 @@ export default async function JobCardDetail({
             ))}
           </ul>
         )}
-        {!locked && kits.length > 0 ? (
-          <form action={applyServiceKit} className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-200 bg-brand-50/60 p-3">
+        {canWork && costsVisible && !locked && kits.length > 0 ? (
+          <form action={applyServiceKit} className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-200 bg-brand-tint/60 p-3">
             <input type="hidden" name="job_card_id" value={jc.id} />
             <input type="hidden" name="farm_id" value={jc.farm_id} />
             <Field label={t("jobcards.applyKit", locale)} htmlFor="apply-kit" className="flex-1">
@@ -238,7 +249,7 @@ export default async function JobCardDetail({
             <SubmitButton variant="secondary" size="sm">{t("jobcards.applyKitButton", locale)}</SubmitButton>
           </form>
         ) : null}
-        {!locked ? (
+        {canWork && !locked ? (
           <div className="mt-3">
             <LineEntry jobCardId={jc.id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} />
           </div>
@@ -268,11 +279,10 @@ export default async function JobCardDetail({
               a.url ? (
                 a.kind === "photo" ? (
                   <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="focus-ring block rounded-lg">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.url} alt={t("jobcards.attachment", locale)} className="aspect-square w-full rounded-lg object-cover" />
+                    <Photo src={a.url} alt={t("jobcards.attachment", locale)} size="card" className="aspect-square w-full rounded-lg" />
                   </a>
                 ) : (
-                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="focus-ring flex aspect-square items-center justify-center rounded-lg border border-sand-200 bg-sand-50 p-2 text-center text-xs font-medium text-brand-700">
+                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="focus-ring flex aspect-square items-center justify-center rounded-lg border border-sand-200 bg-sand-50 p-2 text-center text-xs font-medium text-brand-ink">
                     {t(`jobcards.kind_${a.kind === "invoice" ? "invoice" : "quote"}`, locale)} ↓
                   </a>
                 )
@@ -291,7 +301,7 @@ export default async function JobCardDetail({
       </Card>
 
       {/* Covered service lines */}
-      {jc.type === "scheduled_service" && !locked && planLines.length > 0 ? (
+      {canWork && jc.type === "scheduled_service" && !locked && planLines.length > 0 ? (
         <Card>
           <CardHeader><CardTitle>{t("jobcards.serviceLinesCovered", locale)}</CardTitle></CardHeader>
           <p className="mb-2 text-xs text-sand-500">{t("jobcards.serviceLinesHint", locale)}</p>
@@ -315,7 +325,7 @@ export default async function JobCardDetail({
       ) : null}
 
       {/* Details / lifecycle */}
-      {!locked ? (
+      {canWork && !locked ? (
         <>
           <Card>
             <CardHeader><CardTitle>{t("jobcards.details", locale)}</CardTitle></CardHeader>

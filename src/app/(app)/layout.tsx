@@ -26,6 +26,7 @@ import { WarmRoutes } from "@/components/offline/warm-routes";
 import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SyncStatus } from "@/components/offline/sync-status";
 import { Tour } from "@/components/tour";
 import { tourFor } from "@/lib/tour";
@@ -76,6 +77,7 @@ export default async function AppLayout({
   // professional-tone Afrikaans user must still see AF selected, not "af-pro".
   const languageChoice = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
+  const isOwner = profile.role === "owner";
   const isAdmin = profile.role === "rr_admin";
   // Contractors (workshop role) get a tailored, contractor-first shell (F12c): their
   // aggregated dashboard is home, and farm-only surfaces are dropped.
@@ -224,18 +226,13 @@ export default async function AppLayout({
   // Every role, including drivers and contractors: putting it on the phone is the
   // point of an offline-first product, and it was reachable from nowhere.
   const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
-  // Your own name, address and password — as opposed to /settings, which is the FARM's.
-  // Every role, deliberately: until this shipped nobody in the product could change their
-  // own password at all, and a driver needs that as much as an owner does.
-  const account: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "team" };
-  const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
-
-  // Billing is the OWNER's business and Rapid Rise's — the same audience
-  // app.is_farm_billing_admin admits in SQL. A manager, mechanic, operator or linked
-  // contractor never sees what the farm pays for its software.
-  const isOwner = profile.role === "owner";
+  // What the farm pays Rapid Rise for the software. The OWNER's business and nobody
+  // else's on the farm side — a manager runs the fleet, they do not hold the card — so
+  // this is gated on the role rather than on a plan entitlement. The route re-checks it
+  // server-side; hiding a nav item is not access control.
   const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "reports" };
   const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "admin" };
+  const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
 
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
   // Contractors get a contractor-first tab set; everyone else the farm set.
@@ -251,7 +248,7 @@ export default async function AppLayout({
     ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, accounting]
     : [];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, account, install]
+    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
     : [
         ...(isManagerPlus ? [inbox] : []),
         faults,
@@ -268,9 +265,7 @@ export default async function AppLayout({
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
-        ...(isOwner ? [billing] : []),
-        ...(isAdmin ? [admin, adminBilling, billing] : []),
-        account,
+        ...(isAdmin ? [admin] : []),
         install,
       ];
 
@@ -317,33 +312,59 @@ export default async function AppLayout({
     who is allowed to reach it.
   */
   const tailItems: NavItemData[] = isWorkshop
-    ? [partnerSettings, parts, account, install]
+    // `partnerSettings` lives in the "farm" group above; listing it here too put
+    // the same destination in the sidebar twice.
+    ? [parts, install]
     : [
         ...(canParts ? [parts] : []),
         ...(canPartners ? [partners] : []),
         checklists,
         ...(finesAllowed ? [fines] : []),
         ...(apiTokensAllowed ? [apiTokens] : []),
-        ...(isManagerPlus ? [settings] : []),
         ...(isOwner ? [billing] : []),
+        ...(isManagerPlus ? [settings] : []),
         ...(isAdmin ? [admin, adminBilling, billing] : []),
-        account,
         install,
       ];
+
+  /*
+    The "More" sheet used to be a FLAT, ungrouped list built by hand — for a
+    books-tier partner that was 21 undifferentiated rows, while the SAME person's
+    desktop sidebar was organised into three named groups. The phone and the
+    desktop disagreed about what the product is.
+
+    It is now DERIVED from the sidebar's own `groups` + `tailItems`, so the two
+    shells cannot drift again, minus whatever already has a permanent tab at the
+    bottom of the screen (no point listing it twice). `moreItems` above is kept
+    only as the flat source for the badge roll-up.
+  */
+  const tabHrefs = new Set(tabItems.map((i) => i.href));
+  const moreGroups = [
+    ...groups,
+    ...(tailItems.length ? [{ key: "tail", label: t("nav.everythingElse", locale), items: tailItems }] : []),
+  ]
+    .map((g) => ({ ...g, items: g.items.filter((i) => !tabHrefs.has(i.href)) }))
+    .filter((g) => g.items.length > 0);
 
   const appName = t("app.name", locale);
   const signOutLabel = t("nav.signOut", locale);
   const languageLabel = t("nav.language", locale);
+  const themeLabel = t("nav.appearance", locale);
+  const themeLabels = {
+    system: t("nav.themeSystem", locale),
+    light: t("nav.themeLight", locale),
+    dark: t("nav.themeDark", locale),
+  };
 
   const brandMark = (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-[1.3rem] text-white shadow-xs">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-xl text-white shadow-xs">
       <MachinesIcon />
     </span>
   );
 
   const avatar = (
     <span
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-tint text-xs font-semibold text-brand-ink"
       title={profile.name}
       aria-label={profile.name}
     >
@@ -354,7 +375,7 @@ export default async function AppLayout({
   const bellLink = (
     <Link
       href="/notifications"
-      className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg px-2 text-[1.4rem] text-sand-600 hover:bg-sand-100 sm:min-h-[44px]"
+      className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg px-2 text-xl text-sand-600 hover:bg-sand-100 sm:min-h-[44px]"
     >
       <BellIcon />
       {/* Icon and word. A bell alone is guessable; "Alerts" is not. */}
@@ -367,15 +388,19 @@ export default async function AppLayout({
   const signOutSlot = (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 px-3 py-1">
-        <span className="text-[0.95rem] font-medium text-sand-800">{languageLabel}</span>
+        <span className="text-base font-medium text-sand-800">{languageLabel}</span>
         <LanguageSwitcher current={languageChoice} label={languageLabel} />
+      </div>
+      <div className="flex items-center justify-between gap-3 px-3 py-1">
+        <span className="text-base font-medium text-sand-800">{themeLabel}</span>
+        <ThemeToggle label={themeLabel} labels={themeLabels} />
       </div>
       <AssistantSafeSignOutForm action={signOut} locale={locale}>
         <button
           type="submit"
-          className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-[0.95rem] font-medium text-sand-800 hover:bg-sand-100"
+          className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-base font-medium text-sand-800 hover:bg-sand-100"
         >
-          <SignOutIcon className="text-[1.35rem] text-sand-500" />
+          <SignOutIcon className="text-xl text-sand-500" />
           {signOutLabel}
         </button>
       </AssistantSafeSignOutForm>
@@ -392,11 +417,21 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-dvh">
+      {/*
+        Skip link. There was none, so a keyboard or switch user landed at the top
+        of a sidebar carrying up to 24 links and had to traverse every one of them
+        before reaching the content — on every single navigation. Off-screen until
+        focused (see `.skip-link` in globals.css), then a real, visible control.
+        It is first in the DOM so it is the first thing Tab reaches.
+      */}
+      <a href="#main" className="skip-link">
+        {t("nav.skipToContent", locale)}
+      </a>
       <WarmRoutes paths={warmPaths} contextKey={`${profile.id}:${currentFarm || profile.farm_id || ""}`} />
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sand-200 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sand-200 bg-surface lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-4">
           {brandMark}
           <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
@@ -432,10 +467,16 @@ export default async function AppLayout({
         </ScrollArea>
         <div className="border-t border-sand-200 p-3">
           <div className="mb-2 flex items-center justify-between gap-2 px-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-sand-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-sand-500">
               {languageLabel}
             </span>
             <LanguageSwitcher current={languageChoice} label={languageLabel} />
+          </div>
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-sand-500">
+              {themeLabel}
+            </span>
+            <ThemeToggle label={themeLabel} labels={themeLabels} />
           </div>
           <div className="mb-1 flex items-center gap-2.5 px-1">
             {avatar}
@@ -449,7 +490,7 @@ export default async function AppLayout({
               type="submit"
               className="focus-ring flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-sand-600 hover:bg-sand-100 hover:text-sand-900"
             >
-              <SignOutIcon className="text-[1.25rem]" />
+              <SignOutIcon className="text-xl" />
               {signOutLabel}
             </button>
           </AssistantSafeSignOutForm>
@@ -459,7 +500,7 @@ export default async function AppLayout({
       {/* ---- Content column ---- */}
       <div className="flex min-h-dvh flex-col lg:pl-64">
         {/* Mobile header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sand-200 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sand-200 bg-surface/95 px-4 py-2.5 backdrop-blur lg:hidden">
           <Link href={homeHref} className="focus-ring flex items-center gap-2 rounded-lg">
             {brandMark}
             <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
@@ -473,7 +514,7 @@ export default async function AppLayout({
 
         {/* Mobile site switcher (F7) — only when the account can reach >1 farm */}
         {showSwitcher && (
-          <div className="sticky top-[57px] z-10 border-b border-sand-200 bg-white/95 px-4 py-2 backdrop-blur lg:hidden">
+          <div className="sticky top-[57px] z-10 border-b border-sand-200 bg-surface/95 px-4 py-2 backdrop-blur lg:hidden">
             <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
           </div>
         )}
@@ -485,7 +526,13 @@ export default async function AppLayout({
           {avatar}
         </header>
 
-        <main className="mx-auto w-full max-w-screen-2xl flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-10">
+        {/* `tabIndex={-1}` so the skip link can actually move focus here; without
+            it the browser scrolls but leaves focus back in the nav. */}
+        <main
+          id="main"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-screen-2xl flex-1 px-4 pb-24 pt-5 focus:outline-none sm:px-6 lg:px-8 lg:pb-10"
+        >
           <Tour steps={tourFor(profile.role)} locale={locale} homePath={homeHref} />
         {children}
         </main>
@@ -494,7 +541,7 @@ export default async function AppLayout({
       {/* ---- Mobile bottom tab bar ---- */}
       <nav
         aria-label={appName}
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-sand-200 bg-white/95 pb-safe backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-sand-200 bg-surface/95 pb-safe backdrop-blur lg:hidden"
       >
         <div className="mx-auto flex h-16 max-w-lg items-stretch gap-1 px-2">
           {tabItems.map((item) => (
@@ -508,15 +555,15 @@ export default async function AppLayout({
               className="focus-ring flex min-w-[64px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand-600 text-white"
               aria-label={t("nav.reportProblemLong", locale)}
             >
-              <FaultsIcon className="text-[1.35rem]" />
-              <span className="text-[0.7rem] font-semibold leading-none">{t("nav.reportProblem", locale)}</span>
+              <FaultsIcon className="text-xl" />
+              <span className="text-2xs font-semibold leading-none">{t("nav.reportProblem", locale)}</span>
             </Link>
           ) : null}
           <MoreMenu
             label={t("nav.more", locale)}
             title={t("nav.menu", locale)}
             closeLabel={t("ui.close", locale)}
-            items={moreItems}
+            groups={moreGroups}
             signOutSlot={signOutSlot}
           />
         </div>

@@ -3,10 +3,42 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { effectiveFarmRole, requireProfile, requireRole } from "@/lib/auth";
+import { effectiveFarmRole, requireFarmRole, requireProfile, type Role } from "@/lib/auth";
 import { recordFault } from "@/lib/domain/fleet-commands";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
+
+async function faultContext(id: string, roles: readonly Role[]) {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("faults")
+    .select("farm_id")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  const farmId = (data as { farm_id: string } | null)?.farm_id;
+  if (!farmId) redirect("/faults?error=not-found");
+  const auth = await requireFarmRole(farmId, roles, "/faults?error=forbidden", profile);
+  return { ...auth, supabase };
+}
+
+async function updateFaultStatus(
+  id: string,
+  status: string,
+  roles: readonly Role[],
+  extra: Record<string, unknown> = {},
+) {
+  const { farmId, supabase } = await faultContext(id, roles);
+  const { data, error } = await supabase
+    .from("faults")
+    .update({ status, ...extra })
+    .eq("id", id)
+    .eq("farm_id", farmId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) redirect("/faults?error=save-failed");
+}
 
 export async function createFault(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
@@ -40,13 +72,11 @@ export async function createFault(formData: FormData) {
 }
 
 export async function resolveFault(formData: FormData) {
-  await requireRole(["owner", "manager", "mechanic"]);
   const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  await supabase
-    .from("faults")
-    .update({ status: "resolved", resolved_at: new Date().toISOString() })
-    .eq("id", id);
+  if (!id) redirect("/faults?error=missing-id");
+  await updateFaultStatus(id, "resolved", ["owner", "manager", "mechanic"], {
+    resolved_at: new Date().toISOString(),
+  });
   revalidatePath("/faults");
   redirect("/faults?saved=1");
 }
@@ -56,20 +86,18 @@ const LIFECYCLE_ROLES = ["owner", "manager", "mechanic", "workshop"] as const;
 
 /** Move a fault to `acknowledged` (someone has seen it). */
 export async function acknowledgeFault(formData: FormData) {
-  await requireRole([...LIFECYCLE_ROLES]);
   const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  await supabase.from("faults").update({ status: "acknowledged" }).eq("id", id);
+  if (!id) redirect("/faults?error=missing-id");
+  await updateFaultStatus(id, "acknowledged", LIFECYCLE_ROLES);
   revalidatePath("/faults");
   redirect("/faults?saved=1");
 }
 
 /** Move a fault to `in_progress` (work started). */
 export async function startFault(formData: FormData) {
-  await requireRole([...LIFECYCLE_ROLES]);
   const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  await supabase.from("faults").update({ status: "in_progress" }).eq("id", id);
+  if (!id) redirect("/faults?error=missing-id");
+  await updateFaultStatus(id, "in_progress", LIFECYCLE_ROLES);
   revalidatePath("/faults");
   redirect("/faults?saved=1");
 }
@@ -77,29 +105,28 @@ export async function startFault(formData: FormData) {
 /** Assign (or clear) the fault's owner. A blank/unknown id clears the assignee;
  *  a cross-farm id is rejected — only an active user of the fault's farm is accepted. */
 export async function assignFault(formData: FormData) {
-  await requireRole(["owner", "manager", "mechanic"]);
   const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/faults?error=missing-id");
   const raw = String(formData.get("assigned_to") ?? "").trim();
-  const supabase = await createClient();
-
-  // The fault is RLS-scoped to the caller's farm(s).
-  const { data: fault } = await supabase.from("faults").select("farm_id").eq("id", id).maybeSingle();
-  const farmId = (fault as { farm_id: string } | null)?.farm_id;
-  if (!farmId) redirect("/faults?error=Not+found");
+  const { farmId, supabase } = await faultContext(id, ["owner", "manager", "mechanic"]);
 
   let assigned_to: string | null = null;
   if (raw) {
-    const { data: u } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", raw)
-      .eq("farm_id", farmId)
-      .eq("active", true)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (u) assigned_to = raw;
+    const { data: isMember, error: memberError } = await supabase.rpc(
+      "is_active_farm_member",
+      { p_farm: farmId, p_user: raw },
+    );
+    if (memberError || isMember !== true) redirect("/faults?error=not-found");
+    assigned_to = raw;
   }
-  await supabase.from("faults").update({ assigned_to }).eq("id", id);
+  const { data, error } = await supabase
+    .from("faults")
+    .update({ assigned_to })
+    .eq("id", id)
+    .eq("farm_id", farmId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) redirect("/faults?error=save-failed");
   revalidatePath("/faults");
   redirect("/faults?saved=1");
 }

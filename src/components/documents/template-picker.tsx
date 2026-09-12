@@ -74,7 +74,7 @@ export function DocumentTemplatePicker({
               key={id}
               action={applyDocumentTemplate}
               className={`flex flex-col gap-3 rounded-xl border p-3 ${
-                isChosen ? "border-brand-500 bg-brand-50/40 ring-1 ring-brand-500" : "border-sand-200 bg-sand-50/40"
+                isChosen ? "border-brand-500 bg-brand-tint/40 ring-1 ring-brand-500" : "border-sand-200 bg-sand-50/40"
               }`}
             >
               <input type="hidden" name="template" value={id} />
@@ -105,7 +105,7 @@ export function DocumentTemplatePicker({
                 {isChosen && chosenStillMatches ? (
                   // Nothing to press: this IS the document going out. A button here would
                   // be an action with no effect, which teaches people to distrust buttons.
-                  <p className="text-sm font-medium text-brand-700">{t("docTemplate.inUse", locale)}</p>
+                  <p className="text-sm font-medium text-brand-ink">{t("docTemplate.inUse", locale)}</p>
                 ) : (
                   <SubmitButton
                     variant={isChosen ? "secondary" : "primary"}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -78,11 +79,11 @@ export default async function ExpenseSchedulePage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Link href="/recurring-expenses" className="focus-ring rounded text-sm text-brand-700 hover:underline">
+      <Link href="/recurring-expenses" className="focus-ring rounded text-sm text-brand-ink hover:underline">
         ← {t("recexp.title", locale)}
       </Link>
 
-      <Flash tone="error" message={errorKey ? t(errorKey, locale) : sp.error} />
+      <Flash tone="error" message={errorKey ? t(errorKey, locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.captured ? t("recexp.capturedFlash", locale) : undefined} />
       <Flash tone="info" message={sp.nothing ? t("recexp.nothingFlash", locale) : undefined} />
@@ -216,7 +217,7 @@ export default async function ExpenseSchedulePage({
               type="checkbox"
               name="vat_claimable"
               defaultChecked={schedule.vat_claimable}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
             />
             <span>
               {t("recexp.claimable", locale)}
@@ -229,7 +230,7 @@ export default async function ExpenseSchedulePage({
               type="checkbox"
               name="auto_paid"
               defaultChecked={schedule.auto_paid}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
             />
             <span>
               {t("recexp.autoPaid", locale)}
@@ -311,7 +312,7 @@ export default async function ExpenseSchedulePage({
             <span className="ml-auto tabular-nums text-sand-900">{rands(last.amount_cents + last.vat_cents)}</span>
           </div>
           <p className="mt-2 text-sm">
-            <Link href="/expenses" className="focus-ring rounded text-brand-700 underline-offset-2 hover:underline">
+            <Link href="/expenses" className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline">
               {t("recexp.viewInExpenses", locale)} →
             </Link>
           </p>

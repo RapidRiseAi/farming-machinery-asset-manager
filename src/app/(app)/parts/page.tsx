@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
@@ -50,7 +51,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
 
   const supabase = await createClient();
   let query = supabase
-    .from("parts_catalogue")
+    .from("parts_catalogue_visible")
     .select("id, farm_id, part_no, description, supplier, category, typical_cost_cents")
     .is("deleted_at", null)
     .order("part_no", { ascending: true });
@@ -140,7 +141,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
         <form method="get" className="flex items-end gap-2">
           <Field label={t("parts.search", locale)} htmlFor="q">
             <span className="relative block">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-lg text-sand-400" />
               <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("parts.searchPlaceholder", locale)} className="pl-8" />
             </span>
           </Field>
@@ -148,7 +149,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
         </form>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {/* Add a part */}
@@ -224,7 +225,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                     {p.part_no}
                     {canEditRow(p) ? (
                       <details className="mt-1">
-                        <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                        <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
                         <form action={updatePart} className="mt-2 flex flex-wrap gap-2">
                           <input type="hidden" name="id" value={p.id} />
                           <Field label={t("parts.partNoLabel", locale)} htmlFor={`e_no_${p.id}`} required>
@@ -252,7 +253,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                             triggerSize="sm"
                             triggerIcon={<TrashIcon />}
                             triggerLabel={t("common.delete", locale)}
-                            triggerClassName="text-status-overdue hover:bg-red-50"
+                            triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                             title={t("confirm.deletePartTitle", locale).replace(
                               "{part}",
                               p.part_no ?? p.description ?? "—",

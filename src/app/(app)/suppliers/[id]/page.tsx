@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -153,9 +155,9 @@ export default async function SupplierAccountPage({
       <div>
         <Link
           href="/suppliers"
-          className="focus-ring inline-flex min-h-[2.75rem] items-center gap-1 rounded text-sm font-medium text-brand-700 sm:min-h-0"
+          className="focus-ring inline-flex min-h-[2.75rem] items-center gap-1 rounded text-sm font-medium text-brand-ink sm:min-h-0"
         >
-          <ChevronLeftIcon className="text-[1.1rem]" /> {t("supplierStatement.back", locale)}
+          <ChevronLeftIcon className="text-lg" /> {t("supplierStatement.back", locale)}
         </Link>
       </div>
 
@@ -181,7 +183,7 @@ export default async function SupplierAccountPage({
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={stmtPdf} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            <DownloadIcon className="text-[1.1rem]" /> {t("supplierStatement.pdf", locale)}
+            <DownloadIcon className="text-lg" /> {t("supplierStatement.pdf", locale)}
           </a>
           <a href={stmtCsv} className={buttonVariants({ variant: "ghost", size: "sm" })}>
             {t("supplierStatement.csv", locale)}
@@ -189,7 +191,7 @@ export default async function SupplierAccountPage({
         </div>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
 
       {/* What is owed, first. That is the question a supplier account is opened for; the
           ledger below is how it got there. */}
@@ -267,23 +269,22 @@ export default async function SupplierAccountPage({
           />
         ) : (
           <>
-            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <table className="w-full min-w-[38rem] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-sand-200 text-left text-sand-500">
-                    <th className="py-2 pr-3 font-medium">{t("supplierStatement.date", locale)}</th>
-                    <th className="py-2 pr-3 font-medium">{t("supplierStatement.what", locale)}</th>
-                    <th className="py-2 pr-3 font-medium">{t("supplierStatement.dueBy", locale)}</th>
-                    <th className="py-2 pr-3 text-right font-medium">{t("supplierStatement.charged", locale)}</th>
-                    <th className="py-2 pr-3 text-right font-medium">{t("supplierStatement.paid", locale)}</th>
-                    <th className="py-2 text-right font-medium">{t("supplierStatement.balance", locale)}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="min-w-[38rem]">
+                <Thead>
+                  <Tr className="text-left text-sand-500">
+                    <Th className="font-medium">{t("supplierStatement.date", locale)}</Th>
+                    <Th className="font-medium">{t("supplierStatement.what", locale)}</Th>
+                    <Th className="font-medium">{t("supplierStatement.dueBy", locale)}</Th>
+                    <Th className="text-right font-medium">{t("supplierStatement.charged", locale)}</Th>
+                    <Th className="text-right font-medium">{t("supplierStatement.paid", locale)}</Th>
+                    <Th className="text-right font-medium">{t("supplierStatement.balance", locale)}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
                   {lines.map((l, i) => (
-                    <tr key={`${l.kind}-${l.expense_id ?? "opening"}-${i}`} className="border-b border-sand-100 last:border-0">
-                      <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</td>
-                      <td className="py-2.5 pr-3">
+                    <Tr key={`${l.kind}-${l.expense_id ?? "opening"}-${i}`}>
+                      <Td className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
+                      <Td>
                         <span className="text-sand-900">{supplierStatementLabel(l, locale)}</span>
                         {l.reference ? <span className="ml-2 font-mono text-xs text-sand-500">{l.reference}</span> : null}
                         {l.category ? (
@@ -291,24 +292,23 @@ export default async function SupplierAccountPage({
                             {t(`expenseCategory.${l.category}`, locale)}
                           </span>
                         ) : null}
-                      </td>
-                      <td className="py-2.5 pr-3 whitespace-nowrap text-sand-500">
+                      </Td>
+                      <Td className="whitespace-nowrap text-sand-500">
                         {l.due_date ? shortDate(l.due_date, locale) : ""}
-                      </td>
-                      <td className="py-2.5 pr-3 text-right tabular-nums text-sand-900">
+                      </Td>
+                      <Td className="text-right tabular-nums text-sand-900">
                         {l.debit_cents ? rands(l.debit_cents) : ""}
-                      </td>
-                      <td className="py-2.5 pr-3 text-right tabular-nums text-sand-900">
+                      </Td>
+                      <Td className="text-right tabular-nums text-sand-900">
                         {l.credit_cents ? rands(l.credit_cents) : ""}
-                      </td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-sand-900">
+                      </Td>
+                      <Td className="text-right font-medium tabular-nums text-sand-900">
                         {rands(l.balance_cents)}
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </Tbody>
+              </Table>
 
             <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-sand-200 pt-3 text-sm sm:max-w-sm">
               <dt className="text-sand-600">{t("supplierStatement.opening", locale)}</dt>
@@ -376,37 +376,37 @@ export default async function SupplierAccountPage({
           ) : (
             <>
               <div className="-mx-4 mt-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <table className="w-full min-w-[34rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-sand-200 text-left text-sand-500">
-                      <th className="py-2 pr-3 font-medium">{t("supplierStatement.theirInvoice", locale)}</th>
-                      <th className="py-2 pr-3 font-medium">{t("supplierStatement.dated", locale)}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("supplierStatement.exVat", locale)}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("supplierStatement.vat", locale)}</th>
-                      <th className="py-2 text-right font-medium">{t("supplierStatement.total", locale)}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="min-w-[34rem]">
+                  <Thead>
+                    <Tr className="text-left text-sand-500">
+                      <Th className="font-medium">{t("supplierStatement.theirInvoice", locale)}</Th>
+                      <Th className="font-medium">{t("supplierStatement.dated", locale)}</Th>
+                      <Th className="text-right font-medium">{t("supplierStatement.exVat", locale)}</Th>
+                      <Th className="text-right font-medium">{t("supplierStatement.vat", locale)}</Th>
+                      <Th className="text-right font-medium">{t("supplierStatement.total", locale)}</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
                     {remittance.map((r) => (
-                      <tr key={r.expense_id} className="border-b border-sand-100 last:border-0">
-                        <td className="py-2.5 pr-3">
+                      <Tr key={r.expense_id}>
+                        <Td>
                           <span className="font-mono text-sand-900">{r.reference ?? "—"}</span>
                           {r.description ? (
                             <span className="block text-xs text-sand-500">{r.description}</span>
                           ) : null}
-                        </td>
-                        <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">
+                        </Td>
+                        <Td className="whitespace-nowrap text-sand-600">
                           {shortDate(r.expense_date, locale)}
-                        </td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(r.amount_cents)}</td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(r.vat_cents)}</td>
-                        <td className="py-2.5 text-right font-medium tabular-nums text-sand-900">
+                        </Td>
+                        <Td className="text-right tabular-nums text-sand-800">{rands(r.amount_cents)}</Td>
+                        <Td className="text-right tabular-nums text-sand-800">{rands(r.vat_cents)}</Td>
+                        <Td className="text-right font-medium tabular-nums text-sand-900">
                           {rands(r.total_cents)}
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
-                  </tbody>
-                </table>
+                  </Tbody>
+                </Table>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-sand-200 pt-3">
@@ -418,7 +418,7 @@ export default async function SupplierAccountPage({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <a href={remitPdf} className={buttonVariants({ variant: "primary", size: "sm" })}>
-                    <DownloadIcon className="text-[1.1rem]" /> {t("supplierStatement.remitPdf", locale)}
+                    <DownloadIcon className="text-lg" /> {t("supplierStatement.remitPdf", locale)}
                   </a>
                   <a href={remitCsv} className={buttonVariants({ variant: "ghost", size: "sm" })}>
                     {t("supplierStatement.csv", locale)}

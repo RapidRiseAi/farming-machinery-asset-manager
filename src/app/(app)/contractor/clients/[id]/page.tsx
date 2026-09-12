@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -101,7 +102,7 @@ export default async function PartnerClientPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/contractor/clients" className="focus-ring rounded text-sm text-brand-700 hover:underline">
+        <Link href="/contractor/clients" className="focus-ring rounded text-sm text-brand-ink hover:underline">
           ← {t("clients.title", locale)}
         </Link>
         {connected ? <Badge tone="ok" className="ml-auto">{t("clients.connected", locale)}</Badge> : null}
@@ -109,7 +110,7 @@ export default async function PartnerClientPage({
 
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">{client.name}</h1>
 
-      <Flash tone="error" message={sp.error === "already-synced" ? t("clients.alreadySynced", locale) : sp.error} />
+      <Flash tone="error" message={sp.error === "already-synced" ? t("clients.alreadySynced", locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.asked ? t("clients.askedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.connected ? t("clients.connectedFlash", locale) : undefined} />
@@ -146,7 +147,7 @@ export default async function PartnerClientPage({
             </div>
 
             {toCopy > 0 && !client.synced_at ? (
-              <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-3">
+              <div className="rounded-xl border border-brand-200 bg-brand-tint/60 p-3">
                 <p className="text-sm font-medium text-sand-900">{t("clients.syncTitle", locale)}</p>
                 <p className="mb-3 mt-1 text-sm text-sand-600">
                   {t("clients.syncBody", locale).replace("{n}", String(toCopy))}

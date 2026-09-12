@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Photo } from "@/components/ui/photo";
 import { redirect } from "next/navigation";
-import { requireProfile, currentFarmId, checkEntitlement, homePathFor } from "@/lib/auth";
+import { requireProfile, currentFarmId, effectiveFarmRole, checkEntitlement, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -46,12 +47,14 @@ export default async function DriverHomePage({
 }) {
   const sp = await searchParams;
   const profile = await requireProfile();
-  // Everyone else belongs on their own home — never assume that is the dashboard.
-  if (profile.role !== "operator") redirect(homePathFor(profile.role));
+  const farmId = await currentFarmId(profile);
+  const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
+  // A multi-site person's selected-farm membership is authoritative. Someone can be an
+  // owner at their primary farm and the operator on this one (or the reverse).
+  if (role !== "operator") redirect(homePathFor(role ?? profile.role));
 
   const locale = profile.lang;
   const supabase = await createClient();
-  const farmId = await currentFarmId(profile);
 
   let machinesQ = supabase
     .from("machines")
@@ -114,7 +117,7 @@ export default async function DriverHomePage({
   const tiles = [
     { href: "/machines", icon: <MachinesIcon />, title: t("driver.tileScan", locale), hint: t("driver.tileScanHint", locale), loud: true },
     { href: "/faults", icon: <FaultsIcon />, title: t("driver.tileFault", locale), hint: t("driver.tileFaultHint", locale), loud: false },
-    { href: "/machines", icon: <JobCardsIcon />, title: t("driver.tileHours", locale), hint: t("driver.tileHoursHint", locale), loud: false },
+    { href: "/driver#assigned-machines", icon: <JobCardsIcon />, title: t("driver.tileHours", locale), hint: t("driver.tileHoursHint", locale), loud: false },
     ...(fuelAllowed
       ? [{ href: "/fuel", icon: <FuelIcon />, title: t("driver.tileFuel", locale), hint: t("driver.tileFuelHint", locale), loud: false }]
       : []),
@@ -133,7 +136,7 @@ export default async function DriverHomePage({
 
       <header>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
           <PageInfoButton infoKey="driver" locale={locale} />
         </div>
         <p className="mt-1 text-sand-500">
@@ -142,7 +145,7 @@ export default async function DriverHomePage({
       </header>
 
       <section>
-        <h2 className="text-[1.15rem] font-bold text-sand-900">{t("driver.whatDoYouWant", locale)}</h2>
+        <h2 className="text-lg font-bold text-sand-900">{t("driver.whatDoYouWant", locale)}</h2>
         <ul className="mt-3 flex flex-col gap-2.5">
           {tiles.map((tile, i) => (
             <li key={`${tile.href}-${i}`}>
@@ -151,26 +154,26 @@ export default async function DriverHomePage({
                 className={`focus-ring flex w-full items-center gap-4 rounded-2xl border px-4 py-4 transition-colors ${
                   tile.loud
                     ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-sand-200 bg-white hover:bg-sand-50"
+                    : "border-sand-200 bg-surface hover:bg-sand-50"
                 }`}
               >
                 <span
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-[1.5rem] ${
-                    tile.loud ? "bg-white/15 text-white" : "bg-brand-50 text-brand-700"
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl ${
+                    tile.loud ? "bg-white/15 text-white" : "bg-brand-tint text-brand-ink"
                   }`}
                   aria-hidden
                 >
                   {tile.icon}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={`block text-[1.15rem] font-semibold leading-snug ${tile.loud ? "text-white" : "text-sand-900"}`}>
+                  <span className={`block text-lg font-semibold leading-snug ${tile.loud ? "text-white" : "text-sand-900"}`}>
                     {tile.title}
                   </span>
                   <span className={`mt-0.5 block text-sm leading-snug ${tile.loud ? "text-white/80" : "text-sand-500"}`}>
                     {tile.hint}
                   </span>
                 </span>
-                <ChevronRightIcon className={`shrink-0 text-[1.3rem] ${tile.loud ? "text-white/70" : "text-sand-300"}`} />
+                <ChevronRightIcon className={`shrink-0 text-xl ${tile.loud ? "text-white/70" : "text-sand-400"}`} />
               </Link>
             </li>
           ))}
@@ -181,23 +184,22 @@ export default async function DriverHomePage({
           machine chooser in the app is a <Select> of names and serials; for a driver a
           picture is faster and needs no literacy at all. */}
       {machines.length > 0 ? (
-        <section>
-          <h2 className="text-[1.15rem] font-bold text-sand-900">{t("driver.whichMachine", locale)}</h2>
+        <section id="assigned-machines" className="scroll-mt-24">
+          <h2 className="text-lg font-bold text-sand-900">{t("driver.whichMachine", locale)}</h2>
           <p className="mt-0.5 text-sm text-sand-500">{t("driver.whichMachineHint", locale)}</p>
           <ul className="mt-3 grid grid-cols-2 gap-3">
             {machines.slice(0, 6).map((m) => (
               <li key={m.id}>
-                <Link href={`/machines/${m.id}`} className="focus-ring block overflow-hidden rounded-2xl border border-sand-200 bg-white">
-                  <span className="block aspect-[4/3] w-full bg-sand-100">
-                    {photoByMachine.get(m.id) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photoByMachine.get(m.id)} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-sand-300" aria-hidden>
-                        <MachinesIcon className="text-[2rem]" />
-                      </span>
-                    )}
-                  </span>
+                <Link href={`/machines/${m.id}#meter-reading`} className="focus-ring block overflow-hidden rounded-2xl border border-sand-200 bg-surface">
+                  {/* alt="" is right here: the machine's name is the next line
+                      of the card, so describing the photo repeats it. */}
+                  <Photo
+                    src={photoByMachine.get(m.id)}
+                    alt=""
+                    size="card"
+                    className="block aspect-[4/3] w-full"
+                    placeholder={<MachinesIcon className="text-3xl" />}
+                  />
                   <span className="block px-3 py-2.5">
                     <span className="block truncate font-semibold leading-snug text-sand-900">{m.name}</span>
                     {m.location ? <span className="block truncate text-sm text-sand-500">{m.location}</span> : null}
@@ -213,7 +215,7 @@ export default async function DriverHomePage({
           ) : null}
         </section>
       ) : (
-        <p className="rounded-xl border border-sand-200 bg-white p-4 text-sand-600">{t("driver.noMachines", locale)}</p>
+        <p className="rounded-xl border border-sand-200 bg-surface p-4 text-sand-600">{t("driver.noMachines", locale)}</p>
       )}
 
       {/* Closing the loop. */}
@@ -223,7 +225,7 @@ export default async function DriverHomePage({
           hint={myFaults.length === 0 ? t("driver.nothingReported", locale) : t("driver.seenHint", locale)}
         />
       ) : (
-        <section className="rounded-2xl border border-sand-200 bg-white p-4">
+        <section className="rounded-2xl border border-sand-200 bg-surface p-4">
           <h2 className="font-semibold text-sand-900">
             {openMine.length === 1
               ? t("driver.oneWaitingTitle", locale)

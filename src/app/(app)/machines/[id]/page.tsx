@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
+import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { currentPlan } from "@/lib/auth";
+import { currentPlan, effectiveFarmRole } from "@/lib/auth";
 import { planAllows, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import {
@@ -132,18 +135,36 @@ export default async function MachineDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const locale = profile.lang;
-  const canEdit = profile.role === "owner" || profile.role === "manager";
-  const canAddReading = ["owner", "manager", "mechanic"].includes(profile.role);
-  const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();
   const { data } = await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, purchase_price_cents, supplier, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, finance_provider, finance_total_cents, finance_monthly_cents, finance_term_months, finance_interest_bps")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id")
     .eq("id", id)
     .maybeSingle();
-  const machine = data as Machine | null;
-  if (!machine) notFound();
+  const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;
+  if (!machineBase) notFound();
+
+  // Every action and disclosure is decided against the machine's farm. `profile.role`
+  // belongs to the primary farm and is not authoritative for a multi-site resource.
+  const resourceRole = profile.role === "workshop"
+    ? "workshop"
+    : await effectiveFarmRole(machineBase.farm_id, profile);
+  const canEdit = resourceRole === "owner" || resourceRole === "manager";
+  const canAddReading = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
+  const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop"].includes(resourceRole);
+  const costsVisible = await canViewFarmCosts(supabase, machineBase.farm_id);
+  const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
+  const machine: Machine = {
+    ...machineBase,
+    purchase_price_cents: financials?.purchase_price_cents ?? null,
+    supplier: financials?.supplier ?? null,
+    finance_provider: financials?.finance_provider ?? null,
+    finance_total_cents: financials?.finance_total_cents ?? null,
+    finance_monthly_cents: financials?.finance_monthly_cents ?? null,
+    finance_term_months: financials?.finance_term_months ?? null,
+    finance_interest_bps: financials?.finance_interest_bps ?? null,
+  };
 
   // Primary vehicle image (0280): resolve its storage path → signed URL for the header.
   let primaryPhotoUrl: string | null = null;
@@ -163,26 +184,30 @@ export default async function MachineDetailPage({
 
   const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
-    supabase.from("job_cards").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("watch_items").select("id, text, status, created_at, source_job_card_id").eq("machine_id", id).order("created_at", { ascending: false }),
     supabase.from("service_plan_lines").select("id, task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     supabase.from("service_templates").select("id, name, machine_type").is("deleted_at", null).or(`machine_type.eq.${machine.type},machine_type.is.null`),
     supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
-    supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null),
-    supabase.from("fuel_issues").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
+    costsVisible
+      ? supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null)
+      : Promise.resolve({ data: [] }),
+    supabase.from("fuel_issues_visible").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("licences").select("id, type, number, expiry_date, reminder_lead_days, notes").eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
     supabase.from("farms").select("settings").eq("id", machine.farm_id).maybeSingle(),
     // Service kits (F9): this machine's part BOMs + their items.
-    supabase.from("service_kits").select("id, name, notes, service_kit_items(id, part_no, description, qty, unit_cost_cents, part_catalogue_id)").eq("machine_id", id).is("deleted_at", null).is("service_kit_items.deleted_at", null).order("created_at"),
+    supabase.from("service_kits").select("id, name, notes").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     // Catalogue parts visible to this user (global + own farm) for the kit-item picker.
-    supabase.from("parts_catalogue").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
+    supabase.from("parts_catalogue_visible").select("id, part_no, description, typical_cost_cents").is("deleted_at", null).order("part_no"),
     // Vehicle checklists (F11): filled inspections/sign-offs/condition reports for this machine.
     supabase.from("checklist_instances").select("id, template_name, status, completed_at, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(20),
     // Budgets (G1): this machine's spend targets → budget-vs-actual.
-    supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").eq("machine_id", id).is("deleted_at", null).order("period_start", { ascending: false }),
+    costsVisible
+      ? supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").eq("machine_id", id).is("deleted_at", null).order("period_start", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
@@ -201,7 +226,7 @@ export default async function MachineDetailPage({
   const fuelDraws = (fuelRes.data as FuelDraw[] | null) ?? [];
   const fuelTanks = (fuelTankRes.data as { id: string; name: string }[] | null) ?? [];
   const fuelConsumption = computeConsumption(fuelDraws, machine.meter_type);
-  const canFuel = ["owner", "manager", "mechanic", "operator"].includes(profile.role);
+  const canFuel = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
 
   // Driver-on-date lookup (AARTO nomination basis, FR-13.1): usage on a chosen date.
   const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
@@ -231,10 +256,19 @@ export default async function MachineDetailPage({
   const licences = (licenceRes.data as Licence[] | null) ?? [];
 
   // Service kits (F9). Only owner/manager/mechanic edit the parts BOM.
-  const canKit = ["owner", "manager", "mechanic"].includes(profile.role);
+  const canKit = resourceRole != null && ["owner", "manager", "mechanic"].includes(resourceRole);
   const catalogue = (catalogueRes.data as CataloguePart[] | null) ?? [];
-  const kits: ServiceKit[] = ((kitRes.data as { id: string; name: string; notes: string | null; service_kit_items: KitItem[] | null }[] | null) ?? [])
-    .map((k) => ({ id: k.id, name: k.name, notes: k.notes, items: k.service_kit_items ?? [] }));
+  const kitHeaders = (kitRes.data ?? []) as { id: string; name: string; notes: string | null }[];
+  const { data: kitItemsData } = kitHeaders.length
+    ? await supabase.from("service_kit_items_visible")
+      .select("id, service_kit_id, part_no, description, qty, unit_cost_cents, part_catalogue_id")
+      .in("service_kit_id", kitHeaders.map((kit) => kit.id)).is("deleted_at", null)
+    : { data: [] };
+  const kitItems = (kitItemsData ?? []) as (KitItem & { service_kit_id: string })[];
+  const kits: ServiceKit[] = kitHeaders.map((kit) => ({
+    ...kit,
+    items: kitItems.filter((item) => item.service_kit_id === kit.id),
+  }));
   const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
   const warrantyLeadDays = Number(farmSettings.warranty_lead_days) || DEFAULT_WARRANTY_LEAD_DAYS;
   const warrantyHoursLead = Number(farmSettings.warranty_hours_lead) || DEFAULT_WARRANTY_HOURS_LEAD;
@@ -271,7 +305,7 @@ export default async function MachineDetailPage({
   // Budgets (G1) — budget-vs-actual for this machine (actual summed from cost_entries).
   const budgets = (budgetRes.data as Budget[] | null) ?? [];
   const budgetRows = budgets.map((b) => budgetProgress(costRows, b));
-  const canBudget = profile.role === "owner" || profile.role === "manager";
+  const canBudget = resourceRole === "owner" || resourceRole === "manager";
   const hasFinance =
     machine.finance_provider != null ||
     machine.finance_total_cents != null ||
@@ -283,16 +317,16 @@ export default async function MachineDetailPage({
   // Vehicle checklists (F11): completed/draft inspections + sign-offs for this machine.
   type ChecklistRow = { id: string; template_name: string; status: string; completed_at: string | null; created_at: string };
   const checklists = (checklistRes.data as ChecklistRow[] | null) ?? [];
-  const canFill = ["owner", "manager", "mechanic", "workshop", "operator"].includes(profile.role);
+  const canFill = resourceRole != null && ["owner", "manager", "mechanic", "workshop", "operator"].includes(resourceRole);
   const checklistStatusLabel = (s: string) =>
     s === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale);
 
   // Work requests (F12b): this machine's contractor requests + the farm's linked
   // contractors (RLS returns workshops linked to farms the user can access).
-  const canWorkReq = ["owner", "manager", "mechanic"].includes(profile.role);
+  const canWorkReq = resourceRole != null && ["owner", "manager", "mechanic"].includes(resourceRole);
   type WR = { id: string; kind: string; status: string; priority: string; title: string | null; workshop_id: string | null; quote_amount_cents: number | null; invoice_amount_cents: number | null; updated_at: string };
   const [workReqRes, workshopRes] = await Promise.all([
-    supabase.from("work_requests").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false }),
+    supabase.from("work_requests_visible").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false }),
     supabase.from("workshops").select("id, name, kind"),
   ]);
   const workRequests = (workReqRes.data as WR[] | null) ?? [];
@@ -346,7 +380,7 @@ export default async function MachineDetailPage({
       date: j.date_out ?? j.created_at.slice(0, 10),
       kind: "jobcard",
       title: `${t(`jobType.${j.type}`, locale)} · ${t(`jobStatus.${j.status}`, locale)}`,
-      sub: rands(j.total_cents),
+      sub: costsVisible ? rands(j.total_cents) : "",
       href: `/jobcards/${j.id}`,
     });
   for (const f of faults)
@@ -383,9 +417,9 @@ export default async function MachineDetailPage({
   // Contractor work requests (F12b) + their quotes/invoices (F13) on the timeline.
   for (const w of workRequests) {
     const amountLabel =
-      w.invoice_amount_cents != null
+      costsVisible && w.invoice_amount_cents != null
         ? `${t("work.invoice", locale)}: ${rands(w.invoice_amount_cents)}`
-        : w.quote_amount_cents != null
+        : costsVisible && w.quote_amount_cents != null
           ? `${t("work.quote", locale)}: ${rands(w.quote_amount_cents)}`
           : w.workshop_id
             ? (workshopNameById.get(w.workshop_id) ?? t("work.unassigned", locale))
@@ -441,7 +475,7 @@ export default async function MachineDetailPage({
   return (
     <div className="flex flex-col gap-4">
       <Link href="/machines" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {t("machines.title", locale)}
       </Link>
 
@@ -450,21 +484,21 @@ export default async function MachineDetailPage({
         twenty sections below. Photo, name, status, the two numbers that matter, and
         the two things people actually came to do.
       */}
-      <header className="flex flex-col gap-4 rounded-2xl border border-sand-200 bg-white p-4 shadow-card sm:flex-row sm:items-start sm:gap-5">
-        <div className="h-[132px] w-[132px] shrink-0 self-start overflow-hidden rounded-xl bg-sand-100 ring-1 ring-sand-200 sm:h-24 sm:w-24">
-          {primaryPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={primaryPhotoUrl} alt={machine.name} className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-sand-300" aria-hidden>
-              <MachinesIcon className="text-[2.4rem]" />
-            </span>
-          )}
-        </div>
+      <header className="flex flex-col gap-4 rounded-2xl border border-sand-200 bg-surface p-4 shadow-card sm:flex-row sm:items-start sm:gap-5">
+        {/* Above the fold and the subject of the page, so it loads eagerly —
+            lazy-loading the LCP image only delays it. */}
+        <Photo
+          src={primaryPhotoUrl}
+          alt={machine.name}
+          size="detail"
+          priority
+          className="h-[132px] w-[132px] shrink-0 self-start rounded-xl ring-1 ring-sand-200 sm:h-24 sm:w-24"
+          placeholder={<MachinesIcon className="text-4xl" />}
+        />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">{machine.name}</h1>
+            <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">{machine.name}</h1>
             <MachineStatus value={machine.status} locale={locale} size="md" />
           </div>
           <p className="mt-1 text-sm text-sand-500">
@@ -501,7 +535,7 @@ export default async function MachineDetailPage({
                 </dd>
               </div>
             ) : null}
-            {perMeter != null ? (
+            {costsVisible && perMeter != null ? (
               <div>
                 <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
                 <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
@@ -527,7 +561,7 @@ export default async function MachineDetailPage({
               <summary className={buttonVariants({ variant: "ghost", className: "cursor-pointer list-none" })}>
                 {t("ui.viewAll", locale)}
               </summary>
-              <div className="absolute right-0 z-10 mt-1 flex w-56 flex-col rounded-xl border border-sand-200 bg-white p-1.5 shadow-pop">
+              <div className="absolute right-0 z-10 mt-1 flex w-56 flex-col rounded-xl border border-sand-200 bg-surface p-1.5 shadow-pop">
                 <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
                   {t("machine.machineFile", locale)}
                 </a>
@@ -539,7 +573,7 @@ export default async function MachineDetailPage({
 
       {/* Out-of-service banner (active-but-down) — owner/manager can revert. */}
       {isOutOfService ? (
-        <Card className="border-status-overdue bg-red-50">
+        <Card className="border-status-overdue bg-callout-danger-bg">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-semibold text-status-overdue">{t("machine.outOfServiceTitle", locale)}</p>
@@ -555,7 +589,7 @@ export default async function MachineDetailPage({
         </Card>
       ) : null}
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
       {/*
@@ -573,7 +607,7 @@ export default async function MachineDetailPage({
                 <div className="flex flex-col gap-4">
               {/* Meter history */}
               {machine.meter_type !== "none" ? (
-                <Card>
+                <Card id="meter-reading" className="scroll-mt-24">
                   <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
                   <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
                   {canAddReading ? (
@@ -690,9 +724,11 @@ export default async function MachineDetailPage({
                         <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" className="w-28" defaultValue={machine.current_reading ?? ""} />
                       </Field>
                     ) : null}
-                    <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
-                      <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
-                    </Field>
+                    {costsVisible ? (
+                      <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
+                        <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
+                      </Field>
+                    ) : null}
                     <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
                       <Select id="f_activity" name="activity" defaultValue="">
                         <option value="">—</option>
@@ -725,7 +761,7 @@ export default async function MachineDetailPage({
                           {d.meter_reading != null ? <span className="text-sand-400"> · {d.meter_reading} {machine.meter_type}</span> : null}
                         </span>
                         <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                          {d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
+                          {costsVisible && d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
                           {d.anomaly_notified_at ? <Badge tone="danger">{t("fuel.flagged", locale)}</Badge> : null}
                           <span className="tabular-nums">{d.date}</span>
                         </span>
@@ -831,7 +867,7 @@ export default async function MachineDetailPage({
                         </div>
                         {canEdit ? (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.editServiceLine", locale)}</summary>
+                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("machine.editServiceLine", locale)}</summary>
                             <form action={updateServiceLine} className="mt-2 flex flex-wrap gap-2">
                               <input type="hidden" name="id" value={l.id} />
                               <input type="hidden" name="machine_id" value={machine.id} />
@@ -849,7 +885,7 @@ export default async function MachineDetailPage({
                                 triggerSize="sm"
                                 triggerIcon={<TrashIcon />}
                                 triggerLabel={t("machine.delete", locale)}
-                                triggerClassName="text-status-overdue hover:bg-red-50"
+                                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                 title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
                                 intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
                                 consequencesTitle={t("confirm.whatHappens", locale)}
@@ -875,7 +911,7 @@ export default async function MachineDetailPage({
                 {canEdit ? (
                   <div className="mt-3 flex flex-col gap-2 border-t border-sand-100 pt-3">
                     <details>
-                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceLine", locale)}</summary>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.addServiceLine", locale)}</summary>
                       <form action={addServiceLine} className="mt-2 flex flex-wrap gap-2">
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -889,7 +925,7 @@ export default async function MachineDetailPage({
                     </details>
                     {templates.length > 0 ? (
                       <details>
-                        <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.applyTemplate", locale)}</summary>
+                        <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.applyTemplate", locale)}</summary>
                         <form action={applyTemplate} className="mt-2 flex flex-wrap items-end gap-2">
                           <input type="hidden" name="machine_id" value={machine.id} />
                           <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -929,7 +965,7 @@ export default async function MachineDetailPage({
                               triggerSize="sm"
                               triggerIcon={<TrashIcon />}
                               triggerLabel={t("machine.deleteKit", locale)}
-                              triggerClassName="text-status-overdue hover:bg-red-50"
+                              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                               title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
                               intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
                               consequencesTitle={t("confirm.whatHappens", locale)}
@@ -960,7 +996,9 @@ export default async function MachineDetailPage({
                                     <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
                                   </span>
                                   <span className="flex shrink-0 items-center gap-2">
-                                    <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
+                                    {costsVisible ? (
+                                      <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
+                                    ) : null}
                                     {canKit ? (
                                       <ConfirmDialog
                                         action={deleteKitItem}
@@ -968,7 +1006,7 @@ export default async function MachineDetailPage({
                                         triggerSize="sm"
                                         triggerIcon={<TrashIcon />}
                                         triggerLabel={t("machine.removeItem", locale)}
-                                        triggerClassName="text-status-overdue hover:bg-red-50"
+                                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                         title={t("confirm.deleteKitItemTitle", locale).replace(
                                           "{part}",
                                           item.part_no ?? item.description ?? "—",
@@ -986,7 +1024,7 @@ export default async function MachineDetailPage({
                                 </div>
                                 {canKit ? (
                                   <details className="mt-1">
-                                    <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                                    <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
                                     <form action={updateKitItem} className="mt-1 flex flex-wrap gap-2">
                                       <input type="hidden" name="id" value={item.id} />
                                       <input type="hidden" name="machine_id" value={machine.id} />
@@ -1004,7 +1042,7 @@ export default async function MachineDetailPage({
                         )}
                         {canKit ? (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("machine.addKitItem", locale)}</summary>
+                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("machine.addKitItem", locale)}</summary>
                             <form action={addKitItem} className="mt-2 flex flex-wrap gap-2">
                               <input type="hidden" name="machine_id" value={machine.id} />
                               <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -1032,7 +1070,7 @@ export default async function MachineDetailPage({
                 {canKit ? (
                   <div className="mt-3 border-t border-sand-100 pt-3">
                     <details>
-                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("machine.addServiceKit", locale)}</summary>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.addServiceKit", locale)}</summary>
                       <form action={createServiceKit} className="mt-2 flex flex-wrap gap-2">
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -1048,7 +1086,7 @@ export default async function MachineDetailPage({
                 </div>
               ),
             },
-            {
+            ...(costsVisible ? [{
               key: "costs",
               label: t("machine.tabCosts", locale),
               content: (
@@ -1085,7 +1123,7 @@ export default async function MachineDetailPage({
                     </div>
                     <p className="mt-0.5 text-xs text-sand-400">{t("machine.repairRatioHint", locale).replace("{pct}", String(repair.thresholdPct))}</p>
                     {repair.flagged ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 p-2.5">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-callout-danger-bg p-2.5">
                         <Badge tone="danger">{t("machine.considerReplacing", locale)}</Badge>
                         <span className="text-xs text-sand-600">{t("machine.considerReplacingHint", locale)}</span>
                       </div>
@@ -1154,7 +1192,7 @@ export default async function MachineDetailPage({
                         </p>
                         {canBudget ? (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
                             <form action={updateBudget} className="mt-2 flex flex-wrap gap-2">
                               <input type="hidden" name="id" value={bp.budget.id} />
                               <input type="hidden" name="machine_id" value={machine.id} />
@@ -1177,7 +1215,7 @@ export default async function MachineDetailPage({
                                 triggerSize="sm"
                                 triggerIcon={<TrashIcon />}
                                 triggerLabel={t("common.delete", locale)}
-                                triggerClassName="text-status-overdue hover:bg-red-50"
+                                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                 title={t("confirm.deleteBudgetTitle", locale)}
                                 intro={t("confirm.deleteBudgetIntro", locale).replace("{machine}", machine.name)}
                                 facts={[
@@ -1208,7 +1246,7 @@ export default async function MachineDetailPage({
                 )}
                 {canBudget ? (
                   <details className="mt-3 border-t border-sand-100 pt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("budget.add", locale)}</summary>
+                    <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("budget.add", locale)}</summary>
                     <form action={addBudget} className="mt-2 flex flex-wrap items-end gap-2">
                       <input type="hidden" name="machine_id" value={machine.id} />
                       <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -1237,7 +1275,7 @@ export default async function MachineDetailPage({
 
                 </div>
               ),
-            },
+            }] : []),
             {
               key: "history",
               label: t("machine.tabHistory", locale),
@@ -1253,7 +1291,7 @@ export default async function MachineDetailPage({
                     {events.map((e, i) => {
                       const body = (
                         <div className="flex gap-3 py-2.5">
-                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-[1.05rem] text-sand-500">
+                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-base text-sand-500">
                             {evIcon(e.kind)}
                           </span>
                           <div className="min-w-0 flex-1">
@@ -1283,7 +1321,7 @@ export default async function MachineDetailPage({
                       <input type="hidden" name="machine_id" value={machine.id} />
                       <input type="hidden" name="farm_id" value={machine.farm_id} />
                       <input type="hidden" name="type" value="repair" />
-                      <Button type="submit" variant="ghost" size="sm"><PlusIcon className="text-[1rem]" />{t("machine.newJobCard", locale)}</Button>
+                      <Button type="submit" variant="ghost" size="sm"><PlusIcon className="text-base" />{t("machine.newJobCard", locale)}</Button>
                     </form>
                   ) : undefined}
                 >
@@ -1297,7 +1335,7 @@ export default async function MachineDetailPage({
                       <li key={j.id}>
                         <Link href={`/jobcards/${j.id}`} className="focus-ring flex items-center justify-between rounded-md py-1.5">
                           <span>{t(`jobType.${j.type}`, locale)}</span>
-                          <span className="text-sand-500">{rands(j.total_cents)}</span>
+                          {costsVisible ? <span className="text-sand-500">{rands(j.total_cents)}</span> : null}
                         </Link>
                       </li>
                     ))}
@@ -1309,8 +1347,8 @@ export default async function MachineDetailPage({
               <Card>
                 <CardHeader
                   action={canFill ? (
-                    <Link href={`/machines/${machine.id}/checklists/new`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-700">
-                      <PlusIcon className="text-[1rem]" />{t("checklists.newChecklist", locale)}
+                    <Link href={`/machines/${machine.id}/checklists/new`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-ink">
+                      <PlusIcon className="text-base" />{t("checklists.newChecklist", locale)}
                     </Link>
                   ) : undefined}
                 >
@@ -1348,7 +1386,7 @@ export default async function MachineDetailPage({
                             {w.workshop_id ? <span className="text-sand-400"> · {workshopNameById.get(w.workshop_id) ?? ""}</span> : null}
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
-                            {(w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
+                            {costsVisible && (w.invoice_amount_cents ?? w.quote_amount_cents) != null ? (
                               <span className="tabular-nums text-sand-500">{rands(w.invoice_amount_cents ?? w.quote_amount_cents)}</span>
                             ) : null}
                             <WorkStatus value={w.status} locale={locale} />
@@ -1363,7 +1401,7 @@ export default async function MachineDetailPage({
                 {canWorkReq ? (
                   linkedWorkshops.length > 0 ? (
                     <details className="border-t border-sand-100 pt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("work.getSomethingDone", locale)}</summary>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("work.getSomethingDone", locale)}</summary>
                       <form action={createWorkRequest} className="mt-2 flex flex-col gap-2">
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />
@@ -1402,7 +1440,7 @@ export default async function MachineDetailPage({
                   ) : (
                     <p className="border-t border-sand-100 pt-3 text-sm text-sand-500">
                       {t("work.noContractors", locale)}{" "}
-                      <Link href="/partners" className="focus-ring rounded text-brand-700">{t("nav.partners", locale)} →</Link>
+                      <Link href="/partners" className="focus-ring rounded text-brand-ink">{t("nav.partners", locale)} →</Link>
                     </p>
                   )
                 ) : null}
@@ -1455,7 +1493,7 @@ export default async function MachineDetailPage({
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("machine.finesTitle", locale)}</p>
                     {canEdit ? (
-                      <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-700">
+                      <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-ink">
                         {t("machine.recordFine", locale)} →
                       </Link>
                     ) : null}
@@ -1477,7 +1515,7 @@ export default async function MachineDetailPage({
                                 <p className="text-xs text-sand-500">
                                   {t("fines.driver", locale)}: {fineDriverLabel(f)}
                                   {f.offence_date ? <span className="text-sand-400"> · {f.offence_date}</span> : null}
-                                  {f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
+                                  {costsVisible && f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
                                 </p>
                                 {f.nomination_deadline && nominationPending(f.status) ? (
                                   <p className="text-xs text-sand-500">
@@ -1521,7 +1559,7 @@ export default async function MachineDetailPage({
                 with a 403 before any query, so for them the card was a button that always
                 failed. The route is still what refuses — this is presentation only.
               */}
-              <DocumentPacks machineId={machine.id} locale={locale} role={profile.role} />
+              <DocumentPacks machineId={machine.id} locale={locale} role={resourceRole ?? profile.role} />
 
               {/* Compliance — warranty + licences (F6) */}
               <Card>
@@ -1571,7 +1609,7 @@ export default async function MachineDetailPage({
                             </div>
                             {canEdit ? (
                               <details className="mt-2">
-                                <summary className="cursor-pointer text-xs font-medium text-brand-700">{t("common.edit", locale)}</summary>
+                                <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
                                 <form action={updateLicence} className="mt-2 flex flex-wrap gap-2">
                                   <input type="hidden" name="id" value={l.id} />
                                   <input type="hidden" name="machine_id" value={machine.id} />
@@ -1591,7 +1629,7 @@ export default async function MachineDetailPage({
                                     triggerSize="sm"
                                     triggerIcon={<TrashIcon />}
                                     triggerLabel={t("common.delete", locale)}
-                                    triggerClassName="text-status-overdue hover:bg-red-50"
+                                    triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                     title={t("confirm.deleteLicenceTitle", locale).replace(
                                       "{type}",
                                       licenceTypeLabel(l.type, locale),
@@ -1620,7 +1658,7 @@ export default async function MachineDetailPage({
                   )}
                   {canEdit ? (
                     <details className="mt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("compliance.addLicence", locale)}</summary>
+                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("compliance.addLicence", locale)}</summary>
                       <form action={addLicence} className="mt-2 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { checkEntitlement, currentFarmId } from "@/lib/auth";
+import { checkEntitlement, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -14,6 +15,7 @@ import { PrintButton } from "@/components/print-button";
 import { FleetCompliancePackLink } from "@/components/reports/compliance-packs";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { budgetTone, budgetPeriodLabel, budgetCategoryLabel } from "@/lib/budgets";
+import { MailIcon } from "@/components/ui/icons";
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -47,6 +49,11 @@ export default async function ReportsPage({
   const filters = parseFilters(sp);
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
+  const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
+  // Resolve disclosure against the selected farm. `users.role` only describes the
+  // primary farm, and a failed database check must hide money rather than expose it.
+  const costsVisible = await canViewFarmCosts(supabase, farmId);
+  const canSchedule = role != null && ["owner", "manager", "rr_admin"].includes(role);
   const data = await getReportData(supabase, filters, farmId);
 
   const now = new Date();
@@ -92,11 +99,17 @@ export default async function ReportsPage({
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
           <PageInfoButton infoKey="reports" locale={locale} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canSchedule ? (
+            <Link href="/reports/schedules" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              <MailIcon />
+              {t("reportSchedules.title", locale)}
+            </Link>
+          ) : null}
           {/* Single multi-sheet Excel workbook covering every report family (FR-11.4). */}
-          <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          {costsVisible ? <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("reports.downloadExcel", locale)} ↓
-          </a>
+          </a> : null}
           {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4) — fleet compliance summary PDF. */}
           <FleetCompliancePackLink locale={locale} />
           <PrintButton label={t("reports.print", locale)} />
@@ -144,8 +157,14 @@ export default async function ReportsPage({
         ) : null}
       </Card>
 
+      {!costsVisible ? (
+        <p className="rounded-xl border border-sand-200 bg-sand-100 px-4 py-3 text-sm text-sand-700" role="status">
+          {t("reports.costsHidden", locale)}
+        </p>
+      ) : null}
+
       {/* Cost per machine */}
-      <Card flush>
+      {costsVisible ? <Card flush>
         <CardHeader
           className="px-4 pt-4"
           action={
@@ -176,7 +195,7 @@ export default async function ReportsPage({
               {data.costPerMachine.map((r) => (
                 <Tr key={r.machineId}>
                   <Td className="font-medium">
-                    <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{r.name}</Link>
+                    <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-ink hover:underline">{r.name}</Link>
                   </Td>
                   <Td className="text-right">{rands(r.parts)}</Td>
                   <Td className="text-right">{rands(r.labour)}</Td>
@@ -190,11 +209,11 @@ export default async function ReportsPage({
             </Tbody>
           </Table>
         )}
-      </Card>
+      </Card> : null}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Spend by type */}
-        <Card>
+        {costsVisible ? <Card>
           <CardHeader
             action={<a href={`/reports/by-type.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>{t("reports.csv", locale)} ↓</a>}
           >
@@ -206,10 +225,10 @@ export default async function ReportsPage({
             ))}
             {data.byType.length === 0 ? <li className="py-1.5 text-sand-400">{t("reports.none", locale)}</li> : null}
           </ul>
-        </Card>
+        </Card> : null}
 
         {/* Service compliance */}
-        <Card>
+        <Card className={!costsVisible ? "lg:col-span-2" : undefined}>
           <CardHeader
             action={<a href={`/reports/compliance.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>{t("reports.csv", locale)} ↓</a>}
           >
@@ -276,17 +295,17 @@ export default async function ReportsPage({
         <CardHeader
           className="px-4 pt-4"
           action={
-            <a href={`/reports/fuel.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+            costsVisible ? <a href={`/reports/fuel.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
               {t("reports.csv", locale)} ↓
-            </a>
+            </a> : null
           }
         >
           <CardTitle>{t("reports.fuel", locale)}</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
-          <Stat label={t("reports.fuelPurchased", locale)} value={rands(data.fuel.purchasedSpend)} />
+          {costsVisible ? <Stat label={t("reports.fuelPurchased", locale)} value={rands(data.fuel.purchasedSpend)} /> : null}
           <Stat label={`${t("reports.fuelPurchased", locale)} (${t("fuel.litresShort", locale)})`} value={data.fuel.purchasedLitres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
-          <Stat label={t("reports.fuelUsed", locale)} value={rands(data.fuel.totalSpend)} />
+          {costsVisible ? <Stat label={t("reports.fuelUsed", locale)} value={rands(data.fuel.totalSpend)} /> : null}
           <Stat label={`${t("reports.fuelUsed", locale)} (${t("fuel.litresShort", locale)})`} value={data.fuel.totalLitres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
         </div>
         {data.fuel.perMachine.length === 0 ? (
@@ -298,7 +317,7 @@ export default async function ReportsPage({
                 <Tr>
                   <Th>{t("reports.machine", locale)}</Th>
                   <Th className="text-right">{t("reports.fuelLitres", locale)}</Th>
-                  <Th className="text-right">{t("reports.fuelSpend", locale)}</Th>
+                  {costsVisible ? <Th className="text-right">{t("reports.fuelSpend", locale)}</Th> : null}
                   <Th className="text-right">{t("reports.fuelConsumption", locale)}</Th>
                 </Tr>
               </Thead>
@@ -306,10 +325,10 @@ export default async function ReportsPage({
                 {data.fuel.perMachine.map((r) => (
                   <Tr key={r.machineId}>
                     <Td className="font-medium">
-                      <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{r.name}</Link>
+                      <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-ink hover:underline">{r.name}</Link>
                     </Td>
                     <Td className="text-right tabular-nums">{r.litres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</Td>
-                    <Td className="text-right tabular-nums">{rands(r.spend)}</Td>
+                    {costsVisible ? <Td className="text-right tabular-nums">{rands(r.spend)}</Td> : null}
                     <Td className="text-right tabular-nums">
                       {r.consumption != null
                         ? `${r.consumption.toLocaleString("en-ZA", { maximumFractionDigits: 2 })} ${r.meterType === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)}`
@@ -324,7 +343,7 @@ export default async function ReportsPage({
       </Card>
 
       {/* Budget vs actual (G1 · FR-10.4) */}
-      <Card flush>
+      {costsVisible ? <Card flush>
         <CardHeader
           className="px-4 pt-4"
           action={
@@ -354,7 +373,7 @@ export default async function ReportsPage({
                 <Tr key={b.id}>
                   <Td className="font-medium">
                     {b.machineId ? (
-                      <Link href={`/machines/${b.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{b.scope}</Link>
+                      <Link href={`/machines/${b.machineId}`} className="focus-ring rounded text-brand-ink hover:underline">{b.scope}</Link>
                     ) : (
                       t("budget.wholeFarm", locale)
                     )}
@@ -373,7 +392,7 @@ export default async function ReportsPage({
             </Tbody>
           </Table>
         )}
-      </Card>
+      </Card> : null}
 
       {/* Utilisation & downtime (G1 · §23) */}
       <Card flush>
@@ -411,7 +430,7 @@ export default async function ReportsPage({
                   return (
                     <Tr key={r.machineId}>
                       <Td className="font-medium">
-                        <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-700 hover:underline">{r.name}</Link>
+                        <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-ink hover:underline">{r.name}</Link>
                       </Td>
                       <Td className="text-right tabular-nums">{r.used != null ? `${fmt(r.used)} ${unit}` : "—"}</Td>
                       <Td className="text-right tabular-nums">{r.pct != null ? `${r.pct.toFixed(0)}%` : "—"}</Td>
@@ -431,17 +450,17 @@ export default async function ReportsPage({
         <CardHeader
           className="px-4 pt-4"
           action={
-            <a href={`/reports/contractors.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+            costsVisible ? <a href={`/reports/contractors.csv?${qs({})}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
               {t("reports.csv", locale)} ↓
-            </a>
+            </a> : null
           }
         >
           <CardTitle>{t("reports.contractors", locale)}</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
-          <Stat label={t("reports.outstandingQuotes", locale)} value={data.contractors.outstandingQuotes.count} tone={data.contractors.outstandingQuotes.count > 0 ? "due" : "default"} delta={rands(data.contractors.outstandingQuotes.value)} />
-          <Stat label={t("reports.outstandingInvoices", locale)} value={data.contractors.outstandingInvoices.count} tone={data.contractors.outstandingInvoices.count > 0 ? "overdue" : "default"} delta={rands(data.contractors.outstandingInvoices.value)} />
-          <Stat label={t("reports.spendViaContractors", locale)} value={rands(data.contractors.spendViaContractors)} />
+          <Stat label={t("reports.outstandingQuotes", locale)} value={data.contractors.outstandingQuotes.count} tone={data.contractors.outstandingQuotes.count > 0 ? "due" : "default"} delta={costsVisible ? rands(data.contractors.outstandingQuotes.value) : undefined} />
+          <Stat label={t("reports.outstandingInvoices", locale)} value={data.contractors.outstandingInvoices.count} tone={data.contractors.outstandingInvoices.count > 0 ? "overdue" : "default"} delta={costsVisible ? rands(data.contractors.outstandingInvoices.value) : undefined} />
+          {costsVisible ? <Stat label={t("reports.spendViaContractors", locale)} value={rands(data.contractors.spendViaContractors)} /> : null}
           <Stat
             label={t("reports.responsiveness", locale)}
             value={data.contractors.responsiveness.requestedToViewedHrs != null ? `${data.contractors.responsiveness.requestedToViewedHrs} ${t("reports.hoursShort", locale)}` : "—"}
@@ -490,7 +509,7 @@ export default async function ReportsPage({
                     <Th>{t("reports.contractor", locale)}</Th>
                     <Th className="text-right">{t("reports.requestsShort", locale)}</Th>
                     <Th className="text-right">{t("reports.invoicedShort", locale)}</Th>
-                    <Th className="text-right">{t("reports.spend", locale)}</Th>
+                    {costsVisible ? <Th className="text-right">{t("reports.spend", locale)}</Th> : null}
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -499,7 +518,7 @@ export default async function ReportsPage({
                       <Td className="font-medium">{c.name}</Td>
                       <Td className="text-right tabular-nums">{c.requests}</Td>
                       <Td className="text-right tabular-nums">{c.invoiced}</Td>
-                      <Td className="text-right tabular-nums">{rands(c.spend)}</Td>
+                      {costsVisible ? <Td className="text-right tabular-nums">{rands(c.spend)}</Td> : null}
                     </Tr>
                   ))}
                 </Tbody>

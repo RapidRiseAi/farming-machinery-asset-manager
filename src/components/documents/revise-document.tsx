@@ -200,7 +200,7 @@ export function ReviseDocument({
             name="prices_incl_vat"
             checked={inclusive}
             onChange={(e) => setInclusive(e.target.checked)}
-            className="h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="h-5 w-5 rounded border-sand-300 text-brand-ink"
           />
           {t("revise.inclVat", locale).replace("{pct}", vatPercent(vatRateBps))}
         </label>

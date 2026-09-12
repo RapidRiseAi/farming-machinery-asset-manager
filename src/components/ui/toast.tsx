@@ -6,10 +6,10 @@ import { CheckIcon, WarningIcon, InfoIcon, CloseIcon } from "./icons";
 import type { FlashTone } from "./flash";
 
 const TONES: Record<FlashTone, { wrap: string; icon: ReactNode }> = {
-  success: { wrap: "border-green-200 bg-green-50 text-green-800", icon: <CheckIcon /> },
-  error: { wrap: "border-red-200 bg-red-50 text-red-700", icon: <WarningIcon /> },
-  warning: { wrap: "border-amber-200 bg-amber-50 text-amber-800", icon: <WarningIcon /> },
-  info: { wrap: "border-blue-200 bg-blue-50 text-blue-700", icon: <InfoIcon /> },
+  success: { wrap: "border-callout-ok-edge bg-callout-ok-bg text-callout-ok-ink", icon: <CheckIcon /> },
+  error: { wrap: "border-callout-danger-edge bg-callout-danger-bg text-callout-danger-ink", icon: <WarningIcon /> },
+  warning: { wrap: "border-callout-warn-edge bg-callout-warn-bg text-callout-warn-ink", icon: <WarningIcon /> },
+  info: { wrap: "border-callout-info-edge bg-callout-info-bg text-callout-info-ink", icon: <InfoIcon /> },
 };
 
 export type ToastProps = {
@@ -60,7 +60,7 @@ export function Toast({
         className,
       )}
     >
-      <span className="mt-0.5 shrink-0 text-[1.15rem]" aria-hidden>
+      <span className="mt-0.5 shrink-0 text-lg" aria-hidden>
         {s.icon}
       </span>
       <span className="min-w-0 flex-1">{message}</span>

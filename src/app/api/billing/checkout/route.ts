@@ -54,7 +54,9 @@ export async function POST(request: Request) {
   }
 
   const profile = await getProfile();
-  if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!profile || !profile.active) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   let requestedFarm: string | null = null;
   try {

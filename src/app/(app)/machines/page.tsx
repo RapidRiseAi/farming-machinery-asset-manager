@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfile, currentFarmId } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { rands } from "@/lib/money";
@@ -22,6 +23,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { GetStarted, NoMatches } from "@/components/ui/empty-state";
 import { FilterBar, type ChipOption } from "@/components/ui/filter-bar";
 import { Flash } from "@/components/ui/flash";
+import { Photo } from "@/components/ui/photo";
+import { signedUrlOpts } from "@/lib/storage-image";
 import { MachinesIcon, PlusIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, ChevronRightIcon } from "@/components/ui/icons";
 
 type MachineRow = {
@@ -63,7 +66,10 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const farmId = await currentFarmId(profile);
   const permissionState = await farmPermissionState(profile, farmId);
   const canEdit = permissionState.role === "owner" || permissionState.role === "manager";
+  const canAddReading = permissionState.role != null &&
+    ["rr_admin", "owner", "manager", "mechanic", "operator"].includes(permissionState.role);
   const hasFullFleetGrant = permissionState.grants.has("see_all_vehicles");
+  const costsVisible = profile.role === "rr_admin" || await canViewFarmCosts(supabase, farmId);
   let query = supabase
     .from("machines")
     .select("id, name, type, make, model, year, reg_no, status, meter_type, current_reading, current_reading_date, cost_centre, primary_attachment_id")
@@ -109,7 +115,19 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     }
     const paths = [...new Set(pathById.values())];
     if (paths.length > 0) {
-      const { data: signed } = await supabase.storage.from("machine-photos").createSignedUrls(paths, 3600);
+      // NOTE: the BATCH api (`createSignedUrls`) takes no `transform` — only the
+      // single-object `createSignedUrl` does, and the signature covers the
+      // transformation, so the parameters cannot be appended afterwards. Signing
+      // 15 photos one at a time to get a resize would be 15 round trips to save
+      // bytes, which is the wrong trade on this screen.
+      //
+      // So the list keeps the batch call and takes the wins that need no server
+      // support: `<Photo>` gives every thumbnail intrinsic dimensions (no layout
+      // shift as photos land) and lazy loading (only what is on screen is
+      // fetched). See lib/storage-image.ts.
+      const { data: signed } = await supabase.storage
+        .from("machine-photos")
+        .createSignedUrls(paths, 3600);
       const urlByPath = new Map<string, string>();
       for (const s of signed ?? []) {
         if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
@@ -139,11 +157,16 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   // Cost per hour / km, from the same ledger that feeds the reports (F1 `cost.ts`), so
   // the list and the machine page never disagree.
-  let costQ = supabase.from("cost_entries").select("machine_id, type, amount_cents").is("deleted_at", null);
-  if (farmId) costQ = costQ.eq("farm_id", farmId);
-  const { data: costData } = await costQ;
+  type CostRow = { machine_id: string | null; type: string; amount_cents: number | null };
+  let costData: CostRow[] = [];
+  if (costsVisible) {
+    let costQ = supabase.from("cost_entries").select("machine_id, type, amount_cents").is("deleted_at", null);
+    if (farmId) costQ = costQ.eq("farm_id", farmId);
+    const result = await costQ;
+    costData = (result.data as CostRow[] | null) ?? [];
+  }
   const costByMachine = new Map<string, { type: string; amount_cents: number | null }[]>();
-  for (const c of (costData as { machine_id: string | null; type: string; amount_cents: number | null }[] | null) ?? []) {
+  for (const c of costData) {
     if (!c.machine_id) continue;
     const list = costByMachine.get(c.machine_id) ?? [];
     list.push(c);
@@ -181,7 +204,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const sortIndicator = (col: "name" | "reading") => {
     const active = sort === (col === "reading" ? "current_reading" : "name");
     if (!active) return null;
-    return dir === "asc" ? <ChevronUpIcon className="text-[0.9rem]" /> : <ChevronDownIcon className="text-[0.9rem]" />;
+    return dir === "asc" ? <ChevronUpIcon className="text-sm" /> : <ChevronDownIcon className="text-sm" />;
   };
 
   const typeOptions: ChipOption[] = [
@@ -197,6 +220,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   ];
 
   const hasFilter = !!(sp.type || sp.status || sp.q || sp.cc || sp.dept);
+  const showReadingActions = canAddReading && machines.some((m) => m.meter_type !== "none");
 
   /**
    * The service cell — a status, or a "set up a plan" prompt when there is no plan.
@@ -210,18 +234,18 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     const s = svcByMachine.get(m.id);
     if (!s) {
       const look =
-        "inline-flex items-center gap-1 rounded-full border border-dashed border-sand-300 px-2.5 py-1 text-xs font-medium text-brand-700";
+        "inline-flex items-center gap-1 rounded-full border border-dashed border-sand-300 px-2.5 py-1 text-xs font-medium text-brand-ink";
       return linked ? (
         <Link
           href={`/machines/${m.id}`}
-          className={`focus-ring ${look} hover:border-brand-300 hover:bg-brand-50`}
+          className={`focus-ring ${look} hover:border-brand-300 hover:bg-brand-tint`}
         >
-          <PlusIcon className="text-[0.9rem]" />
+          <PlusIcon className="text-sm" />
           {t("machines.setUpPlan", locale)}
         </Link>
       ) : (
         <span className={look}>
-          <PlusIcon className="text-[0.9rem]" />
+          <PlusIcon className="text-sm" />
           {t("machines.setUpPlan", locale)}
         </span>
       );
@@ -254,16 +278,16 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     const url = photoUrlByMachine.get(id);
     const cls = size === "sm" ? "h-12 w-12 rounded-lg" : "h-[132px] w-[132px] rounded-xl";
     return (
-      <div className={`${cls} shrink-0 overflow-hidden bg-sand-100 ring-1 ring-sand-200`}>
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-sand-300">
-            <MachinesIcon className={size === "sm" ? "text-[1.1rem]" : "text-[2.2rem]"} />
-          </span>
-        )}
-      </div>
+      // `alt=""` is correct here and only here: every card and row names the
+      // machine in adjacent text, so describing the photo again would make a
+      // screen reader read the same name twice.
+      <Photo
+        src={url}
+        alt=""
+        size={size === "sm" ? "thumb" : "card"}
+        className={`${cls} shrink-0 ring-1 ring-sand-200`}
+        placeholder={<MachinesIcon className={size === "sm" ? "text-lg" : "text-3xl"} />}
+      />
     );
   };
 
@@ -279,7 +303,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
             {t("machines.title", locale)}
           </h1>
           <PageInfoButton infoKey="machines" locale={locale} />
@@ -306,7 +330,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
             ) : null}
           </p>
           {hasFullFleetGrant ? (
-            <p className="mt-1 text-xs font-medium text-brand-700">
+            <p className="mt-1 text-xs font-medium text-brand-ink">
               {t("permissions.fullFleetActive", locale)}
             </p>
           ) : null}
@@ -317,7 +341,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               {t("machines.import", locale)}
             </Link>
             <Link href="/machines/new" className={buttonVariants({ variant: "primary" })}>
-              <PlusIcon className="text-[1.1rem]" />
+              <PlusIcon className="text-lg" />
               {t("machines.add", locale)}
             </Link>
           </div>
@@ -361,7 +385,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
           <form className="flex gap-2">
             <div className="relative flex-1">
               <label htmlFor="q" className="sr-only">{t("machines.search", locale)}</label>
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[1.1rem] text-sand-400" />
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-sand-400" />
               <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("machines.search", locale)} className="pl-9" />
             </div>
             {sp.type ? <input type="hidden" name="type" value={sp.type} /> : null}
@@ -379,7 +403,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
             </span>
             <Link
               href={showRetired ? "/machines" : "/machines?retired=1"}
-              className="focus-ring rounded-md font-medium text-brand-700"
+              className="focus-ring rounded-md font-medium text-brand-ink"
             >
               {showRetired ? t("machines.hideRetired", locale) : t("machines.showRetired", locale)}
             </Link>
@@ -396,7 +420,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
           action={
             canEdit ? (
               <Link href="/machines/new" className={buttonVariants({ variant: "primary", size: "lg" })}>
-                <PlusIcon className="text-[1.15rem]" />
+                <PlusIcon className="text-lg" />
                 {t("machines.firstRunCta", locale)}
               </Link>
             ) : undefined
@@ -414,7 +438,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                 {t("machines.firstRunPreview", locale)}
               </p>
               {[0, 1].map((i) => (
-                <div key={i} className="flex items-center gap-3 rounded-xl border border-sand-200 bg-white p-3">
+                <div key={i} className="flex items-center gap-3 rounded-xl border border-sand-200 bg-surface p-3">
                   <div className="h-12 w-12 shrink-0 rounded-lg bg-sand-200" />
                   <div className="flex-1">
                     <div className="h-3 w-32 rounded bg-sand-200" />
@@ -448,7 +472,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                   <Link href={`/machines/${m.id}`} className="focus-ring flex gap-3.5 rounded-xl p-3">
                     {photo(m.id, "lg")}
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <p className="truncate text-[1.05rem] font-semibold leading-snug text-sand-900">{m.name}</p>
+                      <p className="truncate text-base font-semibold leading-snug text-sand-900">{m.name}</p>
                       <p className="mt-0.5 truncate text-sm text-sand-500">{subtitle(m)}</p>
                       <div className="mt-2 text-sm">{readingCell(m)}</div>
                       <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2.5">
@@ -481,8 +505,8 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                   </Th>
                   <Th>{t("machines.nextService", locale)}</Th>
                   <Th>{t("machines.whereItIs", locale)}</Th>
-                  <Th className="text-right">{t("machines.costPerUnit", locale)}</Th>
-                  <Th className="text-right">{t("machines.doColumn", locale)}</Th>
+                  {costsVisible ? <Th className="text-right">{t("machines.costPerUnit", locale)}</Th> : null}
+                  {showReadingActions ? <Th className="text-right">{t("machines.doColumn", locale)}</Th> : null}
                 </Tr>
               </Thead>
               <Tbody>
@@ -492,7 +516,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                     <Tr key={m.id}>
                       <Td>{photo(m.id, "sm")}</Td>
                       <Td>
-                        <Link href={`/machines/${m.id}`} className="focus-ring rounded font-semibold text-sand-900 hover:text-brand-700 hover:underline">
+                        <Link href={`/machines/${m.id}`} className="focus-ring rounded font-semibold text-sand-900 hover:text-brand-ink hover:underline">
                           {m.name}
                         </Link>
                         <span className="mt-0.5 block text-xs text-sand-500">{subtitle(m)}</span>
@@ -501,20 +525,24 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                       <Td>{readingCell(m)}</Td>
                       <Td>{serviceCell(m)}</Td>
                       <Td><MachineStatus value={m.status} locale={locale} /></Td>
-                      <Td className="text-right tabular-nums text-sand-700">
-                        {cpu != null ? rands(cpu) : <span className="text-sand-300">—</span>}
-                      </Td>
-                      <Td className="text-right">
+                      {costsVisible ? (
+                        <Td className="text-right tabular-nums text-sand-700">
+                          {cpu != null ? rands(cpu) : <span className="text-sand-400">—</span>}
+                        </Td>
+                      ) : null}
+                      {showReadingActions ? <Td className="text-right">
                         {/* A row you can act on — logging hours used to mean opening the
                             machine, logging, coming back and losing your place. */}
-                        <Link
-                          href={`/machines/${m.id}`}
-                          className={buttonVariants({ variant: "secondary", size: "sm" })}
-                        >
-                          {t("machines.logHours", locale)}
-                          <ChevronRightIcon className="text-[1rem]" />
-                        </Link>
-                      </Td>
+                        {m.meter_type !== "none" ? (
+                          <Link
+                            href={`/machines/${m.id}#meter-reading`}
+                            className={buttonVariants({ variant: "secondary", size: "sm" })}
+                          >
+                            {t("machines.logHours", locale)}
+                            <ChevronRightIcon className="text-base" />
+                          </Link>
+                        ) : <span className="text-sand-400">—</span>}
+                      </Td> : null}
                     </Tr>
                   );
                 })}

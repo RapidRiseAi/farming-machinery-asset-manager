@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
+export { sameOrigin } from "@/lib/security/same-origin";
 
 export type AssistantContext = {
   profile: Profile;
@@ -17,16 +18,6 @@ export type AssistantContext = {
   role: Role;
   supabase: Awaited<ReturnType<typeof createClient>>;
 };
-
-export function sameOrigin(request: Request): boolean {
-  const requestOrigin = new URL(request.url).origin;
-  const origin = request.headers.get("origin");
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (origin) return origin === requestOrigin;
-  // Non-browser tools omit both headers. The assistant endpoints are browser-only, so
-  // fail closed instead of making a cookie-authenticated POST usable cross-site.
-  return fetchSite === "same-origin";
-}
 
 export async function getAssistantContext(): Promise<AssistantContext | null> {
   const profile = await getProfile();

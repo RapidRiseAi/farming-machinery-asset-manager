@@ -60,7 +60,7 @@ export function LineEditor({
             const outstanding = outstandingQty(line);
             const over = toQty(line.qty_received) > toQty(line.qty_ordered);
             return (
-              <li key={line.id} className="rounded-xl border border-sand-200 bg-white p-3">
+              <li key={line.id} className="rounded-xl border border-sand-200 bg-surface p-3">
                 <form action={saveLine} className="flex flex-col gap-3">
                   <input type="hidden" name="order_id" value={order.id} />
                   <input type="hidden" name="line_id" value={line.id} />
@@ -206,7 +206,7 @@ export function LineEditor({
             <input
               type="checkbox"
               name="price_incl_vat"
-              className="h-5 w-5 rounded border-sand-300 text-brand-600"
+              className="h-5 w-5 rounded border-sand-300 text-brand-ink"
             />
             {t("po.lineInclVat", locale)}
           </label>

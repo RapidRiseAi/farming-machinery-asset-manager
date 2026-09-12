@@ -38,7 +38,7 @@ export default async function WorkListPage({
 
   const supabase = await createClient();
   let q = supabase
-    .from("work_requests")
+    .from("work_requests_visible")
     .select("id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false });

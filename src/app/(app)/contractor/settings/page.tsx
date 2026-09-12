@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { errorMessage } from "@/lib/errors";
+import { Photo } from "@/components/ui/photo";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { t } from "@/lib/i18n";
@@ -76,7 +78,7 @@ export default async function PartnerSettingsPage({
       </div>
       <p className="text-sand-600">{t("partnerSettings.lead", locale)}</p>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.layout ? t("layout.savedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.template ? t("docTemplate.savedFlash", locale) : undefined} />
@@ -89,7 +91,7 @@ export default async function PartnerSettingsPage({
           <a
             key={anchor}
             href={`#${anchor}`}
-            className="focus-ring shrink-0 rounded-full border border-sand-200 bg-white px-3 py-2 text-sm font-medium text-sand-700 hover:border-brand-300 hover:text-brand-700"
+            className="focus-ring shrink-0 rounded-full border border-sand-200 bg-surface px-3 py-2 text-sm font-medium text-sand-700 hover:border-brand-300 hover:text-brand-ink"
           >
             {t(key, locale)}
           </a>
@@ -106,8 +108,7 @@ export default async function PartnerSettingsPage({
             style={{ backgroundColor: b.brand_primary ?? "#166534", color: onBrand(b.brand_primary ?? "#166534") }}
           >
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a signed Storage URL, not a static asset
-              <img src={logoUrl} alt="" className="h-9 w-9 rounded bg-white/90 object-contain p-0.5" />
+              <Photo src={logoUrl} alt="" size="thumb" className="h-9 w-9 rounded bg-white/90" imgClassName="object-contain p-0.5" />
             ) : null}
             <div className="min-w-0">
               <p className="truncate text-base font-semibold">{b.name}</p>
@@ -256,7 +257,7 @@ export default async function PartnerSettingsPage({
                 type="checkbox"
                 name="show_powered_by"
                 defaultChecked={b.show_powered_by !== false}
-                className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+                className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
               />
               <span>
                 {t("partnerSettings.poweredBy", locale)}
@@ -321,7 +322,7 @@ export default async function PartnerSettingsPage({
                 type="checkbox"
                 name="vat_registered"
                 defaultChecked={b.vatRegistered}
-                className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+                className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
               />
               <span>
                 {t("partnerSettings.vatRegistered", locale)}
@@ -339,7 +340,7 @@ export default async function PartnerSettingsPage({
           </p>
         </Card>
 
-        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-10 -mx-1 rounded-xl border border-sand-200 bg-white/95 p-2 shadow-soft backdrop-blur sm:bottom-4">
+        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-10 -mx-1 rounded-xl border border-sand-200 bg-surface/95 p-2 shadow-soft backdrop-blur sm:bottom-4">
           <SubmitButton className="w-full">{t("common.save", locale)}</SubmitButton>
         </div>
       </form>

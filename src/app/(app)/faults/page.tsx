@@ -1,4 +1,6 @@
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, currentFarmId, effectiveFarmRole } from "@/lib/auth";
+import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -27,28 +29,32 @@ type Attach = { id: string; parent_id: string; kind: string; storage_path: strin
 export default async function FaultsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
   const supabase = await createClient();
 
-  const { data: fData } = await supabase
-    .from("faults")
-    .select("id, machine_id, farm_id, description, category, urgency, status, created_at, reporter_name, job_card_id, assigned_to, lat, lng")
-    .is("deleted_at", null)
-    .order("status")
-    .order("created_at", { ascending: false })
-    .limit(50);
-  const rawFaults = (fData as Fault[] | null) ?? [];
+  const farmId = await currentFarmId(profile);
+  const page = Math.min(10000, Math.max(1, Math.floor(Number(sp.page) || 1)));
+  const columns = "id, machine_id, farm_id, description, category, urgency, status, created_at, reporter_name, job_card_id, assigned_to, lat, lng";
+  const faultQuery = () => {
+    const query = supabase.from("faults").select(columns, { count: "exact" }).is("deleted_at", null);
+    return farmId ? query.eq("farm_id", farmId) : query;
+  };
+  // PostgreSQL enum order is not lifecycle priority. Never let resolved history
+  // displace active faults before urgency sorting/pagination.
+  const [activeResult, historyResult] = await Promise.all([
+    faultQuery().neq("status", "resolved").order("urgency", { ascending: false })
+      .order("created_at", { ascending: false }).order("id").range((page - 1) * 50, page * 50 - 1),
+    faultQuery().eq("status", "resolved").order("created_at", { ascending: false }).limit(25),
+  ]);
+  if (activeResult.error || historyResult.error) throw new Error("Could not load faults.");
+  const rawFaults = [...(activeResult.data ?? []), ...(historyResult.data ?? [])] as Fault[];
 
-  /*
-    Same query, sorted by how bad it is. `.order("status")` is alphabetical, so
-    "acknowledged" came before "open" and a machine standing dead could sit below a
-    torn seat. Re-ranked in memory: stopped, then limping, then just-so-you-know, with
-    anything resolved last.
-  */
+  // Combine the separately paged active list and recent history, keeping resolved
+  // rows below active work. Database urgency ordering happens before pagination.
   const URGENCY_RANK: Record<string, number> = { stopped: 0, limping: 1, can_work: 2 };
   const faults = [...rawFaults].sort((a, b) => {
     const ar = a.status === "resolved" ? 1 : 0;
@@ -60,8 +66,9 @@ export default async function FaultsPage({
     return b.created_at.localeCompare(a.created_at);
   });
 
-  const { data: mData } = await supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
-  const machines = (mData as { id: string; name: string; farm_id: string }[] | null) ?? [];
+  const machineQuery = supabase.from("machines").select("id, name, farm_id, assigned_operator_id").is("deleted_at", null).order("name");
+  const { data: mData } = await (farmId ? machineQuery.eq("farm_id", farmId) : machineQuery);
+  const machines = (mData as { id: string; name: string; farm_id: string; assigned_operator_id: string | null }[] | null) ?? [];
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
 
   // Farm users for the assignee name map + the "assign to" select (FR-7.3).
@@ -89,22 +96,26 @@ export default async function FaultsPage({
     })
   );
 
-  const canReport = ["owner", "manager", "mechanic", "operator"].includes(profile.role);
-  const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
-  const canResolve = ["owner", "manager", "mechanic"].includes(profile.role);
+  const roles = new Map(await Promise.all([...new Set([...machines.map(m => m.farm_id), ...faults.map(f => f.farm_id)])].map(async id =>
+    [id, profile.role === "workshop" ? "workshop" : await effectiveFarmRole(id, profile)] as const)));
+  const reportMachines = machines.filter(m => {
+    const role = roles.get(m.farm_id);
+    return role && (["rr_admin", "owner", "manager", "mechanic"].includes(role) || (role === "operator" && m.assigned_operator_id === profile.id));
+  });
+  const canReport = reportMachines.length > 0;
 
   const openFaults = faults.filter((f) => f.status !== "resolved");
   const resolvedFaults = faults.filter((f) => f.status === "resolved");
-  const openCount = openFaults.length;
-  const resolvedCount = resolvedFaults.length;
+  const openCount = activeResult.count ?? openFaults.length;
+  const resolvedCount = historyResult.count ?? resolvedFaults.length;
   const stoppedCount = openFaults.filter((f) => f.urgency === "stopped").length;
-  const lastResolved = resolvedFaults[0] ?? null;
+  const lastResolved = [...resolvedFaults].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
           {t("faults.titleNew", locale)}
         </h1>
           <PageInfoButton infoKey="faults" locale={locale} />
@@ -121,13 +132,13 @@ export default async function FaultsPage({
           {t("faults.stillOpen", locale)} {openCount} · {t("faults.sortedOut", locale)} {resolvedCount}
         </p>
       </div>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {canReport && machines.length > 0 ? (
         <Card>
           <CardHeader><CardTitle>{t("faults.report", locale)}</CardTitle></CardHeader>
-          <FaultCapture endpoint="/api/faults" machines={machines.map((m) => ({ id: m.id, name: m.name }))} redirectTo="/faults?saved=1" locale={locale} variant="app" />
+          <FaultCapture endpoint="/api/faults" machines={reportMachines.map((m) => ({ id: m.id, name: m.name }))} redirectTo="/faults?saved=1" locale={locale} variant="app" />
         </Card>
       ) : null}
 
@@ -146,6 +157,9 @@ export default async function FaultsPage({
       {faults.length === 0 ? null : (
         <ul className="flex flex-col gap-2">
           {faults.map((f) => {
+            const role = roles.get(f.farm_id) ?? "";
+            const canJob = ["rr_admin", "owner", "manager", "mechanic", "workshop"].includes(role);
+            const canResolve = ["rr_admin", "owner", "manager", "mechanic"].includes(role);
             const media = signed.get(f.id) ?? [];
             const resolved = f.status === "resolved";
             return (
@@ -175,7 +189,7 @@ export default async function FaultsPage({
                           href={`https://www.google.com/maps?q=${f.lat},${f.lng}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="focus-ring mt-1 inline-flex items-center gap-1 rounded text-xs font-medium text-brand-700"
+                          className="focus-ring mt-1 inline-flex items-center gap-1 rounded text-xs font-medium text-brand-ink"
                         >
                           {t("faults.viewLocation", locale)}
                         </a>
@@ -265,6 +279,12 @@ export default async function FaultsPage({
           })}
         </ul>
       )}
+      {page > 1 || openCount > page * 50 ? (
+        <nav aria-label={t("faults.pages", locale)} className="flex items-center justify-between gap-3">
+          {page > 1 ? <Link className="focus-ring rounded px-3 py-2 underline" href={`/faults?page=${page - 1}`}>{t("faults.previousPage", locale)}</Link> : <span />}
+          {openCount > page * 50 ? <Link className="focus-ring rounded px-3 py-2 underline" href={`/faults?page=${page + 1}`}>{t("faults.nextPage", locale)}</Link> : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

@@ -47,9 +47,9 @@ export function PageInfo({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-200 bg-white px-3 text-sm font-medium text-sand-600 hover:bg-sand-50 hover:text-sand-900 sm:min-h-[40px]"
+        className="focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-200 bg-surface px-3 text-sm font-medium text-sand-600 hover:bg-sand-50 hover:text-sand-900 sm:min-h-[40px]"
       >
-        <InfoIcon className="text-[1.1rem]" />
+        <InfoIcon className="text-lg" />
         {buttonLabel}
       </button>
 
@@ -62,12 +62,12 @@ export function PageInfo({
           <h2 id={headingId} className="text-lg font-bold text-sand-950">
             {content.title}
           </h2>
-          <p className="text-[0.95rem] leading-relaxed text-sand-700">{content.what}</p>
+          <p className="text-base leading-relaxed text-sand-700">{content.what}</p>
 
           <ul className="flex flex-col gap-2">
             {content.does.map((line) => (
               <li key={line} className="flex items-start gap-2.5 text-sm text-sand-700">
-                <span className="mt-0.5 shrink-0 text-[1.05rem] text-brand-600">
+                <span className="mt-0.5 shrink-0 text-base text-brand-ink">
                   <CheckIcon />
                 </span>
                 <span>{line}</span>

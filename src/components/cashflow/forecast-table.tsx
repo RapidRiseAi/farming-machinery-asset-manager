@@ -1,4 +1,5 @@
 import { t, type Lang } from "@/lib/i18n";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { balanceAfter, type CashflowBucket } from "@/lib/cashflow";
@@ -29,27 +30,26 @@ export function ForecastTable({
   const firstNegative = openingCents == null ? -1 : closing.findIndex((c) => c < 0);
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <table className="w-full min-w-[36rem] border-collapse text-sm">
+      <Table className="min-w-[36rem]">
         <caption className="sr-only">{t("cash.tableCaption", locale)}</caption>
-        <thead>
-          <tr className="border-b border-sand-200 text-left text-sand-500">
-            <th scope="col" className="py-2 pr-3 font-medium">{t("cash.colWhen", locale)}</th>
-            <th scope="col" className="py-2 pr-3 text-right font-medium">{t("cash.colIn", locale)}</th>
-            <th scope="col" className="py-2 pr-3 text-right font-medium">{t("cash.colOut", locale)}</th>
-            <th scope="col" className="py-2 pr-3 text-right font-medium">{t("cash.colNet", locale)}</th>
-            <th scope="col" className="py-2 text-right font-medium">
+        <Thead>
+          <Tr className="text-left text-sand-500">
+            <Th scope="col" className="font-medium">{t("cash.colWhen", locale)}</Th>
+            <Th scope="col" className="text-right font-medium">{t("cash.colIn", locale)}</Th>
+            <Th scope="col" className="text-right font-medium">{t("cash.colOut", locale)}</Th>
+            <Th scope="col" className="text-right font-medium">{t("cash.colNet", locale)}</Th>
+            <Th scope="col" className="text-right font-medium">
               {openingCents == null ? t("cash.colChange", locale) : t("cash.colBalance", locale)}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </Th>
+          </Tr>
+        </Thead>
+        <Tbody>
           {rows.map((r, i) => {
             const shown = openingCents == null ? r.running_cents : closing[i];
             const under = openingCents != null && shown < 0;
             return (
-              <tr key={r.bucket} className="border-b border-sand-100 last:border-0">
-                <th scope="row" className="py-2.5 pr-3 text-left font-medium text-sand-900">
+              <Tr key={r.bucket}>
+                <Th scope="row" className="text-left font-medium text-sand-900">
                   {t(`cash.bucket.${r.bucket}`, locale)}
                   <span className="block text-xs font-normal text-sand-500">
                     <BucketWindow row={r} locale={locale} />
@@ -59,33 +59,24 @@ export function ForecastTable({
                       {t("cash.runsOutHere", locale)}
                     </span>
                   ) : null}
-                </th>
-                <td className="py-2.5 pr-3 text-right tabular-nums text-sand-700">
+                </Th>
+                <Td className="text-right tabular-nums text-sand-700">
                   {r.in_cents ? rands(r.in_cents) : "—"}
-                </td>
-                <td className="py-2.5 pr-3 text-right tabular-nums text-sand-700">
+                </Td>
+                <Td className="text-right tabular-nums text-sand-700">
                   {r.out_cents ? `−${rands(r.out_cents)}` : "—"}
-                </td>
-                <td
-                  className={`py-2.5 pr-3 text-right tabular-nums ${
-                    r.net_cents < 0 ? "text-status-warn" : "text-sand-700"
-                  }`}
-                >
+                </Td>
+                <Td className={`py-2.5 pr-3 text-right tabular-nums ${ r.net_cents < 0 ? "text-status-warn" : "text-sand-700" }`}>
                   {rands(r.net_cents)}
-                </td>
-                <td
-                  className={`py-2.5 text-right font-semibold tabular-nums ${
-                    under ? "text-status-overdue" : "text-sand-900"
-                  }`}
-                >
+                </Td>
+                <Td className={`py-2.5 text-right font-semibold tabular-nums ${ under ? "text-status-overdue" : "text-sand-900" }`}>
                   {rands(shown)}
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </Tbody>
+      </Table>
   );
 }
 

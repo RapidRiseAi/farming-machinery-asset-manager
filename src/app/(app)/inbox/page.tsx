@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
@@ -50,7 +51,7 @@ export default async function InboxPage({
 
   const [wrRes, noteRes, msRes, wsRes] = await Promise.all([
     supabase
-      .from("work_requests")
+      .from("work_requests_visible")
       .select("id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
       .is("deleted_at", null)
       .neq("status", "closed")
@@ -114,19 +115,19 @@ export default async function InboxPage({
       <div className="flex flex-wrap gap-1.5">
         {wa ? (
           <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "secondary" })}>
-            <ChatIcon className="text-[1.05rem]" />
+            <ChatIcon className="text-base" />
             {t("contact.whatsapp", locale)}
           </a>
         ) : null}
         {tel ? (
           <a href={tel} className={buttonVariants({ variant: "ghost" })}>
-            <PhoneIcon className="text-[1.05rem]" />
+            <PhoneIcon className="text-base" />
             {t("contact.call", locale)}
           </a>
         ) : null}
         {mail && !wa && !tel ? (
           <a href={mail} className={buttonVariants({ variant: "ghost" })}>
-            <MailIcon className="text-[1.05rem]" />
+            <MailIcon className="text-base" />
             {t("contact.email", locale)}
           </a>
         ) : null}
@@ -142,7 +143,7 @@ export default async function InboxPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
             {t("inbox.waitingForYou", locale)}
           </h1>
           <PageInfoButton infoKey="inbox" locale={locale} />
@@ -163,7 +164,7 @@ export default async function InboxPage({
         ) : null}
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
       {/*
@@ -201,9 +202,9 @@ export default async function InboxPage({
       <Card>
         <CardHeader
           action={
-            <Link href="/work" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+            <Link href="/work" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-ink">
               {t("nav.work", locale)}
-              <ChevronRightIcon className="text-[1rem]" />
+              <ChevronRightIcon className="text-base" />
             </Link>
           }
         >
@@ -233,7 +234,7 @@ export default async function InboxPage({
                 */
                 <li
                   key={r.id}
-                  className={`rounded-xl border p-4 ${isQuote ? "border-sand-200 bg-white" : "border-amber-200 bg-amber-50/40"}`}
+                  className={`rounded-xl border p-4 ${isQuote ? "border-sand-200 bg-surface" : "border-callout-warn-edge bg-callout-warn-bg/40"}`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -241,7 +242,7 @@ export default async function InboxPage({
                         {unreadWrIds.has(r.id) ? (
                           <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label={t("notifications.unread", locale)} />
                         ) : null}
-                        <Link href={`/work/${r.id}`} className="focus-ring truncate rounded text-[1.05rem] font-semibold text-sand-900 hover:underline">
+                        <Link href={`/work/${r.id}`} className="focus-ring truncate rounded text-base font-semibold text-sand-900 hover:underline">
                           {nameById.get(r.machine_id) ?? "—"}
                         </Link>
                         <Badge tone={isQuote ? "brand" : "warning"}>
@@ -363,7 +364,7 @@ export default async function InboxPage({
             {machineGroups.map((g) => (
               <section key={g.machineId} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <MachinesIcon className="text-[1.1rem] text-sand-400" />
+                  <MachinesIcon className="text-lg text-sand-400" />
                   <Link href={`/machines/${g.machineId}`} className="focus-ring rounded text-sm font-semibold text-sand-900 hover:underline">{g.name}</Link>
                   <span className="text-xs text-sand-400">{g.list.length}</span>
                 </div>
@@ -399,9 +400,9 @@ export default async function InboxPage({
       <Card>
         <CardHeader
           action={
-            <Link href="/notifications" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-700">
+            <Link href="/notifications" className="focus-ring inline-flex items-center gap-0.5 rounded-md text-sm font-medium text-brand-ink">
               {t("nav.notifications", locale)}
-              <ChevronRightIcon className="text-[1rem]" />
+              <ChevronRightIcon className="text-base" />
             </Link>
           }
         >

@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
+import { readBoundedFormData } from "@/lib/security/bounded-form";
 
 export const dynamic = "force-dynamic";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Parse an optional lat/lng pair from the form; returns {} unless both are valid. */
 function geoFields(form: FormData): { lat?: number; lng?: number } {
+  if (!String(form.get("lat") ?? "").trim() || !String(form.get("lng") ?? "").trim()) return {};
   const lat = Number(form.get("lat"));
   const lng = Number(form.get("lng"));
   if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
@@ -22,11 +25,15 @@ function geoFields(form: FormData): { lat?: number; lng?: number } {
  * DB/Storage work server-side, so the public page never touches the DB directly.
  */
 export async function POST(request: Request) {
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > 20 * 1024 * 1024) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "bad_request" }, { status: 400 });
+    form = await readBoundedFormData(request, 16 * 1024 * 1024);
+  } catch (error) {
+    return NextResponse.json({ error: "bad_request" }, { status: error instanceof RangeError ? 413 : 400 });
   }
 
   const token = String(form.get("token") ?? "");
@@ -35,25 +42,43 @@ export async function POST(request: Request) {
   const urgency = URGENCIES.includes(urgencyRaw) ? urgencyRaw : "can_work";
   const category = String(form.get("category") ?? "").trim() || null;
   const reporter = String(form.get("name") ?? "").trim() || null;
-  if (!token || !description) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+  if (!UUID_PATTERN.test(token)) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (
+    !description ||
+    description.length > 2000 ||
+    (category?.length ?? 0) > 80 ||
+    (reporter?.length ?? 0) > 200
+  ) {
+    return NextResponse.json({ error: "invalid_fault" }, { status: 400 });
+  }
 
-  const svc = createServiceClient();
-  const { data: machine } = await svc
-    .from("machines")
-    .select("id, farm_id")
-    .eq("public_token", token)
-    .is("deleted_at", null)
-    .maybeSingle();
-  const m = machine as { id: string; farm_id: string } | null;
-  if (!m) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  let svc: ReturnType<typeof createServiceClient>;
+  try {
+    svc = createServiceClient();
+  } catch {
+    return NextResponse.json({ error: "unavailable" }, { status: 503 });
+  }
+  const coords = geoFields(form);
+  const { data, error } = await svc.rpc("record_public_qr_fault", {
+    p_token: token,
+    p_description: description,
+    p_urgency: urgency,
+    p_category: category,
+    p_reporter: reporter,
+    p_lat: coords.lat ?? null,
+    p_lng: coords.lng ?? null,
+  });
+  if (error) {
+    console.error("[public-qr] fault capture RPC failed", { code: error.code });
+    return NextResponse.json({ error: "unavailable" }, { status: 503 });
+  }
+  const result = data as { ok?: boolean; error?: string; fault_id?: string; farm_id?: string } | null;
+  if (result?.ok !== true || !result.fault_id || !result.farm_id) {
+    const code = result?.error ?? "unavailable";
+    const status = code === "not_found" ? 404 : code === "rate_limited" ? 429 : code === "invalid_fault" ? 400 : 503;
+    return NextResponse.json({ error: code }, { status });
+  }
 
-  const { data: fault, error } = await svc
-    .from("faults")
-    .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reporter_name: reporter, status: "open", ...geoFields(form) })
-    .select("id")
-    .single();
-  if (error || !fault) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
-
-  await uploadFaultMedia(svc, form, m.farm_id, fault.id, null);
-  return NextResponse.json({ ok: true });
+  const media = await uploadFaultMedia(svc, form, result.farm_id, result.fault_id, null);
+  return NextResponse.json({ ok: true, fault_id: result.fault_id, media_saved: media.ok });
 }

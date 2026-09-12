@@ -2,18 +2,36 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "./cn";
 import { Spinner } from "./icons";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "accent" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-600/50",
+  /**
+   * The FleetWise Gold call to action.
+   *
+   * Note `text-sand-950` and not white: black on gold is 9.89:1, white on gold
+   * is 2.12:1 and fails. That is the ONLY correct way to render a gold button,
+   * and `design_lint` fails the build on the white variant.
+   *
+   * Use it sparingly — the brand rule is "keep gold deliberate so it remains
+   * visually important". At most one per screen, on the action you actually
+   * want taken; everything else stays `primary` or `secondary`.
+   */
+  accent:
+    "bg-gold-500 text-sand-950 shadow-xs hover:bg-gold-400 active:bg-gold-600 active:text-white disabled:bg-gold-500/50",
   secondary:
-    "bg-white text-sand-800 border border-sand-300 shadow-xs hover:bg-sand-50 active:bg-sand-100 disabled:opacity-50",
+    "bg-surface text-sand-800 border border-sand-300 shadow-xs hover:bg-sand-50 active:bg-sand-100 disabled:opacity-50",
   ghost:
     "bg-transparent text-sand-700 hover:bg-sand-100 active:bg-sand-200 disabled:opacity-50",
+  /**
+   * Destructive. The ink flips WITH the fill — white on the deep red in light
+   * (6.68:1), black on the lighter red in dark (6.34:1). A fixed `text-white`
+   * would drop to 1.92:1 the moment the fill lightened for a dark surface.
+   */
   danger:
-    "bg-status-overdue text-white shadow-xs hover:bg-red-700 active:bg-red-800 disabled:bg-status-overdue/50",
+    "bg-dangerSolid text-dangerSolid-ink shadow-xs hover:bg-dangerSolid-hover active:bg-dangerSolid-hover disabled:bg-dangerSolid/50",
 };
 
 /**

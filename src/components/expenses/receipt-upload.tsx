@@ -32,7 +32,7 @@ export function ReceiptUpload({
   return (
     <form ref={formRef} action={attachReceipt} className="flex items-center gap-2">
       <input type="hidden" name="expense_id" value={expenseId} />
-      <label className="focus-within:outline-brand-500 cursor-pointer text-sm font-medium text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-800">
+      <label className="focus-within:outline-brand-500 cursor-pointer text-sm font-medium text-brand-ink underline decoration-dotted underline-offset-2 hover:text-brand-800">
         {pending ? t("expenses.receiptUploading", locale) : t("expenses.receiptAttach", locale)}
         <input
           type="file"

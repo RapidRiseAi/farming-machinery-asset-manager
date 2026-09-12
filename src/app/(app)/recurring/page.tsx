@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -83,7 +84,7 @@ export default async function RecurringPage({
         </span>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("recurring.deletedFlash", locale) : undefined} />
 
       {due.length > 0 ? (
@@ -103,7 +104,7 @@ export default async function RecurringPage({
                   {/* A span, not a link: the whole row is already an anchor, and nesting
                       one inside another is invalid HTML the browser silently un-nests —
                       which is what threw React #418 on the machines list. */}
-                  <span className="text-sm font-medium text-brand-700">{t("recurring.dueOpen", locale)} →</span>
+                  <span className="text-sm font-medium text-brand-ink">{t("recurring.dueOpen", locale)} →</span>
                 </Link>
               </li>
             ))}
@@ -135,7 +136,7 @@ export default async function RecurringPage({
                 {s.last_document_id ? (
                   <p className="mt-0.5 text-xs text-sand-500">
                     {t("recurring.lastRaised", locale)}{" "}
-                    <Link href={`/documents/${s.last_document_id}`} className="focus-ring rounded text-brand-700 underline-offset-2 hover:underline">
+                    <Link href={`/documents/${s.last_document_id}`} className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline">
                       {s.last_period_start ? shortDate(s.last_period_start, locale) : t("recurring.lastRaisedOnce", locale)}
                     </Link>
                   </p>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
@@ -25,7 +26,9 @@ export default async function AdminFarmsPage({
 }: {
   searchParams: Promise<{ error?: string; created?: string }>;
 }) {
-  await requireRole(["rr_admin"]);
+  // The profile was discarded here, so this page had no locale to translate with.
+  const profile = await requireRole(["rr_admin"]);
+  const locale = profile.lang;
   const sp = await searchParams;
   const supabase = await createClient();
 
@@ -60,7 +63,7 @@ export default async function AdminFarmsPage({
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">Farms</h1>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? "Farm created." : undefined} />
 
       <Card>
@@ -101,7 +104,7 @@ export default async function AdminFarmsPage({
                 return (
                   <Tr key={f.id}>
                     <Td className="font-medium">
-                      <Link href={`/admin/farms/${f.id}`} className="focus-ring rounded text-brand-700 hover:underline">{f.name}</Link>
+                      <Link href={`/admin/farms/${f.id}`} className="focus-ring rounded text-brand-ink hover:underline">{f.name}</Link>
                     </Td>
                     <Td className="text-sand-600">{planLabel(f.plan)}</Td>
                     <Td><Badge tone={statusTone(f.status)} className="capitalize">{f.status}</Badge></Td>

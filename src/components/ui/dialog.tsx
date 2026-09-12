@@ -131,7 +131,7 @@ export function Overlay({
         aria-describedby={describedBy}
         tabIndex={-1}
         className={cn(
-          "relative z-10 w-full bg-white shadow-pop outline-none",
+          "relative z-10 w-full bg-surface shadow-pop outline-none",
           align === "center" && "max-w-lg rounded-2xl animate-scale-in",
           align === "bottom" &&
             "max-h-[85vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up",
@@ -166,7 +166,7 @@ function DialogHeader({
       <button
         type="button"
         onClick={onClose}
-        className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-[1.35rem] text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
+        className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
       >
         <CloseIcon />
         {/* Icon and word — the lone ✕ is the one glyph this product does not rely on. */}

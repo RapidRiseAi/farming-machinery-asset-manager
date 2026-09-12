@@ -50,7 +50,7 @@ export function DocumentLayoutForm({
         name={name}
         checked={l[name] as boolean}
         onChange={(e) => set(name, e.target.checked as never)}
-        className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+        className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
       />
       <span>
         {label}

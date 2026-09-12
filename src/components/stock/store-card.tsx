@@ -55,7 +55,7 @@ export function StoreCard({
       ) : (
         <>
           {low.length > 0 ? (
-            <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="mb-3 rounded-lg border border-callout-warn-edge bg-callout-warn-bg px-3 py-2 text-sm text-callout-warn-ink">
               {t("stock.lowSummary", locale)}{" "}
               <span className="font-semibold">{low.map((r) => r.part_no).join(", ")}</span>
             </p>

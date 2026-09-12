@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
+import { Photo } from "@/components/ui/photo";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -220,7 +222,7 @@ export default async function DocumentPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/documents" className="focus-ring rounded text-sm text-brand-700 hover:underline">
+        <Link href="/documents" className="focus-ring rounded text-sm text-brand-ink hover:underline">
           ← {t("doc.title", locale)}
         </Link>
         <DocStatusBadge value={doc.status} locale={locale} size="md" className="ml-auto" />
@@ -237,14 +239,14 @@ export default async function DocumentPage({
       <Flash tone="success" message={sp.written_off ? t("doc.writtenOffFlash", locale) : undefined} />
 
       {/* ── The document ─────────────────────────────────────────── */}
-      <article className="overflow-hidden rounded-xl border border-sand-200 bg-white shadow-soft print:border-0 print:shadow-none">
+      <article className="overflow-hidden rounded-xl border border-sand-200 bg-surface shadow-soft print:border-0 print:shadow-none">
         <header
           className={
             layout.accent_style === "band"
               ? "flex flex-wrap items-center gap-3 px-4 py-4"
               : layout.accent_style === "line"
-                ? "flex flex-wrap items-center gap-3 border-t-4 bg-white px-4 py-4"
-                : "flex flex-wrap items-center gap-3 border-b border-sand-200 bg-white px-4 py-4"
+                ? "flex flex-wrap items-center gap-3 border-t-4 bg-surface px-4 py-4"
+                : "flex flex-wrap items-center gap-3 border-b border-sand-200 bg-surface px-4 py-4"
           }
           style={
             layout.accent_style === "band"
@@ -255,8 +257,7 @@ export default async function DocumentPage({
           }
         >
           {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a signed Storage URL, not a static asset
-            <img src={logoUrl} alt="" className="h-11 w-11 rounded bg-white/90 object-contain p-0.5" />
+            <Photo src={logoUrl} alt="" size="thumb" priority className="h-11 w-11 rounded bg-white/90" imgClassName="object-contain p-0.5" />
           ) : null}
           <div className="min-w-0">
             <p className={`truncate text-lg font-bold ${layout.accent_style === "band" ? "" : "text-sand-900"}`}>{brand.name}</p>
@@ -324,36 +325,36 @@ export default async function DocumentPage({
           </div>
         ) : lines.length > 0 ? (
           <div className="overflow-x-auto border-t border-sand-100">
-            <table className="w-full min-w-[34rem] text-sm">
-              <thead>
-                <tr className="border-b border-sand-100 text-left text-xs uppercase tracking-wide text-sand-500">
-                  {layout.show_line_numbers ? <th className={`${cell} font-semibold`}>#</th> : null}
-                  <th className={`${cell} font-semibold`}>{layout.items_label ?? t("doc.lineDescription", locale)}</th>
-                  <th className={`${cell} text-right font-semibold`}>{t("doc.lineQty", locale)}</th>
+            <Table className="min-w-[34rem]">
+              <Thead>
+                <Tr className="text-left text-xs uppercase tracking-wide text-sand-500">
+                  {layout.show_line_numbers ? <Th className={`${cell} font-semibold`}>#</Th> : null}
+                  <Th className={`${cell} font-semibold`}>{layout.items_label ?? t("doc.lineDescription", locale)}</Th>
+                  <Th className={`${cell} text-right font-semibold`}>{t("doc.lineQty", locale)}</Th>
                   {layout.show_unit_price ? (
-                    <th className={`${cell} text-right font-semibold`}>{t("doc.lineUnit", locale)}</th>
+                    <Th className={`${cell} text-right font-semibold`}>{t("doc.lineUnit", locale)}</Th>
                   ) : null}
-                  <th className={`${cell} text-right font-semibold`}>{t("doc.lineTotal", locale)}</th>
-                  {editable ? <th className="px-2 py-2"><span className="sr-only">{t("common.remove", locale)}</span></th> : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-sand-50">
+                  <Th className={`${cell} text-right font-semibold`}>{t("doc.lineTotal", locale)}</Th>
+                  {editable ? <Th><span className="sr-only">{t("common.remove", locale)}</span></Th> : null}
+                </Tr>
+              </Thead>
+              <Tbody className="divide-y divide-sand-50">
                 {lines.map((l, i) => (
-                  <tr key={l.id}>
+                  <Tr key={l.id}>
                     {layout.show_line_numbers ? (
-                      <td className={`${cell} tabular-nums text-sand-500`}>{i + 1}</td>
+                      <Td className={`${cell} tabular-nums text-sand-500`}>{i + 1}</Td>
                     ) : null}
-                    <td className={cell}>
+                    <Td className={cell}>
                       <span className="text-sand-900">{l.description}</span>
                       {l.part_no ? <span className="block text-xs text-sand-500">{l.part_no}</span> : null}
-                    </td>
-                    <td className={`${cell} text-right tabular-nums text-sand-700`}>{l.qty}</td>
+                    </Td>
+                    <Td className={`${cell} text-right tabular-nums text-sand-700`}>{l.qty}</Td>
                     {layout.show_unit_price ? (
-                      <td className={`${cell} text-right tabular-nums text-sand-700`}>{rands(l.unit_price_cents)}</td>
+                      <Td className={`${cell} text-right tabular-nums text-sand-700`}>{rands(l.unit_price_cents)}</Td>
                     ) : null}
-                    <td className={`${cell} text-right font-medium tabular-nums text-sand-900`}>{rands(l.line_total_cents)}</td>
+                    <Td className={`${cell} text-right font-medium tabular-nums text-sand-900`}>{rands(l.line_total_cents)}</Td>
                     {editable ? (
-                      <td className="px-2 py-2 text-right">
+                      <Td className="text-right">
                         <ConfirmDialog
                           action={removeDocumentLine}
                           triggerLabel={t("common.remove", locale)}
@@ -369,12 +370,12 @@ export default async function DocumentPage({
                           <input type="hidden" name="document_id" value={doc.id} />
                           <input type="hidden" name="line_id" value={l.id ?? ""} />
                         </ConfirmDialog>
-                      </td>
+                      </Td>
                     ) : null}
-                  </tr>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </Tbody>
+            </Table>
           </div>
         ) : (
           <p className="border-t border-sand-100 px-4 py-4 text-sm text-sand-500">{t("doc.noLines", locale)}</p>
@@ -485,7 +486,7 @@ export default async function DocumentPage({
               </div>
               <TextField name="unit_price" inputMode="decimal" label={t("doc.lineUnitRands", locale)} required />
               <label className="flex items-center gap-3 text-sm text-sand-700">
-                <input type="checkbox" name="incl_vat" className="h-5 w-5 rounded border-sand-300 text-brand-600" />
+                <input type="checkbox" name="incl_vat" className="h-5 w-5 rounded border-sand-300 text-brand-ink" />
                 {t("doc.priceInclVat", locale)}
               </label>
               <SubmitButton>{t("doc.addLine", locale)}</SubmitButton>
@@ -604,7 +605,7 @@ export default async function DocumentPage({
             <dd className="text-right font-semibold tabular-nums text-sand-900">{rands(billing.remaining_cents)}</dd>
           </dl>
           {doc.quote_id ? (
-            <Link href={`/documents/${doc.quote_id}`} className="focus-ring mt-3 self-start rounded text-sm text-brand-700 underline-offset-2 hover:underline">
+            <Link href={`/documents/${doc.quote_id}`} className="focus-ring mt-3 self-start rounded text-sm text-brand-ink underline-offset-2 hover:underline">
               {t("stage.viewQuote", locale)}
             </Link>
           ) : null}

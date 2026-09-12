@@ -83,7 +83,13 @@ export async function getReportData(
   supabase: SupabaseClient,
   f: ReportFilters,
   farmId?: string | null,
+  options: { serviceRole?: boolean } = {},
 ): Promise<ReportData> {
+  // Only the service-only scheduled worker selects raw cost columns. Masked views
+  // intentionally run under their RLS-bound owner, even for a service client with no
+  // user session. A trusted read must therefore name the farm the engine claimed.
+  if (options.serviceRole && !farmId) throw new Error("Service report reads require a farm");
+  const operational = (table: string) => options.serviceRole ? table : `${table}_visible`;
   // Multi-site (F7): when acting in a specific farm, scope every farm-keyed query to it.
   // Single-farm users are unaffected (RLS already scopes to their one farm). `workshops`
   // has no farm_id — it stays RLS-scoped; contractor rollups key off farm-scoped requests.
@@ -93,14 +99,14 @@ export async function getReportData(
   const win = analysisWindow(f.from, f.to);
   const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }, { data: budgetData }, { data: readingData }, { data: downtimeData }] = await Promise.all([
     byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null)),
-    byFarm(supabase.from("job_cards").select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null)),
+    byFarm(supabase.from(operational("job_cards")).select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null)),
     byFarm(supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null)),
     byFarm(supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null)),
     byFarm(supabase.from("service_plan_lines").select("machine_id, task, status").is("deleted_at", null)),
     byFarm(supabase.from("cost_entries").select("machine_id, amount_cents, type, occurred_on").is("deleted_at", null)),
-    byFarm(supabase.from("fuel_issues").select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null)),
-    byFarm(supabase.from("fuel_deliveries").select("date, litres, price_per_l_cents").is("deleted_at", null)),
-    byFarm(supabase.from("work_requests").select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null)),
+    byFarm(supabase.from(operational("fuel_issues")).select("id, machine_id, date, litres, meter_reading, cost_cents").is("deleted_at", null)),
+    byFarm(supabase.from(operational("fuel_deliveries")).select("date, litres, price_per_l_cents").is("deleted_at", null)),
+    byFarm(supabase.from(operational("work_requests")).select("id, machine_id, workshop_id, status, quote_amount_cents, invoice_amount_cents, created_at").is("deleted_at", null)),
     byFarm(supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null)),
     supabase.from("workshops").select("id, name"),
     byFarm(supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").is("deleted_at", null).order("period_start", { ascending: false })),

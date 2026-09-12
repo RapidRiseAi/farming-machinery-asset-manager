@@ -59,7 +59,7 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
   return (
     <div className="flex flex-col gap-4">
       <Link href="/checklists" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {t("checklists.title", locale)}
       </Link>
       <div>

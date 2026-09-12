@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { sameOrigin } from "@/lib/security/same-origin";
+import { validateWebPushSubscription } from "@/lib/push/subscription-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,23 +13,38 @@ export const dynamic = "force-dynamic";
  * endpoint replaces the previous row (soft-delete + insert) so keys stay current.
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await getProfile();
   if (!profile || !profile.active || !profile.farm_id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: { endpoint?: string; keys?: { p256dh?: string; auth?: string }; ua?: string };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "bad-json" }, { status: 400 });
   }
-  const endpoint = body.endpoint;
-  const p256dh = body.keys?.p256dh;
-  const auth = body.keys?.auth;
-  if (!endpoint || !p256dh || !auth) {
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "missing-subscription" }, { status: 400 });
   }
+  const input = body as Record<string, unknown>;
+  const keys = input.keys && typeof input.keys === "object" && !Array.isArray(input.keys)
+    ? input.keys as Record<string, unknown>
+    : {};
+  const subscription = validateWebPushSubscription({
+    endpoint: input.endpoint,
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+  });
+  if (!subscription) return NextResponse.json({ error: "invalid-subscription" }, { status: 400 });
+  const { endpoint, p256dh, auth } = subscription;
+  const uaSource = typeof input.ua === "string" ? input.ua : request.headers.get("user-agent");
+  const ua = uaSource?.slice(0, 512) || null;
 
   const supabase = await createClient();
   // Clear any prior live row for this endpoint (endpoint is globally unique), then insert.
@@ -43,7 +60,7 @@ export async function POST(request: Request) {
     endpoint,
     p256dh,
     auth,
-    ua: body.ua ?? request.headers.get("user-agent") ?? null,
+    ua,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

@@ -148,7 +148,18 @@ export function SelectField({
       required={required}
       className={fieldClassName}
     >
-      <Select id={cid} name={name} required={required} className={className} {...props}>
+      {/* `invalid` + `aria-describedby` were wired on TextField only, so a
+          select or textarea in an error state announced nothing to a screen
+          reader and drew no error border. */}
+      <Select
+        id={cid}
+        name={name}
+        required={required}
+        invalid={!!error}
+        aria-describedby={error && cid ? `${cid}-error` : undefined}
+        className={className}
+        {...props}
+      >
         {children}
       </Select>
     </Field>
@@ -185,7 +196,15 @@ export function TextareaField({
       required={required}
       className={fieldClassName}
     >
-      <Textarea id={cid} name={name} required={required} className={className} {...props} />
+      <Textarea
+        id={cid}
+        name={name}
+        required={required}
+        invalid={!!error}
+        aria-describedby={error && cid ? `${cid}-error` : undefined}
+        className={className}
+        {...props}
+      />
     </Field>
   );
 }

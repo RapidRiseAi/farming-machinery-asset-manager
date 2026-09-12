@@ -16,13 +16,17 @@ export type SubmitButtonProps = {
   className?: string;
   disabled?: boolean;
   /**
-   * Post the enclosing form to a DIFFERENT server action.
+   * Post this form to a DIFFERENT server action.
    *
-   * This is what lets one form offer two ways in — sign in with a password, or have a link
-   * emailed — while asking for the address once. Without it the page needs two forms and
-   * two email boxes.
+   * Lets one form offer two ways forward without duplicating its fields — the
+   * login screen used to stack two whole forms, each with its own box labelled
+   * "Email", so choosing the second one meant typing your address twice.
    */
   formAction?: (formData: FormData) => void | Promise<void>;
+  /** Skip HTML validation for this submission (a secondary path may need less). */
+  formNoValidate?: boolean;
+  name?: string;
+  value?: string;
 };
 
 /**
@@ -40,14 +44,20 @@ export function SubmitButton({
   className,
   disabled,
   formAction,
+  formNoValidate,
+  name,
+  value,
 }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      formAction={formAction}
       disabled={disabled || pending}
       aria-busy={pending || undefined}
+      formAction={formAction}
+      formNoValidate={formNoValidate}
+      name={name}
+      value={value}
       className={buttonVariants({ variant, size, fullWidth, className })}
     >
       {pending ? <Spinner className="text-[1.1em]" /> : leftIcon}

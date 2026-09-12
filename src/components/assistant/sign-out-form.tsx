@@ -43,7 +43,7 @@ export function AssistantSafeSignOutForm({
       <fieldset disabled={clearing} className="contents">
         {children}
       </fieldset>
-      {error ? <p role="alert" className="mt-2 px-3 text-xs font-medium text-red-700">{error}</p> : null}
+      {error ? <p role="alert" className="mt-2 px-3 text-xs font-medium text-callout-danger-ink">{error}</p> : null}
     </form>
   );
 }

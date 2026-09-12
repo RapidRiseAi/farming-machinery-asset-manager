@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -167,28 +168,27 @@ export default async function OrdersPage({
         {orders.length === 0 ? (
           <GetStarted title={t("po.emptyTitle", locale)} hint={t("po.emptyBody", locale)} />
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <table className="w-full min-w-[46rem] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-sand-200 text-left text-sand-500">
-                  <th className="py-2 pr-3 font-medium">{t("po.colOrder", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("po.colStatus", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("po.colExpected", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("po.colArrived", locale)}</th>
-                  <th className="py-2 pr-3 text-right font-medium">{t("po.colTotal", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("po.colInvoice", locale)}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="min-w-[46rem]">
+              <Thead>
+                <Tr className="text-left text-sand-500">
+                  <Th className="font-medium">{t("po.colOrder", locale)}</Th>
+                  <Th className="font-medium">{t("po.colStatus", locale)}</Th>
+                  <Th className="font-medium">{t("po.colExpected", locale)}</Th>
+                  <Th className="font-medium">{t("po.colArrived", locale)}</Th>
+                  <Th className="text-right font-medium">{t("po.colTotal", locale)}</Th>
+                  <Th className="font-medium">{t("po.colInvoice", locale)}</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
                 {orders.map((o) => {
                   const summary = receivedSummary(byOrder.get(o.id) ?? []);
                   const overdue = isLate(o);
                   return (
-                    <tr key={o.id} className="border-b border-sand-100 last:border-0">
-                      <td className="py-2.5 pr-3">
+                    <Tr key={o.id}>
+                      <Td>
                         <Link
                           href={`/orders/${o.id}`}
-                          className="focus-ring font-medium text-brand-700 underline underline-offset-2"
+                          className="focus-ring font-medium text-brand-ink underline underline-offset-2"
                         >
                           {o.reference ?? o.supplier_name}
                         </Link>
@@ -196,11 +196,11 @@ export default async function OrdersPage({
                           {o.reference ? `${o.supplier_name} · ` : ""}
                           {shortDate(o.order_date, locale)}
                         </span>
-                      </td>
-                      <td className="py-2.5 pr-3">
+                      </Td>
+                      <Td>
                         <OrderStatus value={o.status} locale={locale} />
-                      </td>
-                      <td className="py-2.5 pr-3 whitespace-nowrap">
+                      </Td>
+                      <Td className="whitespace-nowrap">
                         {o.expected_date ? (
                           <span className={overdue ? "font-medium text-status-overdue" : "text-sand-600"}>
                             {shortDate(o.expected_date, locale)}
@@ -211,28 +211,27 @@ export default async function OrdersPage({
                         ) : (
                           <span className="text-sand-400">{t("po.noDate", locale)}</span>
                         )}
-                      </td>
-                      <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">
+                      </Td>
+                      <Td className="whitespace-nowrap text-sand-600">
                         {summary.ordered > 0
                           ? `${formatQty(summary.received)} / ${formatQty(summary.ordered)}`
                           : t("po.noLines", locale)}
-                      </td>
-                      <td className="py-2.5 pr-3 text-right font-medium tabular-nums text-sand-900">
+                      </Td>
+                      <Td className="text-right font-medium tabular-nums text-sand-900">
                         {rands(o.total_cents)}
-                      </td>
-                      <td className="py-2.5 pr-3">
+                      </Td>
+                      <Td>
                         {invoiced.has(o.id) ? (
                           <Badge tone="ok">{t("po.invoiced", locale)}</Badge>
                         ) : (
                           <span className="text-xs text-sand-500">{t("po.notInvoiced", locale)}</span>
                         )}
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </Tbody>
+            </Table>
         )}
       </Card>
     </div>

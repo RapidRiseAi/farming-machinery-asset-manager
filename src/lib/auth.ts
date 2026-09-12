@@ -142,10 +142,23 @@ export function homePathFor(role: Role): string {
  */
 export async function requireRole(roles: Role[]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) {
+  if (profile.role === "rr_admin" || profile.role === "workshop") {
+    if (!roles.includes(profile.role)) {
+      redirect(`${homePathFor(profile.role)}?denied=1`);
+    }
+    return profile;
+  }
+
+  // Farm-side roles are contextual. `profiles.role` is the compatibility role for the
+  // primary farm; a multi-site user can hold a different role on the selected farm.
+  // Returning the selected farm/role also keeps older actions that use the returned
+  // profile from accidentally writing back to the primary site.
+  const farmId = await currentFarmId(profile);
+  const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
+  if (!role || !roles.includes(role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
-  return profile;
+  return { ...profile, farm_id: farmId, role };
 }
 
 // ── Multi-site "current farm" (F7) ───────────────────────────────────────────
@@ -231,11 +244,12 @@ export async function effectiveFarmRole(
   profile?: Profile,
 ): Promise<Role | null> {
   const p = profile ?? (await requireProfile());
+  if (!p.active) return null;
   if (p.role === "rr_admin") return "rr_admin";
   if (p.role === "workshop") return null;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_farm_memberships")
     .select("role")
     .eq("user_id", p.id)
@@ -243,6 +257,7 @@ export async function effectiveFarmRole(
     .eq("active", true)
     .is("deleted_at", null)
     .maybeSingle();
+  if (error) throw new Error("Farm permissions are temporarily unavailable.");
   const role = (data as { role?: string } | null)?.role;
   if (role && ["owner", "manager", "mechanic", "operator"].includes(role)) {
     return role as Role;
@@ -251,6 +266,63 @@ export async function effectiveFarmRole(
   return farmId === p.farm_id && ["owner", "manager", "mechanic", "operator"].includes(p.role)
     ? p.role
     : null;
+}
+
+export type FarmRoleContext = {
+  profile: Profile;
+  farmId: string;
+  role: Role;
+};
+
+/**
+ * Require one of `roles` on the farm being mutated.
+ *
+ * `profiles.role` describes the primary farm only. A person can be an owner on that
+ * farm and an operator on another one, so action guards must never authorize a row in
+ * farm B with the role from farm A. This helper is the single app-side guard for that
+ * rule. Database policies remain the final boundary.
+ *
+ * Workshops do not have `user_farm_memberships`; their access is an active
+ * `workshop_link`. When a workshop role is explicitly allowed, the RLS-backed farm read
+ * proves that link before the helper returns.
+ */
+export async function requireFarmRole(
+  farmId: string,
+  roles: readonly Role[],
+  deniedPath?: string,
+  existingProfile?: Profile,
+): Promise<FarmRoleContext> {
+  const profile = existingProfile ?? (await requireProfile());
+  let role: Role | null = null;
+
+  if (profile.role === "workshop" && roles.includes("workshop")) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("farms")
+      .select("id")
+      .eq("id", farmId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (data) role = "workshop";
+  } else {
+    role = await effectiveFarmRole(farmId, profile);
+  }
+
+  if (!role || !roles.includes(role)) {
+    redirect(deniedPath ?? `${homePathFor(profile.role)}?denied=1`);
+  }
+  return { profile, farmId, role };
+}
+
+/** Require a role on the validated farm selected in the current session. */
+export async function requireCurrentFarmRole(
+  roles: readonly Role[],
+  deniedPath?: string,
+): Promise<FarmRoleContext> {
+  const profile = await requireProfile();
+  const farmId = await currentFarmId(profile);
+  if (!farmId) redirect(deniedPath ?? `${homePathFor(profile.role)}?denied=1`);
+  return requireFarmRole(farmId, roles, deniedPath, profile);
 }
 
 // ── Entitlement gating (F5) ──────────────────────────────────────────────────
@@ -286,7 +358,8 @@ export async function currentPlan(
   if (p.role === "rr_admin" || p.role === "workshop" || !p.farm_id) {
     return { profile: p, plan: null };
   }
-  return { profile: p, plan: await getFarmPlan(p.farm_id) };
+  const farmId = await currentFarmId(p);
+  return { profile: p, plan: farmId ? await getFarmPlan(farmId) : null };
 }
 
 /** Evaluate an entitlement without redirecting — for pages/nav/inline sections. */

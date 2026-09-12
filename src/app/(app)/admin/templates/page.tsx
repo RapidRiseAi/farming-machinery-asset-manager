@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { MACHINE_TYPES, TYPE_LABELS } from "@/lib/machine-options";
 import { createTemplate, updateTemplate, deleteTemplate } from "./actions";
@@ -24,7 +25,9 @@ export default async function TemplatesPage({
 }: {
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
-  await requireRole(["rr_admin"]);
+  // The profile was discarded here, so this page had no locale to translate with.
+  const profile = await requireRole(["rr_admin"]);
+  const locale = profile.lang;
   const sp = await searchParams;
   const supabase = await createClient();
 
@@ -45,7 +48,7 @@ export default async function TemplatesPage({
     <div className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">Service template library</h1>
       <p className="text-sm text-sand-500">Global templates farms can apply to a machine. One line per row: <code className="rounded bg-sand-100 px-1">Task | hours | months</code> (leave a number blank if not used).</p>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? "Saved." : undefined} />
 
       <Card>
@@ -74,7 +77,7 @@ export default async function TemplatesPage({
                   <Badge tone="neutral">{tpl.machine_type ? TYPE_LABELS[tpl.machine_type] ?? tpl.machine_type : "Any type"}</Badge>
                 </div>
                 <details>
-                  <summary className="cursor-pointer text-sm font-medium text-brand-700">Edit ({tpl.lines?.length ?? 0} lines)</summary>
+                  <summary className="cursor-pointer text-sm font-medium text-brand-ink">Edit ({tpl.lines?.length ?? 0} lines)</summary>
                   <form action={updateTemplate} className="mt-3 flex flex-col gap-3">
                     <input type="hidden" name="id" value={tpl.id} />
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -95,7 +98,7 @@ export default async function TemplatesPage({
                       triggerSize="sm"
                       triggerIcon={<TrashIcon />}
                       triggerLabel="Delete template"
-                      triggerClassName="text-status-overdue hover:bg-red-50"
+                      triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                       title={`Delete the “${tpl.name}” service template?`}
                       intro="This is a Rapid Rise template every farm can apply."
                       consequencesTitle="What happens when you press it"

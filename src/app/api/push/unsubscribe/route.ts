@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Remove the caller's Web-Push subscription for a given endpoint (soft delete, RLS-scoped). */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await getProfile();
   if (!profile || !profile.active) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

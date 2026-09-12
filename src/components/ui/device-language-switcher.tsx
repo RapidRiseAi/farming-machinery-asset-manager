@@ -33,7 +33,7 @@ export function DeviceLanguageSwitcher({
       action={setDeviceLanguage}
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-xl border border-sand-200 bg-white p-1",
+        "inline-flex items-center gap-0.5 rounded-xl border border-sand-200 bg-surface p-1",
         className,
       )}
     >

@@ -127,8 +127,8 @@ export function ConfirmDialog({
           <div className="flex items-start gap-3">
             <span
               className={cn(
-                "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[1.3rem]",
-                tone === "danger" ? "bg-red-50 text-red-700" : "bg-brand-50 text-brand-700",
+                "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl",
+                tone === "danger" ? "bg-callout-danger-bg text-callout-danger-ink" : "bg-brand-tint text-brand-ink",
               )}
               aria-hidden
             >
@@ -139,7 +139,7 @@ export function ConfirmDialog({
                 {title}
               </h2>
               {intro ? (
-                <p id={introId} className="mt-1.5 text-[0.95rem] leading-relaxed text-sand-600">
+                <p id={introId} className="mt-1.5 text-base leading-relaxed text-sand-600">
                   {intro}
                 </p>
               ) : null}
@@ -197,7 +197,7 @@ export function ConfirmDialog({
                   spellCheck={false}
                   onChange={(e) => setTyped(e.target.value)}
                   placeholder={typeToConfirmPlaceholder}
-                  className="mt-1.5 min-h-[48px] w-full rounded-lg border border-sand-300 bg-white px-3 text-base text-sand-900 placeholder:text-sand-400 focus-ring"
+                  className="mt-1.5 min-h-[48px] w-full rounded-lg border border-sand-300 bg-surface px-3 text-base text-sand-900 placeholder:text-sand-400 focus-ring"
                 />
               </div>
             ) : null}

@@ -20,7 +20,7 @@ export async function addReading(formData: FormData) {
   }
   const profile = await requireProfile();
   const role = await effectiveFarmRole(farmId, profile);
-  if (!role || !["rr_admin", "owner", "manager", "mechanic"].includes(role)) {
+  if (!role || !["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role)) {
     redirect(`/machines/${machineId}?error=You+cannot+record+a+reading+for+that+farm`);
   }
   const reading_date = dateRaw || todayInSouthAfrica();

@@ -41,7 +41,7 @@ export function MovementList({
               {rows.map((m) => (
                 <li
                   key={`${m.source}-${m.source_id}`}
-                  className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border border-sand-200 bg-white px-3 py-2.5"
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border border-sand-200 bg-surface px-3 py-2.5"
                 >
                   <span className="min-w-0 font-medium text-sand-900">{m.party}</span>
                   <Badge tone={m.direction === "in" ? "ok" : "neutral"}>

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { getProfile } from "@/lib/auth";
+import { effectiveFarmRole, getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadJobCardMedia } from "@/lib/jobcard-media";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,12 @@ const KINDS = ["photo", "quote", "invoice"];
  * the cost entry is inserted through the RLS client (farm-scoped by policy).
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await getProfile();
-  if (!profile || !profile.active || !CREW.includes(profile.role)) {
+  if (!profile || !profile.active) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -47,8 +52,21 @@ export async function POST(request: Request) {
   const jc = jcData as { id: string; farm_id: string; machine_id: string; vat_rate_bps: number; date_out: string | null } | null;
   if (!jc) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
+  // The RLS lookup proves resource access; the role must belong to THIS farm, not
+  // the user's primary farm. Workshops are admitted by that same scoped lookup.
+  const role = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(jc.farm_id, profile);
+  if (!role || !CREW.includes(role)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const file = form.get("file");
+  if (file instanceof File && file.size > 8 * 1024 * 1024) {
+    return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+  }
   const stored = await uploadJobCardMedia(createServiceClient(), file instanceof File ? file : null, kind, jc.farm_id, jc.id, profile.id);
+  if (file instanceof File && file.size > 0 && !stored) {
+    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  }
 
   // Recording an invoice amount raises the asset's TCO (FR-8.4).
   let invoiceRecorded = false;

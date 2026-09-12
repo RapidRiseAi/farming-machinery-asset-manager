@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -75,11 +76,11 @@ export default async function SchedulePage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Link href="/recurring" className="focus-ring rounded text-sm text-brand-700 hover:underline">
+      <Link href="/recurring" className="focus-ring rounded text-sm text-brand-ink hover:underline">
         ← {t("recurring.title", locale)}
       </Link>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.raised ? t("recurring.raisedFlash", locale) : undefined} />
       <Flash tone="info" message={sp.nothing ? t("recurring.nothingFlash", locale) : undefined} />
@@ -138,7 +139,7 @@ export default async function SchedulePage({
             <TextField name="unit_price" inputMode="decimal" label={t("recurring.linePrice", locale)} required />
           </div>
           <label className="flex items-center gap-3 text-sm text-sand-700">
-            <input type="checkbox" name="incl_vat" defaultChecked className="h-5 w-5 rounded border-sand-300 text-brand-600" />
+            <input type="checkbox" name="incl_vat" defaultChecked className="h-5 w-5 rounded border-sand-300 text-brand-ink" />
             {t("recurring.priceInclVat", locale)}
           </label>
           <SubmitButton variant="secondary" className="self-start">{t("recurring.addLine", locale)}</SubmitButton>
@@ -172,7 +173,7 @@ export default async function SchedulePage({
               type="checkbox"
               name="auto_send"
               defaultChecked={schedule.auto_send}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
             />
             <span>
               {t("recurring.autoSend", locale)}
@@ -240,7 +241,7 @@ export default async function SchedulePage({
           <ul className="flex flex-col divide-y divide-sand-100 text-sm">
             {raised.map((d) => (
               <li key={d.id} className="flex flex-wrap items-center gap-2 py-2">
-                <Link href={`/documents/${d.id}`} className="focus-ring rounded font-medium text-brand-700 underline-offset-2 hover:underline">
+                <Link href={`/documents/${d.id}`} className="focus-ring rounded font-medium text-brand-ink underline-offset-2 hover:underline">
                   {d.number}
                 </Link>
                 <span className="text-sand-500">{shortDate(d.issue_date, locale)}</span>

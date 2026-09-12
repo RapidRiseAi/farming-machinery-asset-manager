@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
@@ -174,26 +175,25 @@ export default async function ExpensesPage({
         {expenses.length === 0 ? (
           <GetStarted title={t("expenses.emptyTitle", locale)} hint={t("expenses.emptyBody", locale)} />
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <table className="w-full min-w-[42rem] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-sand-200 text-left text-sand-500">
-                  <th className="py-2 pr-3 font-medium">{t("expenses.colDate", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("expenses.colSupplier", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("expenses.colCategory", locale)}</th>
-                  <th className="py-2 pr-3 text-right font-medium">{t("expenses.colExVat", locale)}</th>
-                  <th className="py-2 pr-3 text-right font-medium">{t("expenses.colVat", locale)}</th>
-                  <th className="py-2 pr-3 text-right font-medium">{t("expenses.colTotal", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("expenses.colPaid", locale)}</th>
-                  <th className="py-2 pr-3 font-medium">{t("expenses.colProof", locale)}</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="min-w-[42rem]">
+              <Thead>
+                <Tr className="text-left text-sand-500">
+                  <Th className="font-medium">{t("expenses.colDate", locale)}</Th>
+                  <Th className="font-medium">{t("expenses.colSupplier", locale)}</Th>
+                  <Th className="font-medium">{t("expenses.colCategory", locale)}</Th>
+                  <Th className="text-right font-medium">{t("expenses.colExVat", locale)}</Th>
+                  <Th className="text-right font-medium">{t("expenses.colVat", locale)}</Th>
+                  <Th className="text-right font-medium">{t("expenses.colTotal", locale)}</Th>
+                  <Th className="font-medium">{t("expenses.colPaid", locale)}</Th>
+                  <Th className="font-medium">{t("expenses.colProof", locale)}</Th>
+                  <Th />
+                </Tr>
+              </Thead>
+              <Tbody>
                 {expenses.map((e) => (
-                  <tr key={e.id} className="border-b border-sand-100 last:border-0">
-                    <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</td>
-                    <td className="py-2.5 pr-3">
+                  <Tr key={e.id}>
+                    <Td className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
+                    <Td>
                       <span className="text-sand-900">{e.supplier_name}</span>
                       {e.reference ? <span className="block font-mono text-xs text-sand-500">{e.reference}</span> : null}
                       {e.description ? <span className="block text-xs text-sand-500">{e.description}</span> : null}
@@ -206,29 +206,29 @@ export default async function ExpensesPage({
                       {e.purchase_order_id ? (
                         <a
                           href={`/orders/${e.purchase_order_id}`}
-                          className="focus-ring mt-0.5 block text-xs font-medium text-brand-700 underline underline-offset-2"
+                          className="focus-ring mt-0.5 block text-xs font-medium text-brand-ink underline underline-offset-2"
                         >
                           {t("supplier.fromOrder", locale)}{" "}
                           {orders.get(e.purchase_order_id)?.reference ?? t("supplier.fromOrderNoRef", locale)}
                         </a>
                       ) : null}
-                    </td>
-                    <td className="py-2.5 pr-3">
+                    </Td>
+                    <Td>
                       <Badge tone="neutral">{t(`expenseCategory.${e.category}`, locale)}</Badge>
-                    </td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums text-sand-800">
+                    </Td>
+                    <Td className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
+                    <Td className="text-right tabular-nums text-sand-800">
                       {rands(e.vat_cents)}
                       {/* A partner who cannot claim it needs to see WHY it is not in the
                           return, or the total will look wrong to them every quarter. */}
                       {e.vat_cents > 0 && !e.vat_claimable ? (
                         <span className="block text-xs text-status-warn">{t("expenses.notClaimable", locale)}</span>
                       ) : null}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right font-medium tabular-nums text-sand-900">
+                    </Td>
+                    <Td className="text-right font-medium tabular-nums text-sand-900">
                       {rands(expenseTotalCents(e))}
-                    </td>
-                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                    </Td>
+                    <Td className="whitespace-nowrap">
                       {e.paid_on ? (
                         <span className="text-sand-600">{shortDate(e.paid_on, locale)}</span>
                       ) : (
@@ -237,15 +237,15 @@ export default async function ExpensesPage({
                           <SubmitButton variant="ghost" size="sm">{t("expenses.markPaid", locale)}</SubmitButton>
                         </form>
                       )}
-                    </td>
-                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                    </Td>
+                    <Td className="whitespace-nowrap">
                       {e.receipt_path ? (
                         <span className="flex items-center gap-2">
                           <a
                             href={receiptUrls.get(e.receipt_path) ?? "#"}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="focus-ring text-sm font-medium text-brand-700 underline underline-offset-2"
+                            className="focus-ring text-sm font-medium text-brand-ink underline underline-offset-2"
                           >
                             {t("expenses.receiptView", locale)}
                           </a>
@@ -272,8 +272,8 @@ export default async function ExpensesPage({
                           ) : null}
                         </span>
                       )}
-                    </td>
-                    <td className="py-2.5 text-right">
+                    </Td>
+                    <Td className="text-right">
                       <ConfirmDialog
                         action={deleteExpense}
                         triggerLabel={t("common.remove", locale)}
@@ -289,12 +289,11 @@ export default async function ExpensesPage({
                       >
                         <input type="hidden" name="expense_id" value={e.id} />
                       </ConfirmDialog>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </Tbody>
+            </Table>
         )}
       </Card>
     </div>

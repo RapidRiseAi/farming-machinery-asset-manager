@@ -30,7 +30,7 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => { dbPromise = null; reject(req.error); };
   });
   return dbPromise;
 }
@@ -41,7 +41,10 @@ function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequ
       new Promise<T>((resolve, reject) => {
         const transaction = db.transaction(STORE, mode);
         const req = run(transaction.objectStore(STORE));
-        req.onsuccess = () => resolve(req.result);
+        // Request success is not a durable commit (quota/abort can still follow).
+        transaction.oncomplete = () => resolve(req.result);
+        transaction.onabort = () => reject(transaction.error ?? new Error("offline_storage_aborted"));
+        transaction.onerror = () => reject(transaction.error ?? new Error("offline_storage_failed"));
         req.onerror = () => reject(req.error);
       }),
   );

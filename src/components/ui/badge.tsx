@@ -6,11 +6,11 @@ export type BadgeTone = "neutral" | "brand" | "ok" | "warning" | "danger" | "inf
 // Tint bg + dark text — every pairing clears WCAG-AA on the tint.
 const TONES: Record<BadgeTone, string> = {
   neutral: "bg-sand-100 text-sand-700",
-  brand: "bg-brand-50 text-brand-700",
-  ok: "bg-green-50 text-green-800",
-  warning: "bg-amber-50 text-amber-800",
-  danger: "bg-red-50 text-red-700",
-  info: "bg-blue-50 text-blue-700",
+  brand: "bg-brand-tint text-brand-ink",
+  ok: "bg-callout-ok-bg text-callout-ok-ink",
+  warning: "bg-callout-warn-bg text-callout-warn-ink",
+  danger: "bg-callout-danger-bg text-callout-danger-ink",
+  info: "bg-callout-info-bg text-callout-info-ink",
 };
 
 export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
@@ -122,11 +122,11 @@ function ShapeGlyph({ shape, className }: { shape: StatusShape; className?: stri
 /** Colour of the shape itself — stronger than the label, so it reads at a glance. */
 const SHAPE_INK: Record<BadgeTone, string> = {
   neutral: "text-sand-500",
-  brand: "text-brand-600",
+  brand: "text-brand-ink",
   ok: "text-status-ok",
   warning: "text-status-due",
   danger: "text-status-overdue",
-  info: "text-blue-600",
+  info: "text-callout-info-ink",
 };
 
 export type StatusBadgeProps = {

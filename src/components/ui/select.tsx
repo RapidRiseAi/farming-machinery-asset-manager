@@ -19,7 +19,7 @@ export function Select({ className, invalid, children, ...props }: SelectProps) 
         {children}
       </select>
       <ChevronDownIcon
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[1.15rem] text-sand-500"
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-lg text-sand-500"
       />
     </div>
   );

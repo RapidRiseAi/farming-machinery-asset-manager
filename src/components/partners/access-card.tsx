@@ -29,7 +29,7 @@ export type PartnerAccess = {
  */
 export function PartnerAccessCard({ access, locale }: { access: PartnerAccess; locale: Lang }) {
   const row = "flex items-start gap-3 rounded-lg border border-sand-200 p-3";
-  const check = "mt-0.5 h-5 w-5 shrink-0 rounded border-sand-300 text-brand-600";
+  const check = "mt-0.5 h-5 w-5 shrink-0 rounded border-sand-300 text-brand-ink";
 
   const grants = [
     { name: "see_all_vehicles", on: access.see_all_vehicles, key: "vehicles" },

@@ -41,7 +41,7 @@ export default async function BankImportPage({
         </div>
         <Link
           href="/banking"
-          className="focus-ring ml-auto text-sm font-medium text-brand-700 underline underline-offset-2"
+          className="focus-ring ml-auto text-sm font-medium text-brand-ink underline underline-offset-2"
         >
           {t("bank.backToBanking", locale)}
         </Link>

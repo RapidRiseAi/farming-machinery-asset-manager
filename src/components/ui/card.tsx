@@ -11,7 +11,7 @@ export function Card({ flush = false, className, children, ...props }: CardProps
   return (
     <div
       className={cn(
-        "rounded-xl border border-sand-200 bg-white shadow-card",
+        "rounded-xl border border-sand-200 bg-surface shadow-card",
         !flush && "p-4 sm:p-5",
         className,
       )}

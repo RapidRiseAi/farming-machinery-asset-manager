@@ -169,7 +169,7 @@ export function ChecklistTemplateBuilder({
       </div>
 
       {isGlobal ? (
-        <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">
+        <p className="rounded-lg bg-brand-tint px-3 py-2 text-sm text-brand-ink">
           {t("checklists.globalHint", locale)}
         </p>
       ) : null}
@@ -302,7 +302,7 @@ export function ChecklistTemplateBuilder({
 
       {/* Sticky on a phone: the questions list is long, and the way out of a long
           form should not require scrolling back to find it. */}
-      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-sand-200 bg-white/95 px-1 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-sand-200 bg-surface/95 px-1 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:backdrop-blur-none">
         <Button type="button" variant="primary" disabled={saving} onClick={() => void onSave()}>
           <CheckIcon />
           {saving ? t("checklists.saving", locale) : t("checklists.saveTemplate", locale)}

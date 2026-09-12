@@ -24,7 +24,7 @@ export function EmptyState({ icon, title, hint, action, className }: EmptyStateP
       )}
     >
       {icon ? (
-        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-[1.5rem] text-brand-600">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-2xl text-brand-ink">
           {icon}
         </div>
       ) : null}
@@ -56,15 +56,15 @@ export function AllClear({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-xl border border-brand-100 bg-brand-50/70 px-6 py-9 text-center",
+        "flex flex-col items-center justify-center rounded-xl border border-brand-100 bg-brand-tint/70 px-6 py-9 text-center",
         className,
       )}
     >
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-[1.5rem] text-brand-700">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-2xl text-brand-ink">
         {icon ?? <CheckIcon />}
       </div>
-      <p className="text-base font-semibold text-brand-900">{title}</p>
-      {hint ? <p className="mt-1 max-w-sm text-sm text-brand-800/80">{hint}</p> : null}
+      <p className="text-base font-semibold text-brand-ink">{title}</p>
+      {hint ? <p className="mt-1 max-w-sm text-sm text-brand-ink/80">{hint}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
@@ -96,13 +96,13 @@ export function GetStarted({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-sand-200 bg-white",
+        "overflow-hidden rounded-xl border border-sand-200 bg-surface",
         className,
       )}
     >
       <div className="flex flex-col items-center px-6 py-8 text-center">
         {icon ? (
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-[1.7rem] text-brand-600">
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-tint text-2xl text-brand-ink">
             {icon}
           </div>
         ) : null}
@@ -151,7 +151,7 @@ export function NoMatches({
         className,
       )}
     >
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-sand-100 text-[1.35rem] text-sand-500">
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-sand-100 text-xl text-sand-500">
         <SearchIcon />
       </div>
       <p className="text-base font-semibold text-sand-900">{title}</p>

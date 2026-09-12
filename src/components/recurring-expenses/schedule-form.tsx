@@ -117,7 +117,7 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
           <input
             type="checkbox"
             name="amount_incl_vat"
-            className="h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="h-5 w-5 rounded border-sand-300 text-brand-ink"
             checked={inclusive}
             onChange={(e) => setInclusive(e.target.checked)}
           />
@@ -175,7 +175,7 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
             way; this stops the screen suggesting a choice exists. */}
         {vatRegistered ? (
           <label className="flex items-start gap-3 text-sm text-sand-700">
-            <input type="checkbox" name="vat_claimable" defaultChecked className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
+            <input type="checkbox" name="vat_claimable" defaultChecked className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink" />
             <span>
               {t("recexp.claimable", locale)}
               <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
@@ -188,7 +188,7 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
         )}
 
         <label className="flex items-start gap-3 text-sm text-sand-700">
-          <input type="checkbox" name="auto_paid" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
+          <input type="checkbox" name="auto_paid" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink" />
           <span>
             {t("recexp.autoPaid", locale)}
             <span className="block text-xs text-sand-500">{t("recexp.autoPaidHint", locale)}</span>

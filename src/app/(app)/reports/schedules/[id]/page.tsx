@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import {
   checkEntitlement,
@@ -147,12 +148,12 @@ export default async function ReportSchedulePage({
             {t(`cadence.${schedule.cadence}`, locale)}
           </p>
         </div>
-        <Link href="/reports/schedules" className="focus-ring ml-auto rounded-lg px-2 py-1 text-sm font-medium text-brand-700 hover:underline">
+        <Link href="/reports/schedules" className="focus-ring ml-auto rounded-lg px-2 py-1 text-sm font-medium text-brand-ink hover:underline">
           {t("reportSchedules.backToList", locale)}
         </Link>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("reportSchedules.savedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.added ? t("reportSchedules.addedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.removed ? t("reportSchedules.removedFlash", locale) : undefined} />
@@ -228,7 +229,7 @@ export default async function ReportSchedulePage({
         <p className="mb-3 text-sm text-sand-600">{t("reportSchedules.whoBody", locale)}</p>
 
         {recipients.length === 0 ? (
-          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p className="mb-3 rounded-lg bg-callout-warn-bg px-3 py-2 text-sm text-callout-warn-ink">
             {t("reportSchedules.noRecipients", locale)}
           </p>
         ) : (

@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { uploadPartnerDocFile } from "@/lib/partner-media";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,10 @@ export const dynamic = "force-dynamic";
  * role under the farm's own storage prefix.
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await getProfile();
   if (!profile || !profile.active) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 

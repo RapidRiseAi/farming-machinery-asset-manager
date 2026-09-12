@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -64,7 +65,7 @@ export default async function NotificationsPage({
     formatNotification(n.template, n.payload ?? {}, locale, nameById[n.payload?.machine_id as string]);
 
   const hasUnread = notes.some((n) => n.read_at == null);
-  const check = "h-5 w-5 rounded border-sand-300 text-brand-600";
+  const check = "h-5 w-5 rounded border-sand-300 text-brand-ink";
 
   return (
     <div className="flex flex-col gap-4">
@@ -80,7 +81,7 @@ export default async function NotificationsPage({
         ) : null}
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {/* Per-user preferences (FR-14.3) */}

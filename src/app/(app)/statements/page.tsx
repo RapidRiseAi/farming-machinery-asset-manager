@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -164,7 +165,7 @@ export default async function StatementsPage({
         {selected ? (
           <div className="flex flex-wrap gap-2">
             <a href={pdfHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              <DownloadIcon className="text-[1.1rem]" /> {t("statement.pdf", locale)}
+              <DownloadIcon className="text-lg" /> {t("statement.pdf", locale)}
             </a>
             <a href={csvHref} className={buttonVariants({ variant: "ghost", size: "sm" })}>
               {t("statement.csv", locale)}
@@ -236,28 +237,27 @@ export default async function StatementsPage({
               <AllClear title={t("statement.emptyTitle", locale)} hint={t("statement.emptyBody", locale)} />
             ) : (
               <>
-                <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                  <table className="w-full min-w-[36rem] border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-sand-200 text-left text-sand-500">
-                        <th className="py-2 pr-3 font-medium">{t("statement.date", locale)}</th>
-                        <th className="py-2 pr-3 font-medium">{t("statement.what", locale)}</th>
-                        <th className="py-2 pr-3 text-right font-medium">{t("statement.charged", locale)}</th>
-                        <th className="py-2 pr-3 text-right font-medium">{t("statement.paidOff", locale)}</th>
-                        <th className="py-2 text-right font-medium">{t("statement.balance", locale)}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table className="min-w-[36rem]">
+                    <Thead>
+                      <Tr className="text-left text-sand-500">
+                        <Th className="font-medium">{t("statement.date", locale)}</Th>
+                        <Th className="font-medium">{t("statement.what", locale)}</Th>
+                        <Th className="text-right font-medium">{t("statement.charged", locale)}</Th>
+                        <Th className="text-right font-medium">{t("statement.paidOff", locale)}</Th>
+                        <Th className="text-right font-medium">{t("statement.balance", locale)}</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
                       {lines.map((l, i) => (
-                        <tr key={`${l.kind}-${l.document_id ?? i}`} className="border-b border-sand-100 last:border-0">
-                          <td className="py-2.5 pr-3 whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</td>
-                          <td className="py-2.5 pr-3">
+                        <Tr key={`${l.kind}-${l.document_id ?? i}`}>
+                          <Td className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
+                          <Td>
                             <span className="text-sand-900">{statementLabel(l, locale)}</span>
                             {l.reference ? (
                               l.document_id ? (
                                 <Link
                                   href={`/documents/${l.document_id}`}
-                                  className="focus-ring ml-2 rounded text-brand-700 underline-offset-2 hover:underline"
+                                  className="focus-ring ml-2 rounded text-brand-ink underline-offset-2 hover:underline"
                                 >
                                   {l.reference}
                                 </Link>
@@ -265,21 +265,20 @@ export default async function StatementsPage({
                                 <span className="ml-2 text-sand-500">{l.reference}</span>
                               )
                             ) : null}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-sand-900">
+                          </Td>
+                          <Td className="text-right tabular-nums text-sand-900">
                             {l.debit_cents ? rands(l.debit_cents) : ""}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-sand-900">
+                          </Td>
+                          <Td className="text-right tabular-nums text-sand-900">
                             {l.credit_cents ? rands(l.credit_cents) : ""}
-                          </td>
-                          <td className="py-2.5 text-right font-medium tabular-nums text-sand-900">
+                          </Td>
+                          <Td className="text-right font-medium tabular-nums text-sand-900">
                             {rands(l.balance_cents)}
-                          </td>
-                        </tr>
+                          </Td>
+                        </Tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </Tbody>
+                  </Table>
 
                 <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-sand-200 pt-3 text-sm sm:max-w-sm">
                   <dt className="text-sand-600">{t("statement.opening", locale)}</dt>

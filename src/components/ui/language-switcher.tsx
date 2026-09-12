@@ -31,7 +31,7 @@ export function LanguageSwitcher({ current, label }: { current: Locale; label: s
           className={cn(
             "focus-ring rounded-md px-2.5 py-1 text-xs font-semibold uppercase transition-colors",
             current === lng
-              ? "bg-white text-sand-900 shadow-xs"
+              ? "bg-surface text-sand-900 shadow-xs"
               : "text-sand-500 hover:text-sand-800",
           )}
         >

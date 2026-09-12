@@ -1,5 +1,6 @@
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
 
@@ -22,13 +23,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data } = await supabase.from("job_cards").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+  const { data } = await supabase.from("job_cards_visible").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
   const jc = data as JC | null;
   if (!jc) return new Response("Not found", { status: 404 });
+  const costsVisible = await canViewFarmCosts(supabase, jc.farm_id);
 
   const [{ data: mData }, { data: lData }, { data: farmData }] = await Promise.all([
     supabase.from("machines").select("name, make, model, reg_no, meter_type").eq("id", jc.machine_id).maybeSingle(),
-    supabase.from("job_card_lines").select("kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
+    supabase.from("job_card_lines_visible").select("kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
     supabase.from("farms").select("name").eq("id", jc.farm_id).maybeSingle(),
   ]);
   const machine = mData as { name: string; make: string | null; model: string | null; reg_no: string | null; meter_type: string } | null;
@@ -53,7 +55,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   pdf.heading("Lines");
   if (lines.length === 0) {
     pdf.text("No lines.", { color: undefined });
-  } else {
+  } else if (costsVisible) {
     pdf.table(
       ["Description", "Detail", "Line total"],
       lines.map((l) => [
@@ -64,14 +66,25 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       [270, 130, 99],
       [false, false, true],
     );
+  } else {
+    pdf.table(
+      ["Description", "Quantity / hours"],
+      lines.map((l) => [
+        l.description ?? l.kind,
+        l.kind === "part" ? String(l.qty ?? 0) : l.kind === "labour" ? `${l.hours ?? 0}h` : "",
+      ]),
+      [350, 149],
+    );
   }
 
+  if (costsVisible) {
   pdf.gap(6);
   pdf.hr();
   pdf.kv("Parts (ex-VAT)", rands(jc.parts_total_cents));
   pdf.kv("Labour (ex-VAT)", rands(jc.labour_total_cents));
   pdf.kv("Other (ex-VAT)", rands(jc.other_total_cents));
   pdf.kv("TOTAL (ex-VAT)", rands(jc.total_cents));
+  }
 
   if (jc.recommendations) {
     pdf.heading("Recommendations");

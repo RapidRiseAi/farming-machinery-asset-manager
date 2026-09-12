@@ -32,6 +32,7 @@ export function OfflineForm({
   confirmMs?: number;
 }) {
   const [queued, setQueued] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     // Online (or no IndexedDB) → let the server action submit normally.
@@ -39,7 +40,9 @@ export function OfflineForm({
     e.preventDefault();
     const form = e.currentTarget;
     const fields = fieldsFromForm(form);
-    await queueMutation({ type, scope, fields });
+    setSaveError(false);
+    try { await queueMutation({ type, scope, fields }); }
+    catch { setSaveError(true); return; }
     form.reset();
     setQueued(true);
     onQueued?.();
@@ -49,6 +52,7 @@ export function OfflineForm({
   return (
     <form action={action} onSubmit={onSubmit} className={className}>
       {children}
+      {saveError ? <p role="alert" className="text-sm text-status-overdue">{t("offline.storageFailed", locale)}</p> : null}
       {queued ? (
         <p role="status" className="mt-1 text-sm font-medium text-status-due">
           <CheckIcon /> {t("offline.savedOffline", locale)}

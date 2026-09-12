@@ -40,8 +40,8 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
     schedule now due (0506). A TypeScript step rather than an RPC, because it renders the
     report and sends mail; it runs AFTER the database steps so every attachment reflects the
     same final state a person would see on /reports.
-15. **Web Push delivery** (`deliverPush`) — for every queued row that is now deliverable
-    (past its quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
+15. **Web Push delivery** (`deliverPush`) — claim up to 25 queued rows that are now deliverable
+    (past their quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
     to each recipient's subscribed devices, honouring the per-user `notify_push` toggle.
     No-ops gracefully when the VAPID env keys are unset (see `.env.example`).
 
@@ -70,6 +70,24 @@ is enqueued at all; `users.notify_push` decides whether it is pushed; per-user
 
 05:00 SAST is the end of quiet hours, so held notifications become deliverable right as
 the farm's day starts, and the Monday digest lands before the 06:00 morning read.
+
+Push also requires a frequent external scheduler calling `GET` or `POST /api/push/send`
+with the same bearer secret, ideally every minute. The checked-in Vercel schedule stays
+daily; the nightly pass alone processes at most 25 notification rows and cannot drain a
+larger backlog or promptly deliver daytime alerts. Provision this external schedule when
+enabling push, and monitor its response for `ok: false` (HTTP 503) and `deferred` counts.
+
+Each pass stops starting deliveries after 25 seconds and each provider request has a
+10-second timeout. A five-minute lease prevents overlapping passes claiming the same
+notification. Provider/lookup/persistence failures remain queued with a five-minute retry
+delay; a crashed worker becomes eligible when its lease expires. Accepted devices are
+acknowledged separately so retries only visit unfinished devices. Only completed or terminal
+deliveries receive `push_sent_at`; opt-out, inactive/deleted users, no devices and confirmed
+expired devices are terminal. A crash after provider acceptance but before acknowledgement
+can repeat a push; its stable notification tag allows the browser to replace the prior one.
+
+Financial and billing pushes contain a category label only. Amounts and card details are
+shown in the authenticated app, where current farm permissions also cover role downgrades.
 
 ## Authentication
 

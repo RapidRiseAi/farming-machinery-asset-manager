@@ -1,8 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { t, type Locale, type Lang } from "@/lib/i18n";
-import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
+import { canQueueOffline, isOnline, prepareMutation } from "@/lib/offline/capture";
+import { enqueue } from "@/lib/offline/queue";
+import { buildFormData } from "@/lib/offline/sync";
+import type { QueuedMutation } from "@/lib/offline/types";
+import Link from "next/link";
 import { CameraIcon, MicIcon, StopIcon, PinIcon, CheckIcon } from "@/components/ui/icons";
 
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
@@ -17,8 +21,9 @@ async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
     const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
+    if (!ctx) { bitmap.close(); return file; }
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
     return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b ?? file), "image/jpeg", quality));
   } catch {
     return file;
@@ -27,13 +32,12 @@ async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<
 
 /**
  * Shared fault-report form with common-fault buttons, photo and voice-note capture.
- * Posts multipart to `endpoint`; used by the public QR page (token, no login) and the
+ * Posts multipart through the idempotent sync API; used by the public QR page and the
  * in-app faults page. The public path never touches the DB directly — the endpoint is
  * a service-role route that validates the token server-side. Captures work offline
  * (queued via IndexedDB) and record an optional geolocation when the browser grants it.
  */
 export function FaultCapture({
-  endpoint,
   token,
   machines,
   redirectTo,
@@ -61,6 +65,21 @@ export function FaultCapture({
   const [queued, setQueued] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const pendingRef = useRef<QueuedMutation | null>(null);
+  const [voiceUrl, setVoiceUrl] = useState<string>();
+  useEffect(() => {
+    if (!voice) { setVoiceUrl(undefined); return; }
+    const url = URL.createObjectURL(voice); setVoiceUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [voice]);
+  useEffect(() => () => {
+    const rec = recorderRef.current;
+    if (rec) {
+      rec.onstop = null;
+      if (rec.state !== "inactive") rec.stop();
+      rec.stream.getTracks().forEach(track => track.stop());
+    }
+  }, []);
 
   // Permission-gated geolocation (FR-7.2). Silent fallback: if unsupported or denied
   // we simply don't attach a location — the fault still submits normally.
@@ -85,7 +104,7 @@ export function FaultCapture({
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
-        setVoice(new Blob(chunksRef.current, { type: "audio/webm" }));
+        setVoice(new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" }));
         stream.getTracks().forEach((tr) => tr.stop());
       };
       rec.start();
@@ -96,7 +115,7 @@ export function FaultCapture({
     }
   };
   const stopRec = () => {
-    recorderRef.current?.stop();
+    if (recorderRef.current?.state !== "inactive") recorderRef.current?.stop();
     setRecording(false);
   };
 
@@ -104,10 +123,16 @@ export function FaultCapture({
     e.preventDefault();
     setError(null);
     if (!description.trim()) return;
+    if (busy || recording) return;
     setBusy(true);
 
     // Compress up-front so the same bytes are used online or queued offline.
     const compressedPhoto = photo ? await compressImage(photo) : undefined;
+    if ((compressedPhoto && (compressedPhoto.size > 6 * 1024 * 1024 ||
+      !["image/jpeg", "image/png", "image/webp"].includes(compressedPhoto.type))) ||
+      (voice && voice.size > 8 * 1024 * 1024)) {
+      setError(t("offline.mediaTooLarge", locale)); setBusy(false); return;
+    }
     const name =
       variant === "public"
         ? (document.getElementById("fault-name") as HTMLInputElement | null)?.value ?? ""
@@ -124,14 +149,24 @@ export function FaultCapture({
       fields.lng = String(coords.lng);
     }
 
-    const queueOffline = async () => {
-      await queueMutation({
+    let mutation: QueuedMutation;
+    try {
+      mutation = pendingRef.current && JSON.stringify(pendingRef.current.fields) === JSON.stringify(fields)
+        ? { ...pendingRef.current, photo: compressedPhoto, voice: voice ?? undefined }
+        : await prepareMutation({
         type: "report_fault",
         scope: variant === "public" ? "public" : "app",
         fields,
         photo: compressedPhoto,
         voice: voice ?? undefined,
       });
+      pendingRef.current = mutation;
+    } catch {
+      setError(t("offline.storageFailed", locale)); setBusy(false); return;
+    }
+    const queueOffline = async () => {
+      try { await enqueue(mutation); }
+      catch { setError(t("offline.storageFailed", locale)); setBusy(false); return; }
       // Optimistic confirm: reset the form, show "saved offline".
       setDescription("");
       setCategory(null);
@@ -141,6 +176,7 @@ export function FaultCapture({
       setCoords(null);
       setQueued(true);
       setBusy(false);
+      pendingRef.current = null;
     };
 
     // Offline up-front → queue without hitting the network.
@@ -149,21 +185,9 @@ export function FaultCapture({
       return;
     }
 
-    const fd = new FormData();
-    fd.set("description", fields.description);
-    fd.set("urgency", urgency);
-    if (fields.category) fd.set("category", fields.category);
-    if (token) fd.set("token", token);
-    if (variant === "app") fd.set("machine_id", machineId);
-    if (name) fd.set("name", name);
-    if (compressedPhoto) fd.set("photo", compressedPhoto, "photo.jpg");
-    if (voice) fd.set("voice", voice, "voice.webm");
-    if (fields.lat) fd.set("lat", fields.lat);
-    if (fields.lng) fd.set("lng", fields.lng);
-
     let res: Response;
     try {
-      res = await fetch(endpoint, { method: "POST", body: fd });
+      res = await fetch("/api/sync", { method: "POST", body: buildFormData(mutation) });
     } catch {
       // Network dropped mid-send → queue for later if we can.
       if (canQueueOffline()) {
@@ -174,9 +198,14 @@ export function FaultCapture({
       setBusy(false);
       return;
     }
-    if (res.ok) {
+    const body = await res.json().catch(() => null) as { status?: string } | null;
+    if (res.ok && body?.status === "applied") {
+      pendingRef.current = null;
       window.location.href = redirectTo;
       return;
+    }
+    if ((res.status >= 500 || res.status === 429) && canQueueOffline()) {
+      await queueOffline(); return;
     }
     // Server rejected the report (bad input / permission) — surface it, don't queue.
     setError(t("faults.error", locale));
@@ -202,7 +231,7 @@ export function FaultCapture({
               key={c}
               type="button"
               onClick={() => { setCategory(c); if (!description.trim()) setDescription(t(`faults.common.${c}`, locale)); }}
-              className={`focus-ring min-h-[48px] rounded-full border px-3 text-sm ${category === c ? "border-brand-600 bg-brand-50 text-brand-700" : "border-sand-300 text-sand-700"}`}
+              className={`focus-ring min-h-[48px] rounded-full border px-3 text-sm ${category === c ? "border-brand-600 bg-brand-tint text-brand-ink" : "border-sand-300 text-sand-700"}`}
             >
               {t(`faults.common.${c}`, locale)}
             </button>
@@ -210,7 +239,8 @@ export function FaultCapture({
         </div>
       </div>
 
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows={3} placeholder={t("faults.whatWrong", locale)} className={input} />
+      <label className="text-sm font-medium" htmlFor="fault-description">{t("faults.whatWrong", locale)}</label>
+      <textarea id="fault-description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={2000} rows={3} className={input} />
 
       <select value={urgency} onChange={(e) => setUrgency(e.target.value)} className={input} aria-label={t("faults.urgency", locale)}>
         {URGENCIES.map((u) => (
@@ -219,7 +249,9 @@ export function FaultCapture({
       </select>
 
       {variant === "public" ? (
-        <input id="fault-name" placeholder={`${t("faults.yourName", locale)} (${t("faults.optional", locale)})`} className={input} />
+        <label className="text-sm">{t("faults.yourName", locale)} ({t("faults.optional", locale)})
+          <input id="fault-name" name="name" autoComplete="name" maxLength={200} className={input} />
+        </label>
       ) : null}
 
       {/* Photo */}
@@ -240,14 +272,14 @@ export function FaultCapture({
             {voice ? t("faults.reRecord", locale) : t("faults.record", locale)}
           </button>
         ) : (
-          <button type="button" onClick={stopRec} className="focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-status-overdue bg-red-50 px-4 text-sm font-medium text-status-overdue">
+          <button type="button" onClick={stopRec} className="focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-status-overdue bg-callout-danger-bg px-4 text-sm font-medium text-status-overdue">
             <StopIcon />{" "}
             {t("faults.recording", locale)}
           </button>
         )}
         {voice && !recording ? (
           <span className="flex items-center gap-2">
-            <audio controls src={URL.createObjectURL(voice)} className="h-9 max-w-[180px]" />
+            <audio controls src={voiceUrl} className="h-9 max-w-[180px]" aria-label={t("faults.playVoiceNote", locale)} />
             <button type="button" onClick={() => setVoice(null)} className="text-sm text-status-overdue">{t("faults.remove", locale)}</button>
           </span>
         ) : null}
@@ -266,7 +298,7 @@ export function FaultCapture({
         ) : null}
       </div>
 
-      {queued ? <p className="text-sm font-medium text-status-due" role="status"><CheckIcon /> {t("offline.savedOffline", locale)}</p> : null}
+      {queued ? <p className="text-sm font-medium text-status-due" role="status"><CheckIcon /> {t("offline.savedOffline", locale)} <Link className="focus-ring underline" href="/queue">{t("offline.review", locale)}</Link></p> : null}
       {error ? <p className="text-sm text-status-overdue" role="alert">{error}</p> : null}
 
       <button

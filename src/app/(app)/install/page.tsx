@@ -28,7 +28,7 @@ export default async function InstallPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
             {t("install.title", locale)}
           </h1>
           <PageInfoButton infoKey="install" locale={locale} />
@@ -45,7 +45,7 @@ export default async function InstallPage() {
         <ul className="flex flex-col gap-2.5">
           {why.map((line) => (
             <li key={line} className="flex items-start gap-2.5 text-sm text-sand-700">
-              <span className="mt-0.5 shrink-0 text-[1.05rem] text-brand-600"><CheckIcon /></span>
+              <span className="mt-0.5 shrink-0 text-base text-brand-ink"><CheckIcon /></span>
               <span>{line}</span>
             </li>
           ))}
@@ -57,7 +57,7 @@ export default async function InstallPage() {
         <ul className="flex flex-col gap-2.5">
           {offline.map((line) => (
             <li key={line} className="flex items-start gap-2.5 text-sm text-sand-700">
-              <span className="mt-0.5 shrink-0 text-[1.05rem] text-brand-600"><FuelIcon /></span>
+              <span className="mt-0.5 shrink-0 text-base text-brand-ink"><FuelIcon /></span>
               <span>{line}</span>
             </li>
           ))}
@@ -70,7 +70,7 @@ export default async function InstallPage() {
       <Card>
         <CardHeader><CardTitle>{t("install.noFileTitle", locale)}</CardTitle></CardHeader>
         <p className="flex items-start gap-2.5 text-sm text-sand-700">
-          <span className="mt-0.5 shrink-0 text-[1.05rem] text-sand-400"><InfoIcon /></span>
+          <span className="mt-0.5 shrink-0 text-base text-sand-400"><InfoIcon /></span>
           <span>{t("install.noFile", locale)}</span>
         </p>
       </Card>

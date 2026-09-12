@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
@@ -87,7 +88,7 @@ export default async function RecurringExpensesPage({
         <p className="text-sm text-sand-600">{t("recexp.lead", locale)}</p>
       </div>
 
-      <Flash tone="error" message={errorKey ? t(errorKey, locale) : sp.error} />
+      <Flash tone="error" message={errorKey ? t(errorKey, locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("recexp.deletedFlash", locale) : undefined} />
 
       {due.length > 0 ? (
@@ -113,7 +114,7 @@ export default async function RecurringExpensesPage({
                   {/* A span, not a link: the whole row is already an anchor, and nesting
                       one inside another is invalid HTML the browser silently un-nests —
                       which is what threw React #418 on the machines list. */}
-                  <span className="text-sm font-medium text-brand-700">{t("recexp.dueOpen", locale)} →</span>
+                  <span className="text-sm font-medium text-brand-ink">{t("recexp.dueOpen", locale)} →</span>
                 </Link>
               </li>
             ))}

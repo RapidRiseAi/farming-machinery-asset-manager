@@ -76,7 +76,7 @@ export async function addKitItem(formData: FormData) {
   // If a catalogue part was chosen but fields were left blank, snapshot from it.
   if (catalogueId && (partNo == null || description == null || unitCents == null)) {
     const { data: part } = await supabase
-      .from("parts_catalogue")
+      .from("parts_catalogue_visible")
       .select("part_no, description, typical_cost_cents")
       .eq("id", catalogueId)
       .maybeSingle();

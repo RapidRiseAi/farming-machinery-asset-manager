@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 /**
  * Run a Web-Push delivery pass on demand (service-role). Same auth as the nightly cron:
  * `Authorization: Bearer ${CRON_SECRET}`. The nightly route also calls deliverPush()
- * directly after enqueuing, so this exists mainly for external triggering / manual testing.
+ * directly after enqueuing. Schedule this route externally every minute to drain batches,
+ * deliver daytime notifications, and retry after the five-minute backoff (docs/CRON.md).
  * No-ops gracefully (skipped) when VAPID keys are unset.
  */
 async function handle(request: Request) {
@@ -19,7 +20,7 @@ async function handle(request: Request) {
   }
   const supabase = createServiceClient();
   const result = await deliverPush(supabase);
-  return NextResponse.json({ ranAt: new Date().toISOString(), ...result });
+  return NextResponse.json({ ranAt: new Date().toISOString(), ...result }, { status: result.ok ? 200 : 503 });
 }
 
 export const GET = handle;

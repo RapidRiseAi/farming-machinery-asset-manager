@@ -120,7 +120,7 @@ export function BankImportClient({ locale }: { locale: Lang }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-sand-900">{h}</p>
                   <p className="truncate text-sm text-sand-500">
-                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-300">&mdash;</span>}
+                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-400">&mdash;</span>}
                   </p>
                 </div>
                 <label className="w-full sm:w-60">

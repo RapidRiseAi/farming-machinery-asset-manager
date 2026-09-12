@@ -23,7 +23,7 @@ import { buttonVariants } from "@/components/ui/button";
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
 
 type JobCard = {
-  id: string; type: string; status: string; date_in: string | null; total_cents: number; machine_id: string;
+  id: string; type: string; status: string; date_in: string | null; total_cents: number | null; machine_id: string;
 };
 
 export default async function JobCardsPage({
@@ -42,7 +42,7 @@ export default async function JobCardsPage({
 
   const supabase = await createClient();
   let q = supabase
-    .from("job_cards")
+    .from("job_cards_visible")
     .select("id, type, status, date_in, total_cents, machine_id")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -74,12 +74,12 @@ export default async function JobCardsPage({
         {canJob && machines.length > 0 ? (
           <details className="w-full sm:w-auto">
             <summary className={buttonVariants({ variant: "primary", className: "cursor-pointer list-none" })}>
-              <PlusIcon className="text-[1.1rem]" />
+              <PlusIcon className="text-lg" />
               {t("jobcards.startNew", locale)}
             </summary>
             <form
               action={createJobCard}
-              className="mt-3 flex flex-col gap-3 rounded-xl border border-sand-200 bg-white p-4 shadow-card sm:w-80"
+              className="mt-3 flex flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-4 shadow-card sm:w-80"
             >
               <input type="hidden" name="farm_id" value={farmIdForCreate} />
               <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor="new_machine" required>
@@ -150,7 +150,7 @@ export default async function JobCardsPage({
                       </div>
                       <JobStatus value={c.status} locale={locale} />
                     </div>
-                    <p className="mt-2 text-right text-sm font-medium text-sand-900">{rands(c.total_cents)}</p>
+                    {c.total_cents != null ? <p className="mt-2 text-right text-sm font-medium text-sand-900">{rands(c.total_cents)}</p> : null}
                   </Card>
                 </Link>
               </li>
@@ -173,14 +173,14 @@ export default async function JobCardsPage({
                 {cards.map((c) => (
                   <Tr key={c.id}>
                     <Td className="font-medium">
-                      <Link href={`/jobcards/${c.id}`} className="focus-ring rounded text-brand-700 hover:underline">
+                      <Link href={`/jobcards/${c.id}`} className="focus-ring rounded text-brand-ink hover:underline">
                         {nameById[c.machine_id] ?? "—"}
                       </Link>
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
                     <Td className="text-sand-600">{c.date_in ?? "—"}</Td>
                     <Td><JobStatus value={c.status} locale={locale} /></Td>
-                    <Td className="text-right font-medium">{rands(c.total_cents)}</Td>
+                    <Td className="text-right font-medium">{c.total_cents != null ? rands(c.total_cents) : "—"}</Td>
                   </Tr>
                 ))}
               </Tbody>

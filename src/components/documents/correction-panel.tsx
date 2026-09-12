@@ -92,7 +92,7 @@ export function CorrectionPanel({
           <ul className="mt-1.5 flex flex-col gap-1 text-sm">
             {credits.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3">
-                <a className="focus-ring rounded text-brand-700 underline-offset-2 hover:underline" href={`/documents/${c.id}`}>
+                <a className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline" href={`/documents/${c.id}`}>
                   {c.number}
                 </a>
                 <span className="tabular-nums text-sand-700">

@@ -6,6 +6,7 @@ import { idbAvailable } from "./db";
 import { enqueue, newMutationId } from "./queue";
 import { flush, isOnline } from "./sync";
 import type { MutationScope, MutationType, QueuedMutation } from "./types";
+import { createClient } from "@/lib/supabase/client";
 
 export { isOnline } from "./sync";
 export { subscribe, pendingCount } from "./queue";
@@ -16,15 +17,21 @@ export function canQueueOffline(): boolean {
 }
 
 /** Queue a mutation for later sync, kicking a flush immediately if we're online. */
-export async function queueMutation(input: {
+export async function prepareMutation(input: {
   type: MutationType;
   scope: MutationScope;
   fields: Record<string, string>;
   photo?: Blob;
   voice?: Blob;
 }): Promise<QueuedMutation> {
+  // Local session identity is used only to partition drafts. The server validates
+  // the actual session and current permissions again when the draft is replayed.
+  const actorId = input.scope === "app"
+    ? (await createClient().auth.getSession()).data.session?.user.id : undefined;
+  if (input.scope === "app" && !actorId) throw new Error("capture_account_unavailable");
   const m: QueuedMutation = {
     client_id: newMutationId(),
+    actor_id: actorId,
     client_ts: new Date().toISOString(),
     type: input.type,
     scope: input.scope,
@@ -33,8 +40,13 @@ export async function queueMutation(input: {
     voice: input.voice,
     queued_at: Date.now(),
   };
+  return m;
+}
+
+export async function queueMutation(input: Parameters<typeof prepareMutation>[0]): Promise<QueuedMutation> {
+  const m = await prepareMutation(input);
   await enqueue(m);
-  if (isOnline()) void flush();
+  if (isOnline()) void flush().catch(() => { /* Keep the committed local capture for retry. */ });
   return m;
 }
 

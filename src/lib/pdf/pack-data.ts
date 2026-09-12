@@ -23,13 +23,10 @@
  *     (`cost_visible_to_operators`), so handing them a costed PDF would contradict a
  *     setting the farm has explicitly set.
  *
- *   * WORKSHOP (contractor). This closes a real leak. F16 (0400) narrowed a contractor
- *     to the vehicles it actually works on, and withheld the farm's cost ledger unless
- *     the `see_costs` grant is on — but `machines.purchase_price_cents` and
- *     `machines.supplier` live on the MACHINE row, which a contractor working on that
- *     machine can read. The sale-pack route as it shipped checked only `profile.active`,
- *     so any linked contractor could pull a sale pack for a machine they were servicing
- *     and read what the farm paid for it and who from. Contractors are refused here.
+ *   * WORKSHOP (contractor). Contractors remain refused even though the database now
+ *     removes machine purchase / finance columns from direct authenticated SELECTs.
+ *     That keeps sale packs farm-side by design instead of making their availability
+ *     depend on one underlying projection.
  *
  * The role is resolved with `effectiveFarmRole(farm_id)`, not `profile.role`: under
  * multi-site (F7) one person can be an owner on one farm and an operator on another, and
@@ -37,6 +34,7 @@
  */
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { readMachineFinancials } from "@/lib/cost-visibility";
 import {
   type Profile,
   type Role,
@@ -74,8 +72,8 @@ const PACK_ROLES: Role[] = ["owner", "manager", "mechanic"];
 
 const MACHINE_COLUMNS =
   "id, farm_id, name, type, status, make, model, year, serial_no, reg_no, location, " +
-  "meter_type, current_reading, current_reading_date, purchase_date, purchase_price_cents, " +
-  "supplier, warranty_expiry_date, warranty_expiry_hours, assigned_operator_id, " +
+  "meter_type, current_reading, current_reading_date, purchase_date, " +
+  "warranty_expiry_date, warranty_expiry_hours, assigned_operator_id, " +
   "primary_attachment_id";
 
 const LICENCE_COLUMNS = "machine_id, type, number, expiry_date, reminder_lead_days, notes";
@@ -92,6 +90,13 @@ const JOBCARD_COLUMNS =
 const READING_COLUMNS = "machine_id, reading, reading_date, source";
 
 type MachineRow = PackMachine & { farm_id: string; primary_attachment_id: string | null };
+type MachineBaseRow = Omit<MachineRow, "purchase_price_cents" | "supplier">;
+
+const withoutFinancials = (machine: MachineBaseRow): MachineRow => ({
+  ...machine,
+  purchase_price_cents: null,
+  supplier: null,
+});
 
 /**
  * How much history a pack carries. A pack is evidence, not an archive; a buyer wants a
@@ -182,16 +187,31 @@ export async function authorizeMachinePack(
     .eq("id", machineId)
     .is("deleted_at", null)
     .maybeSingle();
-  const machine = data as MachineRow | null;
+  const machineBase = data as MachineBaseRow | null;
   // RLS answered this, not a farm filter written by hand: another farm's machine is
   // simply not there.
-  if (!machine) return { status: 404, reason: "not-found" };
+  if (!machineBase) return { status: 404, reason: "not-found" };
 
+  let role: Role;
   if (profile.role === "rr_admin") {
-    return { profile, farmId: machine.farm_id, role: "rr_admin", machine };
+    role = "rr_admin";
+  } else {
+    const effectiveRole = await effectiveFarmRole(machineBase.farm_id, profile);
+    if (!effectiveRole || !PACK_ROLES.includes(effectiveRole)) return { status: 403, reason: "role" };
+    role = effectiveRole;
   }
-  const role = await effectiveFarmRole(machine.farm_id, profile);
-  if (!role || !PACK_ROLES.includes(role)) return { status: 403, reason: "role" };
+
+  // The browser role has no direct SELECT privilege on these columns. The checked RPC
+  // returns them only after the same farm-cost + machine-visibility decision used by the
+  // rest of the app. A missing projection is fail-closed rather than a sale pack that
+  // silently claims the purchase details were never recorded.
+  const financials = await readMachineFinancials(supabase, machineBase.id);
+  if (!financials) return { status: 403, reason: "financials" };
+  const machine: MachineRow = {
+    ...withoutFinancials(machineBase),
+    purchase_price_cents: financials.purchase_price_cents,
+    supplier: financials.supplier,
+  };
   return { profile, farmId: machine.farm_id, role, machine };
 }
 
@@ -227,7 +247,7 @@ export async function gatherFleetCompliance(
       .order("occurred_on", { ascending: false }).limit(USAGE_LIMIT),
   ]);
 
-  const all = (machinesRes.data as MachineRow[] | null) ?? [];
+  const all = ((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
   // Retired and sold are out of every fleet compliance figure (Scope 4.1 / C8) — but the
   // NUMBER excluded is carried through and printed, because a total nobody can reconcile
   // against the farm's own machine list is a total an auditor will query.
@@ -302,7 +322,7 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
       .eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
     supabase.from("service_plan_lines").select(PLAN_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("task"),
-    supabase.from("job_cards").select(JOBCARD_COLUMNS)
+    supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select(FAULT_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -358,7 +378,7 @@ export async function gatherWarranty(auth: MachinePackAuth): Promise<WarrantyInp
     loadIssuer(supabase, farmId, profile),
     supabase.from("service_plan_lines").select(PLAN_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("task"),
-    supabase.from("job_cards").select(JOBCARD_COLUMNS)
+    supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select(FAULT_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),

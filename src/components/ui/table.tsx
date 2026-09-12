@@ -50,11 +50,11 @@ export function Th({ sort, className, children, ...props }: ThProps) {
         <span className="inline-flex items-center gap-1">
           {children}
           {sort === "asc" ? (
-            <ChevronUpIcon className="text-[0.95rem]" />
+            <ChevronUpIcon className="text-base" />
           ) : sort === "desc" ? (
-            <ChevronDownIcon className="text-[0.95rem]" />
+            <ChevronDownIcon className="text-base" />
           ) : (
-            <ChevronDownIcon className="text-[0.95rem] text-sand-300" />
+            <ChevronDownIcon className="text-base text-sand-400" />
           )}
         </span>
       )}

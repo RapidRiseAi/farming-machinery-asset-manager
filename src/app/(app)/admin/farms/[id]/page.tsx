@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -51,7 +52,9 @@ export default async function FarmDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; saved?: string; invited?: string; exited?: string }>;
 }) {
-  await requireRole(["rr_admin"]);
+  // The profile was discarded here, so this page had no locale to translate with.
+  const profile = await requireRole(["rr_admin"]);
+  const locale = profile.lang;
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await createClient();
@@ -80,12 +83,12 @@ export default async function FarmDetailPage({
     <div className="flex flex-col gap-5">
       <div>
         <Link href="/admin/farms" className="focus-ring inline-flex items-center gap-1 rounded-md text-sm text-sand-500">
-          <ChevronLeftIcon className="text-[1rem]" /> Farms
+          <ChevronLeftIcon className="text-base" /> Farms
         </Link>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-sand-900">{farm.name}</h1>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash
         tone="success"
         message={

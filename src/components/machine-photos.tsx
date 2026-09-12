@@ -127,7 +127,7 @@ export function MachinePhotos({
                 className={`aspect-square w-full object-cover ${isPrimary ? "ring-2 ring-brand-500" : ""}`}
               />
               {isPrimary ? (
-                <span className="absolute left-1 top-1 rounded bg-brand-600 px-1.5 py-0.5 text-[0.65rem] font-semibold text-white">
+                <span className="absolute left-1 top-1 rounded bg-brand-600 px-1.5 py-0.5 text-2xs font-semibold text-white">
                   {t("machine.primaryBadge", locale)}
                 </span>
               ) : null}

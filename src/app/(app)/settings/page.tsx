@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { errorMessage } from "@/lib/errors";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
@@ -41,7 +42,7 @@ export default async function SettingsPage({
   const n = (k: string, d: number) => (typeof s[k] === "number" ? (s[k] as number) : d);
   const b = (k: string) => s[k] === true;
 
-  const check = "h-5 w-5 rounded border-sand-300 text-brand-600";
+  const check = "h-5 w-5 rounded border-sand-300 text-brand-ink";
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
@@ -49,7 +50,7 @@ export default async function SettingsPage({
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("settings.title", locale)} — {farm?.name}</h1>
           <PageInfoButton infoKey="settings" locale={locale} />
         </div>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {/* Change the first field, then scroll past seven more cards to save. The eight
@@ -70,7 +71,7 @@ export default async function SettingsPage({
           <a
             key={anchor}
             href={`#${anchor}`}
-            className="focus-ring inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border border-sand-200 bg-white px-4 text-sm font-medium text-sand-700 hover:bg-sand-50"
+            className="focus-ring inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border border-sand-200 bg-surface px-4 text-sm font-medium text-sand-700 hover:bg-sand-50"
           >
             {t(key, locale)}
           </a>
@@ -239,7 +240,7 @@ export default async function SettingsPage({
           </Field>
         </Card>
 
-        <div className="sticky bottom-0 -mx-4 border-t border-sand-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-4">
+        <div className="sticky bottom-0 -mx-4 border-t border-sand-200 bg-surface/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-4">
           <SubmitButton variant="primary" size="lg" fullWidth>{t("settings.save", locale)}</SubmitButton>
         </div>
       </form>

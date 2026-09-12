@@ -1,4 +1,5 @@
 import { t, type Lang } from "@/lib/i18n";
+import { Photo } from "@/components/ui/photo";
 import { rands } from "@/lib/money";
 import type { ResolvedLayout } from "@/lib/doc-layout";
 
@@ -58,14 +59,14 @@ export function DocumentPreview({
   const band = l.accent_style === "band";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-sand-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
       <div
         className={
           band
             ? "flex items-center gap-2 px-3 py-2.5 text-white"
             : l.accent_style === "line"
-              ? "flex items-center gap-2 border-t-4 bg-white px-3 py-2.5"
-              : "flex items-center gap-2 border-b border-sand-200 bg-white px-3 py-2.5"
+              ? "flex items-center gap-2 border-t-4 bg-surface px-3 py-2.5"
+              : "flex items-center gap-2 border-b border-sand-200 bg-surface px-3 py-2.5"
         }
         style={
           band
@@ -76,15 +77,14 @@ export function DocumentPreview({
         }
       >
         {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a signed Storage URL, not a static asset
-          <img src={logoUrl} alt="" className="h-6 w-6 shrink-0 rounded bg-white/90 object-contain p-0.5" />
+          <Photo src={logoUrl} alt="" size="thumb" priority className="h-6 w-6 shrink-0 rounded bg-white/90" imgClassName="object-contain p-0.5" />
         ) : null}
         <span className="min-w-0">
           <span className={`block truncate text-sm font-bold ${band ? "" : "text-sand-900"}`}>
             {businessName}
           </span>
           {l.show_vat_number && vatNumber ? (
-            <span className={`block truncate text-[0.65rem] ${band ? "opacity-90" : "text-sand-500"}`}>
+            <span className={`block truncate text-2xs ${band ? "opacity-90" : "text-sand-500"}`}>
               {t("partnerSettings.vatNo", locale)} {vatNumber}
             </span>
           ) : null}
@@ -105,11 +105,11 @@ export function DocumentPreview({
       <table className="w-full text-xs">
         <thead>
           <tr className="border-y border-sand-100 text-left text-sand-500">
-            {l.show_line_numbers ? <th className={pad}>#</th> : null}
-            <th className={pad}>{l.items_label ?? t("doc.lineDescription", locale)}</th>
-            <th className={`${pad} text-right`}>{t("doc.lineQty", locale)}</th>
-            {l.show_unit_price ? <th className={`${pad} text-right`}>{t("doc.lineUnit", locale)}</th> : null}
-            <th className={`${pad} text-right`}>{t("doc.lineTotal", locale)}</th>
+            {l.show_line_numbers ? <th scope="col" className={pad}>#</th> : null}
+            <th scope="col" className={pad}>{l.items_label ?? t("doc.lineDescription", locale)}</th>
+            <th scope="col" className={`${pad} text-right`}>{t("doc.lineQty", locale)}</th>
+            {l.show_unit_price ? <th scope="col" className={`${pad} text-right`}>{t("doc.lineUnit", locale)}</th> : null}
+            <th scope="col" className={`${pad} text-right`}>{t("doc.lineTotal", locale)}</th>
           </tr>
         </thead>
         <tbody>
@@ -143,7 +143,7 @@ export function DocumentPreview({
         <p className="px-3 pb-2 text-xs font-medium text-sand-700">{l.thanks_text}</p>
       ) : null}
       {l.show_signature ? (
-        <div className="flex gap-6 px-3 pb-3 text-[0.65rem] text-sand-500">
+        <div className="flex gap-6 px-3 pb-3 text-2xs text-sand-500">
           <span className="min-w-[8rem] border-t border-sand-300 pt-1">{t("doc.signedBy", locale)}</span>
           <span className="min-w-[5rem] border-t border-sand-300 pt-1">{t("doc.signedDate", locale)}</span>
         </div>

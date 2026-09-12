@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
@@ -31,11 +32,11 @@ export default async function NewMachinePage({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <Link href="/machines" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {t("machines.title", locale)}
       </Link>
       <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("machines.add", locale)}</h1>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
           <MachineFields locale={locale} operators={operators} />

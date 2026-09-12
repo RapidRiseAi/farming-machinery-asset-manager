@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
@@ -83,17 +84,17 @@ function ContactButtons({ p, locale }: { p: Partner; locale: Lang }) {
     <div className="flex flex-wrap gap-2">
       {tel ? (
         <a href={tel} className={cls}>
-          <PhoneIcon className="text-[1.05rem]" /> {t("contact.call", locale)}
+          <PhoneIcon className="text-base" /> {t("contact.call", locale)}
         </a>
       ) : null}
       {wa ? (
         <a href={wa} target="_blank" rel="noopener noreferrer" className={cls}>
-          <ChatIcon className="text-[1.05rem]" /> {t("contact.whatsapp", locale)}
+          <ChatIcon className="text-base" /> {t("contact.whatsapp", locale)}
         </a>
       ) : null}
       {mail ? (
         <a href={mail} className={cls}>
-          <MailIcon className="text-[1.05rem]" /> {t("contact.email", locale)}
+          <MailIcon className="text-base" /> {t("contact.email", locale)}
         </a>
       ) : null}
       {!tel && !wa && !mail ? (
@@ -232,7 +233,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         <p className="mt-0.5 text-sm text-sand-500">{t("partners.subtitle", locale)}</p>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="error" message={sp.linkerror} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.connected ? t("partners.connectedFlash", locale) : undefined} />
@@ -241,15 +242,15 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
       {/* Freshly generated login URL */}
       {loginUrl ? (
-        <Card className="border-brand-200 bg-brand-50/40">
+        <Card className="border-brand-200 bg-brand-tint/40">
           <CardHeader>
             <CardTitle>
               {t("partners.loginUrlTitle", locale)}
               {loginPartner ? <span className="text-sand-500"> — {loginPartner.name}</span> : null}
             </CardTitle>
           </CardHeader>
-          <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-status-due/40 bg-amber-50 p-3">
-            <WarningIcon className="mt-0.5 shrink-0 text-[1.15rem] text-status-due" />
+          <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-status-due/40 bg-callout-warn-bg p-3">
+            <WarningIcon className="mt-0.5 shrink-0 text-lg text-status-due" />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sand-900">{t("partners.loginUrlWarnTitle", locale)}</p>
               <p className="mt-0.5 text-sm leading-relaxed text-sand-700">
@@ -267,7 +268,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                 rel="noopener noreferrer"
                 className={buttonVariants({ variant: "secondary", size: "sm" })}
               >
-                <ChatIcon className="text-[1.05rem]" /> {t("partners.loginUrlShareWa", locale)}
+                <ChatIcon className="text-base" /> {t("partners.loginUrlShareWa", locale)}
               </a>
             ) : null}
             {loginPartner && mailtoHref(loginPartner.email, t("contact.loginSubject", locale), loginShareText) ? (
@@ -275,7 +276,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                 href={mailtoHref(loginPartner.email, t("contact.loginSubject", locale), loginShareText)!}
                 className={buttonVariants({ variant: "secondary", size: "sm" })}
               >
-                <MailIcon className="text-[1.05rem]" /> {t("partners.loginUrlShareEmail", locale)}
+                <MailIcon className="text-base" /> {t("partners.loginUrlShareEmail", locale)}
               </a>
             ) : null}
             <form action={dismissLoginUrl}>
@@ -426,13 +427,13 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         <Field label={t("partners.inviteEmail", locale)} htmlFor={`si_${p.id}`}>
                           <Input id={`si_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} className="w-56" required />
                         </Field>
-                        <SubmitButton variant="secondary" size="sm" leftIcon={<LinkIcon className="text-[1.05rem]" />}>
+                        <SubmitButton variant="secondary" size="sm" leftIcon={<LinkIcon className="text-base" />}>
                           {t("partners.sendLogin", locale)}
                         </SubmitButton>
                       </form>
                     ) : (
                       <details>
-                        <summary className="cursor-pointer text-sm font-medium text-brand-700">
+                        <summary className="cursor-pointer text-sm font-medium text-brand-ink">
                           {t("partners.invite", locale)}
                         </summary>
                         <p className="mt-1 text-xs text-sand-500">{t("partners.inviteHint", locale)}</p>
@@ -441,7 +442,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                           <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>
                             <Input id={`iv_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} className="w-56" required />
                           </Field>
-                          <SubmitButton variant="primary" size="sm" leftIcon={<LinkIcon className="text-[1.05rem]" />}>
+                          <SubmitButton variant="primary" size="sm" leftIcon={<LinkIcon className="text-base" />}>
                             {t("partners.invite", locale)}
                           </SubmitButton>
                         </form>
@@ -491,7 +492,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         triggerSize="sm"
                         triggerIcon={<TrashIcon />}
                         triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
                         intro={t("confirm.deletePartnerIntro", locale)}
                         consequencesTitle={t("confirm.whatHappens", locale)}
@@ -572,7 +573,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         triggerSize="sm"
                         triggerIcon={<TrashIcon />}
                         triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-red-50"
+                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
                         intro={t("confirm.deletePartnerIntro", locale)}
                         consequencesTitle={t("confirm.whatHappens", locale)}

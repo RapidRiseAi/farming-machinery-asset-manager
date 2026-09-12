@@ -46,7 +46,7 @@ export function ToneSwitcher({
             "focus-ring inline-flex min-h-[48px] items-center rounded-lg border px-3.5 text-sm font-semibold transition-colors sm:min-h-[40px]",
             current === o.value
               ? "border-brand-600 bg-brand-600 text-white shadow-xs"
-              : "border-sand-300 bg-white text-sand-700 hover:bg-sand-50",
+              : "border-sand-300 bg-surface text-sand-700 hover:bg-sand-50",
           )}
         >
           {o.label}

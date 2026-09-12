@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getProfile } from "@/lib/auth";
+import { effectiveFarmRole, getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadWorkRequestMedia } from "@/lib/workrequest-media";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { workStatusStep } from "@/lib/work";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,12 @@ const KINDS = ["photo", "quote", "invoice"];
  * service role; amounts are written through the RLS client (farm-scoped by policy).
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await getProfile();
-  if (!profile || !profile.active || !CREW.includes(profile.role)) {
+  if (!profile || !profile.active) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -50,10 +55,23 @@ export async function POST(request: Request) {
   const wr = wrData as { id: string; farm_id: string; machine_id: string; status: string; vat_rate_bps: number | null } | null;
   if (!wr) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
+  // A primary-farm owner can be an operator here; primary role is not authority.
+  // Workshop access is already constrained to the linked request by RLS above.
+  const role = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(wr.farm_id, profile);
+  if (!role || !CREW.includes(role)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const file = form.get("file");
+  if (file instanceof File && file.size > 8 * 1024 * 1024) {
+    return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+  }
   const stored = await uploadWorkRequestMedia(
     createServiceClient(), file instanceof File ? file : null, kind, wr.farm_id, wr.id, profile.id,
   );
+  if (file instanceof File && file.size > 0 && !stored) {
+    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  }
 
   // Optional amount → the quote (recorded) or invoice (→ cost_entry via 0311) column.
   let amountRecorded = false;
@@ -65,11 +83,14 @@ export async function POST(request: Request) {
     const col = kind === "invoice" ? "invoice_amount_cents" : "quote_amount_cents";
     const target = kind === "invoice" ? "invoiced" : "quoted";
     const advance = workStatusStep(wr.status) < workStatusStep(target);
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("work_requests")
       .update({ [col]: exVat, vat_rate_bps: bps, ...(advance ? { status: target } : {}), updated_at: new Date().toISOString() })
-      .eq("id", wr.id);
-    if (error) return NextResponse.json({ error: "amount_update_failed" }, { status: 500 });
+      .eq("id", wr.id)
+      .eq("farm_id", wr.farm_id)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return NextResponse.json({ error: "amount_update_failed" }, { status: 500 });
 
     await supabase.from("work_request_events").insert({
       farm_id: wr.farm_id, work_request_id: wr.id,

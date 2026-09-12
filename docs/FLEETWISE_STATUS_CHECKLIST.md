@@ -2,6 +2,8 @@
 
 **As of:** 28 August 2026. Legend: ✅ done & merged · 🟡 partial · ❌ not started · ⏸️ deferred by decision (needs a provider, or excluded by `SCOPE §13` — see `FLEETWISE_PROVIDER_SETUP_GUIDE.md`).
 
+**Later verification:** see [System audit — 11 September 2026](SYSTEM_AUDIT_2026-09-11.md) for tested fixes and remaining release gates. This historical checklist is not a production-readiness certificate.
+
 **How this revision was checked.** Every ❌ and 🟡 was re-tested against the code, not carried forward. Earlier revisions said "sections outside this release retain their last audited status", and that hedge is how the document came to mark **18 shipped features as not started** — among them multi-site, per-role visibility, service kits, the parts catalogue, stock, budgets, repair-vs-replace, utilisation, Excel export, the AARTO workflow, POPIA retention and the backup runbook. Anyone planning from it would have rebuilt work that already existed.
 
 The hedge is therefore gone. If a line here is wrong, it is wrong — not "awaiting its next audit".
@@ -15,7 +17,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 ### §1 Product scope
 - ✅ FR-1.1 (P0) Manage every asset type
 - 🟡 FR-1.2 (P0) Every capture <30s on mobile — fast paths exist; not formally measured
-- ✅ FR-1.3 (P0) Full offline — **F2**
+- 🟡 FR-1.3 (P0) Offline readings, faults and job-card captures — **F2**; atomic replay and a recovery queue added in the September audit. Fuel capture and uncached screens still need a connection; full device testing remains a release gate.
 - 🟡 FR-1.4 (P1) Auditable who/when/**where** — who+when ✅ (audit_log); "from where" ❌
 - ✅ FR-1.5 (P0) Multi-farm/site under one account — **F7** (`user_farm_memberships`, 0340–0341); site switcher in the shell
 

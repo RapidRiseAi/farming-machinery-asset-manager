@@ -76,7 +76,7 @@ export default async function ContractorDashboardPage({
   // shared farm. The explicit workshop_id filter is kept (belt-and-suspenders + intent).
   // Together: a contractor sees only its own work, and never an unlinked farm's data.
   const { data: wrData } = await supabase
-    .from("work_requests")
+    .from("work_requests_visible")
     .select("id, farm_id, machine_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
     .eq("workshop_id", profile.workshop_id)
     .is("deleted_at", null)
@@ -222,7 +222,7 @@ export default async function ContractorDashboardPage({
           <p className="mt-0.5 text-sm text-sand-500">{t(view.taglineKey, locale)}</p>
         </div>
         <Link href="/work" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-          <WorkIcon className="text-[1.1rem]" /> {t("contractor.allRequests", locale)}
+          <WorkIcon className="text-lg" /> {t("contractor.allRequests", locale)}
         </Link>
       </div>
 
@@ -376,9 +376,9 @@ export default async function ContractorDashboardPage({
                       </div>
                       {(tel || wa || mail) ? (
                         <div className="flex flex-wrap gap-1.5">
-                          {tel ? <a href={tel} className={buttonVariants({ variant: "ghost", size: "sm" })}><PhoneIcon className="text-[1rem]" /> {t("contact.call", locale)}</a> : null}
-                          {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "ghost", size: "sm" })}><ChatIcon className="text-[1rem]" /> {t("contact.whatsapp", locale)}</a> : null}
-                          {mail ? <a href={mail} className={buttonVariants({ variant: "ghost", size: "sm" })}><MailIcon className="text-[1rem]" /> {t("contact.email", locale)}</a> : null}
+                          {tel ? <a href={tel} className={buttonVariants({ variant: "ghost", size: "sm" })}><PhoneIcon className="text-base" /> {t("contact.call", locale)}</a> : null}
+                          {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "ghost", size: "sm" })}><ChatIcon className="text-base" /> {t("contact.whatsapp", locale)}</a> : null}
+                          {mail ? <a href={mail} className={buttonVariants({ variant: "ghost", size: "sm" })}><MailIcon className="text-base" /> {t("contact.email", locale)}</a> : null}
                         </div>
                       ) : (
                         <span className="text-xs text-sand-400">{t("contact.none", locale)}</span>
@@ -395,7 +395,7 @@ export default async function ContractorDashboardPage({
                 <CardHeader><CardTitle>{t("contractor.parts", locale)}</CardTitle></CardHeader>
                 <p className="mb-2 text-sm text-sand-500">{t("contractor.partsHint", locale)}</p>
                 <Link href="/parts" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                  <PartsIcon className="text-[1.1rem]" /> {t("nav.parts", locale)}
+                  <PartsIcon className="text-lg" /> {t("nav.parts", locale)}
                 </Link>
               </Card>
             ) : null}
@@ -428,11 +428,11 @@ export default async function ContractorDashboardPage({
               ) : (
                 <div className="rounded-xl border border-dashed border-sand-300 bg-sand-50/60 p-4 text-sm">
                   <p className="flex items-center gap-1.5 font-semibold text-sand-900">
-                    <InfoIcon className="text-[1.1rem] text-brand-600" /> {t("contractor.analyticsLocked", locale)}
+                    <InfoIcon className="text-lg text-brand-ink" /> {t("contractor.analyticsLocked", locale)}
                   </p>
                   <p className="mt-1 text-sand-500">{t("contractor.analyticsLockedHint", locale)}</p>
                   <p className="mt-2 flex items-center gap-1 text-xs text-sand-400">
-                    <ChevronRightIcon className="text-[1rem]" /> {t("contractor.contactRr", locale)}
+                    <ChevronRightIcon className="text-base" /> {t("contractor.contactRr", locale)}
                   </p>
                 </div>
               )}

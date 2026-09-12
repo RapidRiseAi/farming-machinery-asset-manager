@@ -25,9 +25,9 @@ export function ApiTokenCreateForm({ locale, minExpiry }: { locale: Lang; minExp
   return (
     <div className="flex flex-col gap-4">
       {state.token ? (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4" role="status">
-          <p className="font-semibold text-amber-950">{t("apiTokens.copyNow", locale)}</p>
-          <p className="mt-1 text-sm text-amber-900">{t("apiTokens.copyNowHint", locale)}</p>
+        <div className="rounded-xl border border-gold-300 bg-callout-warn-bg p-4" role="status">
+          <p className="font-semibold text-gold-900">{t("apiTokens.copyNow", locale)}</p>
+          <p className="mt-1 text-sm text-gold-800">{t("apiTokens.copyNowHint", locale)}</p>
           <div className="mt-3">
             <CopyField
               value={state.token}
@@ -51,7 +51,7 @@ export function ApiTokenCreateForm({ locale, minExpiry }: { locale: Lang; minExp
             type="checkbox"
             name="scope_read"
             defaultChecked
-            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
           />
           <span>
             <strong className="block">{t("apiTokens.scopeRead", locale)}</strong>
@@ -62,7 +62,7 @@ export function ApiTokenCreateForm({ locale, minExpiry }: { locale: Lang; minExp
           <input
             type="checkbox"
             name="scope_write_readings"
-            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+            className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
           />
           <span>
             <strong className="block">{t("apiTokens.scopeWrite", locale)}</strong>

@@ -196,7 +196,7 @@ export async function listJobCards(
   const names = machineNameById(scope.machines);
   const showAmounts = canSeeOperationalAmounts(scope.role);
   let query = scope.supabase
-    .from("job_cards")
+    .from("job_cards_visible")
     .select("machine_id, type, status, date_in, date_out, reported_problem, diagnosis, work_performed, total_cents, created_at")
     .eq("farm_id", scope.farmId)
     .in("machine_id", visibleIds(scope))
@@ -240,7 +240,7 @@ export async function listWorkRequests(
   const names = machineNameById(scope.machines);
   const showAmounts = canSeeOperationalAmounts(scope.role);
   let query = scope.supabase
-    .from("work_requests")
+    .from("work_requests_visible")
     .select("machine_id, kind, status, priority, title, description, quote_amount_cents, invoice_amount_cents, updated_at")
     .eq("farm_id", scope.farmId)
     .in("machine_id", visibleIds(scope))

@@ -6,6 +6,7 @@ import { loadStatement, buildStatementPdf, statementFilename } from "@/lib/pdf/s
 import { statementEmailHtml, statementEmailText, statementSubject } from "@/lib/email/statement-email";
 import { sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
 import { parseStatementParty } from "@/lib/statement-party";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,10 @@ export const dynamic = "force-dynamic";
  * the partner believing the customer was told.
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await requireRole(["workshop"]);
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) return NextResponse.json({ error: "no-workshop" }, { status: 403 });

@@ -8,6 +8,7 @@ import { sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
 import { documentEmailHtml, documentEmailText, documentSubject } from "@/lib/email/document-email";
 import { balanceDueCents } from "@/lib/partner-docs";
 import { publicDocumentUrl } from "@/lib/public-url";
+import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,10 @@ export const dynamic = "force-dynamic";
  * write, not something a caller can fabricate.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!sameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const profile = await requireRole(["workshop", "owner", "manager"]);
   const { id } = await params;
 

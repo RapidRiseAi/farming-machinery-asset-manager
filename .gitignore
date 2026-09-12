@@ -52,3 +52,8 @@ Thumbs.db
 
 # typescript incremental build cache
 *.tsbuildinfo
+
+# Throwaway agent working files. Never part of a release — an earlier wave left
+# merged i18n fragments and PGlite probe harnesses here, and a `git add -A` would
+# have swept them into a commit.
+scratchpad/

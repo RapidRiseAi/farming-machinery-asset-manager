@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
+import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
@@ -56,17 +58,18 @@ export default async function WorkRequestDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const locale = profile.lang;
-  const canWork = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();
   const { data } = await supabase
-    .from("work_requests")
+    .from("work_requests_visible")
     .select("id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, quote_amount_cents, invoice_amount_cents, vat_rate_bps, job_card_id, created_at, updated_at")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
   const wr = data as WorkRequest | null;
   if (!wr) notFound();
+  const resourceRole = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(wr.farm_id, profile);
+  const canWork = resourceRole != null && ["owner", "manager", "mechanic", "workshop"].includes(resourceRole);
 
   const [machineRes, wsRes, evRes, attRes, userRes] = await Promise.all([
     supabase.from("machines").select("id, name, type, meter_type, current_reading, status").eq("id", wr.machine_id).maybeSingle(),
@@ -107,11 +110,11 @@ export default async function WorkRequestDetailPage({
   return (
     <div className="flex flex-col gap-4">
       <Link href="/work" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-[1rem]" />
+        <ChevronLeftIcon className="text-base" />
         {t("work.title", locale)}
       </Link>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
       {/* Header: request + status */}
@@ -142,12 +145,12 @@ export default async function WorkRequestDetailPage({
                 <li key={st} className="flex items-center gap-1">
                   <span
                     className={`whitespace-nowrap rounded-full px-2.5 py-1 font-medium ${
-                      active ? "bg-brand-600 text-white" : done ? "bg-brand-100 text-brand-700" : "bg-sand-100 text-sand-400"
+                      active ? "bg-brand-600 text-white" : done ? "bg-brand-tint text-brand-ink" : "bg-sand-100 text-sand-400"
                     }`}
                   >
                     {workStatusLabel(st, locale)}
                   </span>
-                  {i < WORK_STATUSES.length - 1 ? <span className="text-sand-300">›</span> : null}
+                  {i < WORK_STATUSES.length - 1 ? <span className="text-sand-400">›</span> : null}
                 </li>
               );
             })}
@@ -162,8 +165,8 @@ export default async function WorkRequestDetailPage({
           {machine ? (
             <Card>
               <CardHeader><CardTitle>{t("work.vehicle", locale)}</CardTitle></CardHeader>
-              <Link href={`/machines/${machine.id}`} className="focus-ring flex items-center gap-3 rounded-lg ring-2 ring-brand-200 bg-brand-50/40 p-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-[1.4rem] text-brand-700 ring-1 ring-sand-200">
+              <Link href={`/machines/${machine.id}`} className="focus-ring flex items-center gap-3 rounded-lg ring-2 ring-brand-200 bg-brand-tint/40 p-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-surface text-xl text-brand-ink ring-1 ring-sand-200">
                   <MachinesIcon />
                 </span>
                 <span className="min-w-0">
@@ -277,10 +280,9 @@ export default async function WorkRequestDetailPage({
                         <a href={url} target="_blank" rel="noopener noreferrer" className="focus-ring block">
                           <div className="flex h-24 items-center justify-center bg-sand-50">
                             {a.kind === "photo" ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={url} alt={t(`attachmentKind.${a.kind}`, locale)} className="h-full w-full object-cover" />
+                              <Photo src={url} alt={t(`attachmentKind.${a.kind}`, locale)} size="card" className="h-full w-full" />
                             ) : (
-                              <span className="text-sm font-medium text-brand-700">{t(`attachmentKind.${a.kind}`, locale)}</span>
+                              <span className="text-sm font-medium text-brand-ink">{t(`attachmentKind.${a.kind}`, locale)}</span>
                             )}
                           </div>
                           <p className="px-2 py-1 text-xs text-sand-500">{t(`attachmentKind.${a.kind}`, locale)} · {a.created_at.slice(0, 10)}</p>
@@ -339,17 +341,17 @@ export default async function WorkRequestDetailPage({
                 <div className="mt-1 flex flex-wrap gap-2">
                   {telHref(workshop.phone) ? (
                     <a href={telHref(workshop.phone)!} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                      <PhoneIcon className="text-[1.05rem]" /> {t("contact.call", locale)}
+                      <PhoneIcon className="text-base" /> {t("contact.call", locale)}
                     </a>
                   ) : null}
                   {waHref(workshop.whatsapp ?? workshop.phone, t("contact.waPrefill", locale)) ? (
                     <a href={waHref(workshop.whatsapp ?? workshop.phone, t("contact.waPrefill", locale))!} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                      <ChatIcon className="text-[1.05rem]" /> {t("contact.whatsapp", locale)}
+                      <ChatIcon className="text-base" /> {t("contact.whatsapp", locale)}
                     </a>
                   ) : null}
                   {mailtoHref(workshop.email) ? (
                     <a href={mailtoHref(workshop.email)!} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                      <MailIcon className="text-[1.05rem]" /> {t("contact.email", locale)}
+                      <MailIcon className="text-base" /> {t("contact.email", locale)}
                     </a>
                   ) : null}
                 </div>
@@ -364,14 +366,14 @@ export default async function WorkRequestDetailPage({
             <CardHeader><CardTitle>{t("work.jobCard", locale)}</CardTitle></CardHeader>
             {wr.job_card_id ? (
               <Link href={`/jobcards/${wr.job_card_id}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-                <JobCardsIcon className="text-[1.05rem]" /> {t("work.openJobCard", locale)}
+                <JobCardsIcon className="text-base" /> {t("work.openJobCard", locale)}
               </Link>
             ) : canWork ? (
               <>
                 <p className="mb-2 text-sm text-sand-500">{t("work.convertHint", locale)}</p>
                 <form action={convertToJobCard}>
                   <input type="hidden" name="id" value={wr.id} />
-                  <SubmitButton variant="secondary" size="sm" leftIcon={<JobCardsIcon className="text-[1.05rem]" />}>
+                  <SubmitButton variant="secondary" size="sm" leftIcon={<JobCardsIcon className="text-base" />}>
                     {t("work.convertToJobCard", locale)}
                   </SubmitButton>
                 </form>

@@ -24,13 +24,13 @@ type Draft = {
 function SaveBar({ dirty, locale }: { dirty: boolean; locale: Lang }) {
   const { pending } = useFormStatus();
   return (
-    <div className="sticky bottom-0 -mx-4 mt-1 flex items-center justify-between gap-3 border-t border-sand-200 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-b-xl">
+    <div className="sticky bottom-0 -mx-4 mt-1 flex items-center justify-between gap-3 border-t border-sand-200 bg-surface/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-b-xl">
       <span className="flex items-center gap-1.5 text-sm">
         {dirty || pending ? (
           <span className="font-medium text-status-due">{t("jobcards.unsaved", locale)}</span>
         ) : (
           <span className="flex items-center gap-1.5 text-sand-500">
-            <CheckIcon className="text-[1.05rem] text-status-ok" />
+            <CheckIcon className="text-base text-status-ok" />
             {t("jobcards.savedAgo", locale).replace("{when}", t("format.today", locale).toLowerCase())}
           </span>
         )}
@@ -126,11 +126,11 @@ export function JobCardEditor({
                   active
                     ? "border-brand-600 bg-brand-600 text-white shadow-xs"
                     : done
-                      ? "border-brand-200 bg-brand-50 text-brand-800"
-                      : "border-sand-200 bg-white text-sand-600 hover:bg-sand-50",
+                      ? "border-brand-200 bg-brand-tint text-brand-ink"
+                      : "border-sand-200 bg-surface text-sand-600 hover:bg-sand-50",
                 )}
               >
-                {done ? <CheckIcon className="text-[1rem]" /> : null}
+                {done ? <CheckIcon className="text-base" /> : null}
                 {t(`jobStatus.${s}`, locale)}
               </button>
             );

@@ -125,7 +125,7 @@ export function ScheduleForm({
             <TextField name="unit_price" inputMode="decimal" label={t("recurring.linePrice", locale)} />
           </div>
           <label className="mt-3 flex items-center gap-3 text-sm text-sand-700">
-            <input type="checkbox" name="incl_vat" defaultChecked className="h-5 w-5 rounded border-sand-300 text-brand-600" />
+            <input type="checkbox" name="incl_vat" defaultChecked className="h-5 w-5 rounded border-sand-300 text-brand-ink" />
             {t("recurring.priceInclVat", locale)}
           </label>
           <input type="hidden" name="vat_percent" value={String(defaultVatBps / 100)} />
@@ -134,7 +134,7 @@ export function ScheduleForm({
         <TextareaField name="notes" rows={2} label={t("recurring.notes", locale)} />
 
         <label className="flex items-start gap-3 text-sm text-sand-700">
-          <input type="checkbox" name="auto_send" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600" />
+          <input type="checkbox" name="auto_send" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink" />
           <span>
             {t("recurring.autoSend", locale)}
             <span className="block text-xs text-sand-500">{t("recurring.autoSendHint", locale)}</span>

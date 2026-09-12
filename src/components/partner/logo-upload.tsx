@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { Photo } from "@/components/ui/photo";
 import { t, type Lang } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,15 +58,15 @@ export function LogoUpload({
       <p className="mb-3 text-sm text-sand-500">{t("partnerSettings.logoHint", locale)}</p>
 
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sand-200 bg-sand-50">
-          {shown ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a signed Storage URL or a local data URL
-            <img src={shown} alt={t("partnerSettings.logoAlt", locale)} className="h-full w-full object-contain p-1" />
-          ) : (
-            <span className="text-sm text-sand-400">{t("partnerSettings.noLogo", locale)}</span>
-          )}
-        </div>
-
+        <Photo
+          src={shown}
+          alt={t("partnerSettings.logoAlt", locale)}
+          size="thumb"
+          priority
+          className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-sand-200"
+          imgClassName="object-contain p-1"
+          placeholder={<span className="px-1 text-center text-sm text-sand-500">{t("partnerSettings.noLogo", locale)}</span>}
+        />
         <div className="flex flex-1 flex-wrap items-center gap-2">
           {/* Visually replaced by the button below, but a screen reader still lands on
               it — so it carries its own name rather than being an unlabelled control. */}

@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/service";
+import type { createServiceClient } from "@/lib/supabase/service";
 
 const MAX_FILE = 8 * 1024 * 1024;
 
@@ -14,7 +14,7 @@ const KIND_MAP: Record<string, "photo" | "invoice" | "doc"> = {
  * bucket and record it in `attachments` (parent_type='work_request'). Mirrors the F1
  * `uploadJobCardMedia` service-role pattern: runs as the service role from a trusted
  * server route, writing under `{farm_id}/{work_request_id}/…` so the farm-scoped
- * storage RLS (0201) applies to reads. Returns true when a file was stored.
+ * storage RLS (0201) applies to reads. Returns true only after the attachment is saved.
  */
 export async function uploadWorkRequestMedia(
   svc: ReturnType<typeof createServiceClient>,
@@ -35,13 +35,26 @@ export async function uploadWorkRequestMedia(
   });
   if (up.error) return false;
 
-  await svc.from("attachments").insert({
-    farm_id: farmId,
-    parent_type: "work_request",
-    parent_id: workRequestId,
-    kind,
-    storage_path: path,
-    created_by: createdBy,
-  });
-  return true;
+  try {
+    const { error } = await svc.from("attachments").insert({
+      farm_id: farmId,
+      parent_type: "work_request",
+      parent_id: workRequestId,
+      kind,
+      storage_path: path,
+      created_by: createdBy,
+    });
+    if (!error) return true;
+  } catch {
+    // A failed attachment write must never be reported as a completed upload.
+  }
+
+  // This path was generated and uploaded by this request. Never remove caller paths.
+  try {
+    const { error } = await svc.storage.from("jobcard-photos").remove([path]);
+    if (error) console.error("workrequest-media: orphan upload cleanup failed");
+  } catch {
+    console.error("workrequest-media: orphan upload cleanup failed");
+  }
+  return false;
 }

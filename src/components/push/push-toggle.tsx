@@ -125,7 +125,7 @@ export function PushToggle({ locale }: { locale: Lang }) {
           type="button"
           onClick={on ? disable : enable}
           disabled={state === "busy"}
-          className="focus-ring rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-sm font-medium text-sand-800 hover:bg-sand-50 disabled:opacity-60"
+          className="focus-ring rounded-lg border border-sand-300 bg-surface px-3 py-1.5 text-sm font-medium text-sand-800 hover:bg-sand-50 disabled:opacity-60"
         >
           {state === "busy" ? t("common.loading", locale) : on ? t("push.disable", locale) : t("push.enable", locale)}
         </button>

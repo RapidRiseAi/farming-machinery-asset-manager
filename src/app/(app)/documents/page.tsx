@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, homePathFor, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -180,7 +181,7 @@ export default async function DocumentsPage({
       <li>
         <Link
           href={`/documents/${r.id}`}
-          className="focus-ring flex flex-col gap-1.5 rounded-xl border border-sand-200 bg-white p-3 hover:border-brand-300 hover:bg-brand-50/40"
+          className="focus-ring flex flex-col gap-1.5 rounded-xl border border-sand-200 bg-surface p-3 hover:border-brand-300 hover:bg-brand-tint/40"
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={r.kind === "invoice" ? "brand" : "neutral"}>
@@ -216,7 +217,7 @@ export default async function DocumentsPage({
       </div>
       <p className="text-sand-600">{t(isPartner ? "doc.leadPartner" : "doc.leadFarm", locale)}</p>
 
-      <Flash tone="error" message={sp.error === "upgrade" ? t("doc.upgradeNeeded", locale) : sp.error} />
+      <Flash tone="error" message={sp.error === "upgrade" ? t("doc.upgradeNeeded", locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("doc.draftDeleted", locale) : undefined} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

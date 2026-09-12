@@ -3,6 +3,44 @@ import { NextResponse, type NextRequest } from "next/server";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
+const PROTECTED_PREFIXES = [
+  "/accounting",
+  "/admin",
+  "/assistant",
+  "/banking",
+  "/billing",
+  "/cashflow",
+  "/checklists",
+  "/contractor",
+  "/dashboard",
+  "/documents",
+  "/driver",
+  "/expenses",
+  "/faults",
+  "/fines",
+  "/fuel",
+  "/home",
+  "/inbox",
+  "/install",
+  "/jobcards",
+  "/machines",
+  "/money",
+  "/notifications",
+  "/onboarding",
+  "/orders",
+  "/partners",
+  "/parts",
+  "/recurring",
+  "/recurring-expenses",
+  "/reports",
+  "/settings",
+  "/statements",
+  "/suppliers",
+  "/team",
+  "/vat",
+  "/work",
+] as const;
+
 /**
  * Refreshes the Supabase auth session on each request and forwards the updated
  * cookies. No-op when Supabase env isn't configured yet, so the app still runs.
@@ -38,7 +76,7 @@ export async function updateSession(request: NextRequest) {
   // Guard the authenticated areas. The public-lite QR page (/m/[token]) and the
   // auth routes stay open.
   const path = request.nextUrl.pathname;
-  const isProtected = ["/dashboard", "/machines", "/admin", "/jobcards", "/faults", "/team", "/reports", "/notifications", "/settings"].some(
+  const isProtected = PROTECTED_PREFIXES.some(
     (p) => path === p || path.startsWith(`${p}/`)
   );
   if (!user && isProtected) {

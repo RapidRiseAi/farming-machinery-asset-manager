@@ -197,8 +197,8 @@
     "noAccount": "Nuut by FleetWise?",
     "startTrial": "Stel jou plaas op",
     "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling — jou plaas en jou faktuur wag.",
-    "signInTitle": "Meld aan",
     "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak — dit vat 'n sekonde.",
+    "signInTitle": "Meld aan",
     "resetPassword": "Stel eerder 'n nuwe wagwoord",
     "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie."
   },
@@ -725,7 +725,8 @@
     "qrLabelsMarked": "Gemerk — die plakkers is op die masjiene.",
     "deniedTitle": "Daardie deel is vir die plaaskantoor",
     "deniedBody": "Jy het nie die sleutels vir daardie bladsy nie. Hier is wat jy kan doen.",
-    "language": "Taal"
+    "language": "Taal",
+    "back": "Terug"
   },
   "jobType": {
     "scheduled_service": "Geskeduleerde diens",
@@ -1014,6 +1015,9 @@
     "auditPack": "Ouditpakket"
   },
   "faults": {
+    "pages": "Foutlysbladsye",
+    "previousPage": "Vorige aktiewe foute",
+    "nextPage": "Volgende aktiewe foute",
     "title": "Foute",
     "report": "Rapporteer 'n fout",
     "machine": "Masjien",
@@ -1270,6 +1274,23 @@
     "setupOpen": "Maak die opstellys oop"
   },
   "offline": {
+    "mediaTooLarge": "Gebruik ’n JPEG-, PNG- of WebP-foto kleiner as 6 MB en ’n stemnota kleiner as 8 MB. Verwyder of vervang die aanhegsel en probeer weer.",
+    "review": "Hersien gestoorde inskrywings",
+    "reviewHelp": "Dié inskrywings is op hierdie toestel gestoor. Probeer weer wanneer jy verbind is. ’n Geweierde inskrywing of konflik bly hier: kontroleer die masjien of werkkaart, laai ’n rugsteun af indien nodig, en teken enige regstelling aan voordat jy die gestoorde kopie verwyder. Rugsteune bevat media en kan privaat inligting bevat.",
+    "storageFailed": "Kon nie hierdie toestel se konsepte stoor of lees nie. Jou vorm is nie skoongemaak nie. Hou dit oop en probeer weer wanneer jy verbind is.",
+    "otherAccount": "Ander inskrywings behoort aan ’n ander rekening of is gestoor voordat rekeninge nagespoor is. Meld by die oorspronklike rekening aan; ouer inskrywings sonder ’n eienaar benodig ondersteuning en word nie outomaties ingestuur nie.",
+    "retryAll": "Probeer gestoorde inskrywings weer",
+    "emptyQueue": "Geen gestoorde inskrywings vir hierdie rekening of openbare QR-bladsye nie.",
+    "needsReview": "Dié inskrywing moet hersien word. Dit is nie weggegooi nie. Kontroleer toestemmings, die huidige lesing of of die werkkaart gesluit is voordat jy ’n regstelling aanteken.",
+    "exportCapture": "Laai inskrywing se rugsteun af",
+    "removeCopy": "Verwyder gestoorde kopie",
+    "removeConfirm": "Verwyder hierdie inskrywing en sy media van die toestel? Doen dit slegs nadat jy bevestig het dat dit korrek gestoor is of ’n rugsteun afgelaai het. Dit kan nie ongedaan gemaak word nie.",
+    "types": {
+      "log_reading": "Meterlesing",
+      "report_fault": "Foutverslag",
+      "add_job_line": "Werkkaartinskrywing",
+      "complete_job": "Voltooide werk"
+    },
     "online": "Aanlyn",
     "offline": "Vanlyn",
     "syncing": "Sinkroniseer…",
@@ -2062,8 +2083,8 @@
     "otherTitle": "Hoe om dit te installeer",
     "otherSteps": "Maak die blaaier se kieslys oop (die drie kolletjies)\nDruk “Installeer program” of “Voeg by tuisskerm”\nBevestig — FleetWise is nou op jou tuisskerm",
     "offlineTitle": "Wat werk sonder sein",
-    "offline": "Om die program oop te maak en te sien waarna jy laas gekyk het\nOm 'n probleem op 'n masjien aan te meld\nOm ure of kilometers neer te skryf\nOm diesel aan te teken wat jy ingegooi het",
-    "offlineNote": "Enigiets wat jy sonder sein vasvang word op die foon gehou en stuur self sodra jy weer binne bereik is. Jy hoef niks te onthou om te doen nie.",
+    "offline": "Om voorheen gelaaide bladsye oop te maak\nOm ’n probleem op ’n masjien aan te meld\nOm ure of kilometers neer te skryf\nOm werkkaartinskrywings op voorheen gelaaide vorms by te voeg",
+    "offlineNote": "Ondersteunde inskrywings bly op hierdie toestel en word weer probeer wanneer jy verbind is. Kyk na die sinkroniseringstatus en hersien enigiets wat nog wag. Brandstofinskrywings en bladsye wat jy nog nie oopgemaak het nie, benodig ’n verbinding.",
     "nav": "Installeer die program"
   },
   "tour": {

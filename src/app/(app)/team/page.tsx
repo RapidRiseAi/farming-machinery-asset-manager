@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { errorMessage } from "@/lib/errors";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -147,7 +148,7 @@ export default async function TeamPage({
           <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
           <PageInfoButton infoKey="team" locale={locale} />
         </div>
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.permissionSaved ? t("permissions.saved", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
 
       {canManage ? (
@@ -273,7 +274,7 @@ export default async function TeamPage({
                               triggerSize="sm"
                               triggerIcon={<TrashIcon />}
                               triggerLabel={t("privacy.erase", locale)}
-                              triggerClassName="text-status-overdue hover:bg-red-50"
+                              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                               title={t("privacy.eraseTitle", locale).replace("{name}", personLabel(u))}
                               intro={t("privacy.eraseIntro", locale).replace("{name}", personLabel(u).split(" ")[0])}
                               consequencesTitle={t("privacy.eraseWhatHappens", locale)}

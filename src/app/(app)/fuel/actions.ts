@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, requireEntitlement } from "@/lib/auth";
+import {
+  requireCurrentFarmRole,
+  requireEntitlement,
+} from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
 
@@ -21,9 +24,11 @@ async function vatBps(supabase: Awaited<ReturnType<typeof createClient>>, farmId
 
 /** Add a storage tank (owner/manager). */
 export async function addFuelTank(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { farmId } = await requireCurrentFarmRole(
+    ["owner", "manager"],
+    "/fuel?error=forbidden",
+  );
   await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+), not just hidden UI
-  if (!profile.farm_id) bounce("No farm");
   const name = String(formData.get("name") ?? "").trim();
   const capRaw = String(formData.get("capacity_l") ?? "").trim();
   const capacity = capRaw === "" ? null : Number(capRaw);
@@ -31,7 +36,7 @@ export async function addFuelTank(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("fuel_tanks").insert({
-    farm_id: profile.farm_id,
+    farm_id: farmId,
     name,
     capacity_l: capacity != null && Number.isFinite(capacity) && capacity > 0 ? capacity : null,
   });
@@ -44,10 +49,11 @@ export async function addFuelTank(formData: FormData) {
  *  stored ex-VAT (Scope §6) as a per-litre unit price. Deliveries are tank stock — they do
  *  NOT book a cost_entry (per-issue attribution model, migration 0241). */
 export async function addFuelDelivery(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const { profile, farmId } = await requireCurrentFarmRole(
+    ["owner", "manager"],
+    "/fuel?error=forbidden",
+  );
   await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+)
-  if (!profile.farm_id) bounce("No farm");
-  const farmId = profile.farm_id;
   const tankId = String(formData.get("tank_id") ?? "").trim();
   const dateRaw = String(formData.get("date") ?? "").trim();
   const litres = Number(String(formData.get("litres") ?? "").trim());
@@ -57,6 +63,14 @@ export async function addFuelDelivery(formData: FormData) {
   if (!tankId || !Number.isFinite(litres) || litres <= 0) bounce("Enter a tank and litres");
 
   const supabase = await createClient();
+  const { data: tank } = await supabase
+    .from("fuel_tanks")
+    .select("id")
+    .eq("id", tankId)
+    .eq("farm_id", farmId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!tank) bounce("Pick a tank");
   const rate = await vatBps(supabase, farmId);
   const exCents = inclCents != null ? exVatCents(inclCents, rate) : null;
   const pricePerL = exCents != null && litres > 0 ? Math.round(exCents / litres) : null;
@@ -81,14 +95,15 @@ export async function addFuelDelivery(formData: FormData) {
  *  and stored ex-VAT; the issue is the authoritative per-machine fuel cost (→ cost_entries,
  *  migration 0241). Also writes a driver-usage log when a driver + meter are known (FR-13.1). */
 export async function addFuelIssue(formData: FormData) {
-  const profile = await requireRole(["owner", "manager", "mechanic", "operator"]);
+  const { profile, farmId } = await requireCurrentFarmRole(
+    ["owner", "manager", "mechanic", "operator"],
+    "/fuel?error=forbidden",
+  );
   await requireEntitlement("fuel", "/fuel"); // plan gate (Professional+)
   // Return to the originating machine page when asked, else the fuel page.
   const rawBack = String(formData.get("redirect_to") ?? "");
   const back = rawBack.startsWith("/machines/") ? rawBack : "/fuel";
   const fail = (msg: string): never => redirect(`${back}?error=${encodeURIComponent(msg)}`);
-  if (!profile.farm_id) fail("No farm");
-  const farmId = profile.farm_id as string;
   const tankId = String(formData.get("tank_id") ?? "").trim();
   const machineRaw = String(formData.get("machine_id") ?? "").trim();
   const dateRaw = String(formData.get("date") ?? "").trim();
@@ -102,22 +117,34 @@ export async function addFuelIssue(formData: FormData) {
   if (meter != null && (!Number.isFinite(meter) || meter < 0)) fail("Enter a valid meter reading");
 
   const supabase = await createClient();
+  const { data: tank } = await supabase
+    .from("fuel_tanks")
+    .select("id")
+    .eq("id", tankId)
+    .eq("farm_id", farmId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!tank) fail("Pick a tank");
 
   // Validate the machine belongs to this farm (or allow farm-level: no machine).
   let machineId: string | null = null;
   if (machineRaw) {
     const { data: m } = await supabase
       .from("machines").select("id").eq("id", machineRaw).eq("farm_id", farmId).is("deleted_at", null).maybeSingle();
-    if (m) machineId = machineRaw;
+    if (!m) fail("Pick a machine");
+    machineId = machineRaw;
   }
 
   // Resolve the driver: an explicitly-chosen active farm user, else the person capturing.
   const driverRaw = String(formData.get("driver_user_id") ?? "").trim() || null;
   let driverId = profile.id;
   if (driverRaw) {
-    const { data: drv } = await supabase
-      .from("users").select("id").eq("id", driverRaw).eq("farm_id", farmId).eq("active", true).is("deleted_at", null).maybeSingle();
-    if (drv) driverId = driverRaw;
+    const { data: isMember, error: memberError } = await supabase.rpc(
+      "is_active_farm_member",
+      { p_farm: farmId, p_user: driverRaw },
+    );
+    if (memberError || isMember !== true) fail("not-found");
+    driverId = driverRaw;
   }
 
   const rate = await vatBps(supabase, farmId);

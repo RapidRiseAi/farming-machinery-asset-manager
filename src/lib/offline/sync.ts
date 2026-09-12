@@ -2,7 +2,7 @@
 // A module-level guard prevents overlapping flushes; auto-flush registration is
 // idempotent so both the app shell and the public QR page can arm it safely.
 
-import { dequeue, listMutations, pendingCount } from "./queue";
+import { dequeue, enqueue, listMutations, pendingCount } from "./queue";
 import type { QueuedMutation } from "./types";
 
 let flushing = false;
@@ -19,6 +19,7 @@ export function buildFormData(m: QueuedMutation): FormData {
   fd.set("client_ts", m.client_ts);
   fd.set("type", m.type);
   fd.set("scope", m.scope);
+  if (m.actor_id) fd.set("actor_id", m.actor_id);
   fd.set("payload", JSON.stringify(m.fields));
   if (m.photo) fd.set("photo", m.photo, "photo.jpg");
   if (m.voice) fd.set("voice", m.voice, "voice.webm");
@@ -42,9 +43,9 @@ async function safeCount(): Promise<number> {
 /**
  * Flush the queue. Each mutation is POSTed once; the server dedupes by client UUID so
  * replays are safe. Response handling:
- *   2xx            → applied/duplicate/conflict all recorded server-side → drop locally.
- *   401/429/5xx    → transient (session refresh / rate limit / server) → stop, retry later.
- *   4xx (other)    → permanent (malformed / access / gone) → drop so the queue can't wedge.
+ *   applied        → durable server acknowledgement → drop locally.
+ *   429/5xx        → transient (rate limit / server) → stop, retry later.
+ *   conflict/4xx   → retain for review and continue with other captures.
  *   network error  → stop, retry on next online/visibility event.
  */
 export async function flush(): Promise<{ applied: number; remaining: number }> {
@@ -61,13 +62,14 @@ export async function flush(): Promise<{ applied: number; remaining: number }> {
       } catch {
         break; // network dropped mid-flush
       }
-      if (res.ok) {
+      const body = await res.json().catch(() => null) as { status?: string; error?: string } | null;
+      if (res.ok && body?.status === "applied") {
         await dequeue(m.client_id);
         applied += 1;
-      } else if (res.status === 401 || res.status === 429 || res.status >= 500) {
+      } else if (res.status === 429 || res.status >= 500) {
         break; // transient — keep queued, retry later
       } else {
-        await dequeue(m.client_id); // permanent — drop
+        await enqueue({ ...m, sync_error: body?.status === "conflict" ? "conflict" : body?.error ?? "capture_needs_review" });
       }
     }
   } finally {
@@ -81,7 +83,7 @@ export async function flush(): Promise<{ applied: number; remaining: number }> {
 export function registerAutoFlush(): void {
   if (armed || typeof window === "undefined") return;
   armed = true;
-  const trigger = () => void flush();
+  const trigger = () => { void flush().catch(() => { /* Storage stays authoritative; retry later. */ }); };
   window.addEventListener("online", trigger);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && isOnline()) trigger();

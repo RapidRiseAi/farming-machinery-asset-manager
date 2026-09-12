@@ -7,7 +7,7 @@ export type StatTone = "default" | "brand" | "ok" | "due" | "overdue";
 
 const VALUE_TONE: Record<StatTone, string> = {
   default: "text-sand-900",
-  brand: "text-brand-700",
+  brand: "text-brand-ink",
   ok: "text-status-ok",
   due: "text-status-due",
   overdue: "text-status-overdue",
@@ -36,9 +36,9 @@ export function Stat({ label, value, delta, tone = "default", icon, href, classN
     <>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-sand-500">{label}</span>
-        {icon ? <span className="text-[1.25rem] text-sand-400">{icon}</span> : null}
+        {icon ? <span className="text-xl text-sand-400">{icon}</span> : null}
         {!icon && href ? (
-          <ChevronRightIcon className="text-[1.1rem] text-sand-400" />
+          <ChevronRightIcon className="text-lg text-sand-400" />
         ) : null}
       </div>
       <div className={cn("mt-1.5 text-3xl font-bold leading-none tracking-tight tabular-nums", VALUE_TONE[tone], valueClassName)}>
@@ -48,7 +48,7 @@ export function Stat({ label, value, delta, tone = "default", icon, href, classN
     </>
   );
 
-  const base = "block rounded-xl border border-sand-200 bg-white p-4 shadow-card";
+  const base = "block rounded-xl border border-sand-200 bg-surface p-4 shadow-card";
 
   if (href) {
     return (

@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Keep tracing anchored to this application when a parent folder also has a lockfile.
+  outputFileTracingRoot: process.cwd(),
   // Mobile-first, low-bandwidth: keep the client bundle lean.
   experimental: {
     // The add-vehicle form ferries a client-compressed primary photo (base64 data
@@ -18,6 +20,18 @@ const nextConfig = {
     // The offline service worker must be revalidated (never stuck in cache) and be
     // allowed to control the whole origin.
     return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=(self), payment=()",
+          },
+        ],
+      },
       {
         source: "/sw.js",
         headers: [

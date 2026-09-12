@@ -133,7 +133,7 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
         <input
           type="checkbox"
           name="amount_incl_vat"
-          className="h-5 w-5 rounded border-sand-300 text-brand-600"
+          className="h-5 w-5 rounded border-sand-300 text-brand-ink"
           checked={inclusive}
           onChange={(e) => setInclusive(e.target.checked)}
         />
@@ -175,7 +175,7 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
           type="checkbox"
           name="vat_claimable"
           defaultChecked
-          className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-600"
+          className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
         />
         <span>
           {t("po.claimable", locale)}

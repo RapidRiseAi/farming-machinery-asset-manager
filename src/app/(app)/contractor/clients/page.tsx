@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -91,9 +92,9 @@ export default async function PartnerClientsPage({
   function Row({ c }: { c: ClientRow }) {
     const n = vehicleCount.get(c.id) ?? 0;
     return (
-      <li className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-white p-3">
+      <li className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/contractor/clients/${c.id}`} className="focus-ring rounded font-medium text-sand-900 hover:text-brand-700 hover:underline">
+          <Link href={`/contractor/clients/${c.id}`} className="focus-ring rounded font-medium text-sand-900 hover:text-brand-ink hover:underline">
             {c.name}
           </Link>
           {c.farm_id ? (
@@ -144,7 +145,7 @@ export default async function PartnerClientsPage({
       </div>
       <p className="text-sand-600">{t("clients.lead", locale)}</p>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.removed ? t("clients.removed", locale) : undefined} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

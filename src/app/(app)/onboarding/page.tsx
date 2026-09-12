@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -57,7 +58,7 @@ export default async function OnboardingPage({
         <p className="mt-1 text-sand-500">{t("onboarding.subtitle", locale)}</p>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash
         tone="success"
         message={sp.saved === "qr_labels" ? t("ui.qrLabelsMarked", locale) : undefined}
@@ -81,7 +82,7 @@ export default async function OnboardingPage({
             <Card className={s.done ? "opacity-80" : undefined}>
               <div className="flex items-start gap-3">
                 <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${s.done ? "bg-status-ok text-white" : "bg-sand-100 text-sand-500"}`}>
-                  {s.done ? <CheckIcon className="text-[1.1rem]" /> : i + 1}
+                  {s.done ? <CheckIcon className="text-lg" /> : i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">

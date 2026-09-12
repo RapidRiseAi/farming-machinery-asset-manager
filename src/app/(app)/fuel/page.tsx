@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { checkEntitlement } from "@/lib/auth";
+import { errorMessage } from "@/lib/errors";
+import { checkEntitlement, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
@@ -66,15 +68,19 @@ export default async function FuelPage({
     );
   }
   const sp = await searchParams;
-  const canManage = profile.role === "owner" || profile.role === "manager";
-  const canDraw = ["owner", "manager", "mechanic", "operator"].includes(profile.role);
   const supabase = await createClient();
+  const farmId = await currentFarmId(profile);
+  const resourceRole = farmId ? await effectiveFarmRole(farmId, profile) : null;
+  const canManage = resourceRole === "owner" || resourceRole === "manager";
+  const canDraw = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
+  const costsVisible = farmId ? await canViewFarmCosts(supabase, farmId) : profile.role === "rr_admin";
+  const byFarm = <Q,>(q: Q): Q => farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
 
   const [tankRes, machineRes, delRes, issRes, opRes] = await Promise.all([
-    supabase.from("fuel_tanks").select("id, name, capacity_l").is("deleted_at", null).order("name"),
-    supabase.from("machines").select("id, name, meter_type, status").is("deleted_at", null).order("name"),
-    supabase.from("fuel_deliveries").select("id, tank_id, date, litres, price_per_l_cents, supplier, invoice_no").is("deleted_at", null).order("date", { ascending: false }).limit(400),
-    supabase.from("fuel_issues").select("id, tank_id, machine_id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at, driver_name, by_user").is("deleted_at", null).order("date", { ascending: false }).limit(600),
+    byFarm(supabase.from("fuel_tanks").select("id, name, capacity_l").is("deleted_at", null).order("name")),
+    byFarm(supabase.from("machines").select("id, name, meter_type, status").is("deleted_at", null).order("name")),
+    byFarm(supabase.from("fuel_deliveries_visible").select("id, tank_id, date, litres, price_per_l_cents, supplier, invoice_no").is("deleted_at", null).order("date", { ascending: false }).limit(400)),
+    byFarm(supabase.from("fuel_issues_visible").select("id, tank_id, machine_id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at, driver_name, by_user").is("deleted_at", null).order("date", { ascending: false }).limit(600)),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
   ]);
 
@@ -140,14 +146,14 @@ export default async function FuelPage({
         </div>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
       {/* Spend summary */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={t("fuel.purchased", locale)} value={rands(costPurchased)} />
+        {costsVisible ? <Stat label={t("fuel.purchased", locale)} value={rands(costPurchased)} /> : null}
         <Stat label={`${t("fuel.delivered", locale)} (${t("fuel.litresShort", locale)})`} value={litresDelivered.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
-        <Stat label={t("fuel.attributed", locale)} value={rands(costUsed)} />
+        {costsVisible ? <Stat label={t("fuel.attributed", locale)} value={rands(costUsed)} /> : null}
         <Stat label={`${t("fuel.issued", locale)} (${t("fuel.litresShort", locale)})`} value={litresIssued.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} />
       </div>
 
@@ -281,7 +287,7 @@ export default async function FuelPage({
         <p className="mt-2 text-xs text-sand-400">{t("fuel.balanceHint", locale)}</p>
         {canManage ? (
           <details className="mt-3 border-t border-sand-100 pt-3">
-            <summary className="cursor-pointer text-sm font-medium text-brand-700">{t("fuel.addTank", locale)}</summary>
+            <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("fuel.addTank", locale)}</summary>
             <form action={addFuelTank} className="mt-2 flex flex-wrap items-end gap-2">
               <Field label={t("fuel.tankName", locale)} htmlFor="t_name" className="flex-1">
                 <Input id="t_name" name="name" required />
@@ -305,7 +311,7 @@ export default async function FuelPage({
             {consumption.map((row) => (
               <li key={row.machineId} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
-                  <Link href={`/machines/${row.machineId}`} className="focus-ring rounded font-medium text-brand-700 hover:underline">{row.name}</Link>
+                  <Link href={`/machines/${row.machineId}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">{row.name}</Link>
                   <p className="text-xs text-sand-500">
                     {meterLabel(row.meterType, locale)} · {row.litres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} {t("fuel.litresShort", locale)}
                     {row.c.intervals > 0 ? ` · ${row.c.intervals} ${t("fuel.intervals", locale)}` : ""}
@@ -336,7 +342,7 @@ export default async function FuelPage({
             {anomalies.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3 py-2">
                 <span className="min-w-0">
-                  <Link href={`/machines/${i.machine_id}`} className="focus-ring rounded font-medium text-brand-700 hover:underline">{machineName.get(i.machine_id ?? "") ?? "—"}</Link>
+                  <Link href={`/machines/${i.machine_id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">{machineName.get(i.machine_id ?? "") ?? "—"}</Link>
                   <span className="ml-2 text-sand-500">{i.litres} {t("fuel.litresShort", locale)}{i.meter_reading != null ? ` @ ${i.meter_reading}` : ""}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">

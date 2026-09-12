@@ -97,7 +97,7 @@ export default async function OrderPage({
         <div className="min-w-0">
           <Link
             href="/orders"
-            className="focus-ring text-sm font-medium text-brand-700 underline underline-offset-2"
+            className="focus-ring text-sm font-medium text-brand-ink underline underline-offset-2"
           >
             {t("po.backToList", locale)}
           </Link>
@@ -294,7 +294,7 @@ export default async function OrderPage({
             <p className="text-sm text-sand-600">
               <Link
                 href="/expenses"
-                className="focus-ring font-medium text-brand-700 underline underline-offset-2"
+                className="focus-ring font-medium text-brand-ink underline underline-offset-2"
               >
                 {t("po.seeInExpenses", locale)}
               </Link>

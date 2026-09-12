@@ -114,7 +114,7 @@ export default async function CorrectionsPage() {
                       {doc ? (
                         <Link
                           href={`/documents/${r.document_id}`}
-                          className="focus-ring rounded font-medium text-brand-700 underline-offset-2 hover:underline"
+                          className="focus-ring rounded font-medium text-brand-ink underline-offset-2 hover:underline"
                         >
                           {doc.number}
                         </Link>

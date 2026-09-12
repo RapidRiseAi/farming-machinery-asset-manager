@@ -99,18 +99,18 @@ export function FilterBar({
           className={cn(
             "focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-semibold transition-colors sm:min-h-[44px]",
             active.length > 0
-              ? "border-brand-600 bg-brand-50 text-brand-800"
-              : "border-sand-300 bg-white text-sand-700 hover:bg-sand-50",
+              ? "border-brand-600 bg-brand-tint text-brand-ink"
+              : "border-sand-300 bg-surface text-sand-700 hover:bg-sand-50",
           )}
         >
-          <SearchIcon className="text-[1.05rem]" />
+          <SearchIcon className="text-base" />
           {filtersLabel}
           {active.length > 0 ? (
             <span className="inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-bold tabular-nums text-white">
               {active.length}
             </span>
           ) : null}
-          {open ? <ChevronUpIcon className="text-[1rem]" /> : <ChevronDownIcon className="text-[1rem]" />}
+          {open ? <ChevronUpIcon className="text-base" /> : <ChevronDownIcon className="text-base" />}
         </button>
       </div>
 
@@ -122,16 +122,16 @@ export function FilterBar({
             <Link
               key={g.paramName}
               href={hrefWith({ [g.paramName]: "" })}
-              className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-full border border-sand-300 bg-white px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 sm:min-h-[36px]"
+              className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-full border border-sand-300 bg-surface px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 sm:min-h-[36px]"
             >
               <span className="text-sand-500">{g.label}:</span>
               {labelOf(g)}
-              <CloseIcon className="text-[0.95rem] text-sand-400" />
+              <CloseIcon className="text-base text-sand-400" />
             </Link>
           ))}
           <Link
             href={clearAllHref}
-            className="focus-ring inline-flex min-h-[48px] items-center gap-1 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 sm:min-h-[36px]"
+            className="focus-ring inline-flex min-h-[48px] items-center gap-1 rounded-lg px-2 text-sm font-medium text-brand-ink hover:bg-brand-tint sm:min-h-[36px]"
           >
             {clearLabel}
           </Link>
@@ -139,7 +139,7 @@ export function FilterBar({
       ) : null}
 
       {open ? (
-        <div className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-white p-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-3">
           {groups.map((g) => (
             <div key={g.paramName}>
               {/* The visible heading the stacked rows never had. */}
@@ -162,7 +162,7 @@ export function FilterBar({
                         "focus-ring inline-flex min-h-[48px] shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors sm:min-h-[40px]",
                         on
                           ? "border-brand-600 bg-brand-600 text-white shadow-xs"
-                          : "border-sand-200 bg-white text-sand-700 hover:border-sand-300 hover:bg-sand-50",
+                          : "border-sand-200 bg-surface text-sand-700 hover:border-sand-300 hover:bg-sand-50",
                       )}
                     >
                       {o.label}

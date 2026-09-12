@@ -89,8 +89,8 @@ export function InstallApp({ locale }: { locale: Lang }) {
 
   if (platform === "installed") {
     return (
-      <p className="inline-flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-800">
-        <CheckIcon className="text-[1.1rem]" />
+      <p className="inline-flex items-center gap-2 rounded-lg bg-brand-tint px-3 py-2.5 text-sm font-medium text-brand-ink">
+        <CheckIcon className="text-lg" />
         {t("install.alreadyInstalled", locale)}
       </p>
     );
@@ -118,7 +118,7 @@ export function InstallApp({ locale }: { locale: Lang }) {
   return (
     <div className="rounded-xl border border-sand-200 bg-sand-50 p-3.5">
       <p className="flex items-center gap-2 text-sm font-semibold text-sand-800">
-        <InfoIcon className="text-[1.1rem] text-sand-500" />
+        <InfoIcon className="text-lg text-sand-500" />
         {platform === "ios" ? t("install.iosTitle", locale) : t("install.otherTitle", locale)}
       </p>
       <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-sm text-sand-700">

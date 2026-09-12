@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { errorMessage } from "@/lib/errors";
 import {
   checkEntitlement,
   currentFarmId,
@@ -95,14 +96,14 @@ export default async function ReportSchedulesPage({
           <p className="text-sm text-sand-600">{t("reportSchedules.lead", locale)}</p>
         </div>
         <span className="ml-auto flex items-center gap-2">
-          <Link href="/reports" className="focus-ring rounded-lg px-2 py-1 text-sm font-medium text-brand-700 hover:underline">
+          <Link href="/reports" className="focus-ring rounded-lg px-2 py-1 text-sm font-medium text-brand-ink hover:underline">
             {t("reportSchedules.backToReports", locale)}
           </Link>
           <PageInfoButton infoKey="reportSchedules" locale={locale} />
         </span>
       </div>
 
-      <Flash tone="error" message={sp.error} />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? t("reportSchedules.createdFlash", locale) : undefined} />
       <Flash tone="success" message={sp.deleted ? t("reportSchedules.deletedFlash", locale) : undefined} />
 
@@ -124,7 +125,7 @@ export default async function ReportSchedulesPage({
                   </span>
                   {/* A span, not a link: the row is already an anchor and a nested one is
                       the invalid HTML that threw React #418 on the machines list. */}
-                  <span className="text-sm font-medium text-brand-700">{t("reportSchedules.dueOpen", locale)} →</span>
+                  <span className="text-sm font-medium text-brand-ink">{t("reportSchedules.dueOpen", locale)} →</span>
                 </Link>
               </li>
             ))}

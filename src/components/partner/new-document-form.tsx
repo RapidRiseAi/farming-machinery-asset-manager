@@ -51,7 +51,7 @@ export function NewDocumentForm({
 
       <form
         action={action}
-        className="mt-3 flex w-full max-w-lg flex-col gap-3 rounded-xl border border-sand-200 bg-white p-4 shadow-soft"
+        className="mt-3 flex w-full max-w-lg flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-4 shadow-soft"
       >
         <SelectField name="kind" label={t("doc.newKind", locale)} defaultValue="quote">
           <option value="quote">{t("doc.kindQuote", locale)}</option>
@@ -123,7 +123,7 @@ export function NewDocumentForm({
           <button
             type="button"
             onClick={() => setShowBilling(true)}
-            className="focus-ring inline-flex min-h-[48px] items-center self-start rounded text-sm font-medium text-brand-700 underline-offset-2 hover:underline sm:min-h-[40px]"
+            className="focus-ring inline-flex min-h-[48px] items-center self-start rounded text-sm font-medium text-brand-ink underline-offset-2 hover:underline sm:min-h-[40px]"
           >
             {t("doc.changeBilling", locale)}
           </button>

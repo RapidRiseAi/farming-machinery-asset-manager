@@ -901,7 +901,7 @@ export function AssistantClient({
             }}
             className={cn(
               "focus-ring min-h-[48px] rounded-lg px-3 text-sm font-semibold transition-colors",
-              speechLanguage === language ? "bg-white text-brand-700 shadow-xs" : "text-sand-600 hover:bg-white/70",
+              speechLanguage === language ? "bg-surface text-brand-ink shadow-xs" : "text-sand-600 hover:bg-white/70",
             )}
           >
             {language === "af-ZA" ? t("assistant.languageAf", locale) : t("assistant.languageEn", locale)}
@@ -928,7 +928,7 @@ export function AssistantClient({
           className={cn(
             "focus-ring mx-auto flex h-28 w-28 items-center justify-center rounded-full text-4xl shadow-lg transition-all",
             isListening
-              ? "animate-pulse bg-status-overdue text-white hover:bg-red-700"
+              ? "animate-pulse bg-status-overdue text-white hover:bg-danger-600"
               : "bg-brand-600 text-white hover:scale-[1.03] hover:bg-brand-700 active:scale-95",
             isBusy && "cursor-not-allowed opacity-50",
           )}
@@ -965,7 +965,7 @@ export function AssistantClient({
       </Card>
 
       {offlineCaptures.length > 0 ? (
-        <Card className="border-amber-200 bg-amber-50/50">
+        <Card className="border-callout-warn-edge bg-callout-warn-bg/50">
           <CardTitle>{t("assistant.offlineTitle", locale)}</CardTitle>
           <p className="mt-1 text-sm text-sand-700">
             {t("assistant.offlinePending", locale).replace("{count}", String(offlineCaptures.length))}
@@ -1043,14 +1043,14 @@ export function AssistantClient({
       ) : null}
 
       {turn?.kind === "confirm" ? (
-        <Card className="border-brand-200 bg-brand-50/30">
+        <Card className="border-brand-200 bg-brand-tint/30">
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{turn.proposal.title}</h2>
           <p className="mt-1 text-sm text-sand-600">{t("assistant.confirmExplain", locale)}</p>
           <p className="mt-1 text-xs text-sand-500">{t("assistant.proposalExpiry", locale)}</p>
           <Button className="mt-3" size="sm" variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(confirmationSpeechText ?? turn.proposal.title)}>
             {t("assistant.readAloud", locale)}
           </Button>
-          <dl className="mt-4 divide-y divide-sand-200 rounded-lg border border-sand-200 bg-white px-4">
+          <dl className="mt-4 divide-y divide-sand-200 rounded-lg border border-sand-200 bg-surface px-4">
             {turn.proposal.facts.map((fact) => (
               <div key={fact.label} className="grid gap-1 py-3 sm:grid-cols-[9rem_1fr] sm:gap-4">
                 <dt className="text-sm font-medium text-sand-500">{fact.label}</dt>
@@ -1066,7 +1066,7 @@ export function AssistantClient({
       ) : null}
 
       {turn?.kind === "needs_consent" ? (
-        <Card className="border-blue-200 bg-blue-50/40">
+        <Card className="border-callout-info-edge bg-callout-info-bg/40">
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{t("assistant.consentTitle", locale)}</h2>
           <p className="mt-2 text-sm leading-6 text-sand-700">{turn.explanation}</p>
           <p className="mt-2 text-xs leading-5 text-sand-500">{t("assistant.consentBody", locale)}</p>
@@ -1078,7 +1078,7 @@ export function AssistantClient({
       ) : null}
 
       {answerText ? (
-        <Card className="border-green-200 bg-green-50/50">
+        <Card className="border-callout-ok-edge bg-callout-ok-bg/50">
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{completion ? t("assistant.successTitle", locale) : t("assistant.answerTitle", locale)}</h2>
           <p className="mt-2 text-sm leading-6 text-sand-800">{answerText}</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -1122,14 +1122,14 @@ export function AssistantClient({
               type="button"
               disabled={isBusy || isListening}
               onClick={() => setTypedInput(example)}
-              className="focus-ring min-h-[48px] rounded-full border border-sand-300 bg-white px-4 py-2 text-left text-sm text-sand-700 hover:border-brand-300 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="focus-ring min-h-[48px] rounded-full border border-sand-300 bg-surface px-4 py-2 text-left text-sm text-sand-700 hover:border-brand-300 hover:bg-brand-tint disabled:cursor-not-allowed disabled:opacity-50"
             >
               “{example}”
             </button>
           ))}
         </div>
         <p className="mt-4 text-xs leading-5 text-sand-500">
-          {t("assistant.manualFallback", locale)} <Link href="/faults" className="font-semibold text-brand-700 underline">{t("nav.faults", locale)}</Link> · <Link href="/machines" className="font-semibold text-brand-700 underline">{t("nav.machines", locale)}</Link>
+          {t("assistant.manualFallback", locale)} <Link href="/faults" className="font-semibold text-brand-ink underline">{t("nav.faults", locale)}</Link> · <Link href="/machines" className="font-semibold text-brand-ink underline">{t("nav.machines", locale)}</Link>
         </p>
         {aiConsent ? (
           <div className="mt-3 flex flex-col items-start gap-2 border-t border-sand-200 pt-3">

@@ -21,7 +21,7 @@ export function SpendTrend({ data, title }: { data: Datum[]; title: string }) {
           const pct = Math.round((d.value / max) * 100);
           return (
             <div key={d.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
-              <span className="text-[0.65rem] font-medium tabular-nums text-sand-500">
+              <span className="text-2xs font-medium tabular-nums text-sand-500">
                 {d.value > 0 ? compactRands(d.value) : ""}
               </span>
               <div
@@ -29,7 +29,7 @@ export function SpendTrend({ data, title }: { data: Datum[]; title: string }) {
                 style={{ height: `${Math.max(pct, d.value > 0 ? 4 : 0)}%` }}
                 title={`${d.label}: ${compactRands(d.value)}`}
               />
-              <span className="w-full truncate text-center text-[0.65rem] text-sand-400">{d.label}</span>
+              <span className="w-full truncate text-center text-2xs text-sand-400">{d.label}</span>
             </div>
           );
         })}

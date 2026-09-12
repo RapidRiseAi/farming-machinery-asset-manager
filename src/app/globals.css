@@ -3,30 +3,226 @@
 @tailwind utilities;
 
 /*
- * FarmGear global styles. Light-theme baseline (Scope §7). Semantic surface
- * tokens live as CSS custom properties so components can lean on them without
- * bloating the Tailwind config.
+ * FleetWise global styles — Official Colour Palette.
+ *
+ * The semantic surface tokens below used to be declared here and referenced
+ * NOWHERE (five custom properties, zero uses), while components reached past
+ * them to raw sand values. That missing indirection was the reason there was no
+ * dark theme: a theme swap has to happen at ONE layer, and there was no layer.
+ *
+ * They are now the layer. Tailwind resolves `bg-surface`, `text-ink-muted` and
+ * `border-edge` from these, so a component written once is correct in both
+ * themes. Channels are stored space-separated (not `#rrggbb`) so Tailwind's
+ * `<alpha-value>` works — `bg-surface/60` composites correctly.
  */
+
 :root {
   color-scheme: light;
 
-  /* Semantic surfaces (warm neutrals). */
-  --surface: #ffffff;
-  --surface-muted: #faf9f7; /* sand-50  */
-  --border: #e9e5dd; /* sand-200 */
-  --text: #26221c; /* sand-900 */
-  --text-muted: #6b6356; /* sand-600 */
+  /*
+   * ── The neutral ramp, as VARIABLES ────────────────────────────────────────
+   *
+   * `sand-*` is the app's whole neutral vocabulary — roughly 1,500 usages of
+   * `text-sand-500`, `bg-sand-50`, `border-sand-200` and friends across 445
+   * files. Defining those as fixed hex in the Tailwind config made every one of
+   * them light-only, which is why there was no dark theme: correcting it at the
+   * call sites would have been ~1,500 edits.
+   *
+   * So the SCALE ITSELF flips. A step is not an absolute lightness, it is a ROLE
+   * — distance from the page ground — and the dark ramp below was derived by
+   * solving each step to the same contrast duty its light twin has:
+   *
+   *   200  decorative edge      300  control border  >= 3:1   (SC 1.4.11)
+   *   400  placeholder        >= 4.5:1               500  secondary text >= 4.5:1
+   *   900  body text          >= 4.5:1               950  maximum contrast
+   *
+   * Every `text-sand-500` in the product therefore means "the readable secondary
+   * colour in whatever theme is showing", in both, with no call-site change.
+   */
+  --sand-50: 247 243 232; /* Warm Cream — page ground */
+  --sand-100: 239 234 220;
+  --sand-200: 230 226 215; /* Warm Grey — decorative edge */
+  --sand-300: 143 139 127; /* control border   3.07:1 */
+  --sand-400: 113 110 100; /* placeholder      4.60:1 */
+  --sand-500: 93 90 82; /* secondary text   6.21:1 */
+  --sand-600: 72 70 64; /*                  8.51:1 */
+  --sand-700: 57 56 50; /*                 10.61:1 */
+  --sand-800: 46 45 41; /*                 12.43:1 */
+  --sand-900: 36 40 36; /* Charcoal — body 13.49:1 */
+  --sand-950: 0 0 0; /* FleetWise Black */
 
-  /* Focus ring (brand). */
-  --ring: #15803d; /* brand-600 */
+  /* Brand green AS TEXT on the current surface. The deep #00572C is perfect on
+     cream (7.89:1) and invisible on near-black (1.27:1), so a link or a heading
+     needs a token rather than a fixed step. `bg-brand-600` stays literal — a
+     green button is green in both themes. */
+  --brand-ink: 1 69 36; /* brand-700 */
+  --brand-tint: 232 242 236; /* brand-50 — chip and callout ground */
+
+  /* ── Light: Warm Cream ground, white cards, charcoal text ─────────── */
+  --surface: 255 255 255; /* white       — cards, panels                */
+  --surface-raised: 247 243 232; /* cream — page ground                 */
+  --surface-sunken: 239 234 220; /* deeper — wells, hovers, table heads */
+
+  --ink: 36 40 36; /* charcoal   — body text        13.49:1 */
+  --ink-muted: 93 90 82; /* sand-500   — secondary text    6.21:1 */
+  --ink-subtle: 113 110 100; /* sand-400   — placeholders      4.60:1 */
+
+  --edge: 143 139 127; /* sand-300   — control borders   3.07:1 */
+  --edge-soft: 230 226 215; /* Warm Grey  — decorative dividers      */
+
+  --accent: 234 165 12; /* FleetWise Gold — fills only          */
+  --accent-ink: 147 101 5; /* gold-600      — gold that carries text */
+
+  /* Focus ring — the brand green, 7.89:1 against the cream ground. */
+  --ring: 0 87 44;
 
   /* Fixed chrome height, used to keep content clear of the mobile tab bar. */
+
+  /* Callout tones. Text on its own tint clears 4.5:1 in BOTH themes; the tint is
+     distinguishable from the page ground and from a card. Tone is never carried
+     by colour alone — each callout also has its own icon and words. */
+  --callout-danger-bg: 248 220 219; --callout-danger-edge: 208 109 108; --callout-danger-ink: 143 26 25;
+  --callout-warn-bg: 251 231 180;   --callout-warn-edge: 201 144 31;    --callout-warn-ink: 111 76 4;
+  --callout-ok-bg: 216 235 223;     --callout-ok-edge: 127 185 154;     --callout-ok-ink: 1 69 36;
+  --callout-info-bg: 232 227 212;   --callout-info-edge: 168 159 136;   --callout-info-ink: 57 56 50;
+
+  /* Traffic-light statuses (Scope §4.3) and the destructive solid.
+     These flip too: the deep #00572C / #B3201F are perfect on cream and 1.86:1
+     and 2.44:1 on a dark card, which is what put the required-field asterisk,
+     every "Delete", and money shown in red or green below AA in dark mode. The
+     dark values are the CHROMATIC light end of each hue, not a desaturated
+     lift, so a red still reads as red. */
+  --status-ok: 0 87 44;
+  --status-due: 138 94 5;
+  --status-overdue: 179 32 31;
+  /* A destructive BUTTON needs its text to flip with its fill: white on the
+     deep red (6.68:1) in light, black on the light red (6.34:1) in dark. */
+  --danger-solid: 179 32 31;
+  --danger-solid-hover: 158 28 27;
+  --danger-solid-ink: 255 255 255;
   --tabbar-h: 4rem;
+}
+
+/*
+ * Dark theme. FleetWise Black is a sanctioned brand ground ("dark backgrounds,
+ * premium sections"), so this is an on-brand treatment rather than an inversion:
+ * near-black carrying the green cast of the charcoal, Warm Cream as the text,
+ * and GOLD promoted to the lead accent because it sings on black (7.68:1) where
+ * the deep green cannot (#00572C on near-black is unreadable).
+ *
+ * Two states, both handled: `prefers-color-scheme` for the default "system"
+ * setting, and `[data-theme]` so an explicit choice wins in either direction.
+ * Only the tokens are redefined — never a component rule.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* The neutral ramp, mirrored. Each step solved to the same contrast duty as
+       its light twin — measured against the dark CARD surface, the demanding
+       case, so a card on the page ground is safe too. */
+    --sand-50: 20 23 20; /* deepest ground */
+    --sand-100: 26 30 26;
+    --sand-200: 39 44 39; /* decorative edge / card */
+    --sand-300: 109 107 98; /* control border   3.05:1 */
+    --sand-400: 143 139 127; /* placeholder      4.79:1 */
+    --sand-500: 162 160 151; /* secondary text   6.22:1 */
+    --sand-600: 189 187 182; /*                  8.50:1 */
+    --sand-700: 210 209 205; /*                 10.67:1 */
+    --sand-800: 225 225 222; /*                 12.45:1 */
+    --sand-900: 247 243 232; /* Warm Cream — body text 14.71:1 */
+    --sand-950: 255 255 255;
+
+    --brand-ink: 95 170 132; /* brand-300 — the deep green is 1.27:1 here */
+    --brand-tint: 13 42 27;
+
+    --surface: 29 33 29;
+    --surface-raised: 39 44 39;
+    --surface-sunken: 20 23 20;
+
+    --ink: 247 243 232; /* Warm Cream    — 14.71:1 */
+    --ink-muted: 184 182 175; /*               —  8.04:1 */
+    --ink-subtle: 150 147 136; /*               —  5.30:1 */
+
+    --edge: 143 139 127; /*               —  4.79:1 */
+    --edge-soft: 83 82 74;
+
+    --accent: 234 165 12;
+    --accent-ink: 234 165 12; /* gold reads directly on black — 7.68:1 */
+
+
+    /* Deep tint of the hue, with its light end as the text. */
+    --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
+    --callout-warn-bg: 46 36 9;     --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
+    --callout-ok-bg: 18 38 27;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
+    --callout-info-bg: 36 40 36;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
+
+    --status-ok: 95 170 132;
+    --status-due: 234 165 12;
+    --status-overdue: 240 139 138;
+    --danger-solid: 212 112 110;
+    --danger-solid-hover: 224 138 136;
+    --danger-solid-ink: 0 0 0;
+    --ring: 95 170 132; /* brand-300 — the deep green is invisible here */
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* The neutral ramp, mirrored. Each step solved to the same contrast duty as
+     its light twin — measured against the dark CARD surface, the demanding
+     case, so a card on the page ground is safe too. */
+  --sand-50: 20 23 20; /* deepest ground */
+  --sand-100: 26 30 26;
+  --sand-200: 39 44 39; /* decorative edge / card */
+  --sand-300: 109 107 98; /* control border   3.05:1 */
+  --sand-400: 143 139 127; /* placeholder      4.79:1 */
+  --sand-500: 162 160 151; /* secondary text   6.22:1 */
+  --sand-600: 189 187 182; /*                  8.50:1 */
+  --sand-700: 210 209 205; /*                 10.67:1 */
+  --sand-800: 225 225 222; /*                 12.45:1 */
+  --sand-900: 247 243 232; /* Warm Cream — body text 14.71:1 */
+  --sand-950: 255 255 255;
+
+  --brand-ink: 95 170 132; /* brand-300 — the deep green is 1.27:1 here */
+  --brand-tint: 13 42 27;
+
+  --surface: 29 33 29;
+  --surface-raised: 39 44 39;
+  --surface-sunken: 20 23 20;
+
+  --ink: 247 243 232;
+  --ink-muted: 184 182 175;
+  --ink-subtle: 150 147 136;
+
+  --edge: 143 139 127;
+  --edge-soft: 83 82 74;
+
+  --accent: 234 165 12;
+  --accent-ink: 234 165 12;
+
+  /* Deep tint of the hue, with its light end as the text. */
+  --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
+  --callout-warn-bg: 46 36 9;     --callout-warn-edge: 122 92 20;   --callout-warn-ink: 238 198 106;
+  --callout-ok-bg: 18 38 27;      --callout-ok-edge: 47 95 67;      --callout-ok-ink: 142 208 168;
+  --callout-info-bg: 36 40 36;    --callout-info-edge: 77 83 76;    --callout-info-ink: 207 205 197;
+
+  --status-ok: 95 170 132;
+  --status-due: 234 165 12;
+  --status-overdue: 240 139 138;
+  --danger-solid: 212 112 110;
+  --danger-solid-hover: 224 138 136;
+  --danger-solid-ink: 0 0 0;
+
+  --ring: 95 170 132;
 }
 
 html,
 body {
-  @apply bg-sand-50 text-sand-900 antialiased;
+  background: rgb(var(--surface-raised));
+  color: rgb(var(--ink));
+  @apply antialiased;
   font-family: theme("fontFamily.sans");
 }
 
@@ -50,6 +246,7 @@ a {
   }
   body {
     background: #ffffff !important;
+    color: #000000 !important;
   }
 }
 
@@ -57,7 +254,7 @@ a {
   /* Consistent, visible keyboard focus everywhere (WCAG-AA). Pointer clicks
      don't get the ring (focus-visible), keyboard users always do. */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid var(--ring);
+    outline: 2px solid rgb(var(--ring));
     outline-offset: 2px;
     border-radius: 0.375rem;
   }
@@ -70,6 +267,7 @@ a {
       animation-duration: 0.001ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
@@ -78,14 +276,45 @@ a {
   /* Reusable focus-ring for custom-styled interactive elements that opt out of
      the default outline (e.g. nav tiles) but still need an AA focus indicator. */
   .focus-ring {
-    @apply outline-none ring-offset-2 ring-offset-white focus-visible:ring-2 focus-visible:ring-brand-600;
+    @apply outline-none ring-offset-2 focus-visible:ring-2;
+    --tw-ring-color: rgb(var(--ring));
+    --tw-ring-offset-color: rgb(var(--surface));
   }
 
-  /* Honour the iOS/Android home-indicator safe area on the fixed bottom bar. */
+  /*
+   * Skip link. Previously there was none, so a keyboard or switch user landed
+   * at the top of a sidebar carrying up to 24 links and had to traverse every
+   * one of them before reaching the content — on every single navigation.
+   * Off-screen until focused, then a real, visible control.
+   */
+  .skip-link {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    transform: translateY(-160%);
+    transition: transform 0.16s ease-out;
+    @apply rounded-lg bg-brand-600 px-4 py-3 text-base font-semibold text-white shadow-pop;
+  }
+  .skip-link:focus-visible {
+    transform: translateY(0);
+  }
+
+  /* Honour the iOS/Android home-indicator safe area on the fixed bottom bar.
+     These only resolve to a non-zero value because the root viewport now sets
+     `viewport-fit=cover`; before that every rule below was silently 0px. */
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .h-safe-tabbar {
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Digits that line up in a column — money, meters, quantities. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 }

@@ -87,7 +87,7 @@ export default async function ApiTokensPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <div>
-        <Link href="/machines" className="text-sm font-medium text-brand-700 hover:underline">
+        <Link href="/machines" className="text-sm font-medium text-brand-ink hover:underline">
           &larr; {t("apiTokens.back", locale)}
         </Link>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-sand-900">{t("apiTokens.title", locale)}</h1>
