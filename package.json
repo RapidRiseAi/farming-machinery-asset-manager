@@ -8,9 +8,13 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
     "test:voice": "tsx --test src/lib/assistant/*.test.ts",
     "db:test": "bash supabase/tests/run.sh",
-    "db:seed": "bash scripts/seed_local.sh"
+    "db:seed": "bash scripts/seed_local.sh",
+    "design:lint": "node scripts/design_lint.mjs",
+    "i18n:parity": "node scripts/i18n_parity.mjs",
+    "errors:check": "node scripts/error_coverage.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

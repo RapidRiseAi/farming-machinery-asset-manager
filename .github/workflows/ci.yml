@@ -36,7 +36,7 @@ jobs:
         run: bash supabase/tests/run.sh
 
   app-build:
-    name: App typecheck + build
+    name: App quality gates + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,4 +47,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm lint
+      # Every string the product shows must exist in BOTH languages. Parity only
+      # compares en to af, so a key missing from both passes it — which is how 115 keys
+      # once reached a screen reading `reportSchedules.title`.
+      - run: pnpm i18n:parity
+      # No error code ever reaches a screen as a code. This found four that resolved to
+      # nothing, one of them on the product's own sign-up form.
+      - run: pnpm errors:check
+      # NOT YET: `pnpm design:lint`. The script is committed and passes against a working
+      # tree carrying the Official Colour Palette overhaul — and fails with 302
+      # violations against what is actually in this repo, because that overhaul
+      # (tailwind.config.ts, globals.css, manifest.webmanifest, layout.tsx) has never
+      # been committed. Turn this on in the same commit that lands the palette, not
+      # before: a new gate that fails on every push gets switched off rather than read.
       - run: pnpm build

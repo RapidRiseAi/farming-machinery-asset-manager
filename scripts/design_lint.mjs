@@ -1,0 +1,252 @@
+#!/usr/bin/env node
+/**
+ * Design-system lint.
+ *
+ * The gap this closes: this project verifies its database ferociously — 64
+ * assertion banners, mutation-tested suites, a schema fingerprint — and every
+ * one of those runs against Postgres. Nothing could see the interface.
+ * `tsc` reads "text-sand-500" as a valid string, `lint` has no opinion on a
+ * 3.65:1 contrast ratio, and `next build` succeeds with pinch-zoom disabled.
+ *
+ * So each rule below is a defect that was actually found by measuring the built
+ * product, encoded so it cannot come back silently.
+ *
+ *   node scripts/design_lint.mjs          # report
+ *   node scripts/design_lint.mjs --quiet  # exit code only
+ *
+ * Exit 0 = clean, 1 = violations.
+ */
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+
+const ROOT = process.cwd();
+const SRC = join(ROOT, "src");
+const QUIET = process.argv.includes("--quiet");
+
+// ── The palette ─────────────────────────────────────────────────────────────
+const BRAND = {
+  green: "#00572c",
+  gold: "#eaa50c",
+  black: "#000000",
+  cream: "#f7f3e8",
+  white: "#ffffff",
+  charcoal: "#242824",
+  warmGrey: "#e6e2d7",
+};
+
+// ── Contrast maths (WCAG 2.1) ───────────────────────────────────────────────
+const rgb = (h) => {
+  h = h.replace("#", "");
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+};
+const lum = (c) =>
+  c
+    .map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    })
+    .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+export const ratio = (a, b) => {
+  const [l1, l2] = [lum(rgb(a)), lum(rgb(b))];
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+};
+
+// ── Walk ────────────────────────────────────────────────────────────────────
+function walk(dir, out = []) {
+  for (const e of readdirSync(dir)) {
+    if (e === "node_modules" || e === ".next" || e.startsWith(".")) continue;
+    const p = join(dir, e);
+    const s = statSync(p);
+    if (s.isDirectory()) walk(p, out);
+    else if (/\.(tsx|ts|css)$/.test(p)) out.push(p);
+  }
+  return out;
+}
+
+const twSrcPath = join(ROOT, "tailwind.config.ts");
+const files = existsSync(SRC) ? walk(SRC) : [];
+const rel = (p) => relative(ROOT, p).split(sep).join("/");
+const violations = [];
+const add = (rule, file, line, detail) =>
+  violations.push({ rule, file: rel(file), line, detail });
+
+// Files exempt from a rule, with the reason.
+const EXEMPT = {
+  // The kit's own primitives legitimately name every token.
+  "no-stock-colour": [/src\/components\/ui\/(badge|status)\.tsx$/],
+  // A miniature of a PRINTED document, deliberately mirroring the PDF renderer
+  // so a partner sees their real letterhead. The kit's app styling (uppercase
+  // headers, hover rows, app padding) would make it stop looking like paper,
+  // which is the one thing it exists to do. It carries scope="col" by hand.
+  "use-kit-Table": [/src\/components\/documents\/document-preview\.tsx$/],
+};
+const exempt = (rule, file) =>
+  (EXEMPT[rule] || []).some((re) => re.test(rel(file)));
+
+/**
+ * The tokens that actually exist, read from the config itself rather than
+ * duplicated here — a hand-kept copy would drift and this rule's whole job is to
+ * catch drift. Parses the scale keys out of `tailwind.config.ts`.
+ */
+const DEFINED = (() => {
+  const out = {};
+  const src = existsSync(twSrcPath) ? readFileSync(twSrcPath, "utf8") : "";
+  for (const family of ["brand", "gold", "sand", "danger", "status", "callout"]) {
+    const m = src.match(new RegExp(`\\b${family}:\\s*\\{([\\s\\S]*?)\\n\\s*\\},`));
+    const keys = new Set();
+    if (m) for (const k of m[1].matchAll(/^\s*"?([a-zA-Z0-9-]+)"?:\s*"/gm)) keys.add(k[1]);
+    out[family] = keys;
+  }
+  // `DEFAULT` is addressed as the bare family name (e.g. `bg-surface`).
+  return out;
+})();
+
+// Stock Tailwind palettes that are NOT the FleetWise palette.
+const STOCK =
+  "slate|gray|grey|zinc|neutral|stone|red|orange|amber|yellow|lime|green|" +
+  "emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
+const STOCK_RE = new RegExp(
+  `\\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|shadow|decoration|accent|caret|placeholder)-(?:${STOCK})-(?:50|100|200|300|400|500|600|700|800|900|950)\\b`,
+  "g",
+);
+
+for (const f of files) {
+  const src = readFileSync(f, "utf8");
+  const lines = src.split(/\r?\n/);
+
+  lines.forEach((ln, i) => {
+    const n = i + 1;
+
+    // 1 — no stock Tailwind colours: the palette above is the whole palette.
+    if (!exempt("no-stock-colour", f)) {
+      for (const m of ln.matchAll(STOCK_RE)) add("no-stock-colour", f, n, m[0]);
+    }
+
+    // 2 — no arbitrary type sizes: there were 32 distinct sizes in use, 24 of
+    //     them one-offs, four within 0.15rem of each other.
+    //     `em` is exempt and deliberately so: it sizes relative to the parent,
+    //     which is the correct way to scale an icon inside a button whose own
+    //     size varies. Only absolute one-offs are the problem.
+    for (const m of ln.matchAll(/\btext-\[[0-9.]+(?:rem|px)\]/g))
+      add("no-arbitrary-type", f, n, m[0]);
+
+    // 3 — gold may not carry text above gold-600. #EAA50C is 1.92:1 on cream.
+    for (const m of ln.matchAll(/\btext-gold-(50|100|200|300|400|500)\b/g))
+      add("gold-not-text", f, n, `${m[0]} — gold-500 is 1.92:1 on cream; use text-gold-600+`);
+
+    // 4 — white on gold is 2.12:1. The fill recipe is bg-gold-500 text-sand-950.
+    //     Both halves must be UNPREFIXED: `active:bg-gold-600 active:text-white`
+    //     is a different pair (5.12:1) and legitimate, so a bare substring test
+    //     would flag the one correct use of gold in the kit.
+    if (/(?<![:\w-])bg-gold-(400|500)\b/.test(ln) && /(?<![:\w-])text-white\b/.test(ln))
+      add("gold-fill-recipe", f, n, "white on gold = 2.12:1 — use text-sand-950");
+
+    // 5 — sand-300 and lighter are never text (300 is the control-border step).
+    for (const m of ln.matchAll(/\btext-sand-(50|100|200|300)\b/g))
+      add("neutral-too-light", f, n, `${m[0]} — not a text colour`);
+
+    // 6 — every image goes through <Photo>: dimensions + lazy + real alt.
+    if (/<img\s/.test(ln) && !/src\/components\/ui\/photo\.tsx$/.test(rel(f)))
+      add("use-Photo", f, n, "raw <img> — use <Photo> (sized, lazy, alt)");
+
+    // 7 — hand-rolled tables lose scope="col" and aria-sort.
+    //     Exemptions, all real: table.tsx IS the wrapper this rule points at;
+    //     `role="presentation"` declares a LAYOUT table, which is the only
+    //     reliable way to lay out an HTML email and carries no data semantics
+    //     to lose; and see EXEMPT above for the printed-document miniature.
+    if (
+      /<table[\s>]/.test(ln) &&
+      !/role="presentation"/.test(ln) &&
+      !/src\/components\/ui\/table\.tsx$/.test(rel(f)) &&
+      !exempt("use-kit-Table", f)
+    )
+      add("use-kit-Table", f, n, "raw <table> — use the kit's Table/Th");
+
+    // 8 — pinch-zoom must stay available (WCAG 1.4.4).
+    if (/maximumScale\s*:/.test(ln) || /maximum-scale/.test(ln))
+      add("no-maximum-scale", f, n, "disables pinch-zoom — WCAG 1.4.4 failure");
+
+    // 9 — a token that is not defined renders as NOTHING, silently. This was
+    //     real: `status-warn` and `status-bad` were used 19 times across 13
+    //     files and defined in no version of the config, so the cells meant to
+    //     read as a caution rendered as ordinary body text.
+    for (const m of ln.matchAll(/\b(?:text|bg|border|ring|fill|stroke)-(status|brand|gold|sand|danger|callout)-([a-z0-9-]+)/g)) {
+      if (!DEFINED[m[1]]?.has(m[2])) add("unknown-token", f, n, `${m[0]} — no such token`);
+    }
+  });
+
+  // 9 — theme colours must be tokens, checked across config files below too.
+  if (/globals\.css$/.test(rel(f)) && !/--surface/.test(src))
+    add("semantic-tokens", f, 0, "semantic surface tokens missing");
+}
+
+// ── Config-level checks ─────────────────────────────────────────────────────
+const manifestPath = join(ROOT, "public", "manifest.webmanifest");
+if (existsSync(manifestPath)) {
+  const m = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if ((m.theme_color || "").toLowerCase() !== BRAND.green)
+    add("manifest-brand", manifestPath, 0, `theme_color ${m.theme_color} should be ${BRAND.green}`);
+  if ((m.background_color || "").toLowerCase() !== BRAND.cream)
+    add("manifest-brand", manifestPath, 0, `background_color ${m.background_color} should be ${BRAND.cream}`);
+}
+
+// ── Contrast self-test: the token scale must keep its promises ──────────────
+const CONTRACT = [
+  ["sand-500 secondary text on cream", "#5d5a52", BRAND.cream, 4.5],
+  ["sand-500 secondary text on white", "#5d5a52", BRAND.white, 4.5],
+  ["sand-400 placeholder on cream", "#716e64", BRAND.cream, 4.5],
+  ["sand-300 control border on cream", "#8f8b7f", BRAND.cream, 3.0],
+  ["sand-900 body text on cream", BRAND.charcoal, BRAND.cream, 4.5],
+  ["white on brand-600 button", BRAND.white, BRAND.green, 4.5],
+  ["brand-600 as text on cream", BRAND.green, BRAND.cream, 4.5],
+  ["black on gold-500 fill", BRAND.black, BRAND.gold, 4.5],
+  ["gold-600 as text on cream", "#936505", BRAND.cream, 4.5],
+  ["status-due on cream", "#8a5e05", BRAND.cream, 4.5],
+  ["status-overdue on cream", "#b3201f", BRAND.cream, 4.5],
+  ["status-ok on cream", BRAND.green, BRAND.cream, 4.5],
+];
+const contrastFails = CONTRACT.filter(([, a, b, need]) => ratio(a, b) < need);
+
+// Guard the config actually still holds these values.
+const twPath = join(ROOT, "tailwind.config.ts");
+if (existsSync(twPath)) {
+  const tw = readFileSync(twPath, "utf8").toLowerCase();
+  for (const [name, hex] of Object.entries(BRAND)) {
+    if (name === "white") continue;
+    if (!tw.includes(hex)) add("brand-anchor-missing", twPath, 0, `${name} ${hex} not found in the token config`);
+  }
+}
+
+// ── Report ──────────────────────────────────────────────────────────────────
+const byRule = violations.reduce((a, v) => ((a[v.rule] ||= []).push(v), a), {});
+const RULE_TEXT = {
+  "no-stock-colour": "Stock Tailwind colour outside the FleetWise palette",
+  "no-arbitrary-type": "Arbitrary text size — use the scale",
+  "gold-not-text": "Gold lighter than 600 used as text (1.92:1)",
+  "gold-fill-recipe": "White on gold (2.12:1) — use text-sand-950",
+  "neutral-too-light": "Neutral too light to be text",
+  "use-Photo": "Raw <img> — no dimensions, no lazy loading",
+  "use-kit-Table": "Raw <table> — loses scope=col and aria-sort",
+  "no-maximum-scale": "Pinch-zoom disabled — WCAG 1.4.4",
+  "manifest-brand": "PWA manifest colour is not a brand token",
+  "unknown-token": "Token is not defined — renders as nothing",
+  "brand-anchor-missing": "A brand anchor colour is missing from the tokens",
+  "semantic-tokens": "Semantic surface tokens missing",
+};
+
+if (!QUIET) {
+  console.log(`\nFleetWise design lint — ${files.length} files\n${"─".repeat(64)}`);
+  if (!violations.length) console.log("  No violations.");
+  for (const [rule, vs] of Object.entries(byRule).sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`\n  ${rule}  (${vs.length})  — ${RULE_TEXT[rule] || ""}`);
+    const shown = vs.slice(0, 12);
+    for (const v of shown) console.log(`    ${v.file}${v.line ? ":" + v.line : ""}  ${v.detail}`);
+    if (vs.length > shown.length) console.log(`    … and ${vs.length - shown.length} more`);
+  }
+  console.log(`\n${"─".repeat(64)}\n  Contrast contract: ${CONTRACT.length - contrastFails.length}/${CONTRACT.length} pass`);
+  for (const [name, a, b, need] of contrastFails)
+    console.log(`    FAIL ${name} — ${ratio(a, b).toFixed(2)}:1, need ${need}`);
+  console.log(`  Violations: ${violations.length}\n`);
+}
+
+process.exit(violations.length || contrastFails.length ? 1 : 0);
