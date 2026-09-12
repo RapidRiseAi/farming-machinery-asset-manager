@@ -4234,7 +4234,20 @@
     "dunningNote": "Niks word ooit weens wanbetaling uitgevee nie — die plan word verminder en die plaas behou elke rekord. Betaling herstel presies wat hulle gehad het. Hierdie waardes word in die databasis verander, en die ouditlog teken aan wie dit verander het.",
     "savedPlanNow": "Opgegradeer. Die kenmerke is nou aan en die verskil vir die res van hierdie tydperk is gefaktureer.",
     "savedPlanScheduled": "Geskeduleer. Niks verander voordat die tydperk waarvoor hulle reeds betaal het, eindig nie — daar is geen terugbetaling om te maak nie.",
-    "savedPlanUnchanged": "Hulle was reeds op daardie plan. Niks is verander nie en niks is gehef nie."
+    "savedPlanUnchanged": "Hulle was reeds op daardie plan. Niks is verander nie en niks is gehef nie.",
+    "cronTitle": "Loop die skedule nog?",
+    "cronLead": "Albei nagtake teken elke lopie hier aan. Die rekeningloop skryf niks anders wanneer niks betaalbaar is nie, so dit is die enigste plek wat vir jou kan sê dat dit geloop het.",
+    "cronNone": "Nog niks aangeteken nie. Lopies word vanaf die eerste slag ná hierdie ontplooiing aangeteken, so 'n nuwe ontplooiing wys niks tot die volgende 03:00 nie.",
+    "cronColRoute": "Taak",
+    "cronColLast": "Laas begin",
+    "cronColRuns": "Lopies (7 dae)",
+    "cronColState": "Toestand",
+    "cronHoursAgo": "{hours} uur gelede",
+    "cronFailures": "{n} het misluk",
+    "cronOk": "Loop",
+    "cronLate": "Het nie geloop nie",
+    "cronHung": "Begin, nooit klaargemaak nie",
+    "cronFailed": "Laaste lopie het misluk"
   },
   "billingReceipt": {
     "title": "Kwitansie",

@@ -42,6 +42,18 @@ import {
   type SubscriptionRow,
 } from "@/lib/billing/view";
 
+/** One row of `public.cron_health()` — a scheduled route and how it has been behaving. */
+type CronHealthRow = {
+  route: string;
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_ok: boolean | null;
+  hours_since: number | string | null;
+  runs_7d: number;
+  failures_7d: number;
+  unfinished_7d: number;
+};
+
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge, Badge } from "@/components/ui/badge";
@@ -125,6 +137,14 @@ export default async function AdminBillingPage({
         .order("created_at", { ascending: false }),
       supabase.from("farms").select(FARM_BILLING_COLUMNS).order("name", { ascending: true }),
     ]);
+
+  // Has the schedule actually been firing? The nightly pass can be inferred from the
+  // notifications it writes; the billing pass writes NOTHING when nothing is due, so
+  // until the ledger existed a cron that had fired every night and one that had never
+  // fired produced identical evidence (20260912120000). SECURITY INVOKER the whole way
+  // down, so a non-admin gets an empty list from RLS rather than from a check here.
+  const { data: cronData } = await supabase.rpc("cron_health");
+  const cron = (cronData as CronHealthRow[] | null) ?? [];
 
   const settings = (settingsData as BillingSettingsRow | null) ?? null;
   const prices = (priceData as PriceRow[] | null) ?? [];
@@ -210,6 +230,101 @@ export default async function AdminBillingPage({
                   : undefined
         }
       />
+
+      {/* ── Is the schedule still running? ──────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("adminBilling.cronTitle", locale)}</CardTitle>
+        </CardHeader>
+        <p className="text-sm text-sand-700">{t("adminBilling.cronLead", locale)}</p>
+
+        {cron.length === 0 ? (
+          // Not an error state and not an empty table: before this ledger existed there
+          // was nothing to read, and a brand-new deployment has not had a 03:00 yet.
+          <p className="mt-3 rounded-lg bg-sand-50 px-3 py-2.5 text-sm text-sand-700">
+            {t("adminBilling.cronNone", locale)}
+          </p>
+        ) : (
+          <div className="mt-3">
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>{t("adminBilling.cronColRoute", locale)}</Th>
+                  <Th>{t("adminBilling.cronColLast", locale)}</Th>
+                  <Th className="text-right">{t("adminBilling.cronColRuns", locale)}</Th>
+                  <Th>{t("adminBilling.cronColState", locale)}</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {cron.map((c) => {
+                  const hours = Number(c.hours_since ?? 0);
+                  // A daily job that last started more than 36 hours ago has missed one.
+                  // Not 24: Vercel fires a daily cron within its hour, so a run at 03:05
+                  // followed by one at 03:55 is 50 minutes of ordinary drift, and a
+                  // threshold that cried wolf on that would be switched off inside a week.
+                  const late = hours > 36;
+                  const hung = c.last_finished_at === null && hours > 1;
+                  return (
+                    <Tr key={c.route}>
+                      <Td className="font-medium text-sand-900">{c.route}</Td>
+                      <Td className="whitespace-nowrap text-sand-700">
+                        {c.last_started_at ? dateTime(c.last_started_at, locale) : "—"}
+                        <span className="block text-xs text-sand-500">
+                          {t("adminBilling.cronHoursAgo", locale).replace(
+                            "{hours}",
+                            String(Math.round(hours)),
+                          )}
+                        </span>
+                      </Td>
+                      <Td className="text-right tabular-nums">
+                        {c.runs_7d}
+                        {c.failures_7d > 0 ? (
+                          <span className="block text-xs text-status-bad">
+                            {t("adminBilling.cronFailures", locale).replace(
+                              "{n}",
+                              String(c.failures_7d),
+                            )}
+                          </span>
+                        ) : null}
+                      </Td>
+                      <Td>
+                        {/* Three different sentences, because they need three different
+                            responses: a job that has stopped, a job that hangs, and a job
+                            whose last pass reported an error. */}
+                        {hung ? (
+                          <StatusBadge
+                            label={t("adminBilling.cronHung", locale)}
+                            tone="warning"
+                            shape="triangle"
+                          />
+                        ) : late ? (
+                          <StatusBadge
+                            label={t("adminBilling.cronLate", locale)}
+                            tone="danger"
+                            shape="square"
+                          />
+                        ) : c.last_ok === false ? (
+                          <StatusBadge
+                            label={t("adminBilling.cronFailed", locale)}
+                            tone="danger"
+                            shape="square"
+                          />
+                        ) : (
+                          <StatusBadge
+                            label={t("adminBilling.cronOk", locale)}
+                            tone="ok"
+                            shape="check"
+                          />
+                        )}
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </Tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
 
       {/* ── The safety switch, in words ─────────────────────────────────────── */}
       <Card>

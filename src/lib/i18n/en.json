@@ -4234,7 +4234,20 @@
     "dunningNote": "Nothing is ever deleted for non-payment — the plan is reduced and the farm keeps every record. Paying restores exactly what they had. These values are changed in the database, and the audit log records who changed them.",
     "savedPlanNow": "Upgraded. The features are on now and the difference for the rest of this period has been invoiced.",
     "savedPlanScheduled": "Scheduled. Nothing changes until the period they have already paid for ends — there is no refund to make.",
-    "savedPlanUnchanged": "They were already on that plan. Nothing was changed and nothing was charged."
+    "savedPlanUnchanged": "They were already on that plan. Nothing was changed and nothing was charged.",
+    "cronTitle": "Is the schedule still running?",
+    "cronLead": "Both nightly jobs record every run here. The billing pass writes nothing else when nothing is due, so this is the only place that can tell you it fired.",
+    "cronNone": "Nothing recorded yet. Runs are logged from the first pass after this was deployed, so a new deployment shows nothing until the next 03:00.",
+    "cronColRoute": "Job",
+    "cronColLast": "Last started",
+    "cronColRuns": "Runs (7 days)",
+    "cronColState": "State",
+    "cronHoursAgo": "{hours} hours ago",
+    "cronFailures": "{n} failed",
+    "cronOk": "Running",
+    "cronLate": "Has not run",
+    "cronHung": "Started, never finished",
+    "cronFailed": "Last run failed"
   },
   "billingReceipt": {
     "title": "Receipt",

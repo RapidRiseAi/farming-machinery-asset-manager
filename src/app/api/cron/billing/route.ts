@@ -4,6 +4,7 @@ import { sendDueFailureNotices, sendDueReceipts } from "@/lib/billing/receipt";
 import { BILLING_RPC } from "@/lib/billing/service";
 import { reconcileStuckAttempts, runBillingCharges } from "@/lib/billing/worker";
 import { captureError } from "@/lib/observability";
+import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { bearerMatches } from "@/lib/security/bearer";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -68,6 +69,15 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient();
   const steps: Record<string, string> = {};
+
+  // Open the ledger row FIRST. Everything below writes nothing at all when nothing is
+  // due — no invoice, no claim, no receipt, no reminder — so before this, a billing cron
+  // that had fired every night and one that had never fired produced identical evidence.
+  // The row is opened rather than written at the end on purpose: a pass that dies or hits
+  // the function timeout is the pass worth knowing about.
+  const trigger =
+    new URL(request.url).searchParams.get("trigger") === "manual" ? "manual" : "schedule";
+  const runId = await startCronRun(supabase, "/api/cron/billing", trigger);
 
   const run = async (name: string, fn: string): Promise<void> => {
     const { error } = await supabase.rpc(fn);
@@ -181,8 +191,11 @@ export async function GET(request: Request) {
   }
 
   const ok = Object.values(steps).every((s) => s.startsWith("ok") || s.startsWith("skipped"));
+  // Close it with what every step actually said, so "the cron ran" and "the cron worked"
+  // stay different questions. Never throws — see the rule at the top of heartbeat.ts.
+  await finishCronRun(supabase, runId, ok, steps);
   return NextResponse.json(
-    { ok, ranAt: new Date().toISOString(), steps },
+    { ok, ranAt: new Date().toISOString(), runId, steps },
     { status: ok ? 200 : 500 },
   );
 }

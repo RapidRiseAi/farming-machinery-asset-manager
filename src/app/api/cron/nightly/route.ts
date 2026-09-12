@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
 import { bearerMatches } from "@/lib/security/bearer";
+import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { deliverPush } from "@/lib/push/deliver";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
 
@@ -52,6 +53,14 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient();
   const steps: Record<string, string> = {};
+
+  // This pass IS currently observable — its engines write notifications, which is how it
+  // was proved to be firing on Vercel's schedule. But that is a side effect, not a record:
+  // on a quiet night every engine correctly writes nothing and the evidence vanishes. Both
+  // routes keep the same ledger so the two can be compared.
+  const trigger =
+    new URL(request.url).searchParams.get("trigger") === "manual" ? "manual" : "schedule";
+  const runId = await startCronRun(supabase, "/api/cron/nightly", trigger);
 
   const run = async (name: string, fn: string): Promise<void> => {
     const { error } = await supabase.rpc(fn);
@@ -146,8 +155,9 @@ export async function GET(request: Request) {
   }
 
   const ok = Object.values(steps).every((s) => s === "ok" || s.startsWith("skipped") || s.startsWith("ok"));
+  await finishCronRun(supabase, runId, ok, steps);
   return NextResponse.json(
-    { ok, ranAt: new Date().toISOString(), steps },
+    { ok, ranAt: new Date().toISOString(), runId, steps },
     { status: ok ? 200 : 500 }
   );
 }

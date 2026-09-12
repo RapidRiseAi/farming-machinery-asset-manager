@@ -5117,7 +5117,265 @@ begin
   end if;
 
   raise notice '   a draft stays a draft; an issued invoice settles';
-end $$;do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
+end $$;
+-- ═════════════════════════════════════════════════════════════════════════════
+-- (aa) The cron ledger — "did it run last night?"
+--
+-- This section exists because the question had no answer for the one route that matters.
+-- Measured on production before the migration was written: the NIGHTLY pass is provably
+-- firing on Vercel's schedule (90 `notifications` rows in the 03:00–03:59 UTC window
+-- across 14 distinct days), but only as a side effect of those engines happening to write
+-- something. The BILLING pass writes nothing at all when nothing is due — no invoice, no
+-- claim, no receipt, no reminder — and its only output is a JSON body returned to Vercel's
+-- scheduler, which is read by nobody. A billing cron that had fired every night for six
+-- weeks and one that had never fired once produced IDENTICAL evidence.
+--
+-- So the assertions below are mostly about the ledger being trustworthy rather than about
+-- it being clever: it must record a start (not only a finish), it must not be writable by
+-- a browser (a forged clean run history for a billing pass that never happened is the one
+-- lie this table exists to prevent), it must not grow for ever, and — the (m) lesson,
+-- applied to a different caller — the wrapper names and their PARAMETER names must match
+-- what `src/lib/cron/heartbeat.ts` calls, or the rpc resolves to no function and the
+-- heartbeat silently records nothing while reporting success.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+do $$
+declare
+  v_run   uuid;
+  v_run2  uuid;
+  v_oid   oid;
+  r       record;
+  n       integer;
+  v_ok    boolean;
+  v_fin   timestamptz;
+  v_bad   text := '';
+begin
+  raise notice '── BILLING (aa): the cron ledger ────────────────────────────────';
+
+  -- (a) Structure. FORCE RLS, because a table only Rapid Rise may read must not be
+  -- readable by the table owner's own session either.
+  if not exists (
+    select 1 from pg_class c join pg_namespace s on s.oid = c.relnamespace
+     where s.nspname = 'public' and c.relname = 'cron_runs'
+       and c.relrowsecurity and c.relforcerowsecurity
+  ) then
+    raise exception 'BILLING FAIL [aa]: cron_runs is missing or not FORCE RLS';
+  end if;
+
+  -- Half a finish is a bug, not a state. A finished_at with no verdict would read as
+  -- "ran and we do not know", which is exactly the ambiguity this table removes.
+  begin
+    insert into public.cron_runs (route, finished_at) values ('/x', now());
+    raise exception 'BILLING FAIL [aa]: a row with finished_at and no ok was accepted';
+  exception when check_violation then null;
+  end;
+
+  -- (b) Grants. A browser may READ (the admin screen renders it) and may never write.
+  if has_table_privilege('anon', 'public.cron_runs', 'select') then
+    raise exception 'BILLING FAIL [aa]: anon can read the cron ledger';
+  end if;
+  if not has_table_privilege('authenticated', 'public.cron_runs', 'select') then
+    raise exception 'BILLING FAIL [aa]: authenticated cannot read it — the admin screen is blank';
+  end if;
+  if has_table_privilege('authenticated', 'public.cron_runs', 'insert')
+     or has_table_privilege('authenticated', 'public.cron_runs', 'update')
+     or has_table_privilege('authenticated', 'public.cron_runs', 'delete') then
+    raise exception 'BILLING FAIL [aa]: a browser session can WRITE the cron ledger — it could '
+      'forge a clean run history for a billing pass that never happened';
+  end if;
+  if not has_table_privilege('service_role', 'public.cron_runs', 'insert')
+     or not has_table_privilege('service_role', 'public.cron_runs', 'update') then
+    raise exception 'BILLING FAIL [aa]: the service role cannot record a run';
+  end if;
+
+  -- (c) Function lockdown, the section (j) rules applied to these four.
+  for r in
+    select p.oid, n2.nspname, p.proname, p.prosecdef, p.proconfig
+      from pg_proc p join pg_namespace n2 on n2.oid = p.pronamespace
+     where (n2.nspname = 'app'    and p.proname in ('cron_run_start','cron_run_finish','cron_health'))
+        or (n2.nspname = 'public' and p.proname in ('cron_run_start','cron_run_finish','cron_health'))
+  loop
+    n := coalesce(n, 0) + 1;
+
+    if has_function_privilege('public', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: %.% is executable by PUBLIC — the PostgreSQL default '
+        'that put app.stock_needs_reorder and public._f14_probe on the wrong side of the fence',
+        r.nspname, r.proname;
+    end if;
+    if has_function_privilege('anon', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: %.% is executable by anon', r.nspname, r.proname;
+    end if;
+
+    -- Only the read-only health view is open to a signed-in session, and RLS still
+    -- decides what it returns. The two WRITERS are service-role only, in both schemas.
+    if r.proname in ('cron_run_start','cron_run_finish')
+       and has_function_privilege('authenticated', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: %.% is executable by `authenticated` — a browser '
+        'could open and close cron runs', r.nspname, r.proname;
+    end if;
+    if r.nspname = 'app' and r.proname in ('cron_run_start','cron_run_finish')
+       and has_function_privilege('service_role', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: app.% is directly executable by service_role. The '
+        'engine is reached through its public.* wrapper — the rule section (j) enforces for '
+        'every other engine in this product.', r.proname;
+    end if;
+    if r.nspname = 'public' and r.proname in ('cron_run_start','cron_run_finish')
+       and not has_function_privilege('service_role', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: public.% is not executable by service_role — the cron '
+        'route cannot record that it ran', r.proname;
+    end if;
+    if r.proname = 'cron_health'
+       and not has_function_privilege('authenticated', r.oid, 'EXECUTE') then
+      raise exception 'BILLING FAIL [aa]: %.cron_health lost its authenticated grant', r.nspname;
+    end if;
+
+    if r.prosecdef and (r.proconfig is null
+        or not exists (select 1 from unnest(r.proconfig) c where c like 'search_path=%')) then
+      raise exception 'BILLING FAIL [aa]: %.% is SECURITY DEFINER with no pinned search_path',
+        r.nspname, r.proname;
+    end if;
+  end loop;
+
+  if coalesce(n, 0) <> 6 then
+    raise exception 'BILLING FAIL [aa]: found % of the 6 cron-ledger functions. A rename must '
+      'fail here rather than silently shrinking the sweep.', coalesce(n, 0);
+  end if;
+
+  -- (d) The rpc surface, with PARAMETER names. PostgREST resolves overloads by the named
+  -- arguments in the JSON body, so a rename breaks the call as completely as a deletion —
+  -- and the heartbeat swallows its own errors by design, so it would record nothing and
+  -- say nothing. Section (m) exists because exactly this cost the charging path.
+  for r in
+    select * from (values
+      ('cron_run_start',  'p_route text, p_trigger text'),
+      ('cron_run_finish', 'p_run uuid, p_ok boolean, p_steps jsonb'),
+      ('cron_health',     '')
+    ) as t(fn, args)
+  loop
+    select p.oid into v_oid
+      from pg_proc p join pg_namespace n2 on n2.oid = p.pronamespace
+     where n2.nspname = 'public' and p.proname = r.fn
+       and pg_get_function_identity_arguments(p.oid) = r.args;
+    if v_oid is null then
+      v_bad := v_bad || ' public.' || r.fn || '(' || r.args || ')';
+    end if;
+    v_oid := null;
+  end loop;
+  if v_bad <> '' then
+    raise exception 'BILLING FAIL [aa]: heartbeat.ts calls these and they do not exist with '
+      'these parameter names:%', v_bad;
+  end if;
+
+  raise notice '   the ledger is rr-admin read-only, service-role write, and reachable';
+end $$;
+
+
+-- What the ledger actually does with a run.
+do $$
+declare
+  v_run  uuid;
+  v_row  record;
+  v_old  uuid;
+begin
+  -- A run that has begun and not finished. This is the shape that matters: a pass killed
+  -- by Vercel's function timeout leaves exactly this, and a ledger that only recorded
+  -- finishes would show nothing at all for the night it mattered most.
+  v_run := app.cron_run_start('/api/cron/billing');
+  select * into v_row from public.cron_runs where id = v_run;
+  if v_row.finished_at is not null or v_row.ok is not null then
+    raise exception 'BILLING FAIL [aa]: a freshly started run is already finished';
+  end if;
+  if v_row.trigger <> 'schedule' then
+    raise exception 'BILLING FAIL [aa]: default trigger is "%" not "schedule"', v_row.trigger;
+  end if;
+
+  -- Closing it records the verdict AND what each step said, so "it ran" and "it worked"
+  -- stay separable.
+  perform app.cron_run_finish(v_run, false, '{"charges":"error: boom","reminders":"ok"}'::jsonb);
+  select * into v_row from public.cron_runs where id = v_run;
+  if v_row.finished_at is null then
+    raise exception 'BILLING FAIL [aa]: finishing a run did not close it';
+  end if;
+  if v_row.ok is not false then
+    raise exception 'BILLING FAIL [aa]: a failed pass was recorded as ok = %', v_row.ok;
+  end if;
+  if v_row.steps->>'charges' <> 'error: boom' then
+    raise exception 'BILLING FAIL [aa]: the step detail was not kept';
+  end if;
+
+  -- The FIRST answer stands. A retried or duplicated finish must not rewrite a closed run
+  -- — otherwise a later success could paint over the failure somebody needs to see.
+  perform app.cron_run_finish(v_run, true, '{"charges":"ok"}'::jsonb);
+  select * into v_row from public.cron_runs where id = v_run;
+  if v_row.ok is not false or v_row.steps->>'charges' <> 'error: boom' then
+    raise exception 'BILLING FAIL [aa]: a second finish rewrote a closed run';
+  end if;
+
+  -- A manual run is recorded as manual. "It works when I run it by hand" is precisely the
+  -- answer that hides a schedule that has stopped, so the two must not look alike.
+  v_run := app.cron_run_start('/api/cron/billing', 'manual');
+  if (select trigger from public.cron_runs where id = v_run) <> 'manual' then
+    raise exception 'BILLING FAIL [aa]: a manual run was recorded as scheduled';
+  end if;
+  -- Anything that is not the word `manual` is a schedule, rather than an error: the value
+  -- arrives from a query string.
+  v_run := app.cron_run_start('/api/cron/billing', 'nonsense');
+  if (select trigger from public.cron_runs where id = v_run) <> 'schedule' then
+    raise exception 'BILLING FAIL [aa]: an unrecognised trigger was not treated as scheduled';
+  end if;
+
+  -- Bounded without anybody remembering. An operational table that only grows is a
+  -- problem nobody notices until it is one.
+  insert into public.cron_runs (route, started_at, finished_at, ok)
+  values ('/api/cron/billing', now() - interval '200 days', now() - interval '200 days', true)
+  returning id into v_old;
+  perform app.cron_run_start('/api/cron/nightly');
+  if exists (select 1 from public.cron_runs where id = v_old) then
+    raise exception 'BILLING FAIL [aa]: a 200-day-old run survived the prune';
+  end if;
+  -- And the prune is not a blunt DELETE: today's rows must still be there.
+  if not exists (select 1 from public.cron_runs where id = v_run) then
+    raise exception 'BILLING FAIL [aa]: the prune took a run from today';
+  end if;
+
+  raise notice '   a start is recorded before a finish, and the first verdict stands';
+end $$;
+
+
+-- Who may read it, decided by RLS rather than by a check in a function body.
+do $$
+declare
+  v_admin integer;
+  v_owner integer;
+begin
+  perform public._t_login('b1a00000-0000-0000-0000-00000000000a');   -- rr_admin
+  set local role authenticated;
+  select count(*) into v_admin from public.cron_health();
+  reset role;
+
+  perform public._t_login('b1a00000-0000-0000-0000-000000000001');   -- a farm owner
+  set local role authenticated;
+  select count(*) into v_owner from public.cron_health();
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims', '', false);
+
+  if v_admin < 2 then
+    raise exception 'BILLING FAIL [aa]: Rapid Rise sees % scheduled routes, expected both', v_admin;
+  end if;
+  -- The assertion that is worth having: a farm owner reads NOTHING, and reads nothing
+  -- because `cron_runs_sel` says so, not because a body forgot to filter. The admin count
+  -- above is the positive control — without it this would pass just as happily against an
+  -- empty table.
+  if v_owner <> 0 then
+    raise exception 'BILLING FAIL [aa]: a farm owner reads % rows of Rapid Rise''s cron health',
+      v_owner;
+  end if;
+
+  raise notice '   Rapid Rise reads both routes; a farm owner reads none';
+end $$;
+
+
+do $$ begin raise notice ''; raise notice '════════ BILLING: all sections passed ════════'; end $$;
 select 'ALL BILLING SUBSCRIPTION TESTS PASSED' as result;
 
 rollback;
