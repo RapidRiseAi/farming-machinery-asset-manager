@@ -275,7 +275,46 @@ delivery layer. **Billing works with no WhatsApp anywhere near it.**
 
 ## 11b. Refunds and disputes
 
-**Founder decision, 11 September 2026.** There is no refund button in FleetWise and there
+**Founder decision, 12 September 2026 — the whole policy.**
+
+Money only goes back when a person decides it should, one case at a time. The two ordinary
+ways a farm ends up paying less are not refunds at all, and both already happen without
+anybody doing anything:
+
+| What they do | What happens | Refund? |
+|---|---|---|
+| **Move to a cheaper plan mid-cycle** (say R89 → R73) | They keep the plan they paid for until the period ends, then pay the smaller amount. `pending_plan` / `apply_pending_plan_changes`. | **No** |
+| **Cancel** | Access runs to the end of the period they paid for, and they are simply not charged again. `cancel_at_period_end`, true by default. | **No** |
+| **Upgrade mid-cycle** | Charged the pro-rata difference immediately — the direction that costs them money is the one that does not wait. | n/a |
+
+What is left is genuinely individual, and there are only really three of them: *"I do not
+recognise this deduction"*, *"you charged me after I cancelled"*, and *"somebody used my
+card"*. Each is decided on its own facts. None of them is policy that can be automated,
+because the same webhook arrives in all three cases and says nothing about which one it is.
+
+**So every one becomes a support case** (`20260912160000`). A `charge.dispute.*` or a
+`refund.processed` opens a ticket with the farm, the owner and how to reach them, the
+subscription, the invoice, every payment on it (refunds included, so *"have we already
+given some back?"* is answered before it is asked), the card, the attempt history and the
+vehicle count — gathered at open time and frozen, so the ticket read next month shows what
+was true when the complaint arrived. Cases are worked in the **RapidRise OS support
+dashboard**; `20260912170000` posts them there, and `/admin/support` lists them here so a
+case is never invisible when that connection is down.
+
+**The card is labelled rather than asserted.** `evidence.card.source` is `charged` only when
+the attempt genuinely used that card, and `farm_default` when it is merely the card on
+file — which is the common case, because a first payment goes through hosted checkout and
+captures the card during the transaction rather than charging one we hold. Presenting the
+second as the first would hand somebody an identification they never made, in a case that
+may end with a person being told their card was used without permission.
+
+**The refund itself is still made in Paystack**, by the person handling the conversation.
+There is no refund button in FleetWise and there is not going to be one.
+
+---
+
+**Founder decision, 11 September 2026**, kept because it is still the right answer to the
+narrower question of what a refund does to a subscription once one has been made. There is no refund button in FleetWise and there
 is not going to be one. A refund is made through Paystack by whoever is handling the
 conversation, and what happens to the subscription depends on *why*:
 

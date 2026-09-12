@@ -2980,4 +2980,69 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   supersedes them. `docs/PAYSTACK_GO_LIVE.md` carries the corrected figure, the upgrade
   requirements, and the one-line check against your own account, which is the only
   authoritative source: a published limit is a default and an account can differ.
+
+- **The refund policy decided, support cases that gather their own evidence, and a Paystack
+  tier that was never what the notes said** (migrations `20260912160000`,
+  `20260912170000`; commits `387799f`/`d22e6cc`/`2f78fee` on `main`; CI green):
+  - **Rapid Rise AI is a Paystack REGISTERED BUSINESS** — confirmed from the dashboard:
+    Approved, Live, documents uploaded, director on file, ZAR payouts enabled to a Capitec
+    Business account. **Registered Businesses have no collections cap**, so the entire cap
+    thread in the entries above is moot. It was wrong twice over: recorded here as
+    **R80 000**, published by Paystack as **ZAR 1 000 000** for a South African Starter, and
+    applicable to this account in neither form. The failure was carrying a note about an
+    EXTERNAL account forward instead of looking it up — **for anything that lives in someone
+    else's dashboard, check the dashboard.**
+  - **The refund policy, decided (BILLING.md §11b).** Money goes back only when a person
+    decides, case by case. The two ordinary ways a farm pays less are not refunds and
+    already happen unaided — a mid-cycle DOWNGRADE keeps the paid-for plan to period end
+    then charges less, a CANCELLATION keeps access to period end and simply does not charge
+    again. Both were verified against the code before being written down as policy.
+  - **What is left is three cases** — "I do not recognise this deduction", "you charged me
+    after I cancelled", "somebody used my card" — and none can be automated, because the
+    same webhook arrives for all three and says nothing about which. So each becomes a
+    **support case** with the farm, the owner and how to reach them, the subscription, the
+    invoice, every payment on it (refunds included, so "have we already given some back?" is
+    answered before it is asked), the card, the attempt history and the vehicle count,
+    gathered at open time and frozen. Idempotent on the provider's own reference, so
+    Paystack's 72 hours of redeliveries refresh one case — and never rewrite evidence that
+    is contemporaneous with the complaint.
+  - **The deadline chase**, worth building whatever was decided: a card dispute gives roughly
+    48 business hours before Paystack settles it for us and takes the money from a payout.
+    The nightly billing pass chases any case whose deadline is near, at most once a day each
+    — a deadline that shouts hourly gets muted, and a muted alarm is worse than none.
+  - **Two defects found by RUNNING it.** A dispute webhook names a TRANSACTION, not one of
+    our payment rows, so the card came back absent on the path that matters most; and the
+    attempt behind that payment had no payment method anyway, because a first payment goes
+    through hosted checkout, which captures the card during the transaction rather than
+    charging one we hold. It now falls back to the card on file and **says which it is** —
+    `source` is `charged` only when that attempt genuinely used it, `farm_default`
+    otherwise. Presenting the second as the first would hand somebody an identification they
+    never made, in a case that may end with a person being told their card was used without
+    permission.
+  - **Delivery to RapidRise OS is env-gated and RECORDED** (`SUPPORT_WEBHOOK_URL`, optional
+    HMAC over the raw body). A failed post leaves the case unposted with the reason and the
+    nightly pass retries; twenty failures say the integration is broken rather than flaky.
+    The case is written HERE first and unconditionally, because the dispute that arrives
+    during an outage is precisely the one somebody needed. `/admin/support` lists them,
+    read-only, for the same reason. **RapidRise OS is not in this workspace**, so its
+    receiving end is not built — the contract is in `.env.example`: one POST per case,
+    upsert on `id`.
+  - **Section (j) refused the new functions on the first run**, which is its whole job.
+    `support_ticket_evidence` reads five billing tables and builds an object that LEAVES THE
+    BUILDING, so it is granted to nobody at all, reachable only through two further doors,
+    and the charging credential is absent from its column list by construction — asserted in
+    the dry run rather than trusted.
+  - **A new gate, `pnpm i18n:keys`, and the defect that prompted it.** `PageInfoButton`
+    builds `pageInfo.${infoKey}Title` at RUNTIME, so no static sweep sees it and parity
+    passes when a key is missing from BOTH dictionaries. **`/billing`, `/admin/billing` and
+    `/reports/schedules` were rendering raw keys to users** in their "What is this?" panels.
+    The gate checks static keys, dynamic stems and page-info keys; mutation-tested 3/3 with
+    a passing control, and its first version cried wolf on nine legitimate call sites that
+    use a camel-case PREFIX (`ui.statusOk`) rather than a dotted group — corrected, because
+    a checker that cries wolf stops being read.
+  - Verified: all ten suites on real PostgreSQL under BOTH collations; dry-run against
+    production in a rolled-back transaction proving the evidence assembles from real data, a
+    redelivery yields one case and the chase finds it; then applied, with RLS, grants and an
+    empty ledger checked. Eight gates green in CI; build 103 kB.
+
 > Update this "current status" block at the end of every session.
