@@ -1274,12 +1274,26 @@ declare
     'billing_billable_units','farm_vehicle_allowance','billing_enforce_vehicle_quota',
     'farm_billing_gate','create_pending_signup',
     'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups',
-    'billing_reopen_subscription','billing_record_refund'];
+    'billing_reopen_subscription','billing_record_refund',
+    -- Support tickets (20260912160000). `support_ticket_evidence` reads five billing
+    -- tables and builds an object that LEAVES THE BUILDING — it is posted to the support
+    -- dashboard — so it is the most sensitive function in this list. Granted to nobody at
+    -- all, reached only through open_support_ticket, which is reached only through its
+    -- public wrapper. The charging credential is absent from its column list by
+    -- construction rather than by the author remembering.
+    'support_ticket_evidence','open_support_ticket','due_support_escalations',
+    'escalate_support_tickets',
+    -- Delivery to the support dashboard (20260912170000). These touch no billing table, so
+    -- the completeness sweep below would not find them — but a function that can mark a
+    -- dispute "posted" belongs under the same eye, because a browser able to call it could
+    -- hide a case from the people who have two days to answer it.
+    'support_tickets_to_post','record_support_ticket_post'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
-    'cron_apply_pending_plan_changes','cron_sweep_dormant_signups'];
+    'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
+    'cron_escalate_support_tickets'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1292,7 +1306,8 @@ declare
     'billing_plan_quote','billing_change_plan','billing_notify_rr',
     'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup',
     'billing_quota_quote','billing_change_quota','billing_reopen_subscription',
-    'billing_record_refund'];
+    'billing_record_refund','open_support_ticket','support_tickets_to_post',
+    'record_support_ticket_post'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1601,6 +1616,12 @@ begin
       -- own invoice and make the debt disappear.
       ('billing_record_refund',
        'p_txn_reference text, p_refund_reference text, p_amount_cents bigint, p_at timestamp with time zone',
+       false),
+      -- Opening a support case (20260912160000). Service-role only: a browser that could
+      -- call it could forge a refund request against another farm and attach that farm's
+      -- billing detail to something a person will read and act on.
+      ('open_support_ticket',
+       'p_kind support_ticket_kind, p_subject text, p_farm uuid, p_invoice uuid, p_payment uuid, p_external_ref text, p_source_event uuid, p_due_at timestamp with time zone',
        false)
     ) as t(fn, args, browser_ok)
   loop

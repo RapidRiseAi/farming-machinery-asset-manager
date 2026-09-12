@@ -102,6 +102,38 @@ const REFUND_EVENTS = new Set([
 ]);
 
 /**
+ * A dispute's own id, or a refund's own reference — the idempotency key for its case.
+ *
+ * Deliberately NOT the transaction reference: one transaction can be disputed and later
+ * refunded, and keying both cases on the transaction would collapse two different
+ * conversations into one ticket.
+ */
+export function disputeOrRefundRef(data: Record<string, unknown>): string | null {
+  const direct = data.id ?? data.reference;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  if (typeof direct === "number") return String(direct);
+  return null;
+}
+
+/**
+ * When the dispute must be answered by.
+ *
+ * Paystack sends `due_at` on the dispute payload. Where it is missing or unreadable we fall
+ * back to 48 hours from now — the CALENDAR reading of "roughly 48 business hours", which is
+ * always EARLIER than the real deadline. That direction is deliberate: chased too early
+ * costs somebody a glance, chased too late costs the money, because Paystack accepts the
+ * dispute on our behalf and takes it out of a payout.
+ */
+export function disputeDeadline(data: Record<string, unknown>): string {
+  const raw = data.due_at ?? data.dueAt;
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+}
+
+/**
  * The reference a dispute or refund event is about.
  *
  * Paystack does not put it in the same place for every family: a charge event carries
@@ -288,6 +320,38 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
       }
     }
 
+    // ── The support case ──────────────────────────────────────────────────
+    // Opened BEFORE the alert, so the alert is never the only record: an alert is a
+    // notification and notifications get read, dismissed and forgotten, while a dispute
+    // that arrived at 3am has to survive until somebody is awake.
+    //
+    // Idempotent on (kind, external_ref), so Paystack's redeliveries — up to 72 hours of
+    // them — refresh one case rather than opening a queue of identical ones.
+    const isDispute = DISPUTE_EVENTS.has(eventType);
+    const externalRef = disputeOrRefundRef(data) ?? reference ?? null;
+    let ticket: string | null = null;
+    try {
+      const { data: ticketId, error: ticketError } = await supabase.rpc("open_support_ticket", {
+        p_kind: isDispute ? "dispute" : "refund_request",
+        p_subject: isDispute
+          ? `Card dispute on ${reference ?? "an unmatched transaction"}`
+          : `Refund processed on ${reference ?? "an unmatched transaction"}`,
+        p_farm: attempt?.farm_id ?? null,
+        p_invoice: attempt?.invoice_id ?? null,
+        p_payment: null,
+        p_external_ref: externalRef,
+        p_source_event: record.id,
+        // Only a dispute has a clock. A refund is already done; the case is a record of it.
+        p_due_at: isDispute ? disputeDeadline(data) : null,
+      });
+      ticket = ticketError ? `ticket error: ${ticketError.message}` : String(ticketId ?? "");
+    } catch (err) {
+      // A failure here must never lose the event. The alert below still fires and the
+      // webhook still returns 200, because a non-200 makes Paystack retry for 72 hours and
+      // the ledger work above has already happened.
+      ticket = `ticket error: ${err instanceof Error ? err.message : "unknown"}`;
+    }
+
     const alerted = attempt
       ? await notifyRapidRise(supabase, {
           farmId: attempt.farm_id,
@@ -297,6 +361,8 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
             reference: reference ?? null,
             invoice_id: attempt.invoice_id,
             amount_incl_cents: attempt.amount_incl_cents,
+            // So the person reading the alert can open the case rather than hunt for it.
+            ticket_id: ticket && !ticket.startsWith("ticket error") ? ticket : null,
           },
         })
       : 0;

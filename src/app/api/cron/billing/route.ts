@@ -5,6 +5,7 @@ import { BILLING_RPC } from "@/lib/billing/service";
 import { reconcileStuckAttempts, runBillingCharges } from "@/lib/billing/worker";
 import { captureError } from "@/lib/observability";
 import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
+import { postDueSupportTickets } from "@/lib/support/outbound";
 import { bearerMatches } from "@/lib/security/bearer";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -149,6 +150,25 @@ export async function GET(request: Request) {
   // to take back. Warn, never block — an expired card often still works, so refusing to
   // try would turn a probable success into a certain failure.
   await run("card_expiry", BILLING_RPC.cardExpiry);
+
+  // Chase any support case whose deadline is near — in practice a card dispute, which
+  // South Africa gives roughly 48 business hours to answer before Paystack accepts it on
+  // our behalf and takes the money out of a payout. At most one chase a day per case: a
+  // deadline that shouts every hour gets muted, and a muted alarm is worse than none.
+  await run("support_escalations", "cron_escalate_support_tickets");
+
+  // Deliver any case that has not reached the support dashboard yet. A post can fail when
+  // it is first attempted — the endpoint unset, the dashboard down — and the dispute that
+  // arrived during an outage is precisely the one somebody needed to see.
+  try {
+    const posted = await postDueSupportTickets(supabase);
+    steps["support_delivery"] = posted.skipped
+      ? `skipped (${posted.skipped})`
+      : `ok (considered ${posted.considered}, posted ${posted.posted}, failed ${posted.failed})`;
+  } catch (err) {
+    steps["support_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+    captureError(err, { where: "cron:billing:support_delivery" });
+  }
 
   // Sign-ups nobody finished. Soft-deleted after a week, and never one that has taken
   // money — a part-paid sign-up is a conversation, not a dormant row (20260911140000).

@@ -290,20 +290,23 @@ authorization, so this needs a declining card put through hosted checkout in a b
 billing cron firing on Vercel's schedule rather than being run by hand; and a refund or
 dispute moving anything in the ledger — both still only raise an alert.
 
-**Still ahead of you:** the Starter Business **lifetime collections cap**. When it is
-reached, Paystack DISABLES payments for the business until it is upgraded to a
-**Registered Business**, which has no collection limit.
+**The collections cap does not apply to this account.** Rapid Rise AI is a **Registered
+Business** — confirmed in the Paystack dashboard on 12 September 2026: Compliance shows
+"Registered Business", the account reads **Approved** and **Live**, registration documents
+are uploaded, a director is on file, the service agreement is accepted, and ZAR payouts are
+**enabled** to a Capitec Business account. Registered Businesses have **no collection
+limit**, so there is nothing to clear and nothing to watch.
 
-**Corrected 12 September 2026.** This line previously said **R80,000**. Paystack's own
-business-types page lists South Africa at **ZAR 1,000,000**, and notes that South
-Africa's *Sole Proprietorship* variant — what an unregistered SA merchant actually gets
-— has a HIGHER limit than a regular Starter. The old figure is not supported by the
-current source, and planning against it meant planning against roughly a twelfth of the
-real headroom.
+**Two corrections on 12 September 2026, in one day.** This section first said the cap was
+**R80,000**; Paystack's own business-types page puts South Africa's Starter limit at
+**ZAR 1,000,000**. Then the dashboard settled it completely: the account is not a Starter
+at all. Both the original figure and the correction to it were reasoning about a tier this
+business left behind — which is what happens when a note about an external account is
+carried forward instead of being looked up.
 
-**Check your own account rather than any article.** A published limit is a default and an
-account can differ. Compliance → Profile shows your business type; the dashboard shows
-collections to date. With your LIVE secret key:
+**Check the account, not an article** — that is the lesson worth keeping. Compliance →
+Profile shows the business type; the dashboard shows collections to date. With the LIVE
+secret key:
 
 ```bash
 curl -s -H "Authorization: Bearer $PAYSTACK_LIVE_SECRET" \
@@ -311,7 +314,9 @@ curl -s -H "Authorization: Bearer $PAYSTACK_LIVE_SECRET" \
 # total_volume is in CENTS: 100000000 = R1,000,000.00
 ```
 
-**To upgrade** (Dashboard → Compliance → Profile → Business Type), a South African
-registered business needs: the **CIPC certificate of registration**, the **CIPC
-enterprise number**, a **bank confirmation letter for the corporate account, no older
-than six months**, and **details of at least one director**.
+**If a future Rapid Rise entity ever starts as a Starter**, upgrading is Dashboard →
+Compliance → Profile → Business Type, and a South African registered business needs: the
+**CIPC certificate of registration**, the **CIPC enterprise number**, a **bank confirmation
+letter for the corporate account, no older than six months**, and **details of at least one
+director**. Kept here because it is the one thing in this file nobody will remember where
+to find.

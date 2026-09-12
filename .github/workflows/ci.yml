@@ -53,6 +53,11 @@ jobs:
       # compares en to af, so a key missing from both passes it — which is how 115 keys
       # once reached a screen reading `reportSchedules.title`.
       - run: pnpm i18n:parity
+      # And that every key the code ASKS for exists. Parity compares en to af and passes
+      # when a key is missing from BOTH — which is how 115 keys once reached a screen, and
+      # how three "What is this?" panels were rendering raw keys to customers until this
+      # gate found them. Mutation-tested 3/3 with a passing control.
+      - run: pnpm i18n:keys
       # No error code ever reaches a screen as a code. This found four that resolved to
       # nothing, one of them on the product's own sign-up form.
       - run: pnpm errors:check

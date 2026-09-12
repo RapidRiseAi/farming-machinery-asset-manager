@@ -206,6 +206,14 @@ export function formatNotification(
         amount: rands(Number(p.amount_incl_cents ?? 0)),
         event: String(p.event ?? ""),
       });
+    // A support case whose deadline is close. The hours are in the sentence because that
+    // is the entire content of the message — "a ticket is due" without saying when is a
+    // line somebody reads and postpones.
+    case "support_ticket_due":
+      return fill("notifications.tplSupportTicketDue", locale, {
+        subject: String(p.subject ?? ""),
+        hours: String(Math.max(0, Math.round(Number(p.hours_left ?? 0)))),
+      });
     default:
       return template;
   }
@@ -269,6 +277,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // one — sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.
   if (template === "billing_dispute" || template === "billing_refund") return "/admin/billing";
+  // A ticket chase goes to the list of cases, not to a farm's billing page.
+  if (template === "support_ticket_due") return "/admin/support";
   // Every other billing alert is about the same one page, and it is not a machine.
   if (template.startsWith("billing_")) return "/billing";
   if (p.machine_id) return `/machines/${p.machine_id}`;

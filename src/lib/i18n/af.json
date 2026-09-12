@@ -805,7 +805,8 @@
     "tplBillingDowngraded": "Jou pakket is na {plan} verminder omdat die intekening onbetaald is. Niks is uitgevee nie — betaal om dit terug te kry.",
     "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling.",
     "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
-    "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). As hulle daarvoor gevra het, kanselleer hul intekening dadelik op hierdie skerm. As ons terugbetaal het omdat iets aan ons kant verkeerd geloop het, laat dit loop — hulle behou die plan."
+    "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). As hulle daarvoor gevra het, kanselleer hul intekening dadelik op hierdie skerm. As ons terugbetaal het omdat iets aan ons kant verkeerd geloop het, laat dit loop — hulle behou die plan.",
+    "tplSupportTicketDue": "'n Ondersteuningsaak moet binne {hours} uur beantwoord word: {subject}. Daarna besleg Paystack dit namens ons en neem die geld."
   },
   "settings": {
     "title": "Instellings",
@@ -2065,7 +2066,23 @@
     "accountingNote": "Dit is 'n algemene joernaal, nie 'n Sage- of Xero-lêer nie. Die kolomme word een keer in jou rekenmeester se sagteware aangepas en daarna werk dit sommer net.",
     "accountTitle": "Jou rekening",
     "accountWhat": "Dit gaan oor JOU, nie die plaas nie. Die plaas se eie instellings is onder Instellings.",
-    "accountDoes": "Verander jou naam\nVerander die e-posadres waarop ons jou bereik\nStel of verander jou wagwoord\nBevestig jou e-posadres"
+    "accountDoes": "Verander jou naam\nVerander die e-posadres waarop ons jou bereik\nStel of verander jou wagwoord\nBevestig jou e-posadres",
+    "billingTitle": "Wat FleetWise jou kos",
+    "billingWhat": "Jou plan, vir hoeveel voertuie jy gehef word, wat die volgende betaling gaan wees, en elke rekening en kwitansie.",
+    "billingDoes": "Verander jou plan, of koop meer voertuigplekke\nSit 'n ander kaart op, of betaal 'n rekening wat nie deurgegaan het nie\nLaai enige faktuur af, en die kwitansie sodra dit betaal is",
+    "billingNote": "Niks word ooit uitgevee omdat 'n betaling misluk het nie. As 'n kaart ophou werk word die plan verminder, nooit die rekords nie — en betaling herstel presies wat jy gehad het.",
+    "adminBillingTitle": "Elke plaas se intekening",
+    "adminBillingWhat": "Waarop elke plaas is, wat hulle skuld, wat gehef is, en of heffing hoegenaamd aangeskakel is.",
+    "adminBillingDoes": "Begin 'n intekening vir 'n plaas wat nie een het nie\nVerander 'n plaas se plan of rekeningtydperk\nProbeer 'n heffing weer, of versoen een wat die verskaffer nooit beantwoord het nie\nSien of die nagtelike rekeningtaak nog loop",
+    "adminBillingNote": "Albei skakelaars moet aan wees voor 'n enkele rand kan beweeg. Met heffing af word betalings wat reeds geneem is steeds versoen — om dit af te skakel mag nooit iemand strand wat 'n minuut gelede betaal het nie.",
+    "adminSupportTitle": "Terugbetalings en dispute",
+    "adminSupportWhat": "Elke saak waar iemand geld terug wil hê, met die plaas, die faktuur, die betaling en die kaart reeds daarby versamel.",
+    "adminSupportDoes": "Sien watter sake 'n sperdatum het, en hoe lank daarop oor is\nLees die bewyse sonder om Paystack en ses van ons eie skerms oop te maak\nHanteer die saak self in die RapidRise OS-ondersteuningspaneel",
+    "adminSupportNote": "'n Kaartdispuut moet binne omtrent 48 besigheidsure in Paystack beantwoord word. Daarna besleg hulle dit vir ons en neem die geld uit 'n uitbetaling, wat die gesprek ook al sê.",
+    "reportSchedulesTitle": "Verslae wat hulself stuur",
+    "reportSchedulesWhat": "'n Staande opdrag om 'n verslag op 'n vasgestelde dag aan iemand te e-pos — jou rekenmeester, jou bank, jouself.",
+    "reportSchedulesDoes": "Kies die verslag, hoe gereeld, en na wie dit gaan\nSien wanneer elkeen laas gegaan het, en of dit aangekom het\nStop een sonder om te verloor wat dit reeds gestuur het",
+    "reportSchedulesNote": "'n Skedule loop een keer per tydperk selfs al loop die nagtelike taak twee keer, sodat niemand ooit dieselfde verslag twee dae agtereen ontvang nie."
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -4480,5 +4497,38 @@
     "terms": "Gebruiksvoorwaardes",
     "privacy": "Privaatheidskennisgewing",
     "reg": "Reg."
+  },
+  "adminSupport": {
+    "title": "Ondersteuningsake",
+    "lead": "Terugbetalingsversoeke en kaartdispute, met die bewyse reeds bymekaargemaak.",
+    "openTitle": "Sake",
+    "whereWorked": "Hierdie word in die RapidRise OS-ondersteuningspaneel hanteer, waar antwoorde en oplossings woon. Hulle word hier gelys sodat 'n saak nooit onsigbaar is as daardie verbinding af is nie.",
+    "emptyTitle": "Geen ondersteuningsake nie",
+    "emptyBody": "'n Kaartdispuut of 'n verwerkte terugbetaling open outomaties een, met die plaas, die faktuur, die betaling en die kaart reeds aangeheg.",
+    "colCase": "Saak",
+    "colFarm": "Oor wie dit gaan",
+    "colOpened": "Geopen",
+    "colDue": "Beantwoord teen",
+    "colState": "Toestand",
+    "overdue": "Verby die sperdatum",
+    "dueSoon": "{hours} uur oor",
+    "openCount": "{n} steeds oop.",
+    "policyTitle": "Wat die antwoord gewoonlik is",
+    "policyDowngrade": "Om midsiklus na 'n goedkoper plan te skuif word nie terugbetaal nie. Hulle behou die plan waarvoor hulle betaal het tot die tydperk eindig, en betaal dan die kleiner bedrag. Dit gebeur reeds vanself.",
+    "policyCancel": "Kansellasie word ook nie terugbetaal nie. Toegang loop tot die einde van die tydperk waarvoor hulle betaal het en hulle word eenvoudig nie weer gehef nie.",
+    "policyRefund": "Geld gaan net geval vir geval terug: 'n onherkenbare aftrekking, 'n heffing nadat die intekening geëindig het, 'n kaart wat sonder toestemming gebruik is. Besluit elkeen op die feite wat hier aangeheg is, en betaal dan in Paystack terug.",
+    "policyDispute": "'n Dispuut het 'n horlosie. Omtrent 48 besigheidsure, waarna Paystack dit namens ons besleg en die geld uit 'n uitbetaling neem — beantwoord dit dus in Paystack selfs al loop die gesprek nog.",
+    "kind": {
+      "refund_request": "Terugbetalingsversoek",
+      "dispute": "Kaartdispuut",
+      "billing_anomaly": "Rekeningafwyking",
+      "manual": "Met die hand geopen"
+    },
+    "status": {
+      "open": "Oop",
+      "waiting": "Wag",
+      "resolved": "Opgelos",
+      "closed": "Gesluit"
+    }
   }
 }

@@ -805,7 +805,8 @@
     "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted — pay to get it back.",
     "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
-    "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). If they asked for it, cancel their subscription immediately on this screen. If we refunded because something broke on our side, leave it running — they keep the plan."
+    "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). If they asked for it, cancel their subscription immediately on this screen. If we refunded because something broke on our side, leave it running — they keep the plan.",
+    "tplSupportTicketDue": "A support case needs an answer within {hours} hours: {subject}. After that Paystack settles it for us and takes the money."
   },
   "settings": {
     "title": "Settings",
@@ -2065,7 +2066,23 @@
     "accountingNote": "It is a generic journal, not a Sage or Xero file. The columns are mapped once in your accountant's software and then it just works.",
     "accountTitle": "Your account",
     "accountWhat": "This is about YOU, not the farm. The farm's own settings live under Settings.",
-    "accountDoes": "Change your name\nChange the email address we reach you on\nSet or change your password\nConfirm your email address"
+    "accountDoes": "Change your name\nChange the email address we reach you on\nSet or change your password\nConfirm your email address",
+    "billingTitle": "What FleetWise costs you",
+    "billingWhat": "Your plan, how many vehicles you are billed for, what the next payment will be, and every bill and receipt.",
+    "billingDoes": "Change your plan, or buy more vehicle slots\nPut a different card on, or pay a bill that did not go through\nDownload any invoice, and the receipt once it is paid",
+    "billingNote": "Nothing is ever deleted because a payment failed. If a card stops working the plan is reduced, never the records — and paying restores exactly what you had.",
+    "adminBillingTitle": "Every farm's subscription",
+    "adminBillingWhat": "What each farm is on, what they owe, what has been charged, and whether charging is switched on at all.",
+    "adminBillingDoes": "Start a subscription for a farm that has none\nChange a farm's plan or billing period\nRetry a charge, or reconcile one the provider never answered\nSee whether the nightly billing job is still running",
+    "adminBillingNote": "Both switches must be on before a single rand can move. With charging off, payments already taken are still reconciled — turning it off must never strand someone who paid a minute ago.",
+    "adminSupportTitle": "Refunds and disputes",
+    "adminSupportWhat": "Every case where somebody wants money back, with the farm, the invoice, the payment and the card already gathered onto it.",
+    "adminSupportDoes": "See which cases have a deadline, and how long is left on it\nRead the evidence without opening Paystack and six of our own screens\nWork the case itself in the RapidRise OS support dashboard",
+    "adminSupportNote": "A card dispute must be answered in Paystack within roughly 48 business hours. After that they settle it for us and take the money out of a payout, whatever the conversation says.",
+    "reportSchedulesTitle": "Reports that send themselves",
+    "reportSchedulesWhat": "A standing instruction to email a report to somebody — your accountant, your bank, yourself — on a set day.",
+    "reportSchedulesDoes": "Pick the report, how often, and who it goes to\nSee when each one last went, and whether it arrived\nStop one without losing what it has already sent",
+    "reportSchedulesNote": "A schedule runs once per period even if the nightly job runs twice, so nobody is ever sent the same report two days running."
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -4480,5 +4497,38 @@
     "terms": "Terms of use",
     "privacy": "Privacy notice",
     "reg": "Reg."
+  },
+  "adminSupport": {
+    "title": "Support cases",
+    "lead": "Refund requests and card disputes, with the evidence already gathered.",
+    "openTitle": "Cases",
+    "whereWorked": "These are worked in the RapidRise OS support dashboard, which is where replies and resolutions live. They are listed here so a case is never invisible if that connection is down.",
+    "emptyTitle": "No support cases",
+    "emptyBody": "A card dispute or a processed refund opens one automatically, with the farm, the invoice, the payment and the card already attached.",
+    "colCase": "Case",
+    "colFarm": "Who it is about",
+    "colOpened": "Opened",
+    "colDue": "Answer by",
+    "colState": "State",
+    "overdue": "Past the deadline",
+    "dueSoon": "{hours} hours left",
+    "openCount": "{n} still open.",
+    "policyTitle": "What the answer usually is",
+    "policyDowngrade": "Moving to a cheaper plan mid-cycle is not refunded. They keep the plan they paid for until the period ends, then pay the smaller amount. This already happens on its own.",
+    "policyCancel": "Cancelling is not refunded either. Access runs to the end of the period they paid for and they are simply not charged again.",
+    "policyRefund": "Money only goes back case by case: an unrecognised deduction, a charge after the subscription ended, a card used without permission. Decide each one on the facts attached here, then refund in Paystack.",
+    "policyDispute": "A dispute has a clock. Roughly 48 business hours, after which Paystack settles it on our behalf and takes the money out of a payout — so answer it in Paystack even if the conversation is still going.",
+    "kind": {
+      "refund_request": "Refund request",
+      "dispute": "Card dispute",
+      "billing_anomaly": "Billing anomaly",
+      "manual": "Opened by hand"
+    },
+    "status": {
+      "open": "Open",
+      "waiting": "Waiting",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    }
   }
 }
