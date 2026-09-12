@@ -290,5 +290,28 @@ authorization, so this needs a declining card put through hosted checkout in a b
 billing cron firing on Vercel's schedule rather than being run by hand; and a refund or
 dispute moving anything in the ledger — both still only raise an alert.
 
-**Still ahead of you:** the Starter Business **R80,000 lifetime collections cap**. Upgrade to
-Registered Business before you get near it.
+**Still ahead of you:** the Starter Business **lifetime collections cap**. When it is
+reached, Paystack DISABLES payments for the business until it is upgraded to a
+**Registered Business**, which has no collection limit.
+
+**Corrected 12 September 2026.** This line previously said **R80,000**. Paystack's own
+business-types page lists South Africa at **ZAR 1,000,000**, and notes that South
+Africa's *Sole Proprietorship* variant — what an unregistered SA merchant actually gets
+— has a HIGHER limit than a regular Starter. The old figure is not supported by the
+current source, and planning against it meant planning against roughly a twelfth of the
+real headroom.
+
+**Check your own account rather than any article.** A published limit is a default and an
+account can differ. Compliance → Profile shows your business type; the dashboard shows
+collections to date. With your LIVE secret key:
+
+```bash
+curl -s -H "Authorization: Bearer $PAYSTACK_LIVE_SECRET" \
+  https://api.paystack.co/transaction/totals
+# total_volume is in CENTS: 100000000 = R1,000,000.00
+```
+
+**To upgrade** (Dashboard → Compliance → Profile → Business Type), a South African
+registered business needs: the **CIPC certificate of registration**, the **CIPC
+enterprise number**, a **bank confirmation letter for the corporate account, no older
+than six months**, and **details of at least one director**.

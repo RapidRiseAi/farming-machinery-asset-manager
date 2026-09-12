@@ -2965,4 +2965,19 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     raises an alert and moves nothing in the ledger, and South Africa gives roughly 48
     business hours before Paystack accepts it on your behalf.
 
+
+- **CORRECTION — the Paystack Starter cap is not R80,000.** Eight entries above say the
+  Starter Business lifetime collections cap is **R80,000**, and a founder decision was taken
+  against that figure ("not a launch blocker at this volume — upgrade at R10,000 collected").
+  Read directly from Paystack's own business-types page on 12 September 2026, the South
+  African Starter limit is **ZAR 1,000,000** — and the page adds that South Africa's *Sole
+  Proprietorship* variant, which is what an unregistered SA merchant actually gets, has a
+  limit HIGHER than a regular Starter's. That is roughly twelve times the headroom the notes
+  assumed.
+
+  The earlier entries are left as written rather than rewritten — they are a log of what was
+  believed at the time, and editing them would hide that this was ever wrong. This line
+  supersedes them. `docs/PAYSTACK_GO_LIVE.md` carries the corrected figure, the upgrade
+  requirements, and the one-line check against your own account, which is the only
+  authoritative source: a published limit is a default and an account can differ.
 > Update this "current status" block at the end of every session.
