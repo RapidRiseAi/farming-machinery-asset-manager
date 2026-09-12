@@ -202,6 +202,77 @@ five helpers of its own (`_t_login`, `_t_assert`, `_t_notif`, `_h2_fault_args`,
 `_h2_reading_args`). They are the difference between 1,261 local objects and 1,256, and they
 must never appear on production. Exclude them with `proname !~ '^_(t|h2)_'`.
 
+
+## The difference an object diff can never see: the database's COLLATION
+
+Everything above compares objects. Two databases can hold byte-identical objects and still
+behave differently, and the sharpest instance of that is sort order.
+
+`min(some_text)`, `order by name`, `string_agg(… order by …)` and every `<` on text are
+decided by the **database collation**, which is a property of the database, not of the
+schema. It never appears in a fingerprint.
+
+**What it cost.** `app.link_suppliers()` (0481) collapses every spelling of one business
+into a single supplier record and picks the canonical name with
+`min(btrim(supplier_name))`. 0481's comment called that a deterministic pick. It is not:
+
+| database | `min('Agri Diesel', 'agri diesel')` |
+| --- | --- |
+| `C` (a common local default) | `Agri Diesel` — byte order, `A` 0x41 before `a` 0x61 |
+| `en_US.UTF-8` (**production AND CI**) | `agri diesel` |
+
+So the supplier name that ends up on a remittance advice depended on where the backfill
+ran. CI's "RLS isolation tests" job failed on **every commit for over a week** with
+
+```
+G18 FAIL: the filed record is named agri diesel, not the deterministic pick
+```
+
+and it was invisible locally, because a local run on a `C`-collation database passes every
+suite. It was also invisible in the job logs, which need repository **admin** rights to
+download — `git credential fill` supplies the token git already uses, which is how the log
+was finally read.
+
+Fixed in `20260912140000` by pinning the tie-break: `min(btrim(supplier_name) collate "C")`
+is byte order on every database anywhere, and it keeps the properly capitalised spelling,
+which is the one that gets printed.
+
+### How to check this locally
+
+Build the test database the way production is, rather than the way your machine defaults:
+
+```sql
+create database farmapp_test
+  locale_provider icu icu_locale 'en-US' template template0;
+```
+
+An ICU `en-US` database orders the way production's `en_US.UTF-8` does for this purpose. A
+one-line sanity check that it really is different:
+
+```sql
+select min(x) from (values ('Agri Diesel'), ('agri diesel')) v(x);
+-- 'Agri Diesel' => you are on C and will not reproduce CI
+-- 'agri diesel' => you match CI and production
+```
+
+**Run the suites under BOTH.** Passing under one proves nothing about the other, and a
+`collate "C"` fix has to hold everywhere to be worth making.
+
+### Two harness traps found the same day, both of which faked failures
+
+* **Roles are cluster-wide.** `drop database` does not remove `anon`, `authenticated` or
+  `service_role`, and the auth shim creates them only `if not exists`. A harness that had
+  once created `service_role` WITHOUT `bypassrls` left it that way for every later run, so
+  RLS silently applied to the role that is meant to bypass it — and four suites "failed"
+  with rows that had just been inserted being invisible. Drop those roles before the shim
+  runs, or start from a clean container as CI does.
+* **psql runs ONE STATEMENT AT A TIME.** `rls_isolation.sql` contains no `begin`, `commit`
+  or `rollback` at all; it relies on autocommit between statements and on session GUCs
+  surviving. Sending a whole file as one query wraps it in a single implicit transaction
+  and breaks it. `run.sh` also uses a fresh psql process — and therefore a fresh session —
+  for every migration and every suite; reusing one connection lets a failed suite leave
+  `set role` active and poison everything after it.
+
 ## What this does not cover
 
 Data, Storage bucket policies, Auth settings (the leaked-password toggle lives there), and
