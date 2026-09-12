@@ -24,12 +24,16 @@ import { cn } from "./cn";
 export function ScrollArea({
   children,
   className,
-  fadeClassName = "from-white",
+  // Was "from-white": a hardcoded white gradient laid a pale haze over the
+  // bottom nav rows in the dark theme, which read as a broken or selected row.
+  fadeClassName = "from-surface",
   label,
 }: {
   children: ReactNode;
   className?: string;
-  /** Tailwind `from-…` colour, so the fade matches whatever it sits on. */
+  /** Tailwind `from-…` colour, so the fade matches whatever it sits on. Must be
+   * a THEME-AWARE colour (from-surface, from-surface-raised) - a literal such as
+   * from-white cannot follow the theme. */
   fadeClassName?: string;
   /** Accessible name — a scrollable region needs one to be reachable by keyboard. */
   label?: string;

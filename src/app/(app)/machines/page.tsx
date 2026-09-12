@@ -285,8 +285,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
         src={url}
         alt=""
         size={size === "sm" ? "thumb" : "card"}
-        className={`${cls} shrink-0 ring-1 ring-sand-200`}
-        placeholder={<MachinesIcon className={size === "sm" ? "text-lg" : "text-3xl"} />}
+        className={`${cls} shrink-0 ring-1 ring-edge-soft`}
+        placeholder={
+          <MachinesIcon
+            className={`text-ink-subtle ${size === "sm" ? "text-2xl" : "text-5xl"}`}
+          />
+        }
       />
     );
   };

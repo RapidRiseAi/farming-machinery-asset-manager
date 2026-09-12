@@ -219,6 +219,8 @@ const config: Config = {
           DEFAULT: "rgb(var(--surface) / <alpha-value>)",
           raised: "rgb(var(--surface-raised) / <alpha-value>)",
           sunken: "rgb(var(--surface-sunken) / <alpha-value>)",
+          /** Row hover. Sinks on cream, lifts on charcoal - see globals.css. */
+          hover: "rgb(var(--row-hover) / <alpha-value>)",
         },
         ink: {
           DEFAULT: "rgb(var(--ink) / <alpha-value>)",

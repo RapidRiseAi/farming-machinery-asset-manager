@@ -70,6 +70,12 @@
   --edge: 143 139 127; /* sand-300   — control borders   3.07:1 */
   --edge-soft: 230 226 215; /* Warm Grey  — decorative dividers      */
 
+  /* Table/list row hover. A hovered row should read as a distinct step from the
+     card it sits on in BOTH themes: it sinks slightly on cream, and lifts
+     slightly on charcoal, because a darker step on a dark ground is nearly
+     invisible (measured 1.11:1 for every existing candidate). */
+  --row-hover: 239 234 220;
+
   --accent: 234 165 12; /* FleetWise Gold — fills only          */
   --accent-ink: 147 101 5; /* gold-600      — gold that carries text */
 
@@ -171,6 +177,7 @@
 
     --edge: 143 139 127; /*               —  4.79:1 */
     --edge-soft: 83 82 74;
+    --row-hover: 45 51 45; /* lifts off --surface (29 33 29) rather than sinking */
 
     --accent: 234 165 12;
     --accent-ink: 234 165 12; /* gold reads directly on black — 7.68:1 */
@@ -240,6 +247,7 @@
 
   --edge: 143 139 127;
   --edge-soft: 83 82 74;
+  --row-hover: 45 51 45; /* lifts off --surface (29 33 29) rather than sinking */
 
   --accent: 234 165 12;
   --accent-ink: 234 165 12;

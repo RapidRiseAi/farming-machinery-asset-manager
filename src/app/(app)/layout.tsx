@@ -441,7 +441,7 @@ export default async function AppLayout({
             <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
           </div>
         )}
-        <ScrollArea label={t("nav.menu", locale)} className="px-3 py-2" fadeClassName="from-white">
+        <ScrollArea label={t("nav.menu", locale)} className="px-3 py-2" fadeClassName="from-surface">
           <nav className="space-y-5">
             {groups.map((g) => (
               <div key={g.key} className="space-y-1">

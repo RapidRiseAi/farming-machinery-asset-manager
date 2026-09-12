@@ -17,15 +17,17 @@ export function Table({ className, children, ...props }: HTMLAttributes<HTMLTabl
 }
 
 export function Thead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("border-b border-sand-200", className)} {...props} />;
+  return <thead className={cn("border-b border-edge", className)} {...props} />;
 }
 
 export function Tbody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn("divide-y divide-sand-100", className)} {...props} />;
+  // divide-sand-100 measured 1.03:1 against the card surface in the dark theme -
+  // the row separators were invisible and long lists read as one block.
+  return <tbody className={cn("divide-y divide-edge-soft", className)} {...props} />;
 }
 
 export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn("transition-colors hover:bg-sand-50", className)} {...props} />;
+  return <tr className={cn("transition-colors hover:bg-surface-hover", className)} {...props} />;
 }
 
 export type ThProps = ThHTMLAttributes<HTMLTableCellElement> & {
@@ -39,7 +41,7 @@ export function Th({ sort, className, children, ...props }: ThProps) {
       scope="col"
       aria-sort={sort === undefined ? undefined : sort === "asc" ? "ascending" : sort === "desc" ? "descending" : "none"}
       className={cn(
-        "whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-sand-500 first:pl-4 last:pr-4",
+        "whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-muted first:pl-4 last:pr-4",
         className,
       )}
       {...props}
@@ -54,7 +56,7 @@ export function Th({ sort, className, children, ...props }: ThProps) {
           ) : sort === "desc" ? (
             <ChevronDownIcon className="text-base" />
           ) : (
-            <ChevronDownIcon className="text-base text-sand-400" />
+            <ChevronDownIcon className="text-base text-ink-subtle" />
           )}
         </span>
       )}
@@ -65,7 +67,7 @@ export function Th({ sort, className, children, ...props }: ThProps) {
 export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
-      className={cn("px-3 py-2.5 align-middle text-sand-800 first:pl-4 last:pr-4", className)}
+      className={cn("px-3 py-2.5 align-middle text-ink first:pl-4 last:pr-4", className)}
       {...props}
     />
   );
