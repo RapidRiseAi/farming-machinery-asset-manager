@@ -3,7 +3,11 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { emailConfigured, sendEmail } from "@/lib/email/resend";
-import { buildBillingReceiptPdf, type BillingReceiptData } from "@/lib/pdf/billing-receipt";
+import {
+  buildBillingReceiptPdf,
+  type BillingDocumentKind,
+  type BillingReceiptData,
+} from "@/lib/pdf/billing-receipt";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
@@ -88,6 +92,8 @@ type InvoiceRow = {
   vat_rate_bps: number;
   seller_snapshot: Record<string, unknown> | null;
   bill_to_snapshot: Record<string, unknown> | null;
+  due_on: string | null;
+  amount_paid_cents: number;
 };
 
 function str(v: unknown): string | null {
@@ -100,17 +106,27 @@ function str(v: unknown): string | null {
  * Exported so the download route can serve the same document the customer was emailed,
  * rather than a second rendering that could drift from it.
  */
+/**
+ * Everything a receipt OR an invoice needs, read off the invoice row.
+ *
+ * `kind` changes what the PDF says, never what is read: both documents are the same
+ * transaction seen from either side of the payment, and both are built from the
+ * `seller_snapshot` / `bill_to_snapshot` frozen at issue, so neither can be silently
+ * restated by a later change of address or VAT registration.
+ */
 export async function loadReceipt(
   supabase: SupabaseClient,
   invoiceId: string,
   locale: Lang,
+  kind: BillingDocumentKind = "receipt",
 ): Promise<BillingReceiptData | null> {
   const { data } = await supabase
     .from("billing_invoices")
     .select(
       "id, farm_id, invoice_ref, period_start, period_end, plan, asset_count, " +
         "unit_price_incl_cents, months_charged, subtotal_ex_vat_cents, vat_cents, " +
-        "total_incl_cents, vat_rate_bps, seller_snapshot, bill_to_snapshot",
+        "total_incl_cents, vat_rate_bps, seller_snapshot, bill_to_snapshot, " +
+        "due_on, amount_paid_cents",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -160,8 +176,11 @@ export async function loadReceipt(
   const billTo = (inv.bill_to_snapshot ?? {}) as Record<string, unknown>;
 
   return {
+    kind,
     invoiceRef: inv.invoice_ref,
     paidAt: pay?.paid_at ?? null,
+    dueOn: inv.due_on,
+    amountPaidCents: inv.amount_paid_cents,
     periodStart: inv.period_start,
     periodEnd: inv.period_end,
     planLabel: t(`plan.${inv.plan}`, locale),

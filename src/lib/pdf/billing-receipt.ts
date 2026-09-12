@@ -30,9 +30,23 @@ import { shortDate, vatPercent } from "@/lib/format";
  * statement posted to an Afrikaans farm was having half its lines written in English".
  */
 
+/**
+ * Which document this is.
+ *
+ * A receipt and an invoice are the same transaction read from either side of the payment,
+ * which is why they share a builder, a data shape and — crucially — the same frozen
+ * snapshot of who charged whom. What differs is the tense.
+ */
+export type BillingDocumentKind = "receipt" | "invoice";
+
 export type BillingReceiptData = {
+  kind: BillingDocumentKind;
   invoiceRef: string;
   paidAt: string | null;
+  /** When the money is owed by. Null on an invoice raised without terms. */
+  dueOn: string | null;
+  /** What has been received against it — a part payment is not nothing. */
+  amountPaidCents: number;
   periodStart: string;
   periodEnd: string;
   planLabel: string;
@@ -75,7 +89,18 @@ function sellerName(d: BillingReceiptData): string {
 
 export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uint8Array> {
   const L = d.locale;
-  const pdf = await Pdf.create(`${t("billingReceipt.title", L)} ${d.invoiceRef}`, {
+  const isInvoice = d.kind === "invoice";
+  // What is still owed. Never negative: a refund is recorded as its own negative payment
+  // (20260911210000) and an over-refunded invoice must not print as a bill for a minus.
+  const outstandingCents = Math.max(d.totalInclCents - d.amountPaidCents, 0);
+  // Compared at the moment of printing, which is the only honest reading — the document
+  // says what was true when it was generated, and stamps that date in its own footer.
+  const overdue =
+    isInvoice && outstandingCents > 0 && !!d.dueOn && d.dueOn < new Date().toISOString().slice(0, 10);
+
+  const pdf = await Pdf.create(
+    `${t(isInvoice ? "billingReceipt.invoiceTitle" : "billingReceipt.title", L)} ${d.invoiceRef}`,
+    {
     name: sellerName(d),
     // No partner branding here: this document is FROM Rapid Rise, so it carries the
     // product's own identity rather than a workshop's letterhead.
@@ -86,24 +111,54 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
     // files untouched. "Generated", not "issued": the engine stamps TODAY, so a receipt
     // reprinted next year would be claiming the wrong issue date.
     footer: `${sellerName(d)} · ${t("billingReceipt.generatedOn", L)} ${shortDate(new Date(), L)}`,
-  });
+    },
+  );
 
   pdf.header(t("billingReceipt.subtitle", L));
 
-  // ── The two facts somebody opens a receipt for ────────────────────────────
-  // How much, and is it settled. Everything below is the supporting detail, and it used to
-  // come first with the total as one `kv` row among eight — the same visual weight as the
-  // payment reference.
-  pdf.totalBlock(
-    t("billingReceipt.totalPaid", L),
-    rands(d.totalInclCents),
-    d.paidAt
-      ? `${t("billingReceipt.paidInFull", L)} — ${shortDate(d.paidAt, L)}`
-      : t("billingReceipt.paidInFull", L),
-  );
+  // ── The two facts somebody opens either document for ──────────────────────
+  // How much, and where it stands. Everything below is the supporting detail, and it used
+  // to come first with the total as one `kv` row among eight — the same visual weight as
+  // the payment reference.
+  //
+  // An invoice that has been settled prints as settled rather than demanding money again:
+  // somebody downloading the bill after paying it should not be told they owe it.
+  if (isInvoice && outstandingCents > 0) {
+    pdf.totalBlock(
+      t("billingReceipt.amountDue", L),
+      rands(outstandingCents),
+      d.dueOn
+        ? t(overdue ? "billingReceipt.wasDueOn" : "billingReceipt.dueBy", L).replace(
+            "{date}",
+            shortDate(d.dueOn, L),
+          )
+        : "",
+    );
+    // A part payment is not nothing, and an invoice that ignored it would be asking for
+    // money already received.
+    if (d.amountPaidCents > 0) {
+      pdf.kv(
+        t("billingReceipt.alreadyPaid", L),
+        `${rands(d.amountPaidCents)} ${t("billingReceipt.ofTotal", L).replace("{total}", rands(d.totalInclCents))}`,
+      );
+    }
+  } else {
+    pdf.totalBlock(
+      t(isInvoice ? "billingReceipt.totalDocument" : "billingReceipt.totalPaid", L),
+      rands(d.totalInclCents),
+      d.paidAt
+        ? `${t("billingReceipt.paidInFull", L)} — ${shortDate(d.paidAt, L)}`
+        : t("billingReceipt.paidInFull", L),
+    );
+  }
 
-  // The reference next, because it is what somebody quotes when they ring about it.
-  pdf.kv(t("billingReceipt.reference", L), d.invoiceRef);
+  // The reference next, because it is what somebody quotes when they ring about it. An
+  // invoice number and a receipt number are not the same noun even when they are the same
+  // string, and a farm office files them under different headings.
+  pdf.kv(
+    t(isInvoice ? "billingReceipt.invoiceReference" : "billingReceipt.reference", L),
+    d.invoiceRef,
+  );
   pdf.kv(
     t("billingReceipt.period", L),
     `${shortDate(d.periodStart, L)} – ${shortDate(d.periodEnd, L)}`,
@@ -188,6 +243,21 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
     pdf.gap();
   }
 
+  // ── How to pay it ─────────────────────────────────────────────────────────
+  // Only on an invoice with money still owed, and deliberately WITHOUT bank details: Rapid
+  // Rise collects by card through Paystack and has no account for this, so printing one
+  // would be inventing a payment route that does not exist. What it does instead is name
+  // the two-minute path and the address to write to for anything else.
+  if (isInvoice && outstandingCents > 0) {
+    pdf.hr();
+    pdf.heading(t("billingReceipt.howToPay", L));
+    pdf.text(t("billingReceipt.howToPayCard", L));
+    if (d.seller.email) {
+      pdf.text(t("billingReceipt.questionsAbout", L).replace("{email}", d.seller.email));
+    }
+    pdf.gap();
+  }
+
   // The VAT position stated in words either way. A receipt that simply omits VAT leaves
   // the reader to guess whether it was included, forgotten, or not chargeable — and a
   // farmer reclaiming input VAT needs to know which.
@@ -197,7 +267,9 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   } else {
     pdf.text(t("billingReceipt.notVatRegistered", L), { size: 9 });
   }
-  pdf.text(t("billingReceipt.keepThis", L), { size: 9 });
+  pdf.text(t(isInvoice ? "billingReceipt.keepThisInvoice" : "billingReceipt.keepThis", L), {
+    size: 9,
+  });
 
   return pdf.save();
 }

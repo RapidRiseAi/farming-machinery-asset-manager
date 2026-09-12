@@ -24,6 +24,7 @@ import {
   billingLook,
   cardBrandLabel,
   cardExpiry,
+  cardExpiryState,
   estimateNextCharge,
   nextChargeState,
   outstandingCents,
@@ -238,6 +239,11 @@ export default async function BillingPage({
   const diverged = sub ? planDiverged(sub, farm?.plan) : false;
 
   const card = primaryCard(methods);
+  // Mirrors `app.billing_cards_expiring` exactly — same 45-day horizon, same
+  // end-of-the-printed-month reading, same silences — so the screen and the email cannot
+  // become two opinions. `view.test.ts` pins the arithmetic and it was compared against
+  // the SQL itself over 182 (month, year) pairs.
+  const expiry = cardExpiryState(card, sub, new Date().toISOString().slice(0, 10));
   const payable = payableInvoice(invoices);
   const offer = retryOffer(payable, attempts);
 
@@ -279,6 +285,30 @@ export default async function BillingPage({
       {sp.checkout === "paid" ? (
         <Flash tone="success" message={t("billing.checkoutPaid", locale)} />
       ) : null}
+      {/* The callback sends everybody here. That is a fair receipt and a poor welcome:
+          a farm that has just paid has NO vehicles yet, and nothing else on this page
+          points at adding one. Shown only while the fleet really is empty, so it
+          disappears the moment it stops being true rather than nagging somebody who has
+          forty machines. */}
+      {sp.checkout === "paid" && assets.total === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("billing.nextStepsTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm leading-relaxed text-sand-700">
+            {t("billing.nextStepsBody", locale)}
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <Link href="/machines/new" className={buttonVariants({ variant: "primary" })}>
+              {t("billing.nextStepsAdd", locale)}
+            </Link>
+            <Link href="/onboarding" className={buttonVariants({ variant: "secondary" })}>
+              {t("billing.nextStepsChecklist", locale)}
+            </Link>
+          </div>
+        </Card>
+      ) : null}
+
       {sp.checkout === "pending" ? (
         <Flash tone="info" message={t("billing.checkoutPending", locale)} />
       ) : null}
@@ -597,6 +627,23 @@ export default async function BillingPage({
           </div>
         )}
 
+        {/* What the system has known for up to 45 days and never said on a screen.
+            WARN, NEVER BLOCK: a card past its printed expiry often still works — issuers
+            reissue on the same PAN and the networks run account-updater services — so
+            nothing here stops a charge being attempted. It sits directly above the
+            "Replace card" button, which is the one thing that fixes it. */}
+        {expiry.kind === "soon" || expiry.kind === "expired" ? (
+          <div className="mt-4">
+            <Flash
+              tone={expiry.kind === "expired" ? "error" : "warning"}
+              message={t(
+                expiry.kind === "expired" ? "billing.cardExpired" : "billing.cardExpiringSoon",
+                locale,
+              ).replace("{date}", shortDate(expiry.on, locale))}
+            />
+          </div>
+        ) : null}
+
         {/* An attempt still in flight blocks every other attempt on that bill: the
             provider never said whether the money moved, so the only safe recovery is
             verifying that exact reference. A "try again" button here would be offering
@@ -717,19 +764,37 @@ export default async function BillingPage({
                         />
                       </Td>
                       <Td>
-                        {/* Paid only. The document says "Paid in full", so offering it for
-                            money that has not arrived would be a false record of payment —
-                            the route refuses as well, this is just the affordance. */}
-                        {inv.status === "paid" ? (
-                          <a
-                            href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
-                            className="text-sm font-medium text-brand-ink underline"
-                          >
-                            {t("billing.downloadReceipt", locale)}
-                          </a>
-                        ) : (
-                          <span className="text-sm text-sand-500">—</span>
-                        )}
+                        {/* Two documents, and they are not interchangeable. The RECEIPT
+                            says "Paid in full", so it is offered only when that is true —
+                            handing it over for money that has not arrived would be a false
+                            record of payment. The INVOICE is the bill: it is what somebody
+                            needs in order to PAY, and until now it existed nowhere in the
+                            product, so a farm office that pays against invoices had nothing
+                            to file. Both routes enforce this as well; these are only the
+                            affordances. */}
+                        <div className="flex flex-col gap-1">
+                          {inv.status === "paid" ? (
+                            <a
+                              href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
+                              className="text-sm font-medium text-brand-ink underline"
+                            >
+                              {t("billing.downloadReceipt", locale)}
+                            </a>
+                          ) : null}
+                          {/* Not `draft` — never issued, so nobody has decided to charge it
+                              — and not `void`, which was withdrawn. */}
+                          {inv.status !== "draft" && inv.status !== "void" ? (
+                            <a
+                              href={`/api/billing/invoice/${inv.id}/invoice.pdf`}
+                              className="text-sm font-medium text-brand-ink underline"
+                            >
+                              {t("billing.downloadInvoice", locale)}
+                            </a>
+                          ) : null}
+                          {inv.status === "draft" || inv.status === "void" ? (
+                            <span className="text-sm text-sand-500">—</span>
+                          ) : null}
+                        </div>
                       </Td>
                     </Tr>
                   );

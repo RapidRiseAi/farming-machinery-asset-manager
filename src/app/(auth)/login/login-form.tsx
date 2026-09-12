@@ -1,6 +1,6 @@
 "use client";
 
-import { signInWithPassword, signInWithMagicLink } from "./actions";
+import { signInWithPassword, signInWithMagicLink, sendPasswordReset } from "./actions";
 import { t, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -80,12 +80,23 @@ export function LoginForm({
           {t("auth.magicLink", locale)}
         </SubmitButton>
 
-        {/* There was no "forgot password" anywhere in the product. The button above IS the
-            recovery path — it signs you in without one — it just never said so, leaving a
-            locked-out person with no obvious route back in. */}
+        {/* Two ways back in, because they answer different questions. The link above gets
+            you IN without a password; this one lets you set a new one, which is what
+            somebody looking for "forgot password" actually wants. It posts the same form,
+            so the address is typed once.
+
+            A plain text button rather than a third block: it is the rarest of the three
+            paths and should not compete with them. */}
         <p className="text-center text-sm leading-relaxed text-sand-600">
           {t("auth.forgotPassword", locale)}
         </p>
+        <button
+          type="submit"
+          formAction={sendPasswordReset}
+          className="min-h-12 text-center text-sm font-medium text-brand-ink underline sm:min-h-11"
+        >
+          {t("auth.resetPassword", locale)}
+        </button>
       </form>
     </div>
   );

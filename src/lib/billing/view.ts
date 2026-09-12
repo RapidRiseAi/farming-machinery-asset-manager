@@ -477,6 +477,114 @@ export function cardExpiry(month: string | null, year: string | null): string | 
   return `${mm}/${yy}`;
 }
 
+/**
+ * How far ahead the warning starts.
+ *
+ * 45 days, because that is what `app.billing_cards_expiring` uses (20260909120000) and
+ * what the nightly cron passes it. A screen warning on a different horizon from the email
+ * would be a second opinion, and a farmer holding both would have no way to tell which one
+ * is the product's.
+ */
+export const CARD_EXPIRY_WINDOW_DAYS = 45;
+
+/**
+ * What the stored card's expiry date means today.
+ *
+ * `quiet` is deliberately one case rather than several. There are five separate reasons to
+ * say nothing — no card, no subscription, a subscription that will never be charged again,
+ * a card that is not the one that WOULD be charged, and a date the provider sent that we
+ * cannot read — and none of them is something to put on a farmer's screen. The SQL engine
+ * makes exactly the same five silences, by omitting the row from its result.
+ */
+export type CardExpiryState =
+  | { kind: "quiet" }
+  | { kind: "fine"; on: string; daysLeft: number }
+  | { kind: "soon"; on: string; daysLeft: number }
+  | { kind: "expired"; on: string; daysLeft: number };
+
+/**
+ * The last day of the month printed on the card, as an ISO date.
+ *
+ * "12/28" means the END of December to a card network. Reading it as the 1st would nag a
+ * farmer for a month about a card that is still perfectly good — which is why
+ * `app.billing_card_expiry_on` says the same thing in SQL and section (o) of the billing
+ * suite pins it. Null for anything unreadable: provider data is text and may be anything,
+ * and a card whose date we cannot read is one to stay quiet about, not to throw over.
+ */
+export function cardExpiryOn(month: string | null, year: string | null): string | null {
+  if (month == null || year == null) return null;
+  if (!/^[0-9]{1,2}$/.test(month) || !/^([0-9]{2}|[0-9]{4})$/.test(year)) return null;
+  const m = Number(month);
+  if (m < 1 || m > 12) return null;
+  // Paystack sends four digits; two digits are read as this century, the only reading that
+  // is not absurd for a payment card.
+  const y = Number(year) < 100 ? 2000 + Number(year) : Number(year);
+  // Day 0 of the NEXT month is the last day of this one, so February needs no leap rule.
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+/** Whole days from `from` to `to`, both ISO dates. Null if either is unreadable. */
+function daysBetween(from: string, to: string): number | null {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Should this screen warn about the card, and how loudly.
+ *
+ * Every condition here is copied from `app.billing_cards_expiring`, and the copying is the
+ * point — the two must agree or the email and the page become two opinions:
+ *
+ *  - only the card the subscription would ACTUALLY be charged on
+ *    (`default_payment_method_id`, which is what every charging shortlist joins on;
+ *    `billing_payment_methods.is_default` is a display flag and is not that);
+ *  - only an active, reusable, un-removed card;
+ *  - only while a charge is still coming — `cancelled` is not warned about, because a
+ *    subscription that will never be charged again does not care what its card does.
+ *
+ * `today` is passed in rather than read, so this stays pure and the arithmetic is testable
+ * on a fixed date instead of on whatever day the suite happens to run — the flakiness that
+ * tripped suite section (o) on 11 September.
+ */
+export function cardExpiryState(
+  card: PaymentMethodRow | null,
+  sub: SubscriptionRow | null,
+  today: string,
+  withinDays: number = CARD_EXPIRY_WINDOW_DAYS,
+): CardExpiryState {
+  if (!card || !sub) return { kind: "quiet" };
+  if (!CARD_EXPIRY_WARNED_STATUSES.has(sub.status)) return { kind: "quiet" };
+  if (sub.default_payment_method_id !== card.id) return { kind: "quiet" };
+  if (card.status !== "active" || card.removed_at || !card.reusable) return { kind: "quiet" };
+
+  const on = cardExpiryOn(card.exp_month, card.exp_year);
+  if (!on) return { kind: "quiet" };
+
+  const daysLeft = daysBetween(today, on);
+  if (daysLeft == null) return { kind: "quiet" };
+  if (daysLeft < 0) return { kind: "expired", on, daysLeft };
+  return daysLeft <= Math.max(withinDays, 0)
+    ? { kind: "soon", on, daysLeft }
+    : { kind: "fine", on, daysLeft };
+}
+
+/**
+ * The subscription statuses worth warning about, copied from the engine's own `in` list.
+ *
+ * `cancelled` and `downgraded` are absent for opposite reasons: a cancelled subscription
+ * is not going to be charged again, and a downgraded one is already being told something
+ * far more urgent by the dunning notice at the top of the same screen.
+ */
+const CARD_EXPIRY_WARNED_STATUSES = new Set([
+  "trialing",
+  "active",
+  "past_due",
+  "grace",
+  "non_renewing",
+]);
+
 /** The card brand as a word, capitalised for display. Falls back to nothing. */
 export function cardBrandLabel(brand: string | null): string | null {
   if (!brand) return null;

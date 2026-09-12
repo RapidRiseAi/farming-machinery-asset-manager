@@ -198,7 +198,9 @@
     "startTrial": "Set up your farm",
     "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment — your farm and your invoice are waiting.",
     "signInTitle": "Sign in",
-    "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it — this takes a second."
+    "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it — this takes a second.",
+    "resetPassword": "Set a new password instead",
+    "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes."
   },
   "onboarding": {
     "title": "Get your farm set up",
@@ -4103,7 +4105,14 @@
     "checkoutPaid": "Payment received. Your farm is open and your receipt is on its way by email.",
     "checkoutPending": "Paystack has your payment and is still confirming it. This usually takes a few seconds — refresh in a moment. Do not pay again.",
     "checkoutFailed": "That payment did not go through and nothing has been charged. Try again, or use a different card.",
-    "checkoutUnknown": "We could not confirm what happened to that payment. Check the invoice list below before trying again, and tell us if it looks wrong."
+    "checkoutUnknown": "We could not confirm what happened to that payment. Check the invoice list below before trying again, and tell us if it looks wrong.",
+    "cardExpiringSoon": "This card stops working at the end of {date}. Put a different one on before then and nothing gets interrupted.",
+    "cardExpired": "This card expired on {date}. It may still go through, but the next payment is likely to be declined — and a declined payment starts the reminders. Putting a different card on now avoids all of it.",
+    "nextStepsTitle": "You are paid up. What now?",
+    "nextStepsBody": "There are no vehicles on your fleet yet. Add the first one and you can start logging services, faults and diesel on it straight away — everything else follows from that.",
+    "nextStepsAdd": "Add your first vehicle",
+    "nextStepsChecklist": "Show me the setup checklist",
+    "downloadInvoice": "Download invoice"
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -4252,7 +4261,19 @@
     "cardEnding": "ending",
     "paidInFull": "Paid in full",
     "whatFor": "What this covers",
-    "generatedOn": "generated"
+    "generatedOn": "generated",
+    "invoiceTitle": "Invoice",
+    "invoiceReference": "Invoice number",
+    "amountDue": "Amount due",
+    "totalDocument": "Total",
+    "dueBy": "Due by {date}",
+    "wasDueOn": "Was due on {date}",
+    "alreadyPaid": "Already received",
+    "ofTotal": "of {total}",
+    "howToPay": "How to pay",
+    "howToPayCard": "Sign in to FleetWise, open Billing and press Pay now. It goes through on a card and takes about a minute. Your farm stays open while you sort it out.",
+    "questionsAbout": "Any question about this invoice, or a different way to pay it: {email}",
+    "keepThisInvoice": "Keep this invoice for your records."
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref} — {amount} received",
@@ -4358,7 +4379,8 @@
     "savedName": "Name saved.",
     "savedEmail": "Check the new address — the change happens when you follow the link we sent.",
     "savedPassword": "Password changed.",
-    "savedVerification": "Sent. Check your inbox."
+    "savedVerification": "Sent. Check your inbox.",
+    "resetPrompt": "You are signed in from the link we emailed you. Set your new password below — it works from the moment you save it."
   },
   "verify": {
     "verified": {

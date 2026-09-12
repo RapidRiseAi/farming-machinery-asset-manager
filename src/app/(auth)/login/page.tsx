@@ -35,6 +35,8 @@ export default async function LoginPage({
     signedup?: string;
     /** Carried by `resume` and `signedup` so the address does not have to be retyped. */
     email?: string;
+    /** A password-reset email has been sent — or would have been, if the address exists. */
+    reset?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -85,6 +87,14 @@ export default async function LoginPage({
       {sp.signedup ? (
         <p className="mt-5 rounded-xl border border-status-ok/30 bg-status-ok/10 p-4 text-sm leading-relaxed text-sand-800">
           {t("auth.signedUp", locale)}
+        </p>
+      ) : null}
+
+      {/* Worded so it is true whether or not that address has an account: saying "no
+          account with that address" on a reset form tells a stranger which addresses exist. */}
+      {sp.reset ? (
+        <p className="mt-5 rounded-xl border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
+          {t("auth.resetSent", locale)}
         </p>
       ) : null}
 

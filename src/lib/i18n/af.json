@@ -198,7 +198,9 @@
     "startTrial": "Stel jou plaas op",
     "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling — jou plaas en jou faktuur wag.",
     "signInTitle": "Meld aan",
-    "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak — dit vat 'n sekonde."
+    "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak — dit vat 'n sekonde.",
+    "resetPassword": "Stel eerder 'n nuwe wagwoord",
+    "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie."
   },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
@@ -4103,7 +4105,14 @@
     "checkoutPaid": "Betaling ontvang. Jou plaas is oop en jou kwitansie is per e-pos op pad.",
     "checkoutPending": "Paystack het jou betaling en bevestig dit nog. Dit neem gewoonlik 'n paar sekondes — herlaai netnou. Moenie weer betaal nie.",
     "checkoutFailed": "Daardie betaling het nie deurgegaan nie en niks is gehef nie. Probeer weer, of gebruik 'n ander kaart.",
-    "checkoutUnknown": "Ons kon nie bevestig wat met daardie betaling gebeur het nie. Kyk na die faktuurlys hieronder voordat jy weer probeer, en sê vir ons as dit verkeerd lyk."
+    "checkoutUnknown": "Ons kon nie bevestig wat met daardie betaling gebeur het nie. Kyk na die faktuurlys hieronder voordat jy weer probeer, en sê vir ons as dit verkeerd lyk.",
+    "cardExpiringSoon": "Hierdie kaart hou op werk aan die einde van {date}. Sit 'n ander een op voor dan, dan word niks onderbreek nie.",
+    "cardExpired": "Hierdie kaart het op {date} verval. Dit gaan dalk nog deur, maar die volgende betaling sal waarskynlik geweier word — en 'n geweierde betaling begin die herinneringe. As jy nou 'n ander kaart opsit, vermy jy dit alles.",
+    "nextStepsTitle": "Jy is opbetaal. Wat nou?",
+    "nextStepsBody": "Daar is nog geen voertuie op jou vloot nie. Voeg die eerste een by, dan kan jy dadelik dienste, foute en diesel daarop aanteken — alles anders volg daaruit.",
+    "nextStepsAdd": "Voeg jou eerste voertuig by",
+    "nextStepsChecklist": "Wys my die opstelkontrolelys",
+    "downloadInvoice": "Laai faktuur af"
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -4252,7 +4261,19 @@
     "cardEnding": "eindig op",
     "paidInFull": "Ten volle betaal",
     "whatFor": "Wat dit dek",
-    "generatedOn": "geskep"
+    "generatedOn": "geskep",
+    "invoiceTitle": "Faktuur",
+    "invoiceReference": "Faktuurnommer",
+    "amountDue": "Bedrag verskuldig",
+    "totalDocument": "Totaal",
+    "dueBy": "Betaalbaar teen {date}",
+    "wasDueOn": "Was betaalbaar op {date}",
+    "alreadyPaid": "Reeds ontvang",
+    "ofTotal": "van {total}",
+    "howToPay": "Hoe om te betaal",
+    "howToPayCard": "Meld by FleetWise aan, maak Rekening oop en druk Betaal nou. Dit gaan met 'n kaart deur en vat omtrent 'n minuut. Jou plaas bly oop terwyl jy dit uitsorteer.",
+    "questionsAbout": "Enige navraag oor hierdie faktuur, of 'n ander manier om dit te betaal: {email}",
+    "keepThisInvoice": "Hou hierdie faktuur vir jou rekords."
   },
   "billingReceiptEmail": {
     "subject": "Kwitansie {ref} — {amount} ontvang",
@@ -4358,7 +4379,8 @@
     "savedName": "Naam gestoor.",
     "savedEmail": "Kyk by die nuwe adres — die verandering gebeur wanneer jy die skakel volg.",
     "savedPassword": "Wagwoord verander.",
-    "savedVerification": "Gestuur. Kyk in jou inkassie."
+    "savedVerification": "Gestuur. Kyk in jou inkassie.",
+    "resetPrompt": "Jy is aangemeld met die skakel wat ons jou ge-e-pos het. Stel jou nuwe wagwoord hier onder — dit werk van die oomblik af dat jy dit stoor."
   },
   "verify": {
     "verified": {

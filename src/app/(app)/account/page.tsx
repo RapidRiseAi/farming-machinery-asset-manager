@@ -38,7 +38,12 @@ const SAVED: Record<string, string> = {
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    /** Arrived from a password-reset link. The password form below is why they are here. */
+    reset?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const profile = await requireProfile();
@@ -61,6 +66,11 @@ export default async function AccountPage({
         </div>
         <PageInfoButton infoKey="account" locale={locale} />
       </div>
+
+      {/* The reset link signs them in and lands them here. Without a word of
+          explanation this reads as a general account screen and the password form near
+          the bottom is left to be discovered — which is the whole reason they came. */}
+      {sp.reset ? <Flash tone="info" message={t("account.resetPrompt", locale)} /> : null}
 
       {sp.saved && SAVED[sp.saved] ? (
         <Flash tone="success" message={t(SAVED[sp.saved], locale)} />
