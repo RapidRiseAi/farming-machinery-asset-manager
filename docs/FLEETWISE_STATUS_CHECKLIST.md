@@ -1,10 +1,10 @@
 # FleetWise — Full feature status checklist
 
-**As of:** 28 August 2026. Legend: ✅ done & merged · 🟡 partial · ❌ not started · ⏸️ deferred by decision (needs a provider, or excluded by `SCOPE §13` — see `FLEETWISE_PROVIDER_SETUP_GUIDE.md`).
+**As of:** 12 September 2026. Legend: ✅ done & merged · 🟡 partial · ❌ not started · ⏸️ deferred by decision (needs a provider, or excluded by `SCOPE §13` — see `FLEETWISE_PROVIDER_SETUP_GUIDE.md`).
 
 **Later verification:** see [System audit — 11 September 2026](SYSTEM_AUDIT_2026-09-11.md) for tested fixes and remaining release gates. This historical checklist is not a production-readiness certificate.
 
-**How this revision was checked.** Every ❌ and 🟡 was re-tested against the code, not carried forward. Earlier revisions said "sections outside this release retain their last audited status", and that hedge is how the document came to mark **18 shipped features as not started** — among them multi-site, per-role visibility, service kits, the parts catalogue, stock, budgets, repair-vs-replace, utilisation, Excel export, the AARTO workflow, POPIA retention and the backup runbook. Anyone planning from it would have rebuilt work that already existed.
+**How this revision was checked.** Every ❌ and 🟡 was re-tested against the code, not carried forward. Earlier revisions said "sections outside this release retain their last audited status", and that hedge is how the document came to mark **18 shipped features as not started** — among them multi-site, per-role visibility, service kits, the parts catalogue, stock, budgets, repair-vs-replace, utilisation, Excel export, the AARTO workflow, POPIA retention and the backup runbook. Anyone planning from it would have rebuilt work that already existed. **It drifted again within a fortnight** — re-checked on 12 September 2026, three of the four remaining ❌ items had shipped in Wave 4 and one 🟡 still deferred a billing engine that had been charging real cards for a week. A warning in a header is evidently not enough, so every corrected line now carries the file or migration that settles it, and the only honest way to read this document is to check a claim before planning from it.
 
 The hedge is therefore gone. If a line here is wrong, it is wrong — not "awaiting its next audit".
 
@@ -18,7 +18,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 - ✅ FR-1.1 (P0) Manage every asset type
 - 🟡 FR-1.2 (P0) Every capture <30s on mobile — fast paths exist; not formally measured
 - 🟡 FR-1.3 (P0) Offline readings, faults and job-card captures — **F2**; atomic replay and a recovery queue added in the September audit. Fuel capture and uncached screens still need a connection; full device testing remains a release gate.
-- 🟡 FR-1.4 (P1) Auditable who/when/**where** — who+when ✅ (audit_log); "from where" ❌
+- ✅ FR-1.4 (P1) Auditable who/when/**where** — `0510` adds ip / geo_country / geo_city / user_agent to `audit_log`, filled from a `fleetwise.*` namespace that no policy and no helper reads (asserted structurally). `20260829130000` scrubs those columns on erasure. No browser GPS: `docs/POPIA.md` §5.2 records why city is the coarsest granularity that still answers the question.
 - ✅ FR-1.5 (P0) Multi-farm/site under one account — **F7** (`user_farm_memberships`, 0340–0341); site switcher in the shell
 
 ### §2 Roles & permissions
@@ -100,7 +100,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 - ✅ FR-13.1 (P0) Driver-usage log — **F3**
 - ✅ FR-13.2 (P1) AARTO fine workflow — capture, nominate the driver from the usage log, deadline reminders on the nightly cron
 - ✅ FR-13.3 (P1) Licence/renewal tracking + reminders — **F6**
-- ❌ FR-13.4 (P1) GLOBALG.A.P./SIZA audit packs, sale/warranty doc packs
+- ✅ FR-13.4 (P1) GLOBALG.A.P./SIZA audit packs, sale/warranty doc packs — four routes under `src/app/api/packs/` (fleet compliance, and per-machine compliance / sale / warranty). A contractor and an operator are refused the SALE pack at the door with a 403, because `purchase_price_cents` and `supplier` live on a machine row a linked contractor may legitimately read — RLS alone does not stop it, and G32(f) asserts the leak is real so the refusal cannot quietly become unnecessary.
 
 ### §14 Notifications
 - 🟡 FR-14.1 (P0) Service-due/overdue/licence via in-app ✅ + **push ✅ (F6)** + **WhatsApp ⏸️**
@@ -120,7 +120,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 
 ### §17 Integrations & API
 - ⏸️ FR-17.1 (P1) GPS-telematics feed — **out of v1 scope by `SCOPE §13`**, reaffirmed by the founder in August 2026. Needs a vendor, so it would ship inert.
-- ❌ FR-17.2 (P2) Accounting export (Sage/Xero)
+- ✅ FR-17.2 (P2) Accounting export — `0510` `app.partner_journal` / `app.farm_journal`, `/accounting` plus `journal.csv` and `chart.csv`. Ships in the two shapes every import wizard reads (separate debit/credit columns, and one signed amount) rather than claiming a vendor format: Xero Central renders through JavaScript, Sage's own import pages 404, and the third-party importers that do publish a format disagree with each other while both calling it "the Xero format". The screen says so before any download button.
 - ✅ FR-17.3 (P2) Public REST API + token — `0508`. Tokens stored hashed and shown once; gated on the `api_access` entitlement (Done-For-You); read endpoints plus one write (meter readings) with an idempotency key.
 
 ### §18 Localisation
@@ -130,7 +130,7 @@ The hedge is therefore gone. If a line here is wrong, it is wrong — not "await
 ### §19 Billing, plans & entitlements
 - 🟡 FR-19.1 (P0) Per-vehicle billing, 4 tiers — tiers ✅, price display ✅ (F5), **billing engine BUILT ✅** (Paystack adapter, versioned price catalogue, immutable invoices, dunning/grace/downgrade, webhook + reconciliation; see `docs/BILLING.md`). **Charging remains OFF** and cannot be switched on until two things happen: the founder confirms which price table is real (decisions #7) and `BILLING_CHARGING_ENABLED=true` is set. The price catalogue ships EMPTY, so nothing can be billed by accident.
 - ✅ FR-19.2 (P0) Entitlements gated by plan — **F5**
-- 🟡 FR-19.3 (P1) Annual pre-pay / asset-count pricing / export-on-cancel — asset-count ✅, annual flag ✅; billing engine ⏸️
+- ✅ FR-19.3 (P1) Annual pre-pay / asset-count pricing / export-on-cancel — the Paystack SaaS billing engine shipped and has taken five real payments (R1 095,00). Farms buy vehicle SLOTS (`20260911140000`), annual charges ten months, and `/api/farm/export` hands back the whole history as JSON — deliberately outside the gated layout, so a lapsed farm can still reach it.
 - ❌ FR-19.4 (P2) Self-hosted licence SKU
 
 ### §22 Non-functional
