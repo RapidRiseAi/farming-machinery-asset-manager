@@ -56,10 +56,8 @@ jobs:
       # No error code ever reaches a screen as a code. This found four that resolved to
       # nothing, one of them on the product's own sign-up form.
       - run: pnpm errors:check
-      # NOT YET: `pnpm design:lint`. The script is committed and passes against a working
-      # tree carrying the Official Colour Palette overhaul — and fails with 302
-      # violations against what is actually in this repo, because that overhaul
-      # (tailwind.config.ts, globals.css, manifest.webmanifest, layout.tsx) has never
-      # been committed. Turn this on in the same commit that lands the palette, not
-      # before: a new gate that fails on every push gets switched off rather than read.
+      # The palette this checks for landed in 7c96e80, so this is now true of the repo
+      # rather than of one machine's working tree. It reported 302 violations against
+      # the committed tree right up until that commit — which is why it waited.
+      - run: pnpm design:lint
       - run: pnpm build
