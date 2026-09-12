@@ -2783,4 +2783,87 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     that exists in neither dictionary — left alone rather than patched, because adding a key
     for someone else's in-flight feature is how fragments collide.
 
+
+- **THE WORKING TREE IS EMPTY: three in-flight workstreams audited, committed and
+  released** (commits `e3397e5`/`7c96e80`/`b7a798c` on `main`; nine migrations applied to
+  production; every screen driven afterwards). For the first time in weeks `git status` is
+  clean.
+  - **What was actually sitting there.** Not "the palette". 180 modified and 35 untracked
+    files holding THREE finished workstreams, the largest of which was a database security
+    pass: **nine migrations and five test suites**, none of them committed and none of them
+    on production. The headline among them is a live leak —
+    `settings.cost_visible_to_operators` was captured, stored and rendered on `/settings`
+    while being consulted by **no policy at all**, so an operator could read the entire cost
+    ledger, every budget, and the purchase price, supplier and finance columns of every
+    machine they could see, straight from PostgREST.
+  - **Everything was measured before anything was decided.** 160 migrations apply to a
+    fresh database in order; all ten suites pass together (five of them the uncommitted
+    ones); typecheck, lint, 245 tests, `design:lint`, `errors:check` and parity all pass on
+    the full tree; `next build` green; zero TODO/FIXME markers. The work was FINISHED — the
+    reason it had never shipped was not doneness, it was coupling.
+  - **The coupling, and why there is no painless order.** The app reads `*_visible`
+    projections that production did not have, and the migrations REVOKE the column grants
+    the deployed code was reading. Deploy first and `/dashboard`, `/fuel`, `/jobcards`,
+    `/parts`, `/work`, `/contractor` and `/inbox` break; apply first and the live code
+    breaks instead. The obvious fix — defer the revokes to a follow-up migration — was
+    **measured and does not work**: `REVOKE SELECT ON TABLE` also clears column-level
+    grants, so grant-then-revoke does not end where revoke-then-grant does. Proved on a
+    three-line fixture before the plan was built on it.
+  - **So the release was sequenced instead**: push, poll production until `/queue` stopped
+    404-ing (a route that exists only in the new code), then apply. Pushed 02:30:27, live
+    02:31:58, migrations applied and verified by 02:32:11 — **a five-second window**, with
+    all nine landing in eight seconds.
+  - **A defect that would have blocked the release, found only by dry-running against
+    production.** `20260908112728` ended with `alter role fleetwise_cost_reader … nosuperuser
+    … nobypassrls`, and PostgreSQL permits only a SUPERUSER to change SUPERUSER, REPLICATION
+    or BYPASSRLS — including to CLEAR them. Supabase's `postgres` is not one, so that
+    migration could never have been applied to the only database that matters. It passed
+    every local run because PGlite and a developer's own Postgres run as superuser: exactly
+    the class of difference a fresh-database harness cannot see. The fix keeps the intent and
+    strengthens it — those three attributes are now ASSERTED and the migration refuses to
+    proceed if they are ever wrong, rather than quietly trying to set them.
+  - **Proven on production afterwards, as two personas, inside a rolled-back transaction.**
+    The operator: **0 cost entries, 0 budgets, 1 job card with 0 totals, 6 fuel draws with 0
+    costs, purchase price denied** — and, as the positive control, still sees their 1
+    assigned machine. The owner: **38 cost entries, 5 job-card totals, 11 fuel costs**, and
+    gets `purchase_price_cents = 145000000` with supplier `Senwes` through
+    `public.machine_financials`, which returns the operator **no row at all**.
+  - **Three of my own instruments were the broken thing, again.** A `button[type=submit]`
+    click hit the language switcher, because the EN/AF controls are submits and come first —
+    so sign-in failed and every authenticated page below it "passed" at 200, since a bounce
+    to `/login` also answers 200. The check now asserts the URL stayed put. A probe used the
+    driver with NO assigned machine, so every count was trivially zero and it could not have
+    failed. And a permission error aborts a transaction, so after the first denial every
+    later probe reported "current transaction is aborted" rather than its own answer — one
+    transaction per persona now, not savepoints.
+  - **One assertion of mine was simply wrong and the run was right.** I asserted the owner
+    could still read `machines.purchase_price_cents` directly; the migration takes that
+    column off ordinary SELECTs for EVERYONE and routes authorised callers through a checked
+    function, which `src/lib/cost-visibility.ts` already calls. The assertion was corrected
+    to the design rather than the design questioned.
+  - **Committed in three, by shape rather than by size.** The SQL alone; then the app that
+    those policies were written for; then the CI change. Not further split, and the reason is
+    measured: **102 files carry only palette/UI work, 25 only the security layer, and SIXTEEN
+    carry two at once** because both passes edited the same twelve pages. A commit claiming
+    to be "palette only" while carrying policy changes is worse history than an honest big
+    one. Both of the first two commits build on their own.
+  - **`pnpm design:lint` is now IN CI** — the first moment that could be honest. It reported
+    0 violations against a working tree and **302 against the committed tree** right up until
+    `7c96e80` landed the palette it checks for.
+  - **`scratchpad/` is gitignored.** It sat untracked at the repo root holding a previous
+    wave's merged i18n fragments and throwaway probe harnesses, where any `git add -A` would
+    have swept it into a release.
+  - **Repo == production, re-proved after the release**: **271 policies in `public` on both
+    sides**, 75 tables, 8 views, and **0 objects on production that are absent from the
+    repo** — the `_f14_probe` direction, the one that matters. The two apparent differences
+    were confirmed as harness artifacts rather than explained away: PGlite installs pgcrypto
+    and pg_trgm into `public` (68 functions) while Supabase puts pgcrypto in `extensions`,
+    and the 11 `storage.objects` policies cannot exist in a build with no `storage` schema.
+  - Live afterwards: every public page and all twelve authenticated screens load clean, no
+    JS errors, no raw i18n keys, signed in as the real farm owner. Data intact — 3 farms,
+    15 machines, 6 invoices, 6 payments.
+  - **Still open**: a refund or dispute raises an alert and moves nothing in the ledger; the
+    Paystack **Starter Business R80 000 lifetime cap**; and `NEXT_PUBLIC_SITE_URL`,
+    `RESEND_API_KEY` and `EMAIL_FROM` in Vercel Production.
+
 > Update this "current status" block at the end of every session.
