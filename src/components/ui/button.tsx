@@ -20,7 +20,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
    * want taken; everything else stays `primary` or `secondary`.
    */
   accent:
-    "bg-gold-500 text-sand-950 shadow-xs hover:bg-gold-400 active:bg-gold-600 active:text-white disabled:bg-gold-500/50",
+    "bg-gold-500 text-accent-on-fill shadow-xs hover:bg-gold-400 active:bg-gold-600 active:text-white disabled:bg-gold-500/50",
   secondary:
     "bg-surface text-sand-800 border border-sand-300 shadow-xs hover:bg-sand-50 active:bg-sand-100 disabled:opacity-50",
   ghost:

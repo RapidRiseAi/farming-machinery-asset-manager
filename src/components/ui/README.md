@@ -1,6 +1,6 @@
-# FarmGear UI kit
+# FleetWise UI kit
 
-Design-system primitives for the FarmGear PWA. Tokens live in
+Design-system primitives for the FleetWise PWA. Tokens live in
 `tailwind.config.ts` (brand green scale, warm `sand` neutral scale, traffic-light
 `status` tokens, soft shadows, system font stack) and `src/app/globals.css`
 (semantic CSS vars, focus-ring, safe-area helpers).

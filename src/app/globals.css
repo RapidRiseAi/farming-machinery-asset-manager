@@ -73,6 +73,31 @@
   --accent: 234 165 12; /* FleetWise Gold — fills only          */
   --accent-ink: 147 101 5; /* gold-600      — gold that carries text */
 
+  /* Gold as a SELECTED-STATE GROUND, plus the rim that separates it from the
+     surface, plus the ink that sits ON the gold fill.
+
+     These exist because the gold scale in tailwind.config.ts is hardcoded hex
+     and therefore cannot follow the theme, while `sand-*` inverts. Pairing the
+     two rendered a selected nav row as near-white text on a near-white ground
+     (1.02:1) in dark mode, and every gold CTA as white-on-gold (2.12:1) — the
+     exact ratio button.tsx's own comment forbids. Same lesson as --brand-ink:
+     a colour that must stay legible needs a token, not a fixed step. */
+  --accent-tint: 253 247 230; /* gold-50   — selected ground             */
+  --accent-rim: 243 199 79; /* gold-300  — rim on that ground           */
+  /* Ink on the GOLD FILL. Does NOT flip: gold-500 is literal in both themes,
+     so its ink must be too. Black on gold is 9.89:1; white is 2.12:1. */
+  --accent-on-fill: 0 0 0;
+
+  /* ── Elevation ─────────────────────────────────────────────────────────
+     Defined here, not in tailwind.config.ts, because a charcoal-tinted shadow
+     is INVISIBLE on the dark theme's charcoal surface — --surface is 29 33 29
+     and the shadow was rgb(36 40 36 / 0.05). Opacity and hue both have to
+     change with the theme, which a static config value cannot do. */
+  --shadow-xs: 0 1px 2px 0 rgb(36 40 36 / 0.05);
+  --shadow-card: 0 1px 2px 0 rgb(36 40 36 / 0.05), 0 1px 3px 0 rgb(36 40 36 / 0.06);
+  --shadow-soft: 0 2px 8px -2px rgb(36 40 36 / 0.08), 0 6px 20px -6px rgb(36 40 36 / 0.1);
+  --shadow-pop: 0 10px 30px -8px rgb(36 40 36 / 0.2), 0 4px 10px -4px rgb(36 40 36 / 0.1);
+
   /* Focus ring — the brand green, 7.89:1 against the cream ground. */
   --ring: 0 87 44;
 
@@ -150,6 +175,23 @@
     --accent: 234 165 12;
     --accent-ink: 234 165 12; /* gold reads directly on black — 7.68:1 */
 
+    /* Gold ground deep enough for --accent-ink to clear AA on it (8.9:1), with
+       a mid-gold rim that reads against the dark surface. */
+    --accent-tint: 58 44 10;
+    --accent-rim: 147 101 5;
+    --accent-on-fill: 0 0 0; /* unchanged: the gold fill is unchanged */
+
+    /* Near-black at much higher opacity — a charcoal shadow cannot be seen on a
+       charcoal surface. The inset hairline does the elevation work that a cast
+       shadow does on cream. */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.45), 0 1px 3px 0 rgb(0 0 0 / 0.35),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+    --shadow-soft: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 6px 20px -6px rgb(0 0 0 / 0.45),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+    --shadow-pop: 0 10px 30px -8px rgb(0 0 0 / 0.65), 0 4px 10px -4px rgb(0 0 0 / 0.5),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.06);
+
 
     /* Deep tint of the hue, with its light end as the text. */
     --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;
@@ -201,6 +243,23 @@
 
   --accent: 234 165 12;
   --accent-ink: 234 165 12;
+
+  /* Gold ground deep enough for --accent-ink to clear AA on it, with a
+     mid-gold rim that reads against the dark surface. */
+  --accent-tint: 58 44 10;
+  --accent-rim: 147 101 5;
+  --accent-on-fill: 0 0 0; /* unchanged: the gold fill is unchanged */
+
+  /* Near-black at much higher opacity — a charcoal shadow cannot be seen on a
+     charcoal surface. The inset hairline does the elevation work that a cast
+     shadow does on cream. */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.45), 0 1px 3px 0 rgb(0 0 0 / 0.35),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+  --shadow-soft: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 6px 20px -6px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+  --shadow-pop: 0 10px 30px -8px rgb(0 0 0 / 0.65), 0 4px 10px -4px rgb(0 0 0 / 0.5),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.06);
 
   /* Deep tint of the hue, with its light end as the text. */
   --callout-danger-bg: 51 26 26;  --callout-danger-edge: 122 58 57; --callout-danger-ink: 240 169 168;

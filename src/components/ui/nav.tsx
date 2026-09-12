@@ -55,7 +55,7 @@ export function NavLink({
         aria-current={active ? "page" : undefined}
         className={cn(
           "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-2xs font-medium",
-          active ? "text-brand-ink" : "text-sand-500",
+          active ? "text-brand-ink" : "text-ink-muted",
         )}
       >
         <span className="relative">
@@ -75,7 +75,7 @@ export function NavLink({
         "focus-ring flex min-h-[48px] items-center gap-3 rounded-lg px-3 sm:min-h-[44px] text-sm font-medium transition-colors",
         active
           ? "bg-brand-tint text-brand-ink"
-          : "text-sand-700 hover:bg-sand-100 hover:text-sand-900",
+          : "text-ink-muted hover:bg-surface-sunken hover:text-ink",
       )}
     >
       <Icon name={item.icon} className="text-xl" />
@@ -149,7 +149,7 @@ export function MoreMenu({
         <nav className="flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.key} className="flex flex-col">
-              <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wider text-sand-500">
+              <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 {group.label}
               </p>
               {group.items.map((item) => {
@@ -165,13 +165,13 @@ export function MoreMenu({
                       // The selected state is the brand accent (gold) plus a
                       // weight change and aria-current — never colour alone.
                       isActive
-                        ? "bg-gold-50 font-semibold text-sand-900 ring-1 ring-gold-300"
-                        : "text-sand-800 hover:bg-sand-100",
+                        ? "bg-accent-tint font-semibold text-ink ring-1 ring-accent-rim"
+                        : "text-ink hover:bg-surface-sunken",
                     )}
                   >
                     <Icon
                       name={item.icon}
-                      className={cn("text-xl", isActive ? "text-gold-600" : "text-sand-500")}
+                      className={cn("text-xl", isActive ? "text-accent-ink" : "text-ink-muted")}
                     />
                     <span className="flex-1 truncate">{item.label}</span>
                     {item.badge ? <Badge count={item.badge} /> : null}
@@ -180,7 +180,7 @@ export function MoreMenu({
               })}
             </div>
           ))}
-          <div className="h-px bg-sand-200" />
+          <div className="h-px bg-edge-soft" />
           {signOutSlot}
         </nav>
       </Sheet>

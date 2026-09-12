@@ -94,7 +94,7 @@ export default async function ClosedPage({
           </p>
         ) : null}
 
-        <p className="mt-4 rounded-lg bg-brand-50 p-3 text-sm text-sand-800">
+        <p className="mt-4 rounded-lg bg-brand-tint p-3 text-sm text-ink">
           {t("closed.dataSafe", locale)}
         </p>
 

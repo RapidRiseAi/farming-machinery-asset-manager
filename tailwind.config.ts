@@ -229,6 +229,19 @@ const config: Config = {
           DEFAULT: "rgb(var(--edge) / <alpha-value>)",
           soft: "rgb(var(--edge-soft) / <alpha-value>)",
         },
+        // ── The gold accent, as tokens rather than fixed steps ────────────
+        //    `gold-*` above is hardcoded hex and cannot follow the theme, while
+        //    `sand-*` inverts. Combining the two put near-white text on a
+        //    near-white ground (1.02:1) on the selected nav row, and white on
+        //    gold (2.12:1) on every accent button, in dark mode. Use these
+        //    wherever gold has to stay legible in BOTH themes.
+        accent: {
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          ink: "rgb(var(--accent-ink) / <alpha-value>)",
+          tint: "rgb(var(--accent-tint) / <alpha-value>)",
+          rim: "rgb(var(--accent-rim) / <alpha-value>)",
+          "on-fill": "rgb(var(--accent-on-fill) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: [
@@ -269,10 +282,13 @@ const config: Config = {
       boxShadow: {
         // Warm-tinted, layered. Tinted with the charcoal rather than pure black
         // so shadows sit in the same colour world as the cream ground.
-        xs: "0 1px 2px 0 rgb(36 40 36 / 0.05)",
-        card: "0 1px 2px 0 rgb(36 40 36 / 0.05), 0 1px 3px 0 rgb(36 40 36 / 0.06)",
-        soft: "0 2px 8px -2px rgb(36 40 36 / 0.08), 0 6px 20px -6px rgb(36 40 36 / 0.10)",
-        pop: "0 10px 30px -8px rgb(36 40 36 / 0.20), 0 4px 10px -4px rgb(36 40 36 / 0.10)",
+        // Driven by CSS vars so the dark theme can change OPACITY as well as
+        // hue: a charcoal shadow at 5% is invisible on a charcoal surface, which
+        // is what --surface is in dark (29 33 29).
+        xs: "var(--shadow-xs)",
+        card: "var(--shadow-card)",
+        soft: "var(--shadow-soft)",
+        pop: "var(--shadow-pop)",
         // Gold focus/selected glow — the accent used as emphasis, not as text.
         gold: "0 0 0 3px rgb(234 165 12 / 0.28)",
       },

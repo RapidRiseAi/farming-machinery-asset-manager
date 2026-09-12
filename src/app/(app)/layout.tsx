@@ -431,7 +431,7 @@ export default async function AppLayout({
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sand-200 bg-surface lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-edge-soft bg-surface shadow-soft lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-4">
           {brandMark}
           <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
@@ -520,7 +520,7 @@ export default async function AppLayout({
         )}
 
         {/* Desktop slim top bar */}
-        <header className="sticky top-0 z-20 hidden items-center justify-end gap-1.5 border-b border-sand-200 bg-white/90 px-6 py-2 backdrop-blur lg:flex">
+        <header className="sticky top-0 z-20 hidden items-center justify-end gap-1.5 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
           <SyncStatus locale={locale} />
           {bellLink}
           {avatar}
