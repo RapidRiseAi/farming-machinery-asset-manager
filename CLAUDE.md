@@ -2866,4 +2866,50 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     Paystack **Starter Business R80 000 lifetime cap**; and `NEXT_PUBLIC_SITE_URL`,
     `RESEND_API_KEY` and `EMAIL_FROM` in Vercel Production.
 
+
+- **CI green for the first time in over a week, and `pnpm db:test` runs here at last**
+  (migration `20260912140000`; commit `bcbd39c` on `main`):
+  - **The RLS isolation job had been failing on EVERY commit** since at least 8 September —
+    through the whole billing audit, the go-live work and the release above. Nobody could
+    see why: a local run passes every suite, and the job logs need repository **admin**
+    rights to download. `git credential fill` supplies the token git already uses for
+    pushes, which is how the log was finally read. One line in it:
+    `G18 FAIL: the filed record is named agri diesel, not the deterministic pick`.
+  - **The defect.** `app.link_suppliers()` (0481) collapses every spelling of one business
+    into a single supplier record and picks the canonical name with
+    `min(btrim(supplier_name))`. 0481's own comment calls that a deterministic pick — and
+    `min()` on text sorts by the **database's collation**, so `C` yields `Agri Diesel` and
+    `en_US.UTF-8` yields `agri diesel`. Production is `en_US.UTF-8`. So is CI. The supplier
+    name that ends up on a remittance advice depended on where the backfill ran.
+    `20260912140000` pins the tie-break with `collate "C"` — byte order, identical on every
+    database anywhere, and it keeps the capitalised spelling, which is the one that gets
+    printed. Nothing already filed changes; the backfill only inserts where no record for
+    that name-key exists. Body EXTRACTED via `pg_get_functiondef`, altered by one token.
+  - **A real Postgres now runs here.** The zonky embedded binaries (22 MB from Maven
+    Central) give a genuine PostgreSQL 16.4 **server**, but ship no `psql` — so the runner
+    drives it with node-postgres, splitting SQL into statements the way psql does. Green
+    under **both** collations: 161 migrations, all ten suites, on `C` and on ICU `en-US`.
+    Passing under one proves nothing about the other, which is the whole lesson.
+  - **Three harness traps, each of which faked a wave of failures before it was found.**
+    (1) Sending a whole file as one query wraps it in ONE implicit transaction, while psql
+    runs one statement at a time — and `rls_isolation.sql` has no transaction control at
+    all, relying on autocommit and on session GUCs surviving between statements. (2)
+    `run.sh` uses a FRESH psql process per file; reusing one connection let a failed suite
+    leave `set role` active and every later suite failed with "new row violates row-level
+    security policy". (3) **Roles are cluster-wide**: `drop database` never removes
+    `service_role`, and the shim creates it only `if not exists` — so an earlier version of
+    the harness that created it WITHOUT `bypassrls` poisoned every later run, and four
+    suites "failed" because rows inserted a line earlier were invisible to the role that is
+    supposed to bypass RLS.
+  - **And a fifth heredoc ate a backslash**, turning `/^\s*\\[a-zA-Z]/` into a character
+    class so every `\set ON_ERROR_STOP on` survived into statement one and nine suites
+    "failed" with `syntax error at or near "\"`. Anything containing a backslash gets
+    written with an editor, not a shell heredoc.
+  - `docs/SCHEMA_DRIFT.md` gains the class an object diff can never see: two databases can
+    hold byte-identical objects and still sort differently. It carries the one-line check
+    (`select min(x) from (values ('Agri Diesel'),('agri diesel')) v(x)`), the ICU recipe for
+    building a test database that matches production, and the three harness traps.
+  - **Both CI jobs green on `bcbd39c`**; production unchanged at 3 farms / 15 machines /
+    6 invoices, its one filed supplier untouched.
+
 > Update this "current status" block at the end of every session.
