@@ -39,8 +39,41 @@ export type SendEmailResult =
   | { ok: true; id: string | null; provider: "resend" }
   | { ok: false; error: string; provider: "resend" | "none" };
 
+/**
+ * Why email is not configured, or null when it is.
+ *
+ * Exported so a caller can LOG the reason. "email-not-configured" on its own has cost this
+ * project weeks: the nightly pass reported exactly that, nobody could tell whether the key
+ * was missing, wrong, or a placeholder, and the six receipts it had already stamped as sent
+ * looked perfectly healthy.
+ */
+export function emailConfigProblem(): string | null {
+  const key = (process.env.RESEND_API_KEY ?? "").trim();
+  const from = (process.env.EMAIL_FROM ?? "").trim();
+
+  if (!key) return "RESEND_API_KEY is not set";
+  // `vercel pull` CANNOT decrypt secrets — it writes the literal string `[SENSITIVE]`, which
+  // is perfectly truthy. That one fact is why every send failed at the provider for weeks
+  // while this function reported everything was fine.
+  if (/^\[.*\]$/.test(key)) return "RESEND_API_KEY is a placeholder, not a key";
+  if (/\s/.test(key)) return "RESEND_API_KEY contains whitespace";
+  // Resend's documented key prefix. This module talks to exactly one provider — its
+  // endpoint and its error shape are both Resend's — so recognising Resend's own format is
+  // not over-fitting, and refusing loudly beats being rejected silently once per message.
+  if (!key.startsWith("re_")) return "RESEND_API_KEY does not look like a Resend key";
+  if (key.length < 20) return "RESEND_API_KEY is too short to be real";
+
+  if (!from) return "EMAIL_FROM is not set";
+  if (/^\[.*\]$/.test(from)) return "EMAIL_FROM is a placeholder, not an address";
+  // Resend only accepts a domain you have verified, so a malformed or invented FROM is a
+  // rejection at the provider — one per message, rather than once at startup.
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from)) return "EMAIL_FROM is not an email address";
+
+  return null;
+}
+
 export function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+  return emailConfigProblem() === null;
 }
 
 /**
@@ -56,8 +89,11 @@ export function fromAddress(partnerName: string): string {
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return { ok: false, error: "email-not-configured", provider: "none" };
+  // Checked here as well as at the call sites: `sendEmail` is reachable on its own, and a
+  // guard that lives only in the callers is a guard somebody will forget.
+  const problem = emailConfigProblem();
+  if (problem) return { ok: false, error: `email-not-configured: ${problem}`, provider: "none" };
+  const key = process.env.RESEND_API_KEY as string;
 
   const body: Record<string, unknown> = {
     from: input.from,
