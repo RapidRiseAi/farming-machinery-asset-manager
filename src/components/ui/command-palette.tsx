@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "./cn";
 import { Overlay } from "./dialog";
-import { Icon, SearchIcon, type IconName } from "./icons";
+import { Icon, SearchIcon, MachinesIcon, type IconName } from "./icons";
 import type { NavGroup } from "./nav";
 
 /**
  * Ctrl/⌘+K — one place to type where you want to go.
  *
- * The nav is twenty-four rows for an owner and twenty-four for a books-tier
+ * The nav is twenty-one rows for an owner and twenty-four for a books-tier
  * partner, grouped but long, and finding "VAT" means reading past fifteen other
  * money words. A palette is the convention people already know from every
  * editor and most SaaS, so it needs no teaching.
@@ -19,6 +19,11 @@ import type { NavGroup } from "./nav";
  * behind the role and entitlement checks. That matters: the palette introduces
  * no second idea of what a person may reach, so it cannot drift out of step
  * with the sidebar or expose a destination the role does not have.
+ *
+ * MACHINES are searched live against `/api/machines/search`, which reads through
+ * the request-scoped client so RLS is the access control there too. Typing a
+ * nickname or a registration and landing on the machine is the thing somebody in
+ * a workshop actually wants; walking the nav to /machines and filtering is not.
  *
  * Hand-rolled rather than a combobox dependency, per Scope §7 — the bundle is
  * 103 kB and the interaction is a list and two arrow keys.
@@ -38,9 +43,31 @@ export type CommandLabels = {
   hintClose: string;
   /** Screen-reader result count, `{n}` replaced. */
   results: string;
+  /** Section headings. */
+  pages: string;
+  machines: string;
+  /** Shown while the machine lookup is in flight. */
+  searching: string;
 };
 
-type Entry = { href: string; label: string; icon: IconName; group: string };
+type Row = {
+  kind: "page" | "machine";
+  key: string;
+  href: string;
+  label: string;
+  icon: IconName;
+  /** Right-hand context: the nav group, or a machine's make and registration. */
+  meta: string;
+};
+
+type MachineHit = {
+  id: string;
+  name: string;
+  make: string | null;
+  model: string | null;
+  reg_no: string | null;
+  status: string | null;
+};
 
 /**
  * Fold case and strip diacritics so an Afrikaans label matches what a person
@@ -59,15 +86,15 @@ const fold = (s: string) =>
  * "Corrections" above "Cash flow" for the query "c f" and the person cannot
  * tell why. Word-start beats mid-word, label beats group name.
  */
-function rank(entry: Entry, q: string): number {
-  const label = fold(entry.label);
-  const group = fold(entry.group);
+function rank(label: string, meta: string, q: string): number {
+  const l = fold(label);
+  const m = fold(meta);
   if (!q) return 0;
-  if (label === q) return 100;
-  if (label.startsWith(q)) return 80;
-  if (new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(label)) return 60;
-  if (label.includes(q)) return 40;
-  if (group.startsWith(q) || group.includes(q)) return 20;
+  if (l === q) return 100;
+  if (l.startsWith(q)) return 80;
+  if (new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(l)) return 60;
+  if (l.includes(q)) return 40;
+  if (m.startsWith(q) || m.includes(q)) return 20;
   return -1;
 }
 
@@ -82,26 +109,52 @@ export function CommandPalette({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [machines, setMachines] = useState<MachineHit[]>([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const entries = useMemo<Entry[]>(
+  const pages = useMemo<Row[]>(
     () =>
       groups.flatMap((g) =>
-        g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, group: g.label })),
+        g.items.map((i) => ({
+          kind: "page" as const,
+          key: "page:" + i.href,
+          href: i.href,
+          label: i.label,
+          icon: i.icon,
+          meta: g.label,
+        })),
       ),
     [groups],
   );
 
-  const results = useMemo(() => {
+  const pageRows = useMemo(() => {
     const q = fold(query.trim());
-    if (!q) return entries;
-    return entries
-      .map((e) => ({ e, r: rank(e, q) }))
-      .filter((x) => x.r >= 0)
-      .sort((a, b) => b.r - a.r)
-      .map((x) => x.e);
-  }, [entries, query]);
+    if (!q) return pages;
+    return pages
+      .map((r) => ({ r, s: rank(r.label, r.meta, q) }))
+      .filter((x) => x.s >= 0)
+      .sort((a, b) => b.s - a.s)
+      .map((x) => x.r);
+  }, [pages, query]);
+
+  const machineRows = useMemo<Row[]>(
+    () =>
+      machines.map((m) => ({
+        kind: "machine" as const,
+        key: "machine:" + m.id,
+        href: `/machines/${m.id}`,
+        label: m.name,
+        icon: "machines" as IconName,
+        meta: [m.make, m.model, m.reg_no].filter(Boolean).join(" · "),
+      })),
+    [machines],
+  );
+
+  // One flat list so the arrow keys cross the section boundary without the
+  // person having to know there is one.
+  const rows = useMemo(() => [...pageRows, ...machineRows], [pageRows, machineRows]);
 
   // ⌘K on a Mac, Ctrl+K everywhere else. Read once so the hint and the handler
   // cannot disagree.
@@ -128,17 +181,53 @@ export function CommandPalette({
     if (!open) return;
     setQuery("");
     setActive(0);
+    setMachines([]);
     const id = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(id);
   }, [open]);
 
   useEffect(() => setActive(0), [query]);
 
+  /**
+   * Machine lookup, debounced and abortable.
+   *
+   * The abort matters for correctness, not just politeness: typing "joh" fires
+   * three requests and without cancelling them the answer for "jo" can land
+   * after the answer for "joh" and overwrite it. Every in-flight request is
+   * dropped the moment the query moves on.
+   */
+  useEffect(() => {
+    const q = query.trim();
+    if (!open || q.length < 2) {
+      setMachines([]);
+      setSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/machines/search?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+        headers: { accept: "application/json" },
+      })
+        .then((r) => (r.ok ? r.json() : { machines: [] }))
+        .then((d: { machines?: MachineHit[] }) => setMachines(d.machines ?? []))
+        .catch(() => {
+          /* aborted, or offline — the pages above still work */
+        })
+        .finally(() => setSearching(false));
+    }, 180);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [query, open]);
+
   // Keep the highlighted row in view when arrowing past the fold.
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`);
     el?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  }, [active, rows.length]);
 
   const go = useCallback(
     (href: string) => {
@@ -151,19 +240,19 @@ export function CommandPalette({
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => (results.length ? (i + 1) % results.length : 0));
+      setActive((i) => (rows.length ? (i + 1) % rows.length : 0));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((i) => (results.length ? (i - 1 + results.length) % results.length : 0));
+      setActive((i) => (rows.length ? (i - 1 + rows.length) % rows.length : 0));
     } else if (e.key === "Home") {
       e.preventDefault();
       setActive(0);
     } else if (e.key === "End") {
       e.preventDefault();
-      setActive(Math.max(0, results.length - 1));
+      setActive(Math.max(0, rows.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const hit = results[active];
+      const hit = rows[active];
       if (hit) go(hit.href);
     }
   };
@@ -205,7 +294,7 @@ export function CommandPalette({
             role="combobox"
             aria-expanded
             aria-controls="command-palette-list"
-            aria-activedescendant={results[active] ? `command-option-${active}` : undefined}
+            aria-activedescendant={rows[active] ? `command-option-${active}` : undefined}
             aria-autocomplete="list"
             autoComplete="off"
             spellCheck={false}
@@ -225,33 +314,66 @@ export function CommandPalette({
           aria-label={labels.title}
           className="max-h-[min(60vh,26rem)] overflow-y-auto py-1.5"
         >
-          {results.map((r, i) => (
-            <li key={r.href} role="none">
-              <button
-                type="button"
-                id={`command-option-${i}`}
-                role="option"
-                aria-selected={i === active}
-                data-index={i}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(r.href)}
-                className={cn(
-                  "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
-                  i === active ? "bg-accent-tint text-ink" : "text-ink hover:bg-surface-hover",
-                )}
-              >
-                <Icon
-                  name={r.icon}
-                  className={cn("shrink-0 text-lg", i === active ? "text-accent-ink" : "text-ink-muted")}
-                />
-                <span className="flex-1 truncate font-medium">{r.label}</span>
-                {/* The group disambiguates the money words: "Reports" under
-                    Overview is not "Statements" under Contractor. */}
-                <span className="shrink-0 text-xs text-ink-subtle">{r.group}</span>
-              </button>
+          {rows.map((r, i) => {
+            // A heading before the first row of each kind, so the two sources
+            // are distinguishable without breaking the single arrow-key list.
+            const heading =
+              i === 0 || rows[i - 1].kind !== r.kind
+                ? r.kind === "page"
+                  ? labels.pages
+                  : labels.machines
+                : null;
+            return (
+              <li key={r.key} role="none">
+                {heading ? (
+                  <p
+                    role="presentation"
+                    className="px-4 pb-1 pt-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"
+                  >
+                    {heading}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  id={`command-option-${i}`}
+                  role="option"
+                  aria-selected={i === active}
+                  data-index={i}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => go(r.href)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+                    i === active ? "bg-accent-tint text-ink" : "text-ink hover:bg-surface-hover",
+                  )}
+                >
+                  {r.kind === "machine" ? (
+                    <MachinesIcon
+                      className={cn("shrink-0 text-lg", i === active ? "text-accent-ink" : "text-ink-muted")}
+                    />
+                  ) : (
+                    <Icon
+                      name={r.icon}
+                      className={cn("shrink-0 text-lg", i === active ? "text-accent-ink" : "text-ink-muted")}
+                    />
+                  )}
+                  <span className="flex-1 truncate font-medium">{r.label}</span>
+                  {/* The group disambiguates the money words: "Reports" under
+                      Overview is not "Statements" under Contractor. For a
+                      machine it is the make and the registration, which is how
+                      somebody tells two John Deeres apart. */}
+                  <span className="shrink-0 truncate pl-3 text-xs text-ink-subtle">{r.meta}</span>
+                </button>
+              </li>
+            );
+          })}
+
+          {searching && machineRows.length === 0 ? (
+            <li role="none" className="px-4 py-3 text-sm text-ink-subtle">
+              {labels.searching}
             </li>
-          ))}
-          {results.length === 0 ? (
+          ) : null}
+
+          {rows.length === 0 && !searching ? (
             <li role="none" className="px-4 py-8 text-center text-sm text-ink-muted">
               {labels.empty}
             </li>
@@ -278,7 +400,7 @@ export function CommandPalette({
         {/* Announce the count rather than leaving a screen-reader user to arrow
             into silence. */}
         <p aria-live="polite" className="sr-only">
-          {labels.results.replace("{n}", String(results.length))}
+          {labels.results.replace("{n}", String(rows.length))}
         </p>
       </Overlay>
     </>

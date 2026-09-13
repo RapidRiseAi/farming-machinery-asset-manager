@@ -4538,6 +4538,9 @@
     "empty": "Niks pas daarby nie.",
     "hintSelect": "om oop te maak",
     "hintClose": "om te sluit",
-    "results": "{n} bladsye pas"
+    "results": "{n} bladsye pas",
+    "pages": "Bladsye",
+    "machines": "Masjiene",
+    "searching": "Soek vir masjiene…"
   }
 }

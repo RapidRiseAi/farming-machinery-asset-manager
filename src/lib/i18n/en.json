@@ -4538,6 +4538,9 @@
     "empty": "Nothing matches that.",
     "hintSelect": "to open",
     "hintClose": "to close",
-    "results": "{n} matching pages"
+    "results": "{n} matching pages",
+    "pages": "Pages",
+    "machines": "Machines",
+    "searching": "Looking for machines…"
   }
 }

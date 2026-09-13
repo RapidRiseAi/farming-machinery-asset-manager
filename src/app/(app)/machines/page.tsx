@@ -3,6 +3,7 @@ import { requireProfile, currentFarmId } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
+import { sanitiseFilterTerm } from "@/lib/search-filter";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { rands } from "@/lib/money";
@@ -81,7 +82,14 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   else if (!showRetired) query = query.not("status", "in", "(retired,sold)");
   if (sp.cc) query = query.eq("cost_centre", sp.cc);
   if (sp.dept) query = query.eq("department", sp.dept);
-  if (sp.q) query = query.or(`name.ilike.%${sp.q}%,make.ilike.%${sp.q}%,model.ilike.%${sp.q}%,serial_no.ilike.%${sp.q}%`);
+  // Sanitised, not interpolated raw: PostgREST reads `or=(…)` as an expression,
+  // so a comma or a parenthesis in the search box would end one condition and
+  // start another. See src/lib/search-filter.ts.
+  const qTerm = sp.q ? sanitiseFilterTerm(sp.q) : "";
+  if (qTerm)
+    query = query.or(
+      `name.ilike.%${qTerm}%,make.ilike.%${qTerm}%,model.ilike.%${qTerm}%,serial_no.ilike.%${qTerm}%`,
+    );
   const { data } = await query;
   const machines = (data as MachineRow[] | null) ?? [];
 

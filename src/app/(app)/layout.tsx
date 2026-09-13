@@ -547,6 +547,9 @@ export default async function AppLayout({
               hintSelect: t("command.hintSelect", locale),
               hintClose: t("command.hintClose", locale),
               results: t("command.results", locale),
+              pages: t("command.pages", locale),
+              machines: t("command.machines", locale),
+              searching: t("command.searching", locale),
             }}
           />
           <div className="flex items-center gap-1.5">
