@@ -86,7 +86,7 @@ export default async function ClosedPage({
       </div>
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">
-        <h1 className="text-2xl font-semibold">{t("closed.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("closed.title", locale)}</h1>
         <p className="mt-2 text-sand-700">{t(`closed.reason.${reason}`, locale)}</p>
         {since ? (
           <p className="mt-1 text-sm text-sand-600">

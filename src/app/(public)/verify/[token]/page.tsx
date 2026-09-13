@@ -56,7 +56,7 @@ export default async function VerifyPage({
       </div>
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">
-        <h1 className="text-2xl font-semibold">{heading}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{heading}</h1>
         <p className="mt-2 text-sand-700">{body}</p>
 
         <Link

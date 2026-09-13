@@ -72,7 +72,7 @@ export default async function PartnerSettingsPage({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("partnerSettings.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("partnerSettings.title", locale)}</h1>
         <PageInfoButton infoKey="partnerSettings" locale={locale} />
         {plan ? <Badge tone="brand">{t(workshopPlanNameKey(plan), locale)}</Badge> : null}
       </div>

@@ -55,7 +55,7 @@ export default async function FuelPage({
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.fuel", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("nav.fuel", locale)}</h1>
           <PageInfoButton infoKey="fuel" locale={locale} />
         </div>
         <UpgradeNotice
@@ -139,7 +139,7 @@ export default async function FuelPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("fuel.title", locale)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{t("fuel.title", locale)}</h1>
             <PageInfoButton infoKey="fuel" locale={locale} />
           </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("fuel.subtitle", locale)}</p>

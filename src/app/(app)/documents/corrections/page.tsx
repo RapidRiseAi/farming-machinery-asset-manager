@@ -79,7 +79,7 @@ export default async function CorrectionsPage() {
     <div className="flex flex-col gap-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("corrections.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("corrections.title", locale)}</h1>
           <PageInfoButton infoKey="corrections" locale={locale} />
         </div>
         <p className="mt-0.5 text-sm text-sand-500">{t("corrections.tagline", locale)}</p>

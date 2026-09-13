@@ -70,7 +70,7 @@ export default async function WorkListPage({
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
           {isContractor ? t("work.contractorTitle", locale) : t("work.title", locale)}
         </h1>
           <PageInfoButton infoKey="work" locale={locale} />

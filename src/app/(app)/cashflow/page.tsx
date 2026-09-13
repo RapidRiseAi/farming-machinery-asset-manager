@@ -94,7 +94,7 @@ export default async function CashflowPage({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-sand-900">{t("cash.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("cash.title", locale)}</h1>
         <p className="text-sm text-sand-600">{t("cash.lead", locale)}</p>
       </div>
 

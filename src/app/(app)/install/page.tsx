@@ -28,7 +28,7 @@ export default async function InstallPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {t("install.title", locale)}
           </h1>
           <PageInfoButton infoKey="install" locale={locale} />

@@ -123,7 +123,7 @@ export default async function OrdersPage({
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-sand-900">{t("po.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("po.title", locale)}</h1>
         <p className="text-sm text-sand-600">{t("po.lead", locale)}</p>
       </div>
 

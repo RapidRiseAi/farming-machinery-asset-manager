@@ -227,7 +227,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("partners.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("partners.title", locale)}</h1>
           <PageInfoButton infoKey="partners" locale={locale} />
         </div>
         <p className="mt-0.5 text-sm text-sand-500">{t("partners.subtitle", locale)}</p>

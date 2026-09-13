@@ -77,7 +77,7 @@ export default async function ReportSchedulePage({
   if (!allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reportSchedules.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("reportSchedules.title", locale)}</h1>
         <UpgradeNotice feature="advanced_reports" requiredPlan={gate.requiredPlan} currentPlan={farmPlan} locale={locale} />
       </div>
     );
@@ -141,7 +141,7 @@ export default async function ReportSchedulePage({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-sand-900">{schedule.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{schedule.name}</h1>
           <p className="text-sm text-sand-600">
             {t(`reportSchedules.family.${schedule.report_key}`, locale)} ·{" "}
             {t(`reportSchedules.format.${schedule.output_format}`, locale)} ·{" "}

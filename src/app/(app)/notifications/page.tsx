@@ -71,7 +71,7 @@ export default async function NotificationsPage({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("notifications.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("notifications.title", locale)}</h1>
           <PageInfoButton infoKey="notifications" locale={locale} />
         </div>
         {hasUnread ? (

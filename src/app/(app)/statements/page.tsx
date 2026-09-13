@@ -157,7 +157,7 @@ export default async function StatementsPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("statement.title", locale)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{t("statement.title", locale)}</h1>
             <PageInfoButton infoKey="statements" locale={locale} />
           </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("statement.tagline", locale)}</p>

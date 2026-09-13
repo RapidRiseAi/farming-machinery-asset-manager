@@ -143,7 +143,7 @@ export default async function InboxPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {t("inbox.waitingForYou", locale)}
           </h1>
           <PageInfoButton infoKey="inbox" locale={locale} />

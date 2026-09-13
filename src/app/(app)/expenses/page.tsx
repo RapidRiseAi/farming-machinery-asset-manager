@@ -120,7 +120,7 @@ export default async function ExpensesPage({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-sand-900">{t("expenses.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("expenses.title", locale)}</h1>
           <p className="text-sm text-sand-600">{t("expenses.lead", locale)}</p>
         </div>
         <span className="ml-auto">

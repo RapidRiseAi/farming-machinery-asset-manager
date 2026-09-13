@@ -205,7 +205,7 @@ export default async function AdminBillingPage({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-sand-900">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {t("adminBilling.title", locale)}
           </h1>
           <p className="text-sm text-sand-600">{t("adminBilling.lead", locale)}</p>

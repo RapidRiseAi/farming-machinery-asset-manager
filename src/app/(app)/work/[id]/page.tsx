@@ -122,7 +122,7 @@ export default async function WorkRequestDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+              <h1 className="text-2xl font-bold tracking-tight text-ink">
                 {wr.title || workKindLabel(wr.kind, locale)}
               </h1>
               <WorkStatus value={wr.status} locale={locale} size="md" />

@@ -36,7 +36,7 @@ export default async function BankImportPage({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-sand-900">{t("bank.importTitle", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("bank.importTitle", locale)}</h1>
           <p className="text-sm text-sand-600">{t("bank.importLead", locale)}</p>
         </div>
         <Link

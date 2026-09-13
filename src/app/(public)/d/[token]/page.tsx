@@ -149,7 +149,7 @@ export default async function PublicDocumentPage({
 
       <section className="rounded-xl border border-sand-200 bg-surface p-5">
         <p className="text-sm text-sand-500">{t("pubDoc.for", locale)}</p>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">
           {label} {doc.number}
         </h1>
         <p className="mt-1 text-sand-700">{doc.bill_to_name}</p>

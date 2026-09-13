@@ -52,7 +52,7 @@ export default async function OnboardingPage({
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("onboarding.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("onboarding.title", locale)}</h1>
           <PageInfoButton infoKey="onboarding" locale={locale} />
         </div>
         <p className="mt-1 text-sand-500">{t("onboarding.subtitle", locale)}</p>

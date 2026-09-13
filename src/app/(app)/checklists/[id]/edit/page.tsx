@@ -63,7 +63,7 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
         {t("checklists.title", locale)}
       </Link>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("checklists.editTemplate", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("checklists.editTemplate", locale)}</h1>
         <p className="mt-0.5 text-sm text-sand-500">{t("checklists.builderHint", locale)}</p>
       </div>
       <Card>

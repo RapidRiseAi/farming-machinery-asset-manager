@@ -52,7 +52,7 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("nav.dashboard", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("nav.dashboard", locale)}</h1>
           <PageInfoButton infoKey="dashboard" locale={locale} />
         </div>
         <UpgradeNotice
@@ -334,7 +334,7 @@ export default async function DashboardPage() {
           nothing about which farm they were looking at. */}
       <header>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950 sm:text-2xl">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {t(greetKey, locale).replace("{name}", firstName)}
           </h1>
           <PageInfoButton infoKey="dashboard" locale={locale} />

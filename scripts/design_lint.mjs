@@ -117,6 +117,9 @@ const darkBlockDrift = (() => {
 const twSrcPath = join(ROOT, "tailwind.config.ts");
 const files = existsSync(SRC) ? walk(SRC) : [];
 const rel = (p) => relative(ROOT, p).split(sep).join("/");
+/** The one spelling of an (app) page title. See rule 10. */
+const PAGE_TITLE = "text-2xl font-bold tracking-tight text-ink";
+
 const violations = [];
 const add = (rule, file, line, detail) =>
   violations.push({ rule, file: rel(file), line, detail });
@@ -224,6 +227,24 @@ for (const f of files) {
     // 8 — pinch-zoom must stay available (WCAG 1.4.4).
     if (/maximumScale\s*:/.test(ln) || /maximum-scale/.test(ln))
       add("no-maximum-scale", f, n, "disables pinch-zoom — WCAG 1.4.4 failure");
+
+    // 10 — ONE page title. Sixty-two (app) pages rendered their h1 in nine
+    //      spellings: two sizes (text-xl, text-2xl) and two inks (sand-900 and
+    //      sand-950, which are Warm Cream and pure white in the dark theme).
+    //      The split ran by WHICH SPRINT built the page — the finance tranche
+    //      used text-xl, the core used text-2xl — so somebody moving from
+    //      Machines to Money watched the title shrink. Scoped to (app) route
+    //      pages: the marketing hero, the legal document, the error boundary
+    //      and the public QR page are different roles with their own sizes.
+    if (
+      /\(app\)/.test(rel(f)) &&
+      /page\.tsx$/.test(rel(f)) &&
+      /<h1\s[^>]*className="/.test(ln)
+    ) {
+      const h = ln.match(/<h1\s[^>]*className="([^"]*)"/);
+      if (h && !h[1].includes(PAGE_TITLE))
+        add("page-title", f, n, `${h[1]} — page titles are "${PAGE_TITLE}"`);
+    }
 
     // 9 — a token that is not defined renders as NOTHING, silently. This was
     //     real: `status-warn` and `status-bad` were used 19 times across 13

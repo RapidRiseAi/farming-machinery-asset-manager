@@ -85,7 +85,7 @@ export default async function FarmDetailPage({
         <Link href="/admin/farms" className="focus-ring inline-flex items-center gap-1 rounded-md text-sm text-sand-500">
           <ChevronLeftIcon className="text-base" /> Farms
         </Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-sand-900">{farm.name}</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{farm.name}</h1>
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />

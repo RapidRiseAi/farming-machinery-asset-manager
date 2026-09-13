@@ -315,7 +315,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {t("machines.title", locale)}
           </h1>
           <PageInfoButton infoKey="machines" locale={locale} />

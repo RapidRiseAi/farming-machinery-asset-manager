@@ -63,7 +63,7 @@ export default async function ReportSchedulesPage({
   if (!allowed) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
         <UpgradeNotice
           feature="advanced_reports"
           requiredPlan={gate.requiredPlan}
@@ -92,7 +92,7 @@ export default async function ReportSchedulesPage({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-sand-900">{title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
           <p className="text-sm text-sand-600">{t("reportSchedules.lead", locale)}</p>
         </div>
         <span className="ml-auto flex items-center gap-2">

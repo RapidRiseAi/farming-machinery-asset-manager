@@ -136,7 +136,7 @@ export default async function DriverHomePage({
 
       <header>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">{greeting}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{greeting}</h1>
           <PageInfoButton infoKey="driver" locale={locale} />
         </div>
         <p className="mt-1 text-sand-500">

@@ -75,7 +75,7 @@ export default async function LoginPage({
   return (
     <PublicShell locale={locale}>
       <div className="pt-4 sm:pt-10">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">
           {t("auth.signInTitle", locale)}
         </h1>
         <p className="mt-1.5 text-sand-600">{t("auth.welcomeSub", locale)}</p>

@@ -145,7 +145,7 @@ export default async function TeamPage({
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("team.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("team.title", locale)}</h1>
           <PageInfoButton infoKey="team" locale={locale} />
         </div>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />

@@ -77,7 +77,7 @@ export default async function ActivatePage({
       </div>
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">
-        <h1 className="text-2xl font-semibold">{t("activate.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("activate.title", locale)}</h1>
         <p className="mt-2 text-sand-700">{t("activate.lead", locale)}</p>
 
         {sub ? (

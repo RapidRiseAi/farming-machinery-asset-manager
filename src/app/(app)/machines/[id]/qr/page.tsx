@@ -56,7 +56,7 @@ export default async function MachineQrPage({
 
       {/* Print sheet */}
       <div className="w-full rounded-2xl border border-sand-200 bg-surface p-8 text-center shadow-card print:border-2 print:border-sand-900 print:shadow-none">
-        <h1 className="mb-1 text-2xl font-bold text-sand-900">{machine.name}</h1>
+        <h1 className="mb-1 text-2xl font-bold tracking-tight text-ink">{machine.name}</h1>
         <p className="mb-4 text-sm text-sand-500">{t("app.name", locale)}</p>
         <div className="mx-auto w-[260px]" dangerouslySetInnerHTML={{ __html: svg }} />
         <p className="mt-4 text-base font-medium text-sand-800">{t("qr.scanCaption", locale)}</p>

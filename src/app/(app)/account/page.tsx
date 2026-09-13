@@ -61,7 +61,7 @@ export default async function AccountPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">{t("account.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("account.title", locale)}</h1>
           <p className="mt-1 text-sand-700">{t("account.lead", locale)}</p>
         </div>
         <PageInfoButton infoKey="account" locale={locale} />

@@ -63,7 +63,7 @@ export default async function ApiTokensPage({
   if (role !== "rr_admin" && (!plan || !planAllows(plan, "api_access"))) {
     return (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("apiTokens.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("apiTokens.title", locale)}</h1>
         <UpgradeNotice
           feature="api_access"
           requiredPlan={requiredPlan("api_access")}
@@ -90,7 +90,7 @@ export default async function ApiTokensPage({
         <Link href="/machines" className="text-sm font-medium text-brand-ink hover:underline">
           &larr; {t("apiTokens.back", locale)}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-sand-900">{t("apiTokens.title", locale)}</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink">{t("apiTokens.title", locale)}</h1>
         <p className="mt-1 text-sm text-sand-600">{t("apiTokens.intro", locale)}</p>
       </div>
 

@@ -82,7 +82,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-sand-900">{instance.template_name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-ink">{instance.template_name}</h1>
               <Badge tone={instance.status === "completed" ? "ok" : "warning"}>
                 {instance.status === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale)}
               </Badge>

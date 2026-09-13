@@ -136,7 +136,7 @@ export default async function BillingPage({
   const header = (
     <div className="flex flex-wrap items-center gap-2">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-sand-900">{t("billing.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("billing.title", locale)}</h1>
         <p className="text-sm text-sand-600">{t("billing.lead", locale)}</p>
       </div>
       <span className="ml-auto">

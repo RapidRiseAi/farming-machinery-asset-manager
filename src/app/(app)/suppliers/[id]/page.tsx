@@ -164,7 +164,7 @@ export default async function SupplierAccountPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-xl font-bold tracking-tight text-sand-900">{supplier.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{supplier.name}</h1>
             {supplier.active ? null : <Badge tone="neutral">{t("supplier.inactive", locale)}</Badge>}
             <PageInfoButton infoKey="supplierStatement" locale={locale} />
           </div>

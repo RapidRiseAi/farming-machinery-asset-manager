@@ -214,7 +214,7 @@ export default async function ContractorDashboardPage({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("contractor.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("contractor.title", locale)}</h1>
           <PageInfoButton infoKey="contractor" locale={locale} />
         </div>
             <Badge tone="brand">{contractorKindLabel(workshop.kind, locale)}</Badge>

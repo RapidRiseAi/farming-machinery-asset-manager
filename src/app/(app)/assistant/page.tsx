@@ -37,7 +37,7 @@ export default async function AssistantPage() {
     return (
       <div className="flex flex-col gap-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("assistant.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("assistant.title", locale)}</h1>
           <p className="mt-1 text-sm text-sand-600">{t("assistant.lead", locale)}</p>
         </div>
         <UpgradeNotice

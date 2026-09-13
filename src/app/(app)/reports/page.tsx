@@ -33,7 +33,7 @@ export default async function ReportsPage({
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("reports.title", locale)}</h1>
           <PageInfoButton infoKey="reports" locale={locale} />
         </div>
         <UpgradeNotice
@@ -96,7 +96,7 @@ export default async function ReportsPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("reports.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("reports.title", locale)}</h1>
           <PageInfoButton infoKey="reports" locale={locale} />
         </div>
         <div className="flex flex-wrap items-center gap-2">

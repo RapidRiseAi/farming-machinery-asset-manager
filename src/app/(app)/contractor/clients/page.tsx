@@ -140,7 +140,7 @@ export default async function PartnerClientsPage({
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("clients.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("clients.title", locale)}</h1>
         <PageInfoButton infoKey="clients" locale={locale} />
       </div>
       <p className="text-sand-600">{t("clients.lead", locale)}</p>

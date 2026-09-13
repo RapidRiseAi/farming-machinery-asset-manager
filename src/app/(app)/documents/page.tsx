@@ -211,7 +211,7 @@ export default async function DocumentsPage({
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("doc.title", locale)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("doc.title", locale)}</h1>
         <PageInfoButton infoKey={isPartner ? "documentsPartner" : "documents"} locale={locale} />
         {isPartner ? <NewDocument locale={locale} canBuild={canBuild} /> : null}
       </div>

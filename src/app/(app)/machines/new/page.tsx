@@ -35,7 +35,7 @@ export default async function NewMachinePage({
         <ChevronLeftIcon className="text-base" />
         {t("machines.title", locale)}
       </Link>
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("machines.add", locale)}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{t("machines.add", locale)}</h1>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">

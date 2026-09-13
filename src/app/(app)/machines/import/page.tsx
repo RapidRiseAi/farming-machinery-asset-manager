@@ -21,7 +21,7 @@ export default async function ImportMachinesPage({
         <ChevronLeftIcon className="text-base" />
         {t("machines.title", locale)}
       </Link>
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("machines.importTitle", locale)}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{t("machines.importTitle", locale)}</h1>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <ImportClient locale={locale} />
     </div>

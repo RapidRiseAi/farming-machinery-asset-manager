@@ -123,7 +123,7 @@ export default async function JobCardDetail({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {machine?.name ?? t("jobcards.title", locale)}
           </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">

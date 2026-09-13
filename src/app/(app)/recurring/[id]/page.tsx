@@ -86,7 +86,7 @@ export default async function SchedulePage({
       <Flash tone="info" message={sp.nothing ? t("recurring.nothingFlash", locale) : undefined} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-bold tracking-tight text-sand-900">{schedule.name}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{schedule.name}</h1>
         <Badge tone="neutral">{t(`cadence.${schedule.cadence}`, locale)}</Badge>
         {schedule.auto_send ? <Badge tone="info">{t("recurring.autoSendBadge", locale)}</Badge> : null}
         {!live ? <Badge tone="warning">{t("recurring.pausedBadge", locale)}</Badge> : null}

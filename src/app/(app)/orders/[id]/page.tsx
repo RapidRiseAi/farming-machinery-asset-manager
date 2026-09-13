@@ -101,7 +101,7 @@ export default async function OrderPage({
           >
             {t("po.backToList", locale)}
           </Link>
-          <h1 className="mt-1 text-xl font-bold tracking-tight text-sand-900">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
             {order.reference ? `${order.reference} · ` : ""}
             {order.supplier_name}
           </h1>

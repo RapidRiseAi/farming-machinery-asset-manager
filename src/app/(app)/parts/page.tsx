@@ -122,7 +122,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("parts.title", locale)}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("parts.title", locale)}</h1>
           <PageInfoButton infoKey="parts" locale={locale} />
         </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("parts.subtitle", locale)}</p>

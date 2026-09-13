@@ -47,7 +47,7 @@ export default async function SettingsPage({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("settings.title", locale)} — {farm?.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("settings.title", locale)} — {farm?.name}</h1>
           <PageInfoButton infoKey="settings" locale={locale} />
         </div>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />

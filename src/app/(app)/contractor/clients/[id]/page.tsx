@@ -108,7 +108,7 @@ export default async function PartnerClientPage({
         {connected ? <Badge tone="ok" className="ml-auto">{t("clients.connected", locale)}</Badge> : null}
       </div>
 
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">{client.name}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{client.name}</h1>
 
       <Flash tone="error" message={sp.error === "already-synced" ? t("clients.alreadySynced", locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />

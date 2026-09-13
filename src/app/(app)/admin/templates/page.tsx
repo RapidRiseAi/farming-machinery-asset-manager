@@ -46,7 +46,7 @@ export default async function TemplatesPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">Service template library</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">Service template library</h1>
       <p className="text-sm text-sand-500">Global templates farms can apply to a machine. One line per row: <code className="rounded bg-sand-100 px-1">Task | hours | months</code> (leave a number blank if not used).</p>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? "Saved." : undefined} />

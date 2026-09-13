@@ -78,7 +78,7 @@ export default async function AdminPartnersPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">Partners</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">Partners</h1>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? "Saved." : undefined} />
 

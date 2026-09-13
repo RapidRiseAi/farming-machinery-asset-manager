@@ -62,7 +62,7 @@ export default async function AdminFarmsPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold tracking-tight text-sand-900">Farms</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">Farms</h1>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? "Farm created." : undefined} />
 
