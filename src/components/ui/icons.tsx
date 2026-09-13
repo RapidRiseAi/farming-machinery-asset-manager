@@ -470,6 +470,13 @@ export const CalculatorIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const SendIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 11.5 20.5 4l-7.5 16.5-2.2-6.8L4 11.5Z" />
+    <path d="m10.8 13.7 4.4-4.4" />
+  </Svg>
+);
+
 export const iconByName = {
   dashboard: DashboardIcon,
   machines: MachinesIcon,
@@ -505,6 +512,7 @@ export const iconByName = {
   inbox: InboxIcon,
   signout: SignOutIcon,
   trash: TrashIcon,
+  send: SendIcon,
   calculator: CalculatorIcon,
   percent: PercentIcon,
   bank: BankIcon,

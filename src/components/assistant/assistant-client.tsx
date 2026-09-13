@@ -24,7 +24,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
 import { Input } from "@/components/ui/input";
-import { MicIcon, StopIcon } from "@/components/ui/icons";
+import { MicIcon, StopIcon, SendIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
@@ -910,60 +910,6 @@ export function AssistantClient({
       </div>
       <p className="-mt-3 text-xs leading-5 text-sand-500">{t("assistant.languageHint", locale)}</p>
 
-      <Card className="overflow-hidden text-center">
-        <div aria-live="polite" aria-atomic="true" className="mb-4">
-          <p className="text-sm font-semibold text-sand-900">{phaseLabel(phase, locale)}</p>
-          <p className="mt-1 text-xs text-sand-500">
-            {online ? t("assistant.audioPrivacy", locale) : t("assistant.offlinePrivacy", locale)}
-          </p>
-          <p className="mt-1 text-xs text-sand-500">{t("assistant.recordingLimit", locale)}</p>
-        </div>
-
-        <button
-          type="button"
-          aria-label={isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-          aria-pressed={isListening}
-          disabled={isBusy}
-          onClick={() => void (isListening ? stopListening() : startListening())}
-          className={cn(
-            "focus-ring mx-auto flex h-28 w-28 items-center justify-center rounded-full text-4xl shadow-lg transition-all",
-            isListening
-              ? "animate-pulse bg-status-overdue text-white hover:bg-danger-600"
-              : "bg-brand-600 text-white hover:scale-[1.03] hover:bg-brand-700 active:scale-95",
-            isBusy && "cursor-not-allowed opacity-50",
-          )}
-        >
-          {isListening ? <StopIcon /> : <MicIcon />}
-        </button>
-        <p className="mt-3 text-sm font-medium text-sand-700">
-          {isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-        </p>
-
-        {transcript ? (
-          <div className="mt-5 border-t border-sand-200 pt-4 text-left">
-            <Field label={t("assistant.transcriptLabel", locale)} htmlFor="assistant-transcript" hint={t("assistant.transcriptHint", locale)}>
-              <Textarea
-                id="assistant-transcript"
-                rows={3}
-                value={transcript}
-                disabled={isListening || isBusy}
-                onChange={(event) => updateTranscript(event.target.value)}
-              />
-            </Field>
-            {pendingTranscript ? (
-              <Button
-                className="mt-3"
-                loading={phase === "interpreting"}
-                disabled={!transcript.trim() || (phase !== "idle" && phase !== "error")}
-                onClick={() => void interpretTranscript()}
-              >
-                {t("assistant.interpretTranscript", locale)}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
-
       {offlineCaptures.length > 0 ? (
         <Card className="border-callout-warn-edge bg-callout-warn-bg/50">
           <CardTitle>{t("assistant.offlineTitle", locale)}</CardTitle>
@@ -1092,27 +1038,9 @@ export function AssistantClient({
         </Card>
       ) : null}
 
-      <Card>
-        <CardTitle>{t("assistant.typeTitle", locale)}</CardTitle>
-        <p className="mt-1 text-sm text-sand-500">{t("assistant.typeHint", locale)}</p>
-        <Field label={t("assistant.typeLabel", locale)} htmlFor="assistant-typed" className="mt-4">
-          <Textarea
-            id="assistant-typed"
-            rows={3}
-            value={typedInput}
-            placeholder={t("assistant.typePlaceholder", locale)}
-            disabled={isBusy || isListening}
-            onChange={(event) => setTypedInput(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void submitTyped();
-            }}
-          />
-        </Field>
-        <Button className="mt-3" loading={phase === "interpreting"} disabled={!typedInput.trim() || (phase !== "idle" && phase !== "error")} onClick={() => void submitTyped()}>
-          {t("assistant.sendTranscript", locale)}
-        </Button>
-      </Card>
-
+      {/* Starters, shown only while there is nothing to read yet — the same
+          reason a chat app hides its suggestions after the first message. */}
+      {!turn && !transcript && !completion ? (
       <Card>
         <CardTitle>{t("assistant.examplesTitle", locale)}</CardTitle>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -1128,23 +1056,158 @@ export function AssistantClient({
             </button>
           ))}
         </div>
-        <p className="mt-4 text-xs leading-5 text-sand-500">
-          {t("assistant.manualFallback", locale)} <Link href="/faults" className="font-semibold text-brand-ink underline">{t("nav.faults", locale)}</Link> · <Link href="/machines" className="font-semibold text-brand-ink underline">{t("nav.machines", locale)}</Link>
-        </p>
-        {aiConsent ? (
-          <div className="mt-3 flex flex-col items-start gap-2 border-t border-sand-200 pt-3">
-            <p className="text-xs leading-5 text-sand-500">{t("assistant.aiConsentActive", locale)}</p>
-            <Button
-              size="sm"
-              variant="ghost"
-              loading={consentUpdating}
-              disabled={isBusy && !consentUpdating}
-              onClick={() => void updateAiConsent(false)}
+      </Card>
+      ) : null}
+
+      {/* ── Composer ───────────────────────────────────────────────────────
+          Was a titled form — a field labelled "Request" and a button reading
+          "Interpret request" — which is why it read as paperwork rather than an
+          assistant. It is now one composer at the foot of the column with the
+          microphone inside it: the arrangement every assistant people already
+          use has trained them on, so none of it needs explaining.
+
+          The mic stays a filled 56px circle. This is a voice-first product for
+          someone in a cab wearing gloves, and the documented touch floor is
+          48px; shrinking it to a neat inline glyph would be a regression
+          dressed as tidiness. */}
+      <Card className="shadow-soft lg:sticky lg:bottom-4 lg:z-10">
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+        >
+          <span className="text-sm font-semibold text-ink">{phaseLabel(phase, locale)}</span>
+          <span className="text-xs text-ink-muted">
+            {online ? t("assistant.audioPrivacy", locale) : t("assistant.offlinePrivacy", locale)}
+          </span>
+        </div>
+
+        {/* What was heard, editable before it is acted on. This is the product's
+            real safeguard and it stays exactly where the sending happens. */}
+        {transcript ? (
+          <div className="mb-3 border-b border-edge-soft pb-3">
+            <Field
+              label={t("assistant.transcriptLabel", locale)}
+              htmlFor="assistant-transcript"
+              hint={t("assistant.transcriptHint", locale)}
             >
-              {t("assistant.consentWithdraw", locale)}
-            </Button>
+              <Textarea
+                id="assistant-transcript"
+                rows={3}
+                value={transcript}
+                disabled={isListening || isBusy}
+                onChange={(event) => updateTranscript(event.target.value)}
+              />
+            </Field>
+            {pendingTranscript ? (
+              <Button
+                className="mt-3"
+                loading={phase === "interpreting"}
+                disabled={!transcript.trim() || (phase !== "idle" && phase !== "error")}
+                onClick={() => void interpretTranscript()}
+              >
+                {t("assistant.interpretTranscript", locale)}
+              </Button>
+            ) : null}
           </div>
         ) : null}
+
+        <div className="flex items-end gap-2">
+          <label htmlFor="assistant-typed" className="sr-only">
+            {t("assistant.typeLabel", locale)}
+          </label>
+          <Textarea
+            id="assistant-typed"
+            rows={2}
+            className="flex-1"
+            value={typedInput}
+            placeholder={t("assistant.typePlaceholder", locale)}
+            disabled={isBusy || isListening}
+            onChange={(event) => setTypedInput(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter sends and Shift+Enter breaks the line, which is what every
+              // assistant does. Ctrl/⌘+Enter is kept because it already worked
+              // and somebody may have learned it. `isComposing` guards an IME:
+              // committing a candidate with Enter must not send the message.
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void submitTyped();
+                return;
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void submitTyped();
+              }
+            }}
+          />
+
+          <button
+            type="button"
+            aria-label={isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
+            aria-pressed={isListening}
+            disabled={isBusy}
+            onClick={() => void (isListening ? stopListening() : startListening())}
+            className={cn(
+              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl text-white shadow-xs transition-colors",
+              isListening
+                ? "animate-pulse bg-status-overdue hover:bg-danger-600"
+                : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
+              isBusy && "cursor-not-allowed opacity-50",
+            )}
+          >
+            {isListening ? <StopIcon /> : <MicIcon />}
+          </button>
+
+          <button
+            type="button"
+            aria-label={t("assistant.sendTranscript", locale)}
+            disabled={!typedInput.trim() || (phase !== "idle" && phase !== "error")}
+            onClick={() => void submitTyped()}
+            className={cn(
+              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl transition-colors",
+              typedInput.trim() && (phase === "idle" || phase === "error")
+                ? "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800"
+                : "bg-surface-sunken text-ink-subtle",
+              "disabled:cursor-not-allowed",
+            )}
+          >
+            <SendIcon />
+          </button>
+        </div>
+
+        <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>
+
+        {/* Always present, not folded into the starters: the ordinary screens
+            are the fallback when the assistant cannot help, and withdrawing AI
+            permission has to stay reachable once a conversation has begun —
+            which is precisely when somebody might want to withdraw it. */}
+        <div className="mt-4 border-t border-edge-soft pt-3">
+          <p className="text-xs leading-5 text-ink-muted">
+            {t("assistant.manualFallback", locale)}{" "}
+            <Link href="/faults" className="font-semibold text-brand-ink underline">
+              {t("nav.faults", locale)}
+            </Link>{" "}
+            ·{" "}
+            <Link href="/machines" className="font-semibold text-brand-ink underline">
+              {t("nav.machines", locale)}
+            </Link>
+          </p>
+          {aiConsent ? (
+            <div className="mt-3 flex flex-col items-start gap-2">
+              <p className="text-xs leading-5 text-ink-muted">{t("assistant.aiConsentActive", locale)}</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={consentUpdating}
+                disabled={isBusy && !consentUpdating}
+                onClick={() => void updateAiConsent(false)}
+              >
+                {t("assistant.consentWithdraw", locale)}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </Card>
     </div>
   );
