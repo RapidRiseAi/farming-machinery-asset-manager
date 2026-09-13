@@ -4530,5 +4530,14 @@
       "resolved": "Resolved",
       "closed": "Closed"
     }
+  },
+  "command": {
+    "trigger": "Search",
+    "placeholder": "Search for a page…",
+    "title": "Search and jump to a page",
+    "empty": "Nothing matches that.",
+    "hintSelect": "to open",
+    "hintClose": "to close",
+    "results": "{n} matching pages"
   }
 }

@@ -10,6 +10,8 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from "./button";
 export { SubmitButton } from "./submit-button";
 export type { SubmitButtonProps } from "./submit-button";
 export { Input, controlBase } from "./input";
+export { CommandPalette } from "./command-palette";
+export type { CommandLabels } from "./command-palette";
 export type { InputProps } from "./input";
 export { Select } from "./select";
 export type { SelectProps } from "./select";

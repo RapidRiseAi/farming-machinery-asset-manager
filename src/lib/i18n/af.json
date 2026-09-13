@@ -4530,5 +4530,14 @@
       "resolved": "Opgelos",
       "closed": "Gesluit"
     }
+  },
+  "command": {
+    "trigger": "Soek",
+    "placeholder": "Soek vir 'n bladsy…",
+    "title": "Soek en spring na 'n bladsy",
+    "empty": "Niks pas daarby nie.",
+    "hintSelect": "om oop te maak",
+    "hintClose": "om te sluit",
+    "results": "{n} bladsye pas"
   }
 }

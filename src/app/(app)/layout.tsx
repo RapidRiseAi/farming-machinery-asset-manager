@@ -22,6 +22,9 @@ import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
+// Direct, not the barrel: see the note above. The palette is the only new
+// client code this shell pulls, and it is one list plus two arrow keys.
+import { CommandPalette } from "@/components/ui/command-palette";
 import { WarmRoutes } from "@/components/offline/warm-routes";
 import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher } from "@/components/ui/site-switcher";
@@ -346,6 +349,19 @@ export default async function AppLayout({
     .map((g) => ({ ...g, items: g.items.filter((i) => !tabHrefs.has(i.href)) }))
     .filter((g) => g.items.length > 0);
 
+  /**
+   * What Ctrl/⌘+K can reach. Built from the same server-computed `groups` and
+   * `tailItems` as the sidebar, so the palette cannot offer a destination this
+   * role may not open — but WITHOUT `moreGroups`' tab filter, because a tab
+   * being on screen is no reason you should not be able to type its name.
+   */
+  const paletteGroups = [
+    ...groups,
+    ...(tailItems.length
+      ? [{ key: "tail", label: t("nav.everythingElse", locale), items: tailItems }]
+      : []),
+  ].filter((g) => g.items.length > 0);
+
   const appName = t("app.name", locale);
   const signOutLabel = t("nav.signOut", locale);
   const languageLabel = t("nav.language", locale);
@@ -520,10 +536,24 @@ export default async function AppLayout({
         )}
 
         {/* Desktop slim top bar */}
-        <header className="sticky top-0 z-20 hidden items-center justify-end gap-1.5 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
-          <SyncStatus locale={locale} />
-          {bellLink}
-          {avatar}
+        <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
+          <CommandPalette
+            groups={paletteGroups}
+            labels={{
+              trigger: t("command.trigger", locale),
+              placeholder: t("command.placeholder", locale),
+              title: t("command.title", locale),
+              empty: t("command.empty", locale),
+              hintSelect: t("command.hintSelect", locale),
+              hintClose: t("command.hintClose", locale),
+              results: t("command.results", locale),
+            }}
+          />
+          <div className="flex items-center gap-1.5">
+            <SyncStatus locale={locale} />
+            {bellLink}
+            {avatar}
+          </div>
         </header>
 
         {/* `tabIndex={-1}` so the skip link can actually move focus here; without
