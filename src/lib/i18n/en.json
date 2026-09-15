@@ -168,7 +168,19 @@
     "sendTranscript": "Interpret request",
     "examplesTitle": "Try saying",
     "manualFallback": "You can always use the ordinary screens instead:",
-    "aiConsentActive": "Optional AI help is allowed for ambiguous requests. Deterministic local rules are still tried first."
+    "aiConsentActive": "Optional AI help is allowed for ambiguous requests. Deterministic local rules are still tried first.",
+    "threadTitle": "Earlier",
+    "threadPrivate": "Only you can see this.",
+    "threadSpoken": "Spoken",
+    "threadNoInput": "No transcript was kept",
+    "threadReview": "Review and confirm",
+    "threadApplied": "Saved",
+    "threadRejected": "Not saved — you declined",
+    "threadPending": "Waiting for your confirmation",
+    "threadExpired": "Expired before it was confirmed",
+    "threadUnfinished": "Not finished",
+    "threadSuperseded": "Replaced by a corrected transcript",
+    "threadFailed": "FleetWise couldn't do this"
   },
   "auth": {
     "signIn": "Sign in",

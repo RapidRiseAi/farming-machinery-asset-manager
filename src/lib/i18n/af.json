@@ -168,7 +168,19 @@
     "sendTranscript": "Interpreteer versoek",
     "examplesTitle": "Probeer sê",
     "manualFallback": "Jy kan altyd eerder die gewone skerms gebruik:",
-    "aiConsentActive": "Opsionele AI-hulp is toegelaat vir dubbelsinnige versoeke. Plaaslike vaste reëls word steeds eerste probeer."
+    "aiConsentActive": "Opsionele AI-hulp is toegelaat vir dubbelsinnige versoeke. Plaaslike vaste reëls word steeds eerste probeer.",
+    "threadTitle": "Vroeër",
+    "threadPrivate": "Net jy kan dit sien.",
+    "threadSpoken": "Gesê",
+    "threadNoInput": "Geen transkripsie is bewaar nie",
+    "threadReview": "Hersien en bevestig",
+    "threadApplied": "Gestoor",
+    "threadRejected": "Nie gestoor nie — jy het nee gesê",
+    "threadPending": "Wag vir jou bevestiging",
+    "threadExpired": "Het verval voordat dit bevestig is",
+    "threadUnfinished": "Nie klaar nie",
+    "threadSuperseded": "Vervang deur 'n gekorrigeerde transkripsie",
+    "threadFailed": "FleetWise kon dit nie doen nie"
   },
   "auth": {
     "signIn": "Teken in",

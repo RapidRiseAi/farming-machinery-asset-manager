@@ -28,6 +28,9 @@ import { MicIcon, StopIcon, SendIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
+import { StatusBadge, type StatusBadgeProps } from "@/components/ui/badge";
+import { dateTime } from "@/lib/format";
+import type { ThreadEntry, ThreadStatus } from "@/lib/assistant/thread";
 import { t, type Lang } from "@/lib/i18n";
 import type {
   AssistantClarification,
@@ -77,6 +80,44 @@ function speechErrorMessage(error: unknown, locale: Lang): string {
   return t(`assistant.speechError.${code}`, locale);
 }
 
+/**
+ * Status chips for the thread, from the shared shape vocabulary. An answered
+ * question carries none: the answer is the whole story, and a chip on every
+ * reply would turn the one meaningful signal into wallpaper.
+ */
+const THREAD_STATUS_LOOK: Record<ThreadStatus, Pick<StatusBadgeProps, "tone" | "shape"> | null> = {
+  answered: null,
+  applied: { tone: "ok", shape: "check" },
+  rejected: { tone: "neutral", shape: "dash" },
+  pending: { tone: "warning", shape: "clock" },
+  expired: { tone: "neutral", shape: "ring" },
+  unfinished: { tone: "neutral", shape: "ring" },
+  superseded: { tone: "neutral", shape: "dash" },
+  failed: { tone: "danger", shape: "square" },
+};
+
+/** Static `t()` calls rather than a key map, so `pnpm i18n:keys` can see every one. */
+function threadStatusLabel(status: ThreadStatus, locale: Lang): string {
+  switch (status) {
+    case "applied":
+      return t("assistant.threadApplied", locale);
+    case "rejected":
+      return t("assistant.threadRejected", locale);
+    case "pending":
+      return t("assistant.threadPending", locale);
+    case "expired":
+      return t("assistant.threadExpired", locale);
+    case "unfinished":
+      return t("assistant.threadUnfinished", locale);
+    case "superseded":
+      return t("assistant.threadSuperseded", locale);
+    case "failed":
+      return t("assistant.threadFailed", locale);
+    default:
+      return "";
+  }
+}
+
 function phaseLabel(phase: Phase, locale: Lang): string {
   switch (phase) {
     case "requesting_permission":
@@ -105,6 +146,7 @@ export function AssistantClient({
   machines,
   initialAiConsent,
   capabilities,
+  initialThread,
 }: {
   locale: Lang;
   offlineContextKey: string;
@@ -112,6 +154,8 @@ export function AssistantClient({
   machines: AssistantMachine[];
   initialAiConsent: boolean;
   capabilities: Capabilities;
+  /** Past exchanges on this farm, oldest first, read through RLS by the page. */
+  initialThread: ThreadEntry[];
 }) {
   const [speechLanguage, setSpeechLanguage] = useState<AssistantLocale>(initialSpeechLanguage);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -154,6 +198,32 @@ export function AssistantClient({
   const resultRegionRef = useRef<HTMLHeadingElement | null>(null);
   const operationRef = useRef(0);
   const mountedRef = useRef(true);
+
+  // ── The thread ─────────────────────────────────────────────────────────
+  // Past exchanges. The LIVE exchange is not in here: it keeps rendering as the
+  // cards below until the live area clears, and only then moves up into the
+  // thread (see the transition effect). An exchange is therefore always in
+  // exactly one place, which is what stops it rendering twice.
+  const [thread, setThread] = useState<ThreadEntry[]>(initialThread);
+  const initialThreadRef = useRef(initialThread);
+  initialThreadRef.current = initialThread;
+  /** What was asked, captured when a new request is sent, for the entry it becomes. */
+  const liveInputRef = useRef<{ input: string; channel: "typed" | "voice"; createdAt: string } | null>(null);
+  /** The live exchange as it would read in history, refreshed on every change. */
+  const liveSnapshotRef = useRef<ThreadEntry | null>(null);
+  /** Set only by a successful confirmation, so its completion can be recorded. */
+  const lastProposalIdRef = useRef<string | null>(null);
+  const confirmedActionRef = useRef<"confirm" | "reject" | null>(null);
+  const threadScrollRef = useRef<HTMLDivElement | null>(null);
+  // Expiry is judged against the clock only after mount. Until then the server's
+  // own verdict stands, so the server and first client render agree and a
+  // proposal crossing its deadline mid-hydration cannot cause a mismatch.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const machineVocabulary = useMemo(() => speechVocabulary(machines), [machines]);
 
   const getSpeech = useCallback(() => {
@@ -238,6 +308,13 @@ export function AssistantClient({
     setFieldValues({});
     lastRequestRef.current = null;
     spokenClarificationRef.current = null;
+    // A different person or farm: the previous farm's exchange must not be
+    // archived into this farm's thread on the next transition.
+    liveInputRef.current = null;
+    liveSnapshotRef.current = null;
+    lastProposalIdRef.current = null;
+    confirmedActionRef.current = null;
+    setThread(initialThreadRef.current);
     setPhase("idle");
     update();
     setOfflineCaptures([]);
@@ -272,6 +349,87 @@ export function AssistantClient({
     setFieldValues(initial);
   }, [turn]);
 
+  /**
+   * Moves the live exchange into the thread when — and only when — the live area
+   * clears. One effect rather than an archive call at every place that resets
+   * state: there are a dozen of those (new request, cancel, language switch,
+   * offline processing, farm change) and the next one somebody adds would forget.
+   *
+   * While an error, a consent prompt or an offline notice is showing, the
+   * snapshot is kept: the exchange is not over, and a retry that succeeds will
+   * refresh the same entry by id rather than add a second one.
+   */
+  useEffect(() => {
+    const live = liveInputRef.current;
+    let snapshot: ThreadEntry | null = null;
+    if (live) {
+      const base = {
+        input: live.input,
+        channel: live.channel,
+        createdAt: live.createdAt,
+        response: null,
+        href: null,
+        proposal: null,
+      } satisfies Omit<ThreadEntry, "id" | "status">;
+      if (turn?.kind === "answer") {
+        snapshot = { ...base, id: turn.conversationId, status: "answered", response: turn.message };
+      } else if (turn?.kind === "confirm") {
+        snapshot = { ...base, id: turn.conversationId, status: "pending", proposal: turn.proposal };
+      } else if (turn?.kind === "clarify") {
+        snapshot = { ...base, id: turn.conversationId, status: "unfinished" };
+      } else if (!turn && completion && lastProposalIdRef.current) {
+        snapshot = {
+          ...base,
+          id: lastProposalIdRef.current,
+          status: confirmedActionRef.current === "reject" ? "rejected" : "applied",
+          response: completion.message,
+          href: completion.href ?? null,
+        };
+      }
+    }
+    if (snapshot) {
+      liveSnapshotRef.current = snapshot;
+      return;
+    }
+    if (turn || completion) return;
+    const previous = liveSnapshotRef.current;
+    if (!previous) return;
+    liveSnapshotRef.current = null;
+    lastProposalIdRef.current = null;
+    confirmedActionRef.current = null;
+    setThread((current) => [...current.filter((entry) => entry.id !== previous.id), previous]);
+  }, [turn, completion]);
+
+  /**
+   * Re-opens a pending proposal from history as the live confirmation card, with
+   * the facts the server rebuilt. The existing confirm card and `confirmProposal`
+   * do the rest, so reviewing from history adds no second way to save a change.
+   */
+  const reviewEntry = (entry: ThreadEntry) => {
+    if (!entry.proposal || (phase !== "idle" && phase !== "error")) return;
+    const previous = liveSnapshotRef.current;
+    if (previous && previous.id !== entry.id) {
+      // Setting a new turn directly skips the cleared state the transition
+      // effect archives on, so file the outgoing exchange here.
+      setThread((current) => [...current.filter((item) => item.id !== previous.id), previous]);
+    }
+    liveSnapshotRef.current = null;
+    operationRef.current += 1;
+    liveInputRef.current = {
+      input: entry.input ?? "",
+      channel: entry.channel === "voice" ? "voice" : "typed",
+      createdAt: entry.createdAt,
+    };
+    lastProposalIdRef.current = null;
+    confirmedActionRef.current = null;
+    lastRequestRef.current = null;
+    spokenClarificationRef.current = null;
+    setError(null);
+    setCompletion(null);
+    setPendingTranscript(null);
+    setTurn({ kind: "confirm", conversationId: entry.id, proposal: entry.proposal });
+  };
+
   const submitRequest = useCallback(
     async (requestBody: AssistantTurnRequest) => {
       if (requestAbortRef.current) return false;
@@ -290,6 +448,17 @@ export function AssistantClient({
       }, ASSISTANT_TURN_TIMEOUT_MS);
       requestAbortRef.current = controller;
       const operation = ++operationRef.current;
+      // A clarification continues the same exchange and keeps its original
+      // question; anything else starts a new one.
+      if (!requestBody.clarification || !liveInputRef.current) {
+        liveInputRef.current = {
+          input: requestBody.input,
+          channel: requestBody.channel,
+          createdAt: new Date().toISOString(),
+        };
+        lastProposalIdRef.current = null;
+        confirmedActionRef.current = null;
+      }
       lastRequestRef.current = requestBody;
       setPhase("interpreting");
       setError(null);
@@ -730,6 +899,8 @@ export function AssistantClient({
         setPhase("error");
         return;
       }
+      lastProposalIdRef.current = turn.proposal.proposalId;
+      confirmedActionRef.current = action;
       setTurn(null);
       setCompletion({ message: result.message, href: result.href === "/assistant" ? undefined : result.href });
       setPhase("idle");
@@ -867,6 +1038,23 @@ export function AssistantClient({
 
   const isListening = phase === "listening" || phase === "requesting_permission";
   const isBusy = ["stopping", "interpreting", "committing", "speaking"].includes(phase);
+  // The live exchange's id, hidden from the thread while it is live so the same
+  // exchange never shows twice — for instance a pending proposal being reviewed.
+  const liveId =
+    turn && "conversationId" in turn
+      ? turn.conversationId
+      : completion && lastProposalIdRef.current
+        ? lastProposalIdRef.current
+        : null;
+  const visibleThread = liveId ? thread.filter((entry) => entry.id !== liveId) : thread;
+
+  // Keep the newest exchange in view, inside the thread's own scroll region —
+  // never by moving the page, which would yank somebody away from what they
+  // were reading.
+  useEffect(() => {
+    const el = threadScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [visibleThread.length]);
   const answerText = turn?.kind === "answer" ? turn.message : completion?.message;
   const answerSpeechText = turn?.kind === "answer" ? (turn.speakText ?? turn.message) : completion?.message;
   const confirmationSpeechText = turn?.kind === "confirm"
@@ -940,6 +1128,84 @@ export function AssistantClient({
             </Button>
           </div>
         </Card>
+      ) : null}
+
+      {visibleThread.length > 0 ? (
+        <section aria-labelledby="assistant-thread-title" className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h2 id="assistant-thread-title" className="text-sm font-semibold text-ink">
+              {t("assistant.threadTitle", locale)}
+            </h2>
+            {/* True, and worth saying: ai_interactions_sel returns only the
+                subject's own rows — not a colleague's, not the farm owner's. */}
+            <p className="text-xs text-ink-subtle">{t("assistant.threadPrivate", locale)}</p>
+          </div>
+          <div
+            ref={threadScrollRef}
+            tabIndex={0}
+            aria-label={t("assistant.threadTitle", locale)}
+            className="focus-ring max-h-[28rem] overflow-y-auto rounded-xl border border-edge-soft bg-surface-sunken/40 p-3 sm:p-4"
+          >
+            <ol className="flex flex-col gap-5">
+              {visibleThread.map((entry) => {
+                // A pending proposal that crossed its deadline since load is
+                // shown as expired and loses its Review button.
+                const shown: ThreadStatus =
+                  entry.status === "pending" &&
+                  (!entry.proposal || (nowMs !== null && Date.parse(entry.proposal.expiresAt) <= nowMs))
+                    ? "expired"
+                    : entry.status;
+                const look = THREAD_STATUS_LOOK[shown];
+                const reviewable = shown === "pending" && entry.proposal !== null;
+                return (
+                  <li key={entry.id} className="flex flex-col gap-1.5">
+                    {/* The time heads the exchange it belongs to. At the foot of
+                        the entry it sat nearer the NEXT question than its own
+                        answer, and a scrolled box opened on an orphaned time. */}
+                    <p className="px-1 text-right text-2xs text-ink-subtle">
+                      <time dateTime={entry.createdAt}>{dateTime(entry.createdAt, locale)}</time>
+                    </p>
+                    <div className="flex justify-end">
+                      <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-tint px-4 py-2.5 text-sm leading-6 text-ink">
+                        {entry.channel === "voice" ? (
+                          <>
+                            <MicIcon aria-hidden className="mr-1.5 inline align-[-2px] text-base text-brand-ink" />
+                            <span className="sr-only">{t("assistant.threadSpoken", locale)}: </span>
+                          </>
+                        ) : null}
+                        {entry.input ?? t("assistant.threadNoInput", locale)}
+                      </p>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-edge-soft bg-surface px-4 py-2.5 text-sm leading-6 text-ink shadow-xs">
+                        {look ? (
+                          <StatusBadge label={threadStatusLabel(shown, locale)} tone={look.tone} shape={look.shape} />
+                        ) : null}
+                        {entry.response ? (
+                          <p className={cn("whitespace-pre-wrap", look && "mt-1.5")}>{entry.response}</p>
+                        ) : null}
+                        {entry.href || reviewable ? (
+                          <div className="mt-2.5 flex flex-wrap gap-2">
+                            {entry.href ? (
+                              <Link href={entry.href} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                                {t("assistant.openRecord", locale)}
+                              </Link>
+                            ) : null}
+                            {reviewable ? (
+                              <Button size="sm" disabled={isBusy || isListening} onClick={() => reviewEntry(entry)}>
+                                {t("assistant.threadReview", locale)}
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </section>
       ) : null}
 
       {error ? (
@@ -1025,7 +1291,11 @@ export function AssistantClient({
 
       {answerText ? (
         <Card className="border-callout-ok-edge bg-callout-ok-bg/50">
-          <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{completion ? t("assistant.successTitle", locale) : t("assistant.answerTitle", locale)}</h2>
+          <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{completion
+            ? confirmedActionRef.current === "reject"
+              ? t("assistant.threadRejected", locale)
+              : t("assistant.successTitle", locale)
+            : t("assistant.answerTitle", locale)}</h2>
           <p className="mt-2 text-sm leading-6 text-sand-800">{answerText}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="secondary" loading={phase === "speaking"} onClick={() => void readAloud(answerSpeechText ?? answerText)}>{t("assistant.readAloud", locale)}</Button>
@@ -1040,7 +1310,7 @@ export function AssistantClient({
 
       {/* Starters, shown only while there is nothing to read yet — the same
           reason a chat app hides its suggestions after the first message. */}
-      {!turn && !transcript && !completion ? (
+      {!turn && !transcript && !completion && visibleThread.length === 0 ? (
       <Card>
         <CardTitle>{t("assistant.examplesTitle", locale)}</CardTitle>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -1070,7 +1340,11 @@ export function AssistantClient({
           someone in a cab wearing gloves, and the documented touch floor is
           48px; shrinking it to a neat inline glyph would be a regression
           dressed as tidiness. */}
-      <Card className="shadow-soft lg:sticky lg:bottom-4 lg:z-10">
+      {/* Not sticky. Pinned to the viewport it sat ON TOP of the thread and hid
+          exactly the newest exchanges the thread scrolls into view. In flow, the
+          thread's own scroll region ends directly above it — the arrangement a
+          chat uses — and nothing is covered. */}
+      <Card className="shadow-soft">
         <div
           aria-live="polite"
           aria-atomic="true"

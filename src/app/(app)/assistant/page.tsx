@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoIcon } from "@/components/ui/icons";
 import { checkEntitlement, currentFarmId, effectiveFarmRole, getFarmPlan } from "@/lib/auth";
 import { loadAssistantMachines } from "@/lib/assistant/data";
+import { loadAssistantThread } from "@/lib/assistant/history";
 import { planAllows } from "@/lib/entitlements";
 import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
@@ -50,10 +51,15 @@ export default async function AssistantPage() {
     );
   }
 
-  const machines = await loadAssistantMachines(await createClient(), farmId, {
+  const supabase = await createClient();
+  const machines = await loadAssistantMachines(supabase, farmId, {
     role,
     userId: profile.id,
   });
+  // The same request-scoped client, so RLS decides whose history this is. The
+  // machine list is passed through so a pending proposal is only rebuilt for
+  // review against a machine this person may still act on.
+  const initialThread = await loadAssistantThread(supabase, farmId, profile.id, machines);
   const canChange = ["rr_admin", "owner", "manager", "mechanic"].includes(role);
   return (
     <AssistantClient
@@ -62,6 +68,7 @@ export default async function AssistantPage() {
       initialSpeechLanguage={profile.language === "af" ? "af-ZA" : "en-ZA"}
       machines={machines}
       initialAiConsent={profile.ai_processing_opt_in}
+      initialThread={initialThread}
       capabilities={{
         reportFault: ["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role),
         logReading: canChange,
