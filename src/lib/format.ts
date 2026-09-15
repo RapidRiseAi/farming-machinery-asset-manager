@@ -1,6 +1,17 @@
 import { t, type Locale, type Lang, localeOf } from "./i18n";
 
 /**
+ * FleetWise's operating timezone, the same one `todayInSouthAfrica`, the nightly
+ * cron and API-token expiry already use.
+ *
+ * Pinned because the process formatting a date is not in South Africa: Vercel
+ * renders in UTC. Unpinned, a job card created at 01:30 on the 15th read "14 Sep"
+ * on every server-rendered page, and a client component rendered the same
+ * instant as 09:45 on the server and 11:45 in the browser — a hydration mismatch.
+ */
+const SA_TIME_ZONE = "Africa/Johannesburg";
+
+/**
  * The formatting layer that sits between a query and the screen.
  *
  * The audit's largest repeating pattern — 21 findings — is "the database is showing
@@ -128,6 +139,7 @@ export function shortDate(value: string | Date | null | undefined, locale: Lang)
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: SA_TIME_ZONE,
   });
 }
 
@@ -139,6 +151,7 @@ export function dateTime(value: string | Date | null | undefined, locale: Lang):
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: SA_TIME_ZONE,
   })}`;
 }
 
