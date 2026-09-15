@@ -3,7 +3,7 @@ import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
 import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
 import { configuredLlmModel, runAssistantAgent } from "@/lib/assistant/llm";
 import {
-  answerLocalRead,
+  answerLocalRead, scopeForChosenMachine,
   isLocalReadRequest,
   type AssistantNavigation,
   type LocalReadRequest,
@@ -260,7 +260,30 @@ export async function POST(request: Request) {
           machineQuery: selected.name,
           localReadRequest: localRequest,
         };
-        const answer = await answerLocalRead(localRequest, readScope, body.locale);
+        // The person chose this machine by id. Read about THAT machine — see
+        // scopeForChosenMachine for why re-matching its name can ask again.
+        const answer = await answerLocalRead(
+          localRequest,
+          scopeForChosenMachine(readScope, selected.id) ?? readScope,
+          body.locale,
+        );
+        // Never record a "which machine?" reply as an answer. It produced a dead
+        // end — the same question returned as the final answer, with no picker —
+        // and wrote that question into the person's history as answered.
+        if (answer.machineOptions?.length) {
+          await releaseClarification(interactionId, context.farmId, context.profile.id);
+          return json({
+            kind: "clarify",
+            conversationId: interactionId,
+            question: answer.message,
+            fields: [{
+              name: "machineId",
+              type: "select",
+              label: localized(body.locale, "Which machine?", "Watter masjien?"),
+              options: answer.machineOptions.map((machine) => ({ value: machine.id, label: machine.name })),
+            }],
+          });
+        }
         await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
           result_status: "answered",
           confirmation_status: "not_required",

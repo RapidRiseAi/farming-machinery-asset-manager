@@ -23,6 +23,23 @@ import type {
 
 export type LocalReadRequest = AssistantLocalReadRequest;
 export type { AssistantNavigation } from "./types";
+/**
+ * The read scope for a question about ONE machine the person has already chosen.
+ *
+ * A clarification answers “which machine?” with an id. Re-resolving that machine
+ * by NAME against the whole fleet can bring the same question straight back:
+ * “Groen John Deere” scores 1.0 on its own name but 0.98 on every other machine
+ * whose make is John Deere, which sits inside `matchMachine`'s ambiguity window.
+ * Narrowing the scope makes the chosen machine the only candidate, and every
+ * database-backed read then filters by that machine's id (see `listFaults`).
+ *
+ * Returns null when the id is not in the visible fleet, so a caller can refuse
+ * rather than quietly answer about the whole fleet.
+ */
+export function scopeForChosenMachine(scope: AssistantReadScope, machineId: string): AssistantReadScope | null {
+  const machine = scope.machines.find((candidate) => candidate.id === machineId);
+  return machine ? { ...scope, machines: [machine] } : null;
+}
 
 export type LocalReadAnswer = {
   message: string;

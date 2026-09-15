@@ -7,6 +7,7 @@ import {
   formatServiceAttention,
   formatWorkRequests,
   parseLocalReadRequest,
+  scopeForChosenMachine,
 } from "./local-read";
 import { planAssistantRoute } from "./routing";
 import { canReadFinancialDocuments } from "./read-data";
@@ -250,4 +251,49 @@ test("unknown machine filters fail closed and ambiguity produces a real machine 
   );
   assert.equal(ambiguous.machineOptions?.length, 2);
   assert.match(ambiguous.message, /Which machine/i);
+});
+
+test("a machine chosen in a clarification is answered, not asked about again", async () => {
+  const machine = (id: string, name: string, model: string): AssistantMachine => ({
+    id,
+    name,
+    make: "John Deere",
+    model,
+    aliases: [],
+    status: "active",
+    meterType: "hours",
+    currentReading: 4820,
+    currentReadingDate: "2026-07-29",
+    serviceStatus: "due_soon",
+    nextDueDate: null,
+    nextDueReading: 5000,
+  });
+  const groen = machine("11111111-1111-4111-8111-111111111111", "Groen John Deere", "6120M");
+  const stroper = machine("22222222-2222-4222-8222-222222222222", "John Deere Stroper", "S660");
+  const planter = machine("33333333-3333-4333-8333-333333333333", "Planter 8-ry", "1755");
+  const neverQuery = new Proxy({}, {
+    get() {
+      throw new Error("service attention must not query the database");
+    },
+  });
+  const scope = { supabase: neverQuery, farmId: "farm", role: "owner" as const, machines: [groen, stroper, planter] } as never;
+  const request = { kind: "service_attention", machineQuery: "Groen John Deere" } as const;
+
+  // The premise of the bug: the chosen machine's own name is still ambiguous
+  // across the fleet, because the other two machines share its make.
+  const whole = await answerLocalRead(request, scope, "en-ZA");
+  assert.ok((whole.machineOptions?.length ?? 0) >= 2, "the name alone is ambiguous across the fleet");
+
+  const chosen = scopeForChosenMachine(scope, groen.id);
+  assert.ok(chosen);
+  const answered = await answerLocalRead(request, chosen, "en-ZA");
+  assert.equal(answered.machineOptions, undefined);
+  assert.doesNotMatch(answered.message, /Which machine/i);
+  assert.match(answered.message, /Groen John Deere/);
+  assert.equal(answered.machineId, groen.id);
+});
+
+test("a chosen machine outside the visible fleet yields no scope", () => {
+  const scope = { supabase: {}, farmId: "farm", role: "operator" as const, machines: [] } as never;
+  assert.equal(scopeForChosenMachine(scope, "11111111-1111-4111-8111-111111111111"), null);
 });
