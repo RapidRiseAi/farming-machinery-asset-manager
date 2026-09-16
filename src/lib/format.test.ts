@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dateTime, shortDate } from "./format";
+import { dateTime, daysAgo, relativeDate, shortDate } from "./format";
 
 // Run as a server would: Vercel formats in UTC. Without this the test passes on
 // any machine that already sits in South Africa — which is the machine a
@@ -27,4 +27,21 @@ test("a time is South African time, so server and browser render the same text",
   const text = dateTime(INSTANT, "en");
   assert.match(text, /01:30/);
   assert.match(text, /\b15\b/);
+});
+
+test("a day boundary is South Africa's, not the server's", () => {
+  // 23:30 UTC on the 14th is 01:30 on the 15th in Johannesburg, and "now" is
+  // 08:00 that same South African morning. Counting in UTC calls it yesterday.
+  const captured = "2026-09-14T23:30:00.000Z";
+  const now = new Date("2026-09-15T06:00:00.000Z");
+  assert.equal(daysAgo(captured, now), 0);
+  assert.equal(relativeDate(captured, "en", now), "Today");
+});
+
+test("ordinary gaps are unchanged", () => {
+  const now = new Date("2026-09-15T10:00:00.000Z");
+  assert.equal(daysAgo("2026-09-14T10:00:00.000Z", now), 1);
+  assert.equal(relativeDate("2026-09-14T10:00:00.000Z", "en", now), "Yesterday");
+  assert.equal(daysAgo("2026-09-16T10:00:00.000Z", now), -1);
+  assert.equal(relativeDate("2026-09-16T10:00:00.000Z", "en", now), "Tomorrow");
 });

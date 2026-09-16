@@ -143,6 +143,11 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   record made at 01:30 on the 15th, and a client component rendered one instant as
   09:45 on the server and 11:45 in the browser. `format.test.ts` forces `TZ=UTC`,
   because this workstation is already in South Africa and would hide the bug.
+  `daysAgo` — and so `relativeDate`, which reads "Today" and "Yesterday" across
+  thirteen files — counted days with the same host-local getters and was fixed the
+  same way: both instants are reduced to a South African calendar day before being
+  subtracted. Unfixed, a reading captured at 01:30 SAST read as "Yesterday" on the
+  server and "Today" in the browser.
 - **A declined proposal was headed "Saved".** It now reads "Not saved — you
   declined".
 - **A question about one machine was answered with the fleet sentence.** "When is
@@ -164,8 +169,10 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
 
 ## Verification
 
-- **Unit tests:** `thread.test.ts` (11), `format.test.ts` (3, with a UTC control),
-  two regression tests in `local-read.test.ts`. Full suite 269/269.
+- **Unit tests:** `thread.test.ts` (11), `format.test.ts` (5, with a UTC control),
+  two regression tests in `local-read.test.ts`. Full suite 273/273. Each date test
+  was mutation-checked: with the host-local getters put back, the day-boundary test
+  fails `actual: 1, expected: 0`.
 - **Gates:** typecheck, lint, design:lint, i18n:parity, i18n:keys, errors:check;
   production build.
 - **The API, directly:** question → `clarify`; clarification choosing Groen John
@@ -194,7 +201,6 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   languages cannot drift apart again.
 - **Abandoned attempts dominate a heavily tested thread.** Runs of identical
   "Expired" or "Not finished" requests could collapse into one line.
-- `daysAgo` and `relativeDate` still use the host's calendar getters.
 - The thread shows the newest 20 exchanges, with no "show earlier".
 
 ## What not to do

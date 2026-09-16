@@ -85,12 +85,31 @@ function toDate(value: string | Date | null | undefined): Date | null {
 }
 
 /** Whole days between two instants, positive when `then` is in the past. */
+/**
+ * The calendar day an instant falls on in FleetWise's operating timezone,
+ * expressed as a UTC midnight so two days can simply be subtracted.
+ *
+ * `getDate()` asks the PROCESS what day it is. On Vercel that is UTC, so a
+ * reading captured at 01:30 in South Africa counted as the previous day and
+ * "Today" rendered as "Yesterday" — and differently again in the browser,
+ * which is a hydration mismatch as well as a wrong answer.
+ */
+const SA_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SA_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function calendarDay(d: Date): number {
+  const [year, month, day] = SA_DAY.format(d).split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
+}
+
 export function daysAgo(value: string | Date | null | undefined, now = new Date()): number | null {
   const d = toDate(value);
   if (!d) return null;
-  const a = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((b - a) / 86_400_000);
+  return Math.round((calendarDay(now) - calendarDay(d)) / 86_400_000);
 }
 
 /**
