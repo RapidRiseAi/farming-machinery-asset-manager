@@ -340,3 +340,113 @@ test("a service question about one machine is answered about that machine, not t
   assert.match(fleet.message, /Rooi Massey: due soon/);
   assert.equal(fleet.machineId, undefined);
 });
+
+/**
+ * Two copies of the "service timing" vocabulary had drifted in OPPOSITE
+ * directions: the local reader knew verskuldig but not volgende, the parser knew
+ * soon but not binnekort. "When is the X due for service?" was answered by the
+ * local reader while "Wanneer is die X se volgende diens?" fell through to the
+ * deterministic intent, and nothing failed while the two grew further apart.
+ * Both now share SERVICE_DUE_CUE.
+ *
+ * Routes are compared AND so are outcomes: a shared route that answers about a
+ * machine in one language and offers a picker in the other is still a split.
+ */
+const SERVICE_QUESTION_PAIRS: Array<[string, string]> = [
+  ["When is the Groen John Deere due for service?", "Wanneer is die Groen John Deere se volgende diens?"],
+  ["What is the next service for the Groen John Deere?", "Wat is die volgende diens vir die Groen John Deere?"],
+  ["Which machines need service?", "Watter masjiene se dienste is agterstallig?"],
+  ["Which machines are due soon for service?", "Watter masjiene is binnekort verskuldig vir diens?"],
+  ["Is the Groen John Deere due for service?", "Is die Groen John Deere verskuldig vir diens?"],
+  ["When is the next service?", "Wanneer is die volgende diens?"],
+];
+
+function serviceMachine(
+  id: string,
+  name: string,
+  make: string,
+  model: string,
+  serviceStatus: "ok" | "due_soon",
+): AssistantMachine {
+  return {
+    id,
+    name,
+    make,
+    model,
+    aliases: [],
+    status: "active",
+    meterType: "hours",
+    currentReading: 4820,
+    currentReadingDate: "2026-07-29",
+    serviceStatus,
+    nextDueDate: "2027-06-04",
+    nextDueReading: 5000,
+  };
+}
+
+const GROEN = serviceMachine("11111111-1111-4111-8111-111111111111", "Groen John Deere", "John Deere", "6120M", "ok");
+const MASSEY = serviceMachine("22222222-2222-4222-8222-222222222222", "Rooi Massey", "Massey Ferguson", "MF-4708", "due_soon");
+
+function serviceScope() {
+  const neverQuery = new Proxy({}, {
+    get() {
+      throw new Error("service attention must not query the database");
+    },
+  });
+  return { supabase: neverQuery, farmId: "farm", role: "owner" as const, machines: [GROEN, MASSEY] } as never;
+}
+
+/** What a question actually produced, in a form comparable across languages. */
+async function serviceOutcome(phrase: string, locale: "en-ZA" | "af-ZA"): Promise<string> {
+  const plan = planAssistantRoute(phrase, locale);
+  if (plan.kind !== "local") return "route:" + plan.kind;
+  const answer = await answerLocalRead(plan.request, serviceScope(), locale);
+  if (answer.machineOptions) return "picker:" + answer.machineOptions.map((o) => o.name).sort().join(",");
+  if (answer.machineId) return "machine:" + answer.machineId;
+  return "fleet";
+}
+
+test("the same service question routes the same way in English and Afrikaans", () => {
+  for (const [english, afrikaans] of SERVICE_QUESTION_PAIRS) {
+    const label = english + "  /  " + afrikaans;
+    assert.equal(planAssistantRoute(english, "en-ZA").kind, planAssistantRoute(afrikaans, "af-ZA").kind, label);
+    assert.equal(parseLocalReadRequest(english)?.kind, parseLocalReadRequest(afrikaans)?.kind, label);
+  }
+});
+
+test("the same service question reaches the same answer in English and Afrikaans", async () => {
+  for (const [english, afrikaans] of SERVICE_QUESTION_PAIRS) {
+    assert.equal(
+      await serviceOutcome(english, "en-ZA"),
+      await serviceOutcome(afrikaans, "af-ZA"),
+      english + "  /  " + afrikaans,
+    );
+  }
+});
+
+test("a service question is answered about the machine it names, in both languages", async () => {
+  const english = await answerLocalRead(
+    { kind: "service_attention", machineQuery: "What is the next service for the Groen John Deere?" },
+    serviceScope(),
+    "en-ZA",
+  );
+  assert.ok(english.message.includes("Groen John Deere's service is up to date"), english.message);
+  assert.equal(english.machineId, GROEN.id);
+
+  const afrikaans = await answerLocalRead(
+    { kind: "service_attention", machineQuery: "Wat is die volgende diens vir die Groen John Deere?" },
+    serviceScope(),
+    "af-ZA",
+  );
+  assert.ok(afrikaans.message.includes("Groen John Deere se diens is op datum"), afrikaans.message);
+  assert.equal(afrikaans.machineId, GROEN.id);
+
+  // Naming no machine, the fleet answer is the right one — never a dead end.
+  const fleet = await answerLocalRead(
+    { kind: "service_attention", machineQuery: "When is the next service?" },
+    serviceScope(),
+    "en-ZA",
+  );
+  assert.ok(fleet.message.includes("Rooi Massey"), fleet.message);
+  assert.equal(fleet.machineId, undefined);
+});

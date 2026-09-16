@@ -14,6 +14,7 @@ import {
   type WorkRequestReadRow,
 } from "./read-data";
 import { serviceDueAnswer } from "./presentation";
+import { FLEET_SCOPE_CUE, SERVICE_DUE_CUE } from "./cues";
 import type {
   AssistantDocumentStatus,
   AssistantLocalReadRequest,
@@ -235,9 +236,13 @@ export function parseLocalReadRequest(input: string): LocalReadRequest | null {
     };
   }
 
+  // Answered here when the question names the fleet ("which machines need
+  // service") or asks about timing ("due for service", "se volgende diens"). The
+  // timing words are shared with the deterministic parser: kept as two copies they
+  // drifted, and the same question took different routes in different languages.
   if (
     /\b(service|services|diens|dienste)\b/.test(text) &&
-    /\b(machine|machines|asset|assets|fleet|masjien|masjiene|bate|bates|vloot|due|overdue|verskuldig|agterstallig)\b/.test(text)
+    (FLEET_SCOPE_CUE.test(text) || SERVICE_DUE_CUE.test(text))
   ) {
     return { kind: "service_attention", machineQuery: input };
   }

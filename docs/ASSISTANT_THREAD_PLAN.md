@@ -161,6 +161,24 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   fleet listing is untouched for "which machines need service?". Both languages now
   answer "Rooi Massey's service is up to date. Next target: 9 250 h or 2027-06-04."
   This also upgrades the answer after a machine is chosen in a clarification.
+- **The two languages took different ROUTES to the same question.** The wording
+  was fixed earlier; the split that caused it was not. `local-read.ts` and
+  `parser.ts` each kept a copy of the "service timing" vocabulary, and the copies
+  had drifted in opposite directions — the local reader knew `verskuldig` but not
+  `volgende`, the parser knew `soon` but not `binnekort`. So "When is the X due for
+  service?" was answered by the local reader while "Wanneer is die X se volgende
+  diens?" fell through to the deterministic intent. Both now import
+  `SERVICE_DUE_CUE` from `cues.ts`, measured before and after with the same probe:
+  1 of 6 question pairs routed differently by language, now 0 of 6. Two tests hold
+  it — one comparing routes, one comparing OUTCOMES, because a shared route that
+  answers about a machine in one language and offers a picker in the other is still
+  a split.
+- **A short model or alias matched almost any sentence.** `matchMachine` scored
+  `haystack.includes(label)` at 0.98 with no length floor, so a machine whose model
+  is "X" matched the "x" inside "next" — two such machines then looked equally
+  likely and the question became a picker. Found while writing the parity test, as
+  a fixture artefact that is also a real weakness. Labels shorter than three
+  characters now match through trigram similarity only.
 - **On a phone the composer sat below the fold.** At 430×900 the input was at
   y=971 while the bottom tab bar starts at 835. The thread's scroll region is now
   16rem on a phone (28rem from `sm` up) and the language hint is desktop-only, so
@@ -170,7 +188,8 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
 ## Verification
 
 - **Unit tests:** `thread.test.ts` (11), `format.test.ts` (5, with a UTC control),
-  two regression tests in `local-read.test.ts`. Full suite 273/273. Each date test
+  two regression tests plus three language-parity tests in `local-read.test.ts`.
+  Full suite 276/276. Each date test
   was mutation-checked: with the host-local getters put back, the day-boundary test
   fails `actual: 1, expected: 0`.
 - **Gates:** typecheck, lint, design:lint, i18n:parity, i18n:keys, errors:check;
@@ -195,10 +214,6 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   subject.** The existing H1 private-RLS block proves subject, colleague and owner
   visibility, not erasure. It was not added because there is no local PostgreSQL on
   the machine where this was built, and an unrun SQL test risks turning CI red.
-- **English and Afrikaans still take different ROUTES** for the same question —
-  local versus deterministic — even though both now produce the same answer. The
-  wording is fixed; the routing difference remains, and is worth closing so the two
-  languages cannot drift apart again.
 - **Abandoned attempts dominate a heavily tested thread.** Runs of identical
   "Expired" or "Not finished" requests could collapse into one line.
 - The thread shows the newest 20 exchanges, with no "show earlier".

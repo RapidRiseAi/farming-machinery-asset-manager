@@ -1,5 +1,6 @@
 import { normalizeAssistantText } from "./normalize";
 import { todayInSouthAfrica } from "./date";
+import { SERVICE_DUE_CUE } from "./cues";
 import type { AssistantDraft, AssistantIntent, AssistantLocale, AssistantUrgency } from "./types";
 
 const FAULT_WORDS = /\b(problem|fault|issue|leak|leaking|broken|noise|defect|probleem|fout|lek|lekking|gebreek|geraas|defek)\b/;
@@ -81,7 +82,7 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
   }
   if (
     SERVICE_WORDS.test(text) &&
-    (asks || /\b(due|next|overdue|soon|verskuldig|volgende|agterstallig)\b/.test(text)) &&
+    (asks || SERVICE_DUE_CUE.test(text)) &&
     !COMPLETED_WORDS.test(text)
   ) {
     return { intent: "query_service_due", confidence: 0.92 };

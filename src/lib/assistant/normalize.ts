@@ -81,7 +81,11 @@ export function matchMachine(input: string, machines: AssistantMachine[]): Machi
       for (const label of labels) {
         if (!label) continue;
         if (haystack === label) best = Math.max(best, 1);
-        else if (haystack.includes(label)) best = Math.max(best, 0.98);
+        // A one- or two-character label is a substring of ordinary words — "next"
+        // contains "x" — so a machine whose model is "X" would score 0.98 against
+        // almost any sentence, and two such machines look equally likely to be
+        // meant. Short labels still match through trigram similarity below.
+        else if (label.length >= 3 && haystack.includes(label)) best = Math.max(best, 0.98);
         else {
           const candidateWindows = windows(haystack, label.split(" ").length);
           for (const candidate of candidateWindows) best = Math.max(best, diceSimilarity(candidate, label));
