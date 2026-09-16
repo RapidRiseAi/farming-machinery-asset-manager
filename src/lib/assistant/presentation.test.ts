@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { missingFields, proposalFor, queryAnswer } from "./presentation";
+import { missingFields, proposalFor, queryAnswer, serviceDueAnswer } from "./presentation";
 import type { AssistantDraft, AssistantMachine } from "./types";
 
 const machine: AssistantMachine = {
@@ -81,4 +81,30 @@ test("walks a generic fault through one safe question at a time", () => {
   assert.deepEqual(missingFields(draft, [machine], "af-ZA")?.fields.map((field) => field.name), ["urgency"]);
   draft = { ...draft, urgency: "can_work" };
   assert.equal(missingFields(draft, [machine], "en-ZA"), null);
+});
+
+test("answers when one machine's next service falls due, in both languages", () => {
+  const machine = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Groen John Deere",
+    make: "John Deere",
+    model: "6120M",
+    aliases: [],
+    status: "active",
+    meterType: "hours",
+    currentReading: 4820,
+    currentReadingDate: "2026-07-29",
+    serviceStatus: "ok",
+    nextDueDate: "2027-06-04",
+    nextDueReading: 5000,
+  } as AssistantMachine;
+  const english = serviceDueAnswer(machine, "en-ZA");
+  assert.match(english, /Groen John Deere's service is up to date\./);
+  assert.match(english, /Next target:/);
+  assert.match(english, /2027-06-04/);
+  assert.match(serviceDueAnswer(machine, "af-ZA"), /Groen John Deere se diens is op datum\./);
+  assert.match(
+    serviceDueAnswer({ ...machine, serviceStatus: null } as AssistantMachine, "en-ZA"),
+    /does not have a service plan yet\./,
+  );
 });

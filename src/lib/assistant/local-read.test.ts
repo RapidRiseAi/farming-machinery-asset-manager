@@ -297,3 +297,46 @@ test("a chosen machine outside the visible fleet yields no scope", () => {
   const scope = { supabase: {}, farmId: "farm", role: "operator" as const, machines: [] } as never;
   assert.equal(scopeForChosenMachine(scope, "11111111-1111-4111-8111-111111111111"), null);
 });
+
+test("a service question about one machine is answered about that machine, not the fleet", async () => {
+  const mk = (id: string, name: string, serviceStatus: "ok" | "due_soon"): AssistantMachine => ({
+    id,
+    name,
+    make: name.split(" ")[0],
+    model: "X",
+    aliases: [],
+    status: "active",
+    meterType: "hours",
+    currentReading: 4820,
+    currentReadingDate: "2026-07-29",
+    serviceStatus,
+    nextDueDate: "2027-06-04",
+    nextDueReading: 5000,
+  });
+  const groen = mk("11111111-1111-4111-8111-111111111111", "Groen John Deere", "ok");
+  const massey = mk("22222222-2222-4222-8222-222222222222", "Rooi Massey", "due_soon");
+  const neverQuery = new Proxy({}, {
+    get() {
+      throw new Error("service attention must not query the database");
+    },
+  });
+  const scope = { supabase: neverQuery, farmId: "farm", role: "owner" as const, machines: [groen, massey] } as never;
+
+  const one = await answerLocalRead(
+    { kind: "service_attention", machineQuery: "When is the Groen John Deere due for service?" },
+    scope,
+    "en-ZA",
+  );
+  assert.match(one.message, /Groen John Deere's service is up to date/);
+  assert.doesNotMatch(one.message, /No visible machines/);
+  assert.equal(one.machineId, groen.id);
+
+  // The fleet question keeps the fleet answer.
+  const fleet = await answerLocalRead(
+    { kind: "service_attention", machineQuery: "Which machines need service?" },
+    scope,
+    "en-ZA",
+  );
+  assert.match(fleet.message, /Rooi Massey: due soon/);
+  assert.equal(fleet.machineId, undefined);
+});

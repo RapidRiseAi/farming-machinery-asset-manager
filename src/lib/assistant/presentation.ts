@@ -141,6 +141,21 @@ export function queryAnswer(
     }`;
   }
 
+  return serviceDueAnswer(machine, locale);
+}
+
+/**
+ * When one machine's next service falls due, in a sentence.
+ *
+ * Exported because two paths answer the same question: the deterministic
+ * `query_service_due` intent, and a local read that has already resolved to
+ * exactly one machine. That second path used to fall back to the FLEET sentence
+ * — "No visible machines are overdue or due soon for service." — which does not
+ * answer "when is this machine due?" at all. English phrasing routes there and
+ * Afrikaans phrasing routes to the deterministic intent, so the same question
+ * was answered well in one language and uselessly in the other.
+ */
+export function serviceDueAnswer(machine: AssistantMachine, locale: AssistantLocale): string {
   if (!machine.serviceStatus) {
     return af(locale)
       ? `${machine.name} het nog nie ’n diensplan nie.`

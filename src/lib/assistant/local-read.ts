@@ -13,6 +13,7 @@ import {
   type MachineResolution,
   type WorkRequestReadRow,
 } from "./read-data";
+import { serviceDueAnswer } from "./presentation";
 import type {
   AssistantDocumentStatus,
   AssistantLocalReadRequest,
@@ -539,10 +540,19 @@ export async function answerLocalRead(
     const match = filter ? resolveVisibleMachine(filter, scope.machines) : null;
     const unresolved = resolutionAnswer(match ?? undefined, scope.machines, locale, "machines");
     if (unresolved) return unresolved;
+    // A question about ONE machine deserves that machine's answer. The fleet
+    // sentence ("No visible machines are overdue or due soon for service.") is
+    // right for "which machines need service?" and useless as a reply to "when
+    // is the Groen John Deere due for service?" — which is exactly where English
+    // phrasing lands, while the Afrikaans phrasing reaches the precise wording
+    // through the deterministic intent. It is also where a machine chosen in a
+    // clarification arrives.
     const selected = match?.ok ? [match.machine] : scope.machines;
-    const message = request.kind === "fleet_overview"
-      ? formatFleetOverview(selected, locale)
-      : formatServiceAttention(selected, locale);
+    const message = request.kind === "service_attention" && match?.ok
+      ? serviceDueAnswer(match.machine, locale)
+      : request.kind === "fleet_overview"
+        ? formatFleetOverview(selected, locale)
+        : formatServiceAttention(selected, locale);
     return {
       message,
       speakText: message,
