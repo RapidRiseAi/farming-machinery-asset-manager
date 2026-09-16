@@ -221,3 +221,55 @@ export function toThreadEntry(row: ThreadRow, machines: AssistantMachine[], now:
     proposal,
   };
 }
+
+/** Outcomes that mean nothing happened: no answer, no record, nothing saved. */
+const COLLAPSIBLE: ReadonlySet<ThreadStatus> = new Set<ThreadStatus>([
+  "expired",
+  "unfinished",
+  "superseded",
+  "failed",
+]);
+
+/** A shorter run is left alone: folding two lines away saves nothing. */
+export const THREAD_COLLAPSE_MIN = 3;
+
+export type ThreadGroup =
+  | { kind: "entry"; entry: ThreadEntry }
+  | { kind: "collapsed"; id: string; entries: ThreadEntry[] };
+
+/**
+ * Fold runs of abandoned attempts into one line.
+ *
+ * A thread that has been tested hard fills with identical "Expired" and "Not
+ * finished" entries, and the exchanges that DID something scroll away behind
+ * them. Only consecutive outcomes where nothing happened are folded, and only
+ * three or more of them: an answer, a saved change, a declined proposal, and a
+ * pending one the person can still confirm are each always their own line.
+ *
+ * Grouping reads the STORED status, so a pending proposal that ages out while
+ * the tab is open stays its own line. The safe direction is to hide too little.
+ */
+export function groupThread(entries: ThreadEntry[]): ThreadGroup[] {
+  const groups: ThreadGroup[] = [];
+  let run: ThreadEntry[] = [];
+
+  const flush = () => {
+    if (run.length >= THREAD_COLLAPSE_MIN) {
+      groups.push({ kind: "collapsed", id: run[0].id, entries: run });
+    } else {
+      for (const entry of run) groups.push({ kind: "entry", entry });
+    }
+    run = [];
+  };
+
+  for (const entry of entries) {
+    if (COLLAPSIBLE.has(entry.status)) {
+      run.push(entry);
+      continue;
+    }
+    flush();
+    groups.push({ kind: "entry", entry });
+  }
+  flush();
+  return groups;
+}

@@ -180,7 +180,10 @@
     "threadExpired": "Het verval voordat dit bevestig is",
     "threadUnfinished": "Nie klaar nie",
     "threadSuperseded": "Vervang deur 'n gekorrigeerde transkripsie",
-    "threadFailed": "FleetWise kon dit nie doen nie"
+    "threadFailed": "FleetWise kon dit nie doen nie",
+    "threadCollapsed": "{count} versoeke wat nie voltooi is nie",
+    "threadCollapsedShow": "Wys hulle",
+    "threadCollapsedHide": "Versteek hulle"
   },
   "auth": {
     "signIn": "Teken in",

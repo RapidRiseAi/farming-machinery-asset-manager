@@ -20,6 +20,8 @@ memory. It now keeps a conversation:
    the live area clears, then moves up into the thread.
 5. **A saved change links to its record.**
 6. **Starter prompts show only on an empty conversation.**
+7. **Runs of abandoned attempts fold into one line**, opened on request, so the
+   exchanges that did something are not buried behind them.
 
 ## The finding that shaped it: history is the table
 
@@ -53,7 +55,7 @@ nothing reasons across turns, so "your recent exchanges" is the whole need.
 
 | File | Role |
 | --- | --- |
-| `src/lib/assistant/thread.ts` | **Pure.** What a stored row means to its subject: `threadStatus`, `parseDraft`, `threadHref`, `toThreadEntry`. Tested without a database. |
+| `src/lib/assistant/thread.ts` | **Pure.** What a stored row means to its subject: `threadStatus`, `parseDraft`, `threadHref`, `toThreadEntry`, and `groupThread` for folding runs. Tested without a database. |
 | `src/lib/assistant/history.ts` | **Server-only loader.** Explicit columns, request-scoped client, farm and user scoped, newest 20, returned oldest first. |
 | `src/app/(app)/assistant/page.tsx` | Loads the thread with the same client and machine list it already uses. |
 | `src/components/assistant/assistant-client.tsx` | Renders the thread; moves the live exchange into it. |
@@ -188,8 +190,8 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
 ## Verification
 
 - **Unit tests:** `thread.test.ts` (11), `format.test.ts` (5, with a UTC control),
-  two regression tests plus three language-parity tests in `local-read.test.ts`.
-  Full suite 276/276. Each date test
+  two regression tests plus three language-parity tests in `local-read.test.ts`,
+  and four in `thread.test.ts` for folding. Full suite 280/280. Each date test
   was mutation-checked: with the host-local getters put back, the day-boundary test
   fails `actual: 1, expected: 0`.
 - **Gates:** typecheck, lint, design:lint, i18n:parity, i18n:keys, errors:check;
@@ -214,8 +216,6 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   subject.** The existing H1 private-RLS block proves subject, colleague and owner
   visibility, not erasure. It was not added because there is no local PostgreSQL on
   the machine where this was built, and an unrun SQL test risks turning CI red.
-- **Abandoned attempts dominate a heavily tested thread.** Runs of identical
-  "Expired" or "Not finished" requests could collapse into one line.
 - The thread shows the newest 20 exchanges, with no "show earlier".
 
 ## What not to do

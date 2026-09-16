@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
 import { StatusBadge, type StatusBadgeProps } from "@/components/ui/badge";
 import { dateTime } from "@/lib/format";
+import { groupThread } from "@/lib/assistant/thread";
 import type { ThreadEntry, ThreadStatus } from "@/lib/assistant/thread";
 import { t, type Lang } from "@/lib/i18n";
 import type {
@@ -205,6 +206,11 @@ export function AssistantClient({
   // thread (see the transition effect). An exchange is therefore always in
   // exactly one place, which is what stops it rendering twice.
   const [thread, setThread] = useState<ThreadEntry[]>(initialThread);
+  // Runs of abandoned attempts the person has chosen to open, by the id of the
+  // first entry in the run. Folded by default: a heavily used thread fills with
+  // identical "Expired" lines, and the exchanges that did something scroll away
+  // behind them.
+  const [openRuns, setOpenRuns] = useState<ReadonlySet<string>>(() => new Set());
   const initialThreadRef = useRef(initialThread);
   initialThreadRef.current = initialThread;
   /** What was asked, captured when a new request is sent, for the entry it becomes. */
@@ -1048,6 +1054,23 @@ export function AssistantClient({
         : null;
   const visibleThread = liveId ? thread.filter((entry) => entry.id !== liveId) : thread;
 
+  /**
+   * The thread as rows to render: a folded run becomes one toggle, and its
+   * entries appear only when opened. Flattened here so every row is a single
+   * <li>, and computed outside the hook region because it is derived state.
+   */
+  type ThreadRow = { kind: "toggle"; id: string; count: number; open: boolean } | { kind: "entry"; entry: ThreadEntry };
+  const threadRows: ThreadRow[] = [];
+  for (const group of groupThread(visibleThread)) {
+    if (group.kind === "entry") {
+      threadRows.push({ kind: "entry", entry: group.entry });
+      continue;
+    }
+    const open = openRuns.has(group.id);
+    threadRows.push({ kind: "toggle", id: group.id, count: group.entries.length, open });
+    if (open) for (const entry of group.entries) threadRows.push({ kind: "entry", entry });
+  }
+
   // Keep the newest exchange in view, inside the thread's own scroll region —
   // never by moving the page, which would yank somebody away from what they
   // were reading.
@@ -1149,7 +1172,39 @@ export function AssistantClient({
             className="focus-ring max-h-64 overflow-y-auto rounded-xl border border-edge-soft bg-surface-sunken/40 p-3 sm:max-h-[28rem] sm:p-4"
           >
             <ol className="flex flex-col gap-5">
-              {visibleThread.map((entry) => {
+              {threadRows.map((item) => {
+                if (item.kind === "toggle") {
+                  // The run is identified by its FIRST entry's id — which is also
+                  // the key of that entry's own row once the run is open. Two
+                  // children with the same key let React lose their identity
+                  // across updates, so this key is prefixed.
+                  return (
+                    <li key={"run-" + item.id} className="flex justify-center">
+                      <button
+                        type="button"
+                        aria-expanded={item.open}
+                        onClick={() =>
+                          setOpenRuns((current) => {
+                            const next = new Set(current);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          })
+                        }
+                        className="focus-ring rounded-full border border-edge-soft bg-surface px-3 py-1.5 text-2xs text-ink-muted transition-colors hover:bg-surface-sunken"
+                      >
+                        {t("assistant.threadCollapsed", locale).replace("{count}", String(item.count))}
+                        {" · "}
+                        <span className="font-medium text-ink">
+                          {item.open
+                            ? t("assistant.threadCollapsedHide", locale)
+                            : t("assistant.threadCollapsedShow", locale)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                }
+                const entry = item.entry;
                 // A pending proposal that crossed its deadline since load is
                 // shown as expired and loses its Review button.
                 const shown: ThreadStatus =

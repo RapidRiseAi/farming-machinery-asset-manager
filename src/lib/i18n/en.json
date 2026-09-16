@@ -180,7 +180,10 @@
     "threadExpired": "Expired before it was confirmed",
     "threadUnfinished": "Not finished",
     "threadSuperseded": "Replaced by a corrected transcript",
-    "threadFailed": "FleetWise couldn't do this"
+    "threadFailed": "FleetWise couldn't do this",
+    "threadCollapsed": "{count} requests that were not completed",
+    "threadCollapsedShow": "Show them",
+    "threadCollapsedHide": "Hide them"
   },
   "auth": {
     "signIn": "Sign in",

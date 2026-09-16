@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseDraft, threadHref, threadStatus, toThreadEntry, type ThreadRow } from "./thread";
+import {
+  groupThread,
+  parseDraft,
+  threadHref,
+  threadStatus,
+  toThreadEntry,
+  type ThreadEntry,
+  type ThreadRow,
+  type ThreadStatus,
+} from "./thread";
 import type { AssistantMachine } from "./types";
 
 const NOW = new Date("2026-09-15T10:00:00.000Z");
@@ -175,4 +184,61 @@ test("an entry never carries the stored draft or model metadata to the browser",
 test("unknown channels read as typed rather than leaking a raw value", () => {
   assert.equal(toThreadEntry(row({ channel: "sms" }), [machine], NOW).channel, "typed");
   assert.equal(toThreadEntry(row({ channel: "voice" }), [machine], NOW).channel, "voice");
+});
+
+function collapseEntry(id: string, status: ThreadStatus): ThreadEntry {
+  return {
+    id,
+    createdAt: "2026-09-16T08:00:00.000Z",
+    channel: "typed",
+    input: "Report a fault",
+    response: null,
+    status,
+    href: null,
+    proposal: null,
+  };
+}
+
+const collapsedCounts = (groups: ReturnType<typeof groupThread>) =>
+  groups.map((group) => (group.kind === "collapsed" ? group.entries.length : "entry"));
+
+test("folds a run of abandoned attempts into one line", () => {
+  const groups = groupThread([
+    collapseEntry("a", "unfinished"),
+    collapseEntry("b", "expired"),
+    collapseEntry("c", "failed"),
+  ]);
+  assert.deepEqual(collapsedCounts(groups), [3]);
+  assert.equal(groups[0].kind === "collapsed" ? groups[0].id : null, "a");
+});
+
+test("leaves a short run alone", () => {
+  const groups = groupThread([collapseEntry("a", "expired"), collapseEntry("b", "expired")]);
+  assert.deepEqual(collapsedCounts(groups), ["entry", "entry"]);
+});
+
+test("never folds an exchange that did something, or one still waiting", () => {
+  // The pending entry breaks the run: it can still be confirmed, so it keeps its
+  // own line and its Review button — and the two halves are too short to fold.
+  const groups = groupThread([
+    collapseEntry("a", "expired"),
+    collapseEntry("b", "unfinished"),
+    collapseEntry("p", "pending"),
+    collapseEntry("c", "expired"),
+    collapseEntry("d", "failed"),
+  ]);
+  assert.deepEqual(collapsedCounts(groups), ["entry", "entry", "entry", "entry", "entry"]);
+
+  const around = groupThread([
+    collapseEntry("a", "expired"),
+    collapseEntry("b", "expired"),
+    collapseEntry("c", "expired"),
+    collapseEntry("answered", "answered"),
+    collapseEntry("saved", "applied"),
+  ]);
+  assert.deepEqual(collapsedCounts(around), [3, "entry", "entry"]);
+});
+
+test("an empty thread groups to nothing", () => {
+  assert.deepEqual(groupThread([]), []);
 });
