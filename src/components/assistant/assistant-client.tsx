@@ -1096,7 +1096,9 @@ export function AssistantClient({
           </button>
         ))}
       </div>
-      <p className="-mt-3 text-xs leading-5 text-sand-500">{t("assistant.languageHint", locale)}</p>
+      {/* Secondary help. Hidden on a phone, where 40px of explanation costs more
+          than it gives: the toggle already reads "Afrikaans · Willem". */}
+      <p className="-mt-3 hidden text-xs leading-5 text-sand-500 sm:block">{t("assistant.languageHint", locale)}</p>
 
       {offlineCaptures.length > 0 ? (
         <Card className="border-callout-warn-edge bg-callout-warn-bg/50">
@@ -1144,7 +1146,7 @@ export function AssistantClient({
             ref={threadScrollRef}
             tabIndex={0}
             aria-label={t("assistant.threadTitle", locale)}
-            className="focus-ring max-h-[28rem] overflow-y-auto rounded-xl border border-edge-soft bg-surface-sunken/40 p-3 sm:p-4"
+            className="focus-ring max-h-64 overflow-y-auto rounded-xl border border-edge-soft bg-surface-sunken/40 p-3 sm:max-h-[28rem] sm:p-4"
           >
             <ol className="flex flex-col gap-5">
               {visibleThread.map((entry) => {

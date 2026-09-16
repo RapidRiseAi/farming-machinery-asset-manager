@@ -145,6 +145,22 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   because this workstation is already in South Africa and would hide the bug.
 - **A declined proposal was headed "Saved".** It now reads "Not saved — you
   declined".
+- **A question about one machine was answered with the fleet sentence.** "When is
+  the Groen John Deere due for service?" parses as a local `service_attention`
+  read, which replied "No visible machines are overdue or due soon for service." —
+  true of that machine, and not an answer to the question. Only the Afrikaans
+  phrasing reached the deterministic intent and its precise wording, so the same
+  question was answered well in one language and uselessly in the other. The
+  per-machine sentence is now `serviceDueAnswer` in `presentation.ts`, used by both
+  paths: a local read that has resolved to exactly one machine uses it, and the
+  fleet listing is untouched for "which machines need service?". Both languages now
+  answer "Rooi Massey's service is up to date. Next target: 9 250 h or 2027-06-04."
+  This also upgrades the answer after a machine is chosen in a clarification.
+- **On a phone the composer sat below the fold.** At 430×900 the input was at
+  y=971 while the bottom tab bar starts at 835. The thread's scroll region is now
+  16rem on a phone (28rem from `sm` up) and the language hint is desktop-only, so
+  the input sits at 731–801 — clear of the tab bar — with the desktop layout
+  unchanged.
 
 ## Verification
 
@@ -172,14 +188,10 @@ detail. `tool_args` is read on the server only, to rebuild proposals and links.
   subject.** The existing H1 private-RLS block proves subject, colleague and owner
   visibility, not erasure. It was not added because there is no local PostgreSQL on
   the machine where this was built, and an unrun SQL test risks turning CI red.
-- **On a phone the composer starts below the fold** — measured at 430×900 with the
-  composer's top at 971px. A phone needs its own chat layout: a compact composer
-  pinned above the bottom tab bar. That is a design pass, not a class change.
-- **English and Afrikaans take different routes for the same question.** "When is
-  the Groen John Deere due for service?" routes *local* (`service_attention`) and
-  answers in fleet wording ("No visible machines are overdue or due soon for
-  service."); the Afrikaans question routes *deterministic* and answers precisely
-  ("…se diens is op datum. Volgende teiken: 5 000 h of 2027-06-04").
+- **English and Afrikaans still take different ROUTES** for the same question —
+  local versus deterministic — even though both now produce the same answer. The
+  wording is fixed; the routing difference remains, and is worth closing so the two
+  languages cannot drift apart again.
 - **Abandoned attempts dominate a heavily tested thread.** Runs of identical
   "Expired" or "Not finished" requests could collapse into one line.
 - `daysAgo` and `relativeDate` still use the host's calendar getters.
