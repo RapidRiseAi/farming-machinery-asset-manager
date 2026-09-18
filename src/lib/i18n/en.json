@@ -4214,7 +4214,12 @@
     "removeCardIntro": "We will stop using this card. Nothing is cancelled and nothing is deleted.",
     "removeCardEffect1": "Your plan carries on exactly as it is.",
     "removeCardEffect2": "Your next bill will have no card to charge, so add another one before then or the payment will fail.",
-    "removeCardYes": "Yes, remove it"
+    "removeCardYes": "Yes, remove it",
+    "quoteUnavailableBody": "We cannot price that change right now, so nothing has been changed and nothing has been charged. Try again in a moment, or get in touch and we will sort it out.",
+    "quoteNoPrice": "That plan is not on sale online — it is quoted per farm. Get in touch and we will put a price in writing.",
+    "quoteEnded": "This subscription has ended, so there is nothing to change. Start it again and you can pick any plan you like.",
+    "quoteMinOne": "You need at least one vehicle slot.",
+    "quoteBelowMinimum": "The difference comes to less than R1,00, which is below what the bank will process. Nothing has been charged."
   },
   "adminBilling": {
     "title": "Subscriptions",

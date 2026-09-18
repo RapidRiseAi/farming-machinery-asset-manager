@@ -1003,3 +1003,27 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "ui.savedChanges", tone: "success" };
   }
 }
+
+/**
+ * Turn a quote function's `reason` into a sentence in the reader's own language.
+ *
+ * `app.billing_quota_quote` and `app.billing_plan_quote` explain a refusal in English
+ * prose — 'retire or sell a vehicle first', 'no confirmed price for that plan'. Rendering
+ * that straight to the screen puts an untranslated Postgres string in front of an
+ * Afrikaans farmer, which is the same mistake `src/lib/errors.ts` exists to prevent for
+ * every other refusal in the product.
+ *
+ * Matched loosely on purpose: these strings are prose in a migration, not an enum, and a
+ * future edit that rewords one should degrade to the generic sentence rather than start
+ * printing SQL at customers.
+ */
+export function quoteReasonKey(reason: string | null | undefined): string {
+  const r = (reason ?? "").toLowerCase();
+  if (!r) return "billing.quoteUnavailableBody";
+  if (r.includes("retire or sell")) return "billing.quotaBelowFleetBody";
+  if (r.includes("no confirmed price")) return "billing.quoteNoPrice";
+  if (r.includes("subscription has ended")) return "billing.quoteEnded";
+  if (r.includes("at least one vehicle")) return "billing.quoteMinOne";
+  if (r.includes("below what the provider")) return "billing.quoteBelowMinimum";
+  return "billing.quoteUnavailableBody";
+}

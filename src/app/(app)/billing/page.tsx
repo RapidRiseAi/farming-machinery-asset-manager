@@ -34,6 +34,7 @@ import {
   payableInvoice,
   primaryCard,
   planDiverged,
+  quoteReasonKey,
   retryOffer,
   savedNotice,
   showsVat,
@@ -426,12 +427,18 @@ export default async function BillingPage({
                       locale,
                     )}
                   </p>
+                  {/* NEVER the raw `reason`. The quote functions explain themselves in
+                      English prose from a migration, and printing that puts an
+                      untranslated Postgres string in front of an Afrikaans farmer — the
+                      same mistake `errors.ts` exists to prevent everywhere else. */}
                   <p className="mt-1 text-sm leading-relaxed text-sand-800">
                     {below && slotsReview
                       ? t("billing.quotaBelowFleetBody", locale)
                           .replace("{used}", String(slotsReview.in_use))
                           .replace("{quota}", String(slotsReview.new_quota))
-                      : String(q.reason ?? t("billing.quoteNoCharge", locale))}
+                      : t(quoteReasonKey(q.reason), locale)
+                          .replace("{used}", String(slotsReview?.in_use ?? assets.billable))
+                          .replace("{quota}", String(slotsReview?.new_quota ?? unitsBilled))}
                   </p>
                   <Link
                     href="/billing"

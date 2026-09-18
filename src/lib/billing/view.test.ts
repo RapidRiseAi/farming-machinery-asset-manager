@@ -30,6 +30,7 @@ import {
   cardExpiryOn,
   cardExpiryState,
   estimateNextCharge,
+  quoteReasonKey,
   savedNotice,
   type PaymentMethodRow,
   type SubscriptionRow,
@@ -328,4 +329,28 @@ test("nothing to say, and something unrecognised, are different answers", () => 
   assert.equal(savedNotice("   "), null);
   // An unknown code must never render itself at a customer.
   assert.equal(savedNotice("something-new")?.key, "ui.savedChanges");
+});
+
+test("a refusal from the engine is translated, never printed as SQL prose", () => {
+  // These are the exact strings `app.billing_quota_quote` and `app.billing_plan_quote`
+  // put in `reason`. Rendering one raw would show English prose from a migration to an
+  // Afrikaans farmer — the mistake errors.ts exists to prevent everywhere else.
+  assert.equal(quoteReasonKey("retire or sell a vehicle first"), "billing.quotaBelowFleetBody");
+  assert.equal(quoteReasonKey("no confirmed price for that plan"), "billing.quoteNoPrice");
+  assert.equal(quoteReasonKey("no confirmed price for this plan"), "billing.quoteNoPrice");
+  assert.equal(quoteReasonKey("subscription has ended"), "billing.quoteEnded");
+  assert.equal(quoteReasonKey("choose at least one vehicle"), "billing.quoteMinOne");
+  assert.equal(
+    quoteReasonKey("less than R1,00 — below what the provider will process"),
+    "billing.quoteBelowMinimum",
+  );
+});
+
+test("an unrecognised or absent reason degrades to a sentence, not to silence", () => {
+  // The reasons are prose in a migration, not an enum. A reword must fall back rather
+  // than start printing Postgres at customers.
+  assert.equal(quoteReasonKey("some wording nobody has written yet"), "billing.quoteUnavailableBody");
+  assert.equal(quoteReasonKey(null), "billing.quoteUnavailableBody");
+  assert.equal(quoteReasonKey(undefined), "billing.quoteUnavailableBody");
+  assert.equal(quoteReasonKey(""), "billing.quoteUnavailableBody");
 });

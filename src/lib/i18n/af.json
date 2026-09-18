@@ -4214,7 +4214,12 @@
     "removeCardIntro": "Ons sal ophou om hierdie kaart te gebruik. Niks word gekanselleer nie en niks word uitgevee nie.",
     "removeCardEffect1": "Jou plan gaan presies so voort.",
     "removeCardEffect2": "Jou volgende rekening sal geen kaart hê om te hef nie, so voeg 'n ander een by voor dan, anders misluk die betaling.",
-    "removeCardYes": "Ja, verwyder dit"
+    "removeCardYes": "Ja, verwyder dit",
+    "quoteUnavailableBody": "Ons kan daardie verandering nou nie prys nie, so niks is verander nie en niks is gehef nie. Probeer oor 'n oomblik weer, of laat weet ons en ons sorteer dit uit.",
+    "quoteNoPrice": "Daardie plan is nie aanlyn te koop nie — dit word per plaas gekwoteer. Laat weet ons en ons sit 'n prys op skrif.",
+    "quoteEnded": "Hierdie intekening het geëindig, so daar is niks om te verander nie. Begin dit weer en jy kan enige plan kies.",
+    "quoteMinOne": "Jy het ten minste een voertuigplek nodig.",
+    "quoteBelowMinimum": "Die verskil kom op minder as R1,00 te staan, wat onder is wat die bank sal verwerk. Niks is gehef nie."
   },
   "adminBilling": {
     "title": "Intekeninge",
