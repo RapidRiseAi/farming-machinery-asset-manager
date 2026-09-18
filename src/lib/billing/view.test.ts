@@ -25,8 +25,12 @@ import test from "node:test";
 
 import {
   CARD_EXPIRY_WINDOW_DAYS,
+  billedUnits,
+  billsOnQuota,
   cardExpiryOn,
   cardExpiryState,
+  estimateNextCharge,
+  savedNotice,
   type PaymentMethodRow,
   type SubscriptionRow,
 } from "./view";
@@ -191,4 +195,137 @@ test("no card and no subscription are silences, not crashes", () => {
     cardExpiryState(card({ exp_month: null, exp_year: null }), sub(), "2026-09-20").kind,
     "quiet",
   );
+});
+
+// ── What the invoice will actually be for ────────────────────────────────────
+//
+// This is the arithmetic that put R0,00 on a production farm's billing screen against a
+// real R750,00 invoice. `/billing` passed the COUNTED fleet into `estimateNextCharge`
+// while `app.generate_billing_invoices` bills `coalesce(asset_quota, counted)`, so every
+// farm holding slots it had not filled was quoted the wrong number — and a farm that had
+// just paid and added nothing yet was quoted nothing at all.
+//
+// These assertions are really assertions about `app.billing_billable_units`. If that
+// function's rule ever changes, this file is the thing that should go red.
+
+test("a quota is what gets billed, however many vehicles are actually running", () => {
+  // The exact production shape: three slots bought, no machines on the fleet yet.
+  assert.equal(billedUnits(sub({ asset_quota: 3 }), 0), 3);
+  // Slots bought, some of them in use.
+  assert.equal(billedUnits(sub({ asset_quota: 10 }), 7), 10);
+  // Every slot in use.
+  assert.equal(billedUnits(sub({ asset_quota: 10 }), 10), 10);
+});
+
+test("no quota means bill what is counted — grandfathered farms must not read as zero", () => {
+  // `null` is "this subscription predates the quota model", which is every farm onboarded
+  // before it and every farm an administrator creates. Reading it as "no slots" would bill
+  // all of them nothing.
+  assert.equal(billedUnits(sub({ asset_quota: null }), 3), 3);
+  assert.equal(billedUnits(null, 4), 4);
+  assert.equal(billedUnits(undefined, 4), 4);
+});
+
+test("a quota of zero is impossible, and a fleet of zero under a quota still bills", () => {
+  // `billing_subscriptions_quota_ck` refuses a quota below 1, so 0 can only arrive from a
+  // bug. It must still be read as a quota rather than falling through to the count, or the
+  // fallback silently becomes the bill.
+  assert.equal(billedUnits(sub({ asset_quota: 0 }), 9), 0);
+  assert.equal(billedUnits(sub({ asset_quota: 5 }), 0), 5);
+});
+
+test("the screen knows which of the two models it is showing", () => {
+  assert.equal(billsOnQuota(sub({ asset_quota: 3 })), true);
+  assert.equal(billsOnQuota(sub({ asset_quota: null })), false);
+  assert.equal(billsOnQuota(null), false);
+});
+
+test("the estimate follows the quota, which is the whole bug", () => {
+  const price = {
+    id: "p1",
+    version_label: "launch-2026",
+    plan: "done_for_you",
+    billing_period: "monthly",
+    per_vehicle_monthly_incl_cents: 25000,
+    months_charged: 1,
+    vat_rate_bps: 0,
+    status: "active",
+    effective_from: null,
+    effective_to: null,
+  };
+  const s = sub({ plan: "done_for_you", asset_quota: 3 });
+
+  // What the page used to do: pass the counted fleet. Zero machines, so R0,00 — the one
+  // wrong price a customer would never think to question.
+  const wrong = estimateNextCharge({ price, assetCount: 0, vatRegistered: false });
+  assert.equal(wrong.kind === "priced" && wrong.totalInclCents, 0);
+
+  // What it does now, and what the invoice on production actually came to.
+  const right = estimateNextCharge({
+    price,
+    assetCount: billedUnits(s, 0),
+    vatRegistered: false,
+  });
+  assert.equal(right.kind === "priced" && right.totalInclCents, 75000);
+  assert.equal(right.kind === "priced" && right.assetCount, 3);
+});
+
+// ── Saying which of several things just happened ─────────────────────────────
+
+test("every outcome a billing action can report has its own sentence", () => {
+  // The actions distinguish these carefully and the page rendered one generic string for
+  // all of them, so a farmer who pressed "Update slots" could not tell whether they had
+  // just been charged.
+  const codes = [
+    "slots-added",
+    "slots-scheduled",
+    "plan-changed",
+    "plan-scheduled",
+    "no-change",
+    "paid",
+    "checking",
+    "cancelling",
+    "cancelled",
+    "resumed",
+    "card-removed",
+    "billing-details",
+    "plan",
+    "plan-unchanged",
+    "charged",
+    "subscription",
+    "reconciled-paid",
+    "reconciled-closed",
+    "reconciled-open",
+  ];
+  const keys = new Set<string>();
+  for (const code of codes) {
+    const notice = savedNotice(code);
+    assert.ok(notice, `${code} resolved to nothing`);
+    assert.notEqual(notice.key, "ui.savedChanges", `${code} fell through to the generic line`);
+    keys.add(notice.key);
+  }
+  // No two outcomes may share a sentence, or the distinction is lost again.
+  assert.equal(keys.size, codes.length, "two outcomes render the same message");
+});
+
+test("money that has not landed is never reported as success", () => {
+  // An attempt that settled `unknown` is being verified, not confirmed. Calling it a
+  // success is how somebody pays twice.
+  assert.equal(savedNotice("checking")?.tone, "info");
+  assert.equal(savedNotice("reconciled-open")?.tone, "info");
+  // Cancelling is not a celebration either.
+  assert.equal(savedNotice("cancelling")?.tone, "info");
+  assert.equal(savedNotice("cancelled")?.tone, "info");
+  // These genuinely did move money, or did the thing asked.
+  assert.equal(savedNotice("paid")?.tone, "success");
+  assert.equal(savedNotice("slots-added")?.tone, "success");
+});
+
+test("nothing to say, and something unrecognised, are different answers", () => {
+  assert.equal(savedNotice(undefined), null);
+  assert.equal(savedNotice(null), null);
+  assert.equal(savedNotice(""), null);
+  assert.equal(savedNotice("   "), null);
+  // An unknown code must never render itself at a customer.
+  assert.equal(savedNotice("something-new")?.key, "ui.savedChanges");
 });

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { APP_NAME } from "@/lib/env";
@@ -5,8 +6,10 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { farmBillingGate } from "@/lib/billing/service";
-import { Button } from "@/components/ui/button";
+import { STALE_PENDING_MINUTES } from "@/lib/billing/worker";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
@@ -69,6 +72,46 @@ export default async function ActivatePage({
     .maybeSingle();
   const invoice = invData as { invoice_ref: string; total_incl_cents: number } | null;
 
+  // ── Has this person ALREADY paid, seconds ago? ──────────────────────────────
+  //
+  // The callback sends them to `/billing?checkout=paid`, which is inside `(app)`, whose
+  // layout runs the gate — and the gate is still `pending` until the webhook settles the
+  // attempt. So it redirected here and dropped the query string, and somebody who had just
+  // handed over a card was shown "Pay to activate" with a Pay button. Pressing it was
+  // safely refused by the in-flight unique index, but the refusal reads "a payment on this
+  // bill is already in progress", which is an alarming sentence at the worst possible
+  // moment in the whole funnel.
+  //
+  // The state is read from the LEDGER rather than from a query parameter, so it is true
+  // however they arrived — back button, reopened tab, or a phone that lost signal during
+  // the redirect. Service client on purpose: `beginCheckoutAction` admits a manager, and
+  // RLS on attempts is owner-or-Rapid-Rise, so a manager would otherwise read nothing here
+  // and be shown the one screen this exists to prevent.
+  const svc = createServiceClient();
+  const { data: attemptData } = await svc
+    .from("billing_payment_attempts")
+    .select("status, requested_at")
+    .eq("farm_id", profile.farm_id)
+    .in("status", ["pending", "succeeded"])
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const attempt = attemptData as { status: string; requested_at: string } | null;
+
+  // A `pending` attempt older than the reconciler's own staleness window is not somebody
+  // at a payment page; it is a checkout that was abandoned and will be swept. Showing
+  // "waiting for your bank" for ever would strand them with no way to try again, so the
+  // same 30 minutes the worker uses decides it here. One definition, not two.
+  const ageMinutes = attempt
+    ? (Date.now() - new Date(attempt.requested_at).getTime()) / 60000
+    : Number.POSITIVE_INFINITY;
+  const settling =
+    attempt?.status === "succeeded"
+      ? "received"
+      : attempt?.status === "pending" && ageMinutes < STALE_PENDING_MINUTES
+        ? "inflight"
+        : null;
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="flex items-center gap-3">
@@ -109,18 +152,56 @@ export default async function ActivatePage({
           </div>
         ) : null}
 
-        <form action={beginCheckoutAction} className="mt-6">
-          <Button type="submit" className="w-full">
-            {invoice
-              ? t("activate.payAmount", locale).replace(
-                  "{amount}",
-                  rands(invoice.total_incl_cents),
-                )
-              : t("activate.pay", locale)}
-          </Button>
-        </form>
+        {settling ? (
+          // No Pay button at all in this state. It is the one control that must not be
+          // offered to somebody whose money is already moving — the database would refuse
+          // it, but being refused is not the experience to give a customer thirty seconds
+          // after they paid.
+          <div className="mt-6">
+            <div className="rounded-xl border border-callout-info-edge bg-callout-info-bg px-4 py-3.5">
+              <p className="text-base font-semibold text-sand-900">
+                {t(
+                  settling === "received"
+                    ? "activate.settlingReceivedTitle"
+                    : "activate.settlingInflightTitle",
+                  locale,
+                )}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-sand-800">
+                {t(
+                  settling === "received"
+                    ? "activate.settlingReceivedBody"
+                    : "activate.settlingInflightBody",
+                  locale,
+                )}
+              </p>
+            </div>
+            {/* A plain link to this same page. It is a GET, so a reload cannot repeat
+                anything, and it gives somebody watching a spinner something to press
+                other than the browser's back button. */}
+            <Link
+              href="/activate"
+              className={`${buttonVariants({ variant: "secondary" })} mt-3 w-full`}
+            >
+              {t("activate.settlingRefresh", locale)}
+            </Link>
+          </div>
+        ) : (
+          <>
+            <form action={beginCheckoutAction} className="mt-6">
+              <Button type="submit" className="w-full">
+                {invoice
+                  ? t("activate.payAmount", locale).replace(
+                      "{amount}",
+                      rands(invoice.total_incl_cents),
+                    )
+                  : t("activate.pay", locale)}
+              </Button>
+            </form>
 
-        <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
+            <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
+          </>
+        )}
       </div>
 
       {/* Every app route bounces here, and until now there was no way off the screen —

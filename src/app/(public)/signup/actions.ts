@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PLANS, BILLING_PERIODS, perVehicleMonthlyCents, type Plan } from "@/lib/entitlements";
@@ -68,16 +69,50 @@ export async function signUp(formData: FormData): Promise<void> {
 
   const svc = createServiceClient();
 
+  // ── A ceiling on how fast one source can create accounts ────────────────────
+  //
+  // This is the only anonymous endpoint in the product that writes, and what it writes is
+  // an auth user, a farm, an owner, a subscription and an invoice. It had no limit of any
+  // kind. Claimed HERE, after the form has been validated and before anything is created,
+  // so a fat-fingered password does not spend somebody's allowance.
+  //
+  // The source key is a FORWARDED HEADER and is therefore attacker-influenced. That is
+  // understood and accepted: this is a cost multiplier, not an authentication boundary,
+  // and the thing it protects is a dormant row rather than a secret. A missing header
+  // buckets everybody together under one key, which is the safe direction — it limits
+  // harder, not softer.
+  const forwarded = (await headers()).get("x-forwarded-for") ?? "";
+  const sourceKey = forwarded.split(",")[0]?.trim() || "unknown";
+  const { data: slot, error: slotError } = await svc.rpc("billing_take_signup_slot", {
+    p_source: sourceKey,
+    p_limit: 10,
+  });
+  // A limiter that fails OPEN on a database error is the right way round here. The failure
+  // it would otherwise cause is turning away a real customer at the front door, and the
+  // abuse it would otherwise permit costs a dormant row that the nightly sweep removes.
+  if (!slotError && slot === false) bounce("signup-busy");
+
   // Somebody who started a sign-up, abandoned the payment and came back. Their auth user
   // already owns this address, so a second createUser would fail with a message about
   // internals. Send them to sign in instead: the billing gate will land them straight on
   // /activate with the invoice they already have, which IS the resumption — no second code
   // path to keep correct.
-  const { data: existing } = await svc.auth.admin.listUsers();
-  const taken = (existing?.users ?? []).some(
-    (u) => (u.email ?? "").toLowerCase() === email,
-  );
-  if (taken) redirect(`/login?resume=1&email=${encodeURIComponent(email)}`);
+  //
+  // This was `listUsers()` with no arguments and a scan of the result. That call is PAGED
+  // and defaults to FIFTY rows, so it really asked "is this address among the fifty most
+  // recent users" — correct at 16 customers, quietly wrong from 51, and wrong first for
+  // the oldest accounts, which is precisely who a returning customer is. One indexed probe
+  // now (`20260918120000`), and it does not get slower as the business grows.
+  const { data: takenData, error: takenError } = await svc.rpc("billing_signup_email_taken", {
+    p_email: email,
+  });
+  if (takenError) {
+    // Fail CLOSED on this one. Carrying on would call `createUser`, and if the address is
+    // in fact taken that fails anyway — with a worse message and after we have started.
+    captureError(takenError, { where: "signup:email-taken" });
+    bounce("signup-failed");
+  }
+  if (takenData === true) redirect(`/login?resume=1&email=${encodeURIComponent(email)}`);
 
   const created = await svc.auth.admin.createUser({
     email,

@@ -192,6 +192,14 @@ export function formatNotification(
         card: `${String(p.card_brand ?? "").toUpperCase()} ${String(p.last4 ?? "")}`.trim(),
         date: p.expires_on ? shortDate(String(p.expires_on), locale) : "",
       });
+    // The only billing message that arrives BEFORE anything goes wrong (20260918140000).
+    // It names the amount and the date, because the job of this sentence is to make the
+    // deduction recognisable when it lands on a bank statement three days later.
+    case "billing_renewal_due":
+      return fill("notifications.tplBillingRenewalDue", locale, {
+        amount: rands(Number(p.amount_cents ?? 0)),
+        date: p.due_on ? shortDate(String(p.due_on), locale) : "",
+      });
     // ── Addressed to Rapid Rise, not to the farm ───────────────────────────
     // A dispute carries roughly 48 BUSINESS HOURS before Paystack accepts it on our
     // behalf and takes the amount out of a payout, so the deadline is in the sentence

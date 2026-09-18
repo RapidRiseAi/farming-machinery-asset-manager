@@ -144,6 +144,10 @@ const CODE_KEYS: Record<string, string> = {
   "signup-farm": "errors.signupFarm",
   "signup-vehicles": "errors.signupVehicles",
   "signup-too-many": "errors.signupTooMany",
+  // The sign-up rate limit (20260918130000). Worded as congestion rather than as an
+  // accusation: the overwhelming majority of people who ever see it are sharing an office
+  // connection with somebody else who just signed up, not abusing anything.
+  "signup-busy": "errors.signupBusy",
   // Emitted twice by /signup when the posted plan or period is not one we sell. It was
   // never mapped, so the product's own front door answered with the generic apology.
   "signup-plan": "errors.signupPlan",

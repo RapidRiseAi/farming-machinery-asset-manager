@@ -1264,6 +1264,10 @@ declare
     'billing_advance_period','due_billing_charges','claim_billing_charge',
     'settle_billing_attempt','billing_register_failure','billing_apply_downgrades',
     'billing_restore_after_payment','enqueue_billing_reminders','billing_close_cancellations',
+    -- The renewal notice (20260918140000). Reads a price and a quota and queues a
+    -- notification; it moves no money, and it is still service-role only, because a
+    -- browser able to call it could spam a farm's owners with billing messages.
+    'enqueue_billing_renewal_notices',
     'billing_rollup_invoice_payments','start_billing_subscription',
     'claim_billing_receipt','release_billing_receipt','claim_billing_failure_notice',
     'billing_receipts_due','billing_failure_notices_due',
@@ -1293,7 +1297,7 @@ declare
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
-    'cron_escalate_support_tickets'];
+    'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1307,7 +1311,8 @@ declare
     'farm_vehicle_allowance','farm_billing_gate','billing_create_pending_signup',
     'billing_quota_quote','billing_change_quota','billing_reopen_subscription',
     'billing_record_refund','open_support_ticket','support_tickets_to_post',
-    'record_support_ticket_post'];
+    'record_support_ticket_post','billing_signup_email_taken',
+    'billing_take_signup_slot'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1610,6 +1615,13 @@ begin
        false),
       ('billing_quota_quote',  'p_sub uuid, p_quota integer', false),
       ('billing_change_quota', 'p_sub uuid, p_quota integer', false),
+      -- Recognising a returning sign-up (20260918120000). Service-role only, and that is
+      -- the security property rather than a preference: a wrapper `anon` could call from
+      -- the sign-up page is an account-enumeration oracle for anybody with a browser.
+      ('billing_signup_email_taken', 'p_email text', false),
+      -- The sign-up rate limit (20260918130000). Service-role only for the obvious
+      -- reason: a limiter the limited party can call is not a limiter.
+      ('billing_take_signup_slot', 'p_source text, p_limit integer', false),
       ('billing_reopen_subscription', 'p_farm uuid, p_by uuid', false),
       -- Recording money we gave back (20260911210000). Service-role only: it writes a
       -- payment row, and a browser that could call it could forge a refund against its

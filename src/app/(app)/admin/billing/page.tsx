@@ -33,6 +33,7 @@ import {
   payableInvoice,
   reconcileQueue,
   retryOffer,
+  savedNotice,
   type AttemptRow,
   type BillingSettingsRow,
   type FarmBillingRow,
@@ -121,6 +122,7 @@ export default async function AdminBillingPage({
   const locale = profile.lang;
   const sp = await searchParams;
   const selectedFarmId = sp.farm && /^[0-9a-f-]{36}$/i.test(sp.farm) ? sp.farm : null;
+  const savedHere = savedNotice(sp.saved);
 
   const supabase = await createClient();
   const [{ data: settingsData }, { data: priceData }, { data: subData }, { data: farmData }] =
@@ -216,20 +218,11 @@ export default async function AdminBillingPage({
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash
-        tone="success"
-        message={
-          sp.saved === "plan"
-            ? t("adminBilling.savedPlanNow", locale)
-            : sp.saved === "plan-scheduled"
-              ? t("adminBilling.savedPlanScheduled", locale)
-              : sp.saved === "plan-unchanged"
-                ? t("adminBilling.savedPlanUnchanged", locale)
-                : sp.saved
-                  ? t("ui.savedChanges", locale)
-                  : undefined
-        }
-      />
+      {/* One resolver, shared with the owner's screen. Six of this page's outcomes —
+          a charge taken, an attempt verified and closed, a subscription started — used
+          to fall through to "Saved changes", which is the least useful sentence available
+          about money that has just moved. */}
+      {savedHere ? <Flash tone={savedHere.tone} message={t(savedHere.key, locale)} /> : null}
 
       {/* ── Is the schedule still running? ──────────────────────────────────── */}
       <Card>

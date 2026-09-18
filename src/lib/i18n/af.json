@@ -368,7 +368,8 @@
     "mapUnmatched": "{n} van jou kolomme word nie gebruik nie.",
     "mapNoName": "Kies watter van jou kolomme die masjien se naam hou — ons kan niks sonder dit laai nie.",
     "mapFileSummary": "{file} · {n} rye",
-    "useDifferentFile": "Gebruik 'n ander lêer"
+    "useDifferentFile": "Gebruik 'n ander lêer",
+    "limitAddSlots": "Voeg meer voertuigplekke by"
   },
   "machineType": {
     "tractor": "Trekker",
@@ -821,7 +822,8 @@
     "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling.",
     "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
     "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). As hulle daarvoor gevra het, kanselleer hul intekening dadelik op hierdie skerm. As ons terugbetaal het omdat iets aan ons kant verkeerd geloop het, laat dit loop — hulle behou die plan.",
-    "tplSupportTicketDue": "'n Ondersteuningsaak moet binne {hours} uur beantwoord word: {subject}. Daarna besleg Paystack dit namens ons en neem die geld."
+    "tplSupportTicketDue": "'n Ondersteuningsaak moet binne {hours} uur beantwoord word: {subject}. Daarna besleg Paystack dit namens ons en neem die geld.",
+    "tplBillingRenewalDue": "Jou FleetWise-intekening hernu op {date} en {amount} sal van die kaart op rekord afgaan. Niks om te doen nie — dis net sodat jy weet voordat dit gebeur."
   },
   "settings": {
     "title": "Instellings",
@@ -4043,7 +4045,9 @@
     "pickTank": "Kies 'n tenk.",
     "termsRequired": "Merk asseblief die blokkie om te sê jy stem met die voorwaardes saam.",
     "termsStale": "Die voorwaardes het verander terwyl jy dit ingevul het. Lees dit asseblief weer en merk die blokkie.",
-    "billingNotPaid": "Daar is nog nie 'n kwitansie nie — hierdie faktuur is nie betaal nie."
+    "billingNotPaid": "Daar is nog nie 'n kwitansie nie — hierdie faktuur is nie betaal nie.",
+    "signupBusy": "Ons kry op die oomblik baie aanmeldings. Gee dit 'n minuut en probeer weer.",
+    "billingQuoteFailed": "Ons kon nie uitwerk wat daardie verandering sou kos nie, so niks is verander nie. Probeer oor 'n oomblik weer."
   },
   "billing": {
     "title": "Rekening",
@@ -4165,7 +4169,52 @@
     "nextStepsBody": "Daar is nog geen voertuie op jou vloot nie. Voeg die eerste een by, dan kan jy dadelik dienste, foute en diesel daarop aanteken — alles anders volg daaruit.",
     "nextStepsAdd": "Voeg jou eerste voertuig by",
     "nextStepsChecklist": "Wys my die opstelkontrolelys",
-    "downloadInvoice": "Laai faktuur af"
+    "downloadInvoice": "Laai faktuur af",
+    "slotsCardTitle": "Voertuigplekke waarvoor jy betaal",
+    "quotaUsing": "{used} van hierdie {quota} plekke is in gebruik.",
+    "quotaRule": "Jy betaal vir die plekke wat jy gekoop het, nie vir die voertuie wat jy bedryf nie. As jy 'n voertuig aftree of verkoop, raak sy plek oop, maar die rekening verander eers wanneer jy die plek hieronder teruggee.",
+    "timesSlots": "× {n} plekke",
+    "savedSlotsAdded": "Daardie plekke is nou joune. Ons het die verskil vir die oorblywende dae van hierdie tydperk gehef, en die nuwe bedrag geld van jou volgende rekening af.",
+    "savedSlotsScheduled": "Gestoor. Jy hou die plekke wat jy het tot hierdie tydperk eindig, dan begin die kleiner getal. Niks word vandag gehef nie.",
+    "savedPlanChanged": "Jy is nou op die nuwe plan. Ons het die verskil vir die oorblywende dae van hierdie tydperk gehef.",
+    "savedPlanScheduled": "Gestoor. Jy bly op jou huidige plan tot hierdie tydperk eindig, dan begin die nuwe een. Niks word vandag gehef nie.",
+    "savedNoChange": "Dis wat jy reeds het, so niks het verander nie en niks is gehef nie.",
+    "savedPaid": "Betaal. Jou kwitansie is op pad per e-pos.",
+    "savedChecking": "Ons gaan daardie betaling by die bank na. Dit neem gewoonlik 'n minuut. Moenie weer betaal nie — as dit deurgegaan het, kry ons dit, en as dit nie het nie, sê ons vir jou.",
+    "savedCancelling": "Jou plan sal nie hernu nie. Jy behou alles tot die einde van die tydperk waarvoor jy reeds betaal het.",
+    "savedCancelled": "Jou plan is gekanselleer. Niks is uitgevee nie — jou voertuie, dienste en rekords is alles nog hier.",
+    "savedResumed": "Welkom terug. Jou plan sal soos gewoonlik hernu en niks is onderbreek nie.",
+    "savedCardRemoved": "Daardie kaart is van die rekening af. Voeg 'n ander een by voor jou volgende rekening, anders het die hernuwing niks om te hef nie.",
+    "savedBillingDetails": "Gestoor. Jou volgende faktuur sal hierdie besonderhede dra.",
+    "resumeTitle": "Jou plan loop ten einde",
+    "resumeLead": "Jy het gevra dat ons nie hernu nie, so hierdie plan stop op {date}. Jy kan enige tyd voor dan net so aangaan — niks is nog gekanselleer nie en niks is uitgevee nie.",
+    "resumeTrigger": "Hou my plan",
+    "detailsTitle": "Aan wie die faktuur gerig word",
+    "detailsBody": "Jou fakture en kwitansies dra hierdie besonderhede. Vul dit in en elke rekening van nou af is een wat jou boekhouer kan liasseer.",
+    "detailsMissing": "Jou fakture dra nog nie 'n rekeningadres nie.",
+    "detailsCta": "Voeg jou rekeningbesonderhede by",
+    "quoteHeading": "Voordat jy iets verander",
+    "quoteNowLine": "Om vandag te betaal",
+    "quoteThenLine": "Daarna elke tydperk",
+    "quoteEffective": "Begin op {date}",
+    "quoteNoCharge": "Niks om vandag te betaal nie.",
+    "quoteScheduledNote": "Dit begin aan die einde van die tydperk waarvoor jy reeds betaal het, so niks word vandag gehef nie.",
+    "quoteConfirm": "Ja, maak hierdie verandering",
+    "quoteCancel": "Los dit soos dit is",
+    "quoteReview": "Kyk na hierdie verandering",
+    "quoteUnavailableTitle": "Ons kan nie daardie verandering prys nie",
+    "quotaBelowFleetTitle": "Jy bedryf meer voertuie as dit",
+    "quotaBelowFleetBody": "Jy het {used} voertuie aan die gang en het {quota} plekke gevra. Tree eers een af of verkoop dit — ons sal nooit 'n voertuig uitvee om 'n rekeningverandering te laat pas nie.",
+    "slotsNowLabel": "Plekke nou",
+    "slotsNewLabel": "Plekke ná hierdie verandering",
+    "planNowLabel": "Plan nou",
+    "planNewLabel": "Plan ná hierdie verandering",
+    "removeCard": "Verwyder hierdie kaart",
+    "removeCardTitle": "Verwyder hierdie kaart?",
+    "removeCardIntro": "Ons sal ophou om hierdie kaart te gebruik. Niks word gekanselleer nie en niks word uitgevee nie.",
+    "removeCardEffect1": "Jou plan gaan presies so voort.",
+    "removeCardEffect2": "Jou volgende rekening sal geen kaart hê om te hef nie, so voeg 'n ander een by voor dan, anders misluk die betaling.",
+    "removeCardYes": "Ja, verwyder dit"
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -4300,7 +4349,12 @@
     "cronOk": "Loop",
     "cronLate": "Het nie geloop nie",
     "cronHung": "Begin, nooit klaargemaak nie",
-    "cronFailed": "Laaste lopie het misluk"
+    "cronFailed": "Laaste lopie het misluk",
+    "savedCharged": "Gehef. Die betaling is teen daardie faktuur aangeteken.",
+    "savedSubscription": "Daardie plaas is nou op 'n intekening.",
+    "savedReconciledPaid": "Die verskaffer het bevestig dit het deurgegaan. Die betaling is aangeteken en die faktuur is vereffen.",
+    "savedReconciledClosed": "Die verskaffer sê dit het nooit geslaag nie. Die poging is gesluit en normale rekeninge kan hervat.",
+    "savedReconciledOpen": "Steeds onopgelos. Die verskaffer het nie 'n finale antwoord gegee nie, so die faktuur bly geblokkeer en niks is gehef nie."
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -4364,7 +4418,12 @@
     "amount": "Nou betaalbaar",
     "pay": "Betaal en maak my plaas oop",
     "payAmount": "Betaal {amount} en maak my plaas oop",
-    "note": "Jy word na Paystack geneem om met 'n kaart te betaal. Jou kaartbesonderhede bereik nooit FleetWise nie. Die plan hernu elke maand en jy kan dit enige tyd op die rekeningskerm kanselleer."
+    "note": "Jy word na Paystack geneem om met 'n kaart te betaal. Jou kaartbesonderhede bereik nooit FleetWise nie. Die plan hernu elke maand en jy kan dit enige tyd op die rekeningskerm kanselleer.",
+    "settlingReceivedTitle": "Betaling ontvang",
+    "settlingReceivedBody": "Dankie. Ons skakel jou rekening nou aan — dit neem gewoonlik 'n paar sekondes. Herlaai hierdie bladsy en jy is sommer binne.",
+    "settlingInflightTitle": "Ons wag op jou bank",
+    "settlingInflightBody": "Jou betaling gaan deur. Moet asseblief nie weer betaal nie — herlaai hierdie bladsy oor 'n oomblik en dit behoort klaar te wees. As dit nie binne 'n paar minute deur is nie, laat weet ons en ons kyk dit na.",
+    "settlingRefresh": "Herlaai"
   },
   "signup": {
     "title": "Begin met FleetWise",
@@ -4407,6 +4466,31 @@
       "card": "Paystack neem die betaling. Jou kaartbesonderhede bereik nooit ons nie.",
       "cancel": "Kanselleer enige tyd vanaf die rekeningskerm.",
       "open": "Jou plaas maak oop sodra die betaling deurgaan."
+    },
+    "compareTitle": "Wat jy kry",
+    "compareShow": "Vergelyk die planne",
+    "compareHide": "Versteek die vergelyking",
+    "saveAnnual": "Bespaar {amount} per jaar",
+    "annualPerMonth": "omtrent {amount} per maand",
+    "vehiclesHelp": "Tel die masjiene wat jy op FleetWise wil hê. Jy kan later meer koop, en jy betaal net vir wat jy het.",
+    "vehiclesFewer": "Minder voertuie",
+    "vehiclesMore": "Meer voertuie",
+    "totalMonthlyNote": "elke maand gehef",
+    "totalAnnualNote": "een keer per jaar gehef",
+    "feat": {
+      "coreRegister": "Elke masjien op een register, met sy papiere en foto's",
+      "coreServicing": "Diensskedules en herinneringe voordat 'n diens opraak",
+      "coreJobCards": "Werkkaarte, foute en onderdele gebruik, met koste op elke masjien",
+      "coreQr": "'n QR-plakker per masjien sodat drywers rapporteer sonder om aan te meld",
+      "dashboard": "Die vloot-dashboard",
+      "advanced_reports": "Volledige koste- en benuttingsverslae",
+      "fuel": "Dieselopvolging, bowser-uitreikings en brandstofafwykings",
+      "tco": "Koste per uur en totale eienaarskapskoste per masjien",
+      "aarto": "Verkeersboetes en AARTO-drywernominasies",
+      "voice_ai": "Stemopname en die plaasassistent",
+      "multi_site": "Meer as een plaas of depot op een rekening",
+      "whatsapp": "WhatsApp-waarskuwings",
+      "api_access": "API-toegang vir jou eie stelsels"
     }
   },
   "closed": {

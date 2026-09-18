@@ -368,7 +368,8 @@
     "mapUnmatched": "{n} of your columns aren't being used.",
     "mapNoName": "Pick which of your columns holds the machine name — we can't load anything without it.",
     "mapFileSummary": "{file} · {n} rows",
-    "useDifferentFile": "Use a different file"
+    "useDifferentFile": "Use a different file",
+    "limitAddSlots": "Add more vehicle slots"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -821,7 +822,8 @@
     "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
     "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). If they asked for it, cancel their subscription immediately on this screen. If we refunded because something broke on our side, leave it running — they keep the plan.",
-    "tplSupportTicketDue": "A support case needs an answer within {hours} hours: {subject}. After that Paystack settles it for us and takes the money."
+    "tplSupportTicketDue": "A support case needs an answer within {hours} hours: {subject}. After that Paystack settles it for us and takes the money.",
+    "tplBillingRenewalDue": "Your FleetWise subscription renews on {date} and {amount} will come off the card on file. Nothing to do — this is just so you know before it lands."
   },
   "settings": {
     "title": "Settings",
@@ -4043,7 +4045,9 @@
     "pickTank": "Choose a tank.",
     "termsRequired": "Please tick the box to say you agree to the terms.",
     "termsStale": "The terms changed while you were filling this in. Please read them again and tick the box.",
-    "billingNotPaid": "There is no receipt yet — this invoice has not been paid."
+    "billingNotPaid": "There is no receipt yet — this invoice has not been paid.",
+    "signupBusy": "We are getting a lot of sign-ups at the moment. Give it a minute and try again.",
+    "billingQuoteFailed": "We could not work out what that change would cost, so nothing has been changed. Try again in a moment."
   },
   "billing": {
     "title": "Billing",
@@ -4165,7 +4169,52 @@
     "nextStepsBody": "There are no vehicles on your fleet yet. Add the first one and you can start logging services, faults and diesel on it straight away — everything else follows from that.",
     "nextStepsAdd": "Add your first vehicle",
     "nextStepsChecklist": "Show me the setup checklist",
-    "downloadInvoice": "Download invoice"
+    "downloadInvoice": "Download invoice",
+    "slotsCardTitle": "Vehicle slots you are paying for",
+    "quotaUsing": "{used} of these {quota} slots are in use.",
+    "quotaRule": "You pay for the slots you bought, not for the vehicles you are running. Retiring or selling a vehicle frees its slot, but the bill only changes once you give the slot back below.",
+    "timesSlots": "× {n} slots",
+    "savedSlotsAdded": "Those slots are yours now. We charged the difference for the days left in this period, and the new amount applies from your next bill.",
+    "savedSlotsScheduled": "Saved. You keep the slots you have until this period ends, then the smaller number starts. Nothing is charged today.",
+    "savedPlanChanged": "You are on the new plan now. We charged the difference for the days left in this period.",
+    "savedPlanScheduled": "Saved. You stay on your current plan until this period ends, then the new one starts. Nothing is charged today.",
+    "savedNoChange": "That is what you already have, so nothing changed and nothing was charged.",
+    "savedPaid": "Paid. Your receipt is on its way by email.",
+    "savedChecking": "We are checking that payment with the bank. This usually takes a minute. Do not pay again — if it did go through we will find it, and if it did not we will tell you.",
+    "savedCancelling": "Your plan will not renew. You keep everything until the end of the period you have already paid for.",
+    "savedCancelled": "Your plan has been cancelled. Nothing has been deleted — your vehicles, services and records are all still here.",
+    "savedResumed": "Welcome back. Your plan will renew as normal and nothing was interrupted.",
+    "savedCardRemoved": "That card is off the account. Add another before your next bill, or the renewal will have nothing to charge.",
+    "savedBillingDetails": "Saved. Your next invoice will carry these details.",
+    "resumeTitle": "Your plan is ending",
+    "resumeLead": "You asked us not to renew, so this plan stops on {date}. You can carry on as normal any time before then — nothing has been cancelled yet and nothing has been deleted.",
+    "resumeTrigger": "Keep my plan",
+    "detailsTitle": "Who the invoice is made out to",
+    "detailsBody": "Your invoices and receipts carry these details. Fill them in and every bill from now on is one your bookkeeper can file.",
+    "detailsMissing": "Your invoices do not carry a billing address yet.",
+    "detailsCta": "Add your billing details",
+    "quoteHeading": "Before you change anything",
+    "quoteNowLine": "To pay today",
+    "quoteThenLine": "Then each period",
+    "quoteEffective": "Starts on {date}",
+    "quoteNoCharge": "Nothing to pay today.",
+    "quoteScheduledNote": "This starts at the end of the period you have already paid for, so nothing is charged today.",
+    "quoteConfirm": "Yes, make this change",
+    "quoteCancel": "Leave it as it is",
+    "quoteReview": "Check this change",
+    "quoteUnavailableTitle": "We cannot price that change",
+    "quotaBelowFleetTitle": "You are running more vehicles than that",
+    "quotaBelowFleetBody": "You have {used} vehicles on the go and asked for {quota} slots. Retire or sell one first — we will never delete a vehicle to make a billing change fit.",
+    "slotsNowLabel": "Slots now",
+    "slotsNewLabel": "Slots after this change",
+    "planNowLabel": "Plan now",
+    "planNewLabel": "Plan after this change",
+    "removeCard": "Remove this card",
+    "removeCardTitle": "Remove this card?",
+    "removeCardIntro": "We will stop using this card. Nothing is cancelled and nothing is deleted.",
+    "removeCardEffect1": "Your plan carries on exactly as it is.",
+    "removeCardEffect2": "Your next bill will have no card to charge, so add another one before then or the payment will fail.",
+    "removeCardYes": "Yes, remove it"
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -4300,7 +4349,12 @@
     "cronOk": "Running",
     "cronLate": "Has not run",
     "cronHung": "Started, never finished",
-    "cronFailed": "Last run failed"
+    "cronFailed": "Last run failed",
+    "savedCharged": "Charged. The payment is recorded against that invoice.",
+    "savedSubscription": "That farm is on a subscription now.",
+    "savedReconciledPaid": "The provider confirmed it went through. The payment is recorded and the invoice is settled.",
+    "savedReconciledClosed": "The provider says it never succeeded. The attempt is closed and normal billing can resume.",
+    "savedReconciledOpen": "Still unresolved. The provider has not given a final answer, so the invoice stays blocked and nothing was charged."
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -4364,7 +4418,12 @@
     "amount": "To pay now",
     "pay": "Pay and open my farm",
     "payAmount": "Pay {amount} and open my farm",
-    "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen."
+    "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen.",
+    "settlingReceivedTitle": "Payment received",
+    "settlingReceivedBody": "Thank you. We are switching your account on now — it usually takes a few seconds. Refresh this page and you will be straight in.",
+    "settlingInflightTitle": "We are waiting on your bank",
+    "settlingInflightBody": "Your payment is going through. Please do not pay again — refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
+    "settlingRefresh": "Refresh"
   },
   "signup": {
     "title": "Start using FleetWise",
@@ -4407,6 +4466,31 @@
       "card": "Paystack takes the payment. Your card details never reach us.",
       "cancel": "Cancel any time from the billing screen.",
       "open": "Your farm opens the moment the payment goes through."
+    },
+    "compareTitle": "What you get",
+    "compareShow": "Compare the plans",
+    "compareHide": "Hide the comparison",
+    "saveAnnual": "Save {amount} a year",
+    "annualPerMonth": "about {amount} a month",
+    "vehiclesHelp": "Count the machines you want on FleetWise. You can buy more later, and you will only pay for what you have.",
+    "vehiclesFewer": "Fewer vehicles",
+    "vehiclesMore": "More vehicles",
+    "totalMonthlyNote": "billed every month",
+    "totalAnnualNote": "billed once a year",
+    "feat": {
+      "coreRegister": "Every machine on one register, with its papers and photos",
+      "coreServicing": "Service schedules and reminders before a service falls due",
+      "coreJobCards": "Job cards, faults and parts used, with costs on each machine",
+      "coreQr": "A QR sticker per machine so drivers report without logging in",
+      "dashboard": "The fleet dashboard",
+      "advanced_reports": "Full cost and utilisation reporting",
+      "fuel": "Diesel tracking, bowser issues and fuel anomalies",
+      "tco": "Cost per hour and total cost of ownership per machine",
+      "aarto": "Traffic fines and AARTO driver nominations",
+      "voice_ai": "Voice capture and the farm assistant",
+      "multi_site": "More than one farm or depot on one account",
+      "whatsapp": "WhatsApp alerts",
+      "api_access": "API access for your own systems"
     }
   },
   "closed": {

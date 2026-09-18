@@ -4,7 +4,23 @@ import { t } from "@/lib/i18n";
 import { TERMS_VERSION } from "@/lib/legal";
 import { deviceLocale } from "@/lib/locale";
 import { errorMessage } from "@/lib/errors";
-import { PLANS, perVehicleMonthlyCents, ANNUAL_MONTHS_CHARGED } from "@/lib/entitlements";
+import {
+  PLANS,
+  perVehicleMonthlyCents,
+  ANNUAL_MONTHS_CHARGED,
+  FEATURE_MIN_PLAN,
+  type Feature,
+} from "@/lib/entitlements";
+
+/**
+ * What every plan includes, however cheap.
+ *
+ * These are the capabilities `FEATURE_MIN_PLAN` deliberately does NOT list, because they
+ * are ungated — the vehicle register, QR capture, servicing, job cards and faults. They
+ * are the reason somebody buys Essential at all, so leaving them off the comparison would
+ * make the cheapest plan look empty.
+ */
+const CORE_FEATURE_KEYS = ["coreRegister", "coreServicing", "coreJobCards", "coreQr"] as const;
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -77,8 +93,28 @@ export default async function SignUpPage({
           <div className="mt-4">
         <PlanPicker
           options={options}
+          // Keyed off `FEATURE_MIN_PLAN` itself so the comparison cannot advertise a
+          // feature on a plan whose gate will refuse it. Labels only; the mapping is the
+          // gate's.
+          featureLabels={Object.fromEntries(
+            (Object.keys(FEATURE_MIN_PLAN) as Feature[]).map((f) => [
+              f,
+              t(`signup.feat.${f}`, locale),
+            ]),
+          )}
+          coreFeatures={CORE_FEATURE_KEYS.map((k) => t(`signup.feat.${k}`, locale))}
           labels={{
             vehicles: t("signup.vehicles", locale),
+            compareTitle: t("signup.compareTitle", locale),
+            compareShow: t("signup.compareShow", locale),
+            compareHide: t("signup.compareHide", locale),
+            saveAnnual: t("signup.saveAnnual", locale),
+            annualPerMonth: t("signup.annualPerMonth", locale),
+            vehiclesHelp: t("signup.vehiclesHelp", locale),
+            vehiclesFewer: t("signup.vehiclesFewer", locale),
+            vehiclesMore: t("signup.vehiclesMore", locale),
+            totalMonthlyNote: t("signup.totalMonthlyNote", locale),
+            totalAnnualNote: t("signup.totalAnnualNote", locale),
             monthly: t("signup.monthly", locale),
             annual: t("signup.annual", locale),
             perMonth: t("signup.perMonth", locale),

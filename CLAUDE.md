@@ -18,6 +18,7 @@ pnpm build              # production build
 pnpm typecheck          # tsc --noEmit
 pnpm lint               # next lint
 pnpm db:test            # apply migrations + run RLS isolation tests on local Postgres
+pnpm db:check           # the same on PGlite when there is no psql; --suite runs them all
 ```
 `pnpm db:test` runs `supabase/tests/run.sh`: it (re)creates a local test DB, loads the
 Supabase auth shim, applies every migration in order, then runs the RLS isolation suite.
@@ -64,11 +65,14 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
 
 ### Open — needs a browser or a throwaway farm
 - A real Paystack **decline** has never happened (test mode accepts every valid stored authorization).
-- The billing **cron has never fired on Vercel's own schedule**, only by hand.
 - `changeOwnPlan` / `changeVehicleSlots` are rendered and verified wired but **never
   pressed** — they write to the demo farm's ledger, and an upgrade raises a proration
   invoice that cannot then be cleanly removed. Their arithmetic is proven in SQL inside
-  rolled-back transactions.
+  rolled-back transactions. Both now go through a priced review step first, so the number
+  is on screen before anything commits.
+- The three migrations from 18/09/2026 (`20260918120000`, `130000`, `140000`) are **in the
+  repo and not applied to production**. They add the sign-up email lookup, the sign-up rate
+  limit and the renewal notice.
 
 ### By design — not gaps
 - A refund or dispute **opens a support case and moves nothing in the ledger.** Money goes
@@ -88,6 +92,17 @@ will bite again.
 **Verification**
 - **Count objects, not migrations** (`docs/SCHEMA_DRIFT.md`) — and inventory the *calling*
   side too. Check every `.rpc("…")` name in the app against `pg_proc` on the live database.
+- **A screen and the engine can disagree about the same number.** `/billing` estimated from
+  the COUNTED fleet while the generator billed `coalesce(asset_quota, counted)`, and quoted
+  a production farm R0,00 against a real R750,00 invoice. When a figure exists in SQL and in
+  TypeScript, the TS one mirrors the SQL by name (`billedUnits` ↔ `billing_billable_units`)
+  and a test pins them together. Check the *arithmetic inputs*, not just the formula.
+- **A paged API default is a bug that waits for growth.** `listUsers()` returns fifty rows;
+  the sign-up duplicate check would have begun turning real customers away at the 51st user
+  and never failed a test. Any list call without an explicit page size is a latent ceiling.
+- **`pnpm db:check`** applies every migration and suite to PGlite (fresh database per suite)
+  when there is no psql. Four non-billing suites fail there on a stubbed `digest()` — run it
+  on a clean checkout before blaming your change for a failure.
 - **Three test layers all miss reachability.** The TS tests mock the Supabase client, so they
   assert *arguments* and never whether a function exists; `db:test` does not call the
   database the way the app does; the build only compiles a string.

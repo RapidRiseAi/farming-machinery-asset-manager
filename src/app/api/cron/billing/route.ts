@@ -58,7 +58,34 @@ import { createServiceClient } from "@/lib/supabase/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * The time budget, declared rather than inherited.
+ *
+ * This route makes one outbound HTTP call per charge and was running on whatever default
+ * the platform happened to apply — which on Vercel is measured in seconds, not minutes.
+ * A pass that is killed halfway is not a disaster (a claimed attempt settles `unknown` and
+ * the reconciler resolves it on the next run) but it is a night of billing that silently
+ * did not finish, and the evidence for it would have been an absent log line.
+ *
+ * 300s is Vercel's ceiling for a Node function on a paid plan. If the platform allows less,
+ * it takes the lower number and the internal budget below still stops cleanly first.
+ */
+export const maxDuration = 300;
+
+/**
+ * How much of the budget the CHARGING step may spend before it stops taking new pages.
+ *
+ * Deliberately well under `maxDuration`: steps 5 through 9 — downgrades, cancellations,
+ * reminders, receipts, failure notices — still have to run, and a pass that charges
+ * everybody and then never tells anybody is the wrong half to complete.
+ */
+const CHARGE_BUDGET_MS = 180_000;
+
+/** A second bound on the same loop, so a bug that makes every page look full terminates. */
+const MAX_CHARGE_PAGES = 40;
+
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
   // Constant-time. A plain `!==` stops at the first wrong byte, so how long the refusal
@@ -120,14 +147,68 @@ export async function GET(request: Request) {
   await run("generate_invoices", BILLING_RPC.cronGenerateInvoices);
 
   // 4 ── The charges themselves.
+  //
+  // DRAINED, not run once. `runBillingCharges` takes a bounded slice of the shortlist —
+  // it has to, or one pass holds an unbounded amount of work — and a single call therefore
+  // charged at most fifty farms and reported a number that looked like a finished night.
+  // Everybody past that waited a full day, because this route runs once.
+  //
+  // The loop is bounded twice over: by a page count, and by a wall clock that leaves room
+  // for the steps after it. A pass that runs out of budget stops cleanly and says so; the
+  // remaining invoices are still due, still unpaid, and picked up by the next run or by a
+  // manual trigger. Nothing is lost by stopping early, and a function killed mid-charge is
+  // exactly the situation the `unknown` settlement and the reconciler exist for.
   try {
-    const charges = await runBillingCharges(supabase);
-    steps["charges"] = charges.skipped
-      ? `skipped (${charges.skipped})`
-      : `ok (considered ${charges.considered}, succeeded ${charges.succeeded}, ` +
-        `failed ${charges.failed}, unknown ${charges.unknown}, passed ${charges.passed})`;
-    for (const message of charges.errors) {
-      captureError(new Error(message), { where: "cron:billing:charges" });
+    let considered = 0;
+    let succeeded = 0;
+    let failed = 0;
+    let unknown = 0;
+    let passed = 0;
+    let pages = 0;
+    let truncated = false;
+
+    for (;;) {
+      const charges = await runBillingCharges(supabase);
+      if (charges.skipped) {
+        steps["charges"] = `skipped (${charges.skipped})`;
+        break;
+      }
+      pages += 1;
+      considered += charges.considered;
+      succeeded += charges.succeeded;
+      failed += charges.failed;
+      unknown += charges.unknown;
+      passed += charges.passed;
+      for (const message of charges.errors) {
+        captureError(new Error(message), { where: "cron:billing:charges" });
+      }
+
+      // Nothing left, or nothing MOVED. The second guard is the important one: if a page
+      // comes back full but every row was passed over (no card, claimed elsewhere), the
+      // next page is the same rows and this would spin. Progress means a claim was taken.
+      if (!charges.moreDue) break;
+      if (charges.claimed === 0) break;
+      if (pages >= MAX_CHARGE_PAGES || Date.now() - startedAt > CHARGE_BUDGET_MS) {
+        truncated = true;
+        break;
+      }
+    }
+
+    if (!steps["charges"]) {
+      steps["charges"] =
+        `ok (considered ${considered}, succeeded ${succeeded}, failed ${failed}, ` +
+        `unknown ${unknown}, passed ${passed}, pages ${pages}` +
+        (truncated ? ", TRUNCATED — more still due" : "") +
+        ")";
+      if (truncated) {
+        // Reported, not just counted. A night that ran out of time is a capacity problem
+        // that will repeat and get worse, and the only place it would otherwise appear is
+        // a JSON body returned to Vercel's scheduler, which nobody reads.
+        captureError(
+          new Error(`billing charge pass truncated after ${pages} pages; more invoices due`),
+          { where: "cron:billing:charges", extra: { considered, pages } },
+        );
+      }
     }
   } catch (err) {
     steps["charges"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
@@ -142,6 +223,15 @@ export async function GET(request: Request) {
 
   // 7 ── Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);
+
+  // 7b ── The renewal that has NOT happened yet.
+  //
+  // After the charges on purpose: a subscription that renewed successfully tonight has
+  // already moved its period on, so it cannot also be warned about the renewal that just
+  // took place. Everything else here is a message about a payment that failed; this is the
+  // only one that reaches somebody while they can still act on it — which is the whole
+  // difference between a recognised deduction and a disputed one.
+  await run("renewal_notices", BILLING_RPC.enqueueRenewalNotices);
 
   // 8 ── The card that is about to stop working.
   //

@@ -1048,3 +1048,180 @@ test("a pass containing an unrecorded charge does not count it as succeeded", as
     "the reason must reach summary.errors, which is what the cron route reports to Sentry",
   );
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Many farms on the same night
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// The pass used to charge strictly one after another, each waiting on a round trip, and
+// took a hard slice of 50 with no way for the caller to learn there was more behind it.
+// Fifty renewals on the first of the month was the better part of a minute of pure waiting
+// inside one function invocation, and farm fifty-one waited a day.
+//
+// The safety property is unchanged and is NOT held by this loop: one live attempt per
+// invoice is enforced by `billing_payment_attempts_inflight_uq`. What these pin down is
+// that going wider did not quietly change what the worker does with the outcomes.
+
+test("charging several farms at once takes exactly one charge per invoice", async () => {
+  const charges: string[] = [];
+  const claimed: string[] = [];
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      charges.push(req.reference);
+      // Uneven latency, so a batch cannot pass merely because everything resolved in the
+      // order it was dispatched.
+      await new Promise((r) => setTimeout(r, charges.length % 3 === 0 ? 8 : 1));
+      // The transaction has to belong to the invoice it was charged against, or the
+      // worker correctly refuses to mark it paid — that mismatch check is the thing
+      // standing between a provider mix-up and the wrong farm being credited.
+      return {
+        ok: true,
+        transaction: txn({
+          reference: req.reference,
+          metadata: { farm_id: req.farmId, invoice_id: req.invoiceId },
+        }),
+      };
+    },
+  });
+
+  let n = 0;
+  const { client, rpcCalls } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name, args) => {
+      if (name === "billing_claim_charge") {
+        n += 1;
+        claimed.push(String(args.p_ref ?? ""));
+        return { data: `attempt-${n}`, error: null };
+      }
+      return { data: null, error: null };
+    },
+  });
+
+  // More than one concurrency window, so the batching is actually exercised.
+  const rows = Array.from({ length: 14 }, (_, i) =>
+    due({ invoice_id: `11111111-1111-4111-8111-${String(i).padStart(12, "0")}` }),
+  );
+  const summary = await runBillingChargesWithRows(client, provider, rows);
+
+  assert.equal(summary.considered, 14);
+  assert.equal(summary.succeeded, 14);
+  assert.equal(charges.length, 14, "one provider call per invoice, no more and no fewer");
+  assert.equal(new Set(charges).size, 14, "two invoices shared a reference");
+  assert.equal(new Set(claimed).size, 14, "a reference was reused across claims");
+  assert.equal(settleCalls(rpcCalls).length, 14, "every attempt must be settled exactly once");
+});
+
+test("an outcome is still attributed to its own invoice when they overlap", async () => {
+  // Half succeed, half decline. Run in parallel, the risk is a result landing against the
+  // wrong row — which would tell a farm whose payment worked that it had failed, and start
+  // the dunning ladder against them.
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      const odd = req.reference.endsWith("1") || req.reference.endsWith("3");
+      await new Promise((r) => setTimeout(r, odd ? 6 : 1));
+      return odd
+        ? {
+            ok: false as const,
+            deferred: false as const,
+            reason: "Insufficient funds",
+            retryable: false,
+            // Paystack processed the charge and refused it. A decline IS an answer, which
+            // is what separates it from a timeout and keeps it out of `unknown`.
+            answered: true,
+          }
+        : {
+            ok: true as const,
+            transaction: txn({
+              reference: req.reference,
+              metadata: { farm_id: req.farmId, invoice_id: req.invoiceId },
+            }),
+          };
+    },
+  });
+
+  let n = 0;
+  const { client } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) => {
+      if (name === "billing_claim_charge") {
+        n += 1;
+        return { data: `attempt-${n}`, error: null };
+      }
+      return { data: null, error: null };
+    },
+  });
+
+  const rows = Array.from({ length: 8 }, (_, i) =>
+    due({ invoice_id: `22222222-2222-4222-8222-${String(i).padStart(12, "0")}` }),
+  );
+  const summary = await runBillingChargesWithRows(client, provider, rows);
+
+  assert.equal(summary.considered, 8);
+  assert.equal(summary.succeeded + summary.failed, 8);
+  // Every outcome names a distinct invoice — nothing was recorded against the wrong farm.
+  const invoices = summary.outcomes.map((o) => o.invoiceId);
+  assert.equal(new Set(invoices).size, 8, "an outcome was attributed to the wrong invoice");
+});
+
+test("a full shortlist says so, so the caller knows to come back for more", async () => {
+  const provider = fakeProvider({
+    async chargeAuthorization(req) {
+      return {
+        ok: true,
+        transaction: txn({
+          reference: req.reference,
+          metadata: { farm_id: req.farmId, invoice_id: req.invoiceId },
+        }),
+      };
+    },
+  });
+  let n = 0;
+  const { client } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) => {
+      if (name === "billing_claim_charge") {
+        n += 1;
+        return { data: `attempt-${n}`, error: null };
+      }
+      return { data: null, error: null };
+    },
+  });
+
+  // Exactly the batch size: indistinguishable from "that was everything" without the flag,
+  // which is how farm fifty-one used to wait a day.
+  const full = Array.from({ length: 50 }, (_, i) =>
+    due({ invoice_id: `33333333-3333-4333-8333-${String(i).padStart(12, "0")}` }),
+  );
+  const drained = await runBillingChargesWithRows(client, provider, full);
+  assert.equal(drained.moreDue, true, "a full page must report that more may be waiting");
+
+  // A short page is the end of the queue and must not send the caller round again.
+  const partial = full.slice(0, 7);
+  const done = await runBillingChargesWithRows(client, provider, partial);
+  assert.equal(done.moreDue, false);
+});
+
+test("a full page of invoices nobody can charge does not spin", async () => {
+  // Every row passes over (no stored card). `moreDue` is true because the page is full,
+  // so the cron's drain loop would ask again and get the identical page for ever. The
+  // guard is `claimed === 0` — no claim means no progress — and this pins the value the
+  // loop reads rather than the loop itself.
+  const provider = fakeProvider({
+    async chargeAuthorization() {
+      throw new Error("must not be reached");
+    },
+  });
+  const { client } = fakeSupabase({ table: credentialTable });
+
+  const stuck = Array.from({ length: 50 }, (_, i) =>
+    due({
+      invoice_id: `44444444-4444-4444-8444-${String(i).padStart(12, "0")}`,
+      payment_method_id: null,
+    }),
+  );
+  const summary = await runBillingChargesWithRows(client, provider, stuck);
+
+  assert.equal(summary.moreDue, true, "the page really is full");
+  assert.equal(summary.claimed, 0, "nothing was claimed, so the pass made no progress");
+  assert.equal(summary.passed, 50);
+});

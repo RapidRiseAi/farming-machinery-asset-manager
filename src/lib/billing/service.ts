@@ -76,6 +76,10 @@ export const BILLING_RPC = {
   applyDowngrades: "cron_apply_billing_downgrades",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
+  // Telling a farm BEFORE the money comes off (20260918140000). Every other billing
+  // message in this product is about something that has already gone wrong; this is the
+  // only one that arrives while the customer can still do something about it.
+  enqueueRenewalNotices: "cron_enqueue_billing_renewal_notices",
   // The card that is about to stop working (20260909120000). exp_month/exp_year had
   // been stored since the table was created and read by nothing.
   cardExpiry: "cron_enqueue_billing_card_expiry",

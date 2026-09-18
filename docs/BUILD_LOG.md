@@ -3036,3 +3036,118 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
     redelivery yields one case and the chase finds it; then applied, with RLS, grants and an
     empty ledger checked. Eight gates green in CI; build 103 kB.
 
+---
+
+## 2026-09-18 — Billing review: the quota/counted split, the missing steps, and load
+
+A full pass over the subscription system — sign-up to renewal — asked for as "find missed
+features and mistakes". Findings were measured against the **production database**, not read
+off the code, which is how the first one was found at all.
+
+- **`/billing` was quoting the wrong price to every self-serve customer.** The page put the
+  COUNTED fleet into `estimateNextCharge` while `app.generate_billing_invoices` bills
+  `coalesce(asset_quota, counted)`. Proven on production: the Rapid Rise AI farm holds a
+  quota of 3, runs 0 machines, and its paid invoice is **R750,00** — the screen rendered
+  **R0,00**. That is precisely the number `/billing`'s own header warns is "the one wrong
+  price a customer would never think to question", and every farm that signs up through
+  `/signup` has a quota, so it was wrong for 100% of new customers. `billedUnits()` now
+  mirrors the SQL, the vehicles card is written for slots when slots are what is sold, and
+  five assertions in `view.test.ts` pin the cases — including `null` meaning "no ceiling"
+  rather than "no slots", which would bill every grandfathered farm nothing. `BILLING.md`
+  gains §6b, because the doc described only the metered model.
+
+- **`listUsers()` with no pagination would have started turning customers away at 51.**
+  `/signup`'s "have you been here before?" check scanned a page that DEFAULTS TO FIFTY rows,
+  so it really asked "is this address among the fifty most recent users" — correct at the 16
+  users on production, wrong from 51, and wrong first for the oldest accounts, which is
+  exactly who a returning customer is. Nothing would have failed a test; it would simply
+  have begun refusing people as the business grew. Replaced with one indexed probe
+  (`20260918120000`), service-role only — a wrapper `anon` could call from the sign-up page
+  is an account-enumeration oracle. Soft-deleted users deliberately still read as taken,
+  because GoTrue's unique index does not exclude them and `createUser` refuses either way.
+
+- **Money-moving changes had no confirmation and no figure.** `changeOwnPlan` and
+  `changeVehicleSlots` fired straight off a dropdown: one press raised a proration invoice
+  and charged the card on file. Meanwhile `app.billing_plan_quote` and
+  `app.billing_quota_quote` had been built for exactly this and had **no caller at all**.
+  Both controls are now two-step — a GET re-prices from the subscription on every render, so
+  a stale tab or a tampered value cannot put a price on screen the engine will not honour,
+  and a review that is only ever a navigation can never itself take money. Every other
+  destructive action in this product already went through `ConfirmDialog`; the two that
+  spend the customer's money were the two that did not ask.
+
+- **Three actions existed and were reachable by nothing.** `resumeBilling` (so a farm that
+  cancelled by mistake had no way back but email), `removePaymentMethod` (so the only way to
+  take a card off was to cancel), and the specific `?saved=` outcomes — the actions
+  carefully report *charged now* vs *scheduled for the renewal* vs *being checked*, and
+  `page.tsx` rendered one `ui.savedChanges` for all seven. `savedNotice()` is now the shared
+  resolver for both billing screens; `checking` is INFO and never success, because telling
+  somebody a payment went through while it is still `unknown` is how they pay twice.
+
+- **The seconds after paying showed the pay screen again.** The callback lands on
+  `/billing?checkout=paid`, which is inside `(app)`, whose layout runs a gate that is still
+  `pending` until the webhook settles — so it redirected to `/activate` and dropped the
+  query string. A second press was safely refused by the in-flight index, but the refusal
+  reads "a payment on this bill is already in progress", which is an alarming sentence at
+  the best moment in the funnel. `/activate` now reads the LEDGER (not a query parameter, so
+  it is true however they arrived) and shows "payment received" or "waiting on your bank"
+  with no Pay button at all, using the reconciler's own 30-minute staleness window so an
+  abandoned checkout is not stranded on it for ever.
+
+- **Nothing warned anybody before money left.** Every billing message fired on `past_due`,
+  `grace` or `downgraded` — all of them about something already gone wrong. `20260918140000`
+  adds a renewal notice at 3 days monthly / 14 days annual, both in `billing_settings`.
+  Annual matters most: ten months of list price in one deduction, and a farmer who has
+  forgotten the date reads it as fraud — which is a chargeback, and then a dispute with 48
+  business hours on it. Priced from the live catalogue and SILENT when there is none,
+  because a figure the generator will not produce defeats the whole purpose.
+
+- **Load.** `runBillingCharges` ran strictly serially on a hard slice of 50, and the cron
+  route declared no `maxDuration` at all while making one outbound HTTP call per charge.
+  Fifty renewals on the first of the month was most of a minute of pure waiting inside a
+  function whose budget was whatever the platform felt like. Now: six concurrent
+  (correctness still held by the unique index, not by the loop), the shortlist reports
+  `moreDue` when it comes back full, and the route DRAINS it under three bounds — a 180s
+  budget that leaves room for steps 5–9, a 40-page cap, and a `claimed === 0` guard so a
+  full page nobody can charge cannot spin. `maxDuration = 300` declared. Truncation is
+  reported to Sentry, not just counted in a JSON body Vercel reads and nobody else.
+
+- **Sign-up, as a thing a farmer actually uses.** A one-line blurb was the entire argument
+  for R89 a vehicle over R44, so the picker now has a feature comparison DERIVED from
+  `FEATURE_MIN_PLAN` — the same map the gates read, so it cannot advertise something the
+  product will then refuse. Annual saving is a number (`R X a year`) rather than a claim,
+  the period toggle moved above the plans because it changes every price below it, the
+  vehicle count got a stepper for a thumb in a bakkie, and the total says whether it leaves
+  the bank monthly or once. Also a rate limit (`20260918130000`) on what was the only
+  anonymous WRITE endpoint in the product — 10 an hour per source, same bucket shape as
+  `app.assistant_turn_buckets`, failing OPEN on a database error because turning away a real
+  customer is worse than a dormant row the sweep removes.
+
+- **Two documents were wrong.** `BILLING.md` §15 still said no live Paystack call had ever
+  been made and the webhook had never received a real delivery; production holds six paid
+  invoices and seven processed `charge.success` events (one correctly REFUSED — a probe
+  carrying a reference we never minted, which is the re-verification rule working on live
+  traffic). `CLAUDE.md` still listed the billing cron as never having fired on Vercel's own
+  schedule; `cron_runs` shows an unbroken nightly record at 04:01 UTC. Superseding notes
+  added rather than edits, per the rule.
+
+- **Section (j) refused a grant on the first run**, which is its whole job — the new engine
+  function had been given EXECUTE to `service_role` directly instead of being reached
+  through its `public.cron_*` wrapper. Caught before it went anywhere.
+
+- Verified: 166 migrations apply cleanly in order; `billing_subscription.sql` PASSES with
+  the new objects; 292 TypeScript tests (12 new, covering the quota arithmetic, the outcome
+  messages, and concurrent charging taking exactly one charge per invoice with outcomes
+  attributed to the right farm); typecheck, lint, i18n parity (4299 keys both languages),
+  i18n key sweep, error coverage, design lint all clean; production build green.
+  **`pnpm db:test` still cannot run — no psql on this machine** — so `pnpm db:check`
+  (`scripts/migrate_check.mjs`) was added: all migrations plus every suite on PGlite, a
+  fresh database per suite. Four non-billing suites fail there on the stand-in's stubbed
+  `digest()`; **the same four fail identically on a clean checkout**, which is how they were
+  attributed to the harness rather than to this work.
+
+**Left undone, deliberately:** nothing was applied to production — the three migrations are
+in the repo and have not been run against the live database. Leaked-password protection is
+still off in Supabase Auth (a dashboard setting, not a code change). `SUPPORT_WEBHOOK_URL`
+is still unset, so a dispute's 48-hour clock still depends on somebody opening
+`/admin/support`. And a real Paystack decline still has never happened.

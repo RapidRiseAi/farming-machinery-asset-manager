@@ -149,6 +149,39 @@ paying by marking every tractor down would be a billing system with a hole in it
 Every invoice also writes a `billing_asset_snapshots` row, so "why does this bill say 37
 vehicles?" is answerable months later, after tractors have been bought and sold.
 
+### 6b. Counted, or bought? Both — and the invoice bills the second
+
+**Amended 18 September 2026**, because a screen and the engine disagreed about this in
+production and quoted a customer R0,00 against a real R750,00 invoice.
+
+Since `20260910230000` there are **two** billing models running side by side, and
+`app.billing_billable_units(subscription)` is the only correct way to ask which:
+
+```sql
+coalesce(billing_subscriptions.asset_quota, app.billable_asset_count(farm_id))
+```
+
+| `asset_quota` | Model | Billed on |
+|---|---|---|
+| a number | **quota** — every farm that signs up through `/signup` | the slots BOUGHT |
+| `null` | **metered** — every farm onboarded before the quota model, and every farm an administrator creates | the vehicles COUNTED |
+
+Two consequences that are easy to get wrong, and both were:
+
+- **`null` is "no ceiling", never "no slots".** A caller that reads it as zero bills every
+  grandfathered farm nothing. `vehicleSlotsFree` carries the same warning for the same
+  reason.
+- **Under a quota, selling a tractor does not reduce the bill.** The slot is freed and the
+  money is not, until the farm gives the slot back. Any screen that implies otherwise is
+  writing a support ticket.
+
+`/billing` was passing the COUNTED figure into its estimate while the generator billed the
+quota, so a farm holding ten slots and running seven was shown seven vehicles' worth of
+money — and a farm that had just paid and added nothing yet was shown R0,00, which is
+exactly the number §2 of that page's own header warns is the one a customer never
+questions. `billedUnits()` in `src/lib/billing/view.ts` mirrors the SQL, and
+`view.test.ts` pins the three cases against it.
+
 ## 7. Charging: three transactions, HTTP in the middle
 
 ```
@@ -269,9 +302,37 @@ tested at these values:
 | `cancel_at_period_end` | true | They paid for the period. |
 | `prorate_annual_additions` | false | Silently charging for a mid-year purchase is the fastest way to lose trust in a bill. |
 | `payment_terms_days` | 7 | |
+| `renewal_notice_days_monthly` | 3 | Added 18/09/2026. Enough to move money across, not so far ahead it is forgotten. |
+| `renewal_notice_days_annual` | 14 | Ten months of list price leaves the account in one deduction. A fortnight is the notice somebody needs in order to cancel *before* being charged rather than after. |
 
 Failures notify the owner and manager in-app, and by email and push through the existing
 delivery layer. **Billing works with no WhatsApp anywhere near it.**
+
+### 11a. The one message that arrives BEFORE anything goes wrong
+
+Every other billing notification is about a payment that has already failed. Until
+`20260918140000` nothing told a farm that money was *about* to leave — the first they heard
+of a renewal was the receipt, or the decline.
+
+`app.enqueue_billing_renewal_notices` fixes that, and the reason it matters more here than
+on most products is the annual term: a Done-For-You farm with twenty vehicles is R50 000
+leaving a bank account unannounced. A farmer who has forgotten the date reads that as a
+fraudulent deduction, and the path from there is a chargeback — a dispute we then have 48
+business hours to answer, which is the most expensive possible outcome of a payment that
+was entirely legitimate. The Consumer Protection Act §14 also expects notice before a
+fixed-term agreement renews.
+
+It is deliberately narrow:
+
+- **`active` subscriptions only.** A farm already in `past_due` or `grace` is being told
+  about a payment that failed; "and another one is coming" is noise on top of a problem.
+- **Priced from the live catalogue, and silent when there is none.** A figure the generator
+  will not produce is worse than no message, because the whole job of this sentence is to
+  make the deduction recognisable on a statement three days later.
+- **Billed units, not counted ones** — `app.billing_billable_units`, so the warned amount
+  and the invoiced amount are the same number. See §6b.
+- **Once per farm per period**, deduped on the due date in the payload rather than on a
+  time window, so a re-run or a double-fired schedule lands on the row already there.
 
 ## 11b. Refunds and disputes
 
@@ -425,14 +486,41 @@ billing failure cannot disrupt maintenance jobs and vice versa. Same
 
 1. **reconcile stuck attempts** — first, so a lost response is resolved before anything else
 2. capture asset snapshots
-3. generate invoices
+3. apply pending plan changes, then generate invoices
 4. run charges
 5. apply downgrades
 6. close cancellations
-7. enqueue reminders
+7. enqueue reminders, then **renewal notices** (§11a)
+8. card expiry, support escalation and delivery, dormant sign-up sweep
+9. receipts and failure emails
 
 Each step's failure is reported and the pass **continues** — a partial night is worth much
 more than no night. Repeated execution is safe throughout.
+
+### 14b. The charge step is DRAINED, not run once
+
+`runBillingCharges` takes a bounded slice of the shortlist — it has to, or one pass holds
+an unbounded amount of work — so a single call charged at most 50 farms and reported a
+number that looked like a finished night. Everybody past that waited a full day, because
+this route runs once.
+
+The route now loops until the shortlist stops coming back full, bounded three ways so it
+cannot run away:
+
+| Bound | Value | Why |
+|---|---|---|
+| `CHARGE_BUDGET_MS` | 180s | Steps 5–9 still have to run. A pass that charges everybody and never tells anybody is the wrong half to finish. |
+| `MAX_CHARGE_PAGES` | 40 | A second bound, so a bug that makes every page look full still terminates. |
+| `claimed === 0` | — | A full page where nothing was claimed (no card, claimed elsewhere) is the same page next time. No claim means no progress; stop. |
+
+`maxDuration = 300` is now declared on the route. It was inheriting a platform default
+measured in seconds while making one outbound HTTP call per charge.
+
+Charges also run **six at a time** (`CHARGE_CONCURRENCY`). Correctness does not rest on
+that number — `billing_payment_attempts_inflight_uq` permits one live attempt per invoice
+however many workers ask — it is about not spending a function's whole budget waiting, and
+about not bursting against one merchant account hard enough to be rate-limited. A 429 in
+the middle of a charging run is indistinguishable from a decline at the moment it arrives.
 
 ## 15. What has and has not been verified
 
@@ -459,6 +547,10 @@ Stated plainly, so nobody mistakes "built" for "proven end to end".
 
 **Not verified — needs credentials nobody had in this session:**
 
+> **SUPERSEDED 18 September 2026.** Three of the four items below have since happened. They
+> are kept rather than edited, because hiding that this was once true hides when it stopped
+> being true. What is actually outstanding is the shorter list in §15b.
+
 - **No live or test Paystack call has ever been made.** The adapter is built against
   Paystack's published contract (signature algorithm, `charge_authorization` fields, the
   same-email rule, the `reusable` flag, the retry cadence and the IP allowlist were each
@@ -468,3 +560,33 @@ Stated plainly, so nobody mistakes "built" for "proven end to end".
 - The cron routes have not run on Vercel.
 - `pnpm db:test` could not run (no Postgres in PATH); PGlite stood in. That is a real
   Postgres, but it is not the project's own harness.
+
+## 15b. Where it actually stands — 18 September 2026
+
+Measured against the production database, not asserted from the code.
+
+**Now proven in production:**
+
+- **Real Paystack charges have settled.** Six paid invoices across two farms, covering both
+  an `initial_checkout` through hosted checkout and `charge_authorization` renewals against
+  a stored card.
+- **The webhook receives real deliveries and processes them.** Seven `charge.success`
+  events, one of which was correctly REFUSED — a probe carrying a reference we never
+  minted, recorded as `no payment attempt matches this reference` and credited to nothing.
+  That is the re-verification rule in §8 working on live traffic rather than in a test.
+- **The billing cron fires on Vercel's own schedule**, nightly at 04:01 UTC, every step
+  reporting `ok`. The `cron_runs` ledger holds an unbroken daily record.
+
+**Still outstanding, each needing something this codebase cannot supply:**
+
+- A real Paystack **decline**. Test mode accepts every valid stored authorization, so the
+  only decline in the ledger is a hand-written row. The dunning ladder past the first
+  failure is still unexercised end to end.
+- `pnpm db:test` still cannot run — there is no psql on the build machine. `pnpm db:check`
+  (`scripts/migrate_check.mjs`) applies all 166 migrations and then every suite to PGlite
+  instead, on a fresh database per suite because sharing one connection makes the first
+  failure abort every suite after it. Four non-billing suites fail there on the stand-in's
+  stubbed `digest()` — identically on a clean checkout, which is how they were attributed
+  to the harness rather than to the schema. `billing_subscription.sql` passes.
+- `SUPPORT_WEBHOOK_URL` is unset, so `support_delivery` skips every night. A dispute's
+  48-business-hour clock currently depends on somebody opening `/admin/support`.

@@ -21,7 +21,9 @@ import {
   accountNotice,
   activePrice,
   assetBreakdown,
+  billedUnits,
   billingLook,
+  billsOnQuota,
   cardBrandLabel,
   cardExpiry,
   cardExpiryState,
@@ -33,6 +35,7 @@ import {
   primaryCard,
   planDiverged,
   retryOffer,
+  savedNotice,
   showsVat,
   type AttemptRow,
   type BillingSettingsRow,
@@ -62,11 +65,20 @@ import {
   cancelSubscription,
   changeOwnPlan,
   changeVehicleSlots,
+  removePaymentMethod,
   replacePaymentMethod,
+  resumeBilling,
   retryPayment,
   startCheckout,
 } from "./actions";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
+import { createServiceClient } from "@/lib/supabase/service";
+import {
+  planChangeQuote,
+  quotaQuote,
+  type PlanChangeQuote,
+  type QuotaQuote,
+} from "@/lib/billing/service";
 
 export const dynamic = "force-dynamic";
 
@@ -118,7 +130,16 @@ export const dynamic = "force-dynamic";
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; checkout?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    checkout?: string;
+    /** 'plan' | 'slots' — show the priced review of a change before it is committed. */
+    change?: string;
+    plan?: string;
+    period?: string;
+    quota?: string;
+  }>;
 }) {
   const profile = await requireRole(["owner", "rr_admin"]);
   const locale = profile.lang;
@@ -233,7 +254,66 @@ export default async function BillingPage({
   const commercialPlan = sub?.plan ?? farm?.plan ?? "essential";
   const period = sub?.billing_period ?? farm?.billing_period ?? "monthly";
   const price = activePrice(prices, commercialPlan, period);
-  const estimate = estimateNextCharge({ price, assetCount: assets.billable, vatRegistered });
+  // The QUOTA when one was bought, the counted fleet when it was not — `billedUnits`
+  // mirrors `app.billing_billable_units`, which is what the invoice generator uses.
+  // Passing `assets.billable` here showed a farm holding slots it had not filled a
+  // smaller number than it was charged, and showed a farm that had just paid R0,00.
+  const unitsBilled = billedUnits(sub, assets.billable);
+  const onQuota = billsOnQuota(sub);
+  const saved = savedNotice(sp.saved);
+
+  // ── The priced review of a change, before anybody commits to it ─────────────
+  //
+  // `changeOwnPlan` and `changeVehicleSlots` used to fire straight off a dropdown: one
+  // press raised a proration invoice and charged the card on file, with no figure shown
+  // and no confirmation — while every merely destructive action in this product goes
+  // through `ConfirmDialog`. The two that spend the customer's money were the two that
+  // did not ask.
+  //
+  // `app.billing_plan_quote` and `app.billing_quota_quote` were built for exactly this and
+  // had no caller. They are the SAME functions the commit path prices from, so the number
+  // on screen and the number charged cannot drift.
+  //
+  // It is a GET, deliberately. The quote is recomputed from the subscription on every
+  // render rather than carried in a hidden field, so a stale tab or a tampered value
+  // cannot put a price in front of somebody that the engine will not honour — and a
+  // review that is only ever a navigation can never itself take money.
+  const wantsPlanReview =
+    sp.change === "plan" &&
+    !!sub &&
+    canManage &&
+    (PLANS as readonly string[]).includes(String(sp.plan)) &&
+    (BILLING_PERIODS as readonly string[]).includes(String(sp.period));
+  const requestedQuota = Number.parseInt(String(sp.quota ?? ""), 10);
+  const wantsSlotsReview =
+    sp.change === "slots" &&
+    !!sub &&
+    canManage &&
+    Number.isFinite(requestedQuota) &&
+    requestedQuota >= 1;
+
+  let planReview: PlanChangeQuote | null = null;
+  let slotsReview: QuotaQuote | null = null;
+  if (wantsPlanReview || wantsSlotsReview) {
+    // Service client: both quote functions are SECURITY DEFINER and service-role only, on
+    // purpose — a grant to `authenticated` would let any signed-in user price a change on
+    // somebody else's subscription and learn their fleet size on the way. The role on THIS
+    // farm was established by `requireRole` and `canManage` above.
+    const svc = createServiceClient();
+    if (wantsPlanReview && sub) {
+      const { quote } = await planChangeQuote(svc, {
+        subscriptionId: sub.id,
+        plan: String(sp.plan),
+        billingPeriod: String(sp.period),
+      });
+      planReview = quote;
+    }
+    if (wantsSlotsReview && sub) {
+      const { quote } = await quotaQuote(svc, sub.id, requestedQuota);
+      slotsReview = quote;
+    }
+  }
+  const estimate = estimateNextCharge({ price, assetCount: unitsBilled, vatRegistered });
   const next = nextChargeState(sub, estimate);
   const notice = accountNotice(sub);
   const diverged = sub ? planDiverged(sub, farm?.plan) : false;
@@ -275,7 +355,11 @@ export default async function BillingPage({
       {header}
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.saved ? t("ui.savedChanges", locale) : undefined} />
+      {/* Every action here already reports WHICH of several things happened — charged now
+          or scheduled for the renewal, taken or merely being checked — and all of it used
+          to collapse into one "Saved changes". `savedNotice` is the shared resolver, so
+          the owner's screen and the admin's cannot describe the same outcome differently. */}
+      {saved ? <Flash tone={saved.tone} message={t(saved.key, locale)} /> : null}
 
       {/* Back from Paystack. The callback computes this state carefully and then nothing
           rendered it, so somebody who had just handed over a card was told nothing at all.
@@ -317,6 +401,146 @@ export default async function BillingPage({
       ) : null}
       {sp.checkout === "unknown" ? (
         <Flash tone="warning" message={t("billing.checkoutUnknown", locale)} />
+      ) : null}
+
+      {/* ── "Here is what that will cost." The step that was missing. ───────── */}
+      {planReview || slotsReview ? (
+        <Card className="border-callout-info-edge bg-callout-info-bg">
+          <CardHeader>
+            <CardTitle>{t("billing.quoteHeading", locale)}</CardTitle>
+          </CardHeader>
+
+          {(() => {
+            const q = planReview ?? slotsReview!;
+            // 'unavailable' is the engine declining to price it — an unsellable plan, no
+            // active price version, a quota below the fleet. It carries its own reason and
+            // must NOT be rendered as a confirmable change.
+            if (q.kind === "unavailable") {
+              const below =
+                slotsReview && /retire or sell/i.test(String(slotsReview.reason ?? ""));
+              return (
+                <div>
+                  <p className="text-base font-semibold text-sand-900">
+                    {t(
+                      below ? "billing.quotaBelowFleetTitle" : "billing.quoteUnavailableTitle",
+                      locale,
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-sand-800">
+                    {below && slotsReview
+                      ? t("billing.quotaBelowFleetBody", locale)
+                          .replace("{used}", String(slotsReview.in_use))
+                          .replace("{quota}", String(slotsReview.new_quota))
+                      : String(q.reason ?? t("billing.quoteNoCharge", locale))}
+                  </p>
+                  <Link
+                    href="/billing"
+                    className={`${buttonVariants({ variant: "secondary" })} mt-4`}
+                  >
+                    {t("billing.quoteCancel", locale)}
+                  </Link>
+                </div>
+              );
+            }
+
+            const scheduled = q.kind === "scheduled";
+            const noChange = q.kind === "no_change";
+            return (
+              <>
+                <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                  {planReview ? (
+                    <>
+                      <dt className="text-sand-600">{t("billing.planNowLabel", locale)}</dt>
+                      <dd className="font-medium text-sand-900 sm:text-right">
+                        {t(`plan.${sub!.plan}`, locale)} ·{" "}
+                        {t(`billingPeriod.${sub!.billing_period}`, locale)}
+                      </dd>
+                      <dt className="text-sand-600">{t("billing.planNewLabel", locale)}</dt>
+                      <dd className="font-semibold text-sand-900 sm:text-right">
+                        {t(`plan.${String(sp.plan)}`, locale)} ·{" "}
+                        {t(`billingPeriod.${String(sp.period)}`, locale)}
+                      </dd>
+                    </>
+                  ) : (
+                    <>
+                      <dt className="text-sand-600">{t("billing.slotsNowLabel", locale)}</dt>
+                      <dd className="font-medium text-sand-900 sm:text-right tabular-nums">
+                        {slotsReview!.current_quota ?? assets.billable}
+                      </dd>
+                      <dt className="text-sand-600">{t("billing.slotsNewLabel", locale)}</dt>
+                      <dd className="font-semibold text-sand-900 sm:text-right tabular-nums">
+                        {slotsReview!.new_quota}
+                      </dd>
+                    </>
+                  )}
+
+                  {/* The number that matters most, and it is stated even when it is zero —
+                      "nothing today" is the reassurance somebody is looking for, and an
+                      absent line is not an answer. */}
+                  <dt className="font-semibold text-sand-900">{t("billing.quoteNowLine", locale)}</dt>
+                  <dd className="font-semibold tabular-nums text-sand-900 sm:text-right">
+                    {q.charge_now_cents > 0
+                      ? rands(q.charge_now_cents)
+                      : t("billing.quoteNoCharge", locale)}
+                  </dd>
+
+                  {planReview && planReview.new_period_cents > 0 ? (
+                    <>
+                      <dt className="text-sand-600">{t("billing.quoteThenLine", locale)}</dt>
+                      <dd className="tabular-nums text-sand-900 sm:text-right">
+                        {rands(planReview.new_period_cents)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  {q.effective_on ? (
+                    <>
+                      <dt className="text-sand-600">{t("billing.quoteEffective", locale).replace("{date}", "")}</dt>
+                      <dd className="text-sand-900 sm:text-right">
+                        {shortDate(q.effective_on, locale)}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+
+                {scheduled ? (
+                  <p className="mt-3 text-sm leading-relaxed text-sand-800">
+                    {t("billing.quoteScheduledNote", locale)}
+                  </p>
+                ) : null}
+                {noChange ? (
+                  <p className="mt-3 text-sm leading-relaxed text-sand-800">
+                    {t("billing.savedNoChange", locale)}
+                  </p>
+                ) : null}
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  {!noChange ? (
+                    // The commit. It re-reads the subscription and re-prices from the same
+                    // function this card rendered, so the confirm cannot be replayed into a
+                    // different charge than the one shown.
+                    <form action={planReview ? changeOwnPlan : changeVehicleSlots}>
+                      {planReview ? (
+                        <>
+                          <input type="hidden" name="plan" value={String(sp.plan)} />
+                          <input type="hidden" name="billing_period" value={String(sp.period)} />
+                        </>
+                      ) : (
+                        <input type="hidden" name="quota" value={String(requestedQuota)} />
+                      )}
+                      <SubmitButton variant="primary">
+                        {t("billing.quoteConfirm", locale)}
+                      </SubmitButton>
+                    </form>
+                  ) : null}
+                  <Link href="/billing" className={buttonVariants({ variant: "secondary" })}>
+                    {t("billing.quoteCancel", locale)}
+                  </Link>
+                </div>
+              </>
+            );
+          })()}
+        </Card>
       ) : null}
 
       {/* What has gone wrong, in the order a worried person needs it: what happened,
@@ -407,8 +631,12 @@ export default async function BillingPage({
           </p>
         ) : null}
 
+        {/* A GET to this same page, not the action. Choosing a plan now PRICES the
+            change; a second, explicit press commits it. This dropdown used to charge a
+            card on its first submit with no figure shown anywhere. */}
         {sub && canManage ? (
-          <form action={changeOwnPlan} className="mt-4 border-t border-sand-200 pt-4">
+          <form method="get" action="/billing" className="mt-4 border-t border-sand-200 pt-4">
+            <input type="hidden" name="change" value="plan" />
             <p className="text-sm font-semibold text-sand-900">
               {t("billing.changePlanTitle", locale)}
             </p>
@@ -429,12 +657,12 @@ export default async function BillingPage({
                   </option>
                 ))}
               </select>
-              <label className="sr-only" htmlFor="billing_period">
+              <label className="sr-only" htmlFor="period">
                 {t("billing.periodField", locale)}
               </label>
               <select
-                id="billing_period"
-                name="billing_period"
+                id="period"
+                name="period"
                 defaultValue={sub.billing_period}
                 className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
               >
@@ -445,34 +673,81 @@ export default async function BillingPage({
                 ))}
               </select>
               <SubmitButton variant="secondary">
-                {t("billing.changePlanSubmit", locale)}
+                {t("billing.quoteReview", locale)}
               </SubmitButton>
             </div>
           </form>
         ) : null}
       </Card>
 
-      {/* ── What is being counted, and the rule, in words ───────────────────── */}
+      {/* ── What is being billed for, and the rule, in words ────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("billing.vehiclesTitle", locale)}</CardTitle>
+          <CardTitle>
+            {t(onQuota ? "billing.slotsCardTitle" : "billing.vehiclesTitle", locale)}
+          </CardTitle>
         </CardHeader>
+        {/* The headline is what the INVOICE is for. Under a quota that is the slots
+            bought, which is not the same number as the fleet — and showing the fleet here
+            while charging for the slots is what made this screen quote R0,00 at a farm
+            that had just paid. */}
         <p className="text-3xl font-bold leading-none tracking-tight tabular-nums text-sand-900">
-          {assets.billable === 1
+          {unitsBilled === 1
             ? t("billing.vehiclesCountOne", locale)
-            : t("billing.vehiclesCount", locale).replace("{n}", String(assets.billable))}
+            : t("billing.vehiclesCount", locale).replace("{n}", String(unitsBilled))}
         </p>
-        <p className="mt-2 text-sm text-sand-700">
-          {assets.notCounted > 0
-            ? t("billing.vehiclesNotCounted", locale)
-                .replace("{n}", String(assets.notCounted))
-                .replace("{total}", String(assets.total))
-            : t("billing.vehiclesAllCounted", locale).replace("{total}", String(assets.total))}
-        </p>
-        <p className="mt-2 text-sm text-sand-600">{t("billing.vehiclesRule", locale)}</p>
 
+        {onQuota ? (
+          <>
+            <p className="mt-2 text-sm text-sand-700">
+              {t("billing.quotaUsing", locale)
+                .replace("{used}", String(assets.billable))
+                .replace("{quota}", String(unitsBilled))}
+            </p>
+            {/* A bar, because "7 of 10" is a sentence and "nearly full" is a glance.
+                Capped at 100% so a grandfathered fleet that exceeds its later quota
+                cannot render a bar wider than its track. */}
+            <div
+              className="mt-2 h-2 w-full overflow-hidden rounded-full bg-sand-100"
+              role="img"
+              aria-label={t("billing.quotaUsing", locale)
+                .replace("{used}", String(assets.billable))
+                .replace("{quota}", String(unitsBilled))}
+            >
+              <div
+                className={`h-full rounded-full ${
+                  assets.billable >= unitsBilled ? "bg-status-due" : "bg-brand-500"
+                }`}
+                style={{
+                  width: `${Math.min(100, unitsBilled > 0 ? (assets.billable / unitsBilled) * 100 : 0)}%`,
+                }}
+              />
+            </div>
+            <p className="mt-2 text-sm text-sand-600">{t("billing.quotaRule", locale)}</p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-sand-700">
+              {assets.notCounted > 0
+                ? t("billing.vehiclesNotCounted", locale)
+                    .replace("{n}", String(assets.notCounted))
+                    .replace("{total}", String(assets.total))
+                : t("billing.vehiclesAllCounted", locale).replace("{total}", String(assets.total))}
+            </p>
+            <p className="mt-2 text-sm text-sand-600">{t("billing.vehiclesRule", locale)}</p>
+          </>
+        )}
+
+        {/* Same two-step as the plan above, and for the same reason: buying slots is
+            charged pro-rata the instant it is committed. */}
         {sub && canManage ? (
-          <form action={changeVehicleSlots} className="mt-4 border-t border-sand-200 pt-4">
+          <form
+            id="slots"
+            method="get"
+            action="/billing"
+            className="mt-4 scroll-mt-20 border-t border-sand-200 pt-4"
+          >
+            <input type="hidden" name="change" value="slots" />
             <p className="text-sm font-semibold text-sand-900">
               {t("billing.slotsTitle", locale)}
             </p>
@@ -497,7 +772,7 @@ export default async function BillingPage({
                 className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
               />
               <SubmitButton variant="secondary">
-                {t("billing.slotsSubmit", locale)}
+                {t("billing.quoteReview", locale)}
               </SubmitButton>
             </div>
             <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
@@ -533,7 +808,15 @@ export default async function BillingPage({
                 {rands(estimate.perVehicleInclCents)}
               </dd>
 
-              <dt className="text-sand-600">{t("billing.timesVehicles", locale).replace("{n}", String(estimate.assetCount))}</dt>
+              {/* "× 10 slots", not "× 10 vehicles", when slots are what is being sold.
+                  The farm running seven of them would otherwise read a line that
+                  contradicts the fleet it can see on the same screen. */}
+              <dt className="text-sand-600">
+                {t(onQuota ? "billing.timesSlots" : "billing.timesVehicles", locale).replace(
+                  "{n}",
+                  String(estimate.assetCount),
+                )}
+              </dt>
               <dd className="tabular-nums text-sand-900 sm:text-right">
                 {rands(estimate.perVehicleInclCents * estimate.assetCount)}
               </dd>
@@ -681,10 +964,43 @@ export default async function BillingPage({
           ) : null}
 
           {card ? (
-            <form action={replacePaymentMethod}>
-              <input type="hidden" name="farmId" value={farmId} />
-              <SubmitButton variant="secondary">{t("billing.replaceCard", locale)}</SubmitButton>
-            </form>
+            <>
+              <form action={replacePaymentMethod}>
+                <input type="hidden" name="farmId" value={farmId} />
+                <SubmitButton variant="secondary">{t("billing.replaceCard", locale)}</SubmitButton>
+              </form>
+              {/* `removePaymentMethod` was written, guarded and reachable by nothing, so
+                  the only way to take a card off the account was to cancel the whole
+                  subscription. Behind a confirm because removing the last card means the
+                  next renewal has nothing to charge — which the dialog says outright
+                  rather than leaving it to be discovered on the night. */}
+              <ConfirmDialog
+                action={removePaymentMethod}
+                triggerVariant="ghost"
+                triggerLabel={t("billing.removeCard", locale)}
+                title={t("billing.removeCardTitle", locale)}
+                intro={t("billing.removeCardIntro", locale)}
+                facts={[
+                  {
+                    label: t("billing.cardTitle", locale),
+                    value: cardBrandLabel(card.card_brand)
+                      ? `${cardBrandLabel(card.card_brand)} ···· ${card.last4 ?? "····"}`
+                      : `···· ${card.last4 ?? "····"}`,
+                  },
+                ]}
+                consequencesTitle={t("billing.cancelWhatHappens", locale)}
+                consequences={[
+                  t("billing.removeCardEffect1", locale),
+                  t("billing.removeCardEffect2", locale),
+                ]}
+                confirmLabel={t("billing.removeCardYes", locale)}
+                cancelLabel={t("billing.cancelNo", locale)}
+                closeLabel={t("ui.close", locale)}
+              >
+                <input type="hidden" name="farmId" value={farmId} />
+                <input type="hidden" name="payment_method_id" value={card.id} />
+              </ConfirmDialog>
+            </>
           ) : estimate.kind === "priced" && offer.kind !== "offer" ? (
             // Only offered when there is genuinely a price to charge against. With the
             // catalogue empty there is nothing to authorise a card for, and a button
@@ -805,6 +1121,29 @@ export default async function BillingPage({
         )}
       </Card>
 
+      {/* ── Changing your mind, while there is still time ───────────────────── */}
+      {/* `resumeBilling` has existed since cancellation shipped and was imported by
+          nothing, so a farm that cancelled by mistake — or changed its mind the next
+          morning — had no way back except email. The engine already allows it right up
+          until `billing_close_cancellations` closes the period, and this is that window
+          made visible. */}
+      {sub && sub.status === "non_renewing" && canManage ? (
+        <Card className="border-callout-warn-edge bg-callout-warn-bg">
+          <CardHeader>
+            <CardTitle>{t("billing.resumeTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm leading-relaxed text-sand-800">
+            {t("billing.resumeLead", locale).replace(
+              "{date}",
+              endsOn ? shortDate(endsOn, locale) : t("ui.none", locale),
+            )}
+          </p>
+          <form action={resumeBilling} className="mt-3">
+            <SubmitButton variant="primary">{t("billing.resumeTrigger", locale)}</SubmitButton>
+          </form>
+        </Card>
+      ) : null}
+
       {/* ── Stopping ───────────────────────────────────────────────────────── */}
       {cancellable && sub ? (
         <Card>
@@ -848,6 +1187,30 @@ export default async function BillingPage({
               <input type="hidden" name="subscriptionId" value={sub.id} />
             </ConfirmDialog>
           </div>
+        </Card>
+      ) : null}
+
+      {/* ── Who the invoice is made out to ─────────────────────────────────── */}
+      {/* Every invoice snapshots the farm's billing details at issue and freezes them,
+          so a blank address is blank for ever on that document. All six invoices on
+          production carry a null `bill_to_snapshot.billing_address` — the fields exist on
+          /settings and nothing has ever pointed a new customer at them. Shown only while
+          something is actually missing, so it stops nagging the moment it is filled in. */}
+      {canManage && !farm?.billing_address ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("billing.detailsTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm leading-relaxed text-sand-700">{t("billing.detailsBody", locale)}</p>
+          <p className="mt-2 text-sm font-medium text-status-due">
+            {t("billing.detailsMissing", locale)}
+          </p>
+          <Link
+            href="/settings#set-billing"
+            className={`${buttonVariants({ variant: "secondary" })} mt-3`}
+          >
+            {t("billing.detailsCta", locale)}
+          </Link>
         </Card>
       ) : null}
 

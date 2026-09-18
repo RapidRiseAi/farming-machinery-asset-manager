@@ -65,6 +65,19 @@ import {
 /** How long a `pending` attempt may live before it is treated as stuck. */
 export const STALE_PENDING_MINUTES = 30;
 
+/** How many due invoices one call of `runBillingCharges` pulls off the shortlist. */
+export const CHARGE_BATCH_LIMIT = 50;
+
+/**
+ * How many charges may be in flight at once.
+ *
+ * Correctness does not rest on this: `billing_payment_attempts_inflight_uq` allows exactly
+ * one live attempt per invoice no matter how many workers ask. This is about being a
+ * polite client of somebody else's API, and about a serial loop of one-second round trips
+ * not eating a function's whole time budget.
+ */
+export const CHARGE_CONCURRENCY = 6;
+
 /**
  * Settle, and hand back whether it actually worked.
  *
@@ -130,6 +143,14 @@ export type ChargeSummary = {
   abandoned: number;
   /** Claims another worker already held, plus farms with no usable card. */
   passed: number;
+  /**
+   * The shortlist came back full, so there is very likely more waiting.
+   *
+   * Without this a capped pass and a complete one produced identical evidence —
+   * "considered 50" reads like a finished night — and every farm past the limit silently
+   * waited another day for a renewal that was already due.
+   */
+  moreDue: boolean;
   errors: string[];
   outcomes: ChargeOutcome[];
 };
@@ -434,6 +455,7 @@ export async function runBillingCharges(
     unknown: 0,
     abandoned: 0,
     passed: 0,
+    moreDue: false,
     errors: [],
     outcomes: [],
   };
@@ -449,23 +471,57 @@ export async function runBillingCharges(
 
   const summary: ChargeSummary = { ...empty, chargingEnabled: true };
 
-  const { rows, error } = await dueBillingCharges(supabase, opts.limit ?? 50);
+  const { rows, error } = await dueBillingCharges(supabase, opts.limit ?? CHARGE_BATCH_LIMIT);
   if (error) {
     summary.errors.push(error.message);
     return summary;
   }
   summary.considered = rows.length;
+  // The shortlist came back FULL, so there is almost certainly more behind it. Before
+  // paging existed this was invisible: the pass reported "considered 50" and looked like a
+  // complete night, while every farm past the fiftieth waited twenty-four hours for a
+  // renewal it had already been promised. The caller drains it.
+  summary.moreDue = rows.length >= (opts.limit ?? CHARGE_BATCH_LIMIT);
 
-  for (const due of rows) {
-    let outcome: ChargeOutcome;
+  // ── Concurrency, and why it is small ────────────────────────────────────────
+  //
+  // These were run strictly one after another, each waiting on a Paystack round trip of
+  // roughly a second. Fifty renewals on the first of the month is therefore the better
+  // part of a minute of pure waiting inside one function invocation, and the whole pass
+  // has a wall clock on it.
+  //
+  // The window is deliberately NARROW. Every safety property here is held by the database
+  // — `billing_payment_attempts_inflight_uq` permits one live attempt per invoice however
+  // many workers ask — so correctness does not depend on this number. What does depend on
+  // it is being a well-behaved client of somebody else's API: a burst of parallel charges
+  // against one merchant account is how a provider starts rate-limiting, and a 429 in the
+  // middle of a charging run is indistinguishable from a decline at the moment it arrives.
+  // Six at a time turns a minute into ten seconds and is nowhere near anything Paystack
+  // would object to.
+  //
+  // DISTINCT INVOICES ONLY, in flight together. `due_billing_charges` already returns one
+  // row per invoice, so this is an invariant being relied on rather than enforced — and if
+  // it were ever violated, the unique index is what would catch it, not this loop.
+  const runOne = async (due: DueCharge): Promise<ChargeOutcome> => {
     try {
-      outcome = await chargeOneInvoice(supabase, provider, due);
+      return await chargeOneInvoice(supabase, provider, due);
     } catch (err) {
       // A throw here has already claimed, or has not. Either way the attempt row (if it
       // exists) is `pending` and the reconciler will verify it — which is exactly why the
       // reference is minted first.
-      outcome = { result: "error", invoiceId: due.invoice_id, reason: redactMessage(err, 300) };
+      return { result: "error", invoiceId: due.invoice_id, reason: redactMessage(err, 300) };
     }
+  };
+
+  const outcomes: ChargeOutcome[] = [];
+  for (let i = 0; i < rows.length; i += CHARGE_CONCURRENCY) {
+    const slice = rows.slice(i, i + CHARGE_CONCURRENCY);
+    // `all`, not `allSettled`: `runOne` cannot reject, because it catches. Using
+    // `allSettled` here would quietly accept a future edit that let one through.
+    outcomes.push(...(await Promise.all(slice.map(runOne))));
+  }
+
+  for (const outcome of outcomes) {
     summary.outcomes.push(outcome);
     switch (outcome.result) {
       case "succeeded":

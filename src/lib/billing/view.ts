@@ -337,11 +337,50 @@ export function isoDay(d: Date): string {
 }
 
 /**
+ * How many vehicles the NEXT INVOICE will be raised for.
+ *
+ * Mirrors `app.billing_billable_units` exactly — `coalesce(asset_quota, counted)` — and
+ * that agreement is the whole point of it existing.
+ *
+ * The screen used to pass the COUNTED fleet straight into `estimateNextCharge`, which was
+ * correct only for the metered farms that predate the quota model. Every farm that signs
+ * up through `/signup` buys a quota, and a farm holding ten slots while running seven was
+ * shown seven vehicles' worth of money and charged ten. At the extreme — slots bought,
+ * nothing added to the fleet yet, which is EVERY farm in the minutes after it pays — the
+ * screen rendered R0,00 against a real invoice, and R0,00 is precisely the wrong price
+ * this page's own header warns is the one a customer would never think to question.
+ *
+ * `null` means no quota was ever bought: no ceiling, billed on what is counted. It must
+ * never be read as "no slots".
+ */
+export function billedUnits(
+  sub: Pick<SubscriptionRow, "asset_quota"> | null | undefined,
+  countedBillable: number,
+): number {
+  const quota = sub?.asset_quota;
+  return typeof quota === "number" ? quota : countedBillable;
+}
+
+/**
+ * Is this subscription billed on slots bought, or on vehicles counted?
+ *
+ * The two models want different sentences on screen, and the difference is not cosmetic:
+ * under a quota, selling a tractor does NOT reduce the bill until the farm gives the slot
+ * back, and a screen that implies otherwise is setting up a support call.
+ */
+export function billsOnQuota(
+  sub: Pick<SubscriptionRow, "asset_quota"> | null | undefined,
+): boolean {
+  return typeof sub?.asset_quota === "number";
+}
+
+/**
  * The next charge, given the active price (or its absence), the billable vehicle count
  * and whether the seller is VAT-registered.
  *
  * `total = unit_price_incl × asset_count × months_charged` — the same arithmetic
- * `app.generate_billing_invoices` uses, so the estimate and the invoice agree.
+ * `app.generate_billing_invoices` uses, so the estimate and the invoice agree. Pass
+ * `billedUnits(sub, counted)` as `assetCount`, never the raw count.
  */
 export function estimateNextCharge({
   price,
@@ -689,7 +728,12 @@ export const SETTINGS_COLUMNS =
  * non-payment, and the administrator's screen has to show both at once — so the farm row
  * is read separately rather than inferred from the subscription.
  */
-export const FARM_BILLING_COLUMNS = "id, name, plan, billing_period, status, asset_count";
+// `billing_address` is read so /billing can tell a customer their invoices are going out
+// without one. Every invoice FREEZES these details at issue, so a blank address stays
+// blank on that document for ever — which is why it is worth saying before the next bill
+// rather than after.
+export const FARM_BILLING_COLUMNS =
+  "id, name, plan, billing_period, status, asset_count, billing_address";
 
 export type FarmBillingRow = {
   id: string;
@@ -698,6 +742,8 @@ export type FarmBillingRow = {
   billing_period: string;
   status: string;
   asset_count: number;
+  /** Null means invoices are going out with no address on them. */
+  billing_address: string | null;
 };
 
 // ── The billable count, and the sentence that explains it ────────────────────
@@ -884,4 +930,76 @@ export function anyActivePrice(rows: PriceRow[] | null | undefined, today = new 
       !(r.effective_from && r.effective_from > day) &&
       !(r.effective_to && r.effective_to < day),
   );
+}
+
+// ── What just happened, in the reader's own words ────────────────────────────
+
+/** A `?saved=` outcome, resolved to a dictionary key and the tone it should carry. */
+export type SavedNotice = { key: string; tone: "success" | "info" };
+
+/**
+ * Turn a `?saved=` code into something worth reading.
+ *
+ * Every billing action already reports WHICH of several things happened — slots added
+ * now and charged, or scheduled for the period after; a plan changed today, or booked for
+ * the renewal; a payment taken, or merely being checked. All of it was thrown away by a
+ * single `t("ui.savedChanges")`, so a farmer who pressed "Update slots" could not tell
+ * whether they had just been charged.
+ *
+ * `checking` is deliberately INFO and not success. It means an attempt settled `unknown`
+ * and the reconciler has it — telling somebody their payment went through when we do not
+ * yet know is how they end up paying twice.
+ *
+ * An unknown code falls back to the generic sentence rather than rendering the code, and
+ * `null` means nothing to show at all.
+ */
+export function savedNotice(code: string | null | undefined): SavedNotice | null {
+  switch ((code ?? "").trim()) {
+    case "":
+      return null;
+    case "slots-added":
+      return { key: "billing.savedSlotsAdded", tone: "success" };
+    case "slots-scheduled":
+      return { key: "billing.savedSlotsScheduled", tone: "info" };
+    case "plan-changed":
+      return { key: "billing.savedPlanChanged", tone: "success" };
+    case "plan-scheduled":
+      return { key: "billing.savedPlanScheduled", tone: "info" };
+    case "no-change":
+      return { key: "billing.savedNoChange", tone: "info" };
+    case "paid":
+      return { key: "billing.savedPaid", tone: "success" };
+    case "checking":
+      return { key: "billing.savedChecking", tone: "info" };
+    case "cancelling":
+      return { key: "billing.savedCancelling", tone: "info" };
+    case "cancelled":
+      return { key: "billing.savedCancelled", tone: "info" };
+    case "resumed":
+      return { key: "billing.savedResumed", tone: "success" };
+    case "card-removed":
+      return { key: "billing.savedCardRemoved", tone: "info" };
+    case "billing-details":
+      return { key: "billing.savedBillingDetails", tone: "success" };
+
+    // ── Rapid Rise's own screen. Same resolver on purpose: two screens describing one
+    //    outcome in two ways is how a support call and a customer stop agreeing. ──
+    case "plan":
+      return { key: "adminBilling.savedPlanNow", tone: "success" };
+    case "plan-unchanged":
+      return { key: "adminBilling.savedPlanUnchanged", tone: "info" };
+    case "charged":
+      return { key: "adminBilling.savedCharged", tone: "success" };
+    case "subscription":
+      return { key: "adminBilling.savedSubscription", tone: "success" };
+    case "reconciled-paid":
+      return { key: "adminBilling.savedReconciledPaid", tone: "success" };
+    case "reconciled-closed":
+      return { key: "adminBilling.savedReconciledClosed", tone: "info" };
+    case "reconciled-open":
+      return { key: "adminBilling.savedReconciledOpen", tone: "info" };
+
+    default:
+      return { key: "ui.savedChanges", tone: "success" };
+  }
 }

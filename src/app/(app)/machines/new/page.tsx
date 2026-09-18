@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotoNew } from "@/components/machine-photo-new";
 import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ChevronLeftIcon } from "@/components/ui/icons";
@@ -37,6 +38,15 @@ export default async function NewMachinePage({
       </Link>
       <h1 className="text-2xl font-bold tracking-tight text-ink">{t("machines.add", locale)}</h1>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      {/* The ceiling message told the farmer to "add more slots on the billing screen" and
+          then left them to go and find it. The one person who can act on this is the owner
+          — a manager sees the same wall and cannot buy anything — so the button is theirs
+          alone and everyone else keeps the sentence without a dead end attached. */}
+      {sp.error === "vehicle-limit-reached" && profile.role === "owner" ? (
+        <Link href="/billing#slots" className={buttonVariants({ variant: "primary" })}>
+          {t("machines.limitAddSlots", locale)}
+        </Link>
+      ) : null}
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
           <MachineFields locale={locale} operators={operators} />
