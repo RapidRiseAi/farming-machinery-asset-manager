@@ -61,7 +61,14 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { buttonVariants } from "@/components/ui/button";
-import { AdminIcon, DocumentsIcon, InfoIcon, LockIcon, WarningIcon } from "@/components/ui/icons";
+import {
+  AdminIcon,
+  ChevronDownIcon,
+  DocumentsIcon,
+  InfoIcon,
+  LockIcon,
+  WarningIcon,
+} from "@/components/ui/icons";
 
 // Written by Agent 2. Imported, never re-declared — a "use server" module is the only
 // place a server action may live, and duplicating one here would give the same button
@@ -144,6 +151,8 @@ export default async function BillingPage({
     plan?: string;
     period?: string;
     quota?: string;
+    /** Any value opens the change-plan-or-slots disclosure. Never itself changes anything. */
+    manage?: string;
   }>;
 }) {
   const profile = await requireRole(["owner", "rr_admin"]);
@@ -270,6 +279,10 @@ export default async function BillingPage({
   const unitsBilled = billedUnits(sub, assets.billable);
   const onQuota = billsOnQuota(sub);
   const saved = savedNotice(sp.saved);
+  // Closed unless somebody was sent here to change something. The server cannot see a
+  // `#slots` fragment, and Next's client-side scroll to one does not open a <details>, so
+  // a link that means "go and buy slots" says so in the query string.
+  const manageOpen = !!sp.manage;
 
   // ── The priced review of a change, before anybody commits to it ─────────────
   //
@@ -754,54 +767,6 @@ export default async function BillingPage({
             {t("billing.noSubBody", locale)}
           </p>
         ) : null}
-
-        {/* A GET to this same page, not the action. Choosing a plan now PRICES the
-            change; a second, explicit press commits it. This dropdown used to charge a
-            card on its first submit with no figure shown anywhere. */}
-        {sub && canManage ? (
-          <form method="get" action="/billing" className="mt-4 border-t border-sand-200 pt-4">
-            <input type="hidden" name="change" value="plan" />
-            <p className="text-sm font-semibold text-sand-900">
-              {t("billing.changePlanTitle", locale)}
-            </p>
-            <p className="mt-1 text-sm text-sand-600">{t("billing.changePlanNote", locale)}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <label className="sr-only" htmlFor="plan">
-                {t("billing.planField", locale)}
-              </label>
-              <select
-                id="plan"
-                name="plan"
-                defaultValue={sub.plan}
-                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
-              >
-                {PLANS.map((p) => (
-                  <option key={p} value={p}>
-                    {t(`plan.${p}`, locale)}
-                  </option>
-                ))}
-              </select>
-              <label className="sr-only" htmlFor="period">
-                {t("billing.periodField", locale)}
-              </label>
-              <select
-                id="period"
-                name="period"
-                defaultValue={sub.billing_period}
-                className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
-              >
-                {BILLING_PERIODS.map((p) => (
-                  <option key={p} value={p}>
-                    {t(`billingPeriod.${p}`, locale)}
-                  </option>
-                ))}
-              </select>
-              <SubmitButton variant="secondary">
-                {t("billing.quoteReview", locale)}
-              </SubmitButton>
-            </div>
-          </form>
-        ) : null}
       </Card>
 
       {/* ── What is being billed for, and the rule, in words ────────────────── */}
@@ -856,48 +821,121 @@ export default async function BillingPage({
             <p className="mt-2 text-sm text-sand-600">{t("billing.vehiclesRule", locale)}</p>
           </>
         )}
-
-        {/* Same two-step as the plan above, and for the same reason: buying slots is
-            charged pro-rata the instant it is committed. */}
-        {sub && canManage ? (
-          <form
-            id="slots"
-            method="get"
-            action="/billing"
-            className="mt-4 scroll-mt-20 border-t border-sand-200 pt-4"
-          >
-            <input type="hidden" name="change" value="slots" />
-            <p className="text-sm font-semibold text-sand-900">
-              {t("billing.slotsTitle", locale)}
-            </p>
-            <p className="mt-1 text-sm text-sand-600">
-              {sub.asset_quota == null
-                ? t("billing.slotsNoneYet", locale)
-                : t("billing.slotsUsing", locale)
-                    .replace("{used}", String(assets.billable))
-                    .replace("{quota}", String(sub.asset_quota))}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <label className="sr-only" htmlFor="quota">
-                {t("billing.slotsTitle", locale)}
-              </label>
-              <input
-                id="quota"
-                name="quota"
-                type="number"
-                inputMode="numeric"
-                min={Math.max(assets.billable, 1)}
-                defaultValue={sub.asset_quota ?? Math.max(assets.billable, 1)}
-                className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
-              />
-              <SubmitButton variant="secondary">
-                {t("billing.quoteReview", locale)}
-              </SubmitButton>
-            </div>
-            <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
-          </form>
-        ) : null}
       </Card>
+
+      {/* ── Changing what you pay, out of the way until it is asked for ─────
+          Both change forms used to sit inside the cards that describe the plan and the
+          fleet, so reading this page meant scrolling past two forms nobody opened it
+          for. They live behind one disclosure now — native <details>, no JavaScript —
+          and the two-step is untouched: each form is still a GET to this page that
+          renders the priced review above, and only the review's own button commits.
+          `?manage=` opens it, which is how the vehicle-limit wall on /machines/new
+          lands an owner on the slots form rather than on a closed box. */}
+      {sub && canManage ? (
+        <details
+          open={manageOpen}
+          className="group rounded-xl border border-sand-200 bg-surface shadow-card"
+        >
+          <summary className="focus-ring flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-sand-900">
+                {t("billing.manageTitle", locale)}
+              </span>
+              <span className="mt-0.5 block text-sm text-sand-600">
+                {t("billing.manageLead", locale)}
+              </span>
+            </span>
+            <ChevronDownIcon className="shrink-0 text-xl text-sand-500 transition-transform group-open:rotate-180" />
+          </summary>
+
+          <div className="border-t border-sand-200 p-4 sm:p-5">
+            {/* A GET to this same page, not the action. Choosing a plan PRICES the
+                change; a second, explicit press commits it. This dropdown used to charge
+                a card on its first submit with no figure shown anywhere. */}
+            <form method="get" action="/billing">
+              <input type="hidden" name="change" value="plan" />
+              <p className="text-sm font-semibold text-sand-900">
+                {t("billing.changePlanTitle", locale)}
+              </p>
+              <p className="mt-1 text-sm text-sand-600">{t("billing.changePlanNote", locale)}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <label className="sr-only" htmlFor="plan">
+                  {t("billing.planField", locale)}
+                </label>
+                <select
+                  id="plan"
+                  name="plan"
+                  defaultValue={sub.plan}
+                  className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
+                >
+                  {PLANS.map((p) => (
+                    <option key={p} value={p}>
+                      {t(`plan.${p}`, locale)}
+                    </option>
+                  ))}
+                </select>
+                <label className="sr-only" htmlFor="period">
+                  {t("billing.periodField", locale)}
+                </label>
+                <select
+                  id="period"
+                  name="period"
+                  defaultValue={sub.billing_period}
+                  className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
+                >
+                  {BILLING_PERIODS.map((p) => (
+                    <option key={p} value={p}>
+                      {t(`billingPeriod.${p}`, locale)}
+                    </option>
+                  ))}
+                </select>
+                <SubmitButton variant="secondary">
+                  {t("billing.quoteReview", locale)}
+                </SubmitButton>
+              </div>
+            </form>
+
+            {/* Same two-step as the plan, and for the same reason: buying slots is
+                charged pro-rata the instant it is committed. */}
+            <form
+              id="slots"
+              method="get"
+              action="/billing"
+              className="mt-4 scroll-mt-20 border-t border-sand-200 pt-4"
+            >
+              <input type="hidden" name="change" value="slots" />
+              <p className="text-sm font-semibold text-sand-900">
+                {t("billing.slotsTitle", locale)}
+              </p>
+              <p className="mt-1 text-sm text-sand-600">
+                {sub.asset_quota == null
+                  ? t("billing.slotsNoneYet", locale)
+                  : t("billing.slotsUsing", locale)
+                      .replace("{used}", String(assets.billable))
+                      .replace("{quota}", String(sub.asset_quota))}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <label className="sr-only" htmlFor="quota">
+                  {t("billing.slotsTitle", locale)}
+                </label>
+                <input
+                  id="quota"
+                  name="quota"
+                  type="number"
+                  inputMode="numeric"
+                  min={Math.max(assets.billable, 1)}
+                  defaultValue={sub.asset_quota ?? Math.max(assets.billable, 1)}
+                  className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
+                />
+                <SubmitButton variant="secondary">
+                  {t("billing.quoteReview", locale)}
+                </SubmitButton>
+              </div>
+              <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
+            </form>
+          </div>
+        </details>
+      ) : null}
 
       {/* ── The estimate. `unpriced` is today's state and is said in words. ─── */}
       <Card>

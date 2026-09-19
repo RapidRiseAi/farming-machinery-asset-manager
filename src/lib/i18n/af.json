@@ -4233,7 +4233,9 @@
     "statCard": "Kaart",
     "statCardNeeded": "Voeg een by voor die volgende heffing",
     "statCardExpired": "Het op {date} verval",
-    "statCardSoon": "Verval binnekort, op {date}"
+    "statCardSoon": "Verval binnekort, op {date}",
+    "manageTitle": "Verander jou plan of voertuigplekke",
+    "manageLead": "Niks verander voordat jy die prys gesien en ja gesê het nie."
   },
   "adminBilling": {
     "title": "Intekeninge",

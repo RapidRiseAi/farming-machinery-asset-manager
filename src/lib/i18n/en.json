@@ -4233,7 +4233,9 @@
     "statCard": "Card",
     "statCardNeeded": "Add one before the next charge",
     "statCardExpired": "Expired on {date}",
-    "statCardSoon": "Expires soon, on {date}"
+    "statCardSoon": "Expires soon, on {date}",
+    "manageTitle": "Change your plan or vehicle slots",
+    "manageLead": "Nothing changes until you have seen the price and said yes."
   },
   "adminBilling": {
     "title": "Subscriptions",

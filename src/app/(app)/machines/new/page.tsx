@@ -43,7 +43,9 @@ export default async function NewMachinePage({
           — a manager sees the same wall and cannot buy anything — so the button is theirs
           alone and everyone else keeps the sentence without a dead end attached. */}
       {sp.error === "vehicle-limit-reached" && profile.role === "owner" ? (
-        <Link href="/billing#slots" className={buttonVariants({ variant: "primary" })}>
+        // `manage` opens the disclosure the slots form lives behind on /billing; the
+        // fragment alone would scroll to a form inside a closed box.
+        <Link href="/billing?manage=slots#slots" className={buttonVariants({ variant: "primary" })}>
           {t("machines.limitAddSlots", locale)}
         </Link>
       ) : null}
