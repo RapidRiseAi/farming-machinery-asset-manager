@@ -4697,5 +4697,10 @@
     "initial_checkout": "Eerste betaling",
     "charge_authorization": "Geskeduleerde heffing",
     "manual_retry": "Handmatige herpoging"
+  },
+  "billingPriceStatus": {
+    "draft": "Konsep",
+    "active": "Aktief",
+    "retired": "Uitgefaseer"
   }
 }

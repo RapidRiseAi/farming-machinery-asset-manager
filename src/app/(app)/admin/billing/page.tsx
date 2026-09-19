@@ -551,10 +551,12 @@ export default async function AdminBillingPage({
                     </Td>
                     <Td className="text-right tabular-nums">{p.months_charged}</Td>
                     <Td>
+                      {/* Its own enum (`billing_price_status`). This used to look the value up
+                          in the INVOICE statuses and then print the raw value on both
+                          branches of the comparison, so "active"/"retired" always reached
+                          the screen untranslated. */}
                       <Badge tone={p.status === "active" ? "ok" : "neutral"}>
-                        {enumLabel("billingInvoiceStatus", p.status, locale) === p.status
-                          ? p.status
-                          : p.status}
+                        {enumLabel("billingPriceStatus", p.status, locale)}
                       </Badge>
                     </Td>
                     <Td className="whitespace-nowrap text-sand-600">

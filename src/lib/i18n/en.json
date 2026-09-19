@@ -4697,5 +4697,10 @@
     "initial_checkout": "First payment",
     "charge_authorization": "Scheduled charge",
     "manual_retry": "Manual retry"
+  },
+  "billingPriceStatus": {
+    "draft": "Draft",
+    "active": "Active",
+    "retired": "Retired"
   }
 }

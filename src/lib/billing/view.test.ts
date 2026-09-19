@@ -649,6 +649,7 @@ test("every billing status and attempt kind has a label in both languages", () =
     billingInvoiceStatus: Object.keys(INVOICE_LOOK),
     billingAttemptStatus: Object.keys(ATTEMPT_LOOK),
     billingAttemptKind: ["initial_checkout", "charge_authorization", "manual_retry"],
+    billingPriceStatus: ["draft", "active", "retired"],
   };
   for (const [group, values] of Object.entries(groups)) {
     for (const value of values) {
