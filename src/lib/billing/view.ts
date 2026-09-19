@@ -621,8 +621,20 @@ export function cardSummary(
 
 // ── Small formatting decisions, made once ────────────────────────────────────
 
-/** What is still owed on an invoice, never below zero (a refund is its own row). */
-export function outstandingCents(inv: Pick<InvoiceRow, "total_incl_cents" | "amount_paid_cents">): number {
+/**
+ * What is still owed on an invoice, never below zero (a refund is its own row).
+ *
+ * A `void` bill was raised in error and an `uncollectible` one has been given up on, so
+ * neither is owed — the rule the partner side already applies to a written-off document
+ * (`outstandingCents` in `partner-docs.ts`: "that is the whole point of writing it off").
+ * Without it, a voided bill sat in the history in amber reading "R730,00 outstanding"
+ * beside its own "Voided" badge. The payment paths never saw the difference: they only
+ * ever consider `open` and `draft` bills.
+ */
+export function outstandingCents(
+  inv: Pick<InvoiceRow, "total_incl_cents" | "amount_paid_cents" | "status">,
+): number {
+  if (inv.status === "void" || inv.status === "uncollectible") return 0;
   return Math.max(0, inv.total_incl_cents - inv.amount_paid_cents);
 }
 

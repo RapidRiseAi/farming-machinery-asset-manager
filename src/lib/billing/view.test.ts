@@ -39,6 +39,7 @@ import {
   fleetSummary,
   invoiceDocuments,
   nextChargeState,
+  outstandingCents,
   quoteReasonKey,
   retryOffer,
   savedNotice,
@@ -570,6 +571,29 @@ test("no card matters only while something is going to be charged to it", () => 
     kind: "none",
     tone: "default",
   });
+});
+
+// ── What a row says is still owed ────────────────────────────────────────────
+
+test("a voided or written-off bill is not a debt", () => {
+  // A withdrawn bill used to read "R730,00 outstanding" in amber beside its own badge.
+  assert.equal(outstandingCents(invoice({ status: "void" })), 0);
+  assert.equal(outstandingCents(invoice({ status: "uncollectible" })), 0);
+  // Everything else is still what was raised, less what was paid.
+  assert.equal(outstandingCents(invoice({ status: "open" })), 73000);
+  assert.equal(outstandingCents(invoice({ status: "open", amount_paid_cents: 30000 })), 43000);
+  assert.equal(outstandingCents(invoice({ status: "draft" })), 73000);
+  assert.equal(outstandingCents(invoice({ status: "paid", amount_paid_cents: 73000 })), 0);
+});
+
+test("the pay button still acts only on bills that are open or draft", () => {
+  // Nothing about what can be CHARGED moves: a voided bill was never payable, before or
+  // after, and an open one still is.
+  const voided = invoice({ id: "v", status: "void", period_start: "2026-08-06" });
+  const open = invoice({ id: "o", status: "open", period_start: "2026-09-06" });
+  assert.equal(retryOffer(voided, []).kind, "none");
+  const offer = retryOffer(open, []);
+  assert.equal(offer.kind === "offer" && offer.amountCents, 73000);
 });
 
 // ── Which documents a row offers ─────────────────────────────────────────────
