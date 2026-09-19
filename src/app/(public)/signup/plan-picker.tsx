@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { rands } from "@/lib/money";
-import { FEATURE_MIN_PLAN, PLAN_RANK, type Feature, type Plan } from "@/lib/entitlements";
+import { FEATURE_MIN_PLAN, isPlan, planAllows, type Feature } from "@/lib/entitlements";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
+import { CheckIcon } from "@/components/ui/icons";
 
 type PlanOption = {
   plan: string;
@@ -28,10 +30,12 @@ type PlanOption = {
  * always priced from the catalogue, never from anything this component sends.
  *
  * ── Why the comparison is DERIVED and not written out ────────────────────────
- * `FEATURE_MIN_PLAN` is the same map the gates read, so a feature that moves between
- * plans moves on this page in the same commit and cannot be advertised on a plan that
- * will not actually unlock it. Only the LABELS come from the dictionary. Selling
- * something the product then refuses is the one mistake a pricing page must not make.
+ * Every tick is `planAllows(plan, feature)` over the keys of `FEATURE_MIN_PLAN` — the very
+ * function the layout, the assistant, the machine page and the report schedules call to
+ * refuse a feature. A feature that moves between plans moves on this page in the same
+ * commit and cannot be advertised on a plan that will not actually unlock it. Only the
+ * LABELS come from the dictionary. Selling something the product then refuses is the one
+ * mistake a pricing page must not make.
  */
 export function PlanPicker({
   options,
@@ -61,6 +65,14 @@ export function PlanPicker({
     compareTitle: string;
     compareShow: string;
     compareHide: string;
+    /** Screen-reader name of the feature column, which has no visible heading. */
+    compareFeature: string;
+    /** Under the chosen plan's name, so the highlight is a word as well as a colour. */
+    compareChosen: string;
+    compareYes: string;
+    compareNo: string;
+    /** Phone only: the matrix scrolls sideways and nothing else says so. */
+    compareSwipe: string;
     saveAnnual: string;
     annualPerMonth: string;
     vehiclesHelp: string;
@@ -83,14 +95,35 @@ export function PlanPicker({
   const count = Number.isFinite(vehicles) && vehicles > 0 ? vehicles : 0;
   const total = unit == null ? null : unit * count;
 
-  /** Every gated feature this plan unlocks, in the order the map declares them. */
-  const featuresOf = (p: string): string[] =>
-    (Object.keys(FEATURE_MIN_PLAN) as Feature[])
-      .filter((f) => PLAN_RANK[p as Plan] >= PLAN_RANK[FEATURE_MIN_PLAN[f]])
-      .map((f) => featureLabels[f])
-      .filter(Boolean);
+  /**
+   * The comparison's rows: what every plan includes, then each gated feature in the order
+   * the map declares them. A core capability is ticked on every plan because it is, by
+   * definition, not in `FEATURE_MIN_PLAN` — no gate anywhere refuses it. A gated one is
+   * ticked exactly where `planAllows` says yes, and nowhere else.
+   */
+  const matrix: { key: string; label: string; has: (p: string) => boolean }[] = [
+    ...coreFeatures.map((label, i) => ({ key: `core-${i}`, label, has: () => true })),
+    ...(Object.keys(FEATURE_MIN_PLAN) as Feature[]).map((f) => ({
+      key: f,
+      label: featureLabels[f],
+      has: (p: string) => isPlan(p) && planAllows(p, f),
+    })),
+  ];
 
   const clampVehicles = (n: number) => Math.min(200, Math.max(1, n));
+
+  // On a phone the plans scroll sideways under a fixed feature column, and the plan
+  // somebody has chosen can start off-screen. Bring its column in beside the features when
+  // the comparison opens, and again whenever the choice changes while it is open.
+  const matrixBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!comparing) return;
+    const scroller = matrixBox.current?.querySelector("table")?.parentElement;
+    const col = matrixBox.current?.querySelector<HTMLElement>("th[data-chosen]");
+    const features = matrixBox.current?.querySelector<HTMLElement>("thead th");
+    if (!scroller || !col || !features) return;
+    scroller.scrollLeft = Math.max(0, col.offsetLeft - features.offsetWidth);
+  }, [comparing, chosen.plan]);
 
   return (
     <div className="space-y-6">
@@ -180,23 +213,79 @@ export function PlanPicker({
           {comparing ? labels.compareHide : labels.compareShow}
         </button>
 
+        {/* All four plans side by side. It used to list what the SELECTED plan
+            includes, so somebody weighing Professional against Complete could not see
+            the two at once. The feature column stays put while the plans scroll
+            sideways on a phone; the chosen plan is tinted AND labelled. */}
         {comparing ? (
           <div className="mt-3 rounded-xl border border-sand-200 bg-surface p-4">
             <p className="text-sm font-semibold text-sand-900">{labels.compareTitle}</p>
-            <ul className="mt-2 space-y-1.5">
-              {coreFeatures.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-sand-700">
-                  <span aria-hidden className="mt-0.5 font-bold text-status-ok">✓</span>
-                  <span>{f}</span>
-                </li>
-              ))}
-              {featuresOf(chosen.plan).map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-sand-700">
-                  <span aria-hidden className="mt-0.5 font-bold text-status-ok">✓</span>
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="mt-0.5 text-xs text-sand-600 sm:hidden">{labels.compareSwipe}</p>
+            <div ref={matrixBox} className="mt-2">
+              {/* `relative` makes the table the containing block for the cells'
+                  screen-reader text. Without it those absolutely-positioned spans escaped
+                  the sideways scroller and widened the whole page on a phone. */}
+              <Table className="relative">
+                <Thead>
+                  <Tr>
+                    <Th className="sticky left-0 z-10 bg-surface">
+                      <span className="sr-only">{labels.compareFeature}</span>
+                    </Th>
+                    {options.map((o) => (
+                      <Th
+                        key={o.plan}
+                        data-chosen={o.plan === chosen.plan || undefined}
+                        className={`text-center align-bottom ${o.plan === chosen.plan ? "bg-brand-tint" : ""}`}
+                      >
+                        {/* Plan names in their own case and free to wrap ("Done-For-" /
+                            "You"): the uppercase, unbreakable header made every column
+                            wide enough that only one fitted beside the features. */}
+                        <span className="block whitespace-normal normal-case tracking-normal">
+                          {o.label}
+                        </span>
+                        {o.plan === chosen.plan ? (
+                          <span className="mt-0.5 block text-2xs font-medium normal-case tracking-normal text-brand-ink">
+                            {labels.compareChosen}
+                          </span>
+                        ) : null}
+                      </Th>
+                    ))}
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {matrix.map((row) => (
+                    <Tr key={row.key}>
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 w-32 min-w-32 bg-surface py-2.5 pl-4 pr-3 text-left text-sm font-normal text-sand-800"
+                      >
+                        {row.label}
+                      </th>
+                      {options.map((o) => (
+                        <Td
+                          key={o.plan}
+                          className={`text-center ${o.plan === chosen.plan ? "bg-brand-tint" : ""}`}
+                        >
+                          {row.has(o.plan) ? (
+                            <>
+                              <CheckIcon aria-hidden className="inline-block text-lg text-status-ok" />
+                              <span className="sr-only">{labels.compareYes}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span aria-hidden className="text-sand-400">
+                                —
+                              </span>
+                              <span className="sr-only">{labels.compareNo}</span>
+                            </>
+                          )}
+                        </Td>
+                      ))}
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </div>
           </div>
         ) : null}
       </div>
