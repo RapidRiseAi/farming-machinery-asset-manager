@@ -23,8 +23,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { t } from "@/lib/i18n";
 import {
+  ATTEMPT_LOOK,
   CARD_EXPIRY_WINDOW_DAYS,
+  INVOICE_LOOK,
+  SUBSCRIPTION_LOOK,
   billedUnits,
   billsOnQuota,
   cardExpiryOn,
@@ -587,4 +591,31 @@ test("the bill is offered for anything issued, and never for a draft or a void",
   // `billing-not-issued` and `billing-voided` on the route.
   assert.deepEqual(invoiceDocuments("draft"), { receipt: false, invoice: false });
   assert.deepEqual(invoiceDocuments("void"), { receipt: false, invoice: false });
+});
+
+// ── Every status has a word, in both languages ───────────────────────────────
+//
+// `enumLabel` builds `billingInvoiceStatus.open` at RUNTIME from a group argument and falls
+// back to the raw value on a miss. None of these four groups existed, and neither gate
+// could see it: `i18n:keys` cannot read a key assembled from an argument, and the fallback
+// prints something plausible. So both billing screens showed "open", "paid" and "past due"
+// — the Postgres enum values — to every reader, including an Afrikaans farmer checking
+// whether October went through. The lists are the enums in
+// 20260903160000_saas_billing_core.sql, plus `pending` from 20260910220000.
+
+test("every billing status and attempt kind has a label in both languages", () => {
+  const groups: Record<string, string[]> = {
+    billingSubStatus: [...Object.keys(SUBSCRIPTION_LOOK), "pending"],
+    billingInvoiceStatus: Object.keys(INVOICE_LOOK),
+    billingAttemptStatus: Object.keys(ATTEMPT_LOOK),
+    billingAttemptKind: ["initial_checkout", "charge_authorization", "manual_retry"],
+  };
+  for (const [group, values] of Object.entries(groups)) {
+    for (const value of values) {
+      const key = `${group}.${value}`;
+      assert.notEqual(t(key, "en"), key, `${key} has no English label`);
+      assert.notEqual(t(key, "af"), key, `${key} has no Afrikaans label`);
+      assert.notEqual(t(key, "af"), t(key, "en"), `${key} is English copied into af.json`);
+    }
+  }
 });

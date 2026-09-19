@@ -4663,5 +4663,34 @@
     "pages": "Bladsye",
     "machines": "Masjiene",
     "searching": "Soek vir masjiene…"
+  },
+  "billingSubStatus": {
+    "trialing": "Op proef",
+    "active": "Aktief",
+    "past_due": "Betaling misluk",
+    "grace": "Betaling agterstallig",
+    "downgraded": "Plan verminder",
+    "non_renewing": "Hernu nie",
+    "cancelled": "Gekanselleer",
+    "pending": "Wag op betaling"
+  },
+  "billingInvoiceStatus": {
+    "draft": "Konsep",
+    "open": "Onbetaal",
+    "paid": "Betaal",
+    "uncollectible": "Afgeskryf",
+    "void": "Gekanselleer"
+  },
+  "billingAttemptStatus": {
+    "pending": "Hangende",
+    "succeeded": "Geslaag",
+    "failed": "Misluk",
+    "abandoned": "Nie voltooi nie",
+    "unknown": "Onbekend"
+  },
+  "billingAttemptKind": {
+    "initial_checkout": "Eerste betaling",
+    "charge_authorization": "Geskeduleerde heffing",
+    "manual_retry": "Handmatige herpoging"
   }
 }

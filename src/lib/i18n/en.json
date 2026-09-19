@@ -4663,5 +4663,34 @@
     "pages": "Pages",
     "machines": "Machines",
     "searching": "Looking for machines…"
+  },
+  "billingSubStatus": {
+    "trialing": "On trial",
+    "active": "Active",
+    "past_due": "Payment failed",
+    "grace": "Payment overdue",
+    "downgraded": "Plan reduced",
+    "non_renewing": "Not renewing",
+    "cancelled": "Cancelled",
+    "pending": "Awaiting payment"
+  },
+  "billingInvoiceStatus": {
+    "draft": "Draft",
+    "open": "Unpaid",
+    "paid": "Paid",
+    "uncollectible": "Written off",
+    "void": "Voided"
+  },
+  "billingAttemptStatus": {
+    "pending": "Pending",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "abandoned": "Abandoned",
+    "unknown": "Unknown"
+  },
+  "billingAttemptKind": {
+    "initial_checkout": "First payment",
+    "charge_authorization": "Scheduled charge",
+    "manual_retry": "Manual retry"
   }
 }
