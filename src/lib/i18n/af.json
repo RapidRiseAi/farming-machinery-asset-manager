@@ -4236,7 +4236,8 @@
     "statCardSoon": "Verval binnekort, op {date}",
     "manageTitle": "Verander jou plan of voertuigplekke",
     "manageLead": "Niks verander voordat jy die prys gesien en ja gesê het nie.",
-    "downloadReceiptFull": "Laai kwitansie af"
+    "downloadReceiptFull": "Laai kwitansie af",
+    "quoteAdjust": "Verander die syfers"
   },
   "adminBilling": {
     "title": "Intekeninge",

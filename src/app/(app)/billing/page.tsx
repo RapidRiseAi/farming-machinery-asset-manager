@@ -281,10 +281,6 @@ export default async function BillingPage({
   const unitsBilled = billedUnits(sub, assets.billable);
   const onQuota = billsOnQuota(sub);
   const saved = savedNotice(sp.saved);
-  // Closed unless somebody was sent here to change something. The server cannot see a
-  // `#slots` fragment, and Next's client-side scroll to one does not open a <details>, so
-  // a link that means "go and buy slots" says so in the query string.
-  const manageOpen = !!sp.manage;
 
   // ── The priced review of a change, before anybody commits to it ─────────────
   //
@@ -337,6 +333,14 @@ export default async function BillingPage({
       slotsReview = quote;
     }
   }
+
+  // The change section is closed unless somebody was sent here to change something, or
+  // asked for a change the engine would not price. Then it opens with THEIR figures in it,
+  // so trying a different number is one edit rather than starting again. The server cannot
+  // see a `#slots` fragment, and Next's client-side scroll does not open a <details>, so a
+  // link that means "go and buy slots" says so in the query string.
+  const quoteRefused = planReview?.kind === "unavailable" || slotsReview?.kind === "unavailable";
+  const manageOpen = !!sp.manage || quoteRefused;
   const estimate = estimateNextCharge({ price, assetCount: unitsBilled, vatRegistered });
   const next = nextChargeState(sub, estimate);
   const notice = accountNotice(sub);
@@ -506,12 +510,16 @@ export default async function BillingPage({
                           .replace("{used}", String(slotsReview?.in_use ?? assets.billable))
                           .replace("{quota}", String(slotsReview?.new_quota ?? unitsBilled))}
                   </p>
-                  <Link
-                    href="/billing"
-                    className={`${buttonVariants({ variant: "secondary" })} mt-4`}
-                  >
-                    {t("billing.quoteCancel", locale)}
-                  </Link>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    {/* The change section below is open and holds the figures they asked
+                        for, so this only has to take them there. */}
+                    <a href="#manage" className={buttonVariants({ variant: "primary" })}>
+                      {t("billing.quoteAdjust", locale)}
+                    </a>
+                    <Link href="/billing" className={buttonVariants({ variant: "secondary" })}>
+                      {t("billing.quoteCancel", locale)}
+                    </Link>
+                  </div>
                 </div>
               );
             }
@@ -847,8 +855,9 @@ export default async function BillingPage({
           lands an owner on the slots form rather than on a closed box. */}
       {sub && canManage ? (
         <details
+          id="manage"
           open={manageOpen}
-          className="group rounded-xl border border-sand-200 bg-surface shadow-card"
+          className="group scroll-mt-20 rounded-xl border border-sand-200 bg-surface shadow-card"
         >
           <summary className="focus-ring flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
             <span className="min-w-0">
@@ -879,7 +888,8 @@ export default async function BillingPage({
                 <select
                   id="plan"
                   name="plan"
-                  defaultValue={sub.plan}
+                  // What they last asked for, while a review of it is on screen.
+                  defaultValue={wantsPlanReview ? String(sp.plan) : sub.plan}
                   className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 >
                   {PLANS.map((p) => (
@@ -894,7 +904,7 @@ export default async function BillingPage({
                 <select
                   id="period"
                   name="period"
-                  defaultValue={sub.billing_period}
+                  defaultValue={wantsPlanReview ? String(sp.period) : sub.billing_period}
                   className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 >
                   {BILLING_PERIODS.map((p) => (
@@ -938,7 +948,9 @@ export default async function BillingPage({
                   type="number"
                   inputMode="numeric"
                   min={Math.max(assets.billable, 1)}
-                  defaultValue={sub.asset_quota ?? Math.max(assets.billable, 1)}
+                  defaultValue={
+                    wantsSlotsReview ? requestedQuota : (sub.asset_quota ?? Math.max(assets.billable, 1))
+                  }
                   className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 />
                 <SubmitButton variant="secondary">

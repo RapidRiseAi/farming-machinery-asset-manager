@@ -4236,7 +4236,8 @@
     "statCardSoon": "Expires soon, on {date}",
     "manageTitle": "Change your plan or vehicle slots",
     "manageLead": "Nothing changes until you have seen the price and said yes.",
-    "downloadReceiptFull": "Download receipt"
+    "downloadReceiptFull": "Download receipt",
+    "quoteAdjust": "Change the figures"
   },
   "adminBilling": {
     "title": "Subscriptions",
