@@ -3151,3 +3151,103 @@ in the repo and have not been run against the live database. Leaked-password pro
 still off in Supabase Auth (a dashboard setting, not a code change). `SUPPORT_WEBHOOK_URL`
 is still unset, so a dispute's 48-hour clock still depends on somebody opening
 `/admin/support`. And a real Paystack decline still has never happened.
+
+## 2026-09-19 — The money screens, for a farmer on a phone
+
+Carried out `docs/prompts/billing-ui-ux-upgrade.md`: five UX jobs on `/billing` and
+`/signup`, one commit each (`dd44caf`, `d409f9c`, `0528a49`, `243e770`, `ffa489a`), plus two
+defects the work turned up (`b9ed2cf`, `c749a31`). Nothing about what is charged, or when,
+moved. `actions.ts` was not touched, and no migration was written.
+
+There is no `.env.local` on this machine, so the pages could not be rendered end to end. The
+layout was measured instead with a harness in the session scratchpad. It server-renders the
+REAL components (`Stat`, `Flash`, `StatusBadge`, `PageInfoButton`, `SavedMessage`,
+`PlanPicker`) with the production CSS from `.next/static/css`. Headless Chrome then lays the
+page out inside a fixed-width `srcdoc` iframe and posts back measurements. The iframe is
+needed because **headless Chrome on Windows will not lay a window out narrower than about
+500px**. The first round of "360px" figures was really 504px, which the page's own `innerWidth`
+gave away.
+
+- **The answer is above the fold.** `/billing` opens on three `Stat` tiles: the next charge
+  with its date, slots used against slots bought, and the card with its expiry state. The
+  next charge used to be the footer of the third card. The tiles compute no figure.
+  `chargeSummary` / `fleetSummary` / `cardSummary` in `view.ts` only choose between numbers
+  the page already held, and ten tests pin the choices. Three deliberate mutations of those
+  choices were each caught. Two choices go beyond the brief's input list:
+  - An **outstanding bill beats the renewal estimate**. A retry charges that bill's balance,
+    which after a failed pro-rata charge is not the renewal figure.
+  - An **attempt in flight shows "Being checked / Do not pay again"** and never an amount.
+
+  Free slots are `greatest(quota − billable, 0)`, the same rule as
+  `app.vehicle_allowance.remaining`, so the tile agrees with the vehicle-limit wall.
+  Measured at 360px on a 640px phone with browser chrome (tab bar at 519px): the strip ends
+  at 438px in English and 453px in Afrikaans with R12 450,00 and a 120-vehicle fleet. Two
+  fixes were needed to get there. The title row wrapped its info button onto its own line
+  (56px), and "120 / 150" broke across two lines in a half-width tile; the used count is now
+  the big figure with "/ bought" beside it smaller. It does NOT fit in one case: a long
+  "checking" banner plus a site switcher plus Afrikaans (658px). That is not the default
+  view, and there the banner is the right thing to see first.
+
+- **Reading and changing are separate.** Both change forms sit behind one native `<details>`
+  with no JS. The two-step was checked mechanically: every `<form>` tag and every
+  input/select, attributes and order, is identical before and after (className aside).
+  `/machines/new`'s "add slots" link was `/billing#slots`. The server cannot see a fragment
+  and Next's client-side scroll does not open a `<details>`, so it now reads
+  `/billing?manage=slots#slots`, and `?manage=` opens the disclosure.
+
+- **The invoice history is a card list below `sm:`, and the table from `sm:` up**, both
+  rendered from one pass over the rows. Which documents a row may offer moved to
+  `invoiceDocuments()`, which refuses the same cases the PDF routes do. Measured at 360px:
+  links 48px tall, no page scroll.
+
+- **Defect: billing statuses had never been translated.** `enumLabel()` builds
+  `billingInvoiceStatus.open` at runtime and, on a miss, prints the raw value with
+  underscores turned into spaces. None of the four billing groups existed. So both billing
+  screens have always shown "open", "paid" and "past due" in English to every reader.
+  `i18n:keys` cannot see a key assembled from a function argument, and the fallback looked
+  plausible. It was found in the Afrikaans render of the new list. The groups now exist in
+  both languages, and a test walks every value in the `LOOK` maps plus the schema's enums.
+
+- **Defect: a voided bill read "R730,00 outstanding"** in amber beside its own Voided badge.
+  `outstandingCents()` now returns 0 for `void` and `uncollectible`, the rule `partner-docs.ts`
+  already applies. `status` is required, so no caller keeps the old reading silently.
+  `payableInvoice()` / `retryOffer()` only ever considered open and draft bills; a test pins
+  that the pay button's behaviour is unchanged.
+
+- **The Toast primitive has its first caller.** `SavedMessage` (`components/billing`) decides
+  from `savedNotice`'s tone via `savedIsTransient()`. A success is a toast fixed 15px above
+  the tab bar, cleared after 10s, with a 48px dismiss. Everything else stays a `Flash`: above
+  all `checking`, and any change that is only scheduled, which nothing else on the page shows
+  yet. **One tone moved: `card-removed` is now success**, because the brief names it as a
+  toast. Its warning (add another card) persists in the card tile, which turns amber for as
+  long as it is true. It is a one-line revert if that reading is wrong. `/admin/billing`
+  uses the same component. Client JS on both routes went from 977 B to 1.42 kB.
+
+- **`/signup` compares all four plans side by side.** Each tick is
+  `planAllows(plan, feature)`, the function the gates call. The feature labels were
+  rewritten as short row labels because sentences made each row four lines tall. On a phone
+  the plans scroll under a sticky feature column, and the chosen plan's column is scrolled
+  into view when the comparison opens. The effect's arithmetic was checked on the real DOM:
+  flush at 174px = 174px at 360. The cells' `sr-only` text had escaped the scroller and
+  widened the whole page; the table is now the positioning context. The table narrowed from
+  548px to 438px, and two plans fit side by side at 412px. `entitlements.test.ts` checks that
+  every gated feature has a label in both languages (deleting one makes it fail) and that the
+  ticks form a staircase.
+
+- Verified on a **clean worktree of `ffa489a`**, installed from the lockfile: typecheck; lint;
+  312 tests (294 before; 18 new); i18n parity (4347 keys, up from 4304); i18n key sweep; error coverage;
+  design lint 0 violations with the 34/34 contrast contract; production build.
+
+**Left undone, deliberately:**
+- Nothing was run against a live account or in a real phone browser. The measurements are of
+  the real components and CSS, not of `/billing` as served. The phone invoice list was
+  measured from a copy of its markup, because it is not a component.
+- `/activate` was read and not changed: none of the five jobs lands on it.
+- The `?checkout=` banners stay `Flash`. They are not `savedNotice` codes, `pending` must
+  persist, and `paid` sits beside the next-steps card.
+- `/admin/billing` still prints a price version's status raw: a no-op comparison around line
+  553 renders `p.status` in both branches. That is a staff-only screen, outside the brief.
+- The disclosure does not pre-fill a refused quote's figures. "Leave it as it is" returns to
+  a closed box.
+- None of this is pushed. `main` is eight commits ahead of `origin/main`, and CI has not run
+  on any of them.

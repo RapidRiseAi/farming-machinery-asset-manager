@@ -44,9 +44,10 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** At commit `1193ef2`;
-working tree clean, nothing unpushed, both CI jobs green (RLS isolation; app quality gates
-+ build). Billing is live and has taken a real payment. Email sends and is confirmed
+**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is eight
+commits ahead of `origin/main` (`7d46870`) with the billing and sign-up UI work of
+19/09/2026. It is **not pushed, so CI has not run on it**; every gate passed on a clean
+worktree. Billing is live and has taken a real payment. Email sends and is confirmed
 `delivered` by Resend.
 
 The full build history — ~55 session entries, oldest first — is in
@@ -111,6 +112,9 @@ will bite again.
   actually ran.
 - **Prove it by running it**, against production inside a rolled-back transaction, rather
   than asserting it from the code.
+- **Headless Chrome on Windows will not lay a window out narrower than ~500px.** A "360px"
+  measurement taken with `--window-size=360,…` is really 504px. Render inside a fixed-width
+  `srcdoc` iframe and read the frame's own `innerWidth`.
 - **CI job logs need repository admin rights.** `git credential fill` supplies the token git
   already uses for pushes — that is how a week of red CI was finally read.
 
@@ -147,7 +151,10 @@ will bite again.
   legitimate call sites; that gets fixed before the gate ships.
 - **Runtime-built keys evade static sweeps.** `PageInfoButton` composes its key at runtime
   from an `infoKey` prop, so three pages rendered raw keys to users while parity passed.
-  `pnpm i18n:keys` now covers static keys, dynamic stems and page-info keys.
+  `pnpm i18n:keys` now covers static keys, dynamic stems and page-info keys. **`enumLabel`
+  is worse**: on a miss it prints the raw enum value, which looks plausible. The four
+  billing status groups never existed and both screens showed Postgres enums from day one. A
+  new group needs a test that walks its values in both languages (`view.test.ts`).
 - **Do not patch another session's in-flight files.** Adding a key for someone else's
   unfinished feature is how fragments collide.
 - **Do not rewrite a superseded log entry.** Add a line that supersedes it — editing hides
