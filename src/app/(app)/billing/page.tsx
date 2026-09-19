@@ -27,7 +27,10 @@ import {
   cardBrandLabel,
   cardExpiry,
   cardExpiryState,
+  cardSummary,
+  chargeSummary,
   estimateNextCharge,
+  fleetSummary,
   nextChargeState,
   outstandingCents,
   paymentsFor,
@@ -49,6 +52,7 @@ import {
 } from "@/lib/billing/view";
 
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Stat } from "@/components/ui/stat";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
@@ -155,15 +159,19 @@ export default async function BillingPage({
   // control is not a guard; this only spares a manager a button that would refuse them.
   const canManage = profile.role === "owner" || profile.role === "rr_admin";
 
+  // The title and the info button share a row, and the lead runs full width beneath. As a
+  // wrapping row the lead's width pushed the button onto a line of its own on every phone —
+  // 56px of nothing above the summary tiles, on the one screen whose answer has to fit
+  // above the fold at 360px.
   const header = (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("billing.title", locale)}</h1>
-        <p className="text-sm text-sand-600">{t("billing.lead", locale)}</p>
-      </div>
-      <span className="ml-auto">
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
+          {t("billing.title", locale)}
+        </h1>
         <PageInfoButton infoKey="billing" locale={locale} />
-      </span>
+      </div>
+      <p className="mt-1 text-sm text-sand-600">{t("billing.lead", locale)}</p>
     </div>
   );
 
@@ -328,6 +336,13 @@ export default async function BillingPage({
   const payable = payableInvoice(invoices);
   const offer = retryOffer(payable, attempts);
 
+  // The three tiles at the top of the page. Each only CHOOSES between figures worked out
+  // above — the estimate, the retry offer, the billed units, the expiry reading — and the
+  // choice is tested in `view.test.ts`. Nothing here is recomputed.
+  const charge = chargeSummary(sub, next, estimate, offer);
+  const fleet = fleetSummary(sub, unitsBilled, assets);
+  const cardTile = cardSummary(card, expiry, charge);
+
   const nextSentence = (() => {
     switch (next.kind) {
       case "dueOn":
@@ -346,6 +361,30 @@ export default async function BillingPage({
         return t("billing.nextNone", locale);
     }
   })();
+
+  // Under the first tile's figure. An outstanding bill is named rather than dated — the
+  // renewal date beside a pro-rata balance would read as that balance's due date — except
+  // while the account is being retried or is in grace, when the next-charge sentence IS the
+  // date that matters for it.
+  const chargeWhen =
+    charge.kind === "checking"
+      ? t("billing.statCheckingHint", locale)
+      : charge.kind === "owed" && next.kind !== "retryOn" && next.kind !== "graceEndsOn"
+        ? t("billing.statOwedRef", locale).replace("{ref}", charge.invoiceRef)
+        : nextSentence;
+
+  const printedExpiry = card ? cardExpiry(card.exp_month, card.exp_year) : null;
+  const cardWhen = !card
+    ? cardTile.tone === "default"
+      ? undefined
+      : t("billing.statCardNeeded", locale)
+    : expiry.kind === "expired"
+      ? t("billing.statCardExpired", locale).replace("{date}", shortDate(expiry.on, locale))
+      : expiry.kind === "soon"
+        ? t("billing.statCardSoon", locale).replace("{date}", shortDate(expiry.on, locale))
+        : printedExpiry
+          ? t("billing.cardExpires", locale).replace("{expiry}", printedExpiry)
+          : undefined;
 
   const endsOn = sub?.ended_on ?? sub?.current_period_end ?? null;
   const cancellable =
@@ -550,6 +589,84 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
+      {/* ── The three answers, before anything else ─────────────────────────
+          How much and when; how full the slots are; whether the card will work. The
+          first used to sit in the footer of the third card — three scrolls of plan and
+          vehicle admin on a phone before anybody learned it. Rendered through `Stat`, the
+          same tile `/admin/billing` uses, so the two billing screens read as one product.
+          The next charge spans the row on a phone: it is the question most people came
+          with, and a rand figure needs the width. */}
+      <section
+        aria-label={t("billing.summaryLabel", locale)}
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+      >
+        <Stat
+          className="col-span-2 sm:col-span-1"
+          label={t(
+            charge.kind === "owed"
+              ? "billing.statOwed"
+              : charge.kind === "checking"
+                ? "billing.statPayment"
+                : "billing.nextTitle",
+            locale,
+          )}
+          value={
+            charge.kind === "next" || charge.kind === "owed"
+              ? rands(charge.cents)
+              : t(charge.kind === "checking" ? "billing.statChecking" : "billing.statNone", locale)
+          }
+          tone={charge.tone}
+          // "When" is half the question, so it is read at body size rather than as a
+          // footnote.
+          delta={<span className="text-sm font-medium text-sand-700">{chargeWhen}</span>}
+        />
+
+        {fleet.kind === "quota" ? (
+          <Stat
+            label={t("billing.slotsTitle", locale)}
+            // The count in use is the big figure and the ceiling sits beside it smaller,
+            // so a three-digit fleet still reads on one line in a half-width tile.
+            value={
+              <>
+                <span aria-hidden>
+                  {fleet.used}
+                  <span className="text-lg font-semibold text-sand-500"> / {fleet.bought}</span>
+                </span>
+                <span className="sr-only">
+                  {t("billing.quotaUsing", locale)
+                    .replace("{used}", String(fleet.used))
+                    .replace("{quota}", String(fleet.bought))}
+                </span>
+              </>
+            }
+            tone={fleet.tone}
+            delta={
+              fleet.free > 0
+                ? t("billing.statSlotsFree", locale).replace("{n}", String(fleet.free))
+                : t("billing.statSlotsFull", locale)
+            }
+          />
+        ) : (
+          <Stat
+            label={t("billing.statVehicles", locale)}
+            value={fleet.billed}
+            tone={fleet.tone}
+            delta={
+              fleet.notCounted > 0
+                ? t("billing.statNotCounted", locale).replace("{n}", String(fleet.notCounted))
+                : t("billing.statAllCounted", locale)
+            }
+          />
+        )}
+
+        <Stat
+          label={t("billing.statCard", locale)}
+          value={card ? `···· ${card.last4 ?? "····"}` : t("billing.statNone", locale)}
+          tone={cardTile.tone}
+          delta={cardWhen}
+        />
+      </section>
+
       {/* What has gone wrong, in the order a worried person needs it: what happened,
           what to do, and that nothing has been deleted. */}
       {notice ? (
@@ -694,19 +811,14 @@ export default async function BillingPage({
             {t(onQuota ? "billing.slotsCardTitle" : "billing.vehiclesTitle", locale)}
           </CardTitle>
         </CardHeader>
-        {/* The headline is what the INVOICE is for. Under a quota that is the slots
-            bought, which is not the same number as the fleet — and showing the fleet here
-            while charging for the slots is what made this screen quote R0,00 at a farm
-            that had just paid. */}
-        <p className="text-3xl font-bold leading-none tracking-tight tabular-nums text-sand-900">
-          {unitsBilled === 1
-            ? t("billing.vehiclesCountOne", locale)
-            : t("billing.vehiclesCount", locale).replace("{n}", String(unitsBilled))}
-        </p>
-
+        {/* The headline figure moved to the summary tiles at the top, which carry the
+            number the INVOICE is for: slots bought under a quota, which is not the same
+            number as the fleet. Showing the fleet while charging for the slots is what
+            made this screen quote R0,00 at a farm that had just paid. What stays here is
+            the explanation. */}
         {onQuota ? (
           <>
-            <p className="mt-2 text-sm text-sand-700">
+            <p className="text-sm text-sand-700">
               {t("billing.quotaUsing", locale)
                 .replace("{used}", String(assets.billable))
                 .replace("{quota}", String(unitsBilled))}
@@ -734,7 +846,7 @@ export default async function BillingPage({
           </>
         ) : (
           <>
-            <p className="mt-2 text-sm text-sand-700">
+            <p className="text-sm text-sand-700">
               {assets.notCounted > 0
                 ? t("billing.vehiclesNotCounted", locale)
                     .replace("{n}", String(assets.notCounted))
@@ -806,10 +918,9 @@ export default async function BillingPage({
           </div>
         ) : (
           <>
-            <p className="text-3xl font-bold leading-none tracking-tight tabular-nums text-sand-900">
-              {rands(estimate.totalInclCents)}
-            </p>
-            <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            {/* Whenever this total is the next charge, it heads the summary tiles at the
+                top; this card shows its working. */}
+            <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
               <dt className="text-sand-600">{t("billing.perVehicle", locale)}</dt>
               <dd className="tabular-nums text-sand-900 sm:text-right">
                 {rands(estimate.perVehicleInclCents)}

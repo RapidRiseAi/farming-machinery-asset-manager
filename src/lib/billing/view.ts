@@ -495,6 +495,130 @@ export function accountNotice(sub: SubscriptionRow | null): AccountNotice | null
   }
 }
 
+// ── The three answers at the top of the owner's screen ───────────────────────
+//
+// People open `/billing` to ask three things — when is the next payment and how much, am I
+// in trouble, will my card still work — and the first of them used to be answered in the
+// footer of the third card. These decide what the summary tiles say. They compute NO new
+// figure: every number is one the page already holds, and the only decision made here is
+// which of them is the answer. That decision is the part worth a test.
+
+/** How loud a tile is. A subset of the kit's `StatTone`, so the page passes it through. */
+export type SummaryTone = "default" | "ok" | "due" | "overdue";
+
+/**
+ * The first tile: how much, and when.
+ *
+ *  - `checking` beats everything. An attempt the provider has not answered blocks every
+ *    other attempt on that bill, and a tile that printed an amount beside it would read as
+ *    an invitation to pay it — the one action that takes the money twice.
+ *  - `owed` beats the estimate. With a bill outstanding, a retry charges THAT bill's
+ *    balance, and after a failed pro-rata charge that is not the renewal figure. Quoting
+ *    the estimate there would be the screen and the engine disagreeing about one number.
+ *  - `nothing` whenever no charge is coming: no subscription, a cancellation taken effect
+ *    or waiting on the period end, or no confirmed price. Never an amount of zero — R0,00
+ *    is the one wrong price a customer would not think to question.
+ */
+export type ChargeSummary =
+  | { kind: "checking"; tone: SummaryTone }
+  | { kind: "owed"; cents: number; invoiceRef: string; tone: SummaryTone }
+  | { kind: "next"; cents: number; tone: SummaryTone }
+  | { kind: "nothing"; tone: SummaryTone };
+
+/** Loud in proportion to the dunning state, the same scale the notice card uses. */
+function troubleTone(sub: Pick<SubscriptionRow, "status"> | null): SummaryTone {
+  if (sub?.status === "downgraded") return "overdue";
+  if (sub?.status === "past_due" || sub?.status === "grace") return "due";
+  return "default";
+}
+
+export function chargeSummary(
+  sub: Pick<SubscriptionRow, "status"> | null,
+  next: NextCharge,
+  estimate: Estimate,
+  offer: RetryOffer,
+): ChargeSummary {
+  const trouble = troubleTone(sub);
+  // Money outstanding or in flight is worth a look even on an otherwise healthy account.
+  const raised: SummaryTone = trouble === "default" ? "due" : trouble;
+  if (offer.kind === "blocked") return { kind: "checking", tone: raised };
+  if (offer.kind === "offer") {
+    return {
+      kind: "owed",
+      cents: offer.amountCents,
+      invoiceRef: offer.invoice.invoice_ref,
+      tone: raised,
+    };
+  }
+  if (next.kind === "none" || next.kind === "endsOn" || next.kind === "unpriced") {
+    return { kind: "nothing", tone: trouble };
+  }
+  if (estimate.kind !== "priced") return { kind: "nothing", tone: trouble };
+  return { kind: "next", cents: estimate.totalInclCents, tone: trouble };
+}
+
+/**
+ * The second tile: slots used against slots bought, or — for a metered farm, which bought
+ * none — the vehicles counted.
+ *
+ * `free` mirrors `app.vehicle_allowance.remaining` exactly, `greatest(quota − used, 0)`,
+ * which is what `vehicleSlotsFree` reads when it stops somebody adding a vehicle. The tile
+ * and the wall a farmer hits on `/machines/new` must never disagree about whether there is
+ * room. A fleet grandfathered above a later quota reads as full, not as a negative number.
+ */
+export type FleetSummary =
+  | { kind: "quota"; used: number; bought: number; free: number; tone: SummaryTone }
+  | { kind: "metered"; billed: number; notCounted: number; tone: SummaryTone };
+
+export function fleetSummary(
+  sub: Pick<SubscriptionRow, "asset_quota"> | null | undefined,
+  unitsBilled: number,
+  assets: AssetBreakdown,
+): FleetSummary {
+  if (billsOnQuota(sub)) {
+    const free = Math.max(0, unitsBilled - assets.billable);
+    return {
+      kind: "quota",
+      used: assets.billable,
+      bought: unitsBilled,
+      free,
+      // Full is the same threshold that turns the usage bar amber.
+      tone: free === 0 ? "due" : "default",
+    };
+  }
+  return { kind: "metered", billed: unitsBilled, notCounted: assets.notCounted, tone: "default" };
+}
+
+/**
+ * The third tile: will the card still work.
+ *
+ * The expiry reading is `cardExpiryState`'s, unchanged — the tile only gives it a tone, so
+ * it stays silent in exactly the five cases the nightly email is silent. No card at all is
+ * worth a look only while something is going to be charged to it.
+ */
+export type CardSummary = { kind: "none" | "card"; tone: SummaryTone };
+
+export function cardSummary(
+  card: PaymentMethodRow | null,
+  expiry: CardExpiryState,
+  charge: ChargeSummary,
+): CardSummary {
+  if (!card) {
+    const needed = charge.kind === "next" || charge.kind === "owed";
+    return { kind: "none", tone: needed ? "due" : "default" };
+  }
+  switch (expiry.kind) {
+    case "expired":
+      return { kind: "card", tone: "overdue" };
+    case "soon":
+      return { kind: "card", tone: "due" };
+    case "fine":
+      return { kind: "card", tone: "ok" };
+    default:
+      return { kind: "card", tone: "default" };
+  }
+}
+
 // ── Small formatting decisions, made once ────────────────────────────────────
 
 /** What is still owed on an invoice, never below zero (a refund is its own row). */
