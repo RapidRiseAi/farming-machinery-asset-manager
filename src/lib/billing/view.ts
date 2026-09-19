@@ -627,6 +627,24 @@ export function outstandingCents(inv: Pick<InvoiceRow, "total_incl_cents" | "amo
 }
 
 /**
+ * Which documents a row of the invoice history may offer.
+ *
+ * Two documents, and they are not interchangeable. The RECEIPT says "Paid in full", so it
+ * exists only for a `paid` invoice — handing it over for money that has not arrived would
+ * be a false record of payment. The INVOICE is the bill, and it is what somebody needs in
+ * order to pay, so it is offered for anything actually issued: not a `draft`, which nobody
+ * has decided to charge, and not a `void`, which was withdrawn.
+ *
+ * The PDF routes refuse the same cases (`billing-not-paid`, `billing-not-issued`,
+ * `billing-voided`); this is only the affordance. It lives here because the history renders
+ * twice — a card list on a phone, a table from `sm:` up — and the two must never offer
+ * different documents for the same row.
+ */
+export function invoiceDocuments(status: string): { receipt: boolean; invoice: boolean } {
+  return { receipt: status === "paid", invoice: status !== "draft" && status !== "void" };
+}
+
+/**
  * A card's expiry as `MM/YY`, or null when the provider gave us neither.
  *
  * Never `toLocaleString` and never a Date — these arrive from Paystack as text and are

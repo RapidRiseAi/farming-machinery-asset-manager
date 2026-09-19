@@ -33,6 +33,7 @@ import {
   chargeSummary,
   estimateNextCharge,
   fleetSummary,
+  invoiceDocuments,
   nextChargeState,
   quoteReasonKey,
   retryOffer,
@@ -565,4 +566,25 @@ test("no card matters only while something is going to be charged to it", () => 
     kind: "none",
     tone: "default",
   });
+});
+
+// ── Which documents a row offers ─────────────────────────────────────────────
+
+test("a receipt is offered only for money that has arrived", () => {
+  // The receipt reads "Paid in full". Offering it for an open or part-paid bill would be a
+  // false record of payment — the PDF route refuses with `billing-not-paid` for the same
+  // reason.
+  assert.equal(invoiceDocuments("paid").receipt, true);
+  for (const s of ["open", "draft", "void", "uncollectible"]) {
+    assert.equal(invoiceDocuments(s).receipt, false, s);
+  }
+});
+
+test("the bill is offered for anything issued, and never for a draft or a void", () => {
+  for (const s of ["open", "paid", "uncollectible"]) {
+    assert.equal(invoiceDocuments(s).invoice, true, s);
+  }
+  // `billing-not-issued` and `billing-voided` on the route.
+  assert.deepEqual(invoiceDocuments("draft"), { receipt: false, invoice: false });
+  assert.deepEqual(invoiceDocuments("void"), { receipt: false, invoice: false });
 });

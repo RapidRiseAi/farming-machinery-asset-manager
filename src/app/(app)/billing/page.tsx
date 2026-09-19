@@ -31,6 +31,7 @@ import {
   chargeSummary,
   estimateNextCharge,
   fleetSummary,
+  invoiceDocuments,
   nextChargeState,
   outstandingCents,
   paymentsFor,
@@ -355,6 +356,16 @@ export default async function BillingPage({
   const charge = chargeSummary(sub, next, estimate, offer);
   const fleet = fleetSummary(sub, unitsBilled, assets);
   const cardTile = cardSummary(card, expiry, charge);
+
+  // The history renders twice — cards on a phone, a table from `sm:` up — from this ONE
+  // pass, so the two can never disagree about a row, its status or its documents.
+  const history = invoices.map((inv) => ({
+    inv,
+    owed: outstandingCents(inv),
+    paidOn: paymentsFor(payments, inv.id)[0]?.paid_at ?? null,
+    look: billingLook(INVOICE_LOOK, inv.status),
+    docs: invoiceDocuments(inv.status),
+  }));
 
   const nextSentence = (() => {
     switch (next.kind) {
@@ -1186,24 +1197,80 @@ export default async function BillingPage({
           </div>
         ) : (
           <div className="mt-3">
-            <Table>
-              <Thead>
-                <Tr>
-                  <Th>{t("billing.colRef", locale)}</Th>
-                  <Th>{t("billing.colPeriod", locale)}</Th>
-                  <Th className="text-right">{t("billing.colVehicles", locale)}</Th>
-                  <Th className="text-right">{t("billing.colTotal", locale)}</Th>
-                  <Th>{t("billing.colPaid", locale)}</Th>
-                  <Th>{t("billing.colStatus", locale)}</Th>
-                  <Th>{t("billing.colReceipt", locale)}</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {invoices.map((inv) => {
-                  const owed = outstandingCents(inv);
-                  const receipts = paymentsFor(payments, inv.id);
-                  const look = billingLook(INVOICE_LOOK, inv.status);
-                  return (
+            {/* On a phone, a stacked card per bill. Seven columns in a sideways scroll is
+                the kit's pattern and it works, but "did October go through" should not
+                need thumb work: reference, period, amount and status read top to bottom,
+                with the downloads at full touch size. Same rows, same order, same badges
+                and same documents as the table — both render from `history`. */}
+            <ul className="divide-y divide-edge-soft border-t border-edge-soft sm:hidden">
+              {history.map(({ inv, owed, paidOn, look, docs }) => (
+                <li key={inv.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sand-900">{inv.invoice_ref}</p>
+                      <p className="text-sm text-sand-600">
+                        {shortDate(inv.period_start, locale)} – {shortDate(inv.period_end, locale)}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      label={enumLabel("billingInvoiceStatus", inv.status, locale)}
+                      tone={look.tone}
+                      shape={look.shape}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-3">
+                    <p className="text-base font-semibold tabular-nums text-sand-900">
+                      {rands(inv.total_incl_cents)}
+                    </p>
+                    {owed > 0 ? (
+                      <p className="text-sm font-medium text-status-due">
+                        {t("billing.stillOwed", locale).replace("{amount}", rands(owed))}
+                      </p>
+                    ) : paidOn ? (
+                      <p className="text-sm text-sand-600">
+                        {t("billing.receiptOn", locale).replace("{date}", shortDate(paidOn, locale))}
+                      </p>
+                    ) : null}
+                  </div>
+                  {docs.receipt || docs.invoice ? (
+                    <div className="flex flex-wrap gap-x-5">
+                      {docs.receipt ? (
+                        <a
+                          href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
+                          className="inline-flex min-h-12 items-center text-sm font-medium text-brand-ink underline"
+                        >
+                          {t("billing.downloadReceiptFull", locale)}
+                        </a>
+                      ) : null}
+                      {docs.invoice ? (
+                        <a
+                          href={`/api/billing/invoice/${inv.id}/invoice.pdf`}
+                          className="inline-flex min-h-12 items-center text-sm font-medium text-brand-ink underline"
+                        >
+                          {t("billing.downloadInvoice", locale)}
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden sm:block">
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>{t("billing.colRef", locale)}</Th>
+                    <Th>{t("billing.colPeriod", locale)}</Th>
+                    <Th className="text-right">{t("billing.colVehicles", locale)}</Th>
+                    <Th className="text-right">{t("billing.colTotal", locale)}</Th>
+                    <Th>{t("billing.colPaid", locale)}</Th>
+                    <Th>{t("billing.colStatus", locale)}</Th>
+                    <Th>{t("billing.colReceipt", locale)}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {history.map(({ inv, owed, paidOn, look, docs }) => (
                     <Tr key={inv.id}>
                       <Td className="font-medium text-sand-900">{inv.invoice_ref}</Td>
                       <Td className="whitespace-nowrap text-sand-600">
@@ -1219,12 +1286,9 @@ export default async function BillingPage({
                           <span className="block text-xs text-status-due">
                             {t("billing.stillOwed", locale).replace("{amount}", rands(owed))}
                           </span>
-                        ) : receipts.length > 0 ? (
+                        ) : paidOn ? (
                           <span className="block text-xs text-sand-500">
-                            {t("billing.receiptOn", locale).replace(
-                              "{date}",
-                              shortDate(receipts[0].paid_at, locale),
-                            )}
+                            {t("billing.receiptOn", locale).replace("{date}", shortDate(paidOn, locale))}
                           </span>
                         ) : null}
                       </Td>
@@ -1236,16 +1300,11 @@ export default async function BillingPage({
                         />
                       </Td>
                       <Td>
-                        {/* Two documents, and they are not interchangeable. The RECEIPT
-                            says "Paid in full", so it is offered only when that is true —
-                            handing it over for money that has not arrived would be a false
-                            record of payment. The INVOICE is the bill: it is what somebody
-                            needs in order to PAY, and until now it existed nowhere in the
-                            product, so a farm office that pays against invoices had nothing
-                            to file. Both routes enforce this as well; these are only the
-                            affordances. */}
+                        {/* Which documents, and why a receipt is never offered for money
+                            that has not arrived: `invoiceDocuments` in view.ts. The routes
+                            refuse the same cases; these are only the affordances. */}
                         <div className="flex flex-col gap-1">
-                          {inv.status === "paid" ? (
+                          {docs.receipt ? (
                             <a
                               href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
                               className="text-sm font-medium text-brand-ink underline"
@@ -1253,26 +1312,23 @@ export default async function BillingPage({
                               {t("billing.downloadReceipt", locale)}
                             </a>
                           ) : null}
-                          {/* Not `draft` — never issued, so nobody has decided to charge it
-                              — and not `void`, which was withdrawn. */}
-                          {inv.status !== "draft" && inv.status !== "void" ? (
+                          {docs.invoice ? (
                             <a
                               href={`/api/billing/invoice/${inv.id}/invoice.pdf`}
                               className="text-sm font-medium text-brand-ink underline"
                             >
                               {t("billing.downloadInvoice", locale)}
                             </a>
-                          ) : null}
-                          {inv.status === "draft" || inv.status === "void" ? (
+                          ) : (
                             <span className="text-sm text-sand-500">—</span>
-                          ) : null}
+                          )}
                         </div>
                       </Td>
                     </Tr>
-                  );
-                })}
-              </Tbody>
-            </Table>
+                  ))}
+                </Tbody>
+              </Table>
+            </div>
           </div>
         )}
       </Card>

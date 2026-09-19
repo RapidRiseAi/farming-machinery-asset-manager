@@ -4235,7 +4235,8 @@
     "statCardExpired": "Het op {date} verval",
     "statCardSoon": "Verval binnekort, op {date}",
     "manageTitle": "Verander jou plan of voertuigplekke",
-    "manageLead": "Niks verander voordat jy die prys gesien en ja gesê het nie."
+    "manageLead": "Niks verander voordat jy die prys gesien en ja gesê het nie.",
+    "downloadReceiptFull": "Laai kwitansie af"
   },
   "adminBilling": {
     "title": "Intekeninge",

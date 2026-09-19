@@ -4235,7 +4235,8 @@
     "statCardExpired": "Expired on {date}",
     "statCardSoon": "Expires soon, on {date}",
     "manageTitle": "Change your plan or vehicle slots",
-    "manageLead": "Nothing changes until you have seen the price and said yes."
+    "manageLead": "Nothing changes until you have seen the price and said yes.",
+    "downloadReceiptFull": "Download receipt"
   },
   "adminBilling": {
     "title": "Subscriptions",
