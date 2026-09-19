@@ -3251,3 +3251,39 @@ gave away.
   a closed box.
 - None of this is pushed. `main` is eight commits ahead of `origin/main`, and CI has not run
   on any of them.
+
+## 2026-09-19 (later) — Two leftovers built; a gap review and an offline/app plan
+
+Supersedes two "left undone" lines in the entry above. Both are now built:
+
+- **`9471557`.** `/admin/billing` printed a price version's status raw: it looked the value
+  up in the invoice-status group and then rendered `p.status` on both branches. It now has
+  its own `billingPriceStatus` group, and the enum-label test walks it.
+- **`26f68bf`.** A refused quote now reopens the change section with the plan, period or slot
+  count the farmer asked for, and the refusal card links to it. The two-step is unchanged:
+  every `<form>` tag and field name compared identical before and after.
+- Gates: 312 tests, typecheck, lint, parity, key sweep, error coverage, design lint, build.
+
+**Written, not built:**
+
+- **[`FEATURE_GAP_REVIEW_2026-09-19.md`](FEATURE_GAP_REVIEW_2026-09-19.md).** Every finding
+  is checked in the code at `26f68bf`. The first five are traps in things the product
+  already claims:
+  - A mistyped or replaced meter reading can never be corrected. A decrease is refused or
+    becomes a conflict, and there is no action to resolve it; the `meter_readings`
+    update/delete policies have no caller.
+  - The fuel issue and usage-log writes are still separate.
+  - Offline capture has no fuel and no checklists.
+  - A failed pre-start item raises nothing.
+  - Alerts never go by email.
+- **[`NATIVE_APP_AND_OFFLINE_PLAN.md`](NATIVE_APP_AND_OFFLINE_PLAN.md).** The main finding is
+  that "downloadable" and "works offline" are separate projects. Server actions cannot be
+  statically exported, so a wrapper alone adds no offline ability. The recommendation is to
+  extend F2 with a field pack read through the user's own session, so RLS stays the only
+  authorisation layer, then package for the stores with TWA / MSIX or a Tauri NSIS wizard.
+  Capacitor comes only if real-device tests demand it. Vendor claims were checked
+  on 19/09/2026 and are cited.
+
+**Left undone, deliberately:** none of the gaps were built. Several need a founder decision
+first, and all of them sit outside `SCOPE.md` §13 as written; that mismatch is now under
+**Open — founder only** in `CLAUDE.md`. Nothing is pushed.

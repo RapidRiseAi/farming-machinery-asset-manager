@@ -44,10 +44,9 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is eight
-commits ahead of `origin/main` (`7d46870`) with the billing and sign-up UI work of
-19/09/2026. It is **not pushed, so CI has not run on it**; every gate passed on a clean
-worktree. Billing is live and has taken a real payment. Email sends and is confirmed
+**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is ahead
+of `origin/main` (`7d46870`) with the billing and sign-up UI work of 19/09/2026. It is
+**not pushed, so CI has not run on it**; every gate passed on a clean worktree. Billing is live and has taken a real payment. Email sends and is confirmed
 `delivered` by Resend.
 
 The full build history — ~55 session entries, oldest first — is in
@@ -63,6 +62,10 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   confirmed set — email has sent.)
 - **Decide what a part-refund means for a period already supplied.** This blocks the SaaS
   negative-payment model; the partner side already has one at `0422`.
+- **`SCOPE.md` §13 no longer matches the product.** Parts and accounting shipped, and store
+  apps plus offline sync are now requested. Record the real boundary before building
+  `docs/NATIVE_APP_AND_OFFLINE_PLAN.md` or the gaps in
+  `docs/FEATURE_GAP_REVIEW_2026-09-19.md`.
 
 ### Open — needs a browser or a throwaway farm
 - A real Paystack **decline** has never happened (test mode accepts every valid stored authorization).
