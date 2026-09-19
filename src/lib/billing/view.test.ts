@@ -42,6 +42,7 @@ import {
   outstandingCents,
   quoteReasonKey,
   retryOffer,
+  savedIsTransient,
   savedNotice,
   type AttemptRow,
   type InvoiceRow,
@@ -334,6 +335,21 @@ test("money that has not landed is never reported as success", () => {
   // These genuinely did move money, or did the thing asked.
   assert.equal(savedNotice("paid")?.tone, "success");
   assert.equal(savedNotice("slots-added")?.tone, "success");
+});
+
+test("a confirmation may clear itself; money still being checked never does", () => {
+  const transient = (code: string) => savedIsTransient(savedNotice(code)!);
+  // "Do not pay again" has to be on screen for as long as it is true.
+  assert.equal(transient("checking"), false);
+  assert.equal(transient("reconciled-open"), false);
+  // Scheduled changes are shown nowhere else on the page yet, so their message stays.
+  for (const code of ["slots-scheduled", "plan-scheduled", "no-change", "cancelling", "cancelled"]) {
+    assert.equal(transient(code), false, code);
+  }
+  // Done, and visible on the page that follows: these may go on their own.
+  for (const code of ["slots-added", "plan-changed", "paid", "resumed", "card-removed"]) {
+    assert.equal(transient(code), true, code);
+  }
 });
 
 test("nothing to say, and something unrecognised, are different answers", () => {

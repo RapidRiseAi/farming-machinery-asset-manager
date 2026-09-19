@@ -1131,8 +1131,12 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "billing.savedCancelled", tone: "info" };
     case "resumed":
       return { key: "billing.savedResumed", tone: "success" };
+    // Success, and therefore a toast: the card was removed, which is what was asked. Its
+    // sentence warns that the next renewal needs another card, and that warning does not
+    // depend on this message staying up — the card tile at the top of the page turns amber
+    // and says "add one before the next charge" for as long as it is true.
     case "card-removed":
-      return { key: "billing.savedCardRemoved", tone: "info" };
+      return { key: "billing.savedCardRemoved", tone: "success" };
     case "billing-details":
       return { key: "billing.savedBillingDetails", tone: "success" };
 
@@ -1156,6 +1160,23 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
     default:
       return { key: "ui.savedChanges", tone: "success" };
   }
+}
+
+/**
+ * May this outcome clear itself?
+ *
+ * `success` is a confirmation — the thing asked for happened, and the page now shows it —
+ * so it goes to a toast rather than a banner that shoves the whole page down on every
+ * action. Everything else stays put as a `Flash`. Above all `checking`: "we are checking
+ * that payment with the bank … do not pay again" is the sentence that stops somebody
+ * paying twice, and it must not disappear on a timer while it is still true. The same goes
+ * for anything merely SCHEDULED, which nothing else on the page yet shows.
+ *
+ * Decided from the tone, never from the code, so `savedNotice`'s rule that money which has
+ * not landed is never a success carries straight through to what may vanish.
+ */
+export function savedIsTransient(notice: SavedNotice): boolean {
+  return notice.tone === "success";
 }
 
 /**

@@ -60,6 +60,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge, Badge } from "@/components/ui/badge";
 import { Stat } from "@/components/ui/stat";
 import { Flash } from "@/components/ui/flash";
+import { SavedMessage } from "@/components/billing/saved-message";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -221,8 +222,9 @@ export default async function AdminBillingPage({
       {/* One resolver, shared with the owner's screen. Six of this page's outcomes —
           a charge taken, an attempt verified and closed, a subscription started — used
           to fall through to "Saved changes", which is the least useful sentence available
-          about money that has just moved. */}
-      {savedHere ? <Flash tone={savedHere.tone} message={t(savedHere.key, locale)} /> : null}
+          about money that has just moved. Presented the same way too: a confirmation
+          clears itself, and anything still being checked stays. */}
+      <SavedMessage notice={savedHere} locale={locale} />
 
       {/* ── Is the schedule still running? ──────────────────────────────────── */}
       <Card>

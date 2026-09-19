@@ -57,6 +57,7 @@ import { Stat } from "@/components/ui/stat";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
+import { SavedMessage } from "@/components/billing/saved-message";
 import { GetStarted } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -422,8 +423,10 @@ export default async function BillingPage({
       {/* Every action here already reports WHICH of several things happened — charged now
           or scheduled for the renewal, taken or merely being checked — and all of it used
           to collapse into one "Saved changes". `savedNotice` is the shared resolver, so
-          the owner's screen and the admin's cannot describe the same outcome differently. */}
-      {saved ? <Flash tone={saved.tone} message={t(saved.key, locale)} /> : null}
+          the owner's screen and the admin's cannot describe the same outcome differently.
+          A confirmation clears itself as a toast; anything that must stay, "checking"
+          above all, stays as a banner. */}
+      <SavedMessage notice={saved} locale={locale} />
 
       {/* Back from Paystack. The callback computes this state carefully and then nothing
           rendered it, so somebody who had just handed over a card was told nothing at all.
