@@ -47,26 +47,11 @@ as $$
    where f.id = p_farm;
 $$;
 
-create or replace function app.ex_vat_cents(p_incl bigint, p_rate_bps integer)
-returns bigint
-language sql
-immutable
-as $$
-  -- The same expression as `exVatCents` in src/lib/money.ts and as the QR capture.
-  select case
-           when p_incl is null then null
-           when coalesce(p_rate_bps, 0) <= 0 then p_incl
-           else round(p_incl::numeric * 10000 / (10000 + p_rate_bps))::bigint
-         end;
-$$;
-
 revoke execute on function app.farm_vat_rate_bps(uuid) from public, anon;
 grant execute on function app.farm_vat_rate_bps(uuid) to authenticated, service_role;
-revoke execute on function app.ex_vat_cents(bigint, integer) from public, anon;
-grant execute on function app.ex_vat_cents(bigint, integer) to authenticated, service_role;
 
--- The authenticated command now reads the rate and does the arithmetic through the helpers
--- rather than repeating them. `record_public_qr_fuel` is left exactly as it is: it is
+-- The authenticated command now reads the rate through the helper and converts with the
+-- billing core's own `app.ex_vat_cents`, rather than repeating either. `record_public_qr_fuel` is left exactly as it is: it is
 -- proven by its own suite, and rewriting working capture code to remove a duplicate is a
 -- worse trade than the duplicate. Section (b) of fuel_issue_atomicity pins the result.
 create or replace function public.record_fuel_issue(
