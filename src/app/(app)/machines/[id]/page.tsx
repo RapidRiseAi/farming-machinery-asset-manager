@@ -27,7 +27,7 @@ import { MachinePhotos } from "@/components/machine-photos";
 import { DocumentPacks } from "@/components/machines/document-packs";
 import { MeterGraph } from "./meter-graph";
 import { updateMachine, returnMachineToService } from "../actions";
-import { addReading } from "./reading-actions";
+import { addReading, correctReading, replaceMeter } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
 import { createServiceKit, deleteServiceKit, addKitItem, updateKitItem, deleteKitItem } from "./kit-actions";
@@ -58,6 +58,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
+  ChevronDownIcon,
   ChevronLeftIcon,
   JobCardsIcon,
   FaultsIcon,
@@ -118,6 +119,10 @@ type MachineFine = {
 };
 
 const savedMsg: Record<string, string> = {
+  // These two say what actually moved, because both change every service due date on the
+  // machine and "Saved" would not tell anybody that.
+  "meter-corrected": "machine.savedMeterCorrected",
+  "meter-replaced": "machine.savedMeterReplaced",
   reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
 };
 
@@ -643,6 +648,73 @@ export default async function MachineDetailPage({
                       ))}
                     </ul>
                   ) : <p className="mt-3 text-sm text-sand-400">{t("machine.noReadings", locale)}</p>}
+
+                  {/* ── When the number is wrong, or the meter itself changed ─────
+                      A reading only ever moves forward, so one mistyped figure used to
+                      block every true reading after it for the life of the machine — and a
+                      replaced hour meter, which is routine on an older tractor, did the
+                      same. Both are the farm office's to fix, so this is owner/manager
+                      only and stays shut until it is needed. */}
+                  {canEdit ? (
+                    <details className="group mt-4 border-t border-sand-200 pt-3">
+                      <summary className="focus-ring flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-brand-ink [&::-webkit-details-marker]:hidden">
+                        {t("machine.meterFixTitle", locale)}
+                        <ChevronDownIcon className="shrink-0 text-lg transition-transform group-open:rotate-180" />
+                      </summary>
+
+                      {readings.length > 0 ? (
+                        <form action={correctReading} className="mt-3 flex flex-wrap items-end gap-2">
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <Field
+                            label={t("machine.correctReadingLabel", locale)}
+                            htmlFor="reading_id"
+                            hint={t("machine.correctReadingHint", locale)}
+                            className="flex-1"
+                          >
+                            <Select id="reading_id" name="reading_id" required defaultValue="">
+                              <option value="" disabled>
+                                {t("machine.correctReadingPick", locale)}
+                              </option>
+                              {readings.slice(0, 8).map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.reading} {machine.meter_type} · {r.reading_date} · {r.source}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label={t("machine.correctReasonLabel", locale)} htmlFor="reason" className="flex-1">
+                            <Input id="reason" name="reason" maxLength={500} />
+                          </Field>
+                          <SubmitButton variant="secondary">
+                            {t("machine.correctReadingSubmit", locale)}
+                          </SubmitButton>
+                        </form>
+                      ) : null}
+
+                      <form action={replaceMeter} className="mt-4 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <Field
+                          label={t("machine.meterReplacedReading", locale)}
+                          htmlFor="new_reading"
+                          hint={t("machine.meterReplacedHint", locale)}
+                          className="flex-1"
+                        >
+                          <Input id="new_reading" name="new_reading" type="number" inputMode="decimal" step="0.1" min={0} required />
+                        </Field>
+                        <Field label={t("machine.meterReplacedOn", locale)} htmlFor="replaced_on">
+                          <Input id="replaced_on" name="replaced_on" type="date" />
+                        </Field>
+                        <Field label={t("machine.meterReplacedNote", locale)} htmlFor="note" className="flex-1">
+                          <Input id="note" name="note" maxLength={500} />
+                        </Field>
+                        <SubmitButton variant="secondary">
+                          {t("machine.meterReplacedSubmit", locale)}
+                        </SubmitButton>
+                      </form>
+                    </details>
+                  ) : null}
                 </Card>
               ) : null}
 

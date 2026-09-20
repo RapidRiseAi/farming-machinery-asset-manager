@@ -671,7 +671,20 @@
     "evAuditAdded": "Vehicle record created",
     "evAuditEdited": "Vehicle record changed",
     "evAuditRemoved": "Vehicle record removed",
-    "evAuditSystem": "Automatic"
+    "evAuditSystem": "Automatic",
+    "meterFixTitle": "Correct a reading, or record a new meter",
+    "correctReadingLabel": "Reading to correct",
+    "correctReadingHint": "A wrong reading blocks every reading after it. Correcting it puts the machine back on the readings that are left — nothing is deleted.",
+    "correctReadingPick": "Pick a reading",
+    "correctReasonLabel": "Why (optional)",
+    "correctReadingSubmit": "Correct it",
+    "meterReplacedReading": "New meter starts at",
+    "meterReplacedHint": "Use this when the hour meter or odometer was replaced. The service plan moves with it, so the next service stays the same distance away.",
+    "meterReplacedOn": "Fitted on",
+    "meterReplacedNote": "Note (optional)",
+    "meterReplacedSubmit": "Record the new meter",
+    "savedMeterCorrected": "That reading is corrected. The machine is back on the readings that are left.",
+    "savedMeterReplaced": "The new meter is recorded, and the service plan moved with it."
   },
   "admin": {
     "farms": "Farms",
@@ -4047,7 +4060,11 @@
     "termsStale": "The terms changed while you were filling this in. Please read them again and tick the box.",
     "billingNotPaid": "There is no receipt yet — this invoice has not been paid.",
     "signupBusy": "We are getting a lot of sign-ups at the moment. Give it a minute and try again.",
-    "billingQuoteFailed": "We could not work out what that change would cost, so nothing has been changed. Try again in a moment."
+    "billingQuoteFailed": "We could not work out what that change would cost, so nothing has been changed. Try again in a moment.",
+    "meterCorrectMissing": "Pick the reading you want to correct.",
+    "meterCorrectFailed": "We could not correct that reading. It may already have been corrected, or the machine's meter has since been replaced.",
+    "meterReplaceInvalid": "Enter what the new meter starts at — zero or more.",
+    "meterReplaceFailed": "We could not record that meter replacement. Check the date and the starting reading."
   },
   "billing": {
     "title": "Billing",

@@ -123,6 +123,14 @@ const CODE_KEYS: Record<string, string> = {
   "wrong-direction": "errors.wrongDirection",
   "save-failed": "errors.saveFailed",
 
+  // ── Meter corrections and replacements (20260920100000) ───────────────────
+  // The commands refuse in English prose from a migration, so the action turns each
+  // refusal into a code rather than putting a Postgres sentence on a farmer's screen.
+  "meter-correct-missing": "errors.meterCorrectMissing",
+  "meter-correct-failed": "errors.meterCorrectFailed",
+  "meter-replace-invalid": "errors.meterReplaceInvalid",
+  "meter-replace-failed": "errors.meterReplaceFailed",
+
   // ── Subscription billing ──────────────────────────────────────────────────
   // None of these were mapped, so every refusal on /billing and /admin/billing
   // rendered as the generic apology — including the ones a person can act on

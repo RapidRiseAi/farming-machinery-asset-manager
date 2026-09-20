@@ -671,7 +671,20 @@
     "evAuditAdded": "Voertuigrekord geskep",
     "evAuditEdited": "Voertuigrekord verander",
     "evAuditRemoved": "Voertuigrekord verwyder",
-    "evAuditSystem": "Outomaties"
+    "evAuditSystem": "Outomaties",
+    "meterFixTitle": "Stel 'n lesing reg, of teken 'n nuwe meter aan",
+    "correctReadingLabel": "Lesing om reg te stel",
+    "correctReadingHint": "'n Verkeerde lesing blokkeer elke lesing daarna. As jy dit regstel, keer die masjien terug na die lesings wat oorbly — niks word uitgevee nie.",
+    "correctReadingPick": "Kies 'n lesing",
+    "correctReasonLabel": "Hoekom (opsioneel)",
+    "correctReadingSubmit": "Stel dit reg",
+    "meterReplacedReading": "Nuwe meter begin op",
+    "meterReplacedHint": "Gebruik dit wanneer die uurmeter of kilometerteller vervang is. Die diensplan skuif saam, sodat die volgende diens ewe ver bly.",
+    "meterReplacedOn": "Aangebring op",
+    "meterReplacedNote": "Nota (opsioneel)",
+    "meterReplacedSubmit": "Teken die nuwe meter aan",
+    "savedMeterCorrected": "Daardie lesing is reggestel. Die masjien is terug op die lesings wat oorbly.",
+    "savedMeterReplaced": "Die nuwe meter is aangeteken, en die diensplan het saamgeskuif."
   },
   "admin": {
     "farms": "Plase",
@@ -4047,7 +4060,11 @@
     "termsStale": "Die voorwaardes het verander terwyl jy dit ingevul het. Lees dit asseblief weer en merk die blokkie.",
     "billingNotPaid": "Daar is nog nie 'n kwitansie nie — hierdie faktuur is nie betaal nie.",
     "signupBusy": "Ons kry op die oomblik baie aanmeldings. Gee dit 'n minuut en probeer weer.",
-    "billingQuoteFailed": "Ons kon nie uitwerk wat daardie verandering sou kos nie, so niks is verander nie. Probeer oor 'n oomblik weer."
+    "billingQuoteFailed": "Ons kon nie uitwerk wat daardie verandering sou kos nie, so niks is verander nie. Probeer oor 'n oomblik weer.",
+    "meterCorrectMissing": "Kies die lesing wat jy wil regstel.",
+    "meterCorrectFailed": "Ons kon nie daardie lesing regstel nie. Dalk is dit reeds reggestel, of die masjien se meter is intussen vervang.",
+    "meterReplaceInvalid": "Voer in waarop die nuwe meter begin — nul of meer.",
+    "meterReplaceFailed": "Ons kon nie daardie metervervanging aanteken nie. Kyk na die datum en die beginlesing."
   },
   "billing": {
     "title": "Rekening",

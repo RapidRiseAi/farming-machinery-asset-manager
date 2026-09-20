@@ -120,3 +120,46 @@ export async function recordFuelIssue(
   });
   return uuidResult(data, error);
 }
+
+/**
+ * Voids one mistyped meter reading and rolls the machine back to what the surviving
+ * history says (20260920100000). Returns the machine's reading after the correction, or
+ * null when nothing is left to fall back to.
+ */
+export async function correctMeterReading(
+  supabase: SupabaseClient,
+  input: { farmId: string; machineId: string; readingId: string; reason?: string | null },
+): Promise<number | null> {
+  const { data, error } = await supabase.rpc("correct_meter_reading", {
+    p_farm: input.farmId,
+    p_machine: input.machineId,
+    p_reading: input.readingId,
+    p_reason: input.reason ?? null,
+  });
+  if (error) throw new FleetCommandError(error.code ?? "command_failed", error.message);
+  return data === null || data === undefined ? null : Number(data);
+}
+
+/**
+ * Records that a machine's hour meter or odometer was replaced: a new baseline, and a
+ * service plan rebased by the difference (20260920100000).
+ */
+export async function recordMeterReplacement(
+  supabase: SupabaseClient,
+  input: {
+    farmId: string;
+    machineId: string;
+    newReading: number;
+    replacedOn: string;
+    note?: string | null;
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc("record_meter_replacement", {
+    p_farm: input.farmId,
+    p_machine: input.machineId,
+    p_new_reading: input.newReading,
+    p_replaced_on: input.replacedOn,
+    p_note: input.note ?? null,
+  });
+  return uuidResult(data, error);
+}
