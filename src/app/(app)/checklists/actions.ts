@@ -18,7 +18,43 @@ export type TemplateFieldPayload = {
   required: boolean;
   help_text: string | null;
   config: Record<string, unknown> | null;
+  /**
+   * Which answer is a defect (20260920110000). A field with no rule never raises anything,
+   * which is every field that existed before this.
+   */
+  fail_when: "checked" | "unchecked" | "below" | "above" | null;
+  fail_threshold: number | null;
+  fail_urgency: "can_work" | "limping" | "stopped" | null;
 };
+
+const FAIL_WHEN = ["checked", "unchecked", "below", "above"] as const;
+const FAIL_URGENCY = ["can_work", "limping", "stopped"] as const;
+
+/**
+ * A defect rule only makes sense on some field types, and only in some shapes: a checkbox
+ * fails on being ticked or not ticked, a number or rating against a threshold. Anything
+ * else is dropped rather than stored as a rule that could never fire.
+ */
+function sanitizeFailRule(f: TemplateFieldPayload): Pick<
+  TemplateFieldPayload,
+  "fail_when" | "fail_threshold" | "fail_urgency"
+> {
+  const when = FAIL_WHEN.includes(f.fail_when as (typeof FAIL_WHEN)[number]) ? f.fail_when : null;
+  const usable =
+    (f.field_type === "checkbox" && (when === "checked" || when === "unchecked")) ||
+    ((f.field_type === "number" || f.field_type === "rating") &&
+      (when === "below" || when === "above") &&
+      typeof f.fail_threshold === "number" &&
+      Number.isFinite(f.fail_threshold));
+  if (!usable) return { fail_when: null, fail_threshold: null, fail_urgency: null };
+  return {
+    fail_when: when,
+    fail_threshold: when === "below" || when === "above" ? (f.fail_threshold ?? null) : null,
+    fail_urgency: FAIL_URGENCY.includes(f.fail_urgency as (typeof FAIL_URGENCY)[number])
+      ? f.fail_urgency
+      : "limping",
+  };
+}
 
 export type TemplatePayload = {
   id?: string;
@@ -37,6 +73,7 @@ function sanitizeFields(fields: TemplateFieldPayload[]): TemplateFieldPayload[] 
       required: f.field_type === "section_break" ? false : Boolean(f.required),
       help_text: f.field_type === "section_break" ? null : (f.help_text?.trim() || null),
       config: f.config ?? null,
+      ...sanitizeFailRule(f),
     }));
 }
 
@@ -56,6 +93,9 @@ async function insertFields(
     required: f.required,
     help_text: f.help_text,
     config: f.config,
+    fail_when: f.fail_when,
+    fail_threshold: f.fail_threshold,
+    fail_urgency: f.fail_urgency,
   }));
   const { error } = await supabase.from("checklist_template_fields").insert(rows);
   return error?.message ?? null;
@@ -142,12 +182,12 @@ export async function duplicateChecklistTemplate(formData: FormData) {
 
   const { data: src } = await supabase
     .from("checklist_templates")
-    .select("name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config)")
+    .select("name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
   const source = src as
-    | { name: string; description: string | null; machine_type: string | null; checklist_template_fields: { sort_order: number; field_type: string; label: string; required: boolean; help_text: string | null; config: Record<string, unknown> | null }[] | null }
+    | { name: string; description: string | null; machine_type: string | null; checklist_template_fields: { sort_order: number; field_type: string; label: string; required: boolean; help_text: string | null; config: Record<string, unknown> | null; fail_when: string | null; fail_threshold: number | null; fail_urgency: string | null }[] | null }
     | null;
   if (!source) redirect("/checklists?error=Template+not+found");
 
@@ -173,6 +213,10 @@ export async function duplicateChecklistTemplate(formData: FormData) {
       required: f.field_type === "section_break" ? false : f.required,
       help_text: f.help_text,
       config: f.config,
+      // A copy keeps the defect rules, or the duplicate silently stops raising faults.
+      fail_when: f.fail_when,
+      fail_threshold: f.fail_threshold,
+      fail_urgency: f.fail_urgency,
     }));
   if (fields.length > 0) {
     await supabase.from("checklist_template_fields").insert(fields);

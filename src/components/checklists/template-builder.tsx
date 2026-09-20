@@ -26,6 +26,10 @@ type BuilderField = {
   required: boolean;
   help_text: string;
   rating_max: number;
+  /** "" = this answer never raises a fault, which is how every older field behaves. */
+  fail_when: "" | "checked" | "unchecked" | "below" | "above";
+  fail_threshold: string;
+  fail_urgency: "can_work" | "limping" | "stopped";
 };
 
 const EMPTY_FIELD: BuilderField = {
@@ -34,7 +38,15 @@ const EMPTY_FIELD: BuilderField = {
   required: false,
   help_text: "",
   rating_max: DEFAULT_RATING_MAX,
+  fail_when: "",
+  fail_threshold: "",
+  fail_urgency: "limping",
 };
+
+/** Only a checkbox, a number or a rating can carry a rule that could ever fire. */
+function canFail(type: ChecklistFieldType): boolean {
+  return type === "checkbox" || type === "number" || type === "rating";
+}
 
 /**
  * Checklist template builder (mirrors TJ-autovault's inspection-template-builder):
@@ -110,6 +122,15 @@ export function ChecklistTemplateBuilder({
         required: f.field_type === "section_break" ? false : f.required,
         help_text: f.field_type === "section_break" ? null : f.help_text.trim() || null,
         config: f.field_type === "rating" ? { max: f.rating_max } : null,
+        // The server sanitises this again; a rule that could never fire is dropped there.
+        fail_when: canFail(f.field_type) && f.fail_when ? f.fail_when : null,
+        fail_threshold:
+          f.fail_when === "below" || f.fail_when === "above"
+            ? (Number.isFinite(Number(f.fail_threshold)) && f.fail_threshold.trim() !== ""
+                ? Number(f.fail_threshold)
+                : null)
+            : null,
+        fail_urgency: canFail(f.field_type) && f.fail_when ? f.fail_urgency : null,
       })),
     };
 
@@ -244,6 +265,66 @@ export function ChecklistTemplateBuilder({
                       value={field.rating_max}
                       onChange={(e) => patch(index, { rating_max: Number(e.target.value) || DEFAULT_RATING_MAX })}
                     />
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* ── What makes this answer a defect ────────────────────────────
+                A checklist used to record "Brakes: no" and stop there. A field with a
+                rule opens a fault the moment the answer matches, so the inspection
+                reaches somebody instead of sitting in a saved form. No rule is the
+                default, and every field built before this has none. */}
+            {canFail(field.field_type) ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Field label={t("checklists.failWhen", locale)} htmlFor={`f${index}-fail`}>
+                  <Select
+                    id={`f${index}-fail`}
+                    value={field.fail_when}
+                    onChange={(e) =>
+                      patch(index, { fail_when: e.target.value as BuilderField["fail_when"] })
+                    }
+                  >
+                    <option value="">{t("checklists.failNever", locale)}</option>
+                    {field.field_type === "checkbox" ? (
+                      <>
+                        <option value="unchecked">{t("checklists.failUnchecked", locale)}</option>
+                        <option value="checked">{t("checklists.failChecked", locale)}</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="below">{t("checklists.failBelow", locale)}</option>
+                        <option value="above">{t("checklists.failAbove", locale)}</option>
+                      </>
+                    )}
+                  </Select>
+                </Field>
+                {field.fail_when === "below" || field.fail_when === "above" ? (
+                  <Field label={t("checklists.failThreshold", locale)} htmlFor={`f${index}-thr`}>
+                    <Input
+                      id={`f${index}-thr`}
+                      type="number"
+                      step="0.01"
+                      value={field.fail_threshold}
+                      onChange={(e) => patch(index, { fail_threshold: e.target.value })}
+                    />
+                  </Field>
+                ) : null}
+                {field.fail_when ? (
+                  <Field label={t("checklists.failUrgency", locale)} htmlFor={`f${index}-urg`}>
+                    <Select
+                      id={`f${index}-urg`}
+                      value={field.fail_urgency}
+                      onChange={(e) =>
+                        patch(index, {
+                          fail_urgency: e.target.value as BuilderField["fail_urgency"],
+                        })
+                      }
+                    >
+                      <option value="can_work">{t("urgency.can_work", locale)}</option>
+                      <option value="limping">{t("urgency.limping", locale)}</option>
+                      <option value="stopped">{t("urgency.stopped", locale)}</option>
+                    </Select>
                   </Field>
                 ) : null}
               </div>

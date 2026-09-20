@@ -105,6 +105,19 @@ export async function createChecklistInstance(
     if (valErr) return { error: valErr.message };
   }
 
+  // A failed answer becomes a fault, once (20260920110000). Before this, a driver could
+  // record "Brakes: no" and nothing followed it: no fault, no alert, nothing on the
+  // machine's open issues. Only a completed checklist raises anything, and
+  // `defects_raised_at` makes a retry or an offline replay harmless.
+  //
+  // A failure to raise does NOT lose the checklist: the answers are already saved, and
+  // reporting "could not save" over a saved checklist would send somebody to fill it in
+  // again. The defect evaluation is re-runnable, so the honest handling is to keep the
+  // record and leave the flag unset.
+  if (status === "completed") {
+    await supabase.rpc("record_checklist_defects", { p_instance: instanceId });
+  }
+
   revalidatePath(`/machines/${machineId}`);
   redirect(`/machines/${machineId}/checklists/${instanceId}`);
 }

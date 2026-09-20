@@ -14,6 +14,9 @@ type FieldRow = {
   label: string;
   required: boolean;
   help_text: string | null;
+  fail_when: string | null;
+  fail_threshold: number | null;
+  fail_urgency: string | null;
   config: Record<string, unknown> | null;
 };
 type TemplateRow = {
@@ -33,7 +36,7 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
   const supabase = await createClient();
   const { data } = await supabase
     .from("checklist_templates")
-    .select("id, farm_id, name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config)")
+    .select("id, farm_id, name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
@@ -54,6 +57,10 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
       required: f.required,
       help_text: f.help_text ?? "",
       rating_max: ratingMax(f.config),
+      // A field saved before defect rules existed simply has none.
+      fail_when: (f.fail_when ?? "") as "" | "checked" | "unchecked" | "below" | "above",
+      fail_threshold: f.fail_threshold == null ? "" : String(f.fail_threshold),
+      fail_urgency: (f.fail_urgency ?? "limping") as "can_work" | "limping" | "stopped",
     }));
 
   return (

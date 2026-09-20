@@ -1561,7 +1561,16 @@
     "by": "by",
     "results": "Results",
     "noValues": "No items were recorded.",
-    "noPhoto": "No photo"
+    "noPhoto": "No photo",
+    "failWhen": "Counts as a defect when",
+    "failNever": "Never — just record the answer",
+    "failUnchecked": "Not ticked",
+    "failChecked": "Ticked",
+    "failBelow": "Below the figure",
+    "failAbove": "Above the figure",
+    "failThreshold": "Figure",
+    "failUrgency": "Report it as",
+    "defectsRaised": "{n} fault(s) were opened from this checklist."
   },
   "attachmentKind": {
     "photo": "Photo",

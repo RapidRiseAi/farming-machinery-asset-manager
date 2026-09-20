@@ -105,6 +105,9 @@ pg "$DB" < "$ROOT/supabase/tests/atomic_offline_capture.sql"
 echo "==> running notification push delivery tests"
 pg "$DB" < "$ROOT/supabase/tests/notification_push_delivery.sql"
 
+echo "==> running checklist defect tests"
+pg "$DB" < "$ROOT/supabase/tests/checklist_defects.sql"
+
 echo "==> running meter correction + replacement tests"
 pg "$DB" < "$ROOT/supabase/tests/meter_corrections.sql"
 

@@ -1561,7 +1561,16 @@
     "by": "deur",
     "results": "Resultate",
     "noValues": "Geen items is aangeteken nie.",
-    "noPhoto": "Geen foto"
+    "noPhoto": "Geen foto",
+    "failWhen": "Tel as 'n gebrek wanneer",
+    "failNever": "Nooit nie — teken net die antwoord aan",
+    "failUnchecked": "Nie afgemerk nie",
+    "failChecked": "Afgemerk",
+    "failBelow": "Onder die syfer",
+    "failAbove": "Bo die syfer",
+    "failThreshold": "Syfer",
+    "failUrgency": "Rapporteer dit as",
+    "defectsRaised": "{n} fout(e) is uit hierdie kontrolelys geopen."
   },
   "attachmentKind": {
     "photo": "Foto",
