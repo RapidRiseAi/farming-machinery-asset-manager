@@ -4,6 +4,7 @@ import { captureError } from "@/lib/observability";
 import { bearerMatches } from "@/lib/security/bearer";
 import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { deliverPush } from "@/lib/push/deliver";
+import { deliverNotificationEmail } from "@/lib/notifications/email-deliver";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
 
 /**
@@ -25,6 +26,7 @@ import { runDueReportSchedules } from "@/lib/scheduled-reports";
  *  13. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
  *  14. scheduled report delivery          — emailed report schedules now due (0506)
  *  15. push delivery                      — Web Push for the freshly-queued rows (F6)
+ *  16. email delivery                     — the same alerts by email, for whoever asked
  *
  * Step 14 is a TypeScript call rather than an RPC because it renders a report and sends
  * mail; it runs after the database steps so every attachment reflects the same final state
@@ -152,6 +154,28 @@ export async function GET(request: Request) {
     // Same reasoning as `run` above: a delivery failure here means the whole night's alerts
     // reached nobody's phone, which is the one failure most worth hearing about.
     captureError(err, { where: "cron:push_delivery" });
+  }
+
+  // The same alerts by email, for everyone who asked for them (20260920130000). Push needs
+  // the app installed and WhatsApp is not live, so for an owner who never opens FleetWise
+  // this is the only channel that reaches him. A no-op while RESEND_API_KEY is unset, and
+  // it says which part of the configuration is missing rather than "not configured".
+  try {
+    const mail = await deliverNotificationEmail(supabase);
+    if (!mail.ok) {
+      steps["email_delivery"] =
+        `error: delivery-failed (${mail.failed} failed, ${mail.deferred} deferred)`;
+      captureError(new Error(steps["email_delivery"]), {
+        where: "cron:email_delivery", extra: mail,
+      });
+    } else {
+      steps["email_delivery"] = mail.skipped
+        ? `skipped (${mail.skipped})`
+        : `ok (sent ${mail.sent}, skipped ${mail.skippedRows})`;
+    }
+  } catch (err) {
+    steps["email_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+    captureError(err, { where: "cron:email_delivery" });
   }
 
   const ok = Object.values(steps).every((s) => s === "ok" || s.startsWith("skipped") || s.startsWith("ok"));

@@ -39,12 +39,14 @@ export async function setNotificationPrefs(formData: FormData) {
   await requireProfile();
   const inapp = formData.get("notify_inapp") === "on";
   const push = formData.get("notify_push") === "on";
+  const email = formData.get("notify_email") === "on";
   const quietStart = hourOrNull(formData, "quiet_hours_start");
   const quietEnd = hourOrNull(formData, "quiet_hours_end");
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_notification_prefs", {
     p_inapp: inapp,
     p_push: push,
+    p_email: email,
     p_quiet_start: quietStart,
     p_quiet_end: quietEnd,
   });

@@ -23,7 +23,7 @@ type Note = {
   read_at: string | null; created_at: string;
 };
 type Prefs = {
-  notify_inapp: boolean; notify_push: boolean;
+  notify_inapp: boolean; notify_push: boolean; notify_email: boolean;
   quiet_hours_start: number | null; quiet_hours_end: number | null;
 };
 
@@ -48,13 +48,13 @@ export default async function NotificationsPage({
       .limit(60),
     supabase
       .from("users")
-      .select("notify_inapp, notify_push, quiet_hours_start, quiet_hours_end")
+      .select("notify_inapp, notify_push, notify_email, quiet_hours_start, quiet_hours_end")
       .eq("id", profile.id)
       .maybeSingle(),
   ]);
   const notes = (noteRes.data as Note[] | null) ?? [];
   const prefs = (prefRes.data as Prefs | null) ?? {
-    notify_inapp: true, notify_push: true, quiet_hours_start: null, quiet_hours_end: null,
+    notify_inapp: true, notify_push: true, notify_email: false, quiet_hours_start: null, quiet_hours_end: null,
   };
 
   const mIds = [...new Set(notes.map((n) => n.payload?.machine_id).filter(Boolean) as string[])];
@@ -95,6 +95,15 @@ export default async function NotificationsPage({
           <label className="flex items-center gap-2.5 text-sm text-sand-800">
             <input type="checkbox" name="notify_push" defaultChecked={prefs.notify_push} className={check} />
             {t("prefs.push", locale)}
+          </label>
+          {/* The channel that reaches somebody who never opens the app: push needs it
+              installed, and WhatsApp is not live yet. Off until it is asked for. */}
+          <label className="flex items-start gap-2.5 text-sm text-sand-800">
+            <input type="checkbox" name="notify_email" defaultChecked={prefs.notify_email} className={check} />
+            <span>
+              {t("prefs.email", locale)}
+              <span className="mt-0.5 block text-xs text-sand-500">{t("prefs.emailHint", locale)}</span>
+            </span>
           </label>
           <div>
             <p className="mb-1 text-sm font-medium text-sand-700">{t("prefs.quietHours", locale)}</p>

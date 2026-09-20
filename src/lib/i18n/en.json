@@ -1393,7 +1393,9 @@
     "quietStart": "Quiet from (0–23)",
     "quietEnd": "Quiet until (0–23)",
     "inherit": "Farm default",
-    "save": "Save preferences"
+    "save": "Save preferences",
+    "email": "Email me these alerts too",
+    "emailHint": "For when you do not open the app. Quiet hours still apply, and you can switch it off at any time."
   },
   "push": {
     "title": "Push on this device",
@@ -4733,5 +4735,10 @@
     "draft": "Draft",
     "active": "Active",
     "retired": "Retired"
+  },
+  "notifyEmail": {
+    "open": "Open it in FleetWise",
+    "why": "You are getting this because you asked FleetWise to email your alerts. Turn it off under Notifications.",
+    "financialBody": "There is an amount on this one, so it is not in the email. Open FleetWise to see it."
   }
 }

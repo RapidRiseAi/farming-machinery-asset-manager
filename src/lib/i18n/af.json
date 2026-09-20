@@ -1393,7 +1393,9 @@
     "quietStart": "Stil vanaf (0–23)",
     "quietEnd": "Stil tot (0–23)",
     "inherit": "Plaas-verstek",
-    "save": "Stoor voorkeure"
+    "save": "Stoor voorkeure",
+    "email": "E-pos hierdie waarskuwings ook vir my",
+    "emailHint": "Vir wanneer jy nie die program oopmaak nie. Stiltetye geld steeds, en jy kan dit enige tyd afskakel."
   },
   "push": {
     "title": "Stoot op hierdie toestel",
@@ -4733,5 +4735,10 @@
     "draft": "Konsep",
     "active": "Aktief",
     "retired": "Uitgefaseer"
+  },
+  "notifyEmail": {
+    "open": "Maak dit in FleetWise oop",
+    "why": "Jy kry dit omdat jy FleetWise gevra het om jou waarskuwings te e-pos. Skakel dit af onder Kennisgewings.",
+    "financialBody": "Daar is 'n bedrag hierby, daarom is dit nie in die e-pos nie. Maak FleetWise oop om dit te sien."
   }
 }
