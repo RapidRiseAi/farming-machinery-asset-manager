@@ -15,7 +15,7 @@ import {
   formatConsumption,
   type FuelIssueRow,
 } from "@/lib/fuel";
-import { addFuelTank, addFuelDelivery, addFuelIssue } from "./actions";
+import { addFuelTank, addFuelDelivery, addFuelIssue, addFuelDip } from "./actions";
 import { FuelTrend } from "@/components/fuel-trend";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -27,7 +27,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FuelIcon } from "@/components/ui/icons";
-import { num } from "@/lib/format";
+import { num, shortDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -76,15 +76,24 @@ export default async function FuelPage({
   const costsVisible = farmId ? await canViewFarmCosts(supabase, farmId) : profile.role === "rr_admin";
   const byFarm = <Q,>(q: Q): Q => farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
 
-  const [tankRes, machineRes, delRes, issRes, opRes] = await Promise.all([
+  const [tankRes, machineRes, delRes, issRes, opRes, dipRes] = await Promise.all([
     byFarm(supabase.from("fuel_tanks").select("id, name, capacity_l").is("deleted_at", null).order("name")),
     byFarm(supabase.from("machines").select("id, name, meter_type, status").is("deleted_at", null).order("name")),
     byFarm(supabase.from("fuel_deliveries_visible").select("id, tank_id, date, litres, price_per_l_cents, supplier, invoice_no").is("deleted_at", null).order("date", { ascending: false }).limit(400)),
     byFarm(supabase.from("fuel_issues_visible").select("id, tank_id, machine_id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at, driver_name, by_user").is("deleted_at", null).order("date", { ascending: false }).limit(600)),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
+    byFarm(supabase.from("fuel_dips").select("id, tank_id, dipped_on, litres").is("deleted_at", null)
+      .order("dipped_on", { ascending: false }).order("created_at", { ascending: false }).limit(200)),
   ]);
 
   const tanks = (tankRes.data as Tank[] | null) ?? [];
+  // The latest measurement per tank. The variance against the book balance ON THAT DATE is
+  // what catches a leak or a draw nobody logged; comparing against today would count every
+  // draw made since as a discrepancy.
+  type Dip = { id: string; tank_id: string; dipped_on: string; litres: number | null };
+  const dips = (dipRes.data as Dip[] | null) ?? [];
+  const latestDip = new Map<string, Dip>();
+  for (const d of dips) if (!latestDip.has(d.tank_id)) latestDip.set(d.tank_id, d);
   const machinesAll = (machineRes.data as (Machine & { status: string })[] | null) ?? [];
   const machines = machinesAll.filter((m) => m.status !== "retired" && m.status !== "sold");
   const deliveries = (delRes.data as Delivery[] | null) ?? [];
@@ -279,12 +288,68 @@ export default async function FuelPage({
                     <span>{t("fuel.issued", locale)}: {b.issued.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</span>
                     <span className="font-semibold text-sand-900">{t("fuel.balance", locale)}: {bal.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} {t("fuel.litresShort", locale)}</span>
                   </span>
+                  {/* The stick in the tank, against what the books said on that day. A
+                      short measurement is diesel that left without a draw being logged —
+                      a leak, or somebody's jerrycan. It is reported, never adjusted away. */}
+                  {(() => {
+                    const dip = latestDip.get(tk.id);
+                    if (!dip || dip.litres == null) return null;
+                    const book = deliveries
+                      .filter((d) => d.tank_id === tk.id && d.date <= dip.dipped_on)
+                      .reduce((a, d) => a + (d.litres ?? 0), 0)
+                      - issues
+                        .filter((i) => i.tank_id === tk.id && i.date <= dip.dipped_on)
+                        .reduce((a, i) => a + (i.litres ?? 0), 0);
+                    const variance = dip.litres - book;
+                    const short = variance < -0.5;
+                    return (
+                      <span className="flex w-full flex-wrap items-center gap-3 border-t border-sand-100 pt-1.5 text-xs tabular-nums">
+                        <span className="text-sand-500">
+                          {t("fuel.dipOn", locale).replace("{date}", shortDate(dip.dipped_on, locale))}:{" "}
+                          {dip.litres.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} {t("fuel.litresShort", locale)}
+                        </span>
+                        <span className={short ? "font-semibold text-status-overdue" : "text-sand-500"}>
+                          {t(short ? "fuel.varianceShort" : "fuel.variance", locale)
+                            .replace("{n}", Math.abs(variance).toLocaleString("en-ZA", { maximumFractionDigits: 0 }))}
+                        </span>
+                      </span>
+                    );
+                  })()}
                 </li>
               );
             })}
           </ul>
         )}
         <p className="mt-2 text-xs text-sand-400">{t("fuel.balanceHint", locale)}</p>
+
+        {/* Measuring the tank is the same person at the same bowser as drawing from it. */}
+        {canDraw && tanks.length > 0 ? (
+          <details className="mt-3 border-t border-sand-100 pt-3">
+            <summary className="min-h-12 cursor-pointer text-sm font-medium text-brand-ink">
+              {t("fuel.addDip", locale)}
+            </summary>
+            <form action={addFuelDip} className="mt-2 flex flex-wrap items-end gap-2">
+              <Field label={t("fuel.tank", locale)} htmlFor="dip_tank" className="flex-1">
+                <Select id="dip_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
+                  {tanks.map((tk) => (
+                    <option key={tk.id} value={tk.id}>{tk.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t("fuel.dipLitres", locale)} htmlFor="dip_litres">
+                <Input id="dip_litres" name="litres" type="number" inputMode="decimal" step="0.1" min={0} required className="w-28" />
+              </Field>
+              <Field label={t("fuel.dipDate", locale)} htmlFor="dip_date">
+                <Input id="dip_date" name="dipped_on" type="date" />
+              </Field>
+              <Field label={t("fuel.dipNote", locale)} htmlFor="dip_note" className="flex-1">
+                <Input id="dip_note" name="note" maxLength={300} />
+              </Field>
+              <SubmitButton variant="secondary">{t("fuel.addDipSubmit", locale)}</SubmitButton>
+            </form>
+            <p className="mt-2 text-xs text-sand-400">{t("fuel.dipHint", locale)}</p>
+          </details>
+        ) : null}
         {canManage ? (
           <details className="mt-3 border-t border-sand-100 pt-3">
             <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("fuel.addTank", locale)}</summary>

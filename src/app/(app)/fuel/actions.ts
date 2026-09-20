@@ -175,3 +175,38 @@ export async function addFuelIssue(formData: FormData) {
   if (machineId) revalidatePath(`/machines/${machineId}`);
   redirect(`${back}?saved=draw`);
 }
+
+/**
+ * Record what the tank actually holds (SCOPE §9).
+ *
+ * The book balance is only ever as good as the captures behind it: diesel that leaves
+ * without a draw being logged appears nowhere until somebody puts a stick in the tank.
+ * This records the measurement and nothing else — no correcting entry, no adjustment. A
+ * variance is a question for a person, and an adjustment would quietly answer it.
+ */
+export async function addFuelDip(formData: FormData) {
+  const { profile, farmId } = await requireCurrentFarmRole(
+    ["owner", "manager", "mechanic", "operator"],
+    "/fuel?error=forbidden",
+  );
+  await requireEntitlement("fuel", "/fuel");
+  const tankId = String(formData.get("tank_id") ?? "").trim();
+  const litres = Number(String(formData.get("litres") ?? "").trim());
+  const dippedOn = String(formData.get("dipped_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
+  const note = String(formData.get("note") ?? "").trim() || null;
+  if (!tankId || !Number.isFinite(litres) || litres < 0) redirect("/fuel?error=invalid-values");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("fuel_dips").insert({
+    farm_id: farmId,
+    tank_id: tankId,
+    dipped_on: dippedOn,
+    litres,
+    note,
+    by_user: profile.id,
+  });
+  if (error) redirect("/fuel?error=save-failed");
+
+  revalidatePath("/fuel");
+  redirect("/fuel?saved=dip");
+}

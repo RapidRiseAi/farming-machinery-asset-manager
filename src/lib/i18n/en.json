@@ -534,7 +534,16 @@
       "loading": "Loading / handling",
       "other": "Other"
     },
-    "date": "Date"
+    "date": "Date",
+    "addDip": "Measure the tank (dip)",
+    "addDipSubmit": "Record the dip",
+    "dipLitres": "Litres in the tank",
+    "dipDate": "Measured on",
+    "dipNote": "Note (optional)",
+    "dipHint": "The dip is the outside check on our own numbers. It changes nothing in the books — a difference is a question to ask, not an entry to correct.",
+    "dipOn": "Dipped {date}",
+    "variance": "{n} L more than the books",
+    "varianceShort": "{n} L short of the books"
   },
   "machine": {
     "edit": "Edit",
@@ -1043,7 +1052,11 @@
     "invoicedShort": "Inv.",
     "hoursShort": "h",
     "none": "—",
-    "auditPack": "Audit pack"
+    "auditPack": "Audit pack",
+    "sarsTitle": "SARS diesel logbooks",
+    "sarsBody": "The two records a diesel-refund claim is audited against: what went into and out of each tank, and what every machine drew and what it was doing. Both are a DRAFT modelled on the published SARS layout — have your accountant check them before you claim.",
+    "sarsStorage": "Storage logbook (CSV)",
+    "sarsUsage": "Usage logbook (CSV)"
   },
   "faults": {
     "pages": "Fault list pages",
@@ -4740,5 +4753,26 @@
     "open": "Open it in FleetWise",
     "why": "You are getting this because you asked FleetWise to email your alerts. Turn it off under Notifications.",
     "financialBody": "There is an amount on this one, so it is not in the email. Open FleetWise to see it."
+  },
+  "logbook": {
+    "draftNotice": "DRAFT — modelled on the SARS diesel logbook layout. Have your accountant check it before you claim. FleetWise produces the records; the claim is yours.",
+    "storageTitle": "Storage logbook — {tank}",
+    "usageTitle": "Usage logbook — diesel drawn per machine",
+    "farmUse": "Farm use (no machine named)",
+    "colDate": "Date",
+    "colOpening": "Opening litres",
+    "colIn": "Litres received",
+    "colOut": "Litres issued",
+    "colClosing": "Closing litres",
+    "colReference": "Invoice / delivery note",
+    "colDetail": "Supplier or machine",
+    "colMachine": "Machine",
+    "colReg": "Registration",
+    "colActivity": "Activity",
+    "colLitres": "Litres",
+    "colMeter": "Meter reading",
+    "colMeterType": "Meter",
+    "colDriver": "Drawn by",
+    "colTank": "Tank"
   }
 }

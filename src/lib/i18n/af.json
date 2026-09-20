@@ -534,7 +534,16 @@
       "loading": "Laai / hantering",
       "other": "Ander"
     },
-    "date": "Datum"
+    "date": "Datum",
+    "addDip": "Meet die tenk (peil)",
+    "addDipSubmit": "Teken die peiling aan",
+    "dipLitres": "Liters in die tenk",
+    "dipDate": "Gemeet op",
+    "dipNote": "Nota (opsioneel)",
+    "dipHint": "Die peiling is die onafhanklike kontrole op ons eie syfers. Dit verander niks in die boeke nie — 'n verskil is 'n vraag om te vra, nie 'n inskrywing om reg te maak nie.",
+    "dipOn": "Gepeil {date}",
+    "variance": "{n} L meer as die boeke",
+    "varianceShort": "{n} L minder as die boeke"
   },
   "machine": {
     "edit": "Wysig",
@@ -1043,7 +1052,11 @@
     "invoicedShort": "Fakt.",
     "hoursShort": "h",
     "none": "—",
-    "auditPack": "Ouditpakket"
+    "auditPack": "Ouditpakket",
+    "sarsTitle": "SARS-dieselloglêers",
+    "sarsBody": "Die twee rekords waarteen 'n dieselterugbetaling-eis geoudit word: wat in en uit elke tenk gegaan het, en wat elke masjien getrek het en waarmee dit besig was. Albei is 'n KONSEP volgens die gepubliseerde SARS-uitleg — laat jou rekenmeester dit nagaan voordat jy eis.",
+    "sarsStorage": "Bergingsloglêer (CSV)",
+    "sarsUsage": "Gebruiksloglêer (CSV)"
   },
   "faults": {
     "pages": "Foutlysbladsye",
@@ -4740,5 +4753,26 @@
     "open": "Maak dit in FleetWise oop",
     "why": "Jy kry dit omdat jy FleetWise gevra het om jou waarskuwings te e-pos. Skakel dit af onder Kennisgewings.",
     "financialBody": "Daar is 'n bedrag hierby, daarom is dit nie in die e-pos nie. Maak FleetWise oop om dit te sien."
+  },
+  "logbook": {
+    "draftNotice": "KONSEP — opgestel volgens die SARS-dieselloglêer se uitleg. Laat jou rekenmeester dit nagaan voordat jy eis. FleetWise lewer die rekords; die eis is joune.",
+    "storageTitle": "Bergingsloglêer — {tank}",
+    "usageTitle": "Gebruiksloglêer — diesel per masjien getrek",
+    "farmUse": "Plaasgebruik (geen masjien genoem)",
+    "colDate": "Datum",
+    "colOpening": "Beginliters",
+    "colIn": "Liters ontvang",
+    "colOut": "Liters uitgereik",
+    "colClosing": "Eindliters",
+    "colReference": "Faktuur / afleweringsnota",
+    "colDetail": "Verskaffer of masjien",
+    "colMachine": "Masjien",
+    "colReg": "Registrasie",
+    "colActivity": "Aktiwiteit",
+    "colLitres": "Liters",
+    "colMeter": "Meterlesing",
+    "colMeterType": "Meter",
+    "colDriver": "Getrek deur",
+    "colTank": "Tenk"
   }
 }

@@ -342,6 +342,31 @@ export default async function ReportsPage({
         )}
       </Card>
 
+      {/* SARS diesel logbooks (Scope §9). The module's whole argument is that a rebate
+          claim stands or falls on the logbooks — so these are the two records an audit
+          asks for, and the notice says plainly that they are a draft until an accountant
+          has read them. We produce the records; the claim is the farmer's. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("reports.sarsTitle", locale)}</CardTitle>
+        </CardHeader>
+        <p className="text-sm leading-relaxed text-sand-700">{t("reports.sarsBody", locale)}</p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <a
+            href={`/reports/sars-logbook.csv?book=storage&${qs({})}`}
+            className={`${buttonVariants({ variant: "secondary" })} print:hidden`}
+          >
+            {t("reports.sarsStorage", locale)} ↓
+          </a>
+          <a
+            href={`/reports/sars-logbook.csv?book=usage&${qs({})}`}
+            className={`${buttonVariants({ variant: "secondary" })} print:hidden`}
+          >
+            {t("reports.sarsUsage", locale)} ↓
+          </a>
+        </div>
+      </Card>
+
       {/* Budget vs actual (G1 · FR-10.4) */}
       {costsVisible ? <Card flush>
         <CardHeader
