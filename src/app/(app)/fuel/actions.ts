@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
+import { FleetCommandError, recordFuelIssue } from "@/lib/domain/fleet-commands";
 
 function bounce(msg: string): never {
   redirect(`/fuel?error=${encodeURIComponent(msg)}`);
@@ -147,37 +148,27 @@ export async function addFuelIssue(formData: FormData) {
     driverId = driverRaw;
   }
 
-  const rate = await vatBps(supabase, farmId);
-  const exCents = inclCents != null ? exVatCents(inclCents, rate) : null;
   const date = dateRaw || new Date().toISOString().slice(0, 10);
 
-  const { error } = await supabase.from("fuel_issues").insert({
-    farm_id: farmId,
-    tank_id: tankId,
-    machine_id: machineId,
-    date,
-    litres,
-    meter_reading: meter,
-    cost_cents: exCents,
-    price_per_l_cents: exCents != null && litres > 0 ? Math.round(exCents / litres) : null,
-    vat_rate_bps: exCents != null ? rate : null,
-    activity,
-    by_user: profile.id,
-  });
-  if (error) fail(error.message);
-
-  // Driver-usage log for a per-machine draw where the operator + meter are known (FR-13.1),
-  // consistent with the reading/QR/job-card capture paths.
-  if (machineId && meter != null) {
-    await supabase.from("usage_logs").insert({
-      farm_id: farmId,
-      machine_id: machineId,
-      driver_user_id: driverId,
-      occurred_on: date,
-      meter_reading: meter,
-      source: "app",
-      note: activity ? `Fuel draw (${activity})` : "Fuel draw",
+  // ONE transaction. This used to be two inserts — the draw, then the driver-usage log
+  // whose result was never read — so a failure on the second left the litres and the cost
+  // recorded and the driver's utilisation history quietly missing (the 11 September 2026
+  // audit listed it). `record_fuel_issue` writes both or neither, re-checks the role and
+  // the plan in the database, and converts the VAT-inclusive cost with the farm's own rate.
+  try {
+    await recordFuelIssue(supabase, {
+      farmId,
+      tankId,
+      machineId,
+      date,
+      litres,
+      meterReading: meter,
+      costInclCents: inclCents,
+      activity,
+      driverUserId: driverId,
     });
+  } catch (e) {
+    fail(e instanceof FleetCommandError ? e.message : "Could not save that fuel draw");
   }
 
   revalidatePath("/fuel");

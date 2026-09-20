@@ -84,3 +84,39 @@ export async function recordCompletedService(
   });
   return uuidResult(data, error);
 }
+
+/**
+ * Records one fuel draw and, when it names a machine and a meter, the driver-usage log
+ * that goes with it — atomically (20260920090000).
+ *
+ * The cost is passed VAT-INCLUSIVE, as the farmer typed it off the pump slip. The command
+ * converts it with the farm's own rate and stores ex-VAT cents with the rate captured, the
+ * same arithmetic as the QR path and as `exVatCents`. The caller does not do money maths.
+ */
+export async function recordFuelIssue(
+  supabase: SupabaseClient,
+  input: {
+    farmId: string;
+    tankId: string;
+    machineId?: string | null;
+    date: string;
+    litres: number;
+    meterReading?: number | null;
+    costInclCents?: number | null;
+    activity?: string | null;
+    driverUserId?: string | null;
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc("record_fuel_issue", {
+    p_farm: input.farmId,
+    p_tank: input.tankId,
+    p_machine: input.machineId ?? null,
+    p_date: input.date,
+    p_litres: input.litres,
+    p_meter: input.meterReading ?? null,
+    p_cost_incl_cents: input.costInclCents ?? null,
+    p_activity: input.activity ?? null,
+    p_driver_user: input.driverUserId ?? null,
+  });
+  return uuidResult(data, error);
+}
