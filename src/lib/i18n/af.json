@@ -1320,7 +1320,9 @@
       "log_reading": "Meterlesing",
       "report_fault": "Foutverslag",
       "add_job_line": "Werkkaartinskrywing",
-      "complete_job": "Voltooide werk"
+      "complete_job": "Voltooide werk",
+      "log_fuel": "Dieseltrek",
+      "submit_checklist": "Kontrolelys"
     },
     "online": "Aanlyn",
     "offline": "Vanlyn",
@@ -1329,7 +1331,7 @@
     "pending": "wag om te sinkroniseer",
     "savedOffline": "Vanlyn gestoor — sal sinkroniseer sodra jy weer aanlyn is.",
     "pageTitle": "Jy is vanlyn",
-    "pageBody": "Hierdie bladsy is nog nie vanlyn beskikbaar nie. Lesings, foute en werkkaart-inskrywings wat jy vaslê, word op jou toestel gestoor en sinkroniseer outomaties sodra jy weer verbind.",
+    "pageBody": "Hierdie bladsy is nog nie vanlyn beskikbaar nie. Lesings, foute, dieseltrekke, kontrolelyste en werkkaartinskrywings wat jy vaslê word op jou toestel gestoor en sinkroniseer outomaties wanneer jy weer verbind.",
     "retry": "Probeer weer"
   },
   "meterSource": {
@@ -1570,7 +1572,9 @@
     "failAbove": "Bo die syfer",
     "failThreshold": "Syfer",
     "failUrgency": "Rapporteer dit as",
-    "defectsRaised": "{n} fout(e) is uit hierdie kontrolelys geopen."
+    "defectsRaised": "{n} fout(e) is uit hierdie kontrolelys geopen.",
+    "draftNeedsSignal": "'n Konsep het 'n sein nodig. Voltooi die kontrolelys en stoor dit — dit word op hierdie foon gehou en gestuur wanneer jy weer bereik het.",
+    "offlineNoPhotos": "Die foto's kon nie gehou word nie — neem hulle weer wanneer jy weer bereik het."
   },
   "attachmentKind": {
     "photo": "Foto",
@@ -2139,8 +2143,8 @@
     "otherTitle": "Hoe om dit te installeer",
     "otherSteps": "Maak die blaaier se kieslys oop (die drie kolletjies)\nDruk “Installeer program” of “Voeg by tuisskerm”\nBevestig — FleetWise is nou op jou tuisskerm",
     "offlineTitle": "Wat werk sonder sein",
-    "offline": "Om voorheen gelaaide bladsye oop te maak\nOm ’n probleem op ’n masjien aan te meld\nOm ure of kilometers neer te skryf\nOm werkkaartinskrywings op voorheen gelaaide vorms by te voeg",
-    "offlineNote": "Ondersteunde inskrywings bly op hierdie toestel en word weer probeer wanneer jy verbind is. Kyk na die sinkroniseringstatus en hersien enigiets wat nog wag. Brandstofinskrywings en bladsye wat jy nog nie oopgemaak het nie, benodig ’n verbinding.",
+    "offline": "Om voorheen gelaaide bladsye oop te maak\nOm 'n probleem op 'n masjien aan te meld\nOm ure of kilometers neer te skryf\nOm 'n dieseltrek op 'n masjien aan te teken\nOm 'n kontrolelys op 'n masjien in te vul\nOm werkkaartinskrywings op voorheen gelaaide vorms by te voeg",
+    "offlineNote": "Ondersteunde inskrywings bly op hierdie toestel en word weer probeer wanneer jy verbind is. Kyk na die sinkroniseringstatus en hersien enigiets wat nog wag. Foto's op 'n kontrolelys, 'n trek uit die tenk sonder 'n masjien, en bladsye wat jy nog nie oopgemaak het nie, benodig 'n verbinding.",
     "nav": "Installeer die program"
   },
   "tour": {

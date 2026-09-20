@@ -777,8 +777,17 @@ export default async function MachineDetailPage({
                   ) : null}
                 </div>
 
+                {/* Queueable: a diesel draw is captured at the bowser, which is where the
+                    signal is worst. This form always names a machine, which is how the
+                    replay finds the farm — the farm-level draw on /fuel stays online. */}
                 {canFuel && fuelTanks.length > 0 ? (
-                  <form action={addFuelIssue} className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
+                  <OfflineForm
+                    action={addFuelIssue}
+                    type="log_fuel"
+                    scope="app"
+                    locale={locale}
+                    className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3"
+                  >
                     <input type="hidden" name="machine_id" value={machine.id} />
                     <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
                     <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
@@ -820,7 +829,7 @@ export default async function MachineDetailPage({
                       </Field>
                     ) : null}
                     <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
-                  </form>
+                  </OfflineForm>
                 ) : null}
 
                 {fuelDraws.length > 0 ? (

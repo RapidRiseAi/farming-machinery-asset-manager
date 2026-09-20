@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
-import { CloseIcon, PlusIcon, ChevronUpIcon } from "@/components/ui/icons";
+import { CloseIcon, PlusIcon, ChevronUpIcon, CheckIcon } from "@/components/ui/icons";
+import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
 import {
   createChecklistInstance,
   type ChecklistInstanceInput,
@@ -61,6 +62,8 @@ export function ChecklistForm({
   const [overallNotes, setOverallNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** "yes" = queued; "photos" = queued, and its photos could not come along. */
+  const [queuedOffline, setQueuedOffline] = useState<"no" | "yes" | "photos">("no");
 
   const template = useMemo(() => templates.find((tpl) => tpl.id === templateId), [templateId, templates]);
   const fields = useMemo(() => [...(template?.fields ?? [])].sort((a, b) => a.sort_order - b.sort_order), [template]);
@@ -123,6 +126,49 @@ export function ChecklistForm({
       notes: overallNotes.trim() || null,
       values,
     };
+
+    // ── No signal: keep the inspection ────────────────────────────────────
+    // A pre-start check is filled in beside the machine at first light, which is exactly
+    // where there is no signal. The answers queue and replay through the same envelope as
+    // every other capture (20260920120000), and a failed answer still raises its fault when
+    // they land. Two things a queued checklist cannot carry: a DRAFT, which is a local
+    // half-finished thing rather than an event, and PHOTOS, because the queue's media path
+    // belongs to faults. Both say so rather than failing quietly.
+    if (status === "draft" && !isOnline()) {
+      setError(t("checklists.draftNeedsSignal", locale));
+      return;
+    }
+    if (status === "completed" && !isOnline() && canQueueOffline()) {
+      const hasPhoto = values.some((v) => v.photo_data_url);
+      try {
+        await queueMutation({
+          type: "submit_checklist",
+          scope: "app",
+          fields: {
+            machine_id: machineId,
+            template_id: template.id,
+            template_name: template.name,
+            meter_reading: payload.meter_reading == null ? "" : String(payload.meter_reading),
+            notes: payload.notes ?? "",
+            values: JSON.stringify(
+              values.map((v) => ({
+                template_field_id: v.template_field_id,
+                sort_order: v.sort_order,
+                field_type: v.field_type,
+                label: v.label,
+                value_text: v.value_text ?? "",
+                notes: v.notes ?? "",
+              })),
+            ),
+          },
+        });
+      } catch {
+        setError(t("offline.storageFailed", locale));
+        return;
+      }
+      setQueuedOffline(hasPhoto ? "photos" : "yes");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -318,6 +364,18 @@ export function ChecklistForm({
       </div>
 
       {error ? <p className="text-sm text-status-overdue">{error}</p> : null}
+
+      {/* Held on the device. It says so plainly, and says what could not come with it,
+          rather than letting somebody walk away believing the photo went too. */}
+      {queuedOffline !== "no" ? (
+        <p role="status" className="flex items-start gap-2 text-sm font-medium text-status-due">
+          <CheckIcon />
+          <span>
+            {t("offline.savedOffline", locale)}
+            {queuedOffline === "photos" ? ` ${t("checklists.offlineNoPhotos", locale)}` : ""}
+          </span>
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

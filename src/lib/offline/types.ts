@@ -9,7 +9,12 @@ export type MutationType =
   | "log_reading"
   | "report_fault"
   | "add_job_line"
-  | "complete_job";
+  | "complete_job"
+  // The two captures made where the signal is worst — at the bowser, and beside the
+  // machine at first light (20260920120000). Both name a machine and are app captures by
+  // a signed-in person; neither is offered on the public QR scope.
+  | "log_fuel"
+  | "submit_checklist";
 
 export type MutationScope = "app" | "public";
 
