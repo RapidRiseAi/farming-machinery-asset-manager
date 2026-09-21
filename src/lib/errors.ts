@@ -220,6 +220,19 @@ const CODE_KEYS: Record<string, string> = {
   "credential-bad-lead": "errors.credentialBadLead",
   "credential-missing": "errors.credentialMissing",
   "credential-save-failed": "errors.credentialSaveFailed",
+  // Accidents and insurance claims (20260921100000). The two "need" codes mirror check
+  // constraints the database would otherwise refuse by name: a claim that has been paid
+  // carries its amount and its date, or the "still owed by the insurer" total on the same
+  // screen would quietly be too small.
+  "incident-bad-kind": "errors.incidentBadKind",
+  "incident-bad-status": "errors.incidentBadStatus",
+  "incident-bad-date": "errors.incidentBadDate",
+  "incident-bad-amount": "errors.incidentBadAmount",
+  "incident-bad-id": "errors.incidentBadId",
+  "incident-need-lodged": "errors.incidentNeedLodged",
+  "incident-need-settlement": "errors.incidentNeedSettlement",
+  "incident-missing": "errors.incidentMissing",
+  "incident-save-failed": "errors.incidentSaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // ── Somebody's own account (20260911190000) ───────────────────────────────

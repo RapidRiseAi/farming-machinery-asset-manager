@@ -104,6 +104,16 @@ export function formatNotification(
         credential: credentialType,
         date: String(p.expiry_date ?? ""),
       });
+    // An insurance claim lodged and still unpaid (20260921100000). It says HOW LONG,
+    // because "a claim is outstanding" is a sentence a farm ignores and "lodged 60 days
+    // ago" is one they ring the broker about.
+    case "claim_outstanding":
+      return fill("notifications.tplClaimOutstanding", locale, {
+        machine: m,
+        insurer: String(p.insurer ?? ""),
+        claim: String(p.claim_number ?? ""),
+        days: String(p.days ?? ""),
+      });
     // Work-request activity (F12b trigger 0311) — surfaced in the owner inbox + alerts.
     case "work_request_status":
       return fill("notifications.tplWorkStatus", locale, {
@@ -256,6 +266,8 @@ export function notificationTitle(template: string, locale: Lang): string {
         // nothing about a vehicle has changed.
         : template.startsWith("driver_credential_")
           ? "driverCredential"
+        : template === "claim_outstanding"
+          ? "claim"
         : template.startsWith("fault_")
           ? "fault"
           : template.startsWith("job_")
@@ -306,6 +318,9 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // payload carries no machine, so without this the fallback at the bottom would send the
   // farm to the alert centre and leave them to find the page.
   if (template.startsWith("driver_credential_")) return "/team/licences";
+  // The claim itself, not the machine. A farm opening this is going to ring their broker,
+  // and the reference and the lodging date are on the incident.
+  if (template === "claim_outstanding") return "/incidents";
   // Disputes and refunds are addressed to Rapid Rise, whose billing screen is a different
   // one — sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.

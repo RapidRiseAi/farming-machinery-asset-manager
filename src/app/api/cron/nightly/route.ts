@@ -19,6 +19,7 @@ import { runDueReportSchedules } from "@/lib/scheduled-reports";
  *   6. cron_enqueue_work_request_reminders — outstanding quote/invoice chasers (deduped, F13)
  *   7. cron_enqueue_aarto_nominations     — AARTO nomination-deadline reminders (deduped, G2)
  *   7b. cron_enqueue_driver_credentials  — driver licence / PrDP / medical expiry (2.3)
+ *   7c. cron_enqueue_claim_chases        — insurance claims lodged and still unpaid (2.4)
  *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
  *   9. cron_generate_recurring_invoices   — standing invoices due today (idempotent, G8)
  *  10. cron_generate_recurring_expenses    — costs that repeat (idempotent, G19)
@@ -90,6 +91,9 @@ export async function GET(request: Request) {
   // purpose: the farm is about to name somebody to the authority, and this is what tells
   // them first that the person they are naming has not been licensed since March.
   await run("driver_credentials", "cron_enqueue_driver_credentials");
+  // An insurance claim nobody chased (20260921100000). This is money the farm is owed and
+  // the only thing that makes it arrive is somebody asking.
+  await run("claim_chases", "cron_enqueue_claim_chases");
   await run("document_reminders", "cron_enqueue_document_reminders");
   // Standing invoices whose date has come round. Safe to re-run: the generator keys on
   // the period it last raised, so a double-fired night cannot bill anybody twice.
