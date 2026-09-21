@@ -141,6 +141,9 @@ pg "$DB" < "$ROOT/supabase/tests/help_requests.sql"
 echo "==> running tyre tests"
 pg "$DB" < "$ROOT/supabase/tests/tyres.sql"
 
+echo "==> running offline reading validation tests"
+pg "$DB" < "$ROOT/supabase/tests/offline_reading_validation.sql"
+
 echo "==> running deploy-compatibility tests"
 pg "$DB" < "$ROOT/supabase/tests/deploy_compatibility.sql"
 

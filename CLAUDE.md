@@ -124,6 +124,11 @@ will bite again.
 - **A paged API default is a bug that waits for growth.** `listUsers()` returns fifty rows;
   the sign-up duplicate check would have begun turning real customers away at the 51st user
   and never failed a test. Any list call without an explicit page size is a latent ceiling.
+- **A suite that fails early HIDES every assertion after it.** `atomic_offline_capture.sql`
+  fails on PGlite on the stubbed `digest()`, so `db:check` reported that and nothing else,
+  while four validations dropped from the offline reading path sat unasserted behind it
+  until CI ran the suite on real Postgres. When a suite is known-red locally, the
+  assertions past the failure point are NOT covered: give them a suite that runs.
 - **`pnpm db:check`** applies every migration and suite to PGlite (fresh database per suite)
   when there is no psql. Four non-billing suites fail there on a stubbed `digest()`, run it
   on a clean checkout before blaming your change for a failure.

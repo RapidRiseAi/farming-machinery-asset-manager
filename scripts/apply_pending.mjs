@@ -66,6 +66,10 @@ const PROBES = {
   "20260921141000": "select to_regprocedure('public.open_help_request(text,text,jsonb)') is not null",
   "20260921150000": "select to_regclass('public.tyre_fitments') is not null",
   // Not an object this one creates: it REVOKES. The probe is the invariant itself.
+  // The four restored checks live inside a function body, so the probe asks the function
+  // itself rather than looking for an object.
+  "20260921170000":
+    "select pg_get_functiondef(('public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)')::regprocedure) like '%isfinite(v_date)%'",
   "20260921160000":
     "select not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'app' and has_function_privilege('anon', p.oid, 'EXECUTE'))",
 };
