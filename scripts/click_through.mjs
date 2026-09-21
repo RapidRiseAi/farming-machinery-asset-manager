@@ -94,6 +94,7 @@ const PAGES = [
   ["/parts", []],
   ["/work", []],
   ["/account", []],
+  ["/jobcards/f0000000-0000-4000-8000-00000000bc01", ["Test Tractor"]],
 ];
 
 let failures = 0;
@@ -251,6 +252,44 @@ await step(
   "/reports/assets",
   ["Straight line"],
 );
+
+const JOB_CARD = "f0000000-0000-4000-8000-00000000bc01";
+
+await step(
+  "warranty claim on a covered repair",
+  () =>
+    rest("warranty_claims", {
+      method: "POST",
+      body: JSON.stringify({
+        farm_id: FARM,
+        machine_id: MACHINE,
+        job_card_id: JOB_CARD,
+        supplier: "Barloworld",
+        reference: "W-8812",
+        status: "submitted",
+        submitted_on: daysAgo(60),
+        claimed_ex_vat_cents: 400000,
+        covered_by_date: true,
+        covered_by_hours: true,
+      }),
+    }),
+  `/jobcards/${JOB_CARD}`,
+  ["Barloworld", "W-8812", "Under warranty"],
+);
+
+// The trigger firing IS the pass: the repair cost R4 500 and this asks for R9 000.
+await step("a claim bigger than its own repair is refused", async () => {
+  const r = await rest("warranty_claims", {
+    method: "POST",
+    body: JSON.stringify({
+      farm_id: FARM,
+      machine_id: MACHINE,
+      job_card_id: JOB_CARD,
+      claimed_ex_vat_cents: 900000,
+    }),
+  });
+  return { ok: r.status >= 400 && r.status < 500, status: r.status, text: () => r.text() };
+});
 
 // The constraint firing IS the pass. A settled claim with no amount and no date would
 // quietly shrink the "owed by the insurer" figure on the screen above.

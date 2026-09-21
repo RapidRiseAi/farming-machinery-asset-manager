@@ -168,6 +168,9 @@ will bite again.
   proves nothing.
 - **Windows checks files out CRLF**, and that changes migration hashes. Strip CRs before
   comparing against production.
+- **A test uuid must be hex.** `m`, `w`, `j` and the rest are not, and Postgres answers
+  "invalid input syntax for type uuid", which reads like the row is wrong rather than the
+  literal. This has cost three debugging rounds; pick prefixes from `abcdef0-9`.
 - **Never commit a credential-shaped literal**, even a deliberately fake one in a test -
   GitHub push protection blocks the push. Assemble it by concatenation; same runtime value,
   no secret-shaped string in the source.

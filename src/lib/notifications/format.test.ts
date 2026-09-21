@@ -105,3 +105,31 @@ test("the push title says driver documents, and the click goes to the personnel 
     "/team/licences",
   );
 });
+
+test("a warranty chase names the dealer, the reference and how long it has waited", () => {
+  for (const lang of LANGS) {
+    const text = formatNotification(
+      "warranty_claim_outstanding",
+      { machine_name: "Rooi Massey", supplier: "Barloworld", reference: "W-8812", days: 60 },
+      lang,
+    );
+    for (const bit of ["Rooi Massey", "Barloworld", "W-8812", "60"]) {
+      assert.ok(text.includes(bit), `${bit} is missing in ${lang}: ${text}`);
+    }
+    assert.ok(!/\{[a-z_]+\}/.test(text), `an unfilled placeholder survived in ${lang}: ${text}`);
+  }
+  // Its own push-title family, not the insurance one: a dealer and an insurer are
+  // different conversations, and the title is the only thing a locked phone shows.
+  assert.notEqual(
+    notificationTitle("warranty_claim_outstanding", "en"),
+    notificationTitle("claim_outstanding", "en"),
+  );
+  assert.ok(!notificationTitle("warranty_claim_outstanding", "af").startsWith("pushTitle."));
+  // Straight to the repair, where the claim can actually be updated.
+  assert.equal(
+    notificationUrl("warranty_claim_outstanding", { job_card_id: "jc-1", claim_id: "c-1" }),
+    "/jobcards/jc-1",
+  );
+  // And to the list when an older row has no job card on it.
+  assert.equal(notificationUrl("warranty_claim_outstanding", { claim_id: "c-1" }), "/jobcards");
+});

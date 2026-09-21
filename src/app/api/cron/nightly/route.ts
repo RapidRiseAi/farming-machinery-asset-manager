@@ -94,6 +94,9 @@ export async function GET(request: Request) {
   // An insurance claim nobody chased (20260921100000). This is money the farm is owed and
   // the only thing that makes it arrive is somebody asking.
   await run("claim_chases", "cron_enqueue_claim_chases");
+  // A warranty claim sent to a dealer and never chased (20260921120000). The same money,
+  // from the other kind of counterparty.
+  await run("warranty_chases", "cron_enqueue_warranty_chases");
   await run("document_reminders", "cron_enqueue_document_reminders");
   // Standing invoices whose date has come round. Safe to re-run: the generator keys on
   // the period it last raised, so a double-fired night cannot bill anybody twice.

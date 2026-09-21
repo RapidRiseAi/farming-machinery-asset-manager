@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { JobCardEditor } from "../job-card-editor";
 import { LifecycleActions } from "../lifecycle-actions";
+import { WarrantyPanel } from "@/components/jobcards/warranty-panel";
 import { JobCardMedia } from "@/components/jobcard-media";
 import { LockIcon, SquareIcon, CheckIcon } from "@/components/ui/icons";
 
@@ -345,6 +346,14 @@ export default async function JobCardDetail({
               }}
             />
           </Card>
+          {/* "Was this under warranty?", judged on the day of THIS repair. Its own
+              component with its own two reads, so adding it here is one line. */}
+          <WarrantyPanel
+            jobCardId={jc.id}
+            machineId={jc.machine_id}
+            locale={locale}
+            canManage={canWork && resourceRole !== "workshop"}
+          />
           <LifecycleActions id={jc.id} meterReading={jc.meter_reading} canApprove={canApprove} locale={locale} />
         </>
       ) : (

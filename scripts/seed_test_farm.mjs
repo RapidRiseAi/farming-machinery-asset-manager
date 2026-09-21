@@ -27,6 +27,9 @@ export const IDS = {
   owner: "f0000000-0000-4000-8000-00000000c001",
   machineA: "f0000000-0000-4000-8000-00000000aa01",
   machineB: "f0000000-0000-4000-8000-00000000aa02",
+  // Hex only. A "jc01" in a uuid is not a uuid, and Postgres says so in a message that
+  // reads like the row is wrong rather than the literal.
+  jobCard: "f0000000-0000-4000-8000-00000000bc01",
 };
 const EMAIL = "clickthrough@fleetwise.test";
 const PASSWORD = "Clickthrough!2026";
@@ -51,7 +54,7 @@ if (REMOVE) {
   // listed here would block the delete and say so, which is the point of doing it by hand
   // rather than relying on a cascade nobody has read.
   const tables = [
-    "driver_credentials", "incidents", "fuel_dips", "meter_replacements",
+    "warranty_claims", "driver_credentials", "incidents", "fuel_dips", "meter_replacements",
     "licences", "fines", "usage_logs", "faults", "job_cards", "machines",
     "billing_invoices", "billing_subscriptions", "notifications", "audit_log",
   ];
@@ -118,6 +121,24 @@ await client.query(
            date '2022-06-01', 50000000)
    on conflict (id) do nothing`,
   [IDS.machineA, IDS.machineB, IDS.farm],
+);
+
+// A closed repair on the tractor, inside its warranty on the day it was done. The
+// warranty panel has nothing to say without one, and "was this covered" is the question
+// the whole feature turns on.
+await client.query(
+  `update public.machines
+      set warranty_expiry_date = date '2026-12-31', warranty_expiry_hours = 3000,
+          current_reading = 1800
+    where id = $1`,
+  [IDS.machineA],
+);
+await client.query(
+  `insert into public.job_cards (id, farm_id, machine_id, type, status, date_in,
+                                 meter_reading, total_cents)
+   values ($1, $2, $3, 'repair', 'approved', current_date - 40, 1500, 450000)
+   on conflict (id) do nothing`,
+  [IDS.jobCard, IDS.farm, IDS.machineA],
 );
 
 await client.query("commit");

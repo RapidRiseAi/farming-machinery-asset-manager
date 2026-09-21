@@ -59,6 +59,7 @@ const PROBES = {
   "20260921090000": "select to_regclass('public.driver_credentials') is not null",
   "20260921100000": "select to_regclass('public.incidents') is not null",
   "20260921110000": "select to_regprocedure('public.farm_book_values(uuid,date)') is not null",
+  "20260921120000": "select to_regclass('public.warranty_claims') is not null",
 };
 
 const url = readEnv("DATABASE_URL");

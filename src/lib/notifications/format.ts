@@ -114,6 +114,15 @@ export function formatNotification(
         claim: String(p.claim_number ?? ""),
         days: String(p.days ?? ""),
       });
+    // A warranty claim sent to a dealer and still unpaid (20260921120000). Says HOW LONG,
+    // for the same reason the insurance chase does.
+    case "warranty_claim_outstanding":
+      return fill("notifications.tplWarrantyClaimOutstanding", locale, {
+        machine: m,
+        supplier: String(p.supplier ?? ""),
+        reference: String(p.reference ?? ""),
+        days: String(p.days ?? ""),
+      });
     // Work-request activity (F12b trigger 0311), surfaced in the owner inbox + alerts.
     case "work_request_status":
       return fill("notifications.tplWorkStatus", locale, {
@@ -321,6 +330,11 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // The claim itself, not the machine. A farm opening this is going to ring their broker,
   // and the reference and the lodging date are on the incident.
   if (template === "claim_outstanding") return "/incidents";
+  // Straight to the repair the claim is about: the reference, the amount and the dealer
+  // are all on that job card, and it is where the claim can be updated.
+  if (template === "warranty_claim_outstanding" && p.job_card_id)
+    return `/jobcards/${p.job_card_id}`;
+  if (template === "warranty_claim_outstanding") return "/jobcards";
   // Disputes and refunds are addressed to Rapid Rise, whose billing screen is a different
   // one, sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.

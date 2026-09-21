@@ -243,6 +243,18 @@ const CODE_KEYS: Record<string, string> = {
   "depreciation-bad-residual": "errors.depreciationBadResidual",
   "depreciation-bad-date": "errors.depreciationBadDate",
   "depreciation-save-failed": "errors.depreciationSaveFailed",
+  // Warranty claims (20260921120000). "too-much" and "duplicate" are database refusals
+  // turned into the sentence that names what to do: a claim cannot exceed the repair, and
+  // one repair carries one live claim.
+  "warranty-bad-status": "errors.warrantyBadStatus",
+  "warranty-bad-date": "errors.warrantyBadDate",
+  "warranty-bad-amount": "errors.warrantyBadAmount",
+  "warranty-need-submitted": "errors.warrantyNeedSubmitted",
+  "warranty-need-payout": "errors.warrantyNeedPayout",
+  "warranty-too-much": "errors.warrantyTooMuch",
+  "warranty-duplicate": "errors.warrantyDuplicate",
+  "warranty-missing": "errors.warrantyMissing",
+  "warranty-save-failed": "errors.warrantySaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // == Somebody's own account (20260911190000) ===============================
