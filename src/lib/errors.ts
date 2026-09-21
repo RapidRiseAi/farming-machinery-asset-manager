@@ -209,6 +209,17 @@ const CODE_KEYS: Record<string, string> = {
   // refuses it too; this is so the refusal is a sentence rather than a check constraint.
   "billing-discount-both": "errors.billingDiscountBoth",
   "billing-discount-bad": "errors.billingDiscountBad",
+  // Driver and operator documents (20260921090000). The database refuses the impossible
+  // combinations too — one person or one name, never both — and these turn each refusal
+  // into a sentence a farmer can act on instead of a check-constraint name.
+  "credential-bad-type": "errors.credentialBadType",
+  "credential-two-people": "errors.credentialTwoPeople",
+  "credential-no-person": "errors.credentialNoPerson",
+  "credential-bad-date": "errors.credentialBadDate",
+  "credential-backwards": "errors.credentialBackwards",
+  "credential-bad-lead": "errors.credentialBadLead",
+  "credential-missing": "errors.credentialMissing",
+  "credential-save-failed": "errors.credentialSaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // ── Somebody's own account (20260911190000) ───────────────────────────────

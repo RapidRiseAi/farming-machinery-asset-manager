@@ -18,6 +18,7 @@ import { runDueReportSchedules } from "@/lib/scheduled-reports";
  *   5. cron_enqueue_expiry_notifications  — warranty/licence expiry reminders (deduped, F6)
  *   6. cron_enqueue_work_request_reminders — outstanding quote/invoice chasers (deduped, F13)
  *   7. cron_enqueue_aarto_nominations     — AARTO nomination-deadline reminders (deduped, G2)
+ *   7b. cron_enqueue_driver_credentials  — driver licence / PrDP / medical expiry (2.3)
  *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
  *   9. cron_generate_recurring_invoices   — standing invoices due today (idempotent, G8)
  *  10. cron_generate_recurring_expenses    — costs that repeat (idempotent, G19)
@@ -85,6 +86,10 @@ export async function GET(request: Request) {
   await run("expiry_notifications", "cron_enqueue_expiry_notifications");
   await run("work_request_reminders", "cron_enqueue_work_request_reminders");
   await run("aarto_nominations", "cron_enqueue_aarto_nominations");
+  // The licence in the DRIVER's pocket (20260921090000). Beside the AARTO step on
+  // purpose: the farm is about to name somebody to the authority, and this is what tells
+  // them first that the person they are naming has not been licensed since March.
+  await run("driver_credentials", "cron_enqueue_driver_credentials");
   await run("document_reminders", "cron_enqueue_document_reminders");
   // Standing invoices whose date has come round. Safe to re-run: the generator keys on
   // the period it last raised, so a double-fired night cannot bill anybody twice.

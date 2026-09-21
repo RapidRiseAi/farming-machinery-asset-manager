@@ -120,4 +120,7 @@ pg "$DB" < "$ROOT/supabase/tests/fuel_issue_atomicity.sql"
 echo "==> running billing discount + promo code tests"
 pg "$DB" < "$ROOT/supabase/tests/billing_discounts.sql"
 
+echo "==> running driver credential tests"
+pg "$DB" < "$ROOT/supabase/tests/driver_credentials.sql"
+
 echo "==> OK"

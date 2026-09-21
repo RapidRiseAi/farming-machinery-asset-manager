@@ -13,6 +13,8 @@ import {
   DEFAULT_AARTO_LEAD_DAYS,
 } from "@/lib/fines";
 import { expiryTone, expiryLabel } from "@/lib/compliance";
+import { lapsedOn, type CredentialRow } from "@/lib/driver-credentials";
+import { enumLabel, shortDate } from "@/lib/format";
 import { createFine, identifyDriver, updateFineStatus, deleteFine } from "./actions";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,12 +82,26 @@ export default async function FinesPage({
     .order("created_at", { ascending: false });
   if (farmId) finesQ = finesQ.eq("farm_id", farmId);
 
-  const [machinesRes, opsRes, finesRes, farmRes] = await Promise.all([
+  // Every driver document on the farm, once, rather than a round trip per fine. RLS is what
+  // decides how much of it comes back: owner and manager get the farm, anybody else gets
+  // their own file, and a linked workshop gets nothing — so the warning below reaches
+  // exactly the people already entitled to the dates behind it.
+  let credentialsQ = supabase
+    .from("driver_credentials")
+    .select(
+      "id, farm_id, user_id, person_name, type, code, number, issued_on, expiry_date, reminder_lead_days, notes",
+    )
+    .is("deleted_at", null);
+  if (farmId) credentialsQ = credentialsQ.eq("farm_id", farmId);
+
+  const [machinesRes, opsRes, finesRes, farmRes, credentialsRes] = await Promise.all([
     machinesQ,
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     finesQ,
     supabase.from("farms").select("settings").eq("id", farmId ?? profile.farm_id ?? "").maybeSingle(),
+    credentialsQ,
   ]);
+  const credentials = (credentialsRes.data as CredentialRow[] | null) ?? [];
 
   const machines = (machinesRes.data as MachineRow[] | null) ?? [];
   const operators = (opsRes.data as OperatorRow[] | null) ?? [];
@@ -157,6 +173,42 @@ export default async function FinesPage({
               </p>
             ) : null}
             {f.notes ? <p className="mt-0.5 text-xs text-sand-500">{f.notes}</p> : null}
+
+            {/* The thing this whole feature exists to say. A nomination names somebody to
+                the authority as the person who was driving; if their own licence or PrDP
+                had already lapsed on the day of the offence, the farm is about to put that
+                in writing. Asked about the OFFENCE DATE, not about today, because "their
+                licence is fine now" is not an answer to it.
+
+                Shown for pending nominations only. A fine already nominated or paid is a
+                closed matter, and a red box on it is noise on a screen whose two loud
+                things need to stay loud. */}
+            {(() => {
+              if (!f.offence_date || !nominationPending(f.status)) return null;
+              const lapses = lapsedOn(
+                credentials,
+                { userId: f.driver_user_id, name: f.driver_name },
+                f.offence_date,
+              );
+              if (lapses.length === 0) return null;
+              return (
+                <div className="mt-2 rounded-lg border border-callout-danger-edge bg-callout-danger-bg px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-callout-danger-ink">
+                    {t("credentials.lapsedLead", locale)}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {lapses.map((c) => (
+                      <li key={c.id} className="text-sm leading-relaxed text-callout-danger-ink">
+                        {t("credentials.lapsedWarning", locale)
+                          .replace("{person}", driverText(f))
+                          .replace("{credential}", enumLabel("credentialType", c.type, locale))
+                          .replace("{date}", shortDate(f.offence_date, locale))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
           <FineStatus value={f.status} locale={locale} />
         </div>

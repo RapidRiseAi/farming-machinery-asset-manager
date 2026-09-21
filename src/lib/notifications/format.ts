@@ -29,6 +29,7 @@ export function formatNotification(
   const p = payload ?? {};
   const m = machineName ?? (p.machine_name as string) ?? "";
   const licenceType = p.licence_type ? t(`licenceType.${p.licence_type}`, locale) : "";
+  const credentialType = p.credential ? t(`credentialType.${p.credential}`, locale) : "";
   switch (template) {
     case "service_due_soon":
       return fill("notifications.tplServiceDueSoon", locale, { machine: m, task: String(p.task ?? "") });
@@ -86,6 +87,21 @@ export function formatNotification(
       return fill("notifications.tplLicenceExpired", locale, {
         machine: m,
         type: licenceType,
+        date: String(p.expiry_date ?? ""),
+      });
+    // The licence in the PERSON's pocket (20260921090000), as distinct from the disc on
+    // the windscreen above. The payload carries a name and a document kind and no number:
+    // this arrives by push and by email, on a phone somebody else may be holding.
+    case "driver_credential_expiring":
+      return fill("notifications.tplDriverCredentialExpiring", locale, {
+        person: String(p.person ?? ""),
+        credential: credentialType,
+        date: String(p.expiry_date ?? ""),
+      });
+    case "driver_credential_expired":
+      return fill("notifications.tplDriverCredentialExpired", locale, {
+        person: String(p.person ?? ""),
+        credential: credentialType,
         date: String(p.expiry_date ?? ""),
       });
     // Work-request activity (F12b trigger 0311) — surfaced in the owner inbox + alerts.
@@ -235,6 +251,11 @@ export function notificationTitle(template: string, locale: Lang): string {
       ? "warranty"
       : template.startsWith("licence_")
         ? "licence"
+        // Its own family, not "licence". A driver credential is not a vehicle document,
+        // and titling it "Licence renewal" tells the farm something about a vehicle while
+        // nothing about a vehicle has changed.
+        : template.startsWith("driver_credential_")
+          ? "driverCredential"
         : template.startsWith("fault_")
           ? "fault"
           : template.startsWith("job_")
@@ -281,6 +302,10 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   if (template === "stock_short") return "/parts#next";
   // AARTO nomination reminders deep-link to the fines workflow.
   if (template.startsWith("aarto_")) return "/fines";
+  // A person's own documents, which is a personnel screen rather than a machine one. The
+  // payload carries no machine, so without this the fallback at the bottom would send the
+  // farm to the alert centre and leave them to find the page.
+  if (template.startsWith("driver_credential_")) return "/team/licences";
   // Disputes and refunds are addressed to Rapid Rise, whose billing screen is a different
   // one — sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.

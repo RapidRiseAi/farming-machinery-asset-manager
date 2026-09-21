@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
 import { homePathFor, requireProfile } from "@/lib/auth";
@@ -22,7 +23,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { TrashIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, TrashIcon } from "@/components/ui/icons";
 import { roleLabel } from "@/lib/format";
 
 type TeamUser = {
@@ -150,6 +151,23 @@ export default async function TeamPage({
         </div>
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.permissionSaved ? t("permissions.saved", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
+
+      {/* Two different questions about the same people: who may sign in (this page), and
+          who may legally drive (that one). Linked rather than merged because a farm opens
+          them on different days — one when somebody joins, the other when a truck is being
+          loaded or an AARTO notice lands. */}
+      <Link
+        href="/team/licences"
+        className="flex items-center justify-between gap-3 rounded-2xl border border-sand-200 bg-surface p-4 shadow-xs sm:p-5"
+      >
+        <span className="min-w-0">
+          <span className="block font-semibold text-ink">{t("credentials.teamLink", locale)}</span>
+          <span className="mt-0.5 block text-sm text-sand-600">
+            {t("credentials.teamLinkHint", locale)}
+          </span>
+        </span>
+        <ChevronRightIcon className="shrink-0 text-sand-400" />
+      </Link>
 
       {canManage ? (
         <Card>
