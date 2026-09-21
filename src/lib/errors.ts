@@ -263,6 +263,14 @@ const CODE_KEYS: Record<string, string> = {
   "help-message-long": "errors.helpMessageLong",
   "help-too-many": "errors.helpTooMany",
   "help-failed": "errors.helpFailed",
+  // Tyres (20260921150000). "not-fitted" is the RPC refusing to take off a tyre that is
+  // on nothing, which is a mistake with a next step rather than a failure.
+  "tyre-bad-number": "errors.tyreBadNumber",
+  "tyre-bad-date": "errors.tyreBadDate",
+  "tyre-need-machine": "errors.tyreNeedMachine",
+  "tyre-missing": "errors.tyreMissing",
+  "tyre-not-fitted": "errors.tyreNotFitted",
+  "tyre-save-failed": "errors.tyreSaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // == Somebody's own account (20260911190000) ===============================

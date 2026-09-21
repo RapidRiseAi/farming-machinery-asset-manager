@@ -115,6 +115,7 @@ const PAGES = [
   ["/jobcards/f0000000-0000-4000-8000-00000000bc01", ["Test Tractor"]],
   ["/calendar", []],
   ["/help", []],
+  ["/tyres", []],
 ];
 
 let failures = 0;
@@ -188,7 +189,7 @@ const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 1
  * is a check nobody will keep running. Deleted as the signed-in owner, so RLS confirms
  * these rows really do belong to this farm.
  */
-for (const table of ["warranty_claims", "driver_credentials", "incidents"]) {
+for (const table of ["tyre_checks", "tyre_fitments", "tyres", "warranty_claims", "driver_credentials", "incidents"]) {
   await rest(`${table}?farm_id=eq.${FARM}`, {
     method: "DELETE",
     headers: { prefer: "return=minimal" },
@@ -345,6 +346,51 @@ await step("a settled claim with no amount is refused", async () => {
   });
   return { ok: r.status >= 400 && r.status < 500, status: r.status, text: () => r.text() };
 });
+
+// A tyre, fitted, then rotated to the second machine. The rotation is the case the whole
+// feature turns on: a tyre that keeps ONE life across machines.
+await step(
+  "a tyre bought, fitted and rotated",
+  async () => {
+    const made = await rest("tyres", {
+      method: "POST",
+      body: JSON.stringify({
+        farm_id: FARM, brand: "Michelin", pattern: "XM108", size: "520/85R42",
+        serial_no: "CT-1", purchase_cost_cents: 600000, new_tread_mm: 20,
+        purchase_date: daysAgo(400),
+      }),
+    });
+    if (!made.ok) return made;
+    const tyre = (await made.json())[0].id;
+
+    const fit = await rest("rpc/fit_tyre", {
+      method: "POST",
+      body: JSON.stringify({
+        p_tyre: tyre, p_machine: MACHINE, p_axle: "drive", p_position: "LR",
+        p_on: daysAgo(300), p_reading: 1000,
+      }),
+    });
+    if (!fit.ok) return fit;
+
+    // Rotated onto the bakkie. The previous fitment must close itself.
+    const rotate = await rest("rpc/fit_tyre", {
+      method: "POST",
+      body: JSON.stringify({
+        p_tyre: tyre, p_machine: "f0000000-0000-4000-8000-00000000aa02",
+        p_axle: "drive", p_position: "RR", p_on: daysAgo(100), p_reading: 40000,
+      }),
+    });
+    if (!rotate.ok) return rotate;
+
+    const check = await rest("tyre_checks", {
+      method: "POST",
+      body: JSON.stringify({ farm_id: FARM, tyre_id: tyre, tread_mm: 9, checked_on: daysAgo(10) }),
+    });
+    return check;
+  },
+  "/tyres",
+  ["XM108", "9mm"],
+);
 
 await step(
   "a question asked from inside the product",

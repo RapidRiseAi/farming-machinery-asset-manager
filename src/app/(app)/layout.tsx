@@ -230,6 +230,9 @@ export default async function AppLayout({
   // A question straight to us, with the context already attached. Beside settings, which
   // is where somebody goes when they are looking for a way out of a problem.
   const help: NavItemData = { href: "/help", label: t("nav.help", locale), icon: "info" };
+  // Tyres sit with parts: both are consumables bought, fitted and worn out, and a farm
+  // looking for one is in the same frame of mind as a farm looking for the other.
+  const tyres: NavItemData = { href: "/tyres", label: t("nav.tyres", locale), icon: "machines" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
@@ -270,6 +273,7 @@ export default async function AppLayout({
         ...(isManagerPlus ? [documents] : []),
         ...(fuelAllowed ? [fuel] : []),
         ...(canParts ? [parts] : []),
+        tyres,
         ...(canPartners ? [partners] : []),
         checklists,
         ...(finesAllowed ? [fines] : []),
@@ -333,6 +337,7 @@ export default async function AppLayout({
     ? [parts, install]
     : [
         ...(canParts ? [parts] : []),
+        tyres,
         ...(canPartners ? [partners] : []),
         checklists,
         ...(finesAllowed ? [fines] : []),
