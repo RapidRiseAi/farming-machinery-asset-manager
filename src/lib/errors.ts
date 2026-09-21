@@ -156,6 +156,10 @@ const CODE_KEYS: Record<string, string> = {
   // accusation: the overwhelming majority of people who ever see it are sharing an office
   // connection with somebody else who just signed up, not abusing anything.
   "signup-busy": "errors.signupBusy",
+  // One sentence for every reason a promo code did not work — unknown, switched off,
+  // expired, or all taken. Saying which would tell a stranger trying codes that a
+  // particular one exists, and the visitor's next move is the same either way.
+  "signup-promo": "errors.signupPromo",
   // Emitted twice by /signup when the posted plan or period is not one we sell. It was
   // never mapped, so the product's own front door answered with the generic apology.
   "signup-plan": "errors.signupPlan",
@@ -201,6 +205,10 @@ const CODE_KEYS: Record<string, string> = {
   "billing-bad-plan": "errors.billingBadPlan",
   "billing-bad-period": "errors.billingBadPeriod",
   "billing-bad-trial": "errors.billingBadTrial",
+  // A discount is a percentage or an amount, never both (20260920150000). The database
+  // refuses it too; this is so the refusal is a sentence rather than a check constraint.
+  "billing-discount-both": "errors.billingDiscountBoth",
+  "billing-discount-bad": "errors.billingDiscountBad",
   "billing-save-failed": "errors.saveFailed",
 
   // ── Somebody's own account (20260911190000) ───────────────────────────────

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PLANS, BILLING_PERIODS, perVehicleMonthlyCents, type Plan } from "@/lib/entitlements";
+import { BILLING_RPC } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
@@ -46,6 +47,9 @@ export async function signUp(formData: FormData): Promise<void> {
   const plan = String(formData.get("plan") ?? "") as Plan;
   const period = String(formData.get("billing_period") ?? "monthly") as BillingPeriod;
   const vehicles = Number.parseInt(String(formData.get("vehicles") ?? ""), 10);
+  // Optional, upper-cased here so "founding20" typed at six in the morning is the code on
+  // the offer sheet. Blank means no code and is not an error.
+  const promoCode = String(formData.get("promo_code") ?? "").trim().toUpperCase();
 
   if (!email || !email.includes("@")) bounce("signup-email");
   if (password.length < 8) bounce("signup-password");
@@ -114,6 +118,24 @@ export async function signUp(formData: FormData): Promise<void> {
   }
   if (takenData === true) redirect(`/login?resume=1&email=${encodeURIComponent(email)}`);
 
+  // Check the code BEFORE anything is created, so a typo costs a sentence instead of an
+  // orphaned auth user. This check takes nothing and locks nothing — the authoritative
+  // take happens inside `billing_create_pending_signup`, under a row lock, because between
+  // this answer and that commit the last place on an offer can go to somebody else.
+  if (promoCode) {
+    const { data: promo, error: promoError } = await svc.rpc(BILLING_RPC.checkPromoCode, {
+      p_code: promoCode,
+    });
+    if (promoError) {
+      captureError(promoError, { where: "signup:promo-check" });
+      bounce("signup-failed");
+    }
+    // The function answers in codes so this page can say it in the visitor's own language.
+    // Every reason collapses to one sentence on purpose: telling a stranger that a code
+    // exists but is used up is telling them which codes exist.
+    if ((promo as { ok?: boolean } | null)?.ok !== true) bounce("signup-promo");
+  }
+
   const created = await svc.auth.admin.createUser({
     email,
     password,
@@ -131,6 +153,7 @@ export async function signUp(formData: FormData): Promise<void> {
     p_plan: plan,
     p_period: period,
     p_quota: vehicles,
+    p_promo_code: promoCode || null,
   });
 
   if (error) {
@@ -138,6 +161,10 @@ export async function signUp(formData: FormData): Promise<void> {
     // is the only orphan and it goes too. Leaving it would make the address unusable: the
     // branch above would send them to sign in, to an account with no farm behind it.
     await svc.auth.admin.deleteUser(userId).catch(() => {});
+    // The race the pre-flight check cannot close: the last place on the offer went while
+    // this sign-up was being written. Say THAT rather than "something went wrong", because
+    // the fix is to take the code off and try again, and nobody guesses that.
+    if (error.message?.includes("SIGNUP_PROMO")) bounce("signup-promo");
     bounce("signup-failed");
   }
 

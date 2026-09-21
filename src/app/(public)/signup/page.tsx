@@ -187,6 +187,34 @@ export default async function SignUpPage({
             ))}
           </ul>
 
+          {/* Optional, and it looks optional. A code box is the single most reliable way
+              to make somebody who does NOT have a code feel they are paying too much, so
+              it sits below the reassurances rather than beside the price, and the hint
+              says out loud that leaving it blank is normal.
+
+              It is checked before anything is created and taken again under a row lock
+              inside the sign-up transaction — the only window where it can reach the
+              invoice being paid at checkout. `spellCheck` and `autoCapitalize` are off
+              because Android will otherwise help a farmer turn FOUNDING20 into
+              "Founding20" and the code is compared upper-case. */}
+          <div className="mt-4">
+            <Field
+              label={t("signup.promoCode", locale)}
+              htmlFor="promo_code"
+              hint={t("signup.promoHint", locale)}
+            >
+              <Input
+                id="promo_code"
+                name="promo_code"
+                className="uppercase"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={40}
+              />
+            </Field>
+          </div>
+
         <input type="hidden" name="terms_version" value={TERMS_VERSION} />
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-sand-200 bg-sand-50 p-4">
           <input type="checkbox" name="terms" required className="mt-1 size-5" />

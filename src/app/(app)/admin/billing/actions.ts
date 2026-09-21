@@ -248,6 +248,85 @@ export async function adminStartSubscription(formData: FormData): Promise<void> 
 }
 
 /**
+ * Give a farm a price nobody else has.
+ *
+ * `SCOPE.md` §12 sells a Founding Farmer rate "locked for life" to the first twenty farms
+ * and there was no way to give one. Price PINNING — the only mechanism the engine had —
+ * grandfathers a farm onto the version it signed up at, which stops a price rising; it
+ * does not make one lower. So every founding promise made so far was one the billing
+ * engine could not keep.
+ *
+ * ── Why it does not write the columns directly ───────────────────────────────
+ * The rules live in `public.billing_set_subscription_discount`: percentage OR amount and
+ * never both, a percentage inside 0,01–100%, an amount above zero. An `update` from here
+ * would be a second place those rules have to be right, and the one that gets forgotten.
+ *
+ * ── Blank clears it ──────────────────────────────────────────────────────────
+ * Both fields empty removes the deal, which is the same call with two nulls. Ending a
+ * discount by setting `until` to yesterday would leave a row that reads as a live deal to
+ * anybody looking at the farm later.
+ *
+ * ── What it does NOT touch ───────────────────────────────────────────────────
+ * Any invoice already raised. The discount is frozen onto an invoice while it is a draft,
+ * so changing this today cannot restate a document the customer has already been sent or
+ * paid. It applies from the next invoice, and the farm's own `/billing` screen quotes the
+ * new figure immediately because it mirrors the same rule.
+ */
+export async function adminSetDiscount(formData: FormData): Promise<void> {
+  await requireRrAdmin();
+
+  const subscriptionId = String(formData.get("subscription_id") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(subscriptionId)) bounce("missing-id");
+
+  const percentRaw = String(formData.get("percent") ?? "").trim();
+  const randsRaw = String(formData.get("rands") ?? "").trim();
+  const label = String(formData.get("label") ?? "").trim();
+  const untilRaw = String(formData.get("until") ?? "").trim();
+
+  if (percentRaw !== "" && randsRaw !== "") bounce("billing-discount-both");
+
+  // Entered as a percentage and as RANDS, because that is what the conversation was in.
+  // Stored as basis points and cents, because that is what money is in this codebase.
+  let percentBps: number | null = null;
+  if (percentRaw !== "") {
+    const n = Number(percentRaw);
+    if (!Number.isFinite(n) || n <= 0 || n > 100) bounce("billing-discount-bad");
+    percentBps = Math.round(n * 100);
+    if (percentBps < 1) bounce("billing-discount-bad");
+  }
+
+  let fixedCents: number | null = null;
+  if (randsRaw !== "") {
+    const n = Number(randsRaw.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) bounce("billing-discount-bad");
+    fixedCents = Math.round(n * 100);
+    if (fixedCents < 1) bounce("billing-discount-bad");
+  }
+
+  // Null is not "no end date I forgot to set" — it is the Founding Farmer default, and it
+  // is what "locked for life" means.
+  let until: string | null = null;
+  if (untilRaw !== "") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(untilRaw)) bounce("billing-discount-bad");
+    until = untilRaw;
+  }
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.rpc(BILLING_RPC.setSubscriptionDiscount, {
+    p_subscription: subscriptionId,
+    p_percent_bps: percentBps,
+    p_fixed_cents: fixedCents,
+    p_label: label || null,
+    p_until: until,
+  });
+  if (error) bounce("billing-save-failed");
+
+  revalidatePath("/admin/billing");
+  revalidatePath("/billing");
+  redirect(`/admin/billing?saved=${percentBps == null && fixedCents == null ? "discount-cleared" : "discount"}`);
+}
+
+/**
  * What the kill switch currently says.
  *
  * Returns the provider name and the two booleans and NOTHING else — never the key, never

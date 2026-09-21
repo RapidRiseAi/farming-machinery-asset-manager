@@ -117,4 +117,7 @@ pg "$DB" < "$ROOT/supabase/tests/meter_corrections.sql"
 echo "==> running fuel issue atomicity tests"
 pg "$DB" < "$ROOT/supabase/tests/fuel_issue_atomicity.sql"
 
+echo "==> running billing discount + promo code tests"
+pg "$DB" < "$ROOT/supabase/tests/billing_discounts.sql"
+
 echo "==> OK"

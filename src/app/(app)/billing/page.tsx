@@ -341,7 +341,18 @@ export default async function BillingPage({
   // link that means "go and buy slots" says so in the query string.
   const quoteRefused = planReview?.kind === "unavailable" || slotsReview?.kind === "unavailable";
   const manageOpen = !!sp.manage || quoteRefused;
-  const estimate = estimateNextCharge({ price, assetCount: unitsBilled, vatRegistered });
+  // The subscription goes in because the farm may have a deal — a Founding Farmer rate,
+  // or something agreed at a kitchen table. The same rule runs in the database when the
+  // invoice is raised (`app.billing_discount_cents`), and `view.test.ts` pins the two
+  // together: a screen and the engine disagreeing about a price is the mistake that quoted
+  // a production farm R0,00 against a real R750,00 invoice.
+  const estimate = estimateNextCharge({
+    price,
+    assetCount: unitsBilled,
+    vatRegistered,
+    subscription: sub,
+    on: sub?.next_billing_on ?? undefined,
+  });
   const next = nextChargeState(sub, estimate);
   const notice = accountNotice(sub);
   const diverged = sub ? planDiverged(sub, farm?.plan) : false;
@@ -1009,7 +1020,27 @@ export default async function BillingPage({
                     {t("billing.timesMonths", locale).replace("{n}", String(estimate.monthsCharged))}
                   </dt>
                   <dd className="tabular-nums text-sand-900 sm:text-right">
-                    {rands(estimate.totalInclCents)}
+                    {/* The running total BEFORE any deal. It used to read the final total,
+                        which was the same number until a discount existed and then quietly
+                        stopped being the product of the two lines above it. */}
+                    {rands(estimate.grossInclCents)}
+                  </dd>
+                </>
+              ) : null}
+
+              {/* The deal, named and priced. A farm on a Founding Farmer rate should be
+                  able to see it on the screen that tells them what they pay — both what it
+                  costs and what they were given — and the same line appears on the invoice
+                  the generator raises, from the same rule in SQL. */}
+              {estimate.discountCents > 0 ? (
+                <>
+                  <dt className="text-callout-ok-ink">
+                    {estimate.discountLabel
+                      ? t("billing.discountNamed", locale).replace("{label}", estimate.discountLabel)
+                      : t("billing.discount", locale)}
+                  </dt>
+                  <dd className="tabular-nums text-callout-ok-ink sm:text-right">
+                    −{rands(estimate.discountCents)}
                   </dd>
                 </>
               ) : null}

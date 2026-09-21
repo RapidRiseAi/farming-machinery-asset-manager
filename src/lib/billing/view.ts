@@ -51,6 +51,9 @@ export const SUBSCRIPTION_COLUMNS =
   // why the screen has to distinguish the two rather than showing 0.
   "id, farm_id, plan, billing_period, status, asset_quota, pending_quota, pending_quota_on, " +
   "price_version_label, trial_ends_on, " +
+  // The farm's own deal (20260920150000). Read here so the estimate on screen is the same
+  // figure the invoice generator will bill.
+  "discount_percent_bps, discount_fixed_cents, discount_label, discount_until, discount_code, " +
   "anchor_day, current_period_start, current_period_end, next_billing_on, " +
   "default_payment_method_id, cancel_at_period_end, cancellation_reason, cancelled_at, " +
   "ended_on, failed_attempt_count, last_failure_code, last_failure_at, next_retry_on, " +
@@ -94,6 +97,13 @@ export type SubscriptionRow = {
   pending_quota_on: string | null;
   price_version_label: string | null;
   trial_ends_on: string | null;
+  /** The farm's own deal (20260920150000): a percentage OR an amount, never both. */
+  discount_percent_bps: number | null;
+  discount_fixed_cents: number | null;
+  discount_label: string | null;
+  /** Null = for as long as they are a customer, which is what "locked for life" means. */
+  discount_until: string | null;
+  discount_code: string | null;
   anchor_day: number | null;
   current_period_start: string | null;
   current_period_end: string | null;
@@ -296,7 +306,13 @@ export type Estimate =
       assetCount: number;
       /** 1 for monthly; the annual pre-pay term (2 months free → 10) for annual. */
       monthsCharged: number;
-      /** perVehicle × assets × months, VAT-inclusive cents. The figure that is charged. */
+      /** perVehicle × assets × months, before any deal the farm was given. */
+      grossInclCents: number;
+      /** What the farm's discount takes off this invoice, VAT-inclusive cents. */
+      discountCents: number;
+      /** What to call it on screen — "Founding Farmer" — or null when there is none. */
+      discountLabel: string | null;
+      /** gross − discount, VAT-inclusive cents. The figure that is charged. */
       totalInclCents: number;
       /** 0 while Rapid Rise is not VAT-registered. */
       vatRateBps: number;
@@ -386,17 +402,25 @@ export function estimateNextCharge({
   price,
   assetCount,
   vatRegistered,
+  subscription,
+  on,
 }: {
   price: PriceRow | null;
   assetCount: number;
   vatRegistered: boolean;
+  /** The farm's own deal, if it has one. Omitted = list price. */
+  subscription?: SubscriptionDiscount | null;
+  /** The day the charge falls on; a deal that has ended by then does not apply. */
+  on?: string;
 }): Estimate {
   if (!price) return { kind: "unpriced" };
   const unit = price.per_vehicle_monthly_incl_cents;
   if (unit == null) return { kind: "bespoke", versionLabel: price.version_label };
 
   const months = price.months_charged;
-  const total = unit * Math.max(0, assetCount) * months;
+  const gross = unit * Math.max(0, assetCount) * months;
+  const discount = subscriptionDiscountCents(subscription ?? null, gross, on);
+  const total = gross - discount;
   // While `billing_settings.vat_registered` is false a DB trigger pins every invoice's
   // rate to zero, so showing the catalogue rate here would contradict the document that
   // actually gets raised. One boolean, and the whole VAT presentation follows it.
@@ -407,11 +431,56 @@ export function estimateNextCharge({
     perVehicleInclCents: unit,
     assetCount: Math.max(0, assetCount),
     monthsCharged: months,
+    grossInclCents: gross,
+    discountCents: discount,
+    discountLabel: discount > 0
+      ? (subscription?.discount_label ?? subscription?.discount_code ?? null)
+      : null,
     totalInclCents: total,
     vatRateBps: rate,
     subtotalExVatCents: exVatCents(total, rate),
     vatCents: vatOfInclCents(total, rate),
   };
+}
+
+/**
+ * The farm's own deal, as the screens read it.
+ *
+ * A Founding Farmer rate is a PERCENTAGE or an AMOUNT off each invoice, never both, and
+ * `discount_until` null means for as long as they are a customer — which is what "locked
+ * for life" means in `SCOPE.md` §12.
+ */
+export type SubscriptionDiscount = Pick<
+  SubscriptionRow,
+  "discount_percent_bps" | "discount_fixed_cents" | "discount_label" | "discount_until" | "discount_code"
+>;
+
+/**
+ * What comes off this invoice — the TypeScript mirror of `app.billing_discount_cents`.
+ *
+ * The SQL is the authority: it runs inside `app.billing_derive_invoice_totals`, so it
+ * decides what is actually billed. This exists so the SCREEN shows the same figure, and
+ * `view.test.ts` pins the two together case by case. A screen and the engine disagreeing
+ * about a price is the mistake that quoted a production farm R0,00 against a real R750,00
+ * invoice, and it is the mistake this project has agreed never to repeat.
+ *
+ * Rounded half-away-from-zero, like `round()` on numeric in Postgres and `Math.round` here,
+ * and never more than the invoice: a fixed discount larger than a small month's bill leaves
+ * nothing owing rather than creating a negative one, and it does not roll over.
+ */
+export function subscriptionDiscountCents(
+  sub: SubscriptionDiscount | null | undefined,
+  grossCents: number,
+  on?: string,
+): number {
+  if (!sub || grossCents <= 0) return 0;
+  const day = on ?? isoDay(new Date());
+  if (sub.discount_until && sub.discount_until < day) return 0;
+  if (sub.discount_percent_bps != null) {
+    return Math.min(Math.round((grossCents * sub.discount_percent_bps) / 10000), grossCents);
+  }
+  if (sub.discount_fixed_cents != null) return Math.min(sub.discount_fixed_cents, grossCents);
+  return 0;
 }
 
 /** Does anything on this screen need a VAT row? One test, used by every total. */
@@ -1156,6 +1225,14 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "adminBilling.savedReconciledClosed", tone: "info" };
     case "reconciled-open":
       return { key: "adminBilling.savedReconciledOpen", tone: "info" };
+    // A deal given or taken away (20260920150000). `info`, not `success`, and therefore a
+    // banner that stays put rather than a toast that clears: this changes what a farm pays
+    // from their next invoice, and the person who did it should still be able to read what
+    // they did while they look at the row to check it.
+    case "discount":
+      return { key: "adminBilling.savedDiscount", tone: "info" };
+    case "discount-cleared":
+      return { key: "adminBilling.savedDiscountCleared", tone: "info" };
 
     default:
       return { key: "ui.savedChanges", tone: "success" };

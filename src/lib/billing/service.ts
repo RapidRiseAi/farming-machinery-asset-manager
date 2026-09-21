@@ -104,6 +104,17 @@ export const BILLING_RPC = {
   failureNoticesDue: "billing_failure_notices_due",
   claimFailureNotice: "billing_claim_failure_notice",
   releaseFailureNotice: "billing_release_failure_notice",
+  // Founding Farmer pricing (20260920150000/160000). Service-role only, and deliberately:
+  // a wrapper a browser could call to set its own discount could set it to 100%.
+  //
+  // `checkPromoCode` reads and takes nothing, so the sign-up route can answer a typo
+  // before it has created an auth user. `billing_take_promo_code` — the one that locks the
+  // code's row and spends a place on the offer — is NOT listed, because no TypeScript
+  // calls it: it is invoked from inside `app.create_pending_signup`, between creating the
+  // subscription and raising the first invoice, which is the only window where a code can
+  // reach the invoice the visitor is about to pay.
+  checkPromoCode: "billing_check_promo_code",
+  setSubscriptionDiscount: "billing_set_subscription_discount",
 } as const;
 
 /** `billing_attempt_kind`. */

@@ -1291,7 +1291,12 @@ declare
     -- the completeness sweep below would not find them — but a function that can mark a
     -- dispute "posted" belongs under the same eye, because a browser able to call it could
     -- hide a case from the people who have two days to answer it.
-    'support_tickets_to_post','record_support_ticket_post'];
+    'support_tickets_to_post','record_support_ticket_post',
+    -- Discounts (20260920150000). `billing_discount_cents` is the ONE place the rule lives
+    -- and the derive trigger is its only caller, so it is granted to nobody but the service
+    -- role. `billing_take_promo_code` writes a farm's price from a code typed at sign-up,
+    -- which is why it locks the code row before taking a place on the offer.
+    'billing_discount_cents','billing_take_promo_code','billing_check_promo_code'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1312,7 +1317,13 @@ declare
     'billing_quota_quote','billing_change_quota','billing_reopen_subscription',
     'billing_record_refund','open_support_ticket','support_tickets_to_post',
     'record_support_ticket_post','billing_signup_email_taken',
-    'billing_take_signup_slot'];
+    'billing_take_signup_slot',
+    -- Discounts (20260920150000/160000). All three are service-role only, and that IS the
+    -- security property rather than a preference: an authenticated wrapper for the setter
+    -- could not defend itself, because under the service client auth.uid() is null and an
+    -- is_rr_admin() check inside would refuse the one caller that is allowed. The rr_admin
+    -- check lives in the action, and this grant is what makes the action the only way in.
+    'billing_take_promo_code','billing_set_subscription_discount','billing_check_promo_code'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1610,8 +1621,19 @@ begin
       -- The sign-up route runs with the service key: an anonymous visitor has no database
       -- access at all in this product, and a wrapper a browser could call would let anybody
       -- mint farms and owners.
+      -- `p_promo_code` was added by 20260920160000 and the seven-argument signature was
+      -- DROPPED in the same migration, not left beside it: PostgREST resolves overloads by
+      -- argument name, so two arities of this would have made every existing call
+      -- ambiguous. This row failing after a signature change is the point of it.
       ('billing_create_pending_signup',
-       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer',
+       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer, p_promo_code text',
+       false),
+      -- Founding Farmer pricing (20260920150000/160000). All three are service-role only:
+      -- a browser that could set its own discount could set it to 100%.
+      ('billing_check_promo_code', 'p_code text', false),
+      ('billing_take_promo_code', 'p_subscription uuid, p_code text', false),
+      ('billing_set_subscription_discount',
+       'p_subscription uuid, p_percent_bps integer, p_fixed_cents bigint, p_label text, p_until date',
        false),
       ('billing_quota_quote',  'p_sub uuid, p_quota integer', false),
       ('billing_change_quota', 'p_sub uuid, p_quota integer', false),

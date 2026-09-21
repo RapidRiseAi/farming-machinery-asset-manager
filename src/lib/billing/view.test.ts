@@ -44,6 +44,7 @@ import {
   retryOffer,
   savedIsTransient,
   savedNotice,
+  subscriptionDiscountCents,
   type AttemptRow,
   type InvoiceRow,
   type PaymentMethodRow,
@@ -659,4 +660,142 @@ test("every billing status and attempt kind has a label in both languages", () =
       assert.notEqual(t(key, "af"), t(key, "en"), `${key} is English copied into af.json`);
     }
   }
+});
+
+// ── The deal the farm was given ──────────────────────────────────────────────
+//
+// `SCOPE.md` §12 promises the first twenty farms a Founding Farmer rate "locked for life".
+// The rule that decides what comes off lives in SQL — `app.billing_discount_cents`, called
+// from the trigger that derives every invoice total — and is mirrored here so the screen
+// can quote the same number before the invoice exists.
+//
+// These cases are the SQL's cases, one for one. `supabase/tests/billing_discounts.sql`
+// asserts the same arithmetic against a real invoice; this asserts it against the screen.
+// The two disagreeing is the R0,00-versus-R750,00 bug, and it is not being repeated.
+
+/** The live shape: R250 per vehicle per month, no VAT while Rapid Rise is unregistered. */
+const DEAL_PRICE: PriceRow = {
+  id: "p-deal",
+  version_label: "launch-2026",
+  plan: "professional",
+  billing_period: "monthly",
+  per_vehicle_monthly_incl_cents: 25000,
+  months_charged: 1,
+  vat_rate_bps: 0,
+  status: "active",
+  effective_from: null,
+  effective_to: null,
+} as PriceRow;
+
+test("a percentage deal comes off the bill and leaves the list price standing", () => {
+  const e = estimateNextCharge({
+    price: DEAL_PRICE,
+    assetCount: 3,
+    vatRegistered: false,
+    subscription: sub({ discount_percent_bps: 2000, discount_label: "Founding Farmer" }),
+    on: "2026-10-06",
+  });
+  assert.equal(e.kind, "priced");
+  if (e.kind !== "priced") return;
+  assert.equal(e.grossInclCents, 75000);
+  assert.equal(e.discountCents, 15000);
+  assert.equal(e.totalInclCents, 60000);
+  // The unit price is still R250. The invoice shows both — what it costs, and what they
+  // were given — because a farm on a deal should be able to see the deal.
+  assert.equal(e.perVehicleInclCents, 25000);
+  assert.equal(e.discountLabel, "Founding Farmer");
+});
+
+test("a fixed deal bigger than the bill leaves nothing owing, never a negative", () => {
+  // `least(discount, gross)` in SQL, `Math.min` here. A month with one vehicle on a
+  // R1 000 standing discount owes zero — it does not owe minus R750, and the remainder
+  // does not roll into next month.
+  const e = estimateNextCharge({
+    price: DEAL_PRICE,
+    assetCount: 1,
+    vatRegistered: false,
+    subscription: sub({ discount_fixed_cents: 100000 }),
+    on: "2026-10-06",
+  });
+  assert.equal(e.kind === "priced" && e.discountCents, 25000);
+  assert.equal(e.kind === "priced" && e.totalInclCents, 0);
+});
+
+test("a deal that has ended is not applied, and the day it ends it still is", () => {
+  const ending = (until: string, on: string) =>
+    estimateNextCharge({
+      price: DEAL_PRICE,
+      assetCount: 2,
+      vatRegistered: false,
+      subscription: sub({ discount_percent_bps: 5000, discount_until: until }),
+      on,
+    });
+
+  // `discount_until < p_on` in SQL: the last day is inclusive, so a deal "until 31 Oct"
+  // covers a charge on 31 Oct. Off by one here is a farmer charged full price a month
+  // early, which they would notice and be right to.
+  const lastDay = ending("2026-10-06", "2026-10-06");
+  const dayAfter = ending("2026-10-05", "2026-10-06");
+  assert.equal(lastDay.kind === "priced" && lastDay.discountCents, 25000);
+  assert.equal(dayAfter.kind === "priced" && dayAfter.discountCents, 0);
+  // No end date is the Founding Farmer default: for as long as they are a customer.
+  const forever = estimateNextCharge({
+    price: DEAL_PRICE,
+    assetCount: 2,
+    vatRegistered: false,
+    subscription: sub({ discount_percent_bps: 5000, discount_until: null }),
+    on: "2099-01-01",
+  });
+  assert.equal(forever.kind === "priced" && forever.discountCents, 25000);
+});
+
+test("a farm with no deal is quoted the list price and shown no discount line", () => {
+  const e = estimateNextCharge({ price: DEAL_PRICE, assetCount: 3, vatRegistered: false });
+  assert.equal(e.kind === "priced" && e.discountCents, 0);
+  assert.equal(e.kind === "priced" && e.discountLabel, null);
+  assert.equal(e.kind === "priced" && e.totalInclCents, 75000);
+  // And the same for a subscription that simply has not been given one.
+  const none = estimateNextCharge({
+    price: DEAL_PRICE, assetCount: 3, vatRegistered: false, subscription: sub(), on: "2026-10-06",
+  });
+  assert.equal(none.kind === "priced" && none.discountCents, 0);
+});
+
+test("the discount rounds the way Postgres rounds, and is named by its code when unlabelled", () => {
+  // round(gross * bps / 10000) — half away from zero in numeric, half up in Math.round;
+  // gross is never negative here, so they agree. 0,5c must go to 1c, not to 0c.
+  assert.equal(subscriptionDiscountCents(sub({ discount_percent_bps: 50 }), 100, "2026-10-06"), 1);
+  assert.equal(subscriptionDiscountCents(sub({ discount_percent_bps: 1250 }), 12345, "2026-10-06"), 1543);
+  // Nothing to take off nothing: a zero-value invoice stays zero rather than going under.
+  assert.equal(subscriptionDiscountCents(sub({ discount_fixed_cents: 5000 }), 0, "2026-10-06"), 0);
+  assert.equal(subscriptionDiscountCents(null, 75000, "2026-10-06"), 0);
+
+  // `coalesce(s.discount_label, s.discount_code)` in the trigger. A code entered at
+  // sign-up with no label set still has something to print on the invoice.
+  const coded = estimateNextCharge({
+    price: DEAL_PRICE, assetCount: 1, vatRegistered: false,
+    subscription: sub({ discount_percent_bps: 1000, discount_label: null, discount_code: "FOUNDING20" }),
+    on: "2026-10-06",
+  });
+  assert.equal(coded.kind === "priced" && coded.discountLabel, "FOUNDING20");
+});
+
+test("VAT is worked out on what is charged, not on what it would have cost", () => {
+  // The day Rapid Rise registers, this is the line that decides whether SARS is quoted
+  // VAT on a discount nobody paid. The trigger runs `app.ex_vat_cents(total, rate)` on
+  // the DISCOUNTED total, and so does this.
+  const e = estimateNextCharge({
+    price: { ...DEAL_PRICE, vat_rate_bps: 1500 } as PriceRow,
+    assetCount: 4,
+    vatRegistered: true,
+    subscription: sub({ discount_percent_bps: 2500 }),
+    on: "2026-10-06",
+  });
+  assert.equal(e.kind, "priced");
+  if (e.kind !== "priced") return;
+  assert.equal(e.grossInclCents, 100000);
+  assert.equal(e.discountCents, 25000);
+  assert.equal(e.totalInclCents, 75000);
+  assert.equal(e.subtotalExVatCents + e.vatCents, e.totalInclCents);
+  assert.equal(e.subtotalExVatCents, Math.round((75000 * 10000) / 11500));
 });

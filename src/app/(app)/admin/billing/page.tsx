@@ -75,6 +75,7 @@ import { AdminIcon, CheckIcon, LockIcon, SearchIcon, WarningIcon } from "@/compo
 import {
   adminReconcileAttempt,
   adminRetryCharge,
+  adminSetDiscount,
   adminSetPlan,
   adminStartSubscription,
 } from "./actions";
@@ -783,6 +784,105 @@ export default async function AdminBillingPage({
               <SubmitButton variant="primary">{t("adminBilling.changeSave", locale)}</SubmitButton>
             </form>
             <p className="mt-2 text-xs text-sand-500">{t("adminBilling.changeNote", locale)}</p>
+          </Card>
+
+          {/* ── The kitchen-table deal ──────────────────────────────────────── */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("adminBilling.discountTitle", locale)}</CardTitle>
+            </CardHeader>
+            <p className="text-sm text-sand-600">{t("adminBilling.discountLead", locale)}</p>
+
+            {/* What they have now, in words, before the form that changes it. An empty
+                form next to a farm that already has a deal reads as "no deal", and the
+                first thing somebody would do about that is give them a second one. */}
+            <p className="mt-3 rounded-lg border border-sand-200 bg-sand-50 px-3.5 py-2.5 text-sm text-sand-800">
+              {selected.sub.discount_percent_bps != null || selected.sub.discount_fixed_cents != null
+                ? t("adminBilling.discountNow", locale)
+                    .replace(
+                      "{amount}",
+                      selected.sub.discount_percent_bps != null
+                        ? `${(selected.sub.discount_percent_bps / 100).toFixed(2).replace(/\.?0+$/, "").replace(".", ",")}%`
+                        : rands(selected.sub.discount_fixed_cents ?? 0),
+                    )
+                    .replace(
+                      "{label}",
+                      selected.sub.discount_label ?? selected.sub.discount_code ?? "—",
+                    )
+                    .replace(
+                      "{until}",
+                      selected.sub.discount_until
+                        ? shortDate(selected.sub.discount_until, locale)
+                        : t("adminBilling.discountForever", locale),
+                    )
+                : t("adminBilling.discountNone", locale)}
+            </p>
+
+            <form action={adminSetDiscount} className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input type="hidden" name="subscription_id" value={selected.sub.id} />
+              <Field
+                label={t("adminBilling.discountPercentField", locale)}
+                htmlFor="discount-percent"
+                hint={t("adminBilling.discountPercentHint", locale)}
+              >
+                <Input
+                  id="discount-percent"
+                  name="percent"
+                  inputMode="decimal"
+                  defaultValue={
+                    selected.sub.discount_percent_bps != null
+                      ? String(selected.sub.discount_percent_bps / 100)
+                      : ""
+                  }
+                />
+              </Field>
+              <Field
+                label={t("adminBilling.discountRandsField", locale)}
+                htmlFor="discount-rands"
+                hint={t("adminBilling.discountRandsHint", locale)}
+              >
+                <Input
+                  id="discount-rands"
+                  name="rands"
+                  inputMode="decimal"
+                  defaultValue={
+                    selected.sub.discount_fixed_cents != null
+                      ? String(selected.sub.discount_fixed_cents / 100)
+                      : ""
+                  }
+                />
+              </Field>
+              <Field
+                label={t("adminBilling.discountLabelField", locale)}
+                htmlFor="discount-label"
+                hint={t("adminBilling.discountLabelHint", locale)}
+              >
+                <Input
+                  id="discount-label"
+                  name="label"
+                  maxLength={60}
+                  defaultValue={selected.sub.discount_label ?? ""}
+                />
+              </Field>
+              <Field
+                label={t("adminBilling.discountUntilField", locale)}
+                htmlFor="discount-until"
+                hint={t("adminBilling.discountUntilHint", locale)}
+              >
+                <Input
+                  id="discount-until"
+                  name="until"
+                  type="date"
+                  defaultValue={selected.sub.discount_until ?? ""}
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <SubmitButton variant="primary">
+                  {t("adminBilling.discountSave", locale)}
+                </SubmitButton>
+              </div>
+            </form>
+            <p className="mt-2 text-xs text-sand-500">{t("adminBilling.discountNote", locale)}</p>
           </Card>
 
           {/* ── Bills ───────────────────────────────────────────────────────── */}
