@@ -3287,3 +3287,85 @@ Supersedes two "left undone" lines in the entry above. Both are now built:
 **Left undone, deliberately:** none of the gaps were built. Several need a founder decision
 first, and all of them sit outside `SCOPE.md` §13 as written; that mismatch is now under
 **Open — founder only** in `CLAUDE.md`. Nothing is pushed.
+
+## 2026-09-21 — Founding Farmer pricing, and four gap-review items built
+
+Four commits on `main` (`a74c85c`, `526d9cc`, `f43d46e`, `b5f0941`), each with its own
+migration, its own SQL suite registered in `run.sh`, and its own gates. Nothing pushed.
+
+- **`a74c85c` — discounts (gap 3.3).** `SCOPE.md` §12 sells a Founding Farmer rate "locked
+  for life" and the engine had no way to give one: price PINNING stops a price rising, it
+  does not make one lower. Both shapes the founder asked for are built — a per-farm deal on
+  `/admin/billing`, and a promo code at sign-up that is COPIED onto the subscription so the
+  deal does not depend on a row somebody later edits.
+
+  Applied in `app.billing_derive_invoice_totals`, the trigger that already computes every
+  total, because three functions raise invoices and patching each is three chances to
+  forget. Frozen at draft, so a deal that changes later cannot restate a paid document.
+
+  The measured near-miss: the sign-up code had to go INTO `create_pending_signup`
+  (`p_promo_code`), between creating the subscription and raising the first invoice.
+  Applied from the route afterwards it would have taken effect from the SECOND period and
+  the farm would have paid list price for the exact thing they entered the code for —
+  invisible until a Founding Farmer read their first receipt. Mutating the migration to
+  invoice first reports "the first invoice took off 0 against a gross of 35600". The
+  seven-argument signature is DROPPED, not left beside the new one; section (j) counts
+  them.
+
+  `view.test.ts` pins `subscriptionDiscountCents` to `app.billing_discount_cents` case by
+  case. Also fixed: the "× N months" line on `/billing` was reading the final total, which
+  was the same number until a discount existed.
+
+- **`526d9cc` — driver credentials (gap 2.3).** `licences` tracks the disc on the
+  windscreen; nothing tracked the card in the driver's pocket, so AARTO would nominate a
+  driver whose own licence lapsed four months ago and never say so. `/fines` now says it,
+  judged on the OFFENCE DATE. First table in the schema whose SELECT is narrower than
+  `has_farm_access`: owner/manager see the farm, anybody else sees their own row, linked
+  workshop staff see nothing. Writes are owner/manager in the DATABASE — a driver cannot
+  extend their own expired PrDP, and the suite proves it by trying.
+
+- **`f43d46e` — incidents and claims (gap 2.4).** An accident is not a fault: SAPS case
+  number, third party, excess, claim reference, settlement months later. Nightly chase on a
+  lodged claim past the farm's own threshold, saying how many days it has been waiting.
+  `incidents_settled_ck` refuses a settled claim with no figure and no date, because that
+  row would silently shrink the "still owed by the insurer" total. Operators see only
+  accidents on machines assigned to them — the third party is a member of the public.
+
+- **`b5f0941` — depreciation and book value (gap 2.7).** `/reports/assets`, as at a date.
+  The security question is the whole feature: a book value IS the purchase price with the
+  years taken off, so `farm_book_values` repeats `machine_financials`' gate clause for
+  clause and the new columns are not granted to `authenticated` either. Removing the cost
+  gate fails section (c). Deliberately NO TypeScript mirror of the sum — the inputs are
+  withheld from the browser, so mirroring would mean shipping them to the client.
+
+**Measured, not asserted:** ten mutations across the four migrations, each run through
+`pnpm db:check` against the edited file. Nine were caught with the exact sentence quoted in
+its commit message. One survived and is recorded rather than hidden: the `least(months,
+life)` cap in the straight-line branch is redundant against the residual floor, and now
+carries a comment saying so.
+
+**Gates, on each commit:** typecheck, lint, `pnpm test` (312 → 356), `pnpm build`, i18n
+parity (4347 → 4653 keys), `i18n:keys`, error coverage, design lint 34/34. `pnpm db:check`
+applies 173 → 177 migrations cleanly; `billing_discounts.sql`, `billing_subscription.sql`,
+`driver_credentials.sql`, `incidents_and_claims.sql` and `depreciation.sql` all PASS.
+
+`pnpm i18n:keys` earned its place again: it caught three `pageInfo.*` keys and a cancel
+label on `/team/licences` that would have rendered as dotted paths.
+
+**Left undone, deliberately:**
+- **Nothing was run in a browser.** Every screen compiles and is in the build manifest;
+  none has been clicked. The SQL is proven against a real Postgres (PGlite), the TypeScript
+  against its tests, and the two are pinned to each other — but no farmer has pressed any of
+  these buttons.
+- **Nothing is applied to production and nothing is pushed.** `main` is now twelve commits
+  ahead of `origin/main` and CI has not run on any of them. Seven migrations are in the repo
+  and not on the live database: the three from 18/09 plus `20260920150000`,
+  `20260920160000`, `20260921090000`, `20260921100000` and `20260921110000`.
+- **Gap items still open:** 2.5 maintenance calendar, 2.6 tyres, 2.8 warranty claims, 2.9
+  custom fields, 2.10 machine transfer between farms, 3.4 in-app support request, 3.5
+  ownership transfer, 3.7 "what's new" and sign out other devices.
+- **No promo code exists yet.** `billing_promo_codes` ships empty, which is correct — the
+  Founding Farmer offer is a founder decision about how many places and at what rate, and
+  inventing one would be inventing a price.
+- **The discount admin form has never been pressed.** Same caveat the build log already
+  carries for `changeOwnPlan`: it writes to a real subscription's ledger inputs.

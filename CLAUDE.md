@@ -44,10 +44,12 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is ahead
-of `origin/main` (`7d46870`) with the billing and sign-up UI work of 19/09/2026. It is
-**not pushed, so CI has not run on it**; every gate passed on a clean worktree. Billing is live and has taken a real payment. Email sends and is confirmed
-`delivered` by Resend.
+**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is **twelve
+commits** ahead of `origin/main` (`7d46870`): the billing and sign-up UI work of
+19/09/2026, the diesel/offline/email work of 20/09/2026, and Founding Farmer pricing plus
+four gap-review features on 21/09/2026 (`b5f0941`). It is **not pushed, so CI has not run
+on any of it**; every gate passed locally. Billing is live and has taken a real payment.
+Email sends and is confirmed `delivered` by Resend.
 
 The full build history — ~55 session entries, oldest first — is in
 [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md). **Read it on demand, not by default**; grep it by
@@ -74,9 +76,16 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   invoice that cannot then be cleanly removed. Their arithmetic is proven in SQL inside
   rolled-back transactions. Both now go through a priced review step first, so the number
   is on screen before anything commits.
-- The three migrations from 18/09/2026 (`20260918120000`, `130000`, `140000`) are **in the
-  repo and not applied to production**. They add the sign-up email lookup, the sign-up rate
-  limit and the renewal notice.
+- **Eight migrations are in the repo and not applied to production.** The three from
+  18/09/2026 (`20260918120000`, `130000`, `140000` — sign-up email lookup, sign-up rate
+  limit, renewal notice) and five since (`20260920150000`, `20260920160000` — discounts and
+  the sign-up promo code; `20260921090000` — driver credentials; `20260921100000` —
+  incidents and claims; `20260921110000` — depreciation). The 20/09 diesel and offline
+  migrations are also unapplied; count them against `pg_proc` rather than trusting this
+  line (`docs/SCHEMA_DRIFT.md`).
+- **`billing_promo_codes` ships empty and no Founding Farmer code exists.** The engine can
+  give the rate `SCOPE.md` §12 promises; how many places and at what rate is a decision
+  nobody has made. Inventing one would be inventing a price.
 
 ### By design — not gaps
 - A refund or dispute **opens a support case and moves nothing in the ledger.** Money goes
@@ -126,6 +135,16 @@ will bite again.
   `supabase.rpc()` and resolves to nothing. Public wrappers are required, and suite section
   **(m)** asserts function names *and parameter names* — PostgREST resolves overloads by
   named arguments, so a renamed parameter breaks the call as completely as a deletion.
+- **A policy governs what you ask BACK, not only what you write.** `select *` on `machines`
+  is `permission denied` for `authenticated` — the cost columns are withheld at the COLUMN
+  level (`20260903074350`) — so a test or a page that reads `*` fails even where a targeted
+  read succeeds. Same family: `.update({deleted_at}).select()` on a soft delete asks
+  PostgREST to return the one row the SELECT policy has just been told to hide, so it
+  reports zero rows and the action says "not found" about a write that worked. Check
+  existence before the write, or do not ask for the row back.
+- **A `language sql` function is parsed at CREATE**, so a helper must appear before its
+  caller in the same migration file. `check_function_bodies` is on; the failure is at
+  `db:check` time and reads like a typo.
 - **`min()`/`max()` on text sort by the database's collation.** `C` yields `Agri Diesel`,
   `en_US.UTF-8` yields `agri diesel`. Production and CI are `en_US.UTF-8`. Run the suites
   under both; "deterministic pick" in a comment is not one.
