@@ -143,12 +143,25 @@ grant execute on function public.claim_notification_email(uuid, integer) to serv
 grant execute on function public.finish_notification_email(uuid, uuid, boolean, text) to service_role;
 
 -- == The preference, on the screen that already owns the others ==============
--- The four-argument version goes rather than gaining a defaulted fifth: PostgREST resolves
--- by named arguments, and two candidates would start answering "function is not unique".
+-- The four-argument version is dropped rather than left beside a five-argument one:
+-- PostgREST resolves by named arguments, and two candidates would start answering
+-- "function is not unique" for the calls the live site already makes.
 drop function if exists public.set_notification_prefs(boolean, boolean, int, int);
 
+-- `p_email` DEFAULTS, and that default is what makes this migration safe to apply before
+-- the code that uses it is deployed.
+--
+-- The four-argument signature above is the one the LIVE site calls
+-- (`p_inapp, p_push, p_quiet_start, p_quiet_end`). Dropping it and demanding a fifth
+-- argument would have made every customer's notification-preferences save answer PGRST202
+-- from the moment this ran until the new build went out. A migration that can only be
+-- applied in lockstep with a deploy is a migration that will one day be applied on its own.
+--
+-- Omitted, it means "leave the email preference as it is", which the `coalesce` below
+-- already does for every other field.
 create or replace function public.set_notification_prefs(
-  p_inapp boolean, p_push boolean, p_email boolean, p_quiet_start int, p_quiet_end int
+  p_inapp boolean, p_push boolean, p_quiet_start int, p_quiet_end int,
+  p_email boolean default null
 ) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -161,7 +174,7 @@ begin
   where id = auth.uid();
 end $$;
 
-revoke execute on function public.set_notification_prefs(boolean, boolean, boolean, int, int)
+revoke execute on function public.set_notification_prefs(boolean, boolean, int, int, boolean)
   from public, anon;
-grant execute on function public.set_notification_prefs(boolean, boolean, boolean, int, int)
+grant execute on function public.set_notification_prefs(boolean, boolean, int, int, boolean)
   to authenticated;

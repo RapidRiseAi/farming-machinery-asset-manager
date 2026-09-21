@@ -1430,6 +1430,7 @@
     "claimed": "{amount} geëis",
     "excess": "Eerste bedrag {amount}",
     "sapsCase": "SAPD-saak {ref}",
+    "claimRef": "Eis {ref}",
     "thirdParty": "Ander party: {name}",
     "driver": "Bestuurder",
     "injuriesYes": "Iemand is beseer",

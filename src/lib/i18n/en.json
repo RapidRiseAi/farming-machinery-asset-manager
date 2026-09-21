@@ -1430,6 +1430,7 @@
     "claimed": "Claimed {amount}",
     "excess": "Excess {amount}",
     "sapsCase": "SAPS case {ref}",
+    "claimRef": "Claim {ref}",
     "thirdParty": "Other party: {name}",
     "driver": "Driver",
     "injuriesYes": "Someone was hurt",

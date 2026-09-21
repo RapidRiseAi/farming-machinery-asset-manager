@@ -290,6 +290,22 @@ export default async function IncidentsPage({
                   {/* The claim line. A lodged claim says how many days it has been waiting,
                       because that is the sentence that gets somebody to ring the broker -
                       and it is the same figure the nightly reminder puts in its message. */}
+                  {/* The insurer and the claim reference. Captured since the first version,
+                      put in the nightly reminder, and until a click-through caught it,
+                      rendered nowhere: a farmer who opened this screen to ring their broker
+                      had the days and the amount and not the number the broker asks for. */}
+                  {r.insurer || r.claim_number ? (
+                    <p className="mt-1.5 text-sm text-sand-700">
+                      {r.insurer ? <span className="font-medium">{r.insurer}</span> : null}
+                      {r.insurer && r.claim_number ? " · " : null}
+                      {r.claim_number ? (
+                        <span className="tabular-nums">
+                          {t("incidents.claimRef", locale).replace("{ref}", r.claim_number)}
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
+
                   {claimOpen(r.status) || r.status === "claim_settled" ? (
                     <p className="mt-1.5 text-sm text-sand-700">
                       {r.status === "claim_settled" && r.settled_incl_cents != null && r.settled_on
