@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /**
  * The pack that goes with a machine changing hands (FR-13.4).
  *
- * UNGATED CORE — with ONE gated section inside it. The lifetime cost / TCO block is the
+ * UNGATED CORE, with ONE gated section inside it. The lifetime cost / TCO block is the
  * F5 `tco` feature (Professional+) wherever it appears, so on an Essential farm the pack
  * still prints identity, compliance, the full service history, the meter trail and the
  * declared faults, and prints a SENTENCE where the costs would be saying they are a

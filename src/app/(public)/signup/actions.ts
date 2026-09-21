@@ -23,9 +23,9 @@ function bounce(code: string): never {
 /**
  * Create a farm, its owner and a PENDING subscription, then send them to pay.
  *
- * ── The order, and why it is not negotiable ──────────────────────────────────
- * The account is created BEFORE the money moves. The tempting alternative — take the
- * payment, then create the farm on success — leaves money taken with nothing to attach it
+ * == The order, and why it is not negotiable ==================================
+ * The account is created BEFORE the money moves. The tempting alternative, take the
+ * payment, then create the farm on success, leaves money taken with nothing to attach it
  * to if anything fails in between, and no row to reconcile against. An abandoned sign-up
  * leaves a farm nobody can log into, which is tidy-up-able; a successful payment with no
  * farm is a refund and an apology.
@@ -33,10 +33,10 @@ function bounce(code: string): never {
  * That is the same reasoning `beginCheckout` already follows with charge attempts: claim
  * the row before contacting Paystack, precisely so a lost response is recoverable.
  *
- * ── The one thing that cannot be in the transaction ──────────────────────────
+ * == The one thing that cannot be in the transaction ==========================
  * `auth.users` belongs to Supabase Auth, not to a table this schema may write. So the auth
- * user is created FIRST and deleted if the database function raises. Everything else —
- * farm, owner, subscription, first invoice — is one call and one transaction, so a failure
+ * user is created FIRST and deleted if the database function raises. Everything else -
+ * farm, owner, subscription, first invoice, is one call and one transaction, so a failure
  * halfway cannot leave a farm with no owner or an owner who can never be invoiced.
  */
 export async function signUp(formData: FormData): Promise<void> {
@@ -62,7 +62,7 @@ export async function signUp(formData: FormData): Promise<void> {
 
   // The tick is required, and the VERSION is checked rather than trusted. The form posts
   // what the page rendered, so a deploy between load and submit cannot record agreement to
-  // wording the visitor never saw — but a posted value is still a posted value, and storing
+  // wording the visitor never saw, but a posted value is still a posted value, and storing
   // an arbitrary string somebody typed into a form is not a record of anything.
   if (String(formData.get("terms") ?? "") !== "on") bounce("terms-required");
   if (String(formData.get("terms_version") ?? "") !== TERMS_VERSION) bounce("terms-stale");
@@ -73,7 +73,7 @@ export async function signUp(formData: FormData): Promise<void> {
 
   const svc = createServiceClient();
 
-  // ── A ceiling on how fast one source can create accounts ────────────────────
+  // == A ceiling on how fast one source can create accounts ====================
   //
   // This is the only anonymous endpoint in the product that writes, and what it writes is
   // an auth user, a farm, an owner, a subscription and an invoice. It had no limit of any
@@ -83,7 +83,7 @@ export async function signUp(formData: FormData): Promise<void> {
   // The source key is a FORWARDED HEADER and is therefore attacker-influenced. That is
   // understood and accepted: this is a cost multiplier, not an authentication boundary,
   // and the thing it protects is a dormant row rather than a secret. A missing header
-  // buckets everybody together under one key, which is the safe direction — it limits
+  // buckets everybody together under one key, which is the safe direction, it limits
   // harder, not softer.
   const forwarded = (await headers()).get("x-forwarded-for") ?? "";
   const sourceKey = forwarded.split(",")[0]?.trim() || "unknown";
@@ -99,12 +99,12 @@ export async function signUp(formData: FormData): Promise<void> {
   // Somebody who started a sign-up, abandoned the payment and came back. Their auth user
   // already owns this address, so a second createUser would fail with a message about
   // internals. Send them to sign in instead: the billing gate will land them straight on
-  // /activate with the invoice they already have, which IS the resumption — no second code
+  // /activate with the invoice they already have, which IS the resumption, no second code
   // path to keep correct.
   //
   // This was `listUsers()` with no arguments and a scan of the result. That call is PAGED
   // and defaults to FIFTY rows, so it really asked "is this address among the fifty most
-  // recent users" — correct at 16 customers, quietly wrong from 51, and wrong first for
+  // recent users", correct at 16 customers, quietly wrong from 51, and wrong first for
   // the oldest accounts, which is precisely who a returning customer is. One indexed probe
   // now (`20260918120000`), and it does not get slower as the business grows.
   const { data: takenData, error: takenError } = await svc.rpc("billing_signup_email_taken", {
@@ -112,14 +112,14 @@ export async function signUp(formData: FormData): Promise<void> {
   });
   if (takenError) {
     // Fail CLOSED on this one. Carrying on would call `createUser`, and if the address is
-    // in fact taken that fails anyway — with a worse message and after we have started.
+    // in fact taken that fails anyway, with a worse message and after we have started.
     captureError(takenError, { where: "signup:email-taken" });
     bounce("signup-failed");
   }
   if (takenData === true) redirect(`/login?resume=1&email=${encodeURIComponent(email)}`);
 
   // Check the code BEFORE anything is created, so a typo costs a sentence instead of an
-  // orphaned auth user. This check takes nothing and locks nothing — the authoritative
+  // orphaned auth user. This check takes nothing and locks nothing, the authoritative
   // take happens inside `billing_create_pending_signup`, under a row lock, because between
   // this answer and that commit the last place on an offer can go to somebody else.
   if (promoCode) {
@@ -176,8 +176,8 @@ export async function signUp(formData: FormData): Promise<void> {
     .update({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })
     .eq("id", userId);
 
-  // Prove the address works. The auth user is already confirmed — it has to be, or they
-  // could not sign in and pay in the next two lines — so this is OUR check, it gates
+  // Prove the address works. The auth user is already confirmed, it has to be, or they
+  // could not sign in and pay in the next two lines, so this is OUR check, it gates
   // nothing, and its failure is swallowed on purpose. A farm that has paid and cannot be
   // emailed is a support problem; a farm that could not sign up because our mail provider
   // was down is a lost customer. `/account` carries the resend.
@@ -191,7 +191,7 @@ export async function signUp(formData: FormData): Promise<void> {
   // Sign them in with the password they just chose, so they arrive at /activate as
   // themselves rather than at a login screen wondering whether any of that worked.
   //
-  // This FAILS intermittently on Vercel and not locally — reproduced on production, where
+  // This FAILS intermittently on Vercel and not locally, reproduced on production, where
   // the same address and password get a token from Supabase Auth when asked directly, and
   // sign in normally on the live site a minute later. A rate limit on the shared egress IP
   // is the leading suspect and is not something this code can confirm from the inside.
@@ -213,7 +213,7 @@ export async function signUp(formData: FormData): Promise<void> {
       // Supabase AuthError, so they are made explicit rather than left to widen the type.
       extra: { status: signInError.status ?? null, code: signInError.code ?? null },
     });
-    // Everything they paid attention to WORKED — the farm, the owner, the subscription and
+    // Everything they paid attention to WORKED, the farm, the owner, the subscription and
     // the invoice are all committed. Only the session is missing, so hand the login screen
     // enough to make that a five-second recovery instead of a dead end.
     redirect(`/login?signedup=1&email=${encodeURIComponent(email)}`);

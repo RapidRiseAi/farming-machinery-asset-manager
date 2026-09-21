@@ -5,7 +5,7 @@
  * Server actions reject by redirecting to `?error=<something>` on 259 paths, and
  * 232 of those historically carried raw English or a raw Postgres message.
  * Pages rendered whatever arrived, so an Afrikaans farmer could be shown
- * `need-name`, `po-needQty`, or a Supabase string — in an app that keeps 3,600+
+ * `need-name`, `po-needQty`, or a Supabase string, in an app that keeps 3,600+
  * translation keys at parity. Nothing could catch it: `tsc` sees a valid string,
  * `lint` has no opinion, the build succeeds.
  *
@@ -25,7 +25,7 @@ const en = JSON.parse(readFileSync("src/lib/i18n/en.json", "utf8"));
 const af = JSON.parse(readFileSync("src/lib/i18n/af.json", "utf8"));
 const get = (o, p) => p.split(".").reduce((c, k) => (c == null ? c : c[k]), o);
 
-// ── 1. Read the map ─────────────────────────────────────────────────────────
+// == 1. Read the map =========================================================
 const src = readFileSync("src/lib/errors.ts", "utf8");
 const body = src.slice(src.indexOf("const CODE_KEYS"), src.indexOf("\n};", src.indexOf("const CODE_KEYS")));
 const FALLBACK = (src.match(/const FALLBACK = "([^"]+)"/) ?? [])[1];
@@ -40,7 +40,7 @@ for (const [code, key] of pairs) {
   else if (get(en, key) === get(af, key)) problems.push(`af is identical to en: ${key}`);
 }
 
-// ── 2. Every code the app emits must be covered ─────────────────────────────
+// == 2. Every code the app emits must be covered =============================
 function walk(d, out = []) {
   for (const e of readdirSync(d)) {
     if (e === "node_modules" || e.startsWith(".")) continue;
@@ -69,7 +69,7 @@ const known = new Set(pairs.map(([c]) => c));
 const emitted = new Map();
 for (const f of walk("src/app")) {
   const text = readFileSync(f, "utf8");
-  // Capture the WHOLE value, commas included — `?error=Email,+name+and+role+required`
+  // Capture the WHOLE value, commas included, `?error=Email,+name+and+role+required`
   // is one message, and stopping at the comma invents a phantom code "email".
   for (const m of text.matchAll(/[?&]error=([^"'`&\s)]+)/g)) {
     let v = m[1];
@@ -86,7 +86,7 @@ for (const f of walk("src/app")) {
   //     }
   //
   // Every code in billing, activate, closed and account actions went through one of those
-  // and was therefore invisible here — measured by injecting an unmapped code and watching
+  // and was therefore invisible here, measured by injecting an unmapped code and watching
   // this check report "Clean". Only files that DEFINE such a helper are scanned for
   // `bounce(...)` calls, so an unrelated function of the same name elsewhere cannot make
   // this invent codes.
@@ -98,7 +98,7 @@ for (const f of walk("src/app")) {
       // only the branches are codes; "charging-disabled" is the thing being TESTED, and
       // reporting it sends somebody to write a sentence for an error that cannot happen.
       const args = call[1].replace(/[!=]==?\s*["'`][^"'`]*["'`]/g, "");
-      // What is left is the result branches — a ternary contributes both, which is right.
+      // What is left is the result branches, a ternary contributes both, which is right.
       for (const lit of args.matchAll(/["'`]([A-Za-z0-9][A-Za-z0-9 ,.+-]*)["'`]/g)) {
         const c = norm(lit[1]);
         if (c) emitted.set(c, f);
@@ -108,12 +108,12 @@ for (const f of walk("src/app")) {
 }
 const uncovered = [...emitted].filter(([c]) => !known.has(c) && !HANDLED_ELSEWHERE.has(c));
 
-// ── Report ──────────────────────────────────────────────────────────────────
-console.log(`\nError coverage\n${"─".repeat(58)}`);
+// == Report ==================================================================
+console.log(`\nError coverage\n${"=".repeat(58)}`);
 console.log(`  ${pairs.length} codes in the map, all resolving in en + af`);
 console.log(`  ${emitted.size} distinct codes emitted across src/app`);
 for (const p of problems) console.log(`  PROBLEM  ${p}`);
 for (const [c, f] of uncovered) console.log(`  UNCOVERED  "${c}"  emitted by ${f}`);
 const failed = problems.length + uncovered.length;
-console.log(`${"─".repeat(58)}\n  ${failed === 0 ? "Clean." : failed + " problem(s)."}\n`);
+console.log(`${"=".repeat(58)}\n  ${failed === 0 ? "Clean." : failed + " problem(s)."}\n`);
 process.exit(failed ? 1 : 0);

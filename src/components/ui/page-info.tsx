@@ -10,18 +10,18 @@ export type PageInfoContent = {
   title: string;
   /** One sentence: what this screen is for. */
   what: string;
-  /** What they can actually do here — one plain line each, not feature names. */
+  /** What they can actually do here, one plain line each, not feature names. */
   does: string[];
   /** Optional: when this screen matters / who it is for. */
   note?: string;
 };
 
 /**
- * "What is this page for?" — the same affordance in the same place on every screen.
+ * "What is this page for?", the same affordance in the same place on every screen.
  *
  * The product assumes a farm office already knows what a job card, a watch item or a
- * work request is. Someone opening FleetWise for the first time — often the person who
- * did not choose it — had no way to ask what a screen was for without leaving it.
+ * work request is. Someone opening FleetWise for the first time, often the person who
+ * did not choose it, had no way to ask what a screen was for without leaving it.
  *
  * A button beside the page title, not a tour step and not a tooltip: it is there when
  * they want it and invisible when they don't, and it costs nothing to ignore.

@@ -2,7 +2,7 @@
 -- A fuel draw and the driver-usage log it implies, written in ONE transaction.
 --
 -- WHY
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `src/app/(app)/fuel/actions.ts` inserted the issue, then inserted the usage log and
 -- never read the second result. A failure there was invisible: the litres and the cost
 -- were recorded, the driver's utilisation history silently was not, and nothing said so.
@@ -18,7 +18,7 @@
 -- so a caller that skips the TypeScript gate is still refused.
 --
 -- WHAT IT DELIBERATELY DOES NOT CHANGE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A fuel draw does NOT advance `machines.current_reading`; only meter readings and job
 -- cards do that, and the QR fuel path behaves the same way. The meter on a draw is
 -- evidence for consumption (litres per hour) and for the usage log, and quietly making it
@@ -91,7 +91,7 @@ begin
   -- The plan gate, in the database. `requireEntitlement("fuel")` in the action is the
   -- courtesy; this is the rule. Same comparison the QR path makes.
   -- Read, never FOR UPDATE. A row lock on `farms` needs UPDATE privilege and puts the
-  -- farm's UPDATE policy in the way, which would refuse the operator recording a draw —
+  -- farm's UPDATE policy in the way, which would refuse the operator recording a draw -
   -- and nothing here reads-then-writes the farm. The QR path locks because it may have to
   -- create a default tank; this path is given its tank.
   select f.plan, f.settings ->> 'vat_rate_bps'
@@ -189,5 +189,5 @@ comment on function public.record_fuel_issue(
   uuid, uuid, uuid, date, numeric, numeric, bigint, text, uuid
 ) is
   'Records one fuel draw and, when it names a machine and a meter, the driver-usage log '
-  'that goes with it — in a single transaction. Replaces two separate inserts in '
+  'that goes with it, in a single transaction. Replaces two separate inserts in '
   'fuel/actions.ts whose second result was never checked.';

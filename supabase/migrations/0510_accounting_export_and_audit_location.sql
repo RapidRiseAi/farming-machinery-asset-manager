@@ -3,10 +3,10 @@
 -- accounting package (FR-17.2), and WHERE an audited action happened (FR-1.4).
 --
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART A — THE ACCOUNTING EXPORT (FR-17.2)
+-- PART A, THE ACCOUNTING EXPORT (FR-17.2)
 -- ═════════════════════════════════════════════════════════════════════════════
 --
--- ── What this is NOT ────────────────────────────────────────────────────────
+-- == What this is NOT ========================================================
 --
 -- It is NOT a live Sage/Xero integration. That needs OAuth applications registered in
 -- the founder's name and would ship inert, exactly like the PayFast adapter (0435) has
@@ -30,14 +30,14 @@
 -- adding a named variant is a formatting change in src/lib/accounting.ts and touches
 -- none of the arithmetic below.
 --
--- ── Why the arithmetic is in SQL ────────────────────────────────────────────
+-- == Why the arithmetic is in SQL ============================================
 --
 -- The same reason 0413/0431/0460 are: the screen, the CSV and any later PDF or emailed
 -- copy must not be able to disagree. A figure computed in a React component exists in
--- one place only until somebody adds an export — and this IS the export, so a third
+-- one place only until somebody adds an export, and this IS the export, so a third
 -- number would appear beside the two a partner already reads on /money and /vat.
 --
--- ── It must reconcile, and that is asserted ─────────────────────────────────
+-- == It must reconcile, and that is asserted =================================
 --
 -- The document selection below is copied deliberately from `app.partner_vat_return`
 -- (0431) and `app.partner_pl` (0460): kinds invoice/credit_note/debit_note, statuses
@@ -54,16 +54,16 @@
 -- pins /money against /vat for exactly this reason; the export is the third screen the
 -- same person reads in the same week.
 --
--- ── The judgements this inherits, and does not re-open ──────────────────────
+-- == The judgements this inherits, and does not re-open ======================
 --
 --  * A WRITTEN-OFF invoice is still revenue (G5/G6/G14, 0460). So it is journalled as a
---    normal sale, and the write-off is a SEPARATE entry — Dr Bad debts, Cr Debtors — for
+--    normal sale, and the write-off is a SEPARATE entry, Dr Bad debts, Cr Debtors, for
 --    the ex-VAT amount `partner_pl` calls bad debt. Note what is deliberately absent: no
 --    VAT adjustment. Bad-debt relief is a s22 claim with its own conditions, and 0431
 --    already decided this product reports it and points at it rather than quietly making
 --    it. Journalling a VAT reversal here would make that claim on the partner's behalf.
 --  * NON-CLAIMABLE VAT IS A COST (0460, VAT Act s17(2)). It is debited to the SAME
---    expense account as the purchase it sits on, not to VAT input — which is what makes
+--    expense account as the purchase it sits on, not to VAT input, which is what makes
 --    the cost reconciliation above come out and keeps SARS's ledger clean.
 --  * A QUOTE IS NEVER COSTED and never journalled (F12b/0311, 0476). Neither is a draft
 --    or a voided document: a draft was never a supply, and a void one should not exist.
@@ -71,17 +71,17 @@
 --    `cost_entries`, which is already the single no-double-count ledger (0211/0241/0311/
 --    0381/0450 all funnel into it); this adds no second path and books nothing.
 --
--- ── The one place the source data can disagree with itself ──────────────────
+-- == The one place the source data can disagree with itself ==================
 --
 -- For a `built` document 0381's trigger guarantees total = (subtotal − discount) + VAT.
 -- For an `uploaded` one those figures are TYPED, and nothing forces them to agree. The
--- journal follows net + VAT — because that is what /money and /vat are built from, and a
--- reconciliation that moved when somebody mistyped a total would be worthless — and puts
+-- journal follows net + VAT, because that is what /money and /vat are built from, and a
+-- reconciliation that moved when somebody mistyped a total would be worthless, and puts
 -- any difference on an explicit "Rounding & unallocated" line. So the debtor leg still
 -- equals what the customer was actually billed, the entry still balances, and the
 -- discrepancy is visible instead of absorbed.
 --
--- ── The chart of accounts ───────────────────────────────────────────────────
+-- == The chart of accounts ===================================================
 --
 -- FleetWise has no chart of accounts and should not invent one it then has to maintain.
 -- The codes below are a documented DEFAULT in a conventional SA small-business range,
@@ -90,18 +90,18 @@
 -- exactly what lands where before they download anything.
 --
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART B — WHERE, ON AN AUDIT ENTRY (FR-1.4)
+-- PART B, WHERE, ON AN AUDIT ENTRY (FR-1.4)
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- `audit_log` (0008) has recorded who and when since the first week. The spec asked for
 -- where and it was never built.
 --
--- ── The threat model, stated plainly, because this is the dangerous shape ────
+-- == The threat model, stated plainly, because this is the dangerous shape ====
 --
 -- 0440 removed `public._f14_probe` from production precisely because it let a caller
 -- rewrite `request.jwt.claims`, and G11 now asserts that nothing outside the test
--- harness may do so. That function was dangerous NOT because it bypassed RLS — it was
--- SECURITY INVOKER — but because every policy decides through `auth.uid()`, so moving
+-- harness may do so. That function was dangerous NOT because it bypassed RLS, it was
+-- SECURITY INVOKER, but because every policy decides through `auth.uid()`, so moving
 -- the caller to the other side of the fence made RLS answer correctly for somebody else.
 --
 -- This feature must not be a second one of those. Three properties keep it from being:
@@ -115,7 +115,7 @@
 --      row still names the real actor.
 --   3. NO POLICY AND NO HELPER READS THE NAMESPACE. G33 asserts this structurally, by
 --      scanning `pg_policies` and every `app.*`/`public.*` function body for the string
---      — the same shape of assertion G11 uses, so the property is refused rather than
+--     , the same shape of assertion G11 uses, so the property is refused rather than
 --      merely intended.
 --
 -- Given those three, the WORST a forged header can do is record a wrong city beside a
@@ -124,7 +124,7 @@
 -- trail, while an audit trail whose city column is occasionally wrong is still worth
 -- having. It is not evidence of location; it is a signal that a human reads.
 --
--- ── What is collected, and what deliberately is not ─────────────────────────
+-- == What is collected, and what deliberately is not =========================
 --
 -- Request IP, Vercel's coarse geo headers (country / region / city) and the user agent.
 -- NOT browser geolocation: this is an audit trail, not a tracker, docs/POPIA.md governs
@@ -132,19 +132,19 @@
 -- meter reading fails minimisation before it fails anything else. Latitude/longitude are
 -- not stored either, though Vercel offers them, for the same reason.
 --
--- ── How the value actually arrives ──────────────────────────────────────────
+-- == How the value actually arrives ==========================================
 --
 -- Two sources, in precedence order, because this product has two write paths:
 --
---   1. `current_setting('fleetwise.*', true)` — an explicit per-request set_config, for
+--   1. `current_setting('fleetwise.*', true)`, an explicit per-request set_config, for
 --      a caller that owns its own transaction (an RPC, a server-side job, the test
 --      harness). This is the documented pattern the brief names.
---   2. PostgREST's `request.headers` bag — which is how the great majority of writes in
+--   2. PostgREST's `request.headers` bag, which is how the great majority of writes in
 --      this product actually reach Postgres, since supabase-js issues one HTTP request
 --      per statement and cannot hold a transaction across calls to set a GUC first.
 --      `x-forwarded-for` and `user-agent` arrive on their own; Vercel's geo headers do
 --      NOT (they are on the request to Vercel, not to Supabase), so the Next.js server
---      client forwards them as one `x-fleetwise-geo` header — see
+--      client forwards them as one `x-fleetwise-geo` header, see
 --      pending/accounting/middleware.md.
 --
 -- Nothing here may ever break a write. A forged `X-Forwarded-For: not-an-ip` that made
@@ -152,7 +152,7 @@
 -- cast is guarded and every value is length-capped. G33 asserts that too.
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART B.1 — the columns
+-- PART B.1, the columns
 -- ═════════════════════════════════════════════════════════════════════════════
 
 alter table audit_log
@@ -174,13 +174,13 @@ comment on column audit_log.geo_city   is 'Coarse city from the edge geo headers
 comment on column audit_log.user_agent is 'Request user agent, capped at 300 characters.';
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART B.2 — resolving the context
+-- PART B.2, resolving the context
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- SECURITY INVOKER and STABLE. It reads nothing but the caller's own request settings,
 -- so it discloses nothing: whatever it returns, the caller sent.
 --
--- Cost matters here — this runs once per audited row, and every business table is
+-- Cost matters here, this runs once per audited row, and every business table is
 -- audited. The early exit means a path that sets nothing (a migration, a seed, the test
 -- harness) pays a handful of `current_setting` lookups and no subtransaction at all. The
 -- two exception blocks only open once a value has already looked like the thing it is
@@ -265,7 +265,7 @@ revoke execute on function app.audit_context() from public, anon;
 grant  execute on function app.audit_context() to authenticated, service_role;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART B.3 — the audit trigger now records where
+-- PART B.3, the audit trigger now records where
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- Replaces 0008's body. Everything about WHO is byte-for-byte what it was: `v_user` is
@@ -318,7 +318,7 @@ begin
 end $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART B.4 — support access records where too
+-- PART B.4, support access records where too
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- 0206's impersonate/exit rows are written by hand, not by the trigger, so without this
@@ -364,13 +364,13 @@ revoke execute on function public.log_admin_farm_access(uuid, text) from public,
 grant  execute on function public.log_admin_farm_access(uuid, text) to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART A.1 — the partner journal
+-- PART A.1, the partner journal
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- SECURITY INVOKER, so RLS decides whose books these are: `partner_documents` is scoped
 -- by `app.partner_doc_visible` (0381/0383), `partner_payments` follows its document and
 -- `partner_expenses` is scoped to the owning workshop (0430). A partner passing a
--- rival's id gets an empty journal, not somebody else's ledger — the same shape as
+-- rival's id gets an empty journal, not somebody else's ledger, the same shape as
 -- `app.partner_pl`, and for the same reason: a check in a function body is a check
 -- somebody can forget to write.
 --
@@ -571,18 +571,18 @@ comment on function app.partner_journal(uuid, date, date) is
   '/money - asserted in G33. SECURITY INVOKER: RLS decides whose books these are.';
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART A.2 — the farm journal
+-- PART A.2, the farm journal
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- The farm side has one ledger, `cost_entries` (0210/0211), and no bank or payables of
--- its own — FleetWise records what a farm SPENT, not how it settled. A one-sided ledger
+-- its own, FleetWise records what a farm SPENT, not how it settled. A one-sided ledger
 -- cannot be imported as a journal, so each cost is given a balancing contra to a
 -- suspense account the accountant reallocates. That is stated on the screen rather than
 -- implied, because a contra nobody explained looks like a mistake.
 --
 -- SECURITY INVOKER for the same reason `app.fleet_downtime` (0361) is: RLS on
 -- `cost_entries` (and, through F16, `app.row_visible_to_role`) has to be the thing that
--- answers. Note what follows from that — a CONTRACTOR with an active link reads zero
+-- answers. Note what follows from that, a CONTRACTOR with an active link reads zero
 -- cost entries since 0400, so this returns an empty journal for them without a single
 -- line of code saying so.
 --
@@ -666,7 +666,7 @@ comment on function app.farm_journal(uuid, date, date) is
   'machines are INCLUDED - this is the books, not a fleet report. SECURITY INVOKER.';
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- PART A.3 — PostgREST wrappers + least privilege (0413/0460 pattern)
+-- PART A.3, PostgREST wrappers + least privilege (0413/0460 pattern)
 -- ═════════════════════════════════════════════════════════════════════════════
 --
 -- The column lists are restated rather than referenced: a function's RETURNS TABLE is

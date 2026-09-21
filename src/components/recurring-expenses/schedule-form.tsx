@@ -20,8 +20,8 @@ import { createExpenseSchedule } from "@/app/(app)/recurring-expenses/actions";
  *
  *  1. The VAT split, shown live. A partner types R5 175,00 off the landlord's invoice and
  *     sees "R4 500,00 + R675,00 VAT" appear underneath before pressing anything. That is
- *     what stops the commonest capture error — the inclusive amount typed into an ex-VAT
- *     field — and on a schedule the error repeats every month until somebody notices.
+ *     what stops the commonest capture error, the inclusive amount typed into an ex-VAT
+ *     field, and on a schedule the error repeats every month until somebody notices.
  *  2. The next two dates. A schedule started on the 31st falls on the 28th in February and
  *     the 31st again in March; seeing both before saving is what stops a partner assuming
  *     it has drifted. The arithmetic is `advanceByCadence`, which mirrors

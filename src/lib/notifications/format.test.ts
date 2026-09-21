@@ -5,7 +5,7 @@
  * the one surface where that failure is invisible in development: the row is queued by SQL
  * at 03:00 and rendered on somebody else's phone. `pnpm i18n:keys` catches a missing static
  * key; it cannot catch a missing MEMBER of a group whose key is built at runtime from an
- * enum — `credentialType.${p.credential}` is composed from a database value, and a group
+ * enum, `credentialType.${p.credential}` is composed from a database value, and a group
  * that is short one value renders `credentialType.medical` to a farmer.
  *
  * That has happened in this codebase: four billing status groups never existed and both
@@ -21,7 +21,7 @@ import { formatNotification, notificationTitle, notificationUrl } from "./format
 
 const LANGS = ["en", "af"] as const;
 
-/** `public.driver_credential_type` — the migration's enum, written out. */
+/** `public.driver_credential_type`, the migration's enum, written out. */
 const CREDENTIAL_TYPES = [
   "drivers_licence",
   "prdp",
@@ -31,7 +31,7 @@ const CREDENTIAL_TYPES = [
   "other",
 ] as const;
 
-/** `public.licence_type` — the vehicle's documents, not the driver's. */
+/** `public.licence_type`, the vehicle's documents, not the driver's. */
 const LICENCE_TYPES = [
   "vehicle_licence",
   "roadworthy",
@@ -78,7 +78,7 @@ test("a driver credential reminder names the person and the document, in both la
 });
 
 test("the reminder carries no licence number, because the payload never has one", () => {
-  // The engine builds its payload without `number` on purpose — this text is delivered by
+  // The engine builds its payload without `number` on purpose, this text is delivered by
   // push and by email and read on a phone somebody else may be holding. If a future change
   // starts putting one in the payload, the formatter must still not print it.
   const text = formatNotification(

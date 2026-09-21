@@ -20,7 +20,7 @@ import {
  *
  * Every write goes through the ordinary RLS client. These rows are workshop-scoped and
  * 0473's policies enforce it, so a partner cannot touch another workshop's order book even
- * by guessing an id — updates are `.eq("id", …)` with no workshop filter because a guessed
+ * by guessing an id, updates are `.eq("id", …)` with no workshop filter because a guessed
  * id from another workshop matches zero rows rather than somebody else's order. The
  * `workshop_id` on an insert comes from the session and never from the form.
  *
@@ -47,7 +47,7 @@ function refresh(id?: string) {
 }
 
 /**
- * The VAT rate a line's price should be read against — the ORDER's, read from the
+ * The VAT rate a line's price should be read against, the ORDER's, read from the
  * database rather than carried in a hidden field. A hidden field would let a form left
  * open while somebody else changed the rate quietly restate the price.
  */
@@ -65,8 +65,8 @@ async function orderRate(
 }
 
 /**
- * A unit price off the form. Suppliers quote both ways — a trade counter quotes ex-VAT and
- * a till slip is inclusive — so the form asks which one was typed and the conversion
+ * A unit price off the form. Suppliers quote both ways, a trade counter quotes ex-VAT and
+ * a till slip is inclusive, so the form asks which one was typed and the conversion
  * happens here. Ex-VAT integer cents is what gets stored, always.
  */
 function unitPrice(fd: FormData, rateBps: number): number {
@@ -75,7 +75,7 @@ function unitPrice(fd: FormData, rateBps: number): number {
   return fd.get("price_incl_vat") != null ? exVatCents(typed, rateBps) : typed;
 }
 
-// ── The order itself ─────────────────────────────────────────────────────────
+// == The order itself =========================================================
 
 export async function createOrder(formData: FormData) {
   const profile = await requireRole(["workshop"]);
@@ -107,7 +107,7 @@ export async function createOrder(formData: FormData) {
   if (error || !data) redirect(`${HOME}?error=${encodeURIComponent(error?.message ?? "po-failed")}`);
 
   refresh();
-  // Straight to the order, because an order with no lines on it is not yet an order —
+  // Straight to the order, because an order with no lines on it is not yet an order -
   // the next thing to do is say what is being bought.
   redirect(orderPath((data as { id: string }).id, "?created=1"));
 }
@@ -141,13 +141,13 @@ export async function updateOrder(formData: FormData) {
 }
 
 /**
- * Move an order along its lifecycle by hand — send it, close it, cancel it.
+ * Move an order along its lifecycle by hand, send it, close it, cancel it.
  *
  * Only the three states a PERSON decides are accepted here. `sent`, `part_received` and
  * `received` belong to the 0474 engine, which derives them from what has actually
  * arrived; letting this action post one of them would put a typed status back in the
- * product through the side door. (The database would correct it anyway — that is what the
- * BEFORE trigger is for — but an action that silently does nothing is worse than one that
+ * product through the side door. (The database would correct it anyway, that is what the
+ * BEFORE trigger is for, but an action that silently does nothing is worse than one that
  * refuses.)
  */
 export async function setOrderStatus(formData: FormData) {
@@ -172,7 +172,7 @@ export async function setOrderStatus(formData: FormData) {
 }
 
 /**
- * Soft delete, like everything else in this schema — the audit trigger keeps the row.
+ * Soft delete, like everything else in this schema, the audit trigger keeps the row.
  *
  * Refused once the supplier's invoice has been captured against it: the expense points at
  * this order, and hiding the order would leave a cost on the books whose origin cannot be
@@ -203,7 +203,7 @@ export async function deleteOrder(formData: FormData) {
   redirect(`${HOME}?deleted=1`);
 }
 
-// ── What is being bought ─────────────────────────────────────────────────────
+// == What is being bought =====================================================
 
 export async function addLine(formData: FormData) {
   const profile = await requireRole(["workshop"]);
@@ -251,7 +251,7 @@ export async function addLine(formData: FormData) {
  * One save for a line, covering both "the price was wrong" and "two of them arrived".
  *
  * Deliberately one action rather than an edit and a separate receive: on the floor those
- * are the same moment — the box is open, the delivery note is in the other hand, and the
+ * are the same moment, the box is open, the delivery note is in the other hand, and the
  * price on it is not always the price that was agreed.
  */
 export async function saveLine(formData: FormData) {
@@ -266,7 +266,7 @@ export async function saveLine(formData: FormData) {
   if (!description) redirect(orderPath(id, "?error=po-needDescription"));
   if (quantity == null || quantity <= 0) redirect(orderPath(id, "?error=po-needQty"));
 
-  // Blank means "none yet", not "unchanged" — the field is always rendered with its
+  // Blank means "none yet", not "unchanged", the field is always rendered with its
   // current value in it, so an empty box is somebody clearing it on purpose.
   const received = parseQty(String(formData.get("qty_received") ?? "")) ?? 0;
 
@@ -311,7 +311,7 @@ export async function removeLine(formData: FormData) {
 
 /**
  * The whole delivery arrived. One press instead of typing the same number into every row,
- * which is the common case and the one most likely to be skipped if it is tedious — and a
+ * which is the common case and the one most likely to be skipped if it is tedious, and a
  * receiving record nobody keeps is the reason this feature exists.
  *
  * Each line is set to exactly what was ordered rather than to some larger figure, so this
@@ -343,12 +343,12 @@ export async function receiveAll(formData: FormData) {
   redirect(orderPath(id, "?received=1"));
 }
 
-// ── The invoice arrives ──────────────────────────────────────────────────────
+// == The invoice arrives ======================================================
 
 /**
  * Turn the order into the one thing that actually costs money: a `partner_expenses` row.
  *
- * The expense is the same row it would have been if no order had ever existed — same VAT
+ * The expense is the same row it would have been if no order had ever existed, same VAT
  * treatment, same time of supply, same behaviour on the VAT return and the P&L. It simply
  * remembers which order it settles.
  *
@@ -424,7 +424,7 @@ export async function convertOrder(formData: FormData) {
 
   // Closing is only right when there is nothing left to come. A supplier who invoices what
   // they have shipped and sends the rest next week leaves an order that is still open, and
-  // closing it here would hide the outstanding items — which is the exact record this
+  // closing it here would hide the outstanding items, which is the exact record this
   // feature exists to keep.
   const { data: lineRows } = await supabase
     .from("purchase_order_lines")

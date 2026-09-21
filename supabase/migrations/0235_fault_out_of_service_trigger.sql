@@ -1,7 +1,7 @@
 -- 0235_fault_out_of_service_trigger.sql  (F3 · FR-7.5)
 -- Reporting a `stopped`-urgency fault flips the machine to `out_of_service`
--- (active-but-down). This fires no matter which path inserts the fault — in-app
--- (RLS client), or the public QR route (service role) — so a stopped machine is
+-- (active-but-down). This fires no matter which path inserts the fault, in-app
+-- (RLS client), or the public QR route (service role), so a stopped machine is
 -- always marked down for the fleet. It is intentionally revertible: an owner/manager
 -- changes the status back via the machine edit form.
 --

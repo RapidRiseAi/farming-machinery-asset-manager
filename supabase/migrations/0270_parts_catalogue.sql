@@ -1,5 +1,5 @@
 -- 0270_parts_catalogue.sql
--- Service kits & parts catalogue — feature F9 (FR-5.2/5.3).
+-- Service kits & parts catalogue, feature F9 (FR-5.2/5.3).
 --
 -- `parts_catalogue` is the manually-maintained list of parts a farm (or the global
 -- RR-seeded library) buys: engine-oil / gearbox-oil / filter part numbers, their
@@ -29,7 +29,7 @@ create table parts_catalogue (
 create index parts_catalogue_farm_idx    on parts_catalogue(farm_id);
 create index parts_catalogue_part_no_idx on parts_catalogue(part_no);
 
--- ── RLS + grants (mirror service_templates: global rows readable by all) ──
+-- == RLS + grants (mirror service_templates: global rows readable by all) ==
 alter table parts_catalogue enable row level security;
 alter table parts_catalogue force  row level security;
 create policy parts_catalogue_sel on parts_catalogue for select to authenticated
@@ -46,7 +46,7 @@ grant select, insert, update, delete on parts_catalogue to authenticated;
 grant all on parts_catalogue to service_role;
 -- anon gets ZERO access (0102 default privileges revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ────────────────────────
+-- == Audit (append-only history, per 0008) ========================
 create trigger parts_catalogue_audit
   after insert or update or delete on parts_catalogue
   for each row execute function app_audit();

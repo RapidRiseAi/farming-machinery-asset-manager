@@ -1,7 +1,7 @@
 import { t, defaultLocale } from "@/lib/i18n";
 
 // Static fallback served by the service worker for never-visited routes while offline.
-// No auth, no data — deliberately tiny so it precaches cleanly.
+// No auth, no data, deliberately tiny so it precaches cleanly.
 export const dynamic = "force-static";
 
 export default function OfflinePage() {

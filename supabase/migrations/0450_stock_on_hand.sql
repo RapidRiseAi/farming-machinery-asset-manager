@@ -3,17 +3,17 @@
 --
 -- `parts_catalogue` (0270) has always been a LIST: part numbers, suppliers, a typical
 -- cost. It answers "what does a fuel filter for the New Holland cost?" and cannot answer
--- "have we got one?" — so the question that actually stops a service at 6am on a Saturday
+-- "have we got one?", so the question that actually stops a service at 6am on a Saturday
 -- was the one the product could not take. Service kits (0271) made it sharper: a farm can
 -- say a 250-hour service needs six parts, and still not know whether any of them are in
 -- the store.
 --
--- ── The shape, and why it is not new ────────────────────────────────────────
+-- == The shape, and why it is not new ========================================
 --
 -- This is deliberately the F4 fuel model with different nouns. Fuel got that shape after
 -- the double-count problem was thought through once (0241): a DELIVERY is stock arriving
 -- and books nothing; an ISSUE to a machine is what attributes cost. Parts are the same
--- physical story — something arrives, sits on a shelf, and is later fitted to a machine —
+-- physical story, something arrives, sits on a shelf, and is later fitted to a machine -
 -- so they get the same spine rather than a second, differently-shaped one.
 --
 --   stock_items      one row per (farm, catalogue part): where it lives, what is on hand
@@ -26,7 +26,7 @@
 -- way, and it can also answer "where did the other three go?", which a bare integer never
 -- can.
 --
--- ── The money rule (founder's decision) ─────────────────────────────────────
+-- == The money rule (founder's decision) =====================================
 --
 -- Parts differ from fuel in one way that matters: `job_card_lines` ALREADY book parts cost
 -- through the 0211 trigger. So a rand issued from the store has two candidate owners, and
@@ -38,18 +38,18 @@
 --     not yet a cost of owning any machine, and booking it here would charge a farm for a
 --     filter still in its box.
 --   * an ISSUE THAT NAMES A JOB CARD books nothing. The job card's own line already owns
---     that rand — this is the no-double-count rule the whole ledger depends on.
+--     that rand, this is the no-double-count rule the whole ledger depends on.
 --   * an ISSUE WITH NO JOB CARD books a `parts` cost entry against the machine. This is
 --     the "grabbed a filter off the shelf and fitted it" case, which is most of what
 --     actually happens on a farm, and without it the stock drops while the money vanishes
 --     and the machine's TCO quietly understates.
---   * an ADJUSTMENT or a RETURN never books anything — a stocktake correction is not a
+--   * an ADJUSTMENT or a RETURN never books anything, a stocktake correction is not a
 --     cost, it is an admission that the count was wrong.
 
--- ── Kinds ────────────────────────────────────────────────────────────────────
+-- == Kinds ====================================================================
 create type stock_move_kind as enum ('receipt', 'issue', 'adjustment', 'return');
 
--- ── What is on the shelf ─────────────────────────────────────────────────────
+-- == What is on the shelf =====================================================
 create table stock_items (
   id                uuid primary key default gen_random_uuid(),
   farm_id           uuid not null,
@@ -78,13 +78,13 @@ create unique index stock_items_part_uq on stock_items (farm_id, part_catalogue_
   where deleted_at is null;
 create index stock_items_farm_idx on stock_items (farm_id);
 
--- ── The ledger ───────────────────────────────────────────────────────────────
+-- == The ledger ===============================================================
 create table stock_movements (
   id              uuid primary key default gen_random_uuid(),
   farm_id         uuid not null,
   stock_item_id   uuid not null,
   kind            stock_move_kind not null,
-  -- Always POSITIVE. The direction is the kind's job, not the sign's — a negative receipt
+  -- Always POSITIVE. The direction is the kind's job, not the sign's, a negative receipt
   -- and a positive issue would both be readable as "minus three" by different people.
   qty             numeric(14,3) not null check (qty > 0),
   unit_cost_cents bigint,                          -- ex-VAT, integer cents (Scope §6)
@@ -100,7 +100,7 @@ create table stock_movements (
   constraint stock_movements_item_fk    foreign key (stock_item_id, farm_id)
     references stock_items(id, farm_id) on delete cascade,
   -- Composite, so a movement can only ever point at a machine or a job card of its OWN
-  -- farm — the tenancy rule the rest of this schema is built on.
+  -- farm, the tenancy rule the rest of this schema is built on.
   constraint stock_movements_machine_fk foreign key (machine_id, farm_id)
     references machines(id, farm_id),
   constraint stock_movements_job_fk     foreign key (job_card_id, farm_id)
@@ -113,7 +113,7 @@ create index stock_movements_item_idx    on stock_movements (stock_item_id, occu
 create index stock_movements_farm_idx    on stock_movements (farm_id);
 create index stock_movements_machine_idx on stock_movements (machine_id) where machine_id is not null;
 
--- ── on_hand follows the ledger ───────────────────────────────────────────────
+-- == on_hand follows the ledger ===============================================
 create or replace function app_stock_rollup() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_item uuid;
@@ -141,7 +141,7 @@ create trigger stock_movements_rollup
 after insert or update or delete on stock_movements
 for each row execute function app_stock_rollup();
 
--- ── The money rule ───────────────────────────────────────────────────────────
+-- == The money rule ===========================================================
 create or replace function app_cost_from_stock_movement() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -186,9 +186,9 @@ create trigger stock_movements_cost
 after insert or update or delete on stock_movements
 for each row execute function app_cost_from_stock_movement();
 
--- ── RLS + grants + audit ─────────────────────────────────────────────────────
+-- == RLS + grants + audit =====================================================
 -- Farm-scoped like everything else, AND farm-side only. A contractor reaches a farm
--- through workshop_links, which `app.has_farm_access` deliberately admits — but what a
+-- through workshop_links, which `app.has_farm_access` deliberately admits, but what a
 -- farm keeps on its shelves is not part of fixing a tractor, and F16 established that a
 -- partner sees the narrowest slice that lets them work. There is no grant that opens this.
 do $do$

@@ -10,7 +10,7 @@ import {
 } from "@/lib/fuel-logbook";
 
 /**
- * The SARS diesel-refund logbooks (Scope §9) — storage or usage, as a CSV.
+ * The SARS diesel-refund logbooks (Scope §9), storage or usage, as a CSV.
  *
  * `?book=storage` walks every litre into and out of each tank with a running balance;
  * `?book=usage` lists every draw with the machine, the activity, the meter and the driver.
@@ -19,7 +19,7 @@ import {
  *
  * Deliberately NOT gated on cost visibility, unlike `fuel.csv`: a logbook is litres and
  * activities, not money. Nothing here names a price, so an operator who may not see costs
- * can still produce the trail — and the plan gate above still applies.
+ * can still produce the trail, and the plan gate above still applies.
  */
 export async function GET(request: Request) {
   const profile = await getProfile();

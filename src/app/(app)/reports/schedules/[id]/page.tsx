@@ -49,7 +49,7 @@ const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? nul
  * One emailed report: what it is, who gets it, and what actually happened each time.
  *
  * The run history is the point of the bottom half. A send that bounced is the single most
- * useful thing this feature can tell somebody and the easiest thing to lose — an owner who
+ * useful thing this feature can tell somebody and the easiest thing to lose, an owner who
  * believes their accountant was sent the August figures, and was not, is worse off than an
  * owner who never set a schedule up.
  */
@@ -131,7 +131,7 @@ export default async function ReportSchedulePage({
     if (r.email) return r.email;
     const u = one(r.users);
     if (!u) return t("reportSchedules.unknownPerson", locale);
-    return u.email ? `${u.name} (${u.email})` : t("reportSchedules.noAddress", locale) + ` — ${u.name}`;
+    return u.email ? `${u.name} (${u.email})` : t("reportSchedules.noAddress", locale) + `, ${u.name}`;
   };
 
   const runTone = (s: ReportScheduleRun["status"]) =>
@@ -171,7 +171,7 @@ export default async function ReportSchedulePage({
         }
       />
 
-      {/* ── What happens next ─────────────────────────────────────────── */}
+      {/* == What happens next =========================================== */}
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.nextTitle", locale)}</CardTitle></CardHeader>
         {live ? (
@@ -223,7 +223,7 @@ export default async function ReportSchedulePage({
         </div>
       </Card>
 
-      {/* ── Who gets it ───────────────────────────────────────────────── */}
+      {/* == Who gets it ================================================= */}
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.whoTitle", locale)}</CardTitle></CardHeader>
         <p className="mb-3 text-sm text-sand-600">{t("reportSchedules.whoBody", locale)}</p>
@@ -309,7 +309,7 @@ export default async function ReportSchedulePage({
         </div>
       </Card>
 
-      {/* ── The settings ──────────────────────────────────────────────── */}
+      {/* == The settings ================================================ */}
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.settingsTitle", locale)}</CardTitle></CardHeader>
         <form action={updateReportSchedule} className="flex flex-col gap-3">
@@ -431,7 +431,7 @@ export default async function ReportSchedulePage({
         </form>
       </Card>
 
-      {/* ── What actually happened ────────────────────────────────────── */}
+      {/* == What actually happened ====================================== */}
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.historyTitle", locale)}</CardTitle></CardHeader>
         {runs.length === 0 ? (
@@ -450,7 +450,7 @@ export default async function ReportSchedulePage({
                   </span>
                 </span>
                 <span className="text-sm text-sand-600">
-                  {t("reportSchedules.wentTo", locale)} {r.recipients.join(", ") || "—"}
+                  {t("reportSchedules.wentTo", locale)} {r.recipients.join(", ") || "-"}
                 </span>
                 {r.error ? (
                   <span className="text-sm text-status-overdue">

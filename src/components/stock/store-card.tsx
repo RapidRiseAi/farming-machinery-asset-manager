@@ -23,7 +23,7 @@ export type StoreRow = StockItem & {
  * The store: what a farm actually holds, and the two things done to it.
  *
  * The list leads with the count and its tone, because "have we got one?" is the question
- * this screen exists to answer — the part number and the bin are how you then go and find
+ * this screen exists to answer, the part number and the bin are how you then go and find
  * it. Receiving and issuing are inline per row rather than behind a modal: a farm doing a
  * delivery types six quantities in a row, and six dialogs is five too many.
  */
@@ -96,7 +96,7 @@ export function StoreCard({
 
                   {canManage ? (
                     <div className="mt-2 flex flex-wrap items-end gap-4">
-                      {/* Receive — no machine, no cost to any vehicle. */}
+                      {/* Receive, no machine, no cost to any vehicle. */}
                       <form action={recordMovement} className="flex flex-wrap items-end gap-2">
                         <input type="hidden" name="stock_item_id" value={r.id} />
                         <input type="hidden" name="kind" value="receipt" />
@@ -109,7 +109,7 @@ export function StoreCard({
                         <SubmitButton variant="secondary" size="sm">{t("stock.receiveDo", locale)}</SubmitButton>
                       </form>
 
-                      {/* Issue — to a machine. Naming a job card hands the cost to that card. */}
+                      {/* Issue, to a machine. Naming a job card hands the cost to that card. */}
                       <form action={recordMovement} className="flex flex-wrap items-end gap-2">
                         <input type="hidden" name="stock_item_id" value={r.id} />
                         <input type="hidden" name="kind" value="issue" />

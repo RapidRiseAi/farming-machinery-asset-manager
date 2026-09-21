@@ -47,7 +47,7 @@ export async function addFuelTank(formData: FormData) {
 }
 
 /** Log a delivery / fill into a tank (owner/manager). Cost is entered VAT-inclusive and
- *  stored ex-VAT (Scope §6) as a per-litre unit price. Deliveries are tank stock — they do
+ *  stored ex-VAT (Scope §6) as a per-litre unit price. Deliveries are tank stock, they do
  *  NOT book a cost_entry (per-issue attribution model, migration 0241). */
 export async function addFuelDelivery(formData: FormData) {
   const { profile, farmId } = await requireCurrentFarmRole(
@@ -150,8 +150,8 @@ export async function addFuelIssue(formData: FormData) {
 
   const date = dateRaw || new Date().toISOString().slice(0, 10);
 
-  // ONE transaction. This used to be two inserts — the draw, then the driver-usage log
-  // whose result was never read — so a failure on the second left the litres and the cost
+  // ONE transaction. This used to be two inserts, the draw, then the driver-usage log
+  // whose result was never read, so a failure on the second left the litres and the cost
   // recorded and the driver's utilisation history quietly missing (the 11 September 2026
   // audit listed it). `record_fuel_issue` writes both or neither, re-checks the role and
   // the plan in the database, and converts the VAT-inclusive cost with the farm's own rate.
@@ -181,7 +181,7 @@ export async function addFuelIssue(formData: FormData) {
  *
  * The book balance is only ever as good as the captures behind it: diesel that leaves
  * without a draw being logged appears nowhere until somebody puts a stick in the tank.
- * This records the measurement and nothing else — no correcting entry, no adjustment. A
+ * This records the measurement and nothing else, no correcting entry, no adjustment. A
  * variance is a question for a person, and an adjustment would quietly answer it.
  */
 export async function addFuelDip(formData: FormData) {

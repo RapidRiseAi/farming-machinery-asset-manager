@@ -2,21 +2,21 @@
 -- The licence that belongs to the PERSON, not to the vehicle.
 --
 -- `licences` (0260) tracks the disc on the windscreen. Nothing in this product has ever
--- tracked the card in the driver's pocket — their driving licence code, their PrDP, the
+-- tracked the card in the driver's pocket, their driving licence code, their PrDP, the
 -- competency certificate for the loader, the medical the PrDP depends on. So the AARTO
 -- nomination flow (0370/0371) will happily nominate a driver whose own licence expired
 -- four months ago, name them to the authority as the person who was driving, and never
 -- once say that the farm has just put that in writing.
 --
 -- THE PERSON MAY NOT BE A USER
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Most people who drive a farm's vehicles never sign in: this product's own design has
--- workers using the no-login QR page. `fines` already solved this — `driver_user_id` OR a
--- free-text `driver_name` — and this table uses exactly the same shape rather than
+-- workers using the no-login QR page. `fines` already solved this, `driver_user_id` OR a
+-- free-text `driver_name`, and this table uses exactly the same shape rather than
 -- inventing a second idea of who a person is. One of the two, never both, never neither.
 --
 -- WHO MAY READ IT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A medical certificate is health information; §26 of POPIA makes it special personal
 -- information, and a licence code plus an ID-linked permit is not far behind. So SELECT is
 -- narrower than `has_farm_access` for the first time in this schema:
@@ -35,7 +35,7 @@ create type driver_credential_type as enum (
   'drivers_licence',  -- the card: code B, C1, EC…
   'prdp',             -- Professional Driving Permit: G(oods), P(assengers), D(angerous goods)
   'competency',       -- operator competency: forklift, TLB, front-end loader, chainsaw
-  'medical',          -- certificate of fitness — the PrDP depends on it
+  'medical',          -- certificate of fitness, the PrDP depends on it
   'induction',        -- site or safety induction that has to be redone
   'other'
 );
@@ -47,7 +47,7 @@ create table driver_credentials (
   user_id            uuid references users(id),
   person_name        text,
   type               driver_credential_type not null default 'drivers_licence',
-  -- 'EC', 'C1', 'G' — what is printed on the card. Free text on purpose: the codes differ
+  -- 'EC', 'C1', 'G', what is printed on the card. Free text on purpose: the codes differ
   -- by document and an enum here would be wrong within a year.
   code               text,
   number             text,
@@ -84,14 +84,14 @@ create index driver_credentials_user_idx   on driver_credentials(user_id) where 
 create index driver_credentials_expiry_idx on driver_credentials(expiry_date) where deleted_at is null;
 
 comment on table driver_credentials is
-  'What a person is licensed to do and until when — their driving licence, PrDP, '
+  'What a person is licensed to do and until when, their driving licence, PrDP, '
   'competency certificates and medicals. Personal information: read by owner/manager, or '
   'by the person themselves, and never by linked workshop staff.';
 comment on column driver_credentials.person_name is
   'Used when the driver is not a signed-in user, which on most farms is most drivers. '
-  'Mutually exclusive with user_id — the same shape fines.driver_name uses.';
+  'Mutually exclusive with user_id, the same shape fines.driver_name uses.';
 
--- ── RLS ─────────────────────────────────────────────────────────────────────
+-- == RLS =====================================================================
 alter table driver_credentials enable row level security;
 alter table driver_credentials force  row level security;
 
@@ -136,7 +136,7 @@ create trigger driver_credentials_audit
   after insert or update or delete on driver_credentials
   for each row execute function app_audit();
 
--- ── Who could legally drive, and on what day ────────────────────────────────
+-- == Who could legally drive, and on what day ================================
 --
 -- The question the AARTO screen has to be able to ask: on the day of this offence, was the
 -- person we are about to name to the authority actually licensed?
@@ -188,7 +188,7 @@ grant execute on function app.driver_credential_lapses(uuid, uuid, text, date)
   to authenticated, service_role;
 
 -- PostgREST reaches `public` only, so the screen needs a wrapper or the function does not
--- exist as far as the app is concerned. SECURITY INVOKER the whole way down — the wrapper
+-- exist as far as the app is concerned. SECURITY INVOKER the whole way down, the wrapper
 -- adds reachability, never privilege.
 create or replace function public.driver_credential_lapses(
   p_farm uuid, p_user uuid, p_name text, p_on date
@@ -216,7 +216,7 @@ comment on function public.driver_credential_lapses(uuid, uuid, text, date) is
   'farm names somebody to the authority under AARTO, because a nomination is a statement '
   'about a day in the past and "their licence is fine now" does not answer it.';
 
--- ── Reminders ───────────────────────────────────────────────────────────────
+-- == Reminders ===============================================================
 -- A separate engine with its own cron wrapper, following 0371 rather than extending
 -- 0263: a new reminder source has been added by adding a function twice now, and rewriting
 -- the warranty and vehicle-licence loops to get a third one is two working loops put at
@@ -234,7 +234,7 @@ begin
   for r in
     select c.id, c.farm_id, c.type, c.code, c.number, c.expiry_date, c.reminder_lead_days,
            c.notified_status, c.last_notified_at,
-           coalesce(nullif(btrim(c.person_name), ''), u.name, u.email, '—') as person,
+           coalesce(nullif(btrim(c.person_name), ''), u.name, u.email, '-') as person,
            f.settings
       from driver_credentials c
       left join users u on u.id = c.user_id

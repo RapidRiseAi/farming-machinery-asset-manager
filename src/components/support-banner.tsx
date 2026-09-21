@@ -8,7 +8,7 @@ import { exitSupportMode } from "@/app/(app)/admin/farms/[id]/actions";
  *
  * The whole point of the S10 fix: an admin looking at a customer's data must be able to
  * see that they are, and get out in one tap from wherever they got to. Rendered in the
- * app shell above everything, and only when the farm-context cookie is actually set —
+ * app shell above everything, and only when the farm-context cookie is actually set -
  * so it can never claim a mode that isn't real, which was the original defect in
  * reverse.
  */

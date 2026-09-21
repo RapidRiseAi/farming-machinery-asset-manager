@@ -2,7 +2,7 @@
 -- Billing a job in more than one go: a deposit up front, stages as work proceeds, the
 -- balance at the end.
 --
--- ── Why this is one feature and not two ──────────────────────────────────────
+-- == Why this is one feature and not two ======================================
 --
 -- A deposit and a progress payment look like different things to a business owner and are
 -- the same thing to a ledger: an invoice for PART of an agreed job, raised before the
@@ -13,11 +13,11 @@
 --   MANY INVOICES MAY POINT AT ONE QUOTE, and the quote knows how much of it has been
 --   billed so far.
 --
--- Nothing new is needed to make that legal — `partner_documents.quote_id` (0381) already
+-- Nothing new is needed to make that legal, `partner_documents.quote_id` (0381) already
 -- exists and was never unique. What was missing is the arithmetic that keeps it honest,
 -- and a way to say what each invoice IS: a deposit, a stage, or the final balance.
 --
--- ── The no-double-billing rule ───────────────────────────────────────────────
+-- == The no-double-billing rule ===============================================
 --
 -- Each progress invoice carries its OWN lines and is costed by the existing 0418 trigger
 -- like any other invoice. There is no netting, no deduction field, no "less deposit
@@ -40,7 +40,7 @@ alter table partner_documents
 comment on column partner_documents.billing_stage is
   'Set when this invoice bills PART of a quote (0432). deposit = up front, progress = a '
   'stage, final = the balance. Each such invoice carries its own lines and its own cost '
-  'entry — there is no netting, so parts of a job can never double-count.';
+  'entry, there is no netting, so parts of a job can never double-count.';
 
 -- Only an invoice pointing at a quote can be a stage of anything.
 alter table partner_documents
@@ -51,9 +51,9 @@ alter table partner_documents
 create index partner_documents_quote_idx on partner_documents(quote_id)
   where quote_id is not null and deleted_at is null;
 
--- ── How much of a quote has been billed ──────────────────────────────────────
+-- == How much of a quote has been billed ======================================
 -- SECURITY INVOKER: the caller sees exactly the invoices RLS lets them see, which is the
--- correct answer for both sides — the partner sees their own billing against their own
+-- correct answer for both sides, the partner sees their own billing against their own
 -- quote, and the farmer sees what they have actually been sent.
 --
 -- Drafts count as NOT yet billed. A draft has not left the building, so treating it as

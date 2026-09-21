@@ -9,7 +9,7 @@ import type { PdfContext, PdfDocRow, PdfLine } from "@/lib/pdf/partner-document"
  * Two callers with very different access stories share it: the authenticated PDF and
  * detail routes, which pass the RLS-bound client and let `app.partner_doc_visible` decide
  * what they may see; and the customer's public link, which passes the SERVICE client
- * after validating an unguessable token — the same shape as the public QR flow, where
+ * after validating an unguessable token, the same shape as the public QR flow, where
  * anon has zero database access and a server route does the read.
  *
  * Sharing the loader is what keeps the two copies of a document identical. It also puts

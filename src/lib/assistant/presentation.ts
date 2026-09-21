@@ -150,7 +150,7 @@ export function queryAnswer(
  * Exported because two paths answer the same question: the deterministic
  * `query_service_due` intent, and a local read that has already resolved to
  * exactly one machine. That second path used to fall back to the FLEET sentence
- * — "No visible machines are overdue or due soon for service." — which does not
+ *, "No visible machines are overdue or due soon for service.", which does not
  * answer "when is this machine due?" at all. English phrasing routes there and
  * Afrikaans phrasing routes to the deterministic intent, so the same question
  * was answered well in one language and uselessly in the other.

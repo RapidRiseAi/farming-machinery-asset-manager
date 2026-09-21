@@ -1,5 +1,5 @@
 /**
- * What a farm owes for a period — the arithmetic, and nothing else.
+ * What a farm owes for a period, the arithmetic, and nothing else.
  *
  * THE SAME SUM IS DONE IN TWO PLACES AND THEY MUST AGREE.
  * `app.billing_derive_invoice_totals` (migration 20260903160000) computes the money on
@@ -12,13 +12,13 @@
  *     vat         = total_incl − subtotal_ex
  *
  * The VAT split is derived by SUBTRACTION, never by a second rounding. That is what
- * makes `subtotal + vat = total` hold on every row — which the database checks, in
+ * makes `subtotal + vat = total` hold on every row, which the database checks, in
  * `billing_invoices_split_ck`. Rounding both halves independently is the classic way to
  * be one cent out on a bill.
  *
  * PRICES ARE VAT-INCLUSIVE. The catalogue stores what the customer agreed to pay; the
  * ex-VAT figure is derived from it. Today Rapid Rise is NOT VAT-registered, so the rate
- * is 0, `vatCents` is 0 and `subtotalExVatCents === totalInclCents` — and a UI must not
+ * is 0, `vatCents` is 0 and `subtotalExVatCents === totalInclCents`, and a UI must not
  * print a VAT line or head anything "Tax invoice" (VAT Act s20(4) reserves that for a
  * registered vendor). The machinery is built in full anyway so registering later is a
  * flag flip that restates no historical invoice.
@@ -26,7 +26,7 @@
  * NO PRICE IS HARDCODED HERE, DELIBERATELY. `docs/FLEETWISE_FOUNDER_DECISIONS.md` #1 and
  * the shipped `src/lib/entitlements.ts` disagree, and the founder has confirmed neither,
  * so `billing_price_versions` ships EMPTY and every price arrives as an argument. A
- * price-on-application plan arrives as `null` and can never be auto-invoiced — which is
+ * price-on-application plan arrives as `null` and can never be auto-invoiced, which is
  * the correct behaviour for a negotiated price, not a gap.
  *
  * SCOPE: farms paying Rapid Rise for FleetWise. Nothing to do with `partner_documents`.
@@ -35,11 +35,11 @@
 import { ANNUAL_MONTHS_CHARGED, type BillingPeriod, type Plan } from "@/lib/entitlements";
 import { exVatCents } from "@/lib/money";
 
-// ── What counts as a billable vehicle ─────────────────────────────────────────
+// == What counts as a billable vehicle =========================================
 
 /**
  * Machine statuses that are NOT billed. Held here as a literal rather than imported
- * from `machine-options.ts` so this module stays free of the i18n dictionaries — but
+ * from `machine-options.ts` so this module stays free of the i18n dictionaries, but
  * the two are asserted equal in `pricing.test.ts`, so they cannot drift silently.
  */
 export const NON_BILLABLE_MACHINE_STATUSES = ["retired", "sold"] as const;
@@ -48,7 +48,7 @@ export const NON_BILLABLE_MACHINE_STATUSES = ["retired", "sold"] as const;
  * The billable rule, in one sentence, in one place.
  *
  * `out_of_service` STILL COUNTS: a broken tractor is still on the system, still holding
- * its history, still costing us to host — and a farm that could stop paying by marking
+ * its history, still costing us to host, and a farm that could stop paying by marking
  * its fleet as broken is a farm with a free plan. This is character-for-character the
  * rule `app.billable_asset_count` uses, which is itself the rule
  * `app.recount_farm_assets` (0251) already uses for `farms.asset_count`.
@@ -65,7 +65,7 @@ export function billableAssetCount(statuses: readonly string[]): number {
   return statuses.reduce((n, s) => (isBillableMachineStatus(s) ? n + 1 : n), 0);
 }
 
-// ── The arithmetic ────────────────────────────────────────────────────────────
+// == The arithmetic ============================================================
 
 export type InvoiceAmounts = {
   /** VAT-inclusive total, integer cents. The figure the customer pays. */
@@ -95,7 +95,7 @@ function assertCount(name: string, value: number, min: number): void {
 /**
  * The invoice sum. Throws on inputs that cannot produce a defensible bill (a fractional
  * cent, a negative count, an overflow past the safe-integer range) rather than
- * returning a plausible wrong number — money arithmetic that guesses is worse than
+ * returning a plausible wrong number, money arithmetic that guesses is worse than
  * money arithmetic that stops.
  */
 export function invoiceAmounts(input: AmountInput): InvoiceAmounts {
@@ -118,7 +118,7 @@ export function invoiceAmounts(input: AmountInput): InvoiceAmounts {
 
 /**
  * How many months a period charges for. Annual pre-pay is two months free, so an annual
- * invoice charges 10 — but the price version carries its own `months_charged`, so an
+ * invoice charges 10, but the price version carries its own `months_charged`, so an
  * explicit value always wins. The offer can change without rewriting history or hunting
  * for a constant.
  */
@@ -130,13 +130,13 @@ export function monthsChargedFor(period: BillingPeriod, fromPriceVersion?: numbe
   return period === "annual" ? ANNUAL_MONTHS_CHARGED : 1;
 }
 
-// ── The quote ─────────────────────────────────────────────────────────────────
+// == The quote =================================================================
 
 export type QuoteInput = {
   plan: Plan;
   billingPeriod: BillingPeriod;
   /**
-   * Per vehicle, per month, VAT-inclusive cents — straight off
+   * Per vehicle, per month, VAT-inclusive cents, straight off
    * `billing_price_versions.per_vehicle_monthly_incl_cents`. NULL means price on
    * application (a bespoke plan), and there is no such thing as auto-invoicing one.
    */
@@ -158,7 +158,7 @@ export type SubscriptionQuote =
       monthsCharged: number;
       vatRateBps: number;
       /**
-       * False when the total is zero — a farm with no billable vehicles. The generator
+       * False when the total is zero, a farm with no billable vehicles. The generator
        * raises no invoice for one; it moves the billing date on instead, so it does not
        * reconsider the same farm every night.
        */
@@ -167,9 +167,9 @@ export type SubscriptionQuote =
   | {
       ok: false;
       /**
-       * `price_on_application` — a bespoke plan; a human quotes it.
-       * `no_active_price`     — the catalogue has no confirmed price yet (today's state).
-       * `invalid_input`       — a caller bug; `detail` says which field, never a value.
+       * `price_on_application`, a bespoke plan; a human quotes it.
+       * `no_active_price`    , the catalogue has no confirmed price yet (today's state).
+       * `invalid_input`      , a caller bug; `detail` says which field, never a value.
        */
       reason: "price_on_application" | "no_active_price" | "invalid_input";
       detail?: string;
@@ -224,7 +224,7 @@ export function quoteSubscription(input: QuoteInput): SubscriptionQuote {
 /**
  * What a price version says one vehicle costs per month, for display beside a total.
  * On an annual plan the customer pays for 10 months across 12, so the effective monthly
- * figure is lower than the list price — and showing the list price beside an annual
+ * figure is lower than the list price, and showing the list price beside an annual
  * total is how a bill stops adding up in a customer's head.
  */
 export function effectiveMonthlyPerVehicleCents(

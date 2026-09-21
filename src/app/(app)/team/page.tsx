@@ -39,7 +39,7 @@ type TeamUser = {
 
 /**
  * Something non-empty to name a person by. An already-erased profile has a blank name,
- * and the erase dialog's type-to-confirm must never resolve to the empty string — that
+ * and the erase dialog's type-to-confirm must never resolve to the empty string, that
  * would leave the irreversible action unlocked from the moment it opens.
  */
 function personLabel(u: TeamUser): string {
@@ -154,7 +154,7 @@ export default async function TeamPage({
 
       {/* Two different questions about the same people: who may sign in (this page), and
           who may legally drive (that one). Linked rather than merged because a farm opens
-          them on different days — one when somebody joins, the other when a truck is being
+          them on different days, one when somebody joins, the other when a truck is being
           loaded or an AARTO notice lands. */}
       <Link
         href="/team/licences"
@@ -228,7 +228,7 @@ export default async function TeamPage({
                     ) : null}
                   </Td>
                   <Td><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
-                  <Td className="text-sand-500">{u.email ?? "—"}</Td>
+                  <Td className="text-sand-500">{u.email ?? "-"}</Td>
                   <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
                   <Td>
                     <div className="flex min-w-56 flex-col gap-2 py-1">

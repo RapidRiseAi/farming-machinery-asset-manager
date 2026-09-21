@@ -1,13 +1,13 @@
 -- 20260911160000_billing_pending_dunning_and_freeze.sql
 -- Three from the audit, and the first one is the worst thing found in this billing system.
 --
--- S10 — A DECLINED FIRST PAYMENT OPENED THE FARM
--- ─────────────────────────────────────────────────────────────────────────────
+-- S10, A DECLINED FIRST PAYMENT OPENED THE FARM
+-- =============================================================================
 -- `app.billing_register_failure` moves a subscription to 'past_due' on any failure. For a
 -- farm that has been paying, that is the dunning ladder working exactly as designed.
 --
 -- For a PENDING sign-up it was a door. `app.farm_billing_gate` (20260911100000) reads
--- 'pending' as "not paid, keep them out" and anything else as "let them in" — so the
+-- 'pending' as "not paid, keep them out" and anything else as "let them in", so the
 -- moment a new customer's first card was declined, `register_failure` moved them to
 -- 'past_due' and the gate opened the farm.
 --
@@ -16,13 +16,13 @@
 --
 -- A pending sign-up has nothing to dun: no access, nothing owed yet, and an invoice that
 -- simply stays open until somebody pays it. The failure is still RECORDED, because the
--- count and the reason are evidence worth having when they ring — but the status does not
+-- count and the reason are evidence worth having when they ring, but the status does not
 -- move, so the gate keeps its answer.
 --
--- S9 — THE SNAPSHOTS WERE DOCUMENTED AS FROZEN AND WERE NOT
--- ─────────────────────────────────────────────────────────────────────────────
+-- S9, THE SNAPSHOTS WERE DOCUMENTED AS FROZEN AND WERE NOT
+-- =============================================================================
 -- `billing_invoices.seller_snapshot` and `bill_to_snapshot` exist so that a copy of an
--- invoice reprinted next year shows the company and the customer AS THEY WERE — that is
+-- invoice reprinted next year shows the company and the customer AS THEY WERE, that is
 -- the whole reason they are snapshots rather than joins. The freeze trigger protected
 -- every figure on the invoice and neither snapshot, so the names, registration numbers and
 -- addresses on an issued document were quietly editable.
@@ -30,11 +30,11 @@
 -- Freezing what a thing cost while leaving who it was for editable is the half of a frozen
 -- document a tax authority would care about most.
 --
--- S12 — A DRAFT INVOICE COULD BE MARKED PAID WHILE IT WAS STILL BEING WRITTEN
--- ─────────────────────────────────────────────────────────────────────────────
+-- S12, A DRAFT INVOICE COULD BE MARKED PAID WHILE IT WAS STILL BEING WRITTEN
+-- =============================================================================
 -- The audit reported this as "a zero-total invoice can never reach paid", and half of that
 -- is true: the rollup required `v_total > 0`. But it is not reachable by the route it
--- implies — `billing_payments_nonzero_ck` forbids a zero payment, so the rollup never runs
+-- implies, `billing_payments_nonzero_ck` forbids a zero payment, so the rollup never runs
 -- on such an invoice at all, and nothing the CASE said could have changed that. The real
 -- guard against a zero-total invoice is the generator, which refuses to bill a farm with
 -- nothing to bill (asserted in section (i)). The `v_paid >= v_total` here is defensive
@@ -50,7 +50,7 @@
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S10 — a failed first payment leaves a sign-up exactly where it was
+-- S10, a failed first payment leaves a sign-up exactly where it was
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.billing_register_failure(p_sub uuid, p_reason text default null)
 returns void
@@ -67,17 +67,17 @@ begin
   -- S10, and it got considerably worse when `pending` arrived.
   --
   -- This function moves a subscription to 'past_due' on any failure. For a farm that has
-  -- been paying, that is the ladder working. For a PENDING sign-up — one whose very first
-  -- payment just failed — it moved them out of 'pending', and `app.farm_billing_gate` reads
+  -- been paying, that is the ladder working. For a PENDING sign-up, one whose very first
+  -- payment just failed, it moved them out of 'pending', and `app.farm_billing_gate` reads
   -- anything other than 'pending' as "let them in".
   --
   -- So a DECLINED card opened the farm. Not a subtle one: fail the payment, get the
   -- product.
   --
   -- A pending sign-up has nothing to dun. They have no access, they owe nothing yet, and
-  -- their invoice simply stays open until they pay it. The failure is still recorded —
+  -- their invoice simply stays open until they pay it. The failure is still recorded -
   -- the count and the reason are evidence, and "their card was declined four times" is
-  -- worth knowing when they ring — but the status does not move.
+  -- worth knowing when they ring, but the status does not move.
   if s.status = 'pending' then
     update public.billing_subscriptions
        set failed_attempt_count = v_n,
@@ -100,7 +100,7 @@ begin
            updated_at = now()
      where id = p_sub;
   else
-    -- Retries exhausted. Access continues for the grace period — and, since 20260910160000,
+    -- Retries exhausted. Access continues for the grace period, and, since 20260910160000,
     -- so does asking. The card is presented again every `grace_retry_days`, because the
     -- commonest reason one fails here is that the money arrives next week.
     --
@@ -124,7 +124,7 @@ revoke execute on function app.billing_register_failure(uuid, text) from public,
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S9 — who an invoice was from and for is part of what is frozen
+-- S9, who an invoice was from and for is part of what is frozen
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.billing_freeze_invoice() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -158,8 +158,8 @@ begin
      or new.vat_cents             is distinct from old.vat_cents
      or new.total_incl_cents      is distinct from old.total_incl_cents
      or new.currency              is distinct from old.currency
-     -- S9. Both snapshots are documented as frozen — a copy of an invoice reprinted next
-     -- year must show the company and the customer as they were — and neither was in this
+     -- S9. Both snapshots are documented as frozen, a copy of an invoice reprinted next
+     -- year must show the company and the customer as they were, and neither was in this
      -- list, so both were quietly editable on an issued invoice. Freezing the figures
      -- while leaving the NAMES and ADDRESSES on them editable is the half of a frozen
      -- document that a tax authority would care about most.
@@ -177,7 +177,7 @@ revoke execute on function app.billing_freeze_invoice() from public, anon, authe
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S12 — nothing to collect is a settled invoice
+-- S12, nothing to collect is a settled invoice
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.billing_rollup_invoice_payments() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$

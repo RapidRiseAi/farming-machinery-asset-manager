@@ -6,7 +6,7 @@ const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded size cap (client already com
 
 /**
  * Upload a machine photo supplied as a base64 `data:` URL (from the add-vehicle form,
- * where the machine — and its storage path — only exists after insert) into the
+ * where the machine, and its storage path, only exists after insert) into the
  * private `machine-photos` bucket and record it in `attachments`.
  *
  * Runs on the RLS-bound server client (the owner/manager creating the machine already

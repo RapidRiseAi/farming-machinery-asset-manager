@@ -1,11 +1,11 @@
 -- 0262_push_subscriptions.sql
--- Web-Push subscriptions (FR-14.1) — self-hosted VAPID, no external provider.
+-- Web-Push subscriptions (FR-14.1), self-hosted VAPID, no external provider.
 --
 -- One row per browser/device push endpoint a user has granted. The delivery route
 -- (service_role) reads these to sign + send VAPID payloads; the browser subscribe/
 -- unsubscribe route writes them as the signed-in user. Tenancy carries farm_id (audit +
 -- future farm-scoped queries), but RLS here is intentionally STRICTER than the farm-wide
--- default: a user manages only their OWN subscriptions — a manager has no business
+-- default: a user manages only their OWN subscriptions, a manager has no business
 -- seeing a colleague's device tokens. service_role bypasses RLS to deliver.
 
 create table push_subscriptions (
@@ -26,7 +26,7 @@ create index push_subscriptions_farm_idx on push_subscriptions(farm_id);
 -- An endpoint is globally unique; one live row per endpoint (resubscribe soft-deletes first).
 create unique index push_subscriptions_endpoint_uq on push_subscriptions(endpoint) where deleted_at is null;
 
--- ── RLS: own-user only ────────────────────────────────────────────
+-- == RLS: own-user only ============================================
 alter table push_subscriptions enable row level security;
 alter table push_subscriptions force  row level security;
 create policy push_subs_sel on push_subscriptions for select to authenticated
@@ -42,7 +42,7 @@ grant select, insert, update, delete on push_subscriptions to authenticated;
 grant all on push_subscriptions to service_role;
 -- anon gets ZERO access (default privileges in 0102 revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ────────────────────────
+-- == Audit (append-only history, per 0008) ========================
 create trigger push_subscriptions_audit
   after insert or update or delete on push_subscriptions
   for each row execute function app_audit();

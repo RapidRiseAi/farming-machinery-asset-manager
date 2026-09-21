@@ -27,7 +27,7 @@
 --
 -- DATED, not numbered: migrations apply in filename glob order, and the dated
 -- voice-assistant / POPIA / selected-farm files sort after `05…`. `selected_farm_administration`
--- recreates the `upg_*` policies but leaves the `_perm` set alone — this must land after it
+-- recreates the `upg_*` policies but leaves the `_perm` set alone, this must land after it
 -- regardless, so that the file order matches the reasoning order.
 
 do $do$
@@ -75,5 +75,5 @@ end $check$;
 comment on function app.is_farm_side() is
   'True when the caller is farm-side staff rather than a linked contractor. Called BOTH '
   'inside app.has_permission and directly by the eleven _perm SELECT policies '
-  '(20260829130100) — two independent locks, deliberately. Widening this function moves '
+  '(20260829130100), two independent locks, deliberately. Widening this function moves '
   'eleven contractor boundaries at once; G30 asserts the current behaviour.';

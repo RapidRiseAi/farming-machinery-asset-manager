@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { isLocale, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/lib/locale";
 
 /**
- * Set the device language from a screen that runs before sign-in — the login page and
+ * Set the device language from a screen that runs before sign-in, the login page and
  * the public QR pages (audit bug 2). Writes only a preference cookie: no auth, no DB,
  * and in particular nothing that touches the zero-anon-DB property of the QR flow.
  */

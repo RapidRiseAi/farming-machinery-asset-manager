@@ -1,6 +1,6 @@
-# Billing — what is left to test and build
+# Billing, what is left to test and build
 
-**As of 19 September 2026**, after the billing review of 18–19 September.
+**As of 19 September 2026**, after the billing review of 18-19 September.
 
 **Live state, measured rather than assumed:**
 
@@ -10,7 +10,7 @@
 | CI | Run #291, green, 1m 34s |
 | Vercel | Deployed and verified serving the new sign-up page |
 | Migrations | `20260918120000`, `130000`, `140000` applied to production |
-| Last billing cron | 19 Sep 04:01 UTC, **pre-deploy** — it does not yet carry the new step |
+| Last billing cron | 19 Sep 04:01 UTC, **pre-deploy**, it does not yet carry the new step |
 
 **How to read this.** Same rule the status checklist learned the hard way: if a line here
 is wrong, it is wrong, not "awaiting its next audit". Check a claim before planning from
@@ -18,7 +18,7 @@ it. Every item below says what would settle it.
 
 ---
 
-## A. Verify next — each needs one observation, not a build
+## A. Verify next, each needs one observation, not a build
 
 **A1. Tomorrow's billing cron carries the renewal-notice step.**
 The run at 04:01 UTC on 19 September fired before the deploy, so `steps` has no
@@ -57,8 +57,8 @@ counted fleet.
 These need a browser, a throwaway farm, or a real decline. None can be closed from code.
 
 **B1. A real Paystack decline.** Test mode accepts every valid stored authorization, so
-the only decline in the ledger is a hand-written row. Everything past the first failure —
-the retry ladder at 3/7/14 days, grace, the downgrade, the failure email — has therefore
+the only decline in the ledger is a hand-written row. Everything past the first failure -
+the retry ladder at 3/7/14 days, grace, the downgrade, the failure email, has therefore
 never run against a real event. This is the largest untested surface in the system.
 
 **B2. `changeOwnPlan` and `changeVehicleSlots` actually pressed.** Both now show a priced
@@ -106,7 +106,7 @@ instead of comparing.
 
 ---
 
-## D. Settings and environment — not code, and not reachable from a session
+## D. Settings and environment, not code, and not reachable from a session
 
 **D1. Leaked-password protection is off** in Supabase Auth. A dashboard toggle. Sign-up
 currently enforces eight characters and nothing else, so this is free strength.
@@ -135,7 +135,7 @@ file: `vercel pull` writes the literal string `[SENSITIVE]`, which is perfectly 
 
 ---
 
-## F. Done — do not rebuild
+## F. Done, do not rebuild
 
 Recorded so a later session does not redo work that is already live and proven.
 

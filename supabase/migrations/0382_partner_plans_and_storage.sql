@@ -1,31 +1,31 @@
 -- 0382_partner_plans_and_storage.sql
--- F14e — Partner plans reshaped around what a partner actually buys, plus the Storage
+-- F14e, Partner plans reshaped around what a partner actually buys, plus the Storage
 -- buckets the branding and document work needs.
 --
 -- WHY THE PLAN NAMES CHANGE. `free`/`pro` (0320) named a position on a ladder, not a
 -- product. Partners are choosing between two genuinely different products:
 --
---   portal   — "my customers can see their fleet with me in it." Work requests, the
+--   portal  , "my customers can see their fleet with me in it." Work requests, the
 --              vehicle history their farms already keep, their own letterhead, and the
 --              ability to attach the quotes and invoices they produce in Sage, Xero, a
 --              spreadsheet or a receipt book. Their existing system stays their system.
---   managed  — everything in portal, plus running the commercial side here: building
+--   managed , everything in portal, plus running the commercial side here: building
 --              quotes and invoices line by line, converting a quote to an invoice,
 --              recording payments and proofs, and cross-client analytics.
 --
 -- The distinction is deliberate: a partner is NEVER dependent on our invoicing to be
 -- useful to their farmers. Uploading a document you produced elsewhere is core, on every
--- plan. Only BUILDING documents here is the paid step up — which is also why the price
+-- plan. Only BUILDING documents here is the paid step up, which is also why the price
 -- differs, and why nothing in `portal` degrades if they never upgrade.
 --
 -- Data map: free → portal, pro → managed. Every existing partner keeps at least what
 -- they had (pro had cross-client analytics; managed has it too).
 --
 -- PAYMENTS REMAIN DEFERRED. This column moves no money; it is the single stored input
--- `src/lib/contractor-plan.ts` reads. As in 0320 it is NOT a tenancy guard — RLS +
--- workshop_links stay the sole isolation guarantor — so it needs no SQL mirror.
+-- `src/lib/contractor-plan.ts` reads. As in 0320 it is NOT a tenancy guard, RLS +
+-- workshop_links stay the sole isolation guarantor, so it needs no SQL mirror.
 
--- ── portal / managed ──────────────────────────────────────────────
+-- == portal / managed ==============================================
 -- A brand-new enum (not ALTER TYPE ADD VALUE) so the whole file stays transaction-safe,
 -- exactly as 0250 did for farm plans.
 create type workshop_plan_v2 as enum ('portal', 'managed');
@@ -64,16 +64,16 @@ end $$;
 comment on column workshops.plan is
   'Partner product: portal = customer portal + their own uploaded paperwork; '
   'managed = build quotes/invoices, record payments, cross-client analytics. '
-  'App-gated via src/lib/contractor-plan.ts — NOT a tenancy guard. Payments deferred.';
+  'App-gated via src/lib/contractor-plan.ts, NOT a tenancy guard. Payments deferred.';
 
--- ── Storage ───────────────────────────────────────────────────────
+-- == Storage =======================================================
 -- Two buckets, because the two things are scoped differently:
 --
---   partner-branding  keyed `{workshop_id}/…` — a partner's logo. Readable by any
+--   partner-branding  keyed `{workshop_id}/…`, a partner's logo. Readable by any
 --                     signed-in user, because a farmer looking at a quote must see the
 --                     letterhead of the partner who sent it; writable only by that
 --                     partner's own staff (or RR).
---   partner-docs      keyed `{farm_id}/{document_id}/…` — uploaded quotes/invoices and
+--   partner-docs      keyed `{farm_id}/{document_id}/…`, uploaded quotes/invoices and
 --                     proofs of payment. Farm-scoped exactly like every other document
 --                     bucket, so it joins the existing policy set.
 --

@@ -29,7 +29,7 @@ export default async function BankImportPage({
 
   // Import failures come back as codes so they can be said in the partner's own language.
   // A raw `nothing_valid` on screen is the same defect as the CSV importer's
-  // "name_required — Preview", and it is not the reader's job to know our error codes.
+  // "name_required, Preview", and it is not the reader's job to know our error codes.
   const known = new Set(["empty", "missing_date", "missing_amount", "nothing_valid", "too_many"]);
 
   return (

@@ -43,7 +43,7 @@ import {
   type SubscriptionRow,
 } from "@/lib/billing/view";
 
-/** One row of `public.cron_health()` — a scheduled route and how it has been behaving. */
+/** One row of `public.cron_health()`, a scheduled route and how it has been behaving. */
 type CronHealthRow = {
   route: string;
   last_started_at: string | null;
@@ -85,9 +85,9 @@ export const dynamic = "force-dynamic";
 /**
  * Rapid Rise's own view of who is paying, and of whether anything CAN be charged.
  *
- * ── WHY THE KILL SWITCH IS THE FIRST CARD ────────────────────────────────────
- * Charging is guarded by two independent env values — `BILLING_PROVIDER=paystack` wires
- * the adapter, `BILLING_CHARGING_ENABLED=true` additionally permits a charge — and both
+ * == WHY THE KILL SWITCH IS THE FIRST CARD ====================================
+ * Charging is guarded by two independent env values, `BILLING_PROVIDER=paystack` wires
+ * the adapter, `BILLING_CHARGING_ENABLED=true` additionally permits a charge, and both
  * default OFF. An administrator pressing "try this payment again" is about to move real
  * money out of a farmer's account, so the state of both switches is stated in words at
  * the top of the screen rather than being something you infer from a button failing.
@@ -97,7 +97,7 @@ export const dynamic = "force-dynamic";
  * most this page says is whether the configured key has a test or a live shape, which is
  * the one fact that changes what a demonstration costs.
  *
- * ── WHAT IS DELIBERATELY NOT READABLE HERE ───────────────────────────────────
+ * == WHAT IS DELIBERATELY NOT READABLE HERE ===================================
  * A Paystack authorization code, an authorization email, a hosted-checkout URL, an
  * access code, and every raw webhook payload. The first two are withheld by a COLUMN
  * grant in the database, so this page could not render them if it tried; the rest are
@@ -105,13 +105,13 @@ export const dynamic = "force-dynamic";
  * service-role only, with no policy and no grant for `authenticated` at all. A billing
  * console is exactly the screen that ends up in a support screenshot.
  *
- * ── TWO PLANS, SHOWN AS TWO ──────────────────────────────────────────────────
+ * == TWO PLANS, SHOWN AS TWO ==================================================
  * `billing_subscriptions.plan` is what the farm BOUGHT; `farms.plan` is what the
  * entitlement gates actually honour. They part company only while a farm is downgraded
  * for non-payment. Collapsing them into one column would lose the record of what the
  * customer is owed on recovery, so the list shows both and names the difference.
  *
- * ── THE DETAIL PANEL IS A QUERY PARAM, NOT A ROUTE ───────────────────────────
+ * == THE DETAIL PANEL IS A QUERY PARAM, NOT A ROUTE ===========================
  * `?farm=<id>` selects a subscription and the panel renders beneath the list. One screen,
  * no nested layout, and the back link is an ordinary anchor rather than history state.
  */
@@ -162,7 +162,7 @@ export default async function AdminBillingPage({
 
   const selected = selectedFarmId ? rows.find((r) => r.sub.farm_id === selectedFarmId) ?? null : null;
 
-  // Only fetch the detail when a farm is actually open — three more queries on every
+  // Only fetch the detail when a farm is actually open, three more queries on every
   // list render would be paid by an administrator who has not asked for them yet.
   let invoices: InvoiceRow[] = [];
   let attempts: AttemptRow[] = [];
@@ -203,7 +203,7 @@ export default async function AdminBillingPage({
   const configured = billingConfigured();
   const charging = chargingEnabled();
   const keyMode = paystackKeyMode();
-  const farmName = selected?.farm?.name ?? "—";
+  const farmName = selected?.farm?.name ?? "-";
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
@@ -220,14 +220,14 @@ export default async function AdminBillingPage({
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      {/* One resolver, shared with the owner's screen. Six of this page's outcomes —
-          a charge taken, an attempt verified and closed, a subscription started — used
+      {/* One resolver, shared with the owner's screen. Six of this page's outcomes -
+          a charge taken, an attempt verified and closed, a subscription started, used
           to fall through to "Saved changes", which is the least useful sentence available
           about money that has just moved. Presented the same way too: a confirmation
           clears itself, and anything still being checked stays. */}
       <SavedMessage notice={savedHere} locale={locale} />
 
-      {/* ── Is the schedule still running? ──────────────────────────────────── */}
+      {/* == Is the schedule still running? ==================================== */}
       <Card>
         <CardHeader>
           <CardTitle>{t("adminBilling.cronTitle", locale)}</CardTitle>
@@ -264,7 +264,7 @@ export default async function AdminBillingPage({
                     <Tr key={c.route}>
                       <Td className="font-medium text-sand-900">{c.route}</Td>
                       <Td className="whitespace-nowrap text-sand-700">
-                        {c.last_started_at ? dateTime(c.last_started_at, locale) : "—"}
+                        {c.last_started_at ? dateTime(c.last_started_at, locale) : "-"}
                         <span className="block text-xs text-sand-500">
                           {t("adminBilling.cronHoursAgo", locale).replace(
                             "{hours}",
@@ -322,7 +322,7 @@ export default async function AdminBillingPage({
         )}
       </Card>
 
-      {/* ── The safety switch, in words ─────────────────────────────────────── */}
+      {/* == The safety switch, in words ======================================= */}
       <Card>
         <CardHeader>
           <CardTitle>{t("adminBilling.switchTitle", locale)}</CardTitle>
@@ -365,11 +365,11 @@ export default async function AdminBillingPage({
         <p className="mt-3 text-sm text-sand-600">{t("adminBilling.switchNote", locale)}</p>
       </Card>
 
-      {/* ── What happens when a card fails, in words ─────────────────────────── */}
+      {/* == What happens when a card fails, in words =========================== */}
       {/*
         Every value here was already being fetched and rendered nowhere. The policy that
         decides when a paying customer loses access was invisible to the only person who
-        can change it — which is how `prorate_annual_additions` and the card-expiry
+        can change it, which is how `prorate_annual_additions` and the card-expiry
         columns came to be stored and read by nothing.
 
         Read-only on purpose: a text field beside these invites an edit nobody reviewed.
@@ -417,7 +417,7 @@ export default async function AdminBillingPage({
         </Card>
       ) : null}
 
-      {/* ── Farms that cannot pay yet, because nothing has put them on a plan ── */}
+      {/* == Farms that cannot pay yet, because nothing has put them on a plan == */}
       {unbilled.length > 0 ? (
         <Card>
           <CardHeader>
@@ -508,7 +508,7 @@ export default async function AdminBillingPage({
         </Card>
       ) : null}
 
-      {/* ── The price list. Empty on purpose, and it says so. ───────────────── */}
+      {/* == The price list. Empty on purpose, and it says so. ================= */}
       <Card flush>
         <div className="p-4 pb-0 sm:p-5 sm:pb-0">
           <CardTitle>{t("adminBilling.priceTitle", locale)}</CardTitle>
@@ -561,8 +561,8 @@ export default async function AdminBillingPage({
                       </Badge>
                     </Td>
                     <Td className="whitespace-nowrap text-sand-600">
-                      {p.effective_from ? shortDate(p.effective_from, locale) : "—"}
-                      {p.effective_to ? ` – ${shortDate(p.effective_to, locale)}` : ""}
+                      {p.effective_from ? shortDate(p.effective_from, locale) : "-"}
+                      {p.effective_to ? ` - ${shortDate(p.effective_to, locale)}` : ""}
                     </Td>
                   </Tr>
                 ))}
@@ -576,7 +576,7 @@ export default async function AdminBillingPage({
         ) : null}
       </Card>
 
-      {/* ── Headline counts ─────────────────────────────────────────────────── */}
+      {/* == Headline counts =================================================== */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t("adminBilling.statAll", locale)} value={totals.all} />
         <Stat
@@ -592,7 +592,7 @@ export default async function AdminBillingPage({
         <Stat label={t("adminBilling.statTrialing", locale)} value={totals.trialing} />
       </div>
 
-      {/* ── Every farm, worst first ─────────────────────────────────────────── */}
+      {/* == Every farm, worst first =========================================== */}
       <Card flush>
         <div className="p-4 pb-0 sm:p-5 sm:pb-0">
           <CardTitle>{t("adminBilling.listTitle", locale)}</CardTitle>
@@ -627,7 +627,7 @@ export default async function AdminBillingPage({
                   const look = billingLook(SUBSCRIPTION_LOOK, r.sub.status);
                   return (
                     <Tr key={r.sub.id}>
-                      <Td className="font-medium text-sand-900">{r.farm?.name ?? "—"}</Td>
+                      <Td className="font-medium text-sand-900">{r.farm?.name ?? "-"}</Td>
                       <Td className="text-sand-600">{t(`plan.${r.sub.plan}`, locale)}</Td>
                       <Td>
                         {r.diverged ? (
@@ -655,7 +655,7 @@ export default async function AdminBillingPage({
                       </Td>
                       <Td className="text-right tabular-nums">{r.farm?.asset_count ?? 0}</Td>
                       <Td className="whitespace-nowrap text-sand-600">
-                        {r.sub.next_billing_on ? shortDate(r.sub.next_billing_on, locale) : "—"}
+                        {r.sub.next_billing_on ? shortDate(r.sub.next_billing_on, locale) : "-"}
                       </Td>
                       <Td
                         className={`text-right tabular-nums ${
@@ -677,7 +677,7 @@ export default async function AdminBillingPage({
                             ) : null}
                           </>
                         ) : (
-                          "—"
+                          "-"
                         )}
                       </Td>
                       <Td>
@@ -697,7 +697,7 @@ export default async function AdminBillingPage({
         )}
       </Card>
 
-      {/* ── One farm in detail ──────────────────────────────────────────────── */}
+      {/* == One farm in detail ================================================ */}
       {!selected ? (
         <Card>
           <CardHeader>
@@ -742,7 +742,7 @@ export default async function AdminBillingPage({
             </Card>
           ) : null}
 
-          {/* ── Change what they are billed for ─────────────────────────────── */}
+          {/* == Change what they are billed for =============================== */}
           <Card>
             <CardHeader>
               <CardTitle>{t("adminBilling.changeTitle", locale)}</CardTitle>
@@ -786,7 +786,7 @@ export default async function AdminBillingPage({
             <p className="mt-2 text-xs text-sand-500">{t("adminBilling.changeNote", locale)}</p>
           </Card>
 
-          {/* ── The kitchen-table deal ──────────────────────────────────────── */}
+          {/* == The kitchen-table deal ======================================== */}
           <Card>
             <CardHeader>
               <CardTitle>{t("adminBilling.discountTitle", locale)}</CardTitle>
@@ -807,7 +807,7 @@ export default async function AdminBillingPage({
                     )
                     .replace(
                       "{label}",
-                      selected.sub.discount_label ?? selected.sub.discount_code ?? "—",
+                      selected.sub.discount_label ?? selected.sub.discount_code ?? "-",
                     )
                     .replace(
                       "{until}",
@@ -885,7 +885,7 @@ export default async function AdminBillingPage({
             <p className="mt-2 text-xs text-sand-500">{t("adminBilling.discountNote", locale)}</p>
           </Card>
 
-          {/* ── Bills ───────────────────────────────────────────────────────── */}
+          {/* == Bills ========================================================= */}
           <Card flush>
             <div className="p-4 pb-0 sm:p-5 sm:pb-0">
               <CardTitle>{t("adminBilling.invoicesTitle", locale)}</CardTitle>
@@ -911,7 +911,7 @@ export default async function AdminBillingPage({
                         <Tr key={inv.id}>
                           <Td className="font-medium text-sand-900">{inv.invoice_ref}</Td>
                           <Td className="whitespace-nowrap text-sand-600">
-                            {inv.issued_on ? shortDate(inv.issued_on, locale) : "—"}
+                            {inv.issued_on ? shortDate(inv.issued_on, locale) : "-"}
                           </Td>
                           <Td className="text-right tabular-nums">{rands(inv.total_incl_cents)}</Td>
                           <Td className="text-right tabular-nums">{rands(inv.amount_paid_cents)}</Td>
@@ -972,7 +972,7 @@ export default async function AdminBillingPage({
             ) : null}
           </Card>
 
-          {/* ── Attempts ────────────────────────────────────────────────────── */}
+          {/* == Attempts ====================================================== */}
           <Card flush>
             <div className="p-4 pb-0 sm:p-5 sm:pb-0">
               <CardTitle>{t("adminBilling.attemptsTitle", locale)}</CardTitle>
@@ -1013,7 +1013,7 @@ export default async function AdminBillingPage({
                           </Td>
                           <Td className="text-sand-600">{a.attempt_ref}</Td>
                           <Td className="text-sand-600">
-                            {a.gateway_response ?? a.failure_reason ?? "—"}
+                            {a.gateway_response ?? a.failure_reason ?? "-"}
                           </Td>
                         </Tr>
                       );
@@ -1065,7 +1065,7 @@ export default async function AdminBillingPage({
             ) : null}
           </Card>
 
-          {/* ── Money received ──────────────────────────────────────────────── */}
+          {/* == Money received ================================================ */}
           <Card flush>
             <div className="p-4 pb-0 sm:p-5 sm:pb-0">
               <CardTitle>{t("adminBilling.paymentsTitle", locale)}</CardTitle>
@@ -1090,8 +1090,8 @@ export default async function AdminBillingPage({
                           {dateTime(p.paid_at, locale)}
                         </Td>
                         <Td className="text-right tabular-nums">{rands(p.amount_incl_cents)}</Td>
-                        <Td className="text-sand-600">{p.channel ?? "—"}</Td>
-                        <Td className="text-sand-600">{p.provider_reference ?? "—"}</Td>
+                        <Td className="text-sand-600">{p.channel ?? "-"}</Td>
+                        <Td className="text-sand-600">{p.provider_reference ?? "-"}</Td>
                       </Tr>
                     ))}
                   </Tbody>

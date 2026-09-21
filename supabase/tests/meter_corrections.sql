@@ -2,7 +2,7 @@
 --
 -- Section (b) is the trap itself, reproduced: type 12500 where 1250 was meant, and every
 -- true reading afterwards is refused as a decrease. Before 20260920100000 there was no way
--- out of it — the RLS policies to update a reading existed, and nothing in the product ever
+-- out of it, the RLS policies to update a reading existed, and nothing in the product ever
 -- used them. If these assertions ever pass without the correction command, the trap is back.
 
 \set ON_ERROR_STOP on
@@ -53,7 +53,7 @@ values
   ('ce400000-0000-4000-9000-000000000001', 'ce000000-0000-4000-9000-000000000001',
    'ce200000-0000-4000-9000-000000000001', 'Engine oil', 250, 1100, current_date - 20);
 
--- ── (a) Both commands are reachable, invoker-rights and named as the app calls them ──
+-- == (a) Both commands are reachable, invoker-rights and named as the app calls them ==
 do $$
 declare r record; v_args text;
 begin
@@ -72,7 +72,7 @@ begin
     end if;
     -- `record_meter_replacement` does one INSERT, so RLS decides and it must stay INVOKER.
     -- `correct_meter_reading` sets deleted_at, which makes the row invisible to the SELECT
-    -- policy — Postgres refuses that update — so it is DEFINER with the role check written
+    -- policy, Postgres refuses that update, so it is DEFINER with the role check written
     -- out instead, and section (d) proves the check holds.
     if r.name = 'record_meter_replacement'
        and (select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -114,7 +114,7 @@ grant all on table _meter_ids to public;
 
 set role authenticated;
 
--- ── (b) The trap, and the way out ───────────────────────────────────────────
+-- == (b) The trap, and the way out ===========================================
 do $$
 declare
   v_bad uuid;
@@ -176,7 +176,7 @@ begin
   if v_ok is null then raise exception 'METER FAIL: the farm is still stuck'; end if;
 end $$;
 
--- ── (c) The service plan is recalculated, not left on the typo ──────────────
+-- == (c) The service plan is recalculated, not left on the typo ==============
 do $$
 declare v_due numeric;
 begin
@@ -189,7 +189,7 @@ begin
   end if;
 end $$;
 
--- ── (d) Crew roles capture readings; they do not correct them ───────────────
+-- == (d) Crew roles capture readings; they do not correct them ===============
 do $$
 declare v_refused boolean := false; v_id uuid;
 begin
@@ -213,7 +213,7 @@ begin
   end if;
 end $$;
 
--- ── (e) A replaced meter starts again, and the schedule comes with it ───────
+-- == (e) A replaced meter starts again, and the schedule comes with it =======
 do $$
 declare
   v_id uuid;
@@ -265,7 +265,7 @@ begin
   if v_ok is null then raise exception 'METER FAIL: the new meter cannot be read'; end if;
 end $$;
 
--- ── (f) Correcting an old reading cannot resurrect the meter that was replaced ──
+-- == (f) Correcting an old reading cannot resurrect the meter that was replaced ==
 do $$
 declare v_old uuid; v_current numeric;
 begin
@@ -287,7 +287,7 @@ begin
   end if;
 end $$;
 
--- ── (g) Replacements are refused where they make no sense ───────────────────
+-- == (g) Replacements are refused where they make no sense ===================
 do $$
 declare v_refused int := 0; v_case text;
 begin
@@ -338,7 +338,7 @@ end $$;
 
 reset role;
 
--- ── (h) A correction is a void, not a delete ────────────────────────────────
+-- == (h) A correction is a void, not a delete ================================
 do $$
 declare v_id uuid;
 begin

@@ -2,14 +2,14 @@
 -- "Did the cron run last night?" had no answer, and the one that matters had none at all.
 --
 -- WHY
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Measured on production before writing this. The NIGHTLY pass is provably firing on
--- Vercel's schedule: 90 `notifications` rows land in the 03:00–03:59 UTC window across 14
+-- Vercel's schedule: 90 `notifications` rows land in the 03:00-03:59 UTC window across 14
 -- distinct days, the most recent on 2026-09-07. That is not because anything records the
--- run — it is a side effect of those engines happening to WRITE something.
+-- run, it is a side effect of those engines happening to WRITE something.
 --
 -- The BILLING pass has no such side effect. When nothing is due it raises no invoice,
--- claims no charge, sends no receipt and enqueues no reminder — correctly — and its entire
+-- claims no charge, sends no receipt and enqueues no reminder, correctly, and its entire
 -- output is a JSON body returned to Vercel's scheduler, which is read by nobody. The route
 -- says so itself, in a comment above `captureError`: "a billing engine that quietly stopped
 -- working is the failure with the longest half-life in this product."
@@ -19,18 +19,18 @@
 -- every one was raised by hand at 11:35, 15:37, 19:39, 21:31 or 21:39 UTC; every charge
 -- attempt likewise. Nothing unattended has ever been observed from that route.
 --
--- That is the gap this closes. Not "add logging" — make the question answerable with one
+-- That is the gap this closes. Not "add logging", make the question answerable with one
 -- query, for ever, by anyone, including after this session is gone.
 --
 -- WHAT IS DELIBERATE HERE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- 1. The row is written when the pass STARTS, not when it finishes. A pass that crashes,
 --    times out at Vercel's function limit, or is killed mid-charge is exactly the pass
 --    worth knowing about, and a ledger of successes answers a question nobody asked. An
---    unfinished row — `finished_at is null` an hour later — is itself the finding.
+--    unfinished row, `finished_at is null` an hour later, is itself the finding.
 --
 -- 2. NOT farm-scoped. This is platform telemetry: which of OUR scheduled jobs ran, when,
---    and what each step said. It carries no farm data, no personal data and no money —
+--    and what each step said. It carries no farm data, no personal data and no money -
 --    the step summary is engine names and counts, which is what makes it safe to keep.
 --    RLS admits Rapid Rise only; the service role writes it.
 --
@@ -48,7 +48,7 @@
 --    try/catch in the route and the pass continues regardless: telemetry that can stop
 --    the thing it watches is worse than no telemetry.
 
--- ── The ledger ──────────────────────────────────────────────────────────────
+-- == The ledger ==============================================================
 
 create table if not exists public.cron_runs (
   id           uuid primary key default gen_random_uuid(),
@@ -76,7 +76,7 @@ create table if not exists public.cron_runs (
 
 comment on table public.cron_runs is
   'One row per invocation of a scheduled route, written when it STARTS. The only durable '
-  'answer to "did the cron run last night" — the billing pass writes nothing else when '
+  'answer to "did the cron run last night", the billing pass writes nothing else when '
   'nothing is due, and its JSON response goes to Vercel''s scheduler and nobody else.';
 
 create index if not exists cron_runs_route_started_idx
@@ -86,7 +86,7 @@ create index if not exists cron_runs_route_started_idx
 create index if not exists cron_runs_unfinished_idx
   on public.cron_runs (started_at desc) where finished_at is null;
 
--- ── Who may read it ─────────────────────────────────────────────────────────
+-- == Who may read it =========================================================
 -- Rapid Rise only. A farm has no business reading which of our jobs ran, and nothing here
 -- is about any one farm. Writes come from the service role, which bypasses RLS.
 
@@ -100,13 +100,13 @@ create policy cron_runs_sel on public.cron_runs
 
 -- Explicit revoke BEFORE the grant. `0102_grants.sql` sets ALTER DEFAULT PRIVILEGES for
 -- `authenticated`, so a new table arrives already granted and a migration that only says
--- "we do not grant this" is true of itself and false of the database — the lesson from
+-- "we do not grant this" is true of itself and false of the database, the lesson from
 -- `billing_payment_methods.authorization_code`, written up in SECURITY.md §2b.
 revoke all on public.cron_runs from anon, authenticated;
 grant select on public.cron_runs to authenticated;
 grant select, insert, update on public.cron_runs to service_role;
 
--- ── Starting a run ──────────────────────────────────────────────────────────
+-- == Starting a run ==========================================================
 
 create or replace function app.cron_run_start(p_route text, p_trigger text default 'schedule')
 returns uuid
@@ -131,9 +131,9 @@ end $$;
 
 comment on function app.cron_run_start(text, text) is
   'Open a cron-run row and return its id. Written at the START so a pass that dies leaves '
-  'evidence it began — a ledger of successes answers the wrong question.';
+  'evidence it began, a ledger of successes answers the wrong question.';
 
--- ── Finishing one ───────────────────────────────────────────────────────────
+-- == Finishing one ===========================================================
 
 create or replace function app.cron_run_finish(p_run uuid, p_ok boolean, p_steps jsonb)
 returns void
@@ -154,7 +154,7 @@ end $$;
 comment on function app.cron_run_finish(uuid, boolean, jsonb) is
   'Close a cron-run row. Only ever closes an OPEN one, so a retry cannot rewrite history.';
 
--- ── The wrappers PostgREST can reach ────────────────────────────────────────
+-- == The wrappers PostgREST can reach ========================================
 -- Engines live in `app` and PostgREST exposes `public` only, so every one needs a thin
 -- `public.*` wrapper or the call resolves to no function at all and fails silently. That
 -- is precisely what happened to the whole charging path (suite section (m)).
@@ -182,7 +182,7 @@ revoke execute on function public.cron_run_finish(uuid, boolean, jsonb) from pub
 grant  execute on function public.cron_run_start(text, text)            to service_role;
 grant  execute on function public.cron_run_finish(uuid, boolean, jsonb) to service_role;
 
--- ── Reading it back ─────────────────────────────────────────────────────────
+-- == Reading it back =========================================================
 -- One row per scheduled route: when it last ran, whether it finished, and how long it has
 -- been since. This is the query somebody actually wants, so it lives here rather than
 -- being written out again on every screen that asks.
@@ -243,7 +243,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
 $$;
 
 -- SECURITY INVOKER the whole way down, so `cron_runs_sel` decides. A farm owner calling
--- this gets zero rows because RLS says so, not because a check in a body said so — the
+-- this gets zero rows because RLS says so, not because a check in a body said so, the
 -- rule this codebase has settled on for every reporting function since 0460.
 revoke execute on function app.cron_health()    from public, anon;
 revoke execute on function public.cron_health() from public, anon;

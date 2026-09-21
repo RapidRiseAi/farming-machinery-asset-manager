@@ -65,7 +65,7 @@ export default async function JobCardsPage({
           <PageInfoButton infoKey="jobcards" locale={locale} />
         </div>
         {/*
-          Pick a machine, press New, and a record existed — with `type` hardcoded to
+          Pick a machine, press New, and a record existed, with `type` hardcoded to
           "repair", so every job was a repair and a mis-tap created a card you then had
           to delete. It also never posted `farm_id`, which `createJobCard` requires, so
           the button failed with "Missing machine". Now: a deliberate form with the type
@@ -104,7 +104,7 @@ export default async function JobCardsPage({
       </div>
 
       {/* Chips apply on tap and write the same `status` / `machine` params the form
-          did — the card of dropdowns plus a Search button ate the first screen on a
+          did, the card of dropdowns plus a Search button ate the first screen on a
           phone and did nothing at all until submitted. */}
       <FilterBar
         path="/jobcards"
@@ -145,7 +145,7 @@ export default async function JobCardsPage({
                   <Card className="transition-shadow hover:shadow-soft">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "—"}</p>
+                        <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "-"}</p>
                         <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? ` · ${c.date_in}` : ""}</p>
                       </div>
                       <JobStatus value={c.status} locale={locale} />
@@ -174,13 +174,13 @@ export default async function JobCardsPage({
                   <Tr key={c.id}>
                     <Td className="font-medium">
                       <Link href={`/jobcards/${c.id}`} className="focus-ring rounded text-brand-ink hover:underline">
-                        {nameById[c.machine_id] ?? "—"}
+                        {nameById[c.machine_id] ?? "-"}
                       </Link>
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
-                    <Td className="text-sand-600">{c.date_in ?? "—"}</Td>
+                    <Td className="text-sand-600">{c.date_in ?? "-"}</Td>
                     <Td><JobStatus value={c.status} locale={locale} /></Td>
-                    <Td className="text-right font-medium">{c.total_cents != null ? rands(c.total_cents) : "—"}</Td>
+                    <Td className="text-right font-medium">{c.total_cents != null ? rands(c.total_cents) : "-"}</Td>
                   </Tr>
                 ))}
               </Tbody>

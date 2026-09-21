@@ -9,7 +9,7 @@ import { EMPTY_VAT_RETURN, type VatReturn } from "@/lib/expenses";
 export const dynamic = "force-dynamic";
 
 /**
- * The VAT return as a PDF, on the partner's letterhead — the thing they hand their
+ * The VAT return as a PDF, on the partner's letterhead, the thing they hand their
  * accountant or file away with the period's paperwork.
  *
  * It states the basis on its face. A return that does not say whether it is on the
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
   const brand = brandingFrom(workshop);
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
-  const pdf = await Pdf.create(`VAT return — ${from} to ${to}`, {
+  const pdf = await Pdf.create(`VAT return, ${from} to ${to}`, {
     name: brand.name,
     primary: brand.brand_primary,
     logo,
@@ -55,13 +55,13 @@ export async function GET(request: Request) {
   pdf.kv("Period", `${from} to ${to}`);
   pdf.kv("Basis", "Invoice basis (time of supply)");
 
-  pdf.heading("Output tax — what you charged");
+  pdf.heading("Output tax, what you charged");
   pdf.kv("Standard-rated sales (ex VAT)", rands(v.standard_ex_cents));
   if (v.zero_rated_cents > 0) pdf.kv("Zero-rated sales (ex VAT)", rands(v.zero_rated_cents));
   if (v.credits_ex_cents > 0) pdf.kv("Credit notes issued (ex VAT)", `-${rands(v.credits_ex_cents)}`);
   pdf.kv("Output VAT", rands(v.output_vat_cents));
 
-  pdf.heading("Input tax — what you were charged");
+  pdf.heading("Input tax, what you were charged");
   pdf.kv("Purchases (ex VAT, claimable)", rands(v.input_ex_cents));
   pdf.kv("Input VAT", rands(v.input_vat_cents));
   if (v.blocked_vat_cents > 0) pdf.kv("VAT paid but not claimable", rands(v.blocked_vat_cents));

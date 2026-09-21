@@ -3,7 +3,7 @@
  *
  * Server-rendered links inside the app can stay relative; an email cannot. `NEXT_PUBLIC_SITE_URL`
  * is already the variable the rest of the project uses for this, so it stays the one
- * source — a second variable would eventually disagree with the first.
+ * source, a second variable would eventually disagree with the first.
  */
 export function siteUrl(): string {
   const raw =

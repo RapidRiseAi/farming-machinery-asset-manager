@@ -21,7 +21,7 @@ import {
 /**
  * One badge per domain enum, so a status looks the same everywhere it appears and no
  * screen has to re-derive a tone. Each pairs the shared shape+colour map with the
- * enum's own i18n group — the raw value never reaches the screen.
+ * enum's own i18n group, the raw value never reaches the screen.
  *
  * Before this, `machines` rendered all six machine statuses as `tone="neutral"` (a
  * broken machine and a working one were identical rows), and the job-card list mapped
@@ -50,7 +50,7 @@ function make(map: Record<string, StatusLook>, group: string) {
   };
 }
 
-/** Machine status — active / standby / in workshop / out of service / retired / sold. */
+/** Machine status, active / standby / in workshop / out of service / retired / sold. */
 export const MachineStatus = make(MACHINE_LOOK, "machineStatus");
 
 /** Job-card lifecycle. */
@@ -75,7 +75,7 @@ export const FineStatus = make(FINE_LOOK, "fineStatus");
 export const DocStatus = make(DOC_LOOK, "docStatus");
 
 /**
- * Purchase-order lifecycle (G16) — what has been ordered and has not yet arrived.
+ * Purchase-order lifecycle (G16), what has been ordered and has not yet arrived.
  *
  * Lived in `components/orders/order-status.tsx` while that workstream was in flight, which
  * meant one of the eleven domain enums rendered from its own private map. That is exactly
@@ -85,7 +85,7 @@ export const DocStatus = make(DOC_LOOK, "docStatus");
  */
 export const OrderStatus = make(PO_LOOK, "po.status");
 
-/** Service due state — the traffic light the product turns on. */
+/** Service due state, the traffic light the product turns on. */
 export function ServiceStatus({ value, locale, size = "sm", className }: Props) {
   if (!value) return null;
   const l = look(SERVICE_LOOK, value);
@@ -98,7 +98,7 @@ export function ServiceStatus({ value, locale, size = "sm", className }: Props) 
   return <StatusBadge label={label} tone={l.tone} shape={l.shape} size={size} className={className} />;
 }
 
-/** Paper about to run out — licence, roadworthy, warranty. */
+/** Paper about to run out, licence, roadworthy, warranty. */
 export function ExpiryStatus({ value, locale, size = "sm", className }: Props) {
   if (!value) return null;
   const l = look(EXPIRY_LOOK, value);

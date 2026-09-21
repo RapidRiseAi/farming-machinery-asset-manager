@@ -39,7 +39,7 @@ export default async function SuppliersPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const profile = await requireProfile();
-  // Suppliers belong to a workshop, not a farm — a farm reading its contractor's supplier
+  // Suppliers belong to a workshop, not a farm, a farm reading its contractor's supplier
   // list and terms would be reading the margin behind every quote it is given (F16).
   if (profile.role !== "workshop") redirect("/documents");
   const locale = profile.lang;
@@ -184,7 +184,7 @@ export default async function SuppliersPage({
                         {/* The name opens the account: statement, ageing and the remittance
                             advice for a payment run (G25). Until this link existed /money
                             could say "you owe them R80 500" and nothing could open that
-                            line. A plain link, not a wrapper around the whole row — the row
+                            line. A plain link, not a wrapper around the whole row, the row
                             already contains its own forms and a nested interactive element
                             is the invalid HTML that threw React #418 on the machines list. */}
                         <Link
@@ -196,7 +196,7 @@ export default async function SuppliersPage({
                         {row.active ? null : <Badge tone="neutral">{t("supplier.inactive", locale)}</Badge>}
                       </p>
                       <p className="text-sm text-sand-600">
-                        {[row.contact_person, row.phone, row.email].filter(Boolean).join(" · ") || "—"}
+                        {[row.contact_person, row.phone, row.email].filter(Boolean).join(" · ") || "-"}
                       </p>
                       <p className="text-xs text-sand-500">
                         {[

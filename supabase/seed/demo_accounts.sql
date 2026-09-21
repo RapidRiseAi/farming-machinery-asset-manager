@@ -1,9 +1,9 @@
--- demo_accounts.sql — LOGINABLE demo accounts for every role + every contractor type.
+-- demo_accounts.sql, LOGINABLE demo accounts for every role + every contractor type.
 --
 -- WHY THIS FILE EXISTS
 --   `demo_farm.sql` seeds the Weltevrede demo farm (12 machines, one TJ mechanic
 --   contractor, partners, work requests) but it inserts `auth.users` rows with only
---   (id, email) — no password — so those accounts cannot actually LOG IN on a hosted
+--   (id, email), no password, so those accounts cannot actually LOG IN on a hosted
 --   Supabase project (GoTrue needs an encrypted password + a confirmed email + an
 --   identity row). This file:
 --     1. Turns every existing demo user into a real, password-loginable account.
@@ -17,7 +17,7 @@
 --     5. Wires partners, workshop_links and work_requests for the new cast.
 --
 -- HOSTED SUPABASE ONLY. Run it in the Supabase SQL editor (or psql with the service
---   role) AFTER (a) all migrations 0001–0371 are applied and (b) `demo_farm.sql` has
+--   role) AFTER (a) all migrations 0001-0371 are applied and (b) `demo_farm.sql` has
 --   run. It will NOT work against the local test shim (that auth.users has no password
 --   columns and there is no GoTrue to authenticate against).
 --
@@ -28,7 +28,7 @@
 
 create extension if not exists pgcrypto;
 
--- ── Helper: upsert a password-loginable auth user + its email identity ──────────
+-- == Helper: upsert a password-loginable auth user + its email identity ==========
 create or replace function public._demo_auth_user(p_id uuid, p_email text, p_password text, p_name text)
 returns void language plpgsql as $fn$
 begin
@@ -44,7 +44,7 @@ begin
   on conflict (id) do update set
     -- GoTrue rejects a login row unless aud='authenticated' and the timestamp/token
     -- columns are non-null. demo_farm.sql pre-creates these rows with only (id,email),
-    -- so this upsert must (re)assert every column GoTrue scans — otherwise the account
+    -- so this upsert must (re)assert every column GoTrue scans, otherwise the account
     -- exists but cannot log in ("Database error querying schema" / "invalid credentials").
     aud                        = 'authenticated',
     role                       = 'authenticated',
@@ -95,7 +95,7 @@ declare
   v_owner2   uuid := '10000000-0000-0000-0000-000000000021';   -- hendrik@rooikoppies.example
 begin
   if not exists (select 1 from farms where id = v_farm) then
-    raise exception 'Run demo_farm.sql first — Weltevrede demo farm not found.';
+    raise exception 'Run demo_farm.sql first, Weltevrede demo farm not found.';
   end if;
 
   -- ════════════════════════════════════════════════════════════════════════════
@@ -116,7 +116,7 @@ begin
   update users set email = 'sipho@weltevrede.example' where id = v_op2     and email is distinct from 'sipho@weltevrede.example';
   update users set email = 'tj@tjservice.example'     where id = v_wstaff  and email is distinct from 'tj@tjservice.example';
 
-  -- Platform (RapidRise) admin — cross-tenant console, no farm/workshop.
+  -- Platform (RapidRise) admin, cross-tenant console, no farm/workshop.
   perform public._demo_auth_user(v_admin, 'admin@fleetwise.dev', pw, 'RapidRise Admin');
   insert into users (id, farm_id, workshop_id, role, name, email, language, active)
   values (v_admin, null, null, 'rr_admin', 'RapidRise Admin', 'admin@fleetwise.dev', 'en', true)
@@ -138,12 +138,12 @@ begin
   -- ════════════════════════════════════════════════════════════════════════════
   -- Workshops.
   insert into workshops (id, name, contact, kind, plan, phone, whatsapp, email, area) values
-    ('bb000000-0000-0000-0000-000000000002', 'Volt Auto Electric',       'Riaan — 082 555 0202', 'auto_electrician', 'free', '+27825550202', '+27825550202', 'sparky@voltauto.example',   'Bothaville'),
+    ('bb000000-0000-0000-0000-000000000002', 'Volt Auto Electric',       'Riaan, 082 555 0202', 'auto_electrician', 'free', '+27825550202', '+27825550202', 'sparky@voltauto.example',   'Bothaville'),
     ('bb000000-0000-0000-0000-000000000003', 'AgriParts Wholesale Depot','Sales desk',            'parts_supplier',   'pro',  '+27825550303', '+27825550303', 'sales@agripartsdepot.example','Welkom'),
-    ('bb000000-0000-0000-0000-000000000004', 'Panelworx Bodyshop',       'Deon — 082 555 0404',  'panel_beater',     'free', '+27825550404', '+27825550404', 'info@panelworx.example',    'Klerksdorp'),
+    ('bb000000-0000-0000-0000-000000000004', 'Panelworx Bodyshop',       'Deon, 082 555 0404',  'panel_beater',     'free', '+27825550404', '+27825550404', 'info@panelworx.example',    'Klerksdorp'),
     ('bb000000-0000-0000-0000-000000000005', 'Karoo Tyre & Fitment',     'Fitment centre',        'tyre',             'free', '+27825550505', '+27825550505', 'fitment@karootyre.example', 'Bothaville'),
     ('bb000000-0000-0000-0000-000000000006', 'Boland Towing & Recovery', '24/7 dispatch',         'towing',           'pro',  '+27825550606', '+27825550606', 'dispatch@bolandtow.example','N1 corridor'),
-    ('bb000000-0000-0000-0000-000000000007', 'Doall Handyman Services',  'Sam — 082 555 0707',   'other',            'free', '+27825550707', '+27825550707', 'general@doall.example',     'Bothaville')
+    ('bb000000-0000-0000-0000-000000000007', 'Doall Handyman Services',  'Sam, 082 555 0707',   'other',            'free', '+27825550707', '+27825550707', 'general@doall.example',     'Bothaville')
   on conflict (id) do update set kind = excluded.kind, plan = excluded.plan, phone = excluded.phone,
     whatsapp = excluded.whatsapp, email = excluded.email, area = excluded.area, contact = excluded.contact;
 
@@ -175,12 +175,12 @@ begin
 
   -- Connected partner-directory rows on Weltevrede (one per new contractor).
   insert into partners (id, farm_id, is_suggested, name, kind, phone, whatsapp, email, area, workshop_id, notes, created_by) values
-    ('73000000-0000-0000-0000-000000000002', v_farm, false, 'Volt Auto Electric',        'auto_electrician', '+27825550202','+27825550202','sparky@voltauto.example',      'Bothaville',  'bb000000-0000-0000-0000-000000000002', 'Alternators, starters, wiring — connected', v_owner),
-    ('73000000-0000-0000-0000-000000000003', v_farm, false, 'AgriParts Wholesale Depot', 'parts_supplier',   '+27825550303','+27825550303','sales@agripartsdepot.example', 'Welkom',      'bb000000-0000-0000-0000-000000000003', 'Bulk filters/oils/belts — connected',       v_owner),
-    ('73000000-0000-0000-0000-000000000004', v_farm, false, 'Panelworx Bodyshop',        'panel_beater',     '+27825550404','+27825550404','info@panelworx.example',       'Klerksdorp',  'bb000000-0000-0000-0000-000000000004', 'Panel + spray — connected',                 v_owner),
-    ('73000000-0000-0000-0000-000000000005', v_farm, false, 'Karoo Tyre & Fitment',      'tyre',             '+27825550505','+27825550505','fitment@karootyre.example',    'Bothaville',  'bb000000-0000-0000-0000-000000000005', 'Tractor + bakkie tyres — connected',        v_owner),
-    ('73000000-0000-0000-0000-000000000006', v_farm, false, 'Boland Towing & Recovery',  'towing',           '+27825550606','+27825550606','dispatch@bolandtow.example',   'N1 corridor', 'bb000000-0000-0000-0000-000000000006', 'Heavy recovery day/night — connected',      v_owner),
-    ('73000000-0000-0000-0000-000000000007', v_farm, false, 'Doall Handyman Services',   'other',            '+27825550707','+27825550707','general@doall.example',        'Bothaville',  'bb000000-0000-0000-0000-000000000007', 'General odd jobs — connected',              v_owner)
+    ('73000000-0000-0000-0000-000000000002', v_farm, false, 'Volt Auto Electric',        'auto_electrician', '+27825550202','+27825550202','sparky@voltauto.example',      'Bothaville',  'bb000000-0000-0000-0000-000000000002', 'Alternators, starters, wiring, connected', v_owner),
+    ('73000000-0000-0000-0000-000000000003', v_farm, false, 'AgriParts Wholesale Depot', 'parts_supplier',   '+27825550303','+27825550303','sales@agripartsdepot.example', 'Welkom',      'bb000000-0000-0000-0000-000000000003', 'Bulk filters/oils/belts, connected',       v_owner),
+    ('73000000-0000-0000-0000-000000000004', v_farm, false, 'Panelworx Bodyshop',        'panel_beater',     '+27825550404','+27825550404','info@panelworx.example',       'Klerksdorp',  'bb000000-0000-0000-0000-000000000004', 'Panel + spray, connected',                 v_owner),
+    ('73000000-0000-0000-0000-000000000005', v_farm, false, 'Karoo Tyre & Fitment',      'tyre',             '+27825550505','+27825550505','fitment@karootyre.example',    'Bothaville',  'bb000000-0000-0000-0000-000000000005', 'Tractor + bakkie tyres, connected',        v_owner),
+    ('73000000-0000-0000-0000-000000000006', v_farm, false, 'Boland Towing & Recovery',  'towing',           '+27825550606','+27825550606','dispatch@bolandtow.example',   'N1 corridor', 'bb000000-0000-0000-0000-000000000006', 'Heavy recovery day/night, connected',      v_owner),
+    ('73000000-0000-0000-0000-000000000007', v_farm, false, 'Doall Handyman Services',   'other',            '+27825550707','+27825550707','general@doall.example',        'Bothaville',  'bb000000-0000-0000-0000-000000000007', 'General odd jobs, connected',              v_owner)
   on conflict (id) do update set workshop_id = excluded.workshop_id, phone = excluded.phone, email = excluded.email;
 
   -- ════════════════════════════════════════════════════════════════════════════
@@ -225,11 +225,11 @@ begin
   -- 4) Work requests for the new cast (varied kinds + statuses).
   -- ════════════════════════════════════════════════════════════════════════════
   insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, quote_amount_cents, vat_rate_bps, created_by) values
-    ('74000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000007', 'bb000000-0000-0000-0000-000000000002', 'repair',     'requested',   'normal', 'Alternator laai nie', 'Bakkie battery loop plat — alternator?', null,   1500, v_owner),
+    ('74000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000007', 'bb000000-0000-0000-0000-000000000002', 'repair',     'requested',   'normal', 'Alternator laai nie', 'Bakkie battery loop plat, alternator?', null,   1500, v_owner),
     ('74000000-0000-0000-0000-000000000002', v_farm, '20000000-0000-0000-0000-000000000005', 'bb000000-0000-0000-0000-000000000003', 'parts',      'quoted',      'high',   'Snytoerusting onderdele', 'Nuwe snymes + V-snare vir die stroper', 340000, 1500, v_manager),
     ('74000000-0000-0000-0000-000000000003', v_farm, '20000000-0000-0000-0000-000000000008', 'bb000000-0000-0000-0000-000000000005', 'other',      'in_progress', 'normal', '4 nuwe bande',        'Vervang al vier bande op die Isuzu',    null,   1500, v_manager),
-    ('74000000-0000-0000-0000-000000000004', v_farm, '20000000-0000-0000-0000-000000000009', 'bb000000-0000-0000-0000-000000000004', 'quote',      'requested',   'low',    'Duik in deur',        'Duik in bestuurderdeur — kwoteer asb',  null,   1500, v_owner),
-    ('74000000-0000-0000-0000-000000000005', v_farm2,'21000000-0000-0000-0000-000000000001', 'bb000000-0000-0000-0000-000000000001', 'repair',     'requested',   'high',   'Enjin oorverhit',     'Trekker loop warm — kom kyk asseblief',  null,   1500, v_owner2)
+    ('74000000-0000-0000-0000-000000000004', v_farm, '20000000-0000-0000-0000-000000000009', 'bb000000-0000-0000-0000-000000000004', 'quote',      'requested',   'low',    'Duik in deur',        'Duik in bestuurderdeur, kwoteer asb',  null,   1500, v_owner),
+    ('74000000-0000-0000-0000-000000000005', v_farm2,'21000000-0000-0000-0000-000000000001', 'bb000000-0000-0000-0000-000000000001', 'repair',     'requested',   'high',   'Enjin oorverhit',     'Trekker loop warm, kom kyk asseblief',  null,   1500, v_owner2)
   on conflict (id) do nothing;
 
   insert into work_request_events (farm_id, work_request_id, from_status, to_status, note, by_user) values

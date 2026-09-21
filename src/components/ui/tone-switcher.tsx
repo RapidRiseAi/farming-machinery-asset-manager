@@ -8,7 +8,7 @@ import { cn } from "./cn";
 /**
  * Friendly / professional wording switch.
  *
- * The product was written in one register — plain, warm farm English ("Nothing needs
+ * The product was written in one register, plain, warm farm English ("Nothing needs
  * you today", "I put in diesel"). That is right for a driver with dusty hands and wrong
  * for an operation whose office expects "No outstanding items". Neither audience should
  * have to put up with the other's voice, so the register is a setting.

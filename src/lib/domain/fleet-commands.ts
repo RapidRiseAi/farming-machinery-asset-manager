@@ -87,7 +87,7 @@ export async function recordCompletedService(
 
 /**
  * Records one fuel draw and, when it names a machine and a meter, the driver-usage log
- * that goes with it — atomically (20260920090000).
+ * that goes with it, atomically (20260920090000).
  *
  * The cost is passed VAT-INCLUSIVE, as the farmer typed it off the pump slip. The command
  * converts it with the farm's own rate and stores ex-VAT cents with the rate captured, the

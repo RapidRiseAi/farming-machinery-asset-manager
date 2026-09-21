@@ -57,3 +57,7 @@ Thumbs.db
 # merged i18n fragments and PGlite probe harnesses here, and a `git add -A` would
 # have swept them into a commit.
 scratchpad/
+
+# A stray copy of the local env without its leading dot. `.env*.local` above does NOT
+# match this name, and `git add -A` would have committed real Supabase keys.
+env.local

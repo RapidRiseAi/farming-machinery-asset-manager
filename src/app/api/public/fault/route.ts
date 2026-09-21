@@ -21,7 +21,7 @@ function geoFields(form: FormData): { lat?: number; lng?: number } {
 
 /**
  * Anonymous fault report from the public QR page (Scope §4.5). The per-machine
- * token is the ONLY credential — this route runs as the service role and does all
+ * token is the ONLY credential, this route runs as the service role and does all
  * DB/Storage work server-side, so the public page never touches the DB directly.
  */
 export async function POST(request: Request) {

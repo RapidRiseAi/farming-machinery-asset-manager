@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
  *
  *     redirect(`/partners?connected=1&pid=${id}&loginUrl=${encodeURIComponent(url)}`)
  *
- * A Supabase `action_link` is a BEARER CREDENTIAL — whoever holds it signs in as that
+ * A Supabase `action_link` is a BEARER CREDENTIAL, whoever holds it signs in as that
  * contractor and reaches every farm the contractor is linked to. In a query string it
  * lands in the browser's history (which syncs across devices), in the platform's access
  * logs (query strings are logged), in the `Referer` header of any outbound request the
@@ -44,7 +44,7 @@ export async function readPartnerLink(): Promise<PartnerLink | null> {
   try {
     const parsed = JSON.parse(raw) as Partial<PartnerLink>;
     if (typeof parsed?.pid !== "string" || typeof parsed?.url !== "string") return null;
-    // Only ever surface an http(s) link — this string is rendered into an anchor.
+    // Only ever surface an http(s) link, this string is rendered into an anchor.
     const u = new URL(parsed.url);
     if (u.protocol !== "https:" && u.protocol !== "http:") return null;
     return { pid: parsed.pid, url: parsed.url };

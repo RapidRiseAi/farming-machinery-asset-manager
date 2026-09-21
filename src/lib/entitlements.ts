@@ -1,5 +1,5 @@
 /**
- * FleetWise plans & feature entitlements — the SINGLE SOURCE OF TRUTH.
+ * FleetWise plans & feature entitlements, the SINGLE SOURCE OF TRUTH.
  *
  * The Postgres helper `app.has_entitlement` (migration 0251) mirrors this map exactly
  * (same plan ranks, same feature → minimum-plan table). The app enforces gates
@@ -7,7 +7,7 @@
  * twin used in RLS-adjacent checks and proven by the isolation suite. If you change a
  * rank or a feature requirement here, change 0251 too.
  *
- * FR-19.1 (non-payment parts) / FR-19.2 (gating). Payment/charging is DEFERRED — the
+ * FR-19.1 (non-payment parts) / FR-19.2 (gating). Payment/charging is DEFERRED, the
  * pricing table below is DISPLAY ONLY and no money moves anywhere (see src/lib/billing).
  */
 
@@ -75,10 +75,10 @@ export function planNameKey(plan: Plan): string {
   return `plan.${plan}`;
 }
 
-// ── Pricing (DISPLAY ONLY — no charging; FR-19.1/19.3 non-payment parts) ──────────
+// == Pricing (DISPLAY ONLY, no charging; FR-19.1/19.3 non-payment parts) ==========
 // Per-vehicle-per-month price in integer cents. Founder decision: DISPLAYED PRICES ARE
 // VAT-INCLUSIVE (unlike the money-in-cents-ex-VAT rule that governs stored transaction
-// money — these are marketing/list prices, not booked money, and never charged here).
+// money, these are marketing/list prices, not booked money, and never charged here).
 // Annual billing applies a two-months-free discount (pay 10 → FR-19.3). done_for_you is
 // a bespoke / managed plan → price on application.
 export const PRICING_VAT_INCLUSIVE = true;
@@ -117,7 +117,7 @@ export const ANNUAL_MONTHS_CHARGED = 10;
 
 /**
  * Effective per-vehicle-per-month price (cents, VAT-inclusive) for a plan + billing
- * period — DISPLAY ONLY. Returns null for a price-on-application (bespoke) plan.
+ * period, DISPLAY ONLY. Returns null for a price-on-application (bespoke) plan.
  */
 export function perVehicleMonthlyCents(plan: Plan, period: BillingPeriod): number | null {
   const base = PLAN_PRICING[plan].perVehicleMonthlyCents;
@@ -127,7 +127,7 @@ export function perVehicleMonthlyCents(plan: Plan, period: BillingPeriod): numbe
 }
 
 /**
- * Indicative recurring subtotal (cents, VAT-inclusive) for `assetCount` vehicles —
+ * Indicative recurring subtotal (cents, VAT-inclusive) for `assetCount` vehicles -
  * DISPLAY ONLY. Monthly period → per-month total; annual period → per-YEAR total (list ×
  * ANNUAL_MONTHS_CHARGED). Returns null for a bespoke plan.
  */

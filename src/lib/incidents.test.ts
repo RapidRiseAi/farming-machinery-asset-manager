@@ -3,7 +3,7 @@
  *
  * `outstandingClaimCents` is the number a farm would ring their broker about, so the cases
  * below are mostly about what it must NOT count. `requiredFor` mirrors
- * `incidents_lodged_ck` and `incidents_settled_ck` from 20260921100000 — the database
+ * `incidents_lodged_ck` and `incidents_settled_ck` from 20260921100000, the database
  * stays the authority; this exists so the refusal is a sentence rather than a constraint
  * name, and it is walked against every status so a new one cannot be added on one side.
  */
@@ -69,7 +69,7 @@ test("only a lodged claim is money the insurer still owes", () => {
           settled_incl_cents: 280000, settled_on: "2026-08-01" }),
     // The insurer said no. It is not owed, however much it was worth.
     inc({ id: "rejected", status: "claim_rejected", claimed_incl_cents: 900000 }),
-    // The farm chose not to claim — below the excess. Nobody was ever asked for it.
+    // The farm chose not to claim, below the excess. Nobody was ever asked for it.
     inc({ id: "none", status: "no_claim", claimed_incl_cents: 120000, claim_lodged_on: null }),
     inc({ id: "reported", status: "reported", claimed_incl_cents: 700000, claim_lodged_on: null }),
   ];
@@ -144,7 +144,7 @@ test("a rejection and a decision not to claim do not look alike", () => {
 
 test("every status and every kind has words in both languages", () => {
   // `enumLabel` prints the raw Postgres value on a miss, which looks plausible enough to
-  // ship — four billing groups did exactly that from day one.
+  // ship, four billing groups did exactly that from day one.
   for (const lang of ["en", "af"] as const) {
     for (const s of INCIDENT_STATUSES) {
       const key = incidentLook(s).labelKey;

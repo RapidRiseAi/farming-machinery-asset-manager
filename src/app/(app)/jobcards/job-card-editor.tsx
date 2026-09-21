@@ -11,7 +11,7 @@ import { CheckIcon } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { saveJobCard } from "./actions";
 
-/** Same five values, same column, same server action — just visible instead of hidden. */
+/** Same five values, same column, same server action, just visible instead of hidden. */
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed"] as const;
 
 type Draft = {
@@ -19,7 +19,7 @@ type Draft = {
   reported_problem: string; diagnosis: string; work_performed: string; recommendations: string;
 };
 
-/** Shows the save state honestly — the page autosaved to the device every 500ms and
+/** Shows the save state honestly, the page autosaved to the device every 500ms and
  *  never said so, while a Save button sat there implying the opposite. */
 function SaveBar({ dirty, locale }: { dirty: boolean; locale: Lang }) {
   const { pending } = useFormStatus();
@@ -57,7 +57,7 @@ export function JobCardEditor({
   const first = useRef(true);
 
   // Draft recovery is silent and automatic. It used to be an amber warning banner with
-  // Restore / Discard as ~24px buttons — error styling, on a phone, for the one moment
+  // Restore / Discard as ~24px buttons, error styling, on a phone, for the one moment
   // the app is saving your bacon.
   useEffect(() => {
     try {
@@ -74,7 +74,7 @@ export function JobCardEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced draft to the device (survives a dropped connection — Scope §7).
+  // Debounced draft to the device (survives a dropped connection, Scope §7).
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -107,7 +107,7 @@ export function JobCardEditor({
         <p className="text-sm text-sand-500" role="status">{t("jobcards.draftRestored", locale)}</p>
       ) : null}
 
-      {/* Where this job is — five states that used to be hidden inside a <Select> of
+      {/* Where this job is, five states that used to be hidden inside a <Select> of
           database values you had to open to learn where the job stood. */}
       <div>
         <h2 className="text-sm font-semibold text-sand-800">{t("jobcards.whereThisJobIs", locale)}</h2>
@@ -157,7 +157,7 @@ export function JobCardEditor({
       </div>
 
       {/* Three plain questions. These were "Reported problem / Diagnosis / Work
-          performed / Recommendations" — four rows={2} boxes of equal weight, half of
+          performed / Recommendations", four rows={2} boxes of equal weight, half of
           them jargon, for a mechanic on a phone in a workshop. */}
       <div className="flex flex-col gap-4">
         <Field label={t("jobcards.qWrong", locale)} htmlFor="jc-reported" hint={t("jobcards.qWrongHint", locale)}>

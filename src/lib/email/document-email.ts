@@ -8,8 +8,8 @@ import type { DocKind } from "@/lib/partner-docs";
 /**
  * The email a customer receives when a partner sends them a document.
  *
- * Two constraints shape it. It goes out under the PARTNER's identity — their business
- * name, their colour, their reply address — because the customer is doing business with
+ * Two constraints shape it. It goes out under the PARTNER's identity, their business
+ * name, their colour, their reply address, because the customer is doing business with
  * them, not with us. And it has to survive the mail clients a South African farm actually
  * reads on: tables and inline styles, no flexbox, no external stylesheet, no web font, no
  * remote image. A plain-text alternative is always sent alongside, because some of these
@@ -72,7 +72,7 @@ export function documentEmailText(input: DocumentEmailInput): string {
     "The PDF is attached to this email as well.",
     "",
     brand.phone ? `Questions: ${brand.phone}` : null,
-    `— ${brand.name}`,
+    `- ${brand.name}`,
   ];
   return lines.filter((l) => l !== null).join("\n");
 }

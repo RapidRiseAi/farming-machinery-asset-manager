@@ -2,7 +2,7 @@
 -- Getting the case to the dashboard it is worked in, and knowing when it did not arrive.
 --
 -- Tickets are read in RapidRise OS. FleetWise posts them there, and the whole value of
--- doing that is undone if a failed post is silent — the dispute that arrived while the
+-- doing that is undone if a failed post is silent, the dispute that arrived while the
 -- integration was down is exactly the one somebody needed to see, and a 48-business-hour
 -- clock does not pause for an outage.
 --
@@ -11,8 +11,8 @@
 -- "we told somebody" is the claim that costs the most when it is wrong.
 --
 -- WHY NOT A CLAIM/RELEASE PAIR LIKE RECEIPTS
--- ─────────────────────────────────────────────────────────────────────────────
--- A receipt has two racing senders — the webhook and the nightly pass — so it needs a
+-- =============================================================================
+-- A receipt has two racing senders, the webhook and the nightly pass, so it needs a
 -- claim to stop both sending. A ticket post is idempotent at the RECEIVER by contract: the
 -- payload carries the ticket's uuid, and RapidRise OS upserts on it. Two posts of the same
 -- case are one case there. That makes the simpler shape correct here, and a claim would be
@@ -26,7 +26,7 @@ alter table public.support_tickets
   add column if not exists post_attempts integer not null default 0;
 
 comment on column public.support_tickets.posted_at is
-  'When this case reached the RapidRise OS support dashboard. Null means it has not — which '
+  'When this case reached the RapidRise OS support dashboard. Null means it has not, which '
   'is a thing to act on, not a thing to assume.';
 
 -- What still has to go. Ordered by deadline so a dispute with a clock is retried before a

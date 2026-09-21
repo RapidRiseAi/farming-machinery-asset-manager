@@ -2,12 +2,12 @@
 -- What the tank actually holds, against what the books say it should.
 --
 -- `SCOPE.md` §9 asks for a "tank reconciliation view (deliveries − issues vs dip reading)".
--- The first half was built: /fuel shows a book balance. The dip — somebody putting a stick
--- in the tank — had nowhere to go, so the one number that catches a leak, a theft or a draw
+-- The first half was built: /fuel shows a book balance. The dip, somebody putting a stick
+-- in the tank, had nowhere to go, so the one number that catches a leak, a theft or a draw
 -- nobody wrote down could not be recorded.
 --
 -- WHY THE VARIANCE IS THE POINT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A book balance is only ever as good as the captures behind it. Diesel that leaves without
 -- a draw being logged shows up NOWHERE in this product until the tank is measured: the books
 -- and the tank simply drift apart, and the SARS trail quietly stops matching the farm. The
@@ -86,7 +86,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── The reconciliation, computed where both sides live ──────────────────────
+-- == The reconciliation, computed where both sides live ======================
 -- Book litres are deliveries minus draws up to and including the dip's own date, so the
 -- comparison is against what the books said AT THE MOMENT the stick went in. Comparing a
 -- dip taken on the 3rd against today's book balance would report a variance for every draw
@@ -133,7 +133,7 @@ comment on function app.fuel_tank_reconciliation(uuid) is
   'Each dip against the book balance on its own date. A negative variance is diesel the '
   'books say should be there and is not. It corrects nothing: a variance is a question.';
 
--- ── The public wrapper ──────────────────────────────────────────────────────
+-- == The public wrapper ======================================================
 -- PostgREST exposes `public` ONLY: a function in schema `app` is unreachable from
 -- `supabase.rpc()` and resolves to nothing at all. The screen calls this one.
 create or replace function public.fuel_tank_reconciliation(p_tank uuid)

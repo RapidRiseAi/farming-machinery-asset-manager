@@ -34,7 +34,7 @@ export default async function OnboardingPage({
   const machines = machinesRes.count ?? 0;
   const plans = planRes.count ?? 0;
   const users = usersRes.count ?? 0;
-  // Step 3 has its own condition — it used to reuse `machines > 0`, so adding one
+  // Step 3 has its own condition, it used to reuse `machines > 0`, so adding one
   // machine ticked "put QR stickers on them" too (audit bug 1).
   const settings = (farmRes.data as { settings?: Record<string, unknown> } | null)?.settings ?? {};
   const qrLabelsDone = !!settings.qr_labels_printed_at;

@@ -2,8 +2,8 @@
  * The card-expiry warning, which is arithmetic about a date and therefore wrong by a month
  * if nobody checks.
  *
- * ── Why this file exists ─────────────────────────────────────────────────────
- * `/billing` has always shown "Expires 12/30" in grey — a fact, not a warning — while
+ * == Why this file exists =====================================================
+ * `/billing` has always shown "Expires 12/30" in grey, a fact, not a warning, while
  * `app.billing_cards_expiring` (20260909120000) has been emailing about the same card for
  * up to 45 days. The screen now says it too, and the ONLY way that is an improvement is if
  * the two agree. So every assertion here is really an assertion about the SQL:
@@ -14,7 +14,7 @@
  *   - and the five reasons to stay SILENT are the same five rows the engine omits.
  *
  * The date is passed in rather than read from the clock. Section (o) of the billing suite
- * was date-flaky for want of exactly that — it picked `current_date + 20` as its
+ * was date-flaky for want of exactly that, it picked `current_date + 20` as its
  * "expiring soon" card, which is inside a 45-day window for the first third of a month and
  * outside it for the rest, so it passed until 11 September 2026 and then failed with
  * nothing about the engine having changed.
@@ -52,7 +52,7 @@ import {
   type SubscriptionRow,
 } from "./view";
 
-/** A card that is charged, readable and in force — the case that SHOULD speak. */
+/** A card that is charged, readable and in force, the case that SHOULD speak. */
 function card(over: Partial<PaymentMethodRow> = {}): PaymentMethodRow {
   return {
     id: "card-1",
@@ -102,7 +102,7 @@ function sub(over: Partial<SubscriptionRow> = {}): SubscriptionRow {
   } as SubscriptionRow;
 }
 
-// ── The date on the card ─────────────────────────────────────────────────────
+// == The date on the card =====================================================
 
 test("the printed month means its LAST day", () => {
   assert.equal(cardExpiryOn("12", "2028"), "2028-12-31");
@@ -136,7 +136,7 @@ test("a date the provider sent that we cannot read is null, never a throw", () =
   }
 });
 
-// ── When the screen speaks ───────────────────────────────────────────────────
+// == When the screen speaks ===================================================
 
 test("inside the window it warns; outside it says nothing", () => {
   // 45 days is the engine's horizon. These two dates straddle it by one day each way, so a
@@ -163,7 +163,7 @@ test("the last day of the printed month is still good; the next day is not", () 
   assert.equal(after.kind === "expired" ? after.daysLeft : null, -1);
 });
 
-// ── The silences, each of which the SQL engine makes by omitting the row ─────
+// == The silences, each of which the SQL engine makes by omitting the row =====
 
 test("it warns only about the card that would ACTUALLY be charged", () => {
   // Every charging shortlist joins `pm.id = s.default_payment_method_id`. A farm may keep
@@ -214,12 +214,12 @@ test("no card and no subscription are silences, not crashes", () => {
   );
 });
 
-// ── What the invoice will actually be for ────────────────────────────────────
+// == What the invoice will actually be for ====================================
 //
 // This is the arithmetic that put R0,00 on a production farm's billing screen against a
 // real R750,00 invoice. `/billing` passed the COUNTED fleet into `estimateNextCharge`
 // while `app.generate_billing_invoices` bills `coalesce(asset_quota, counted)`, so every
-// farm holding slots it had not filled was quoted the wrong number — and a farm that had
+// farm holding slots it had not filled was quoted the wrong number, and a farm that had
 // just paid and added nothing yet was quoted nothing at all.
 //
 // These assertions are really assertions about `app.billing_billable_units`. If that
@@ -234,7 +234,7 @@ test("a quota is what gets billed, however many vehicles are actually running", 
   assert.equal(billedUnits(sub({ asset_quota: 10 }), 10), 10);
 });
 
-test("no quota means bill what is counted — grandfathered farms must not read as zero", () => {
+test("no quota means bill what is counted, grandfathered farms must not read as zero", () => {
   // `null` is "this subscription predates the quota model", which is every farm onboarded
   // before it and every farm an administrator creates. Reading it as "no slots" would bill
   // all of them nothing.
@@ -272,7 +272,7 @@ test("the estimate follows the quota, which is the whole bug", () => {
   };
   const s = sub({ plan: "done_for_you", asset_quota: 3 });
 
-  // What the page used to do: pass the counted fleet. Zero machines, so R0,00 — the one
+  // What the page used to do: pass the counted fleet. Zero machines, so R0,00, the one
   // wrong price a customer would never think to question.
   const wrong = estimateNextCharge({ price, assetCount: 0, vatRegistered: false });
   assert.equal(wrong.kind === "priced" && wrong.totalInclCents, 0);
@@ -287,7 +287,7 @@ test("the estimate follows the quota, which is the whole bug", () => {
   assert.equal(right.kind === "priced" && right.assetCount, 3);
 });
 
-// ── Saying which of several things just happened ─────────────────────────────
+// == Saying which of several things just happened =============================
 
 test("every outcome a billing action can report has its own sentence", () => {
   // The actions distinguish these carefully and the page rendered one generic string for
@@ -365,14 +365,14 @@ test("nothing to say, and something unrecognised, are different answers", () => 
 test("a refusal from the engine is translated, never printed as SQL prose", () => {
   // These are the exact strings `app.billing_quota_quote` and `app.billing_plan_quote`
   // put in `reason`. Rendering one raw would show English prose from a migration to an
-  // Afrikaans farmer — the mistake errors.ts exists to prevent everywhere else.
+  // Afrikaans farmer, the mistake errors.ts exists to prevent everywhere else.
   assert.equal(quoteReasonKey("retire or sell a vehicle first"), "billing.quotaBelowFleetBody");
   assert.equal(quoteReasonKey("no confirmed price for that plan"), "billing.quoteNoPrice");
   assert.equal(quoteReasonKey("no confirmed price for this plan"), "billing.quoteNoPrice");
   assert.equal(quoteReasonKey("subscription has ended"), "billing.quoteEnded");
   assert.equal(quoteReasonKey("choose at least one vehicle"), "billing.quoteMinOne");
   assert.equal(
-    quoteReasonKey("less than R1,00 — below what the provider will process"),
+    quoteReasonKey("less than R1,00, below what the provider will process"),
     "billing.quoteBelowMinimum",
   );
 });
@@ -386,7 +386,7 @@ test("an unrecognised or absent reason degrades to a sentence, not to silence", 
   assert.equal(quoteReasonKey(""), "billing.quoteUnavailableBody");
 });
 
-// ── The three answers at the top of the page ─────────────────────────────────
+// == The three answers at the top of the page =================================
 //
 // The summary tiles choose between figures the page already holds. Every assertion below
 // is about the CHOICE: which number is the honest answer to "how much, and when", and when
@@ -486,7 +486,7 @@ test("no confirmed price is a word, never an amount of zero", () => {
 });
 
 test("a plan that will not renew is not quoted a renewal", () => {
-  // The estimate is still priced — the plan is live until the period ends — but nothing
+  // The estimate is still priced, the plan is live until the period ends, but nothing
   // more is coming, and a figure on the tile would say otherwise.
   assert.equal(tile(sub({ status: "non_renewing" })).kind, "nothing");
   assert.equal(tile(sub({ cancel_at_period_end: true })).kind, "nothing");
@@ -590,7 +590,7 @@ test("no card matters only while something is going to be charged to it", () => 
   });
 });
 
-// ── What a row says is still owed ────────────────────────────────────────────
+// == What a row says is still owed ============================================
 
 test("a voided or written-off bill is not a debt", () => {
   // A withdrawn bill used to read "R730,00 outstanding" in amber beside its own badge.
@@ -613,11 +613,11 @@ test("the pay button still acts only on bills that are open or draft", () => {
   assert.equal(offer.kind === "offer" && offer.amountCents, 73000);
 });
 
-// ── Which documents a row offers ─────────────────────────────────────────────
+// == Which documents a row offers =============================================
 
 test("a receipt is offered only for money that has arrived", () => {
   // The receipt reads "Paid in full". Offering it for an open or part-paid bill would be a
-  // false record of payment — the PDF route refuses with `billing-not-paid` for the same
+  // false record of payment, the PDF route refuses with `billing-not-paid` for the same
   // reason.
   assert.equal(invoiceDocuments("paid").receipt, true);
   for (const s of ["open", "draft", "void", "uncollectible"]) {
@@ -634,13 +634,13 @@ test("the bill is offered for anything issued, and never for a draft or a void",
   assert.deepEqual(invoiceDocuments("void"), { receipt: false, invoice: false });
 });
 
-// ── Every status has a word, in both languages ───────────────────────────────
+// == Every status has a word, in both languages ===============================
 //
 // `enumLabel` builds `billingInvoiceStatus.open` at RUNTIME from a group argument and falls
 // back to the raw value on a miss. None of these four groups existed, and neither gate
 // could see it: `i18n:keys` cannot read a key assembled from an argument, and the fallback
 // prints something plausible. So both billing screens showed "open", "paid" and "past due"
-// — the Postgres enum values — to every reader, including an Afrikaans farmer checking
+//, the Postgres enum values, to every reader, including an Afrikaans farmer checking
 // whether October went through. The lists are the enums in
 // 20260903160000_saas_billing_core.sql, plus `pending` from 20260910220000.
 
@@ -662,11 +662,11 @@ test("every billing status and attempt kind has a label in both languages", () =
   }
 });
 
-// ── The deal the farm was given ──────────────────────────────────────────────
+// == The deal the farm was given ==============================================
 //
 // `SCOPE.md` §12 promises the first twenty farms a Founding Farmer rate "locked for life".
-// The rule that decides what comes off lives in SQL — `app.billing_discount_cents`, called
-// from the trigger that derives every invoice total — and is mirrored here so the screen
+// The rule that decides what comes off lives in SQL, `app.billing_discount_cents`, called
+// from the trigger that derives every invoice total, and is mirrored here so the screen
 // can quote the same number before the invoice exists.
 //
 // These cases are the SQL's cases, one for one. `supabase/tests/billing_discounts.sql`
@@ -700,15 +700,15 @@ test("a percentage deal comes off the bill and leaves the list price standing", 
   assert.equal(e.grossInclCents, 75000);
   assert.equal(e.discountCents, 15000);
   assert.equal(e.totalInclCents, 60000);
-  // The unit price is still R250. The invoice shows both — what it costs, and what they
-  // were given — because a farm on a deal should be able to see the deal.
+  // The unit price is still R250. The invoice shows both, what it costs, and what they
+  // were given, because a farm on a deal should be able to see the deal.
   assert.equal(e.perVehicleInclCents, 25000);
   assert.equal(e.discountLabel, "Founding Farmer");
 });
 
 test("a fixed deal bigger than the bill leaves nothing owing, never a negative", () => {
   // `least(discount, gross)` in SQL, `Math.min` here. A month with one vehicle on a
-  // R1 000 standing discount owes zero — it does not owe minus R750, and the remainder
+  // R1 000 standing discount owes zero, it does not owe minus R750, and the remainder
   // does not roll into next month.
   const e = estimateNextCharge({
     price: DEAL_PRICE,
@@ -762,7 +762,7 @@ test("a farm with no deal is quoted the list price and shown no discount line", 
 });
 
 test("the discount rounds the way Postgres rounds, and is named by its code when unlabelled", () => {
-  // round(gross * bps / 10000) — half away from zero in numeric, half up in Math.round;
+  // round(gross * bps / 10000), half away from zero in numeric, half up in Math.round;
   // gross is never negative here, so they agree. 0,5c must go to 1c, not to 0c.
   assert.equal(subscriptionDiscountCents(sub({ discount_percent_bps: 50 }), 100, "2026-10-06"), 1);
   assert.equal(subscriptionDiscountCents(sub({ discount_percent_bps: 1250 }), 12345, "2026-10-06"), 1543);

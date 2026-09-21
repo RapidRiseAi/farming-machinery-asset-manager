@@ -1,12 +1,12 @@
-# FleetWise — Contractor/Supplier portal, Partners, Checklists & Vehicle capture (expansion spec)
+# FleetWise, Contractor/Supplier portal, Partners, Checklists & Vehicle capture (expansion spec)
 
-Founder-directed expansion. FleetWise becomes **two-sided**: (1) the farmer's fleet/maintenance manager, and (2) a **paid SaaS portal for contractors & suppliers** who serve those farmers — one aggregated dashboard per contractor across ALL their farmer clients (not a separate login per farmer). Everything below must be doable **manually and perfectly first** (AI later). All house rules in `docs/FLEETWISE_BUILD_CHECKLISTS.md §G` apply (farm_id tenancy, RLS, audit, soft-delete, ex-VAT cents, EN/AF parity, gates green).
+Founder-directed expansion. FleetWise becomes **two-sided**: (1) the farmer's fleet/maintenance manager, and (2) a **paid SaaS portal for contractors & suppliers** who serve those farmers, one aggregated dashboard per contractor across ALL their farmer clients (not a separate login per farmer). Everything below must be doable **manually and perfectly first** (AI later). All house rules in `docs/FLEETWISE_BUILD_CHECKLISTS.md §G` apply (farm_id tenancy, RLS, audit, soft-delete, ex-VAT cents, EN/AF parity, gates green).
 
 ## 1. Access & roles model (build on what exists)
 
-- A **contractor/supplier = a `workshop`** (already in schema). Its staff are `workshop`-role users. `workshop_links` (status=active) already grant a workshop scoped access to a farm — this is exactly the "one contractor account → many farms" spine. Extend, don't replace.
+- A **contractor/supplier = a `workshop`** (already in schema). Its staff are `workshop`-role users. `workshop_links` (status=active) already grant a workshop scoped access to a farm, this is exactly the "one contractor account → many farms" spine. Extend, don't replace.
 - Add **contractor types** (`workshops.kind`: mechanic / auto_electrician / parts_supplier / panel_beater / tyre / towing / other) to drive **tailored views**.
-- The contractor's **aggregated dashboard** lists work/requests across every linked farm in one place; per-farm data stays RLS-isolated (they only see farms they're linked to). This makes their job easier — the core value prop.
+- The contractor's **aggregated dashboard** lists work/requests across every linked farm in one place; per-farm data stays RLS-isolated (they only see farms they're linked to). This makes their job easier, the core value prop.
 - **Value-first onboarding:** a contractor can be invited and see incoming requests/value before paying; entitlement-gate the richer contractor features behind a contractor plan (reuse F5's entitlement framework with a contractor-side plan map). Payment stays deferred (Paystack later).
 
 ## 2. Partners directory (find / add / connect)
@@ -25,15 +25,15 @@ Founder-directed expansion. FleetWise becomes **two-sided**: (1) the farmer's fl
 
 ## 4. Owner/manager activity dashboard (inbox)
 
-- A unified **activity feed / inbox**: incoming **quotes, invoices, job requests, suggestions, status updates** — each actionable (accept quote, approve invoice, view proof, message contractor). Grouped by vehicle + contractor, with unread state.
-- **Timelines, analytics, stats, reminders** across the fleet: per-vehicle timeline (already exists — extend with work_requests/quotes/invoices), spend/quote analytics, outstanding-quote/invoice reminders, contractor responsiveness stats.
+- A unified **activity feed / inbox**: incoming **quotes, invoices, job requests, suggestions, status updates**, each actionable (accept quote, approve invoice, view proof, message contractor). Grouped by vehicle + contractor, with unread state.
+- **Timelines, analytics, stats, reminders** across the fleet: per-vehicle timeline (already exists, extend with work_requests/quotes/invoices), spend/quote analytics, outstanding-quote/invoice reminders, contractor responsiveness stats.
 
 ## 5. Contractor-side views (tailored & dynamic per type)
 
 - **Distinct dashboards per contractor `kind`:** a mechanic sees jobs/inspections; a parts supplier sees parts/quote requests + a catalogue to fulfil; an auto-electrician sees electrical jobs; etc. Build a view-router keyed on `workshops.kind` + entitlements, sharing components.
 - Contractor can: see assigned vehicles + full context (with the requested vehicle highlighted), accept/decline, quote, update status, upload invoice + proof, message the farmer (quick-contact). Everything scoped to farms they're linked to.
 
-## 6. Service kits & parts (manual CRUD — FR-5.1/5.2/5.3)
+## 6. Service kits & parts (manual CRUD, FR-5.1/5.2/5.3)
 
 - **`parts_catalogue`**: part_no, description, supplier, typical_cost_cents (ex-VAT), category, farm_id (or global). Mechanics / parts dealers add + edit manually (AI later).
 - **`service_kits`** per machine (or machine_type): the exact engine-oil / gearbox-oil / filter **part numbers** + quantities. Editable/addable in the UI. Applying a kit to a service auto-appends its parts to the job card → cost/history (reuse F1 line→cost).
@@ -41,7 +41,7 @@ Founder-directed expansion. FleetWise becomes **two-sided**: (1) the farmer's fl
 
 ## 7. Vehicle checklists + template builder (mirror TJ-autovault)
 
-- **Study `RapidRiseAi/TJ-autovault`** — `components/workshop/inspection-template-builder.tsx`, `inspection-report-form-renderer.tsx`, `inspection-templates-table.tsx`, `lib/inspection-reports.ts`, and migrations `..._inspection_templates.sql` / `_inspection_reports*.sql`. Mirror that pattern.
+- **Study `RapidRiseAi/TJ-autovault`**, `components/workshop/inspection-template-builder.tsx`, `inspection-report-form-renderer.tsx`, `inspection-templates-table.tsx`, `lib/inspection-reports.ts`, and migrations `..._inspection_templates.sql` / `_inspection_reports*.sql`. Mirror that pattern.
 - **`checklist_templates`** (farm or global): named template with ordered fields (field types: checkbox / text / number / photo / rating / section_break), reusable. A **template builder UI** to create/edit them.
 - **`checklist_instances`** per vehicle/job: a filled checklist (a report) tied to machine_id (+ optional work_request/job_card), rendered from a template, with per-field values + notes + photos. Used for pre-use inspections, service sign-off, condition reports.
 - Per-vehicle: create a checklist from a template; view completed checklists on the vehicle timeline.

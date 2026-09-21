@@ -1,5 +1,5 @@
 /**
- * The Paystack adapter — the only place in FleetWise that talks to a card processor
+ * The Paystack adapter, the only place in FleetWise that talks to a card processor
  * about a SaaS subscription.
  *
  * SCOPE, stated once more because it is the thing most likely to be got wrong later:
@@ -10,7 +10,7 @@
  * the design has gone wrong.
  *
  * WHAT THIS ADAPTER IS AND IS NOT RESPONSIBLE FOR
- * ─────────────────────────────────────────────────────────────────────────────
+ * =============================================================================
  * It is responsible for: speaking HTTP to Paystack, normalising the answer, refusing to
  * act when it must not, and telling the caller whether a failure is worth retrying.
  *
@@ -20,8 +20,8 @@
  * The three-step sequence is claim → charge → settle with NO transaction held across
  * the HTTP call, and this file is only the middle step.
  *
- * RETRYABLE vs TERMINAL — the distinction the whole recovery story rests on
- * ─────────────────────────────────────────────────────────────────────────────
+ * RETRYABLE vs TERMINAL, the distinction the whole recovery story rests on
+ * =============================================================================
  * A `{ ok:false, deferred:false }` result carries `retryable`, and it is not a hint:
  *
  *   retryable: true   → we do not know what happened. A timeout, a 5xx, a dropped
@@ -38,18 +38,18 @@
  * jams for ever.
  *
  * WHAT NEVER LEAVES THIS FILE
- * ─────────────────────────────────────────────────────────────────────────────
+ * =============================================================================
  * The secret key, an `authorization_code`, and a customer's email address. Not in an
  * Error, not in a returned `reason`, not in a log line, not in a Sentry extra. Provider
  * messages are passed through `redact()` before they are returned, because "Customer
  * with email … not found" is exactly the sort of message a payment API sends.
  *
  * THE TWO-PART SAFETY SWITCH
- * ─────────────────────────────────────────────────────────────────────────────
+ * =============================================================================
  * `enabled` = a provider and a key are configured. `chargingEnabled` = that AND the kill
  * switch is on. Both are read LAZILY, per call. Everything that would move money checks
  * `chargingEnabled` FIRST and returns `{ ok:false, deferred:true }` without making an
- * HTTP request — while `verifyTransaction` and `verifyWebhookSignature` deliberately
+ * HTTP request, while `verifyTransaction` and `verifyWebhookSignature` deliberately
  * keep working with charging off, because reconciling money already taken is not a new
  * charge, and flipping the switch must never orphan a payment in flight.
  */
@@ -82,12 +82,12 @@ import type {
 /**
  * Metadata keys the webhook re-verification matches on. Exported so the route that
  * checks them and the adapter that writes them cannot drift into using different names
- * — a mismatch there would silently refuse every legitimate payment.
+ *, a mismatch there would silently refuse every legitimate payment.
  */
 export const METADATA_FARM_KEY = "farm_id";
 export const METADATA_INVOICE_KEY = "invoice_id";
 
-/** Card only. See `PaystackChannel` — nothing else yields a reusable authorization. */
+/** Card only. See `PaystackChannel`, nothing else yields a reusable authorization. */
 const CHECKOUT_CHANNELS: PaystackChannel[] = ["card"];
 
 /** A payment API that hangs must not hang the request that asked for it. */
@@ -111,7 +111,7 @@ type PaystackEnvelope = {
 type ApiResult =
   | { ok: true; data: Record<string, unknown>; message: string }
   // `answered` = Paystack processed this request and refused it, as opposed to us being
-  // unable to ask. See the note on `VerifyResult.answered` — the reconciler's decision to
+  // unable to ask. See the note on `VerifyResult.answered`, the reconciler's decision to
   // close an attempt turns on this distinction and not on `retryable`.
   | { ok: false; reason: string; retryable: boolean; answered: boolean };
 
@@ -130,7 +130,7 @@ function nonEmpty(value: unknown): boolean {
 }
 
 /**
- * Paystack sometimes returns `metadata` as a JSON STRING rather than an object — it
+ * Paystack sometimes returns `metadata` as a JSON STRING rather than an object, it
  * echoes back whatever shape it managed to store. Both are handled; anything else
  * becomes an empty object rather than a crash on a payment path.
  */
@@ -159,7 +159,7 @@ function readMetadata(raw: unknown): Record<string, unknown> {
  * `reversed` maps to `failed` on purpose. A reversal means the money came back, and the
  * safe direction is "do not treat this invoice as paid"; the provider's own words are
  * preserved in `gatewayResponse` so a human reconciling it can see what actually
- * happened. An unrecognised status maps to `pending` — the state that asks a question
+ * happened. An unrecognised status maps to `pending`, the state that asks a question
  * rather than answering one.
  */
 function mapStatus(raw: unknown): VerifiedTransaction["status"] {
@@ -242,7 +242,7 @@ export function toVerifiedTransaction(data: Record<string, unknown>): VerifiedTr
   };
 }
 
-// ── Matching a transaction against what we expected ───────────────────────────
+// == Matching a transaction against what we expected ===========================
 
 export type ExpectedCharge = {
   /** The reference WE minted and persisted before contacting Paystack. */
@@ -281,7 +281,7 @@ export function matchesExpectedCharge(
   return mismatches.length === 0 ? { ok: true } : { ok: false, mismatches };
 }
 
-// ── The adapter ───────────────────────────────────────────────────────────────
+// == The adapter ===============================================================
 
 export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvider {
   readonly provider = "paystack";
@@ -296,7 +296,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  /** Lazily read, every time. Never cached — the switch has to be answerable now. */
+  /** Lazily read, every time. Never cached, the switch has to be answerable now. */
   get enabled(): boolean {
     return paystackConfig().ok;
   }
@@ -305,14 +305,14 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     return isChargingEnabled();
   }
 
-  // ── BillingAdapter: deliberately inert for this provider ────────────────────
+  // == BillingAdapter: deliberately inert for this provider ====================
   //
-  // Paystack holds no plan, no price, no period and no entitlement — all of that lives
+  // Paystack holds no plan, no price, no period and no entitlement, all of that lives
   // in `billing_subscriptions`, because the amount changes with the farm's vehicle count
   // and a fixed provider-side subscription object would be wrong the moment a tractor is
   // sold. These four methods therefore have nothing to sync. They report that plainly
   // rather than pretending to have done something, and they do not return `deferred`
-  // when we ARE configured — "deferred" means "no provider", and a caller that logged it
+  // when we ARE configured, "deferred" means "no provider", and a caller that logged it
   // would be told the wrong thing.
 
   private notApplicable(what: string): BillingResult {
@@ -346,7 +346,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     return this.notApplicable("cancel");
   }
 
-  // ── SaasBillingProvider ─────────────────────────────────────────────────────
+  // == SaasBillingProvider =====================================================
 
   async initializeCheckout(init: CheckoutInit): Promise<CheckoutSession> {
     if (!this.chargingEnabled) {
@@ -379,7 +379,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     const reference = str(res.data.reference) ?? init.reference;
     if (!authorizationUrl || !accessCode) {
       // A 200 that is missing the URL we are meant to send the customer to. Not worth
-      // retrying blindly — but the attempt still holds our reference, so it is
+      // retrying blindly, but the attempt still holds our reference, so it is
       // recoverable by verifying it, which is the correct next move either way.
       return {
         ok: false,
@@ -447,8 +447,8 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
       method: "POST",
       body: JSON.stringify({
         // Paystack refuses an authorization presented with a different address, so this
-        // MUST be `billing_payment_methods.authorization_email` — part of the credential
-        // — and not whatever the user has since changed `users.email` to.
+        // MUST be `billing_payment_methods.authorization_email`, part of the credential
+        //, and not whatever the user has since changed `users.email` to.
         authorization_code: req.authorizationCode,
         email: req.email,
         amount: req.amountCents,
@@ -471,7 +471,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
 
   /**
    * HMAC-SHA512 of the RAW body, keyed with the secret key, compared timing-safely.
-   * There is no separate webhook secret at Paystack — the signing key IS the API key.
+   * There is no separate webhook secret at Paystack, the signing key IS the API key.
    *
    * Four refusals before any comparison happens, each for its own reason:
    *   - no signature header at all → an unsigned delivery is never legitimate;
@@ -504,7 +504,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     return timingSafeEqual(a, b);
   }
 
-  // ── Internals ───────────────────────────────────────────────────────────────
+  // == Internals ===============================================================
 
   private offReason(): string {
     return this.enabled
@@ -604,14 +604,14 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     const message = redact(str(body?.message) ?? "");
 
     if (!res.ok) {
-      // 5xx / 429 / 408: their side, or ours being asked to slow down — the outcome is
+      // 5xx / 429 / 408: their side, or ours being asked to slow down, the outcome is
       // genuinely unknown. Every other 4xx is Paystack telling us no, which is an answer.
       const retryable = res.status >= 500 || res.status === 429 || res.status === 408;
       return {
         ok: false,
         reason: message || `payment provider returned ${res.status}`,
         retryable,
-        // A 404 for a verify carries `status:false` — Paystack telling us, in its own
+        // A 404 for a verify carries `status:false`, Paystack telling us, in its own
         // envelope, that it has never heard of this reference. A 502 from a proxy in
         // front of the API carries no envelope at all and answers nothing.
         answered: body ? body.status !== true : false,

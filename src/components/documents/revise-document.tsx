@@ -19,14 +19,14 @@ export type ReviseLine = Pick<DocLine, "kind" | "part_no" | "description" | "qty
 /**
  * Correct a document that has already gone out.
  *
- * A monthly-account customer never looks at an individual invoice — they pay off a
+ * A monthly-account customer never looks at an individual invoice, they pay off a
  * statement. For them, an invoice plus a credit note plus a replacement invoice, where one
  * corrected line belongs, makes the statement harder to read rather than more honest. So
  * the amount is editable, and the guarantee is that every version is kept.
  *
  * The form says that out loud before you start typing, because the person doing this
  * should know that what they are about to change is on file either way. That is not a
- * warning — it is the reason they are allowed to do it at all.
+ * warning, it is the reason they are allowed to do it at all.
  *
  * Prices are typed the way the partner quotes them (the VAT-inclusive switch) and stored
  * ex-VAT, exactly as on the draft line form. A correction that silently changed the basis

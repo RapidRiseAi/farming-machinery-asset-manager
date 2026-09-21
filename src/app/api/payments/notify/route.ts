@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * PayFast's payment notification (G10).
  *
- * This is an UNAUTHENTICATED POST from the internet to a public URL — anyone can send one
+ * This is an UNAUTHENTICATED POST from the internet to a public URL, anyone can send one
  * claiming an invoice was paid. It is believed only when the signature recomputes, the
  * amount matches what we asked for, and PayFast itself confirms the payload when we hand
  * it back to them. See `lib/payments/payfast.ts` for why the third check is the one that
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * Two behaviours here are deliberate and easy to get wrong:
  *
  *   ALWAYS 200. PayFast retries anything else, for hours. A rejected notification is
- *   still a notification we have finished with, so it is logged and acknowledged — the
+ *   still a notification we have finished with, so it is logged and acknowledged, the
  *   only thing a non-200 would achieve is the same forged payload arriving fifty more
  *   times.
  *

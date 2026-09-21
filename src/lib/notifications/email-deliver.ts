@@ -12,7 +12,7 @@ import "server-only";
  * for five minutes, and only marked sent when the provider ACCEPTED it. A failure at
  * Resend releases the claim with a back-off, so a temporary outage delays a reminder
  * rather than discarding it. Opt-in per user (`users.notify_email`), and quiet hours are
- * already honoured upstream — `deliver_after` is set at enqueue, and the claim will not
+ * already honoured upstream, `deliver_after` is set at enqueue, and the claim will not
  * pick a row up before it.
  *
  * WHAT IT WILL NOT PUT IN AN EMAIL

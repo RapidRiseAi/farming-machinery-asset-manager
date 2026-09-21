@@ -63,7 +63,7 @@ export default async function FarmDetailPage({
   const farm = farmData as Farm | null;
   if (!farm) notFound();
 
-  // Pricing figures are DISPLAY ONLY (VAT-inclusive) — no charge is made (payments deferred).
+  // Pricing figures are DISPLAY ONLY (VAT-inclusive), no charge is made (payments deferred).
   const farmPlan = farm.plan as Plan;
   const farmPeriod = farm.billing_period as BillingPeriod;
   const perVehicle = perVehicleMonthlyCents(farmPlan, farmPeriod);
@@ -95,7 +95,7 @@ export default async function FarmDetailPage({
           sp.saved
             ? "Saved."
             : sp.invited
-              ? "Invited — they sign in via the magic link."
+              ? "Invited, they sign in via the magic link."
               : sp.exited
                 ? "You have left the farm. The visit is in the log below, with the time you left."
                 : undefined
@@ -143,7 +143,7 @@ export default async function FarmDetailPage({
             <SubmitButton variant="primary" className="self-start">Save</SubmitButton>
           </form>
 
-          {/* Asset count + per-vehicle price — DISPLAY ONLY (VAT-inclusive; no charging). */}
+          {/* Asset count + per-vehicle price, DISPLAY ONLY (VAT-inclusive; no charging). */}
           <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-sand-100 pt-4 text-sm">
             <div>
               <dt className="text-sand-500">Billable assets</dt>
@@ -165,7 +165,7 @@ export default async function FarmDetailPage({
               </dd>
             </div>
           </dl>
-          <p className="mt-2 text-xs text-sand-400">Display only — no charge is made (payments not yet wired).</p>
+          <p className="mt-2 text-xs text-sand-400">Display only, no charge is made (payments not yet wired).</p>
         </Card>
 
         <Card>
@@ -178,7 +178,7 @@ export default async function FarmDetailPage({
                 // Where the support session came from (FR-1.4, 0510). This is the row it
                 // matters most on: a platform admin opening a customer's books at 02:00
                 // from an unfamiliar city is exactly what an audit trail is for. It is a
-                // signal, never evidence — the value arrives in request headers and can
+                // signal, never evidence, the value arrives in request headers and can
                 // be forged, and it never influenced who `a.user_id` says did this.
                 const place = auditPlace(a);
                 const device = auditDevice(a, "en");
@@ -228,7 +228,7 @@ export default async function FarmDetailPage({
       <Card flush>
         <CardHeader className="px-4 pt-4"><CardTitle>Users</CardTitle></CardHeader>
         {users.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-sand-500">No users yet — invite the owner above.</p>
+          <p className="px-4 pb-4 text-sm text-sand-500">No users yet, invite the owner above.</p>
         ) : (
           <Table>
             <Thead><Tr><Th>Name</Th><Th>Role</Th><Th>Email</Th><Th>Active</Th><Th /></Tr></Thead>
@@ -237,7 +237,7 @@ export default async function FarmDetailPage({
                 <Tr key={u.id}>
                   <Td className="font-medium text-sand-900">{u.name}</Td>
                   <Td><Badge tone="neutral">{roleLabel(u.role, "en")}</Badge></Td>
-                  <Td className="text-sand-500">{u.email ?? "—"}</Td>
+                  <Td className="text-sand-500">{u.email ?? "-"}</Td>
                   <Td>{u.active ? <Badge tone="ok">yes</Badge> : <Badge tone="danger">no</Badge>}</Td>
                   <Td className="text-right">
                     <form action={setUserActive}>

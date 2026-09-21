@@ -1,9 +1,9 @@
--- 0251_entitlements.sql  (FleetWise F5 — entitlement helper + asset-count trigger)
+-- 0251_entitlements.sql  (FleetWise F5, entitlement helper + asset-count trigger)
 --
 -- The DB-side entitlement check. This MIRRORS the single source of truth in
 -- src/lib/entitlements.ts (the app enforces gates in-process from that TS map; this
 -- helper is the defence-in-depth / SQL-callable / test-provable twin). If you change
--- one, change the other — the plan ranks and feature→min-plan table are identical.
+-- one, change the other, the plan ranks and feature→min-plan table are identical.
 --
 -- Plan ranks:   essential 1 < professional 2 < complete 3 < done_for_you 4
 -- Feature map:  dashboard/advanced_reports/fuel/tco → professional (2)
@@ -16,7 +16,7 @@
 -- gate, exactly like app.has_farm_access) and mirrored by a PostgREST-callable
 -- public wrapper. `anon` gets nothing.
 
--- ── plan rank ─────────────────────────────────────────────────────
+-- == plan rank =====================================================
 create or replace function app.plan_rank(p_plan farm_plan) returns int
 language sql immutable security definer set search_path = public, pg_temp as $$
   select case p_plan
@@ -28,7 +28,7 @@ language sql immutable security definer set search_path = public, pg_temp as $$
   end;
 $$;
 
--- ── feature → minimum plan rank required (0 = ungated / always allowed) ──
+-- == feature → minimum plan rank required (0 = ungated / always allowed) ==
 create or replace function app.feature_min_rank(p_feature text) returns int
 language sql immutable security definer set search_path = public, pg_temp as $$
   select case p_feature
@@ -45,7 +45,7 @@ language sql immutable security definer set search_path = public, pg_temp as $$
   end;
 $$;
 
--- ── the gate ──────────────────────────────────────────────────────
+-- == the gate ======================================================
 -- Returns true iff the farm's plan unlocks the feature. Callers may only probe a farm
 -- they can access (app.has_farm_access covers rr_admin + own-farm + active workshop
 -- link), so this never leaks another tenant's plan.

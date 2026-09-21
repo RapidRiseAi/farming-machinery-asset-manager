@@ -7,25 +7,25 @@ import { t, type Locale, type Lang, localeOf } from "./i18n";
  * Pinned because the process formatting a date is not in South Africa: Vercel
  * renders in UTC. Unpinned, a job card created at 01:30 on the 15th read "14 Sep"
  * on every server-rendered page, and a client component rendered the same
- * instant as 09:45 on the server and 11:45 in the browser — a hydration mismatch.
+ * instant as 09:45 on the server and 11:45 in the browser, a hydration mismatch.
  */
 const SA_TIME_ZONE = "Africa/Johannesburg";
 
 /**
  * The formatting layer that sits between a query and the screen.
  *
- * The audit's largest repeating pattern — 21 findings — is "the database is showing
+ * The audit's largest repeating pattern, 21 findings, is "the database is showing
  * through": `{current_reading} {meter_type}` printing "184320 km", `vat_rate_bps`
  * asking a farmer for 1500, `<Badge className="capitalize">{u.role}</Badge>` rendering
  * "Rr_admin", and `updated_at.slice(0, 10)` / `toLocaleDateString("en-ZA")` printing ISO
- * dates. Nothing here changes what is stored — readings stay numbers, VAT stays basis
+ * dates. Nothing here changes what is stored, readings stay numbers, VAT stays basis
  * points, roles stay enum values. This only decides how they read.
  *
  * South African conventions throughout: a space as the thousands separator (SI/SABS,
  * and unambiguous next to the comma decimal a farmer may type), 24-hour time.
  */
 
-/** Narrow no-break space — keeps "1 240" from wrapping mid-number. */
+/** Narrow no-break space, keeps "1 240" from wrapping mid-number. */
 const NNBSP = " ";
 
 /**
@@ -33,7 +33,7 @@ const NNBSP = " ";
  * one place because meters read to a tenth; whole numbers stay whole.
  */
 export function num(value: number | null | undefined, maxFractionDigits = 1): string {
-  if (value == null || !Number.isFinite(value)) return "—";
+  if (value == null || !Number.isFinite(value)) return "-";
 
   // Written out rather than delegated to `toLocaleString("en-ZA")`, for the reason set
   // out in `lib/money.ts`: a runtime with trimmed ICU data silently answers in en-US, so
@@ -63,7 +63,7 @@ export function meterReading(
   meterType: string | null | undefined,
   locale: Lang,
 ): string {
-  if (value == null || !Number.isFinite(value)) return "—";
+  if (value == null || !Number.isFinite(value)) return "-";
   if (meterType === "none" || !meterType) return num(value);
   const unit = t(`format.unit.${meterType}`, locale);
   return `${num(value)}${NNBSP}${unit}`;
@@ -75,7 +75,7 @@ export function meterUnit(meterType: string | null | undefined, locale: Lang): s
   return t(`format.unit.${meterType}`, locale);
 }
 
-// ── Dates ────────────────────────────────────────────────────────────────────
+// == Dates ====================================================================
 // The app stores ISO strings and dates. A person reads "2 days ago" or "12 Mar".
 
 function toDate(value: string | Date | null | undefined): Date | null {
@@ -91,7 +91,7 @@ function toDate(value: string | Date | null | undefined): Date | null {
  *
  * `getDate()` asks the PROCESS what day it is. On Vercel that is UTC, so a
  * reading captured at 01:30 in South Africa counted as the previous day and
- * "Today" rendered as "Yesterday" — and differently again in the browser,
+ * "Today" rendered as "Yesterday", and differently again in the browser,
  * which is a hydration mismatch as well as a wrong answer.
  */
 const SA_DAY = new Intl.DateTimeFormat("en-CA", {
@@ -123,7 +123,7 @@ export function relativeDate(
   now = new Date(),
 ): string {
   const days = daysAgo(value, now);
-  if (days == null) return "—";
+  if (days == null) return "-";
   if (days === 0) return t("format.today", locale);
   if (days === 1) return t("format.yesterday", locale);
   if (days === -1) return t("format.tomorrow", locale);
@@ -150,10 +150,10 @@ export function relativeDate(
   return shortDate(value, locale);
 }
 
-/** "12 Mar 2026" — a date a person reads, never the ISO string. */
+/** "12 Mar 2026", a date a person reads, never the ISO string. */
 export function shortDate(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleDateString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     day: "numeric",
     month: "short",
@@ -162,10 +162,10 @@ export function shortDate(value: string | Date | null | undefined, locale: Lang)
   });
 }
 
-/** "12 Mar 2026, 14:30" — for an audit trail, where the time matters. */
+/** "12 Mar 2026, 14:30", for an audit trail, where the time matters. */
 export function dateTime(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
-  if (!d) return "—";
+  if (!d) return "-";
   return `${shortDate(d, locale)}, ${d.toLocaleTimeString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     hour: "2-digit",
     minute: "2-digit",
@@ -174,22 +174,22 @@ export function dateTime(value: string | Date | null | undefined, locale: Lang):
   })}`;
 }
 
-/** "Mar 2026" — for a period heading. */
+/** "Mar 2026", for a period heading. */
 export function monthLabel(value: string | Date | null | undefined, locale: Lang): string {
   const d = toDate(value);
-  if (!d) return "—";
+  if (!d) return "-";
   return d.toLocaleDateString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     month: "short",
     year: "numeric",
   });
 }
 
-// ── VAT ──────────────────────────────────────────────────────────────────────
+// == VAT ======================================================================
 // The column is `vat_rate_bps` and stays basis points. A farmer reads percent.
 
-/** 1500 → "15%". Display only — the stored value is untouched. */
+/** 1500 → "15%". Display only, the stored value is untouched. */
 export function vatPercent(bps: number | null | undefined): string {
-  if (bps == null || !Number.isFinite(bps)) return "—";
+  if (bps == null || !Number.isFinite(bps)) return "-";
   return `${num(bps / 100)}%`;
 }
 
@@ -203,13 +203,13 @@ export function percentToBps(input: string | null | undefined): number | null {
   return Math.round(n * 100);
 }
 
-// ── Enum labels ──────────────────────────────────────────────────────────────
+// == Enum labels ==============================================================
 // Never `capitalize` a raw enum value: that is how "rr_admin" reached a farm's screen
 // as "Rr_admin".
 
-/** A person's role in words — "Rapid Rise staff", not "Rr_admin". */
+/** A person's role in words, "Rapid Rise staff", not "Rr_admin". */
 export function roleLabel(role: string | null | undefined, locale: Lang): string {
-  if (!role) return "—";
+  if (!role) return "-";
   return t(`role.${role}`, locale);
 }
 
@@ -219,14 +219,14 @@ export function enumLabel(
   value: string | null | undefined,
   locale: Lang,
 ): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const key = `${group}.${value}`;
   const label = t(key, locale);
-  // `t` returns the key itself when the lookup misses — never show a dotted path.
+  // `t` returns the key itself when the lookup misses, never show a dotted path.
   return label === key ? value.replace(/_/g, " ") : label;
 }
 
-/** "3 machines" / "1 machine" — a count with its noun, pluralised. */
+/** "3 machines" / "1 machine", a count with its noun, pluralised. */
 export function countLabel(
   n: number,
   singularKey: string,

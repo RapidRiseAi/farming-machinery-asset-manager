@@ -19,7 +19,7 @@ import {
  * Your own account, as opposed to the farm's settings.
  *
  * Until this existed there was no way for anybody to change their own password or email
- * address anywhere in the product — the only `updateUser` call in the codebase was the
+ * address anywhere in the product, the only `updateUser` call in the codebase was the
  * admin path on the team screen. With password recovery being the magic link, that made a
  * typo'd address at sign-up a permanent lockout that only Rapid Rise could undo.
  *
@@ -69,7 +69,7 @@ export default async function AccountPage({
 
       {/* The reset link signs them in and lands them here. Without a word of
           explanation this reads as a general account screen and the password form near
-          the bottom is left to be discovered — which is the whole reason they came. */}
+          the bottom is left to be discovered, which is the whole reason they came. */}
       {sp.reset ? <Flash tone="info" message={t("account.resetPrompt", locale)} /> : null}
 
       {sp.saved && SAVED[sp.saved] ? (
@@ -77,7 +77,7 @@ export default async function AccountPage({
       ) : null}
       {sp.error ? <Flash tone="error" message={errorMessage(sp.error, locale)} /> : null}
 
-      {/* ── Who you are ──────────────────────────────────────────────────── */}
+      {/* == Who you are ==================================================== */}
       <Card>
         <CardHeader>
           <CardTitle>{t("account.nameTitle", locale)}</CardTitle>
@@ -94,7 +94,7 @@ export default async function AccountPage({
         </form>
       </Card>
 
-      {/* ── The address everything depends on ────────────────────────────── */}
+      {/* == The address everything depends on ============================== */}
       <Card>
         <CardHeader>
           <CardTitle>{t("account.emailTitle", locale)}</CardTitle>
@@ -102,7 +102,7 @@ export default async function AccountPage({
         <p className="text-sm text-sand-700">{t("account.emailWhy", locale)}</p>
 
         <div className="mt-3 rounded-lg border border-sand-300 p-3">
-          <p className="font-medium">{profile.email ?? "—"}</p>
+          <p className="font-medium">{profile.email ?? "-"}</p>
           {verifiedAt ? (
             <p className="mt-1 text-sm text-status-ok">
               {t("account.verified", locale).replace("{date}", shortDate(verifiedAt, locale))}
@@ -133,7 +133,7 @@ export default async function AccountPage({
         </form>
       </Card>
 
-      {/* ── The password there was no way to change ──────────────────────── */}
+      {/* == The password there was no way to change ======================== */}
       <Card>
         <CardHeader>
           <CardTitle>{t("account.passwordTitle", locale)}</CardTitle>

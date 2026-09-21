@@ -3,13 +3,13 @@
 -- (FR-17.3) and re-issuing a QR sticker (FR-9.4).
 --
 -- ═══════════════════════════════════════════════════════════════════════════════
--- PART 1 — THE PUBLIC API, AND THE ONE PLACE THIS SCHEMA'S RULE DOES NOT HOLD
+-- PART 1, THE PUBLIC API, AND THE ONE PLACE THIS SCHEMA'S RULE DOES NOT HOLD
 -- ═══════════════════════════════════════════════════════════════════════════════
 --
 -- `api_access` has been an entitlement since 0251 and has gated nothing, because there
 -- was no API. This migration is the storage half of one.
 --
--- ── The problem, stated plainly ──────────────────────────────────────────────
+-- == The problem, stated plainly ==============================================
 --
 -- Every other surface in this product is protected by RLS, and RLS decides through
 -- `auth.uid()`. An API token is not a session: nobody has signed in, there is no
@@ -30,7 +30,7 @@
 -- impersonation primitive. This migration does not do that, and no code under
 -- `src/app/api/v1` does either.
 --
--- ── What is done instead, and the boundary it draws ─────────────────────────
+-- == What is done instead, and the boundary it draws =========================
 --
 -- The API path is APP-ENFORCED, not RLS-enforced. That sentence is the point of this
 -- header: it is written down rather than glossed, because a reader who assumes the house
@@ -56,7 +56,7 @@
 --      database. It applies `.eq("farm_id", ctx.farmId)` BEFORE the route ever sees a
 --      query builder, and supabase-js offers no way to remove a filter once applied, so a
 --      route can narrow the query further but cannot widen it. Its table argument is a
---      closed union of six tables, every one of which carries `farm_id` — that is what
+--      closed union of six tables, every one of which carries `farm_id`, that is what
 --      makes a single filter sufficient, and it is why the union is closed rather than
 --      `string`.
 --
@@ -65,11 +65,11 @@
 --   key, and the mitigation is that the module is small, is the only importer of the
 --   service client under `/api/v1`, and is proven by test rather than by reading.
 --
--- ── Storing the credential ───────────────────────────────────────────────────
+-- == Storing the credential ===================================================
 --
 -- Only a SHA-256 hash of the token is stored, plus a short display prefix so a farm can
 -- tell two tokens apart in a list. The token itself is shown once, at creation, and is
--- unrecoverable afterwards — there is no column it could be read back from.
+-- unrecoverable afterwards, there is no column it could be read back from.
 --
 -- Plain SHA-256 rather than bcrypt/argon2, deliberately: those exist to make GUESSING a
 -- low-entropy human secret expensive. This secret is 32 bytes from a CSPRNG, so guessing
@@ -77,14 +77,14 @@
 -- no gain. What a hash does buy is real, and is the reason it is here: a stolen database
 -- backup contains no working credential.
 
--- ── The API can say where a reading came from ────────────────────────────────
+-- == The API can say where a reading came from ================================
 -- `meter_source` has carried the capture channel since 0001 ('qr','job','manual',
 -- 'whatsapp') and gained 'app' in 0230. A reading pushed by a third-party system is none
 -- of those, and calling it 'manual' would put a machine's meter history in the mouth of a
 -- person who never touched it.
 alter type meter_source add value if not exists 'api';
 
--- ── The tokens ───────────────────────────────────────────────────────────────
+-- == The tokens ===============================================================
 create table api_tokens (
   id           uuid primary key default gen_random_uuid(),
   farm_id      uuid not null,
@@ -98,7 +98,7 @@ create table api_tokens (
   -- value they pasted into somebody else's system without either being able to read it.
   prefix       text not null,
   -- Closed set, enforced below. `read` covers every GET; `write:readings` covers the one
-  -- POST. Deliberately coarse — a farm should not be asked to design a permission model.
+  -- POST. Deliberately coarse, a farm should not be asked to design a permission model.
   scopes       text[] not null default array['read']::text[],
   created_by   uuid references users(id),
   created_at   timestamptz not null default now(),
@@ -137,10 +137,10 @@ comment on column api_tokens.token_hash is
   'SHA-256 hex of the token string. Never the token. A stolen backup yields no credential.';
 comment on column api_tokens.last_used_at is
   'Stamped by app.api_token_resolve on each successful authentication. Deliberately '
-  'outside the audit trigger''s UPDATE OF list — one audit row per API call would drown '
+  'outside the audit trigger''s UPDATE OF list, one audit row per API call would drown '
   'the log that exists to record who changed what.';
 
--- ── RLS: farm side, owner/manager only ───────────────────────────────────────
+-- == RLS: farm side, owner/manager only =======================================
 --
 -- Narrower than the usual farm-scoped table in two ways, both on purpose.
 --
@@ -176,7 +176,7 @@ create policy api_tokens_del on api_tokens for delete to authenticated
 grant select, insert, update, delete on public.api_tokens to authenticated;
 grant all on public.api_tokens to service_role;
 
--- ── Audit, with the credential taken out ─────────────────────────────────────
+-- == Audit, with the credential taken out =====================================
 --
 -- Two departures from the generic `app_audit()` trigger, following the redaction
 -- precedent set for the voice tables:
@@ -185,8 +185,8 @@ grant all on public.api_tokens to service_role;
 --     restored from backups more often than the table it describes; there is no reason
 --     for a second copy of the comparison value to live there.
 --   * `last_used_at` is not in the trigger's UPDATE OF list, so a busy integration does
---     not write an audit row per request. Every change that MEANS something — created,
---     renamed, re-scoped, expiry moved, revoked, deleted — still lands.
+--     not write an audit row per request. Every change that MEANS something, created,
+--     renamed, re-scoped, expiry moved, revoked, deleted, still lands.
 create or replace function app.app_api_token_audit() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -224,11 +224,11 @@ create trigger api_tokens_audit
   on public.api_tokens
   for each row execute function app.app_api_token_audit();
 
--- ── Resolution: the only way a token becomes a farm ──────────────────────────
+-- == Resolution: the only way a token becomes a farm ==========================
 --
 -- Takes a hash and returns the farm. Note what it does NOT take: a farm id, a user id,
 -- anything at all that a caller could choose. That is the whole security property, and
--- it is why this is not the `_f14_probe` shape — nothing here moves the caller anywhere.
+-- it is why this is not the `_f14_probe` shape, nothing here moves the caller anywhere.
 --
 -- SECURITY INVOKER (house rule: definer only where needed, and it is not needed here).
 -- Execute is granted to `service_role` alone: that role already bypasses RLS, so the
@@ -242,12 +242,12 @@ create trigger api_tokens_audit
 -- Four rules decide, all here rather than half here and half in a route:
 --   * the token exists and is neither soft-deleted nor revoked;
 --   * it has not expired;
---   * the farm is live (an inactive or deleted farm's tokens stop working — the same
+--   * the farm is live (an inactive or deleted farm's tokens stop working, the same
 --     rule the notification engines apply, so a suspended farm goes quiet everywhere);
 --   * `api_allowed` reports whether that farm's PLAN unlocks the API, computed with the
 --     0251 rank functions so the SQL mirror stays the authority. It is RETURNED rather
 --     than filtered on, so the route can answer 403 "upgrade" instead of 401 "unknown
---     token" — a farm that bought the wrong plan should be told that, not told their
+--     token", a farm that bought the wrong plan should be told that, not told their
 --     credential is wrong.
 create or replace function app.api_token_resolve(p_token_hash text)
 returns table (
@@ -273,7 +273,7 @@ language sql volatile security invoker set search_path = public, pg_temp as $$
 $$;
 
 -- PostgREST only exposes `public`, so the app reaches it through this wrapper. Same
--- privileges, same shape, no extra logic — a second place to get the rules wrong is
+-- privileges, same shape, no extra logic, a second place to get the rules wrong is
 -- exactly what this codebase's `public.cron_*` wrappers avoid.
 create or replace function public.api_token_resolve(p_token_hash text)
 returns table (
@@ -298,19 +298,19 @@ comment on function app.api_token_resolve(text) is
   'records authentications and nothing else. service_role only.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- PART 2 — RE-ISSUING A QR STICKER (FR-9.4)
+-- PART 2, RE-ISSUING A QR STICKER (FR-9.4)
 -- ═══════════════════════════════════════════════════════════════════════════════
 --
 -- Rotating `machines.public_token` already exists in the app (`reissueQr`, committed
 -- 2026-07-28) and its role check lives entirely in a server action:
 -- `requireRole(["owner","manager","rr_admin"])`. The UPDATE behind it is governed by
--- `machines_upd`, which is `app.has_farm_access(farm_id)` — so as far as the DATABASE is
+-- `machines_upd`, which is `app.has_farm_access(farm_id)`, so as far as the DATABASE is
 -- concerned an OPERATOR, a MECHANIC, or a linked CONTRACTOR may rotate the token by
 -- calling PostgREST directly, and every printed sticker on that machine dies.
 --
 -- That is the shape 0452 was written to close on the parts store: "a server action is a
 -- door, and this schema's rule is that the lock is on the table". Same fix, narrower
--- instrument — `machines_upd` legitimately lets a mechanic edit a machine, so the policy
+-- instrument, `machines_upd` legitimately lets a mechanic edit a machine, so the policy
 -- is left alone and a trigger guards the ONE column whose change is a re-issue.
 --
 -- Two more things the trigger does:
@@ -319,7 +319,7 @@ comment on function app.api_token_resolve(text) is
 --     re-issue rather than only inferable by diffing two uuids inside an `update` row;
 --   * that row deliberately carries NEITHER the retired nor the new token. The generic
 --     `machines` audit trigger already stores both in its diff (pre-existing, and no
---     wider than `machines_sel`, which lets the same people read the live token anyway) —
+--     wider than `machines_sel`, which lets the same people read the live token anyway) -
 --     but there is no reason for a second copy under a name that invites reading.
 create or replace function app.app_machines_guard_public_token() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -335,7 +335,7 @@ begin
 
   -- No session at all: a migration, the seed, or a service-role server route. `anon` has
   -- zero table privileges in this schema (0102) and so can never reach an UPDATE here,
-  -- and service_role is trusted by definition — it is the role that runs the public QR
+  -- and service_role is trusted by definition, it is the role that runs the public QR
   -- flow. There is nobody else in this branch.
   if v_uid is null then
     return new;

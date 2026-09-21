@@ -49,7 +49,7 @@ values
 
 set role authenticated;
 
--- ── (a) A completed checklist with three bad answers opens three faults ─────
+-- == (a) A completed checklist with three bad answers opens three faults =====
 do $$
 declare v_raised int; v_faults int; v_stopped int;
 begin
@@ -102,13 +102,13 @@ begin
   if not exists (
     select 1 from public.faults
      where checklist_instance_id = 'da500000-0000-4000-9000-000000000001'
-       and description = 'Daily pre-start — Brakes work: pedal goes to the floor'
+       and description = 'Daily pre-start, Brakes work: pedal goes to the floor'
   ) then
     raise exception 'DEFECT FAIL: the fault does not name the checklist, field and note';
   end if;
 end $$;
 
--- ── (b) Running it again raises nothing — offline replay and retries ────────
+-- == (b) Running it again raises nothing, offline replay and retries ========
 do $$
 declare v_again int; v_faults int;
 begin
@@ -124,7 +124,7 @@ begin
   end if;
 end $$;
 
--- ── (c) A draft is not an inspection yet ────────────────────────────────────
+-- == (c) A draft is not an inspection yet ====================================
 do $$
 declare v_raised int;
 begin
@@ -148,7 +148,7 @@ begin
   end if;
 end $$;
 
--- ── (d) A clean inspection raises nothing at all ────────────────────────────
+-- == (d) A clean inspection raises nothing at all ============================
 do $$
 declare v_raised int;
 begin
@@ -176,7 +176,7 @@ begin
   end if;
 end $$;
 
--- ── (e) It cannot reach another farm's checklist ────────────────────────────
+-- == (e) It cannot reach another farm's checklist ============================
 do $$
 declare v_raised int;
 begin

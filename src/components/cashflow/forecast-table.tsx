@@ -7,8 +7,8 @@ import { balanceAfter, type CashflowBucket } from "@/lib/cashflow";
 /**
  * The forecast itself: five buckets, in and out, and a closing balance per bucket.
  *
- * The closing balance is the column people actually read — it is the one that turns four
- * amounts into a decision — so it is last, bold, and coloured the moment it goes under.
+ * The closing balance is the column people actually read, it is the one that turns four
+ * amounts into a decision, so it is last, bold, and coloured the moment it goes under.
  * The bucket a reader first goes negative in is marked in words as well as in red,
  * because "the red one" is not a signal on a cracked phone in sunlight, which is the
  * screen this product is used on.
@@ -61,10 +61,10 @@ export function ForecastTable({
                   ) : null}
                 </Th>
                 <Td className="text-right tabular-nums text-sand-700">
-                  {r.in_cents ? rands(r.in_cents) : "—"}
+                  {r.in_cents ? rands(r.in_cents) : "-"}
                 </Td>
                 <Td className="text-right tabular-nums text-sand-700">
-                  {r.out_cents ? `−${rands(r.out_cents)}` : "—"}
+                  {r.out_cents ? `−${rands(r.out_cents)}` : "-"}
                 </Td>
                 <Td className={`py-2.5 pr-3 text-right tabular-nums ${ r.net_cents < 0 ? "text-status-warn" : "text-sand-700" }`}>
                   {rands(r.net_cents)}
@@ -84,8 +84,8 @@ export function ForecastTable({
  * The dates a bucket actually covers, in words.
  *
  * `overdue` has no start and `later` has no end, so neither gets a range. Near the end of
- * a month "this month" can close BEFORE it opens — next week has already swallowed what
- * was left of it — which is correct and means the window is empty; saying so is better
+ * a month "this month" can close BEFORE it opens, next week has already swallowed what
+ * was left of it, which is correct and means the window is empty; saying so is better
  * than printing a range that reads backwards.
  */
 function BucketWindow({ row, locale }: { row: CashflowBucket; locale: Lang }) {
@@ -99,7 +99,7 @@ function BucketWindow({ row, locale }: { row: CashflowBucket; locale: Lang }) {
   if (row.from_date > row.to_date) return <>{t("cash.windowEmpty", locale)}</>;
   return (
     <>
-      {shortDate(row.from_date, locale)} – {shortDate(row.to_date, locale)}
+      {shortDate(row.from_date, locale)} - {shortDate(row.to_date, locale)}
     </>
   );
 }

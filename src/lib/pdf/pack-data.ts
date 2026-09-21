@@ -1,11 +1,11 @@
 /**
- * Audit / sale / warranty document packs (FR-13.4) — the GATHERING half.
+ * Audit / sale / warranty document packs (FR-13.4), the GATHERING half.
  *
  * Everything a pack contains already exists in this product: service history, licences,
  * warranty, checklists, faults and their resolutions, operator assignments, meter
  * readings, costs. This module reads those rows and hands them to src/lib/pdf/packs.ts,
- * which turns them into a document. There is NO SQL of its own — no function, no view,
- * no migration — because a pack is an assembly of records the farm already keeps.
+ * which turns them into a document. There is NO SQL of its own, no function, no view,
+ * no migration, because a pack is an assembly of records the farm already keeps.
  *
  * TENANCY. Every query below goes through the CALLER'S RLS client (`createClient()` from
  * src/lib/supabase/server), never the service role. That is the whole tenancy argument:
@@ -13,7 +13,7 @@
  * farm's machine, and `supabase/tests/rls_isolation.sql` G32 proves exactly the query
  * set used here for a cross-farm user, an operator and a contractor.
  *
- * ROLES. Packs are restricted to the farm side — owner / manager / mechanic, and
+ * ROLES. Packs are restricted to the farm side, owner / manager / mechanic, and
  * rr_admin in support mode. Two deliberate exclusions:
  *
  *   * OPERATOR. A driver can see their assigned machine (F7), but a sale pack prints the
@@ -101,7 +101,7 @@ const withoutFinancials = (machine: MachineBaseRow): MachineRow => ({
 /**
  * How much history a pack carries. A pack is evidence, not an archive; a buyer wants a
  * readable meter trail, not four hundred rows. Job cards and faults are deliberately NOT
- * capped — those are the record itself, and a truncated service history would be exactly
+ * capped, those are the record itself, and a truncated service history would be exactly
  * the silent omission this feature exists to avoid.
  */
 const READING_LIMIT = 40;
@@ -118,7 +118,7 @@ function intSetting(settings: Record<string, unknown>, key: string, fallback: nu
 
 /**
  * The farm-side identity a pack is issued under, plus the settings that decide when an
- * expiry counts as "expiring soon" — read from the farm so the pack and the notification
+ * expiry counts as "expiring soon", read from the farm so the pack and the notification
  * engine (0263) agree about what is urgent.
  */
 async function loadIssuer(
@@ -219,7 +219,7 @@ export function isDenial(v: PackAuth | MachinePackAuth | PackDenial): v is PackD
   return typeof (v as PackDenial).status === "number";
 }
 
-// ── Fleet / per-machine compliance ───────────────────────────────────────────
+// == Fleet / per-machine compliance ===========================================
 
 export async function gatherFleetCompliance(
   auth: PackAuth,
@@ -228,8 +228,8 @@ export async function gatherFleetCompliance(
   const { farmId, profile } = auth;
 
   // Every child query is farm-filtered as well as RLS-scoped. The filter is for
-  // MULTI-SITE (F7) — a person who reaches three farms must get the farm they are acting
-  // in, not all three blended — and never as the isolation mechanism, which is RLS.
+  // MULTI-SITE (F7), a person who reaches three farms must get the farm they are acting
+  // in, not all three blended, and never as the isolation mechanism, which is RLS.
   const [issuer, machinesRes, licRes, planRes, faultRes, chkRes, usageRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
     supabase.from("machines").select(MACHINE_COLUMNS)
@@ -248,7 +248,7 @@ export async function gatherFleetCompliance(
   ]);
 
   const all = ((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
-  // Retired and sold are out of every fleet compliance figure (Scope 4.1 / C8) — but the
+  // Retired and sold are out of every fleet compliance figure (Scope 4.1 / C8), but the
   // NUMBER excluded is carried through and printed, because a total nobody can reconcile
   // against the farm's own machine list is a total an auditor will query.
   const machines = all.filter(isOnHand);
@@ -304,7 +304,7 @@ export async function gatherMachineCompliance(
   };
 }
 
-// ── Sale ─────────────────────────────────────────────────────────────────────
+// == Sale =====================================================================
 
 export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   const supabase = await createClient();
@@ -312,7 +312,7 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   const id = machine.id;
 
   // The cost section is the F5 `tco` feature wherever it appears. Denied does not mean
-  // absent — packs.ts prints a sentence saying the figures are a Professional feature,
+  // absent, packs.ts prints a sentence saying the figures are a Professional feature,
   // because a missing cost section on a sale document reads as a machine that cost
   // nothing.
   const [issuer, gate, licRes, planRes, jcRes, faultRes, readRes, photoRes] = await Promise.all([
@@ -367,7 +367,7 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   };
 }
 
-// ── Warranty ─────────────────────────────────────────────────────────────────
+// == Warranty =================================================================
 
 export async function gatherWarranty(auth: MachinePackAuth): Promise<WarrantyInput> {
   const supabase = await createClient();
@@ -398,7 +398,7 @@ export async function gatherWarranty(auth: MachinePackAuth): Promise<WarrantyInp
 }
 
 /**
- * A denial rendered as a response — plain text, no redirect, because the caller asked for
+ * A denial rendered as a response, plain text, no redirect, because the caller asked for
  * a PDF and a 302 to HTML hands them a "PDF" full of markup (the lesson 0492 wrote into
  * the VAT routes).
  */

@@ -12,7 +12,7 @@ import type { PurchaseOrder } from "@/lib/purchase-orders";
 import { convertOrder } from "@/app/(app)/orders/actions";
 
 /**
- * The supplier's invoice arrived — capture it, and remember which order it settles.
+ * The supplier's invoice arrived, capture it, and remember which order it settles.
  *
  * This is the ONLY place in the feature where money enters the books. Everything before it
  * is a commitment; this row is the cost, and it is the same `partner_expenses` row it
@@ -20,7 +20,7 @@ import { convertOrder } from "@/app/(app)/orders/actions";
  *
  * A client component for the reason the expense form is one, plus a second: it shows the
  * VAT split live, AND it compares what is being invoiced against what was ordered. That
- * comparison is the entire commercial point of keeping purchase orders — a supplier who
+ * comparison is the entire commercial point of keeping purchase orders, a supplier who
  * ships eight and invoices ten is not rare, and nobody catches it by remembering what the
  * order said three weeks ago. The difference is stated in rands, before anything is saved.
  *

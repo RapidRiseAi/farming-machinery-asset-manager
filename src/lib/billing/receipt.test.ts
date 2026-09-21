@@ -3,7 +3,7 @@
  *
  * The billing cron renders these `reasons` into its step summary and, since
  * `20260912120000`, into the `cron_runs` ledger. For weeks that line read
- * `receipts: skipped (email-not-configured)` — which is true, unactionable, and points at
+ * `receipts: skipped (email-not-configured)`, which is true, unactionable, and points at
  * the wrong thing: the fault was not a missing key but `[SENSITIVE]`, the literal string
  * `vercel pull` writes for a secret it cannot decrypt, which is perfectly truthy.
  *
@@ -11,7 +11,7 @@
  * diagnoses the deployment by itself.
  *
  * Neither touches a database: with the configuration unusable both senders return before
- * the Supabase client is used at all, which is itself worth pinning — a pass that cannot
+ * the Supabase client is used at all, which is itself worth pinning, a pass that cannot
  * send should not be querying for work first.
  */
 
@@ -64,7 +64,7 @@ test("a placeholder key is reported as a placeholder, not as 'unset'", async () 
   );
 });
 
-test("a missing FROM address is named too — it was never checked at all", async () => {
+test("a missing FROM address is named too, it was never checked at all", async () => {
   await withEnv(
     { RESEND_API_KEY: "re_" + "MFf4abcdefghijklmnopqrstuvwxyz", EMAIL_FROM: undefined },
     async () => {

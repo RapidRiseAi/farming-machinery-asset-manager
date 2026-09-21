@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
  * Send this statement to the customer.
  *
  * Sits beside the PDF and spreadsheet buttons rather than in a card of its own: the three
- * are the same decision — what do I do with this statement — and separating the one that
+ * are the same decision, what do I do with this statement, and separating the one that
  * matters most for a monthly account would be odd.
  *
  * A client component because the useful outcome is "it went to this address" or "it

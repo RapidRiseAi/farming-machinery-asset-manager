@@ -1,18 +1,18 @@
 -- 0280_vehicle_capture_and_primary_image.sql
--- Feature F10 — Vehicle capture completeness + images (provider-spec §8, FR-3.2/3.4).
+-- Feature F10, Vehicle capture completeness + images (provider-spec §8, FR-3.2/3.4).
 --
 -- Adds:
---   * machines.cost_centre / machines.department — FR-3.4 grouping + filter dimensions.
---   * machines.primary_attachment_id — the one machine photo shown as the vehicle's
+--   * machines.cost_centre / machines.department, FR-3.4 grouping + filter dimensions.
+--   * machines.primary_attachment_id, the one machine photo shown as the vehicle's
 --     primary image on list cards + the detail header (null = graceful placeholder).
 --
--- The primary reference is kept farm-isolated by a COMPOSITE FK to the SAME farm —
+-- The primary reference is kept farm-isolated by a COMPOSITE FK to the SAME farm -
 -- the house-rule tenancy pattern (mirrors machines_id_farm_uq / the child composite
 -- FKs in 0003). `machines` already has farm_id RLS (0101), the audit trigger (0008)
 -- and soft-delete columns, and those apply column-agnostically, so nothing else is
 -- needed here. Plain, Supabase- and local-Postgres-compatible DDL.
 
--- ── FR-3.4 grouping / filter columns ─────────────────────────────
+-- == FR-3.4 grouping / filter columns =============================
 alter table machines
   add column if not exists cost_centre text,
   add column if not exists department  text;
@@ -22,13 +22,13 @@ comment on column machines.cost_centre is
 comment on column machines.department is
   'FR-3.4 grouping/filter dimension (free text, e.g. Lande / Vervoer / Werkswinkel).';
 
--- ── Composite uniqueness on attachments so a same-farm FK can target one ──
+-- == Composite uniqueness on attachments so a same-farm FK can target one ==
 -- attachments.id is already the PK (unique); (id, farm_id) is therefore trivially
 -- unique and just yields the index a composite FK requires as its reference target.
 alter table attachments
   add constraint attachments_id_farm_uq unique (id, farm_id);
 
--- ── Primary vehicle image ────────────────────────────────────────
+-- == Primary vehicle image ========================================
 -- Composite FK ties (primary_attachment_id, farm_id) to an attachment of the SAME
 -- farm: a machine can never point its primary image at another tenant's photo
 -- (proven in rls_isolation.sql). Nullable → no primary set (UI shows a placeholder).

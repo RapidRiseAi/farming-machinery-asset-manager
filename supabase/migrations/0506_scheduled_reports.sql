@@ -2,13 +2,13 @@
 -- Reports that arrive without anybody fetching them (FR-11.5).
 --
 -- `/reports` computes every family and hands them over as CSV, a workbook or a printed
--- page — but only to somebody who remembers to open it on the right day. The owner who
+-- page, but only to somebody who remembers to open it on the right day. The owner who
 -- most needs the monthly cost report is the one least likely to be at a laptop on the
 -- 1st, and an accountant who needs twelve consecutive months has to be asked twelve
 -- times. Email works now (Resend, 0414), so the missing half is a standing instruction:
 -- this report, this often, to these people.
 --
--- ── What this is NOT ─────────────────────────────────────────────────────────
+-- == What this is NOT =========================================================
 --
 -- It is not a second report engine. Nothing here computes a figure. The SQL below
 -- decides only WHICH schedules are due and claims a period; the numbers come from the
@@ -16,11 +16,11 @@
 -- the same builders the download routes use (src/lib/report-export.ts). The screen and
 -- the emailed copy are the same code, so they cannot disagree.
 --
--- ── The idempotency key, and why it is a ROW and not a column ────────────────
+-- == The idempotency key, and why it is a ROW and not a column ================
 --
 -- 0433 (standing invoices) records `last_period_start` on the schedule and skips a run
 -- whose period is not past it. That is exactly right THERE, because the artefact it
--- guards — the invoice — is created inside the same transaction as the key. Here the
+-- guards, the invoice, is created inside the same transaction as the key. Here the
 -- artefact is an email sent by a process outside the transaction, which can fail after
 -- the key has been written. A scalar column cannot say "September was claimed and the
 -- send failed", so it would either burn a period on a bounce or re-send one that went.
@@ -29,17 +29,17 @@
 -- enforced by a partial unique index rather than by application logic (the 0470
 -- reasoning): `(schedule_id, period_start) where status = 'sent'`. A period can be
 -- ATTEMPTED more than once; it can be SENT exactly once, and the database is what says
--- so. `last_period_start` is still kept on the schedule — it is what the screen shows
--- and what `advance_by_cadence` steps from — but it never decides.
+-- so. `last_period_start` is still kept on the schedule, it is what the screen shows
+-- and what `advance_by_cadence` steps from, but it never decides.
 --
 -- Two runs at the same instant are a different problem from two runs in sequence, and
 -- both are answered: the claim locks the schedule row (`for update`), so a cron that
 -- double-fires has the second caller wait, re-read, and find the period already claimed.
 --
--- ── Judgement calls, stated ──────────────────────────────────────────────────
+-- == Judgement calls, stated ==================================================
 --
 -- 1. RECIPIENTS are farm users AND typed addresses, by different mechanisms.
---    A farm user is stored as a `user_id` and NOTHING else — the address is resolved at
+--    A farm user is stored as a `user_id` and NOTHING else, the address is resolved at
 --    send time from `users.email`. No second copy of a person's email exists to go
 --    stale, a deactivated person stops receiving that night, and the F8 (POPIA) erasure,
 --    which nulls `users.email`, silently and correctly removes them. A pinned membership
@@ -47,7 +47,7 @@
 --    works while an rr_admin, contractor, removed member, or unrelated user cannot be
 --    named. The same live check runs again when each delivery is claimed.
 --    A typed address exists because real farms send this to an accountant, a bank or a
---    co-op, and refusing would only mean the owner forwards it by hand — an
+--    co-op, and refusing would only mean the owner forwards it by hand, an
 --    unlogged copy of the same data, which is strictly worse for POPIA. So it is
 --    allowed, restricted to owner/manager, and EVERY send records the exact address list
 --    it went to (`report_schedule_runs.recipients`), which is the record POPIA §4 asks
@@ -66,11 +66,11 @@
 --    attachment is still there so the series has no gaps.
 --
 -- 4. A FARM THAT IS NOT PAYING IS NOT EMAILED. `farms.status` must be trial/active, and
---    the plan must still unlock `advanced_reports` — checked here by plan rank rather
+--    the plan must still unlock `advanced_reports`, checked here by plan rank rather
 --    than by `app.has_entitlement`, which decides through `auth.uid()` and would return
 --    false for every schedule when the cron (which has no session) calls it.
 
--- ── Which report, and in what shape ──────────────────────────────────────────
+-- == Which report, and in what shape ==========================================
 -- One value per family the reports screen already computes, plus `all` for the whole
 -- set. Enums rather than free text so a typo cannot silently produce an empty email.
 create type report_family as enum (
@@ -80,7 +80,7 @@ create type report_family as enum (
 
 create type report_format as enum ('csv', 'xlsx', 'pdf');
 
--- ── The standing instruction ─────────────────────────────────────────────────
+-- == The standing instruction =================================================
 create table report_schedules (
   id                uuid primary key default gen_random_uuid(),
   farm_id           uuid not null references farms(id),
@@ -96,7 +96,7 @@ create table report_schedules (
   -- The next day this fires. Moved on by exactly one cadence after each claim.
   next_run_date     date not null default current_date,
   ends_on           date,
-  -- The period the last claim covered. Shown on screen; see the header — it does not
+  -- The period the last claim covered. Shown on screen; see the header, it does not
   -- decide anything.
   last_period_start date,
   last_run_at       timestamptz,
@@ -129,7 +129,7 @@ create index report_schedules_farm_idx on report_schedules(farm_id);
 create index report_schedules_due_idx  on report_schedules(next_run_date)
   where active and deleted_at is null;
 -- The (id, farm_id) pair every child row points at, so a recipient or a run can never
--- belong to one schedule while naming another farm — the composite-FK rule this codebase
+-- belong to one schedule while naming another farm, the composite-FK rule this codebase
 -- uses everywhere a row hangs off another.
 create unique index report_schedules_id_farm_uq on report_schedules(id, farm_id);
 
@@ -137,7 +137,7 @@ comment on table report_schedules is
   'A report the nightly cron builds and emails on a cadence (FR-11.5). Nothing here '
   'computes a figure: the numbers come from the same code the /reports screen calls.';
 
--- ── Who it goes to ───────────────────────────────────────────────────────────
+-- == Who it goes to ===========================================================
 create table report_schedule_recipients (
   id           uuid primary key default gen_random_uuid(),
   schedule_id  uuid not null,
@@ -231,8 +231,8 @@ comment on column report_schedule_recipients.email is
   'POPIA: held on the farm''s instruction, removable at any time, and every send it '
   'receives is recorded in report_schedule_runs.recipients.';
 
--- ── What actually happened ───────────────────────────────────────────────────
--- One row per ATTEMPT, failures included — the same reason document_emails exists: a
+-- == What actually happened ===================================================
+-- One row per ATTEMPT, failures included, the same reason document_emails exists: a
 -- bounce nobody sees leaves the owner believing they were told.
 create table report_schedule_runs (
   id            uuid primary key default gen_random_uuid(),
@@ -267,8 +267,8 @@ create table report_schedule_runs (
 create index report_schedule_runs_sched_idx on report_schedule_runs(schedule_id, period_start desc);
 create index report_schedule_runs_farm_idx  on report_schedule_runs(farm_id, created_at desc);
 
--- THE guarantee. A period may be attempted more than once — a send that failed on
--- Tuesday should go out on Wednesday — but it can be SENT exactly once, and this index
+-- THE guarantee. A period may be attempted more than once, a send that failed on
+-- Tuesday should go out on Wednesday, but it can be SENT exactly once, and this index
 -- is what says so, not a check somebody could forget to write.
 create unique index report_schedule_runs_sent_uq
   on report_schedule_runs(schedule_id, period_start)
@@ -279,7 +279,7 @@ comment on table report_schedule_runs is
   '(schedule_id, period_start) where status = ''sent'' is the idempotency key: a period '
   'can be retried but never sent twice.';
 
--- ── RLS ──────────────────────────────────────────────────────────────────────
+-- == RLS ======================================================================
 --
 -- Farm-scoped as usual, and then narrowed twice on purpose:
 --
@@ -290,7 +290,7 @@ comment on table report_schedule_runs is
 --     work on; a new table must not quietly reopen the door.
 --   * owner/manager only, because pointing a farm's cost report at an outside address is
 --     at least as consequential as adding a partner, which 0301 restricts the same way.
---     An operator has no business reading it either — it names people and addresses.
+--     An operator has no business reading it either, it names people and addresses.
 --
 -- rr_admin keeps cross-tenant read/write, as everywhere else.
 do $do$
@@ -322,9 +322,9 @@ create trigger report_schedule_recipients_audit
   after insert or update or delete on report_schedule_recipients
   for each row execute function app_audit();
 
--- ── The period a run covers ──────────────────────────────────────────────────
+-- == The period a run covers ==================================================
 --
--- The last COMPLETE period ending before the run date — "the August report" arrives in
+-- The last COMPLETE period ending before the run date, "the August report" arrives in
 -- early September, which is what an accountant expects and what makes consecutive files
 -- add up. Deriving it from the run date rather than storing it means a schedule that
 -- fires late still reports the month it belongs to.
@@ -338,7 +338,7 @@ language plpgsql immutable set search_path = public, pg_temp as $$
 begin
   case p_cadence
     when 'weekly' then
-      -- date_trunc('week') is Monday, so this is the Mon–Sun that just ended.
+      -- date_trunc('week') is Monday, so this is the Mon-Sun that just ended.
       period_end   := date_trunc('week', p_run)::date - 1;
       period_start := period_end - 6;
     when 'monthly' then
@@ -356,7 +356,7 @@ end $$;
 revoke execute on function app.report_period(recurrence_cadence, date) from public, anon, authenticated;
 grant  execute on function app.report_period(recurrence_cadence, date) to service_role;
 
--- ── The engine ───────────────────────────────────────────────────────────────
+-- == The engine ===============================================================
 --
 -- SECURITY DEFINER because the nightly cron runs with no session, exactly like every
 -- other 0205-pattern engine. It CLAIMS work and returns it; it does not send anything,
@@ -434,7 +434,7 @@ begin
        and app.plan_rank(f.plan) >= app.feature_min_rank('advanced_reports')
      -- Only the schedule row, and only as each is fetched. `last_period_start` and the
      -- runs table both answer a SEQUENCE of runs; this answers two runs at the same
-     -- instant, which is a different problem — the second caller waits here, re-reads,
+     -- instant, which is a different problem, the second caller waits here, re-reads,
      -- and finds the period already claimed below.
      for update of s
   loop
@@ -648,7 +648,7 @@ end $$;
 revoke execute on function public.cron_run_due_report_schedules() from public, anon, authenticated;
 grant  execute on function public.cron_run_due_report_schedules() to service_role;
 
--- ── "Send the due one now" ───────────────────────────────────────────────────
+-- == "Send the due one now" ===================================================
 -- The owner's own button, for a schedule that is behind or newly set up. Ownership is
 -- checked HERE rather than left to the engine, because the engine is SECURITY DEFINER
 -- and would otherwise honour any id handed to it (0433's rule, and the reason

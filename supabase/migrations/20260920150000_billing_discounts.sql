@@ -3,13 +3,13 @@
 --
 -- `SCOPE.md` §12 sells a Founding Farmer rate "locked for life" to the first twenty farms,
 -- and there has never been a way to give one. The only mechanism in the engine is price
--- PINNING (20260910160000), which grandfathers a farm onto the version it signed up at —
+-- PINNING (20260910160000), which grandfathers a farm onto the version it signed up at -
 -- that keeps a price from rising, it does not make one lower. So every founding promise so
 -- far is a promise the billing engine cannot keep.
 --
 -- TWO SHAPES, BECAUSE THE FOUNDER ASKED FOR BOTH
--- ─────────────────────────────────────────────────────────────────────────────
---   * a PER-FARM discount, set by Rapid Rise on the subscription — the kitchen-table deal;
+-- =============================================================================
+--   * a PER-FARM discount, set by Rapid Rise on the subscription, the kitchen-table deal;
 --   * a PROMO CODE entered at sign-up, which copies its discount onto the subscription.
 --
 -- A code is copied rather than referenced on purpose. "Locked for life" must not depend on
@@ -17,21 +17,21 @@
 -- changing the code afterwards changes nothing for farms already on it.
 --
 -- WHERE IT IS APPLIED, AND WHY THERE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- In `app.billing_derive_invoice_totals`, the BEFORE trigger that already computes every
--- invoice total from its own snapshot. Three functions raise invoices — the nightly
--- generator, the plan-change proration and the quota-change proration — and patching each
+-- invoice total from its own snapshot. Three functions raise invoices, the nightly
+-- generator, the plan-change proration and the quota-change proration, and patching each
 -- would be three chances to forget, with a farm billed list price by whichever one was
 -- missed. Deriving it in the trigger means an invoice cannot exist without its discount.
 --
 -- FROZEN WITH THE REST OF THE SNAPSHOT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The discount is computed while the invoice is a DRAFT and then stays put. An issued
 -- invoice is a statement about a period that has been billed; recomputing it later, when a
 -- discount has since been changed or has expired, would silently restate a document the
 -- customer has already been shown and possibly paid.
 
--- ── What the farm was given ─────────────────────────────────────────────────
+-- == What the farm was given =================================================
 alter table public.billing_subscriptions
   add column if not exists discount_percent_bps integer,
   add column if not exists discount_fixed_cents bigint,
@@ -59,7 +59,7 @@ comment on column public.billing_subscriptions.discount_percent_bps is
 comment on column public.billing_subscriptions.discount_until is
   'Last day the discount applies. NULL = for as long as they are a customer.';
 
--- ── What the invoice actually gave ──────────────────────────────────────────
+-- == What the invoice actually gave ==========================================
 alter table public.billing_invoices
   add column if not exists discount_cents bigint not null default 0,
   add column if not exists discount_label text;
@@ -76,7 +76,7 @@ comment on column public.billing_invoices.discount_cents is
   'above it is still the list price, so the document shows both what it costs and what '
   'they were given.';
 
--- ── The rule, in one place ──────────────────────────────────────────────────
+-- == The rule, in one place ==================================================
 create or replace function app.billing_discount_cents(
   p_subscription uuid, p_gross bigint, p_on date
 ) returns bigint
@@ -103,14 +103,14 @@ as $$
 $$;
 
 -- Granted to NOBODY. Its only caller is app.billing_derive_invoice_totals, which is
--- SECURITY DEFINER and therefore runs as the owner — so no role needs execute on this, and
+-- SECURITY DEFINER and therefore runs as the owner, so no role needs execute on this, and
 -- the engine keeps its rule that app.* is reached through public.* wrappers or not at all.
 -- The screen does not call it either: /billing mirrors this rule in TypeScript from the
 -- subscription row it already reads, and a test pins the two together.
 revoke execute on function app.billing_discount_cents(uuid, bigint, date)
   from public, anon, authenticated, service_role;
 
--- ── Derive it with the rest of the money ────────────────────────────────────
+-- == Derive it with the rest of the money ====================================
 create or replace function app.billing_derive_invoice_totals() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -143,7 +143,7 @@ begin
 end $$;
 revoke execute on function app.billing_derive_invoice_totals() from public, anon, authenticated;
 
--- ── Promo codes ─────────────────────────────────────────────────────────────
+-- == Promo codes =============================================================
 create table if not exists public.billing_promo_codes (
   id                   uuid primary key default gen_random_uuid(),
   -- Stored upper-case and compared upper-case: a farmer typing "founding20" at six in the
@@ -198,7 +198,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── Taking a code ───────────────────────────────────────────────────────────
+-- == Taking a code ===========================================================
 -- Service-role only, and it answers in CODES, never in prose: the sign-up page turns the
 -- answer into a sentence in the farmer's own language, and an unknown code must not tell a
 -- stranger whether it exists.
@@ -270,11 +270,11 @@ $$;
 revoke execute on function public.billing_take_promo_code(uuid, text) from public, anon, authenticated;
 grant execute on function public.billing_take_promo_code(uuid, text) to service_role;
 
--- ── Rapid Rise setting one by hand ──────────────────────────────────────────
+-- == Rapid Rise setting one by hand ==========================================
 -- The kitchen-table deal. SERVICE-ROLE ONLY, like every other write in this engine: the
 -- action checks the role (rr_admin) and then calls through the service client, and the
 -- grant is what makes that the only way in. An is_rr_admin() check inside would be worse
--- than useless — under the service client auth.uid() is null, so it would refuse the one
+-- than useless, under the service client auth.uid() is null, so it would refuse the one
 -- caller that is allowed.
 create or replace function public.billing_set_subscription_discount(
   p_subscription uuid,

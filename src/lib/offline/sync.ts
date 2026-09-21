@@ -67,7 +67,7 @@ export async function flush(): Promise<{ applied: number; remaining: number }> {
         await dequeue(m.client_id);
         applied += 1;
       } else if (res.status === 429 || res.status >= 500) {
-        break; // transient — keep queued, retry later
+        break; // transient, keep queued, retry later
       } else {
         await enqueue({ ...m, sync_error: body?.status === "conflict" ? "conflict" : body?.error ?? "capture_needs_review" });
       }

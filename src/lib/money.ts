@@ -11,7 +11,7 @@
  * tables are not something this app controls. That produced two real problems at once:
  * the same invoice read differently depending on which side rendered it, and any CLIENT
  * component showing an amount that the server had already rendered hydrated with
- * different text — a React #418 text mismatch, which makes React throw the server HTML
+ * different text, a React #418 text mismatch, which makes React throw the server HTML
  * away and re-render the whole subtree in the browser. That is exactly the failure the
  * machines list hit earlier for a different reason.
  *
@@ -28,7 +28,7 @@ export function rands(cents: number | null | undefined): string {
   const whole = Math.floor(abs / 100);
   const part = String(abs % 100).padStart(2, "0");
 
-  // Group from the right in threes without a regex lookbehind — Safari on older iOS
+  // Group from the right in threes without a regex lookbehind, Safari on older iOS
   // does not support them, and this is rendered on every screen in the product.
   const digits = String(whole);
   let grouped = "";
@@ -41,7 +41,7 @@ export function rands(cents: number | null | undefined): string {
 }
 
 /**
- * Parse a user-typed Rand amount to integer cents — WITHOUT float drift.
+ * Parse a user-typed Rand amount to integer cents, WITHOUT float drift.
  * Accepts thousands separators and an optional decimal part ("1,150.5" → 115050).
  * Returns null for blank/invalid input.
  */
@@ -60,7 +60,7 @@ export function parseRandsToCents(input: string | null | undefined): number | nu
 /**
  * Convert a VAT-inclusive cents amount to the stored ex-VAT cents (Scope §4.8,
  * money stored ex-VAT). `rateBps` is the VAT rate in basis points (1500 = 15%).
- * Integer math only — rounds to the nearest cent.
+ * Integer math only, rounds to the nearest cent.
  */
 export function exVatCents(inclCents: number, rateBps: number): number {
   if (rateBps <= 0) return inclCents;

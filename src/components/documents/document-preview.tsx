@@ -7,8 +7,8 @@ import type { ResolvedLayout } from "@/lib/doc-layout";
  * A miniature of the document a customer will actually receive.
  *
  * Extracted from the 0434 layout form so there is ONE preview in the codebase rather than
- * one per screen. It is now rendered in two places — under each of the four templates in
- * the picker, and live above the individual switches — and those two must never disagree,
+ * one per screen. It is now rendered in two places, under each of the four templates in
+ * the picker, and live above the individual switches, and those two must never disagree,
  * because a partner comparing them is comparing the same document.
  *
  * It takes a `ResolvedLayout`, so it goes through the same resolver as the real page
@@ -16,14 +16,14 @@ import type { ResolvedLayout } from "@/lib/doc-layout";
  * could draw would be a promise the other two quietly break.
  *
  * Deliberately NOT a client component: it has no state of its own. The picker renders four
- * of these on the server for nothing, and the layout form — which is a client component —
+ * of these on the server for nothing, and the layout form, which is a client component -
  * imports it and re-renders it as its switches move. Same markup either way.
  */
 
 /** Two lines of a plausible workshop invoice, ex-VAT cents. */
 const SAMPLE_LINES = [
   { description: "Oil filter", qty: 2, unitCents: 24_500 },
-  { description: "Labour — 3 hours", qty: 3, unitCents: 45_000 },
+  { description: "Labour, 3 hours", qty: 3, unitCents: 45_000 },
 ] as const;
 
 const SAMPLE_NET_CENTS = SAMPLE_LINES.reduce((sum, l) => sum + l.qty * l.unitCents, 0);
@@ -31,7 +31,7 @@ const SAMPLE_NET_CENTS = SAMPLE_LINES.reduce((sum, l) => sum + l.qty * l.unitCen
 export type DocumentPreviewProps = {
   locale: Lang;
   layout: ResolvedLayout;
-  /** The partner's own colour — what an accent band or hairline is painted with. */
+  /** The partner's own colour, what an accent band or hairline is painted with. */
   brandPrimary: string;
   businessName: string;
   /** Drives the heading, exactly as `documentTitle` does on the real document. */

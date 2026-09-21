@@ -97,7 +97,7 @@ export default async function InboxPage({
     byMachine.set(r.machine_id, list);
   }
   const machineGroups = [...byMachine.entries()]
-    .map(([machineId, list]) => ({ machineId, name: nameById.get(machineId) ?? "—", list }))
+    .map(([machineId, list]) => ({ machineId, name: nameById.get(machineId) ?? "-", list }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const unreadCount = notes.filter((n) => n.read_at == null).length;
@@ -110,7 +110,7 @@ export default async function InboxPage({
     const mail = mailtoHref(ws.email);
     if (!tel && !wa && !mail) return null;
     return (
-      // Icon AND word, never icon-only — three unlabelled glyphs used to sit millimetres
+      // Icon AND word, never icon-only, three unlabelled glyphs used to sit millimetres
       // from the button that spends money.
       <div className="flex flex-wrap gap-1.5">
         {wa ? (
@@ -168,8 +168,8 @@ export default async function InboxPage({
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
       {/*
-        One total and a two-line split. This was four tiles — outstanding quotes, quote
-        value, outstanding invoices, invoice value — count and money separated, so the
+        One total and a two-line split. This was four tiles, outstanding quotes, quote
+        value, outstanding invoices, invoice value, count and money separated, so the
         owner had to pair them mentally.
       */}
       {actionItems.length > 0 ? (
@@ -198,7 +198,7 @@ export default async function InboxPage({
         </Card>
       ) : null}
 
-      {/* Needs your action — accept quotes / approve invoices inline */}
+      {/* Needs your action, accept quotes / approve invoices inline */}
       <Card>
         <CardHeader
           action={
@@ -227,7 +227,7 @@ export default async function InboxPage({
               return (
                 /*
                   One card per decision. The row used to put the machine-name link, three
-                  icon-only contact buttons and the approve submit in a single flex row —
+                  icon-only contact buttons and the approve submit in a single flex row -
                   five targets within a few millimetres, the largest of which spends money.
                   A bill for finished work and a quote for work not started also rendered
                   identically; they are different decisions and now look different.
@@ -243,7 +243,7 @@ export default async function InboxPage({
                           <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label={t("notifications.unread", locale)} />
                         ) : null}
                         <Link href={`/work/${r.id}`} className="focus-ring truncate rounded text-base font-semibold text-sand-900 hover:underline">
-                          {nameById.get(r.machine_id) ?? "—"}
+                          {nameById.get(r.machine_id) ?? "-"}
                         </Link>
                         <Badge tone={isQuote ? "brand" : "warning"}>
                           {isQuote ? t("inbox.priceToAccept", locale) : t("inbox.billToPay", locale)}
@@ -269,7 +269,7 @@ export default async function InboxPage({
                     <div className="shrink-0 text-right">
                       <p className="text-xs text-sand-500">{t("inbox.theyWant", locale)}</p>
                       <p className="text-xl font-bold tabular-nums text-sand-950">
-                        {amount != null ? rands(amount) : "—"}
+                        {amount != null ? rands(amount) : "-"}
                       </p>
                       <p className="mt-0.5 text-xs text-sand-400">
                         {t("inbox.sentWhen", locale).replace("{when}", relativeDate(r.updated_at, locale))}
@@ -281,7 +281,7 @@ export default async function InboxPage({
                     {/*
                       Audit bug 5: both of these commit the farm to real money and used to
                       fire straight from a `size="sm"` submit. The server action, its `id`
-                      field and its redirect are unchanged — there is now a step in front
+                      field and its redirect are unchanged, there is now a step in front
                       that names the amount and, for a bill, compares it to the quote.
                     */}
                     <ConfirmDialog
@@ -303,7 +303,7 @@ export default async function InboxPage({
                       }
                       intro={(isQuote ? t("inbox.confirmQuoteIntro", locale) : t("inbox.confirmInvoiceIntro", locale)).replace("{contractor}", ws?.name ?? t("inbox.theContractor", locale))}
                       facts={[
-                        { label: t("inbox.confirmMachine", locale), value: nameById.get(r.machine_id) ?? "—" },
+                        { label: t("inbox.confirmMachine", locale), value: nameById.get(r.machine_id) ?? "-" },
                         ...(r.quote_amount_cents != null
                           ? [{ label: t("inbox.confirmQuoted", locale), value: rands(r.quote_amount_cents) }]
                           : []),
@@ -333,7 +333,7 @@ export default async function InboxPage({
                     </ConfirmDialog>
 
                     {/*
-                      Accept and Approve used to be the ONLY actions on the card — saying
+                      Accept and Approve used to be the ONLY actions on the card, saying
                       no, or querying a bill that does not match its quote, had no path at
                       all, so those conversations happened on WhatsApp and the system lost
                       them. This deep-links to the request, where the note and the status
@@ -396,7 +396,7 @@ export default async function InboxPage({
         )}
       </Card>
 
-      {/* Recent activity — the notification feed, surfaced richly */}
+      {/* Recent activity, the notification feed, surfaced richly */}
       <Card>
         <CardHeader
           action={

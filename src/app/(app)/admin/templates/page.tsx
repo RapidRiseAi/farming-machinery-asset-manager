@@ -55,7 +55,7 @@ export default async function TemplatesPage({
         <CardHeader><CardTitle>New template</CardTitle></CardHeader>
         <form action={createTemplate} className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Name" htmlFor="tpl-name" required><Input id="tpl-name" name="name" required placeholder="Tractor — standard" /></Field>
+            <Field label="Name" htmlFor="tpl-name" required><Input id="tpl-name" name="name" required placeholder="Tractor, standard" /></Field>
             <Field label="Machine type" htmlFor="tpl-type">{typeSelect("machine_type", "")}</Field>
           </div>
           <Field label="Lines" htmlFor="tpl-lines">
@@ -106,7 +106,7 @@ export default async function TemplatesPage({
                         "No farm can apply it to a machine again",
                         "Machines that already use it keep their service plans",
                       ]}
-                      footnote="Nothing is really erased — it stops showing in the library and stays in the history."
+                      footnote="Nothing is really erased, it stops showing in the library and stays in the history."
                       confirmLabel="Yes, delete the template"
                       cancelLabel="Never mind"
                     >

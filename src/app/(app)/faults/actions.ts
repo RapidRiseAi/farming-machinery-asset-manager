@@ -81,7 +81,7 @@ export async function resolveFault(formData: FormData) {
   redirect("/faults?saved=1");
 }
 
-// ── Fault lifecycle transitions (FR-7.3): Open → Acknowledged → In progress ──
+// == Fault lifecycle transitions (FR-7.3): Open → Acknowledged → In progress ==
 const LIFECYCLE_ROLES = ["owner", "manager", "mechanic", "workshop"] as const;
 
 /** Move a fault to `acknowledged` (someone has seen it). */
@@ -103,7 +103,7 @@ export async function startFault(formData: FormData) {
 }
 
 /** Assign (or clear) the fault's owner. A blank/unknown id clears the assignee;
- *  a cross-farm id is rejected — only an active user of the fault's farm is accepted. */
+ *  a cross-farm id is rejected, only an active user of the fault's farm is accepted. */
 export async function assignFault(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/faults?error=missing-id");

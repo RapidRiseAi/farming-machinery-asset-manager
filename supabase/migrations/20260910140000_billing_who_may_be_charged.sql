@@ -2,39 +2,39 @@
 -- Three defects with one shape: the ledger decides who to charge without ever asking who
 -- they are, or whether a person has asked to pay.
 --
--- S5 — A PAYMENT RESURRECTED A CANCELLED SUBSCRIPTION
--- ─────────────────────────────────────────────────────────────────────────────
+-- S5, A PAYMENT RESURRECTED A CANCELLED SUBSCRIPTION
+-- =============================================================================
 -- `setCancellation({immediate:true})` writes status='cancelled', cancel_at_period_end=false
 -- and ended_on=today. `app.billing_restore_after_payment` then read only
 -- `cancel_at_period_end` and wrote status='active' for anything else. So a payment landing
--- after an immediate cancellation put the farm straight back on a live subscription — with
--- `ended_on` sitting in the past — and it would be billed again the following month.
+-- after an immediate cancellation put the farm straight back on a live subscription, with
+-- `ended_on` sitting in the past, and it would be billed again the following month.
 --
 -- This is not exotic. It is precisely what happens when somebody cancels while a charge is
 -- in flight: the reconciler resolves that attempt, settles it `succeeded`, and the restore
 -- runs. The whole reason `unknown` exists is that a charge can be in flight for hours.
 --
--- S7 — BILLING NEVER LOOKED AT THE FARM
--- ─────────────────────────────────────────────────────────────────────────────
+-- S7, BILLING NEVER LOOKED AT THE FARM
+-- =============================================================================
 -- Every condition in `app.generate_billing_invoices` and `app.due_billing_charges` is about
 -- the SUBSCRIPTION row. `farms.deleted_at` and `farms.status` were read nowhere on the
--- charging path — `farms` was selected only to copy a name onto an invoice snapshot. A
+-- charging path, `farms` was selected only to copy a name onto an invoice snapshot. A
 -- soft-deleted farm, or one Rapid Rise had suspended or cancelled, kept being invoiced and
 -- kept having its stored card charged.
 --
--- S11 — "TRY AGAIN" TOLD A PAYING CUSTOMER NOTHING WAS DUE
--- ─────────────────────────────────────────────────────────────────────────────
+-- S11, "TRY AGAIN" TOLD A PAYING CUSTOMER NOTHING WAS DUE
+-- =============================================================================
 -- `retryInvoiceCharge` rebuilds the automatic shortlist and looks for the invoice in it.
 -- That shortlist carries `coalesce(next_retry_on, current_date) <= current_date` and
 -- `status in ('active','past_due')`. So after a decline the owner's "Try again" button
--- answered "nothing is due" for the whole retry interval — while the invoice was plainly
+-- answered "nothing is due" for the whole retry interval, while the invoice was plainly
 -- unpaid and the farm was walking down the ladder towards a downgrade.
 --
 -- Worse, and not in the original finding: once retries are exhausted
 -- `app.billing_register_failure` sets status='grace' with next_retry_on=null, and after
 -- that `app.billing_apply_downgrades` sets status='downgraded'. NEITHER status is in the
 -- shortlist. So from the moment a farm enters grace, the stored card is never presented
--- again — not by the nightly pass, and not by the customer pressing the button. The only
+-- again, not by the nightly pass, and not by the customer pressing the button. The only
 -- way back was to re-enter card details through hosted checkout.
 --
 -- The retry timer exists to stop the MACHINE hammering a card, which issuers penalise. A
@@ -49,14 +49,14 @@
 --
 -- NOT CHANGED HERE, and put to the founder instead: whether the NIGHTLY pass should keep
 -- trying the card during grace. It currently does not, which leaves money uncollected from
--- customers who are still using the product — but the dunning cadence is founder decision
+-- customers who are still using the product, but the dunning cadence is founder decision
 -- #9 and changing it silently would be the wrong way round.
 --
 -- Suite section (r) covers all three, mutation-tested.
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S7 — a farm that has left is not sold another month
+-- S7, a farm that has left is not sold another month
 -- ══════════════════════════════════════════════════════════════════════════════
 -- The body below is EXTRACTED from 20260910120000 and patched at one anchor, not retyped.
 
@@ -147,7 +147,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -189,7 +189,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,
@@ -233,7 +233,7 @@ revoke execute on function app.generate_billing_invoices(uuid) from public, anon
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S7 — and a farm that has left is not charged
+-- S7, and a farm that has left is not charged
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.due_billing_charges(p_limit integer default 50)
 returns table (
@@ -251,7 +251,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     join public.billing_subscriptions s on s.id = i.subscription_id and s.deleted_at is null
     -- S7. A deleted farm is never charged, full stop. A CANCELLED one is not charged
     -- either: cancelling is our own act, and taking money afterwards reads as a mistake
-    -- however correct the underlying debt is. A SUSPENDED farm still is — suspension
+    -- however correct the underlying debt is. A SUSPENDED farm still is, suspension
     -- withholds the service, it does not forgive what is already invoiced.
     join public.farms fm on fm.id = i.farm_id
      and fm.deleted_at is null and fm.status <> 'cancelled'
@@ -278,7 +278,7 @@ revoke execute on function app.due_billing_charges(integer) from public, anon, a
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S11 — a person asking to pay is not a cron, and is not made to wait
+-- S11, a person asking to pay is not a cron, and is not made to wait
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Same row shape as app.due_billing_charges, so the worker can hand it to exactly the
 -- same code. Three deliberate differences, and nothing else:
@@ -288,7 +288,7 @@ revoke execute on function app.due_billing_charges(integer) from public, anon, a
 --      most valuable button in this product, and a farm that cancelled at period end still
 --      owes for the period they are in.
 --   3. 'downgraded' is included. Otherwise the recovery the whole downgrade design
---      promises — pay, get your plan back, nothing was ever deleted — has no way to happen
+--      promises, pay, get your plan back, nothing was ever deleted, has no way to happen
 --      with the card already on file.
 --
 -- Everything else is identical, on purpose. In particular the in-flight exclusion, the
@@ -340,7 +340,7 @@ grant  execute on function public.billing_invoice_chargeable_now(uuid) to servic
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S5 — a payment never brings a cancelled subscription back to life
+-- S5, a payment never brings a cancelled subscription back to life
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.billing_restore_after_payment(p_sub uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -349,7 +349,7 @@ begin
   select * into s from public.billing_subscriptions where id = p_sub for update;
   if not found then return; end if;
 
-  -- ENDED. The money is still recorded and the invoice is still marked paid — that all
+  -- ENDED. The money is still recorded and the invoice is still marked paid, that all
   -- happened in app.settle_billing_attempt before this was called, and a debt they owed
   -- being settled is correct. What must NOT happen is the subscription coming back:
   -- somebody who cancelled and then had an in-flight charge complete would otherwise

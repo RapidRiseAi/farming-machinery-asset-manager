@@ -137,7 +137,7 @@
     "savedChanges": "Changes saved.",
     "noOpenFaults": "No open faults.",
     "noStaleReadings": "All meter readings are current.",
-    "qrLabelsMarked": "Confirmed — QR labels have been fitted.",
+    "qrLabelsMarked": "Confirmed. QR labels have been fitted.",
     "deniedTitle": "Access restricted",
     "deniedBody": "This page is restricted to farm office roles. The following options are available to you."
   },
@@ -147,7 +147,7 @@
     "allDone": "Configuration complete.",
     "step1Desc": "Register each tractor, bakkie, harvester and implement, or import the fleet from a spreadsheet.",
     "step3Desc": "Print and fit a QR label to each machine. This enables any staff member to report a fault or record a meter reading from a phone without signing in.",
-    "step3Hint": "Print on plain paper and fit in a dry location — inside the cab door is recommended.",
+    "step3Hint": "Print on plain paper and fit in a dry location, inside the cab door is recommended.",
     "step3Ack": "Confirm labels are fitted",
     "step3Undo": "Mark as not done",
     "step3Done": "QR labels fitted"
@@ -175,7 +175,7 @@
     "emptyPartnerBody": "Create one against a client account, or attach a document produced in your own system.",
     "emptyFarmBody": "Quotations and invoices from your contractors will appear here.",
     "lineDescription": "Description",
-    "sendExplains": "Once issued, the wording and totals are fixed — the document becomes a formal record.",
+    "sendExplains": "Once issued, the wording and totals are fixed. The document becomes a formal record.",
     "sentFlash": "Issued. The client can now view it.",
     "deleteDraftBody": "The draft was never issued, so no record is lost. Its line items are removed with it.",
     "convertToInvoice": "Convert to invoice",
@@ -186,11 +186,11 @@
     "acceptedFlash": "Approved. The contractor has been notified.",
     "decline": "Decline",
     "declineReason": "Reason for declining",
-    "declineReasonHint": "The reason determines the contractor's next step — please be specific.",
+    "declineReasonHint": "The reason determines the contractor's next step, please be specific.",
     "uploadTitle": "Produced in another system?",
     "uploadBody": "Attach the quotation or invoice your accounting system produced. Your client can view it and it is reflected in their costs; your existing invoicing process is unchanged.",
     "upgradeBody": "The Managed plan adds itemised quotations and invoices, quote-to-invoice conversion, and payment recording.",
-    "upgradeKeep": "Existing functionality is retained — attaching your own documents remains part of your plan.",
+    "upgradeKeep": "Existing functionality is retained, attaching your own documents remains part of your plan.",
     "whoOneOff": "One-off customer",
     "oneOffHint": "No customer record is created. Enter the billing details on the document itself.",
     "billToVatHint": "Required for the customer to claim input VAT.",
@@ -215,30 +215,30 @@
   },
   "pageInfo": {
     "documentsWhat": "All quotations and invoices received from your contractors.",
-    "documentsNote": "Approving a quotation does not initiate payment — the contractor must still invoice.",
+    "documentsNote": "Approving a quotation does not initiate payment. The contractor must still invoice.",
     "documentsPartnerWhat": "All quotations and invoices issued, across every client account.",
     "documentsPartnerNote": "Attaching externally produced documents is available on all plans. Creating them here requires Managed.",
     "partnerSettingsNote": "Changes apply to new documents. Previously issued documents retain their original presentation.",
-    "clientsWhat": "Your complete customer register — not only the accounts that found you on FleetWise.",
+    "clientsWhat": "Your complete customer register, not only the accounts that found you on FleetWise.",
     "clientsNote": "Adding an account here grants no access to their data. Access follows only from an approved connection."
   },
   "tour": {
-    "contractorDocumentsBody": "Create itemised quotations and invoices, convert an approved quotation to an invoice, and record payments as they are received. If you invoice elsewhere, attach that document instead — available on all plans.",
+    "contractorDocumentsBody": "Create itemised quotations and invoices, convert an approved quotation to an invoice, and record payments as they are received. If you invoice elsewhere, attach that document instead, available on all plans.",
     "contractorBrandBody": "Your business name, registration and VAT numbers, banking details, logo and colours. Every document is issued on your letterhead."
   },
   "notifications": {
-    "tplPartnerQuote": "Quotation {number} received — {amount}",
-    "tplPartnerInvoice": "Invoice {number} received — {amount}"
+    "tplPartnerQuote": "Quotation {number} received, {amount}",
+    "tplPartnerInvoice": "Invoice {number} received, {amount}"
   },
   "clients": {
-    "lead": "Your complete customer register — accounts already connected on FleetWise, and those that are not.",
+    "lead": "Your complete customer register, accounts already connected on FleetWise, and those that are not.",
     "addHint": "Any customer you service. If they use FleetWise you can request a connection afterwards.",
     "notConnectedBody": "This account is not connected to you on FleetWise, so their details are maintained here.",
     "askedBody": "A connection request has been sent. Only the customer can accept it.",
     "syncConfirmBody": "{n} vehicles will be added to {farm}'s fleet.",
     "syncConsequence": "They become assets on the customer's fleet, visible to everyone at that account.",
     "vehiclesHint": "Your own records of what they operate, maintained here until the account is connected.",
-    "syncPartial": "{n} copied. Some could not be added; the remainder are still pending — retry when ready."
+    "syncPartial": "{n} copied. Some could not be added; the remainder are still pending, retry when ready."
   },
   "partners": {
     "requestsHint": "They have your account in their client register. Approving grants them access to your vehicles.",

@@ -1,5 +1,5 @@
 /**
- * Payment-provider seam (FR-19.1 payments / FR-19.3) — DEFERRED.
+ * Payment-provider seam (FR-19.1 payments / FR-19.3), DEFERRED.
  *
  * Payment/charging integration is intentionally NOT built: it awaits provider research
  * (`docs/FLEETWISE_PROVIDER_RESEARCH_PROMPT.md`). This file defines the ONE interface a
@@ -37,7 +37,7 @@ export type BillingResult =
 
 /**
  * The contract a real payment provider fulfils. Deliberately minimal and provider-
- * agnostic. All methods are async and MUST NOT throw for the "not configured" case —
+ * agnostic. All methods are async and MUST NOT throw for the "not configured" case -
  * they return `{ ok: false, deferred: true }` so callers degrade gracefully.
  */
 export interface BillingAdapter {
@@ -61,16 +61,16 @@ export interface BillingAdapter {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SaaS subscription billing (Paystack) — farms paying Rapid Rise for FleetWise
+// SaaS subscription billing (Paystack), farms paying Rapid Rise for FleetWise
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // SCOPE BOUNDARY. Everything below is ONE direction: our customer paying us for
 // software. It is not, and must never become, the money that moves between a farm and
-// its contractors — that is `partner_documents` / `partner_payments` (F14/G1–G10), and
+// its contractors, that is `partner_documents` / `partner_payments` (F14/G1-G10), and
 // FleetWise deliberately does not sit in the middle of it. Nothing here may reference
 // `src/lib/payments/*`, `PAYFAST_*`, or `workshops.plan`.
 //
-// WHERE SUBSCRIPTION STATE LIVES. Here, in our database — not at the provider. Paystack
+// WHERE SUBSCRIPTION STATE LIVES. Here, in our database, not at the provider. Paystack
 // moves money and nothing else: it holds no plan, no price, no period, no entitlement.
 // The amount changes with the farm's billable vehicle count, so a fixed provider-side
 // "Plan" object would be wrong the moment a farmer sells a tractor. `BillingAdapter`
@@ -82,12 +82,12 @@ export interface BillingAdapter {
 //   BILLING_CHARGING_ENABLED=true    → additionally permits new charges.
 // `chargingEnabled` is `enabled && BILLING_CHARGING_ENABLED === "true"`. Default is off,
 // and anything that would create a charge returns `{ ok:false, deferred:true }` while it
-// is. Configuration is read LAZILY inside each call — a missing key never throws at
+// is. Configuration is read LAZILY inside each call, a missing key never throws at
 // import time and never breaks the rest of FleetWise.
 
 /**
  * The only channel a subscription may be taken on. A recurring bill needs a REUSABLE
- * authorization, and only a card produces one — EFT/USSD/QR authorizations are one-shot,
+ * authorization, and only a card produces one, EFT/USSD/QR authorizations are one-shot,
  * so a farm set up on one would appear configured and then fail every renewal.
  */
 export type PaystackChannel = "card";
@@ -100,7 +100,7 @@ export type CheckoutInit = {
   /** VAT-inclusive integer cents (ZAR subunits). */
   amountCents: number;
   email: string;
-  /** Absolute, built from `NEXT_PUBLIC_SITE_URL` — never from the `Host` header. */
+  /** Absolute, built from `NEXT_PUBLIC_SITE_URL`, never from the `Host` header. */
   callbackUrl: string;
   metadata: Record<string, string>;
 };
@@ -146,7 +146,7 @@ export type VerifiedTransaction = {
   /**
    * Why `authorization` is null despite Paystack having sent one. Set to
    * `"not_reusable"` when the transaction carried an authorization that may not be
-   * charged again — so the caller can tell the farmer their card cannot be stored,
+   * charged again, so the caller can tell the farmer their card cannot be stored,
    * rather than the refusal being silently invisible.
    */
   authorizationRefused?: "not_reusable" | null;
@@ -154,7 +154,7 @@ export type VerifiedTransaction = {
    * True when the provider's own word was `reversed`.
    *
    * `status` folds that into `failed`, because an invoice whose money came back is not
-   * paid. But a reversal is OUR refund or a chargeback — the customer's card worked — and
+   * paid. But a reversal is OUR refund or a chargeback, the customer's card worked, and
    * `failed` is also what starts the dunning ladder. Keeping the distinction here is what
    * lets the settle suppress the dunning without changing the invoice treatment.
    */
@@ -170,7 +170,7 @@ export type VerifyResult =
       deferred: false;
       reason: string;
       /**
-       * True when we could not REACH the provider — a timeout, a 5xx, a 429, an
+       * True when we could not REACH the provider, a timeout, a 5xx, a 429, an
        * unreadable body. Whether money moved is genuinely unknown.
        */
       retryable: boolean;
@@ -181,8 +181,8 @@ export type VerifyResult =
        * API key, an unparseable 200 and a reference we never managed to send are all
        * non-retryable, and not one of them is an answer about the customer's money.
        *
-       * The reconciler settles an attempt `abandoned` — which UNBLOCKS its invoice for
-       * charging — only on `retryable === false && answered`. Widening that to plain
+       * The reconciler settles an attempt `abandoned`, which UNBLOCKS its invoice for
+       * charging, only on `retryable === false && answered`. Widening that to plain
        * `!retryable` would unblock an in-flight `unknown` because OUR configuration
        * broke, and charging again on an attempt we never resolved is the exact failure
        * the whole claim/settle design exists to prevent.
@@ -217,7 +217,7 @@ export interface SaasBillingProvider {
   /** Configured AND the charging kill switch is on. */
   readonly chargingEnabled: boolean;
 
-  /** Hosted checkout — the first payment, which is also how the card gets stored. */
+  /** Hosted checkout, the first payment, which is also how the card gets stored. */
   initializeCheckout(init: CheckoutInit): Promise<CheckoutSession>;
   /** Ask what happened to one reference. The ONLY safe recovery from a lost response. */
   verifyTransaction(reference: string): Promise<VerifyResult>;

@@ -4,7 +4,7 @@
 -- supabase/tests/rls_isolation.sql. Intra-farm role nuance (operator submit-only,
 -- cost visibility, etc.) is layered on top in later phases.
 
--- ── Standard farm-scoped tables ──────────────────────────────────
+-- == Standard farm-scoped tables ==================================
 -- Every one has a farm_id; access == app.has_farm_access(farm_id); reads also
 -- hide soft-deleted rows.
 do $do$
@@ -24,7 +24,7 @@ begin
   end loop;
 end $do$;
 
--- ── farms ────────────────────────────────────────────────────────
+-- == farms ========================================================
 alter table farms enable row level security;
 alter table farms force  row level security;
 create policy farms_sel on farms for select to authenticated
@@ -36,7 +36,7 @@ create policy farms_upd on farms for update to authenticated
 create policy farms_del on farms for delete to authenticated
   using (app.is_rr_admin());
 
--- ── users ────────────────────────────────────────────────────────
+-- == users ========================================================
 -- You can always see yourself; RR admin sees all; farm members see co-members;
 -- workshop staff see their own workshop's members.
 alter table users enable row level security;
@@ -56,7 +56,7 @@ create policy users_upd on users for update to authenticated
 create policy users_del on users for delete to authenticated
   using (app.is_rr_admin());
 
--- ── workshops ────────────────────────────────────────────────────
+-- == workshops ====================================================
 alter table workshops enable row level security;
 alter table workshops force  row level security;
 create policy workshops_sel on workshops for select to authenticated
@@ -72,7 +72,7 @@ create policy workshops_ins on workshops for insert to authenticated with check 
 create policy workshops_upd on workshops for update to authenticated using (app.is_rr_admin()) with check (app.is_rr_admin());
 create policy workshops_del on workshops for delete to authenticated using (app.is_rr_admin());
 
--- ── workshop_links ───────────────────────────────────────────────
+-- == workshop_links ===============================================
 -- Visible to RR admin, the linked workshop's staff, and the farm side.
 -- Mutable only by RR admin or a member of the farm (never by the workshop itself).
 alter table workshop_links enable row level security;
@@ -87,7 +87,7 @@ create policy wl_upd on workshop_links for update to authenticated
 create policy wl_del on workshop_links for delete to authenticated
   using (app.is_rr_admin() or app.user_farm_id() = farm_id);
 
--- ── service_templates ────────────────────────────────────────────
+-- == service_templates ============================================
 -- Global templates (farm_id null) are readable by all authenticated users;
 -- per-farm templates follow farm access. Mutation is RR admin (global) or the
 -- owning farm's members.
@@ -103,7 +103,7 @@ create policy st_upd on service_templates for update to authenticated
 create policy st_del on service_templates for delete to authenticated
   using (app.is_rr_admin() or (farm_id is not null and app.user_farm_id() = farm_id));
 
--- ── audit_log ────────────────────────────────────────────────────
+-- == audit_log ====================================================
 -- Read-only to clients (farm-scoped); rows are written only by the SECURITY DEFINER
 -- audit trigger, which bypasses RLS. No insert/update/delete policies exist, so with
 -- FORCE RLS clients cannot write it.

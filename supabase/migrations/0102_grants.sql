@@ -1,6 +1,6 @@
 -- 0102_grants.sql
 -- Table/sequence privileges. RLS filters access for `authenticated`; `service_role`
--- has full access (and bypasses RLS); `anon` has ZERO access — the public QR flow
+-- has full access (and bypasses RLS); `anon` has ZERO access, the public QR flow
 -- goes through service-role server routes, never the anon Postgres role.
 
 -- authenticated: DML on all tables, RLS then decides row visibility.

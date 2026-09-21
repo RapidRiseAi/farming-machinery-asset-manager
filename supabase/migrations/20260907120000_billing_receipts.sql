@@ -2,7 +2,7 @@
 -- Telling the customer, exactly once.
 --
 -- WHY
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A farm paid R219 and FleetWise sent them nothing. The only receipt they got was
 -- Paystack's, which carries the payment reference and the amount and nothing else: not
 -- our invoice number, not the period, not "3 vehicles at R73", not the registration
@@ -15,7 +15,7 @@
 -- worth nothing to a farmer who is not logged in and whose access is about to narrow.
 --
 -- EXACTLY ONCE, AND WHY IT NEEDS A CLAIM
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A success is settled from more than one place. The live test proved it: the webhook
 -- arrived and the callback verified the same transaction 0.558 seconds apart, both
 -- reporting success. billing_payments_txn_uq already stops the money being counted
@@ -54,7 +54,7 @@ create index if not exists billing_payment_attempts_notify_due_idx
   on billing_payment_attempts (requested_at)
   where status = 'failed' and notified_at is null;
 
--- ── Claiming ─────────────────────────────────────────────────────────────────
+-- == Claiming =================================================================
 
 create or replace function app.claim_billing_receipt(p_invoice uuid) returns boolean
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -97,7 +97,7 @@ begin
   return v_id is not null;
 end $$;
 
--- ── What still needs telling ─────────────────────────────────────────────────
+-- == What still needs telling =================================================
 --
 -- Both resolve the recipient the same way billingContactEmail does in TypeScript: the
 -- farm's billing address if it has one, else its owner. So the email goes to the address
@@ -152,7 +152,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
    limit greatest(p_limit, 0);
 $$;
 
--- ── PostgREST wrappers: service_role alone ───────────────────────────────────
+-- == PostgREST wrappers: service_role alone ===================================
 
 create or replace function public.billing_claim_receipt(p_invoice uuid) returns boolean
 language sql security definer set search_path = public, pg_temp as $$

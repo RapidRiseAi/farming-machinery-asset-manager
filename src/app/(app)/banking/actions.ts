@@ -19,7 +19,7 @@ import { parseStatement, MAX_STATEMENT_ROWS } from "@/lib/banking";
  *
  * SECOND: settling money IN means inserting a `partner_payments` row and NOTHING else. The
  * document's paid amount and its status are moved by the 0381 rollup trigger, which is
- * already the single place that decision is made — for a payment captured by hand, for a
+ * already the single place that decision is made, for a payment captured by hand, for a
  * PayFast callback, and now for this. Writing `amount_paid_cents` here as well would put a
  * second author on the same number, and the two would eventually disagree.
  *
@@ -33,7 +33,7 @@ function s(fd: FormData, k: string): string | null {
   return v === "" ? null : v;
 }
 
-/** Postgres unique violation. Not an error the partner needs to see as one — see below. */
+/** Postgres unique violation. Not an error the partner needs to see as one, see below. */
 const isDuplicate = (code: string | undefined) => code === "23505";
 
 /**
@@ -45,7 +45,7 @@ const isDuplicate = (code: string | undefined) => code === "23505";
  * is deliberately no "which of these do I already have?" query in front of the insert: that
  * is a check-then-act, and two tabs or a double-tapped button on a phone both pass the check
  * before either writes. `ignoreDuplicates` turns it into a single `on conflict do nothing`,
- * and PostgREST returns only the rows that were actually inserted — which is also the
+ * and PostgREST returns only the rows that were actually inserted, which is also the
  * honest count to report back ("30 rows, 12 were new").
  */
 export async function importBankStatement(formData: FormData) {
@@ -119,7 +119,7 @@ export async function importBankStatement(formData: FormData) {
 /**
  * Confirm one suggestion. The only place in this feature that writes to the ledger.
  *
- * Pressing it twice is EXPECTED, not exceptional — a phone on a bad signal in a workshop
+ * Pressing it twice is EXPECTED, not exceptional, a phone on a bad signal in a workshop
  * yard is exactly where people press again while the first request is still in flight. The
  * second attempt loses the race against `partner_payments_bank_line_uq` / `partner_expenses
  * _bank_line_uq` (0471) and comes back as a unique violation, which is reported as "already
@@ -170,7 +170,7 @@ export async function confirmMatch(formData: FormData) {
     if (outstanding <= 0) redirect("/banking?error=already_settled");
     // Refused rather than trimmed. Posting only part of a bank line would leave the rest of
     // the money silently unaccounted for while the line disappeared off the unreconciled
-    // list — which is the exact hole this feature exists to close.
+    // list, which is the exact hole this feature exists to close.
     if (l.amount_cents > outstanding) redirect("/banking?error=more_than_owed");
 
     const { error } = await supabase.from("partner_payments").insert({
@@ -223,7 +223,7 @@ export async function confirmMatch(formData: FormData) {
  *
  * Nothing here touches `bank_lines.status`: removing the settlement row is what makes the
  * line unreconciled again, through the 0472 resync trigger. That is the whole reason the
- * status is derived — an undo written in two places is an undo that can be half done.
+ * status is derived, an undo written in two places is an undo that can be half done.
  *
  * The payment is SOFT deleted, like everything else in this schema, so the audit trail
  * keeps the fact that it was once recorded and then reversed. `bank_line_id` is cleared on
@@ -267,7 +267,7 @@ export async function undoMatch(formData: FormData) {
 }
 
 /**
- * "This one will never match anything in here" — bank charges, interest, a transfer to the
+ * "This one will never match anything in here", bank charges, interest, a transfer to the
  * owner's own account, rent already captured in a different month.
  *
  * Without it the unreconciled list only ever grows, and a list that is never empty is a list
@@ -308,7 +308,7 @@ export async function restoreLine(formData: FormData) {
 }
 
 /**
- * Remove a line that should not be in here at all — a heading the parser read as data, a
+ * Remove a line that should not be in here at all, a heading the parser read as data, a
  * row from the wrong account.
  *
  * Soft delete, and the natural-key index in 0470 deliberately covers deleted rows, so this

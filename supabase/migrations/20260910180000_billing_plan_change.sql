@@ -2,12 +2,12 @@
 -- Upgrading charged more and granted nothing. Downgrading charged less and took nothing away.
 --
 -- THE DEFECT (S3)
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- There are two plans on a farm, and that is deliberate and correct:
 --
---   farms.plan                  the EFFECTIVE plan — every entitlement gate resolves
+--   farms.plan                  the EFFECTIVE plan, every entitlement gate resolves
 --                               from it, and the dunning downgrade writes it
---   billing_subscriptions.plan  the COMMERCIAL plan — what they bought and are billed for
+--   billing_subscriptions.plan  the COMMERCIAL plan, what they bought and are billed for
 --
 -- They diverge on purpose while a farm is downgraded for non-payment, which is what lets
 -- recovery restore the exact prior state instead of inferring it.
@@ -20,7 +20,7 @@
 -- So a farm upgraded through the billing screen paid Complete money and stayed gated at
 -- Professional; one upgraded through the farm screen got Complete features for free; and a
 -- downgrade through the billing screen reduced the bill while leaving every feature open.
--- There was also no self-serve path at all — an owner could not change their own plan.
+-- There was also no self-serve path at all, an owner could not change their own plan.
 --
 -- `adminSetSubscriptionPlan` documented the split as intentional, and its reasoning was
 -- right: an admin screen writing both would be the one place able to silently
@@ -29,14 +29,14 @@
 -- the rules attached, not two screens each moving one.
 --
 -- FOUNDER DECISIONS, 2026-09-10
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 --   UPGRADE   Charge the pro-rata difference NOW; features switch on immediately. The
 --             customer gets what they paid for the moment they pay for it.
 --   DOWNGRADE Takes effect at period end. They keep what they already paid for, there is
 --             no refund and no credit note, and nothing has to be reversed.
 --
 -- WHAT COUNTS AS WHICH
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Immediate-and-prorated applies to exactly one shape: the plan RANK goes up and the
 -- billing period is unchanged. Everything else is scheduled for period end, including a
 -- term change in either direction.
@@ -44,24 +44,24 @@
 -- That is deliberate. A term is a commitment somebody has already paid for: switching a
 -- farm mid-year from annual to monthly would need a refund, and switching monthly to
 -- annual mid-month would charge for eleven months they have not agreed to yet. Scheduling
--- costs the customer nothing — they simply start the new term when the current one ends.
+-- costs the customer nothing, they simply start the new term when the current one ends.
 --
 -- THE PRORATION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 --     period value = per_vehicle_monthly_incl_cents × vehicles × months_charged
 --     delta        = new period value − old period value
 --     charged now  = delta × days remaining ÷ days in the period
 --
 -- Computed per VEHICLE and then multiplied, because that is the figure a customer checks
 -- and because `app.billing_derive_invoice_totals` derives the total as
--- `unit_price × asset_count × months_charged` — so a unit price is the only place the
+-- `unit_price × asset_count × months_charged`, so a unit price is the only place the
 -- rounding can live without the invoice disagreeing with itself.
 --
 -- "Days remaining" includes today. Somebody upgrading this morning has the whole of today
 -- on the new plan.
 --
 -- TWO CASES THAT DELIBERATELY CHARGE NOTHING
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 --   * A delta of zero or less. They are getting more for the same money or less; there is
 --     nothing to collect and an invoice for R0,00 can never reach `paid` (Paystack will
 --     not process a zero charge), so it would sit open for ever.
@@ -72,10 +72,10 @@
 -- Both apply the upgrade and record the reason rather than failing.
 --
 -- THE SECOND WRITER IS CLOSED
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Fixing the function is not enough while `/admin/farms/[id]` can still write `farms.plan`
 -- straight past it. `app.billing_guard_farm_plan` states the INVARIANT: while a live
--- subscription exists, `farms.plan` may only move to a value billing already agrees with —
+-- subscription exists, `farms.plan` may only move to a value billing already agrees with -
 --
 --   1. billing_subscriptions.plan                  the commercial plan (a plan change)
 --   2. billing_settings.downgrade_to_plan          the dunning target
@@ -88,12 +88,12 @@
 --
 -- Stating the invariant needs no flag, nothing forgeable, and no change to any existing
 -- function. It also removes a failure mode the flag version had built in: a farm whose two
--- plans are ALREADY out of step — which is possible right now, because that is the defect
--- being fixed — would have had restore-after-payment raise and abort the settlement of a
+-- plans are ALREADY out of step, which is possible right now, because that is the defect
+-- being fixed, would have had restore-after-payment raise and abort the settlement of a
 -- real payment.
 --
 -- This is a CONSISTENCY guard, not a security boundary: an rr_admin can still move the
--- commercial plan first and the effective plan after. What it prevents is the accident —
+-- commercial plan first and the effective plan after. What it prevents is the accident -
 -- a screen quietly putting the two out of step, which is exactly how this defect shipped.
 --
 -- A farm with NO live subscription is untouched: that is Weltevrede, and setting a plan on
@@ -108,15 +108,15 @@
 -- `billing_invoices_farm_period_uq` is unique on (farm_id, period_start, period_end) and
 -- exists so that a double-fired cron, a retry and a manual "raise it now" all produce one
 -- bill rather than three. A pro-rata invoice covers "today .. the end of the period they
--- have already paid for", so a farm upgrading TWICE inside one period — Essential to
--- Professional on Monday, Professional to Complete on Tuesday — produced that identical
+-- have already paid for", so a farm upgrading TWICE inside one period, Essential to
+-- Professional on Monday, Professional to Complete on Tuesday, produced that identical
 -- window twice and the second change aborted on a duplicate key, having changed nothing.
 --
 -- Found by suite section (t) on its first run. The sequence is ordinary, not contrived.
 --
 -- The constraint's meaning is "one PERIOD invoice per farm per period", and a proration is
 -- not a period invoice. So the index narrows to say what it means, and prorations get
--- their own uniqueness — on the plan moved to, because two upgrades in one period are
+-- their own uniqueness, on the plan moved to, because two upgrades in one period are
 -- genuinely two different charges, while the same upgrade twice is refused as 'no_change'
 -- before it ever reaches an insert.
 alter table public.billing_invoices
@@ -140,7 +140,7 @@ create unique index billing_invoices_farm_period_uq
 -- Two upgrades in one period are two charges; the SAME upgrade twice is not. The
 -- `for update` on the subscription already serialises a double-click (the second
 -- transaction re-reads the committed row and answers 'no_change'), so this is the second
--- lock rather than the only one — the same belt-and-braces as the in-flight attempt index.
+-- lock rather than the only one, the same belt-and-braces as the in-flight attempt index.
 create unique index if not exists billing_invoices_proration_uq
   on public.billing_invoices (farm_id, period_start, period_end, plan)
   where deleted_at is null and status <> 'void' and kind = 'proration';
@@ -177,14 +177,14 @@ comment on column public.billing_subscriptions.pending_plan is
 -- What an upgrade would cost right now
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Read-only, and SERVICE-ROLE ONLY. The owner's screen does have to say "R42,00 now,
--- then R267,00 a month" before they press anything — but it says it from the server.
+-- then R267,00 a month" before they press anything, but it says it from the server.
 --
 -- The first draft granted this to `authenticated` on the reasoning that it reveals
 -- nothing an owner cannot already see about their own subscription. Suite section (j)
 -- refused it, and (j) was right: this function is SECURITY DEFINER, so RLS never runs
 -- for it. A signed-in user from ANY farm could pass another farm's subscription id and
 -- read back their vehicle count, what they are paying and their period dates. Every
--- policy would still "pass", because no policy is consulted — the same shape as the
+-- policy would still "pass", because no policy is consulted, the same shape as the
 -- `_f14_probe` helper that had to be dropped from production.
 --
 -- `/billing` is a Server Component and its actions are server actions, so they call this
@@ -262,7 +262,7 @@ begin
   end if;
 
   -- UPGRADE. Priced against what this farm is ACTUALLY paying, which is not necessarily
-  -- the currently active version — see 20260910160000. Charging the difference from a
+  -- the currently active version, see 20260910160000. Charging the difference from a
   -- price they were never on would quietly reprice them through the upgrade.
   select * into v_old from app.billing_price_for_subscription(p_sub);
   v_count := app.billable_asset_count(s.farm_id);
@@ -299,7 +299,7 @@ begin
     case
       when v_count <= 0 then 'no billable vehicles, so nothing to pro-rate'
       when v_unit <= 0  then 'the new plan costs no more for the rest of this period'
-      when v_charge < 100 then 'less than R1,00 — below what the provider will process'
+      when v_charge < 100 then 'less than R1,00, below what the provider will process'
       else null
     end;
 end $$;
@@ -339,7 +339,7 @@ begin
     raise exception 'BILLING: %', q.reason using errcode = 'check_violation';
   end if;
 
-  -- ── SCHEDULED ────────────────────────────────────────────────────────────
+  -- == SCHEDULED ============================================================
   -- Nothing moves today. They keep every feature of the period they paid for, and the
   -- change is recorded so both the customer and the next invoice can see it coming.
   if q.kind = 'scheduled' then
@@ -355,7 +355,7 @@ begin
       'plan', p_plan, 'billing_period', p_period, 'reason', q.reason);
   end if;
 
-  -- ── UPGRADE, NOW ─────────────────────────────────────────────────────────
+  -- == UPGRADE, NOW =========================================================
   select * into v_new from app.billing_active_price(p_plan, p_period);
 
   -- The COMMERCIAL plan, and the price they are now grandfathered onto.
@@ -385,13 +385,13 @@ begin
        set plan_before_downgrade = p_plan where id = p_sub;
   else
     -- Permitted by the guard because `billing_subscriptions.plan` was set to this value
-    -- immediately above — the invariant is satisfied by the order of these two writes,
+    -- immediately above, the invariant is satisfied by the order of these two writes,
     -- which is the point of expressing it that way rather than as a flag.
     update public.farms set plan = p_plan where id = s.farm_id;
   end if;
 
   -- Nothing to collect: a zero or negative delta, no vehicles, or under the provider's
-  -- floor. The upgrade still happens — see this file's header for why an unpayable
+  -- floor. The upgrade still happens, see this file's header for why an unpayable
   -- invoice is worse than an uncollected rand.
   if q.charge_now_cents is null or q.charge_now_cents < 100 then
     return jsonb_build_object(
@@ -416,7 +416,7 @@ begin
   ) values (
     s.farm_id, s.id, v_ref, 'draft', 'proration',
     -- The period this pro-rata charge actually covers: today to the end of the period
-    -- they had already paid for. Not the whole period — they have paid for the first
+    -- they had already paid for. Not the whole period, they have paid for the first
     -- part of it at the old rate.
     current_date, s.current_period_end, current_date,
     current_date + coalesce(v_settings.payment_terms_days, 0),
@@ -449,7 +449,7 @@ begin
   )
   select
     v_invoice, s.farm_id, 0,
-    'FleetWise ' || p_plan::text || ' — upgrade, ' || q.days_remaining::text
+    'FleetWise ' || p_plan::text || ', upgrade, ' || q.days_remaining::text
       || ' of ' || q.days_in_period::text || ' days, ' || q.vehicles::text || ' vehicle(s)',
     q.vehicles, 1, i.unit, i.total,
     app.ex_vat_cents(i.total, i.rate), i.total - app.ex_vat_cents(i.total, i.rate)
@@ -531,7 +531,7 @@ revoke execute on function app.apply_pending_plan_changes() from public, anon, a
 -- ══════════════════════════════════════════════════════════════════════════════
 -- The second writer, closed
 -- ══════════════════════════════════════════════════════════════════════════════
--- A CONSISTENCY guard, not a security boundary — see this file's header.
+-- A CONSISTENCY guard, not a security boundary, see this file's header.
 create or replace function app.billing_guard_farm_plan() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare s public.billing_subscriptions%rowtype; v_down farm_plan;
@@ -559,7 +559,7 @@ begin
   end if;
 
   raise exception
-    'BILLING: this farm is billed for % — change the plan through billing so the bill and '
+    'BILLING: this farm is billed for %, change the plan through billing so the bill and '
     'the features move together', s.plan
     using errcode = 'check_violation';
 end $$;

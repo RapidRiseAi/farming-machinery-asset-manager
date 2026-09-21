@@ -1,18 +1,18 @@
 /**
- * Bank statement import + reconciliation (G15) — the parsing and the matching, in one
+ * Bank statement import + reconciliation (G15), the parsing and the matching, in one
  * place so the browser preview and the server insert can never disagree about what a file
  * says. Same reason `src/lib/fuel.ts` mirrors the SQL consumption engine: a preview that
  * shows one thing and an import that stores another is worse than no preview.
  *
  * Nothing in here touches the database. It turns a bank's CSV into candidate rows, and it
- * RANKS possible settlements — it never decides one. The deciding is a person pressing a
+ * RANKS possible settlements, it never decides one. The deciding is a person pressing a
  * button, because a wrong automatic match writes money into the ledger and then hides the
  * evidence by removing the line from the list that would have shown it.
  */
 
 import { parseRandsToCents } from "@/lib/money";
 
-// ── CSV ──────────────────────────────────────────────────────────────────────
+// == CSV ======================================================================
 //
 // Written out again rather than imported from the machines importer. That parser lives
 // under `src/app/(app)/machines/import/`, which is a route folder: importing app-route
@@ -65,7 +65,7 @@ export function parseCsv(text: string): string[][] {
 
 const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
-// ── Column mapping ───────────────────────────────────────────────────────────
+// == Column mapping ===========================================================
 //
 // Every South African bank exports a different sheet, and none of them export ours. FNB
 // gives Date/Description/Amount/Balance; Standard Bank and ABSA commonly split the money
@@ -74,14 +74,14 @@ const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : 
 // machines import arrived at applies here: guess, show the guess with a real value from
 // the file next to it, and let the person correct it.
 //
-// `money_in` / `money_out` exist because the split-column shape is not exotic — it is what
+// `money_in` / `money_out` exist because the split-column shape is not exotic, it is what
 // two of the four big banks produce. Without it the feature simply does not work for them,
 // and "export it differently first" is not an instruction a farmer's mechanic will follow.
 
 export const BANK_COLUMNS = ["date", "description", "reference", "amount", "money_in", "money_out"] as const;
 export type BankColumn = (typeof BANK_COLUMNS)[number];
 
-/** "Leave this column out" — a real choice, not an absent one. */
+/** "Leave this column out", a real choice, not an absent one. */
 export const SKIP_COLUMN = "";
 
 export const MAX_STATEMENT_ROWS = 2000;
@@ -105,7 +105,7 @@ const key = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
  * Guess which of our columns each of the file's headings means. One entry per header, in
- * file order; `SKIP_COLUMN` means "leave it out". A column is never guessed twice — the
+ * file order; `SKIP_COLUMN` means "leave it out". A column is never guessed twice, the
  * first, best match wins and later look-alikes fall through to skip, so an ambiguity is
  * resolved by the person who can see the file rather than silently by us.
  */
@@ -114,7 +114,7 @@ export function guessBankMapping(headers: string[]): string[] {
   const out: string[] = headers.map(() => SKIP_COLUMN);
 
   // Pass 1: exact alias hits, which are the confident ones. "Balance" matches nothing here
-  // on purpose — a running balance is not a transaction and importing it as one would put
+  // on purpose, a running balance is not a transaction and importing it as one would put
   // the whole account into the ledger as a single receipt.
   headers.forEach((h, i) => {
     const k = key(h);
@@ -148,7 +148,7 @@ export function guessBankMapping(headers: string[]): string[] {
 
 /**
  * Re-serialise the user's sheet into our canonical column order. The result is an ordinary
- * CSV that `parseStatement` reads without knowing anything about which bank produced it —
+ * CSV that `parseStatement` reads without knowing anything about which bank produced it -
  * which is what lets the mapping happen in the BROWSER and the server receive one shape.
  */
 export function applyBankMapping(text: string, mapping: string[]): string {
@@ -173,7 +173,7 @@ export function applyBankMapping(text: string, mapping: string[]): string {
   return out.join("\n") + "\n";
 }
 
-/** The header row as the file spells it — what the mapping UI shows on the left. */
+/** The header row as the file spells it, what the mapping UI shows on the left. */
 export function readHeaders(text: string): string[] {
   const grid = parseCsv(text);
   return grid.length === 0 ? [] : grid[0].map((h) => h.trim());
@@ -185,7 +185,7 @@ export function readSampleRow(text: string): string[] {
   return grid[1] ?? [];
 }
 
-// ── Money ────────────────────────────────────────────────────────────────────
+// == Money ====================================================================
 
 /**
  * Parse an amount as a BANK writes it, to signed integer cents, with no float arithmetic.
@@ -195,7 +195,7 @@ export function readSampleRow(text: string): string[] {
  *     1234.56    1 234,56    1,234.56    R1 234,56    -1234.56
  *     (1234.56)  1234.56-    1 234,56 Dr    1234.56 CR    −1234.56   [U+2212]
  *
- * Parentheses and a trailing `Dr` both mean money OUT — accounting notation that survives
+ * Parentheses and a trailing `Dr` both mean money OUT, accounting notation that survives
  * in bank exports and in anything that has passed through Excel. A trailing minus is what
  * some mainframe-era statements produce. All of them end up as a negative integer.
  *
@@ -238,7 +238,7 @@ export function parseBankAmountToCents(input: string | null | undefined): number
   if (deco.includes("-")) negative = !negative;
   if (deco.includes("dr") || deco.includes("debit")) negative = true;
 
-  // Anything left over after the decorations we know about is not an amount — a
+  // Anything left over after the decorations we know about is not an amount, a
   // "Balance b/f" row, a footnote marker, a currency this product does not deal in.
   // Refused rather than guessed at.
   if (deco.replace(/zar|credit|debit|cr|dr|[r+-]/g, "") !== "") return null;
@@ -261,7 +261,7 @@ export function parseBankAmountToCents(input: string | null | undefined): number
   return negative ? -cents : cents;
 }
 
-// ── Dates ────────────────────────────────────────────────────────────────────
+// == Dates ====================================================================
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
@@ -291,7 +291,7 @@ const fullYear = (y: number) => (y >= 100 ? y : y >= 70 ? 1900 + y : 2000 + y);
  *
  * Day-first when the two are ambiguous, because this is a South African product and
  * `03/04/2026` on a local statement is the third of April. Where the file removes the
- * ambiguity — a first number above 12, or an ISO-shaped string — that wins over the
+ * ambiguity, a first number above 12, or an ISO-shaped string, that wins over the
  * convention. There is no way to be right about `03/04` in every file in the world; there
  * is a way to be right about the ones this product actually receives, and to be predictable
  * about the rest.
@@ -336,7 +336,7 @@ export function parseBankDate(input: string | null | undefined): string | null {
   return null;
 }
 
-// ── Parsing a whole statement ────────────────────────────────────────────────
+// == Parsing a whole statement ================================================
 
 export type BankLineInsert = {
   txn_date: string;
@@ -348,7 +348,7 @@ export type BankLineInsert = {
 };
 
 export type BankRowResult = {
-  /** 1-based data row (excludes the header) — what the person sees next to the problem. */
+  /** 1-based data row (excludes the header), what the person sees next to the problem. */
   line: number;
   cells: Record<BankColumn, string>;
   errors: string[];
@@ -384,7 +384,7 @@ export function fingerprint(description: string | null, reference: string | null
  *
  * `occurrence` is assigned here: within this file, the nth line sharing a date, an amount
  * and a fingerprint gets the nth number. It is deterministic given the file, which is the
- * property the unique index in 0470 relies on — the same file re-imported produces the same
+ * property the unique index in 0470 relies on, the same file re-imported produces the same
  * numbering and collides harmlessly, while a genuinely repeated charge (the same R50 card
  * fee twice in one day) takes the next number and is kept.
  */
@@ -480,13 +480,13 @@ export function parseStatement(canonicalCsv: string): StatementParse {
   };
 }
 
-// ── Matching ─────────────────────────────────────────────────────────────────
+// == Matching =================================================================
 //
 // A suggestion is a RANKED GUESS shown to a person, never a decision. The scores below are
 // tuned so that no single weak signal reaches the threshold on its own: an amount that
 // happens to be equal is enough (people pay invoices in full), a reference containing the
 // invoice number is enough, but "it is roughly the right size and roughly the right month"
-// is not — that is the class of match that gets confirmed by a tired person on a Friday and
+// is not, that is the class of match that gets confirmed by a tired person on a Friday and
 // then has to be unpicked out of a statement three weeks later.
 
 export type BankLineLike = {
@@ -522,7 +522,7 @@ export type Suggestion = {
   targetId: string;
   score: number;
   confidence: MatchConfidence;
-  /** i18n key suffixes — the screen renders `bank.why.<reason>`. Never a sentence: this
+  /** i18n key suffixes, the screen renders `bank.why.<reason>`. Never a sentence: this
    *  module has no business deciding what language the reader wants. */
   reasons: string[];
   /** What confirming would post, in cents. Positive; the direction is the line's. */
@@ -564,7 +564,7 @@ function textScore(haystack: string, ref: string | null, name: string | null): {
     score += 38;
     reasons.push("reference");
   } else {
-    // Banks truncate references hard — 20 characters is common — so an invoice numbered
+    // Banks truncate references hard, 20 characters is common, so an invoice numbered
     // `INV-0007` frequently reaches the statement as `0007` or `TJ0007`. The digits alone
     // are a weaker signal and are scored as one.
     const digits = (ref ?? "").replace(/\D+/g, "");

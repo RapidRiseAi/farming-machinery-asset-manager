@@ -6,11 +6,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Posting a support case to the RapidRise OS support dashboard.
  *
- * ── The contract, so the other side is a small job ───────────────────────────
+ * == The contract, so the other side is a small job ===========================
  * One POST per case, `content-type: application/json`, to `SUPPORT_WEBHOOK_URL`:
  *
  *   {
- *     "id":        "<uuid>",          // THE IDEMPOTENCY KEY — upsert on this
+ *     "id":        "<uuid>",          // THE IDEMPOTENCY KEY, upsert on this
  *     "kind":      "dispute" | "refund_request" | "billing_anomaly" | "manual",
  *     "status":    "open" | "waiting" | "resolved" | "closed",
  *     "subject":   "Card dispute on FWB-…",
@@ -21,21 +21,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *     "evidence":  { farm, owner, subscription, invoice, payments, card, attempts, … }
  *   }
  *
- * **Upsert on `id`.** FleetWise may post the same case more than once — a webhook
- * redelivery, a retry after a failed post — and two posts of one case must be one case
+ * **Upsert on `id`.** FleetWise may post the same case more than once, a webhook
+ * redelivery, a retry after a failed post, and two posts of one case must be one case
  * there. That is also why this needs no claim/release pair on our side: the receiver makes
  * duplicates harmless, so defending against them here would be machinery for a
  * non-problem.
  *
  * **Signature.** When `SUPPORT_WEBHOOK_SECRET` is set, `x-fleetwise-signature` carries the
- * HMAC-SHA256 of the raw body, hex. Verify it against the RAW bytes before parsing — the
+ * HMAC-SHA256 of the raw body, hex. Verify it against the RAW bytes before parsing, the
  * same rule the Paystack webhook follows in the other direction, and for the same reason:
  * a payload you have parsed is a payload you have already trusted.
  *
- * ── Env-gated, and honest about it ───────────────────────────────────────────
+ * == Env-gated, and honest about it ===========================================
  * With `SUPPORT_WEBHOOK_URL` unset this reports `not-configured` and claims nothing, so a
  * fresh clone, the test suite and a preview deployment all behave. There is no silent
- * success — the lesson `emailConfigured()` taught the expensive way, where a truthy
+ * success, the lesson `emailConfigured()` taught the expensive way, where a truthy
  * placeholder meant the product reported "configured" while every call was refused.
  */
 
@@ -80,7 +80,7 @@ export function signPayload(body: string, secret: string): string {
   return createHmac("sha256", secret).update(body, "utf8").digest("hex");
 }
 
-/** Post one case. Never throws — the caller is usually a webhook that must still answer 200. */
+/** Post one case. Never throws, the caller is usually a webhook that must still answer 200. */
 export async function postSupportTicket(ticket: SupportTicketPayload): Promise<PostResult> {
   const problem = supportWebhookProblem();
   if (problem) return { ok: false, id: ticket.id, error: `not-configured: ${problem}` };
@@ -97,7 +97,7 @@ export async function postSupportTicket(ticket: SupportTicketPayload): Promise<P
         ...(secret ? { "x-fleetwise-signature": signPayload(body, secret) } : {}),
       },
       body,
-      // A dashboard that hangs must not hang the Paystack webhook waiting on it — Paystack
+      // A dashboard that hangs must not hang the Paystack webhook waiting on it, Paystack
       // retries a non-200 for 72 hours, and the ledger work has already happened by now.
       signal: AbortSignal.timeout(10_000),
     });

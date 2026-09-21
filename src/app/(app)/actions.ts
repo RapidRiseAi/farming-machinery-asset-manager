@@ -12,7 +12,7 @@ import { isTone } from "@/lib/i18n";
  * Switch this person's wording register between friendly and professional.
  *
  * Language and tone are deliberately independent: an Afrikaans user may want formal
- * wording, an English one may not. Tone needs no cookie — it never renders before
+ * wording, an English one may not. Tone needs no cookie, it never renders before
  * sign-in, because the QR and login screens are written for whoever picks up the phone.
  */
 export async function setTone(formData: FormData) {
@@ -54,7 +54,7 @@ export async function signOut() {
 
 /**
  * Switch the "current farm" a multi-site user is acting in (F7). The chosen id is
- * validated against the farms the user can actually access before it is stored — an
+ * validated against the farms the user can actually access before it is stored, an
  * invalid choice is ignored (RLS is the real guard, but the cookie stays honest).
  */
 /**

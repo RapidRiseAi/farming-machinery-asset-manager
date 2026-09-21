@@ -1,17 +1,17 @@
 -- 0381_partner_documents.sql
--- F14b — Quotes & invoices with real line items, the largest thing AutoVault had and
+-- F14b, Quotes & invoices with real line items, the largest thing AutoVault had and
 -- FleetWise did not. Until now a work request carried `quote_amount_cents` and
 -- `invoice_amount_cents`: two integers, no document, nothing a farmer could be handed.
 --
 -- ONE TABLE, TWO KINDS. AutoVault kept `quotes`/`quote_items` and `invoices`/
 -- `invoice_items` as separate pairs, then spent five later migrations dragging the two
--- back into step (issue_date, discounts, snapshots, tax on lines — added to both, twice).
+-- back into step (issue_date, discounts, snapshots, tax on lines, added to both, twice).
 -- A quote and an invoice differ in their status vocabulary and in one link (an invoice
 -- may descend from a quote); everything else is identical. So: one `partner_documents`
 -- table with a `kind`, one line table, and a status enum that spans both. Converting a
 -- quote to an invoice becomes a copy, not a translation between two schemas.
 --
--- BUILT OR UPLOADED — the partner chooses. `source = 'built'` means the partner used
+-- BUILT OR UPLOADED, the partner chooses. `source = 'built'` means the partner used
 -- FleetWise to build the document and we own the lines and totals. `source = 'uploaded'`
 -- means they run Sage/Xero/a paper book and simply handed us the finished PDF; we store
 -- the file and the total so the farmer sees it and the cost lands in the ledger, and we
@@ -23,12 +23,12 @@
 -- typed. Partial payments are recorded rows, not a mutated balance.
 --
 -- TENANCY. `farm_id` is the CUSTOMER farm, `workshop_id` the ISSUING partner. RLS is the
--- usual `app.has_farm_access(farm_id)` — which already admits a linked workshop — NARROWED
+-- usual `app.has_farm_access(farm_id)`, which already admits a linked workshop, NARROWED
 -- for the workshop role to its own documents (F7's rule, so two contractors serving one
 -- farm never see each other's pricing) and closed to operators (a driver has no business
 -- in the farm's payables).
 
--- ── Enums ─────────────────────────────────────────────────────────
+-- == Enums =========================================================
 create type partner_doc_kind   as enum ('quote', 'invoice');
 create type partner_doc_source as enum ('built', 'uploaded');
 
@@ -37,7 +37,7 @@ create type partner_doc_source as enum ('built', 'uploaded');
 create type partner_doc_status as enum
   ('draft', 'sent', 'accepted', 'declined', 'part_paid', 'paid', 'cancelled', 'expired');
 
--- ── partner_documents ─────────────────────────────────────────────
+-- == partner_documents =============================================
 create table partner_documents (
   id                uuid primary key default gen_random_uuid(),
   farm_id           uuid not null,                  -- the customer
@@ -96,7 +96,7 @@ create index partner_documents_workshop_idx on partner_documents(workshop_id, st
 create index partner_documents_machine_idx  on partner_documents(machine_id);
 create index partner_documents_wr_idx       on partner_documents(work_request_id);
 
--- ── partner_document_lines ────────────────────────────────────────
+-- == partner_document_lines ========================================
 -- Quantity is numeric, not int: half an hour of labour and 2.5 litres of oil are both
 -- ordinary. (AutoVault shipped `qty int` and needed two later migrations to widen it.)
 create table partner_document_lines (
@@ -121,7 +121,7 @@ create table partner_document_lines (
 );
 create index partner_document_lines_doc_idx on partner_document_lines(document_id, sort_order);
 
--- ── partner_payments ──────────────────────────────────────────────
+-- == partner_payments ==============================================
 -- Payments are rows, so "R5 000 of R12 000, EFT, ref 4471, proof attached" survives; the
 -- document's `amount_paid_cents` is a maintained rollup, not the source of truth.
 create table partner_payments (
@@ -145,7 +145,7 @@ create table partner_payments (
 create index partner_payments_doc_idx on partner_payments(document_id, paid_on);
 
 -- ══════════════════════════════════════════════════════════════════
--- Derived totals — typed once, computed everywhere else
+-- Derived totals, typed once, computed everywhere else
 -- ══════════════════════════════════════════════════════════════════
 
 -- Line total = qty × unit price − line discount, ex-VAT.
@@ -252,7 +252,7 @@ create trigger partner_payments_rollup
 -- (source_type='partner_document', source_id=document.id), and soft-deletes the
 -- work-request-sourced entry for the same job. 0311 is replaced below to stand down
 -- whenever such a document exists, so the two can never race back and forth. A QUOTE is
--- never costed — it is not money owed. Amount booked is ex-VAT (subtotal − discount),
+-- never costed, it is not money owed. Amount booked is ex-VAT (subtotal − discount),
 -- consistent with every other entry in the ledger.
 create or replace function app_cost_from_partner_document() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -331,7 +331,7 @@ begin
 end $$;
 
 -- ══════════════════════════════════════════════════════════════════
--- Tell the farmer — a document arriving is news
+-- Tell the farmer, a document arriving is news
 -- ══════════════════════════════════════════════════════════════════
 create or replace function app_partner_document_notify() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -355,9 +355,9 @@ create trigger partner_documents_notify
 -- ══════════════════════════════════════════════════════════════════
 -- Visibility rule, in one place so the three tables cannot drift apart:
 --   * rr_admin sees everything (as everywhere else);
---   * a workshop sees only documents IT issued, on farms it is linked to — two
+--   * a workshop sees only documents IT issued, on farms it is linked to, two
 --     contractors serving the same farm never see each other's pricing (F7's rule);
---   * an operator sees none — a driver has no business in the farm's payables;
+--   * an operator sees none, a driver has no business in the farm's payables;
 --   * everyone else with farm access (owner/manager/mechanic) sees the farm's documents.
 create or replace function app.partner_doc_visible(p_farm uuid, p_workshop uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -443,7 +443,7 @@ revoke execute on function
   app_partner_payment_rollup(), app_cost_from_partner_document(), app_partner_document_notify()
 from anon, authenticated, public;
 
--- ── Uploaded documents + proofs live in `attachments` ─────────────
+-- == Uploaded documents + proofs live in `attachments` =============
 alter table attachments drop constraint attachments_parent_type_ck;
 alter table attachments add  constraint attachments_parent_type_ck
   check (parent_type in ('machine', 'fault', 'job_card', 'job_card_line',

@@ -1,5 +1,5 @@
 -- 0220_offline_sync.sql
--- Offline-first capture + sync layer (FleetWise F2 / FR-1.3, FR-15.1–15.4, FR-9.3).
+-- Offline-first capture + sync layer (FleetWise F2 / FR-1.3, FR-15.1-15.4, FR-9.3).
 --
 -- The client queues mutations (log reading, report fault, add job-card line,
 -- complete job card) in IndexedDB while offline, each stamped with a client-generated
@@ -12,12 +12,12 @@
 -- always persist in `meter_readings` (append-only history + audit_log), and the machine's
 -- current reading always reflects the writer with the greatest client timestamp.
 
--- ── Track the client timestamp that "owns" a machine's current reading (LWW) ──
+-- == Track the client timestamp that "owns" a machine's current reading (LWW) ==
 -- Additive, nullable. The online capture paths leave it null; the sync path sets it so
 -- that a late-arriving older offline edit cannot roll the current reading backwards.
 alter table machines add column if not exists current_reading_client_ts timestamptz;
 
--- ── Sync log / conflict table ─────────────────────────────────────
+-- == Sync log / conflict table =====================================
 create table sync_log (
   id          uuid primary key default gen_random_uuid(),
   farm_id     uuid not null,
@@ -42,7 +42,7 @@ create index sync_log_farm_idx   on sync_log(farm_id);
 create index sync_log_client_idx on sync_log(client_id);
 create index sync_log_status_idx on sync_log(farm_id, status);
 
--- ── RLS: farm-scoped read; only the service role (the /api/sync route) writes it ──
+-- == RLS: farm-scoped read; only the service role (the /api/sync route) writes it ==
 -- Modelled on audit_log: clients may read their farm's rows but never write them.
 alter table sync_log enable row level security;
 alter table sync_log force  row level security;
@@ -50,23 +50,23 @@ create policy sync_log_sel on sync_log for select to authenticated
   using (app.has_farm_access(farm_id) and deleted_at is null);
 
 grant select on sync_log to authenticated;
--- 0102 set default privileges granting authenticated ins/upd/del on new tables — undo it here.
+-- 0102 set default privileges granting authenticated ins/upd/del on new tables, undo it here.
 revoke insert, update, delete on sync_log from authenticated;
 grant all on sync_log to service_role;
 
--- ── Audit every write (global convention) ─────────────────────────
+-- == Audit every write (global convention) =========================
 create trigger sync_log_audit
   after insert or update or delete on public.sync_log
   for each row execute function app_audit();
 
--- ── Deterministic last-writer-wins reading apply (FR-15.3) ────────
+-- == Deterministic last-writer-wins reading apply (FR-15.3) ========
 -- Called (once, atomically) by the service-role /api/sync route. SECURITY DEFINER so it
 -- can write across RLS; service-role only. Returns the applied status + the superseded
 -- value (if any) so the route can persist a conflict record.
 --
 -- Guarantees:
 --   * the reading is ALWAYS inserted into meter_readings (append-only history + audit);
---   * machines.current_reading ends at the reading with the greatest client_ts seen —
+--   * machines.current_reading ends at the reading with the greatest client_ts seen -
 --     regardless of the order mutations arrive (deterministic);
 --   * when a stale (older-timestamp) edit arrives after a newer one it LOSES: the machine
 --     is left on the newer value and the loser is returned in `superseded`.

@@ -8,7 +8,7 @@ import { Icon, SearchIcon, MachinesIcon, type IconName } from "./icons";
 import type { NavGroup } from "./nav";
 
 /**
- * Ctrl/⌘+K — one place to type where you want to go.
+ * Ctrl/⌘+K, one place to type where you want to go.
  *
  * The nav is twenty-one rows for an owner and twenty-four for a books-tier
  * partner, grouped but long, and finding "VAT" means reading past fifteen other
@@ -25,7 +25,7 @@ import type { NavGroup } from "./nav";
  * nickname or a registration and landing on the machine is the thing somebody in
  * a workshop actually wants; walking the nav to /machines and filtering is not.
  *
- * Hand-rolled rather than a combobox dependency, per Scope §7 — the bundle is
+ * Hand-rolled rather than a combobox dependency, per Scope §7, the bundle is
  * 103 kB and the interaction is a list and two arrow keys.
  */
 
@@ -71,7 +71,7 @@ type MachineHit = {
 
 /**
  * Fold case and strip diacritics so an Afrikaans label matches what a person
- * types on an English keyboard — "bestellings" should find "Bestellings" and
+ * types on an English keyboard, "bestellings" should find "Bestellings" and
  * "instelling" should find "Instellings" without the reader knowing about
  * combining marks.
  */
@@ -213,7 +213,7 @@ export function CommandPalette({
         .then((r) => (r.ok ? r.json() : { machines: [] }))
         .then((d: { machines?: MachineHit[] }) => setMachines(d.machines ?? []))
         .catch(() => {
-          /* aborted, or offline — the pages above still work */
+          /* aborted, or offline, the pages above still work */
         })
         .finally(() => setSearching(false));
     }, 180);

@@ -1,17 +1,17 @@
 -- 0370_fines.sql
--- AARTO fine workflow — feature G2 (FR-13.2; §23 "AARTO nominations pending & deadlines").
+-- AARTO fine workflow, feature G2 (FR-13.2; §23 "AARTO nominations pending & deadlines").
 --
 -- A `fines` row captures a traffic / AARTO infringement issued against a farm VEHICLE. The
 -- law-imposed workflow is: a notice arrives naming the VEHICLE (not the driver); the owner
 -- must NOMINATE the responsible driver before a statutory DEADLINE, or the registered owner
 -- carries the penalty. FleetWise already records WHO drove WHICH vehicle WHEN (usage_logs,
--- F3 / FR-13.1) — so the capture UI auto-suggests the driver from usage_logs for the vehicle
+-- F3 / FR-13.1), so the capture UI auto-suggests the driver from usage_logs for the vehicle
 -- on the offence date, and the nightly engine (0371) reminds owner/manager as the nomination
 -- deadline approaches.
 --
 -- Tenancy is the house standard: denormalized farm_id + composite FK to machines(id, farm_id);
 -- RLS is the sole isolation guarantor (proven in supabase/tests/rls_isolation.sql). Money is
--- integer cents, ex-VAT (a fine is not VATable — amount_cents is the full penalty). Soft-delete
+-- integer cents, ex-VAT (a fine is not VATable, amount_cents is the full penalty). Soft-delete
 -- + append-only audit per the global conventions. Amounts are deliberately NOT booked into
 -- cost_entries/TCO: a fine is a driver-accountability penalty, not a machine operating cost.
 
@@ -51,7 +51,7 @@ create index fines_machine_idx  on fines(machine_id, offence_date desc);
 create index fines_deadline_idx on fines(nomination_deadline) where deleted_at is null;
 create index fines_driver_idx   on fines(driver_user_id);
 
--- ── RLS ────────────────────────────────────────────────────────────
+-- == RLS ============================================================
 -- SELECT is role-aware (0341 pattern for machine-keyed tables): operators see only fines on
 -- the machines assigned to them; owner/manager/mechanic keep full farm access. Writes are
 -- farm-scoped (the app restricts capture/transition to owner/manager via requireRole).
@@ -66,12 +66,12 @@ create policy fines_upd on fines for update to authenticated
 create policy fines_del on fines for delete to authenticated
   using (app.has_farm_access(farm_id));
 
--- ── Grants (explicit, mirroring 0102) — anon gets ZERO access ───────
+-- == Grants (explicit, mirroring 0102), anon gets ZERO access =======
 grant select, insert, update, delete on fines to authenticated;
 grant all on fines to service_role;
 revoke all on fines from anon;
 
--- ── Audit trigger (append-only diff log) ────────────────────────────
+-- == Audit trigger (append-only diff log) ============================
 create trigger fines_audit
   after insert or update or delete on public.fines
   for each row execute function app_audit();

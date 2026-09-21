@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
-// The activity inbox is the owner/manager cockpit — only they act on quotes/invoices.
+// The activity inbox is the owner/manager cockpit, only they act on quotes/invoices.
 const OWNERS = ["owner", "manager"] as const;
 
 /** Advance a work request + append a lifecycle event (shared by accept/approve below). */

@@ -5,8 +5,8 @@
 -- from the sign-up route after `billing_create_pending_signup` returned would have been
 -- wrong in a way nobody would notice until a Founding Farmer read their first receipt:
 -- that function creates the subscription AND raises the first invoice in one transaction,
--- and by the time it returns the invoice is `open`. The discount is frozen at draft — on
--- purpose, so a deal that changes later cannot restate a document somebody has paid — so a
+-- and by the time it returns the invoice is `open`. The discount is frozen at draft, on
+-- purpose, so a deal that changes later cannot restate a document somebody has paid, so a
 -- code applied afterwards takes effect from the SECOND period and the farm pays list price
 -- for the one thing they entered the code for.
 --
@@ -15,16 +15,16 @@
 -- invoice the visitor is about to be shown at checkout.
 --
 -- THE OLD SIGNATURE IS DROPPED, NOT LEFT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- PostgREST resolves overloads by argument NAME, and a defaulted parameter added beside an
--- existing function makes every call ambiguous — `billing_create_pending_signup` would
+-- existing function makes every call ambiguous, `billing_create_pending_signup` would
 -- start failing for the seven-argument callers it already has. Both arities cannot exist,
 -- so the seven-argument pair goes.
 
--- ── Is this code any good? ──────────────────────────────────────────────────
+-- == Is this code any good? ==================================================
 -- Read-only, takes nothing, locks nothing. The sign-up route calls this BEFORE creating an
 -- auth user, so somebody who mistypes a code gets a sentence instead of a half-made
--- account — and the authoritative take still happens under lock inside the transaction,
+-- account, and the authoritative take still happens under lock inside the transaction,
 -- because between this answer and that commit the last place on an offer can go.
 create or replace function app.billing_check_promo_code(p_code text)
 returns jsonb
@@ -75,11 +75,11 @@ revoke execute on function public.billing_check_promo_code(text) from public, an
 grant  execute on function public.billing_check_promo_code(text) to service_role;
 
 comment on function public.billing_check_promo_code(text) is
-  'Does this promo code still work? Read-only and takes nothing — the sign-up route asks '
+  'Does this promo code still work? Read-only and takes nothing, the sign-up route asks '
   'before it creates anything so a typo is a sentence, not an orphaned auth user. Answers '
   'in codes, never prose.';
 
--- ── Sign-up, now with a code in the transaction ─────────────────────────────
+-- == Sign-up, now with a code in the transaction =============================
 drop function if exists public.billing_create_pending_signup(
   uuid, text, text, text, farm_plan, billing_period, integer);
 drop function if exists app.create_pending_signup(
@@ -171,9 +171,9 @@ revoke execute on function app.create_pending_signup(
 
 comment on function app.create_pending_signup(uuid, text, text, text, farm_plan, billing_period, integer, text) is
   'Self-serve sign-up, in one transaction: farm, owner, pending subscription, any promo '
-  'code, and the first invoice — in that order, so the code reaches the invoice being paid. '
+  'code, and the first invoice, in that order, so the code reaches the invoice being paid. '
   'The auth.users row is the caller''s job and must be created FIRST and removed if this '
-  'raises. Grants no access — app.farm_billing_gate keeps the farm shut until the invoice '
+  'raises. Grants no access, app.farm_billing_gate keeps the farm shut until the invoice '
   'is paid.';
 
 create or replace function public.billing_create_pending_signup(

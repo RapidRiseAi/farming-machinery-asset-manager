@@ -33,7 +33,7 @@ function hourOrNull(fd: FormData, k: string): number | null {
 /**
  * Per-user notification preferences (FR-14.3): in-app / push channel toggles and optional
  * per-user quiet hours (blank = inherit the farm window). Applies only to the caller via
- * the SECURITY DEFINER RPC (0261) — never touches role/farm.
+ * the SECURITY DEFINER RPC (0261), never touches role/farm.
  */
 export async function setNotificationPrefs(formData: FormData) {
   await requireProfile();

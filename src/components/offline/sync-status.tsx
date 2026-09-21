@@ -93,7 +93,7 @@ export function SyncStatus({ locale }: { locale: Lang }) {
     >
       <span className={`h-2 w-2 rounded-full ${dot[mode]}`} aria-hidden />
       {/* The word used to appear only from `sm:` up, so on a phone this was a coloured
-          dot and nothing else — the one device where "am I offline?" actually matters. */}
+          dot and nothing else, the one device where "am I offline?" actually matters. */}
       <span>{label}</span>
       {count > 0 ? <span>({count})</span> : null}
     </button>

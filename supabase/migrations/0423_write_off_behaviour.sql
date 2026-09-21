@@ -9,14 +9,14 @@
 --   * it stops counting as OUTSTANDING, so the ageing stops carrying a number nobody is
 --     ever going to collect;
 --   * it stops being CHASED, for the same reason;
---   * and the farm's cost ledger keeps it — a farmer who never paid still had the work
+--   * and the farm's cost ledger keeps it, a farmer who never paid still had the work
 --     done, and their machine's TCO should say so.
 --
 -- The write-off itself is a correction like any other: it needs a reason, and it goes
 -- through `revise_document` so the version before it is kept. There is no separate
 -- "write off" back door.
 
--- ── The reason, and who decided ──────────────────────────────────────────────
+-- == The reason, and who decided ==============================================
 alter table partner_documents
   add column written_off_at     timestamptz,
   add column written_off_reason text;
@@ -26,7 +26,7 @@ alter table partner_documents
     status <> 'written_off' or (written_off_reason is not null and length(btrim(written_off_reason)) >= 3)
   );
 
--- ── The cost ledger keeps it ─────────────────────────────────────────────────
+-- == The cost ledger keeps it =================================================
 -- The status list in the ledger trigger is what decides whether a farm's TCO counts a
 -- partner invoice. `written_off` has to join it: the work WAS done on that machine and
 -- the farm's cost of ownership should say so. Without this line the write-off would
@@ -75,16 +75,16 @@ begin
   return null;
 end $$;
 
--- ── The payment rollup, with a refund in the mix ─────────────────────────────
+-- == The payment rollup, with a refund in the mix =============================
 -- Two things change now that a payment can be negative (0422) and an invoice can be
 -- written off:
 --
 --   * refunding more than was ever paid would leave `amount_paid_cents` negative, which
---     reads on screen as a bill LARGER than its own total. Refused outright — a refund is
+--     reads on screen as a bill LARGER than its own total. Refused outright, a refund is
 --     money going back, so there has to have been money.
 --   * a write-off must survive payments moving underneath it. Left alone, the rollup
 --     would recompute the status from whatever is now recorded and quietly put a
---     written-off invoice back into the ageing — deleting a refund would be enough to do
+--     written-off invoice back into the ageing, deleting a refund would be enough to do
 --     it. So a written-off invoice STAYS written off unless it is settled in FULL, which
 --     is the one case where the write-off was simply wrong: they paid after all. (The
 --     write-off credit on the statement is derived from what has been paid, so a part
@@ -123,7 +123,7 @@ begin
   return null;
 end $$;
 
--- ── Ageing: stop chasing it ──────────────────────────────────────────────────
+-- == Ageing: stop chasing it ==================================================
 create or replace function app.partner_ageing(
   p_workshop uuid, p_farm uuid, p_client uuid, p_as_at date default current_date
 ) returns table (
@@ -169,10 +169,10 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   from outstanding;
 $$;
 
--- ── The statement ────────────────────────────────────────────────────────────
+-- == The statement ============================================================
 -- Three things it has to get right at once.
 --
--- A WRITTEN-OFF invoice stays on the page at its full value — the customer really was
+-- A WRITTEN-OFF invoice stays on the page at its full value, the customer really was
 -- billed that, and deleting the line would make every number after it unexplainable. But
 -- it cannot keep SITTING there as money owed, or the closing balance says a customer we
 -- have given up on still owes forty thousand rand. So the write-off posts its own credit
@@ -180,7 +180,7 @@ $$;
 -- nets to zero the way a real ledger does. Both halves of what happened, in order.
 --
 -- A REFUND is a negative payment, so `credit_cents` goes negative and the balance climbs
--- back — which is what actually happened when the money left the bank account.
+-- back, which is what actually happened when the money left the bank account.
 --
 -- And the OPENING balance has to carry all of it, otherwise a statement for one month
 -- disagrees with a statement for the year.
@@ -227,7 +227,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
       from scope
      where issue_date < p_from
   ),
-  -- `description` carries the row's own DETAIL and nothing else — a document's subject, a
+  -- `description` carries the row's own DETAIL and nothing else, a document's subject, a
   -- payment's method, null where there is none. The sentence ("Payment received",
   -- "Written off as bad debt") is composed in `src/lib/statement.ts`, because a statement
   -- posted to an Afrikaans farm cannot have half its lines written in English by a
@@ -283,7 +283,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 1, 2;
 $$;
 
--- ── The chase: a written-off invoice is not chased ───────────────────────────
+-- == The chase: a written-off invoice is not chased ===========================
 create or replace function app.enqueue_document_reminders() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -347,17 +347,17 @@ begin
   end loop;
 end $$;
 
--- ── Writing one off goes through the correction machinery ────────────────────
+-- == Writing one off goes through the correction machinery ====================
 -- Not a separate action with its own rules: a write-off is a change to an issued
 -- document, so it keeps a version like every other change. `revise_document` cannot set
--- a status, so this is its sibling — same guard, same snapshot, same append-only history.
+-- a status, so this is its sibling, same guard, same snapshot, same append-only history.
 create or replace function public.write_off_document(p_document uuid, p_reason text)
 returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare d partner_documents%rowtype; v_snapshot jsonb;
 begin
   if p_reason is null or length(btrim(p_reason)) < 3 then
-    raise exception 'Say why it is being written off — it is what makes the decision readable later.'
+    raise exception 'Say why it is being written off, it is what makes the decision readable later.'
       using errcode = '23514';
   end if;
 
@@ -373,7 +373,7 @@ begin
   end if;
 
   if d.status in ('draft', 'void', 'written_off') then
-    raise exception 'This invoice is % — there is nothing to write off.', d.status using errcode = '42501';
+    raise exception 'This invoice is %, there is nothing to write off.', d.status using errcode = '42501';
   end if;
 
   v_snapshot := jsonb_build_object(
@@ -406,5 +406,5 @@ grant  execute on function public.write_off_document(uuid, text) to authenticate
 
 comment on function public.write_off_document(uuid, text) is
   'The customer is not going to pay. The invoice stays on the statement at full value and '
-  'in the farm''s cost ledger — the work was done — but stops counting as outstanding and '
+  'in the farm''s cost ledger, the work was done, but stops counting as outstanding and '
   'stops being chased. Keeps a version, like every other change to an issued document.';

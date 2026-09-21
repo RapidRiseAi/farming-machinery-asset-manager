@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 // Import from specific modules (not the barrel) so this Server Component stays
-// free of the kit's client chunk — see src/components/ui/README.md.
+// free of the kit's client chunk, see src/components/ui/README.md.
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { AllClear, GetStarted } from "@/components/ui/empty-state";
@@ -41,11 +41,11 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export default async function DashboardPage() {
   // Dashboard is a Professional+ feature (FR-19.2). Deny server-side for under-plan
-  // farms — the KPI data below is never fetched or rendered; an upgrade prompt shows.
+  // farms, the KPI data below is never fetched or rendered; an upgrade prompt shows.
   const gate = await checkEntitlement("dashboard");
   const profile = gate.profile;
   const locale = profile.lang;
-  // A contractor (workshop role) has no single "farm" — their home is the aggregated
+  // A contractor (workshop role) has no single "farm", their home is the aggregated
   // contractor dashboard (F12c), not this farm-centric one.
   if (profile.role === "workshop") redirect("/contractor");
   if (!gate.allowed) {
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
     byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null)),
   ]);
 
-  // The farm's own name — a multi-farm user needs to know WHICH farm this is.
+  // The farm's own name, a multi-farm user needs to know WHICH farm this is.
   const { data: farmRow } = farmId
     ? await supabase.from("farms").select("name").eq("id", farmId).maybeSingle()
     : { data: null };
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
   const fuelMonth = (fuelMonthRes.data as { machine_id: string | null; litres: number | null; cost_cents: number | null }[] | null) ?? [];
   const fuelFlags = (fuelFlagRes.data as { machine_id: string | null }[] | null) ?? [];
 
-  // Active machines only — retired/sold drop out of every count, list and total (Scope §4.1).
+  // Active machines only, retired/sold drop out of every count, list and total (Scope §4.1).
   const active = machines.filter((m) => m.status !== "retired" && m.status !== "sold");
   const activeIds = new Set(active.map((m) => m.id));
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
@@ -163,7 +163,7 @@ export default async function DashboardPage() {
   const byMachineMap = new Map<string, number>();
   for (const j of activeJcs) byMachineMap.set(j.machine_id, (byMachineMap.get(j.machine_id) ?? 0) + (j.total_cents || 0));
   const byMachine = [...byMachineMap.entries()]
-    .map(([id, v]) => ({ key: id, label: nameById[id] ?? "—", value: v, href: `/machines/${id}` }))
+    .map(([id, v]) => ({ key: id, label: nameById[id] ?? "-", value: v, href: `/machines/${id}` }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
 
@@ -192,7 +192,7 @@ export default async function DashboardPage() {
     const s = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
     if (s === "expiring" || s === "expired") {
       expiries.push({
-        key: `l-${l.id}`, machineId: l.machine_id, machineName: nameById[l.machine_id] ?? "—",
+        key: `l-${l.id}`, machineId: l.machine_id, machineName: nameById[l.machine_id] ?? "-",
         label: licenceTypeLabel(l.type, locale), date: l.expiry_date, status: s,
       });
     }
@@ -200,7 +200,7 @@ export default async function DashboardPage() {
   const sevRank: Record<string, number> = { expired: 0, expiring: 1 };
   expiries.sort((a, b) => sevRank[a.status] - sevRank[b.status] || a.date.localeCompare(b.date));
 
-  // AARTO nominations pending & deadlines (§23) — Complete+ only. Fines still owing a driver
+  // AARTO nominations pending & deadlines (§23), Complete+ only. Fines still owing a driver
   // nomination (received | driver_identified) on active machines, soonest deadline first.
   const aartoAllowed = (await checkEntitlement("aarto", profile)).allowed;
   type PendingFine = { id: string; machineId: string; machineName: string; label: string; deadline: string | null; status: string };
@@ -216,7 +216,7 @@ export default async function DashboardPage() {
     pendingNominations = ((fineData as DashFine[] | null) ?? [])
       .filter((f) => activeIds.has(f.machine_id))
       .map((f) => ({
-        id: f.id, machineId: f.machine_id, machineName: nameById[f.machine_id] ?? "—",
+        id: f.id, machineId: f.machine_id, machineName: nameById[f.machine_id] ?? "-",
         label: f.offence || f.notice_number || t("fines.noOffence", locale),
         deadline: f.nomination_deadline, status: f.status,
       }))
@@ -234,7 +234,7 @@ export default async function DashboardPage() {
           .replace("{amount}", rands(Math.abs(spendThis - spendLast)))
           .replace("{month}", lastMonthName);
 
-  // ── "Needs your attention" ────────────────────────────────────────────────
+  // == "Needs your attention" ================================================
   // The old page opened with seven counters and left the owner to work out what to do,
   // and every tile linked to /reports rather than to the thing it named. This is one
   // ranked list, worst first, where each row deep-links to the machine it is about and
@@ -257,7 +257,7 @@ export default async function DashboardPage() {
       key: `f-${f.id}`,
       rank: urgencyRank[f.urgency ?? ""] ?? 4,
       machineId: f.machine_id,
-      machineName: nameById[f.machine_id] ?? "—",
+      machineName: nameById[f.machine_id] ?? "-",
       detail: `${f.description ?? ""} ${t("dashboard.reportedOn", locale).replace("{when}", relativeDate(f.created_at, locale, now))}`.trim(),
       status: { kind: "urgency", value: f.urgency ?? "can_work" },
       ctaLabel: t("dashboard.ctaMakeJobCard", locale),
@@ -272,7 +272,7 @@ export default async function DashboardPage() {
       key: `s-${l.machine_id}-${l.task}`,
       rank: l.status === "overdue" ? 1 : 4,
       machineId: l.machine_id,
-      machineName: nameById[l.machine_id] ?? "—",
+      machineName: nameById[l.machine_id] ?? "-",
       detail: t(l.status === "overdue" ? "dashboard.serviceOverdueDetail" : "dashboard.serviceDueDetail", locale).replace("{task}", l.task),
       status: { kind: "service", value: l.status },
       ctaLabel: t("dashboard.ctaBookService", locale),
@@ -330,7 +330,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Greeting — replaces the "Dashboard" heading, which told a multi-farm user
+      {/* Greeting, replaces the "Dashboard" heading, which told a multi-farm user
           nothing about which farm they were looking at. */}
       <header>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -365,7 +365,7 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* ── Needs your attention ─────────────────────────────────────────── */}
+      {/* == Needs your attention =========================================== */}
       {attention.length === 0 ? (
         <AllClear
           title={t("dashboard.allClearTitle", locale)}
@@ -423,7 +423,7 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* ── What the fleet cost you ──────────────────────────────────────── */}
+      {/* == What the fleet cost you ======================================== */}
       {costsVisible ? <Card>
         <CardHeader
           action={
@@ -465,7 +465,7 @@ export default async function DashboardPage() {
         ) : null}
       </Card> : null}
 
-      {/* ── Servicing + the fleet right now ──────────────────────────────── */}
+      {/* == Servicing + the fleet right now ================================ */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -518,7 +518,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Fuel — kept, but only when the farm actually uses it. */}
+      {/* Fuel, kept, but only when the farm actually uses it. */}
       {fuelHasData ? (
         <Card>
           <CardHeader
@@ -539,7 +539,7 @@ export default async function DashboardPage() {
         </Card>
       ) : null}
 
-      {/* Stale meters — a nudge with the machines named, not a bare count. */}
+      {/* Stale meters, a nudge with the machines named, not a bare count. */}
       {stale.length > 0 ? (
         <Card>
           <div className="flex items-start gap-3">
@@ -554,7 +554,7 @@ export default async function DashboardPage() {
               </p>
               <p className="mt-0.5 text-sm text-sand-600">
                 {stale.slice(0, 4).map((m) => m.name).join(", ")}
-                {stale.length > 4 ? "…" : ""} — {t("dashboard.staleMetersHint", locale)}
+                {stale.length > 4 ? "…" : ""}, {t("dashboard.staleMetersHint", locale)}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {stale.slice(0, 3).map((m) => (

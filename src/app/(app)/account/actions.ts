@@ -11,17 +11,17 @@ import { sendVerificationEmail } from "@/lib/email/verify";
 /**
  * A person's own account: their name, their address, their password.
  *
- * ── Why this did not exist ───────────────────────────────────────────────────
+ * == Why this did not exist ===================================================
  * There was no way for anybody to change their own password or email address. The only
  * `updateUser` call in the whole codebase was the admin path on the team screen. Combined
  * with password recovery being the magic link, a typo'd address at sign-up was a permanent
- * lockout only Rapid Rise could undo — for somebody paying every month.
+ * lockout only Rapid Rise could undo, for somebody paying every month.
  *
- * ── Why the RLS client and not the service role ──────────────────────────────
+ * == Why the RLS client and not the service role ==============================
  * `supabase.auth.updateUser` acts on the CALLER's own session. That is the whole guard:
  * there is no id parameter to get wrong, no way to aim it at somebody else, and no admin
  * privilege in the request path at all. The service client appears only where a
- * SECURITY DEFINER helper genuinely needs it — minting the verification hash.
+ * SECURITY DEFINER helper genuinely needs it, minting the verification hash.
  *
  * Changing an email through Supabase does NOT take effect until the new address is
  * confirmed from a link Supabase itself sends there. That is the correct behaviour and it
@@ -73,7 +73,7 @@ export async function changeMyEmail(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
   // Supabase emails the NEW address and only swaps it once that link is followed, so
-  // `public.users.email` is deliberately left alone here — it is updated when the change
+  // `public.users.email` is deliberately left alone here, it is updated when the change
   // actually lands, not when it is requested. Writing it now would leave the profile
   // claiming an address the account cannot receive mail at.
   const { error } = await supabase.auth.updateUser({ email });
@@ -82,7 +82,7 @@ export async function changeMyEmail(formData: FormData): Promise<void> {
   redirect("/account?saved=email");
 }
 
-/** Send the verification link again — the address was mistyped, or the mail went missing. */
+/** Send the verification link again, the address was mistyped, or the mail went missing. */
 export async function resendVerification(): Promise<void> {
   const profile = await requireProfile();
   if (!profile.email) bounce("no-email");

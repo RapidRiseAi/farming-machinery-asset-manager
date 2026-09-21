@@ -1,9 +1,9 @@
 /**
- * Every translation key the code asks for must exist — in BOTH languages.
+ * Every translation key the code asks for must exist, in BOTH languages.
  *
- * ── Why this is a separate gate from `i18n:parity` ───────────────────────────
+ * == Why this is a separate gate from `i18n:parity` ===========================
  * `i18n:parity` compares en.json to af.json. That catches a key present in one and missing
- * from the other, and it passes happily when a key is missing from BOTH — which is the
+ * from the other, and it passes happily when a key is missing from BOTH, which is the
  * common case, because keys are usually added to neither.
  *
  * Nothing else catches it either. `t()` returns the key itself on a miss, so typecheck sees
@@ -18,9 +18,9 @@
  *     `/reports/schedules`, which were rendering raw keys to users until this gate found
  *     them.
  *
- * ── The two things it checks ─────────────────────────────────────────────────
- * 1. STATIC keys — `t("some.key")`, the ordinary case.
- * 2. `infoKey` — `PageInfoButton` builds `pageInfo.${infoKey}Title` / `…What` / `…Does` /
+ * == The two things it checks =================================================
+ * 1. STATIC keys, `t("some.key")`, the ordinary case.
+ * 2. `infoKey`, `PageInfoButton` builds `pageInfo.${infoKey}Title` / `…What` / `…Does` /
  *    `…Note` at RUNTIME, so no static sweep can see them. `Note` is optional in the
  *    component and is not required here.
  *
@@ -109,7 +109,7 @@ for (const file of files) {
     }
   }
 
-  // 3. infoKey="…" — built into four keys at runtime by PageInfoButton.
+  // 3. infoKey="…", built into four keys at runtime by PageInfoButton.
   for (const m of src.matchAll(/infoKey=["']([a-zA-Z0-9_]+)["']/g)) {
     infoKeys += 1;
     for (const suffix of ["Title", "What", "Does"]) {
@@ -125,10 +125,10 @@ for (const file of files) {
 
 console.log("");
 console.log("i18n key coverage");
-console.log("──────────────────────────────────────────────────────────");
+console.log("==========================================================");
 console.log(`  ${files.length} source files`);
 console.log(`  ${staticKeys} static t() keys, ${stems} dynamic stems, ${infoKeys} page-info keys`);
-console.log("──────────────────────────────────────────────────────────");
+console.log("==========================================================");
 
 if (problems.length) {
   for (const p of [...new Set(problems)]) console.log(`  ${p}`);

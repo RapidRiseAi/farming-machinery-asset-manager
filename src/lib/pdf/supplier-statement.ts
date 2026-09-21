@@ -18,14 +18,14 @@ import type { Lang } from "@/lib/i18n";
  *
  * The rendering is pulled out of the download routes for the reason `lib/pdf/statement.ts`
  * gives: whatever is emailed later and whatever is downloaded today must be the same bytes.
- * A remittance in particular is a document somebody else acts on — the supplier allocates
- * a payment from it — so a partner's copy and the supplier's copy differing is not a
+ * A remittance in particular is a document somebody else acts on, the supplier allocates
+ * a payment from it, so a partner's copy and the supplier's copy differing is not a
  * cosmetic problem.
  *
- * ── Whose document is this, and whose letterhead ─────────────────────────────
+ * == Whose document is this, and whose letterhead =============================
  *
  * Both go OUT from the partner. The statement is the partner reconciling their side of a
- * supplier's account — "this is what I think I owe you" — and the remittance tells the
+ * supplier's account, "this is what I think I owe you", and the remittance tells the
  * supplier what an EFT covered. So both carry the partner's letterhead (brand, logo,
  * footer) and address the SUPPLIER, which is the reverse of `lib/pdf/statement.ts` where
  * the partner bills a customer.
@@ -37,8 +37,8 @@ import type { Lang } from "@/lib/i18n";
 
 const AGE_LABEL: Record<string, string> = {
   current: "Not yet 30 days old",
-  d30: "31–60 days",
-  d60: "61–90 days",
+  d30: "31-60 days",
+  d60: "61-90 days",
   d90: "Over 90 days",
 };
 
@@ -47,7 +47,7 @@ export type SupplierParty = {
   name: string;
   address: string | null;
   vat_number: string | null;
-  /** OUR account number with THEM — what they need to allocate a payment. */
+  /** OUR account number with THEM, what they need to allocate a payment. */
   account_number: string | null;
   email: string | null;
   payment_terms_days: number | null;
@@ -76,7 +76,7 @@ export type SupplierRemittanceData = {
 
 /**
  * Everything the statement needs, through whichever client the caller passes. The three
- * 0502 functions are SECURITY INVOKER, so an RLS-bound client is scoped by RLS — which is
+ * 0502 functions are SECURITY INVOKER, so an RLS-bound client is scoped by RLS, which is
  * also the access check: a supplier id belonging to another workshop reads back no party
  * row at all, and this returns null so the route can answer 404 rather than an empty
  * document with somebody else's letterhead on it.
@@ -160,7 +160,7 @@ export async function buildSupplierStatementPdf(data: SupplierStatementData): Pr
   const lang: Lang = data.lang ?? "en";
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
 
-  const pdf = await Pdf.create(`Supplier statement — ${party.name}`, {
+  const pdf = await Pdf.create(`Supplier statement, ${party.name}`, {
     name: brand.name,
     primary: brand.brand_primary,
     logo,
@@ -177,7 +177,7 @@ export async function buildSupplierStatementPdf(data: SupplierStatementData): Pr
   pdf.kv("Period", `${from} to ${to}`);
   // Said on the document, not only on the screen: a supplier reading a figure needs to know
   // it includes VAT, because their own statement of the same account may well be ex-VAT.
-  pdf.text("Every amount below includes VAT — it is what left, or has to leave, the bank.");
+  pdf.text("Every amount below includes VAT, it is what left, or has to leave, the bank.");
 
   const lines = withSupplierRunningBalance(rows);
   if (lines.length > 0) {
@@ -219,7 +219,7 @@ export async function buildSupplierRemittancePdf(data: SupplierRemittanceData): 
   const { rows, party, brand, paidOn } = data;
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
 
-  const pdf = await Pdf.create(`Remittance advice — ${party.name}`, {
+  const pdf = await Pdf.create(`Remittance advice, ${party.name}`, {
     name: brand.name,
     primary: brand.brand_primary,
     logo,

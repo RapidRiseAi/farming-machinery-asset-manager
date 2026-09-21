@@ -27,7 +27,7 @@ const PREVIEW_ROWS = 20;
  *
  * A client component because the mapping has to be corrected against something the person
  * can see. Showing "Datum → date" next to the actual value `13/08/2026` is the difference
- * between a mapping step that gets checked and one that gets clicked past — and a wrong
+ * between a mapping step that gets checked and one that gets clicked past, and a wrong
  * amount column here becomes a wrong payment against a real invoice.
  *
  * The MAPPED sheet is what gets posted, never the bank's own. The server therefore parses
@@ -69,7 +69,7 @@ export function BankImportClient({ locale }: { locale: Lang }) {
   const setColumn = (i: number, col: string) =>
     setMapping((m) => {
       const next = [...m];
-      // One of our columns can only come from one of theirs — picking it here releases it
+      // One of our columns can only come from one of theirs, picking it here releases it
       // wherever it was, so the person never has to undo a guess before making a choice.
       if (col !== SKIP_COLUMN) {
         for (let j = 0; j < next.length; j++) if (j !== i && next[j] === col) next[j] = SKIP_COLUMN;
@@ -177,8 +177,8 @@ export function BankImportClient({ locale }: { locale: Lang }) {
             </p>
             <p className="text-sand-600">
               {result.firstDate && result.lastDate
-                ? `${shortDate(result.firstDate, locale)} – ${shortDate(result.lastDate, locale)}`
-                : "—"}
+                ? `${shortDate(result.firstDate, locale)} - ${shortDate(result.lastDate, locale)}`
+                : "-"}
             </p>
           </div>
 
@@ -198,17 +198,17 @@ export function BankImportClient({ locale }: { locale: Lang }) {
                 <Tr key={r.line}>
                   <Td className="tabular-nums text-sand-500">{r.line}</Td>
                   <Td className="whitespace-nowrap">
-                    {r.row ? shortDate(r.row.txn_date, locale) : r.cells.date || "—"}
+                    {r.row ? shortDate(r.row.txn_date, locale) : r.cells.date || "-"}
                   </Td>
-                  <Td className="text-sand-600">{r.cells.description || "—"}</Td>
-                  <Td className="font-mono text-xs text-sand-500">{r.cells.reference || "—"}</Td>
+                  <Td className="text-sand-600">{r.cells.description || "-"}</Td>
+                  <Td className="font-mono text-xs text-sand-500">{r.cells.reference || "-"}</Td>
                   <Td className="tabular-nums">
                     {r.row ? (
                       <span className={r.row.amount_cents > 0 ? "text-status-ok" : "text-status-overdue"}>
                         {rands(r.row.amount_cents)}
                       </span>
                     ) : (
-                      "—"
+                      "-"
                     )}
                   </Td>
                   <Td>

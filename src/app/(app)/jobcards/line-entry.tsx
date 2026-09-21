@@ -99,7 +99,7 @@ export function LineEntry({
                 <option value="">{t("jobcards.cataloguePick", locale)}</option>
                 {catalogue.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.part_no}{c.description ? ` — ${c.description}` : ""}
+                    {c.part_no}{c.description ? `, ${c.description}` : ""}
                   </option>
                 ))}
               </Select>
@@ -132,7 +132,7 @@ export function LineEntry({
         </Field>
       )}
 
-      {/* The 16px checkbox became the whole row — 48px, and it says what it means.
+      {/* The 16px checkbox became the whole row, 48px, and it says what it means.
           The live preview used to read "R968.30 incl -> R842.00 ex + R126.30 vat". */}
       <label className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border border-sand-200 px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 focus-within:ring-2 focus-within:ring-brand-500/40">
         <input

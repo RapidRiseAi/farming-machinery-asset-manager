@@ -5,18 +5,18 @@
 -- Channel is IN-APP only (Stage 1). WhatsApp (Stage 2 / BSP API) is deferred; a
 -- later worker maps queued rows to WhatsApp. Retired/sold and soft-deleted machines
 -- never enqueue (Scope §4.1). All writer functions are SECURITY DEFINER with EXECUTE
--- revoked from public/anon/authenticated and granted only to service_role — the exact
+-- revoked from public/anon/authenticated and granted only to service_role, the exact
 -- pattern established by 0202/0203. The `app.*` engine lives in the app schema (never
 -- reachable via PostgREST); PostgREST-callable `public.cron_*` wrappers front it.
 
--- ── Dedupe / read / delivery bookkeeping ──────────────────────────
+-- == Dedupe / read / delivery bookkeeping ==========================
 -- service_plan_lines remembers the status it last notified on, so we only fire on a
 -- transition (and re-fire weekly while overdue).
 alter table service_plan_lines
   add column if not exists notified_status  service_line_status,
   add column if not exists last_notified_at timestamptz;
 
--- notifications gains read tracking (the in-app centre needs it — none existed) and a
+-- notifications gains read tracking (the in-app centre needs it, none existed) and a
 -- quiet-hours delivery gate. deliver_after > now() means "hold until then"; the in-app
 -- centre hides such rows until the timestamp passes (see docs/CRON.md).
 alter table notifications
@@ -28,7 +28,7 @@ create index if not exists notifications_user_unread_idx
   on notifications(user_id, created_at desc)
   where read_at is null and deleted_at is null;
 
--- ── Quiet hours (Scope §4.7: no non-urgent messages 20:00–05:00 SAST) ──
+-- == Quiet hours (Scope §4.7: no non-urgent messages 20:00-05:00 SAST) ==
 -- Returns the timestamptz a non-urgent row created *now* should be held until, or NULL
 -- if we are outside the farm's quiet window (deliver immediately).
 --
@@ -72,7 +72,7 @@ begin
   return (v_target at time zone v_zone);
 end $$;
 
--- ── Notify overload carrying a delivery gate ──────────────────────
+-- == Notify overload carrying a delivery gate ======================
 -- app.notify_farm(uuid,text,jsonb) from 0203 is UNCHANGED (fault/job triggers still
 -- use it). This 4-arg overload adds deliver_after so the enqueue engine can respect
 -- quiet hours. Same owner/manager targeting, same in-app channel.
@@ -87,7 +87,7 @@ begin
   where u.farm_id = p_farm and u.role in ('owner','manager') and u.active and u.deleted_at is null;
 end $$;
 
--- ── Service due-soon / overdue enqueue (Scope §4.3, §4.7 msgs 1–2) ──
+-- == Service due-soon / overdue enqueue (Scope §4.3, §4.7 msgs 1-2) ==
 -- For every live line on a live, non-retired/sold machine:
 --   * status due_soon|overdue that differs from notified_status → notify + record it.
 --   * status overdue already notified but last_notified_at older than 7 days → re-notify
@@ -153,7 +153,7 @@ begin
   end loop;
 end $$;
 
--- ── Stale-meter nudge (Scope §4.3 / §4.7 msg 6) ───────────────────
+-- == Stale-meter nudge (Scope §4.3 / §4.7 msg 6) ===================
 -- One digest-style 'stale_meter' row per farm listing the machines whose reading is
 -- older than the farm's threshold (default 30 days). Metered, non-retired/sold, live
 -- machines only. Deduped to at most one per farm per 7 days.
@@ -196,7 +196,7 @@ begin
   end loop;
 end $$;
 
--- ── Weekly digest (Scope §4.7 msg 5) ──────────────────────────────
+-- == Weekly digest (Scope §4.7 msg 5) ==============================
 -- One 'weekly_digest' per active farm: counts + arrays for due-soon / overdue lines,
 -- open faults, and machines in the workshop. The CALLER decides it's Monday.
 create or replace function app.enqueue_weekly_digest() returns void
@@ -259,7 +259,7 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the app.* engine (0202/0203 pattern) ────────────────
+-- == Lock down the app.* engine (0202/0203 pattern) ================
 revoke execute on function app.quiet_deliver_after(jsonb)                    from public, anon, authenticated;
 revoke execute on function app.notify_farm(uuid, text, jsonb, timestamptz)   from public, anon, authenticated;
 revoke execute on function app.enqueue_service_notifications()               from public, anon, authenticated;
@@ -271,7 +271,7 @@ grant  execute on function app.enqueue_service_notifications()               to 
 grant  execute on function app.enqueue_stale_meter_nudges()                  to service_role;
 grant  execute on function app.enqueue_weekly_digest()                       to service_role;
 
--- ── PostgREST-callable cron wrappers ──────────────────────────────
+-- == PostgREST-callable cron wrappers ==============================
 -- PostgREST exposes only the `public` schema, so the nightly route (service-role
 -- client) calls these thin wrappers, not the app.* functions directly.
 create or replace function public.cron_recalc_all_due() returns void

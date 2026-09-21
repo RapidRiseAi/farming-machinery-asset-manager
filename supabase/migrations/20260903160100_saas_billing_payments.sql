@@ -1,11 +1,11 @@
 -- 20260903160100_saas_billing_payments.sql
--- FleetWise SaaS subscription billing — the money-movement half.
+-- FleetWise SaaS subscription billing, the money-movement half.
 --
 -- Stored cards, charge attempts, payments received, and the durable record of every
 -- webhook Paystack has sent us.
 --
 -- THE ONE THING THIS FILE IS REALLY ABOUT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A Paystack `authorization_code` is not a reference. It is a CHARGING CREDENTIAL:
 -- whoever holds it, together with our secret key, can take money from that customer's
 -- card. It belongs in the same mental category as a password, and it must never reach
@@ -13,8 +13,8 @@
 --
 -- RLS cannot help here, because RLS filters ROWS and this is a COLUMN. What does the
 -- job is a column-level grant: `authenticated` is granted SELECT on the display
--- columns and on nothing else, so the privilege system — not a convention, and not a
--- careful `select` list somebody might later widen to `*` — is what stops it being
+-- columns and on nothing else, so the privilege system, not a convention, and not a
+-- careful `select` list somebody might later widen to `*`, is what stops it being
 -- read. `has_column_privilege()` makes that machine-checkable, and the isolation suite
 -- checks it.
 --
@@ -45,16 +45,16 @@ create table billing_payment_methods (
   farm_id               uuid not null references farms(id) on delete cascade,
   provider              text not null default 'paystack',
 
-  -- ── The sensitive half. Never granted to `authenticated`; see the header.
+  -- == The sensitive half. Never granted to `authenticated`; see the header.
   --
   -- Paystack will only charge an authorization when it is presented with the SAME
   -- email the authorization was created against. Storing the email beside the code is
-  -- therefore not duplication of `users.email` — it is part of the credential, and it
+  -- therefore not duplication of `users.email`, it is part of the credential, and it
   -- must not follow a user who later changes their address.
   authorization_code    text,
   authorization_email   text,
 
-  -- ── The display half. Everything a person needs to recognise their own card.
+  -- == The display half. Everything a person needs to recognise their own card.
   card_brand            text,      -- visa | mastercard | …
   last4                 text,
   exp_month             text,
@@ -127,7 +127,7 @@ alter table billing_subscriptions
 -- ordering is the whole safety property of this table.
 --
 -- If the HTTP request to Paystack times out we do not know whether the customer was
--- charged. What we do know is the reference we would have used — so the recovery is to
+-- charged. What we do know is the reference we would have used, so the recovery is to
 -- ask Paystack about that exact reference (`transaction/verify`) rather than to try
 -- again and risk taking the money twice. A row in `unknown` status is a standing
 -- instruction to reconcile before doing anything else, and the charging worker refuses
@@ -198,7 +198,7 @@ create index billing_payment_attempts_unresolved_idx
 
 comment on table billing_payment_attempts is
   'Immutable evidence of every charge attempt. The reference is minted before Paystack '
-  'is contacted, so a lost HTTP response is reconciled by verifying that reference — '
+  'is contacted, so a lost HTTP response is reconciled by verifying that reference, '
   'never by charging again. Status `unknown` blocks all further attempts on the invoice.';
 
 
@@ -259,7 +259,7 @@ create index billing_payments_farm_idx on billing_payments (farm_id, paid_at des
 -- There is no top-level event id in a Paystack webhook, so the key is computed by the
 -- route from what is actually stable: the event name plus the transaction id, falling
 -- back to a hash of the raw body. Storing it explicitly rather than deriving it in SQL
--- keeps the rule in one place — the route that holds the raw bytes.
+-- keeps the rule in one place, the route that holds the raw bytes.
 --
 -- NOT readable by any browser role, at all. A payload contains the customer's email
 -- and the full authorization object. The admin screens read attempts and payments,
@@ -296,7 +296,7 @@ create index billing_webhook_events_type_idx
   on billing_webhook_events (event_type, received_at desc);
 
 comment on table billing_webhook_events is
-  'Durable, idempotent record of provider webhooks. service_role ONLY — a payload holds '
+  'Durable, idempotent record of provider webhooks. service_role ONLY, a payload holds '
   'the customer email and the full authorization object. Admin screens read '
   'billing_payment_attempts instead, which is the same story without the credential.';
 
@@ -378,7 +378,7 @@ begin
   end loop;
 end $do$;
 
--- ── The stored card: row scoping by RLS, COLUMN scoping by grant ──────────────
+-- == The stored card: row scoping by RLS, COLUMN scoping by grant ==============
 alter table billing_payment_methods enable row level security;
 alter table billing_payment_methods force  row level security;
 create policy billing_payment_methods_sel on billing_payment_methods
@@ -401,7 +401,7 @@ create policy billing_payment_methods_sel on billing_payment_methods
 revoke all on billing_payment_methods from authenticated;
 
 -- Now grant back, column by column. `authorization_code` and `authorization_email` are
--- absent, so a column added to this table later defaults to INVISIBLE to the browser —
+-- absent, so a column added to this table later defaults to INVISIBLE to the browser -
 -- the right way round for a table holding a charging credential.
 grant select (
   id, farm_id, provider,
@@ -414,7 +414,7 @@ create trigger billing_payment_methods_audit
   after insert or update or delete on billing_payment_methods
   for each row execute function app_audit();
 
--- ── Webhook events: service_role only. No policy for `authenticated` at all, and no
+-- == Webhook events: service_role only. No policy for `authenticated` at all, and no
 -- grant either, so this is a default-deny with nothing to misread.
 alter table billing_webhook_events enable row level security;
 alter table billing_webhook_events force  row level security;

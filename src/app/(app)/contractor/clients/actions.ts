@@ -12,17 +12,17 @@ import { requireRole } from "@/lib/auth";
  * A partner's own client book, and the road from it to a real FleetWise farm (F15).
  *
  * Everything here is scoped to the caller's own workshop by RLS (0390), so no action
- * needs to prove which workshop it is acting for — the database will not let it act for
+ * needs to prove which workshop it is acting for, the database will not let it act for
  * another one. The interesting parts are the two that cross the tenant boundary:
  *
- *   requestClientLink — raises a PENDING workshop_link. That grants nothing:
+ *   requestClientLink, raises a PENDING workshop_link. That grants nothing:
  *     `app.has_farm_access` counts only 'active', and only the farm's own owner/manager
  *     can promote it. It also never tells the partner whether the customer has a
  *     FleetWise account, because "does this address have an account here" is not a
  *     question any partner should be able to ask of the whole customer base. The reply
  *     is the same either way.
  *
- *   syncClientVehicles — copies the partner's notebook vehicles into the now-linked
+ *   syncClientVehicles, copies the partner's notebook vehicles into the now-linked
  *     farm's real fleet. Runs through the RLS client, so it succeeds only because the
  *     link is active; a revoked partner writing to a farm they no longer serve is
  *     rejected by the same policy that governs every other machine insert.
@@ -47,7 +47,7 @@ async function ownWorkshopId(): Promise<string> {
   return profile.workshop_id;
 }
 
-// ── The book ─────────────────────────────────────────────────────────────────
+// == The book =================================================================
 
 export async function createClientRecord(formData: FormData) {
   const workshopId = await ownWorkshopId();
@@ -58,7 +58,7 @@ export async function createClientRecord(formData: FormData) {
 
   /*
    * "Add to my book" on a farm this partner is ALREADY connected to must produce a
-   * connected record, not a stray unlinked one filed under "everyone else" — that was
+   * connected record, not a stray unlinked one filed under "everyone else", that was
    * the whole point of the control. The farm id is taken from the form but VERIFIED
    * against a live active link before it is used, so a hand-edited value cannot bind a
    * record to a farm the partner does not serve.
@@ -143,7 +143,7 @@ export async function removeClientRecord(formData: FormData) {
   redirect("/contractor/clients?removed=1");
 }
 
-// ── The notebook vehicles ────────────────────────────────────────────────────
+// == The notebook vehicles ====================================================
 
 export async function addClientVehicle(formData: FormData) {
   const workshopId = await ownWorkshopId();
@@ -184,7 +184,7 @@ export async function removeClientVehicle(formData: FormData) {
   redirect(`/contractor/clients/${clientId}`);
 }
 
-// ── Connect ──────────────────────────────────────────────────────────────────
+// == Connect ==================================================================
 
 /**
  * Ask a client to connect their FleetWise farm to this partner.
@@ -192,7 +192,7 @@ export async function removeClientVehicle(formData: FormData) {
  * If the email belongs to a farm owner/manager, this raises a PENDING `workshop_link`
  * that appears on their Partners screen for approval. If it does not, nothing is raised
  * and the partner is given a sign-up link to share. **The partner sees the same
- * confirmation in both cases** — deliberately, so this cannot be used to test whether an
+ * confirmation in both cases**, deliberately, so this cannot be used to test whether an
  * address has an account.
  *
  * The lookup runs under the service role because a partner has no business reading the
@@ -243,7 +243,7 @@ export async function requestClientLink(formData: FormData) {
     const current = (existing as { status: string } | null)?.status ?? null;
 
     if (current === "active") {
-      // Already connected — the request is moot; bind the record and say so.
+      // Already connected, the request is moot; bind the record and say so.
       await supabase
         .from("partner_clients")
         .update({
@@ -256,7 +256,7 @@ export async function requestClientLink(formData: FormData) {
       redirect(`/contractor/clients/${clientId}?connected=1`);
     }
 
-    // Pending grants nothing — `has_farm_access` counts only active — so raising or
+    // Pending grants nothing, `has_farm_access` counts only active, so raising or
     // reopening one is safe. A revoked row is set back to pending so a relationship can
     // be restarted; the farm still has to approve it.
     if (current === null) {
@@ -291,14 +291,14 @@ export async function requestClientLink(formData: FormData) {
   }
 
   revalidatePath(`/contractor/clients/${clientId}`);
-  // Same destination either way — the partner is not told which branch ran.
+  // Same destination either way, the partner is not told which branch ran.
   redirect(`/contractor/clients/${clientId}?asked=1`);
 }
 
 /**
  * Copy this client's notebook vehicles into the linked farm's real fleet.
  *
- * Only offered once the link is ACTIVE, and only once — `synced_at` closes the offer, so
+ * Only offered once the link is ACTIVE, and only once, `synced_at` closes the offer, so
  * pressing twice cannot duplicate a fleet. Each copied row records the `machine_id` it
  * became, so the notebook entry and the real asset stay traceable to each other.
  *
@@ -335,7 +335,7 @@ export async function syncClientVehicles(formData: FormData) {
   // matters most: the person pressing the button is the CONTRACTOR, who is not the one
   // paying and cannot fix it. "Upgrade your plan" would be nonsense to them.
   //
-  // Refused before any copy, because a partial sync is the worst outcome — `synced_at`
+  // Refused before any copy, because a partial sync is the worst outcome, `synced_at`
   // closes the offer, so the farmer would be left with half a fleet and the contractor
   // with no way to finish it.
   const slotsFree = await vehicleSlotsFree(supabase, client.farm_id);
@@ -381,7 +381,7 @@ export async function syncClientVehicles(formData: FormData) {
   /*
    * Only close the offer when everything intended actually landed. `synced_at` hides the
    * "copy them across" button for good, so setting it after a partial copy would strand
-   * the rest — a revoked link, a rejected row or a dropped connection would silently cost
+   * the rest, a revoked link, a rejected row or a dropped connection would silently cost
    * the partner vehicles they believed they had moved, with no way back to the button.
    */
   if (failed === 0) {

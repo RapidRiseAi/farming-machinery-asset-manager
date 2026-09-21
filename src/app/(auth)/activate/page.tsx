@@ -21,13 +21,13 @@ import { beginCheckoutAction } from "./actions";
  *
  * It lives in `(auth)` rather than `(app)` on purpose: `(app)/layout.tsx` is where the
  * billing gate runs, so a page inside it would bounce to itself for ever. The trade is
- * that this page carries no app shell — which is correct anyway, because there is nothing
+ * that this page carries no app shell, which is correct anyway, because there is nothing
  * here to navigate to yet.
  *
  * It is also the page somebody lands on if they abandon checkout and come back a week
  * later, so it has to work as a resumption and not only as a step in a wizard: the
  * subscription and its invoice already exist by the time anybody gets here (see
- * docs/SIGNUP_AND_QUOTA_BILLING.md §2 — the account is created BEFORE the money moves,
+ * docs/SIGNUP_AND_QUOTA_BILLING.md §2, the account is created BEFORE the money moves,
  * because a payment with no farm to attach it to is a refund and an apology).
  */
 export default async function ActivatePage({
@@ -72,10 +72,10 @@ export default async function ActivatePage({
     .maybeSingle();
   const invoice = invData as { invoice_ref: string; total_incl_cents: number } | null;
 
-  // ── Has this person ALREADY paid, seconds ago? ──────────────────────────────
+  // == Has this person ALREADY paid, seconds ago? ==============================
   //
   // The callback sends them to `/billing?checkout=paid`, which is inside `(app)`, whose
-  // layout runs the gate — and the gate is still `pending` until the webhook settles the
+  // layout runs the gate, and the gate is still `pending` until the webhook settles the
   // attempt. So it redirected here and dropped the query string, and somebody who had just
   // handed over a card was shown "Pay to activate" with a Pay button. Pressing it was
   // safely refused by the in-flight unique index, but the refusal reads "a payment on this
@@ -83,7 +83,7 @@ export default async function ActivatePage({
   // moment in the whole funnel.
   //
   // The state is read from the LEDGER rather than from a query parameter, so it is true
-  // however they arrived — back button, reopened tab, or a phone that lost signal during
+  // however they arrived, back button, reopened tab, or a phone that lost signal during
   // the redirect. Service client on purpose: `beginCheckoutAction` admits a manager, and
   // RLS on attempts is owner-or-Rapid-Rise, so a manager would otherwise read nothing here
   // and be shown the one screen this exists to prevent.
@@ -131,7 +131,7 @@ export default async function ActivatePage({
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-sand-700">{t("activate.vehicles", locale)}</dt>
-              <dd className="font-medium">{sub.asset_quota ?? "—"}</dd>
+              <dd className="font-medium">{sub.asset_quota ?? "-"}</dd>
             </div>
             {invoice ? (
               <div className="flex justify-between gap-4">
@@ -154,7 +154,7 @@ export default async function ActivatePage({
 
         {settling ? (
           // No Pay button at all in this state. It is the one control that must not be
-          // offered to somebody whose money is already moving — the database would refuse
+          // offered to somebody whose money is already moving, the database would refuse
           // it, but being refused is not the experience to give a customer thirty seconds
           // after they paid.
           <div className="mt-6">
@@ -204,13 +204,13 @@ export default async function ActivatePage({
         )}
       </div>
 
-      {/* Every app route bounces here, and until now there was no way off the screen —
+      {/* Every app route bounces here, and until now there was no way off the screen -
           somebody signed in to the wrong account, or on a shared farm-office machine, had
           one button and no exit. Saying WHO they are signed in as is half of it: "this is
           not me" cannot be acted on if the page never says who "me" is. */}
       <form action={signOut} className="text-center">
         <p className="text-xs text-sand-600">
-          {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "—")}
+          {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "-")}
         </p>
         <button type="submit" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
           {t("gate.signOut", locale)}

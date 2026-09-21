@@ -149,14 +149,14 @@ export async function adoptSuggested(formData: FormData) {
   redirect("/partners?saved=1");
 }
 
-// ── Invite / connect a contractor ────────────────────────────────────────────
+// == Invite / connect a contractor ============================================
 // Turns a farm-owned partner into an authenticated, role-based `workshop`:
 //   1. create (or reuse) a `workshop` carrying the partner's kind + contacts,
 //   2. an ACTIVE `workshop_link` to this farm (the multi-farm access spine),
 //   3. a `workshop`-role user for the contractor's email,
 //   4. a magic login URL to hand over (deep-links straight into the app),
 // then stamps partner.workshop_id. All privileged writes go through the service
-// role (workshops/users are RR-admin-only under RLS) — exactly the 0-team pattern.
+// role (workshops/users are RR-admin-only under RLS), exactly the 0-team pattern.
 // RLS invariants are untouched: the contractor reaches ONLY farms with an active
 // link to their workshop; no guessable bypass is created.
 
@@ -207,7 +207,7 @@ export async function inviteContractor(formData: FormData) {
   const svc = createServiceClient();
   const name = partner.name as string;
 
-  // 1) Workshop — reuse the linked one, or create it with the partner's classification.
+  // 1) Workshop, reuse the linked one, or create it with the partner's classification.
   let workshopId = partner.workshop_id as string | null;
   if (workshopId) {
     await svc
@@ -286,7 +286,7 @@ export async function inviteContractor(formData: FormData) {
   if (linkErr || !url) {
     redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(linkErr ?? "Login link unavailable")}`);
   }
-  // The login URL is a bearer credential — it never travels in a query string.
+  // The login URL is a bearer credential, it never travels in a query string.
   await setPartnerLink({ pid: partnerId, url });
   redirect(`/partners?connected=1&pid=${partnerId}`);
 }
@@ -315,7 +315,7 @@ export async function sendLoginUrl(formData: FormData) {
   if (error || !url) {
     redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(error ?? "Login link unavailable")}`);
   }
-  // The login URL is a bearer credential — it never travels in a query string.
+  // The login URL is a bearer credential, it never travels in a query string.
   await setPartnerLink({ pid: partnerId, url });
   redirect(`/partners?connected=1&pid=${partnerId}`);
 }
@@ -333,15 +333,15 @@ export async function dismissLoginUrl() {
   redirect("/partners");
 }
 
-// ── A contractor asking to connect (F15) ─────────────────────────────────────
+// == A contractor asking to connect (F15) =====================================
 //
 // The other half of the partner's client book. A partner can raise a PENDING
 // `workshop_link` for a farm whose owner/manager's email they hold (0390 wl_ins_request);
 // pending grants nothing, because `app.has_farm_access` counts only 'active'. These two
 // actions are the only way it becomes real, and they belong to the farm.
 //
-// Approving is genuinely consequential — it hands a contractor read and write access to
-// this farm's vehicles, faults, job cards and work requests — so the UI puts it behind a
+// Approving is genuinely consequential, it hands a contractor read and write access to
+// this farm's vehicles, faults, job cards and work requests, so the UI puts it behind a
 // confirmation that names them, and this action re-checks the role rather than trusting
 // the screen.
 
@@ -350,7 +350,7 @@ export async function dismissLoginUrl() {
  *
  * NOT `profile.farm_id`: with multi-site (F7) an owner may be looking at their second
  * farm while their primary is still something else, so approving a request shown on
- * screen would have written against the wrong farm — updating nothing, and then running
+ * screen would have written against the wrong farm, updating nothing, and then running
  * the service-role client mutation against a farm that never approved anything.
  *
  * The form carries the farm the request was listed under; this re-derives access rather
@@ -375,14 +375,14 @@ export async function approveLinkRequest(formData: FormData) {
 
   /*
    * Bind the partner's own client record so their notes and notebook vehicles follow the
-   * link through. Keyed on `requested_farm_id` (0392) — the farm the request was actually
+   * link through. Keyed on `requested_farm_id` (0392), the farm the request was actually
    * aimed at. Before that column existed this matched EVERY unbound `requested` row for
    * the workshop and set them all to this farm, which violates the (workshop_id, farm_id)
    * unique index the moment a partner has two requests outstanding: the statement failed
    * as a whole, after the link had already gone active, and the error was swallowed.
    *
    * Service role because `partner_clients` is the partner's table and a farm user cannot
-   * write it — but this farm's approval is precisely the event that makes the binding true.
+   * write it, but this farm's approval is precisely the event that makes the binding true.
    */
   const svc = createServiceClient();
   await svc
@@ -422,10 +422,10 @@ export async function declineLinkRequest(formData: FormData) {
   redirect("/partners?declined=1");
 }
 
-// ── What a connected contractor may see (F16 / 0400) ─────────────────────────
+// == What a connected contractor may see (F16 / 0400) =========================
 //
 // An active link is permission to do a JOB, not a key to the farm. These four grants
-// are the farm's to give, they default to off, and each opens exactly its own slice —
+// are the farm's to give, they default to off, and each opens exactly its own slice -
 // the database enforces that (app.partner_scope / app.partner_machine_visible), so this
 // action only has to record the choice.
 //

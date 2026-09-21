@@ -3,27 +3,27 @@
 --
 -- `/signup` has to answer one question before it creates anything: does this address
 -- already own an account? Get it wrong and the person who abandoned a checkout last week
--- cannot come back — `createUser` fails on the duplicate, and they are handed a generic
+-- cannot come back, `createUser` fails on the duplicate, and they are handed a generic
 -- "something went wrong" with no route forward. `docs/SIGNUP_AND_QUOTA_BILLING.md` §6
 -- calls this the most likely thing to be got wrong and the most annoying to the customer,
 -- and it was right.
 --
 -- WHAT IT WAS DOING
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `svc.auth.admin.listUsers()` with no arguments, then a scan of the result. That call is
 -- PAGED and defaults to fifty rows, so the check was really "is this address among the
 -- fifty most recent users". At 16 users it is correct. At 51 it starts missing, silently,
--- for exactly the oldest customers — and a returning customer is by definition not a
+-- for exactly the oldest customers, and a returning customer is by definition not a
 -- recent row. Nothing would have failed in a test; it would simply have begun turning
 -- people away as the business grew.
 --
 -- WHY A FUNCTION AND NOT PAGINATION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Paginating the admin API is correct and costs one HTTP round trip per fifty users on
 -- the public sign-up path. `auth.users.email` is indexed; this is one index probe.
 --
 -- `auth` is not in PostgREST's exposed schema and never should be, so the wrapper lives in
--- `public` (the ONLY schema PostgREST exposes — see CLAUDE.md) and is SECURITY DEFINER to
+-- `public` (the ONLY schema PostgREST exposes, see CLAUDE.md) and is SECURITY DEFINER to
 -- reach across. That makes the grant the whole security story:
 --
 --   * `anon` and `authenticated` are revoked. An anonymous caller able to ask "does this
@@ -52,7 +52,7 @@ as $$
   -- address does not exclude a row carrying `deleted_at`, so `createUser` refuses that
   -- address whether or not the account was soft-deleted. Excluding them here would answer
   -- "available" and then hand the visitor the duplicate-key failure this function exists
-  -- to prevent — the exact bug, reintroduced by a filter that looks like tidiness.
+  -- to prevent, the exact bug, reintroduced by a filter that looks like tidiness.
   select exists (
     select 1 from auth.users u
      where lower(u.email) = lower(trim(p_email))

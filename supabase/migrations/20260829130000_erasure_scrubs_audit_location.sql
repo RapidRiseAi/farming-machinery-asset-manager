@@ -5,12 +5,12 @@
 -- added ip / geo_country / geo_region / geo_city / user_agent to audit_log. Those columns
 -- were initially left in place on erasure, consistent with the section 4.4 audit-log
 -- exception that keeps the rest of the row. The decision went the other way, and the
--- reasoning is worth keeping: that exception exists to protect the INTEGRITY RECORD — the
--- diff, the entity, the timestamp, the actor link — and none of it needs an IP address.
+-- reasoning is worth keeping: that exception exists to protect the INTEGRITY RECORD, the
+-- diff, the entity, the timestamp, the actor link, and none of it needs an IP address.
 --
 -- DATED, not numbered, and that is not a style choice. public.erase_personal_data has
 -- been restated twice already (0350, then 20260813195653, then 20260820165542), and
--- migrations apply in filename GLOB order — so a 2026… name sorts AFTER an 05… one. A
+-- migrations apply in filename GLOB order, so a 2026… name sorts AFTER an 05… one. A
 -- 0511 would have been silently overwritten by the dated files that follow it. This is
 -- built from the CURRENT definition, extracted rather than retyped.
 --

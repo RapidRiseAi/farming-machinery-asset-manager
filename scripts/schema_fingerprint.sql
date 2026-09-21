@@ -6,8 +6,8 @@
 -- See docs/SCHEMA_DRIFT.md for the exact commands.
 --
 -- Why this exists: `db:test` builds a database FROM the migrations, so it can only ever
--- prove that the REPO is sound. An object created directly on the live project — by
--- hand, in the SQL editor, during a debugging session — is invisible to it. That is not
+-- prove that the REPO is sound. An object created directly on the live project, by
+-- hand, in the SQL editor, during a debugging session, is invisible to it. That is not
 -- hypothetical: public._f14_probe(uuid) lived on production for a whole session with
 -- every test green, and let any signed-in user read another tenant's document counts.
 -- Migration 0440 removed it; this script is how it was found.

@@ -8,7 +8,7 @@
  * an auto-electrician on electrical repairs, and so on. This keeps the surface identical
  * across kinds while making each contractor's first screen fit their trade.
  *
- * The `contractor_kind` labels reuse the existing `partnerKind.*` i18n keys (0300/F12a) —
+ * The `contractor_kind` labels reuse the existing `partnerKind.*` i18n keys (0300/F12a) -
  * no new label keys. The work-request kinds themselves live in `src/lib/work.ts`.
  */
 import { t, type Locale, type Lang } from "@/lib/i18n";
@@ -30,7 +30,7 @@ export function isContractorKind(v: string): v is ContractorKind {
   return (CONTRACTOR_KINDS as readonly string[]).includes(v);
 }
 
-/** Display label for a contractor kind — reuses F12a's `partnerKind.*` keys. */
+/** Display label for a contractor kind, reuses F12a's `partnerKind.*` keys. */
 export const contractorKindLabel = (kind: string, locale: Lang) =>
   t(`partnerKind.${kind}`, locale);
 

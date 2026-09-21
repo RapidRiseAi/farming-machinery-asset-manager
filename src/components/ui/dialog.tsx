@@ -14,7 +14,7 @@ import { CloseIcon } from "./icons";
 // `input:not([type="hidden"])` matters more than it looks. Almost every ConfirmDialog
 // passes its payload as `<input type="hidden">` children, so without that clause the
 // first "focusable" in the panel was a hidden input: `.focus()` on it does nothing,
-// focus stayed on the TRIGGER — outside the portal — and two things followed. The modal
+// focus stayed on the TRIGGER, outside the portal, and two things followed. The modal
 // never received focus at all (a keyboard or screen-reader user was left behind it), and
 // Escape did nothing, because the keydown fired outside the portal subtree and never
 // reached this component's handler. Measured in a browser: dialog open, focus still on
@@ -84,7 +84,7 @@ export function Overlay({
     restoreRef.current = document.activeElement as HTMLElement | null;
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
-    // Focus the first thing worth typing in — never the button that commits the action.
+    // Focus the first thing worth typing in, never the button that commits the action.
     // A dialog that opens with focus already on "Write it off" is one stray Enter away
     // from writing off an invoice, so a confirm-only dialog focuses the panel instead
     // (which is the WAI-ARIA pattern, and keeps Escape inside the portal either way).
@@ -169,7 +169,7 @@ function DialogHeader({
         className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
       >
         <CloseIcon />
-        {/* Icon and word — the lone ✕ is the one glyph this product does not rely on. */}
+        {/* Icon and word, the lone ✕ is the one glyph this product does not rely on. */}
         <span className="text-sm font-medium">{closeLabel}</span>
       </button>
     </div>

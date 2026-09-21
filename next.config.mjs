@@ -6,7 +6,7 @@ const nextConfig = {
   // Mobile-first, low-bandwidth: keep the client bundle lean.
   experimental: {
     // The add-vehicle form ferries a client-compressed primary photo (base64 data
-    // URL, ~200–400 KB) through a server action; raise the body limit above the 1 MB
+    // URL, ~200-400 KB) through a server action; raise the body limit above the 1 MB
     // default for headroom.
     //
     // Raised again to 10 MB for supplier tax invoices (G6 receipts), which are NOT

@@ -3,7 +3,7 @@
  *
  * The sum lives in SQL and stays there (`app.book_value_cents`), because its inputs are
  * withheld from the browser. What is testable on this side is the totalling and the one
- * line that describes a policy — and that line is built from i18n KEYS, which is the shape
+ * line that describes a policy, and that line is built from i18n KEYS, which is the shape
  * that has already put raw dotted paths in front of users twice in this codebase.
  */
 
@@ -67,7 +67,7 @@ test("a machine with a price and no policy is counted, because it inflates the t
 });
 
 test("a policy reads the way a farm says it, in both languages", () => {
-  // Years when it divides evenly — "10 years" is how a policy is written down, "120
+  // Years when it divides evenly, "10 years" is how a policy is written down, "120
   // months" is how a database stores it.
   assert.deepEqual(policyLabel({ method: "straight_line", rate_bps: null, life_months: 120 }), {
     key: "depreciation.policyStraightYears",

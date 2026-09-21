@@ -19,7 +19,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 /**
  * Rapid Rise's own billing controls.
  *
- * ── What is deliberately NOT here ────────────────────────────────────────────
+ * == What is deliberately NOT here ============================================
  * There is no "mark this invoice paid", no "write a payment", no "clear this attempt".
  * Every one of those would be a second path to a `billing_payments` row, and the whole
  * ledger's integrity rests on there being exactly one: `app.settle_billing_attempt`,
@@ -30,9 +30,9 @@ import { createServiceClient } from "@/lib/supabase/service";
  * charge through the same locked sequence the worker uses, change what a farm has bought,
  * and read the kill switch. Every one of those either produces evidence or is evidence.
  *
- * ── The role check ───────────────────────────────────────────────────────────
+ * == The role check ===========================================================
  * `rr_admin`, re-checked server-side in every action. Not "the admin area rendered, so
- * they must be an admin" — a server action is an endpoint, reachable by anyone who knows
+ * they must be an admin", a server action is an endpoint, reachable by anyone who knows
  * its id, and it is authorized on its own or it is not authorized at all.
  */
 
@@ -40,7 +40,7 @@ function bounce(code: string): never {
   redirect(`/admin/billing?error=${encodeURIComponent(code)}`);
 }
 
-/** Rapid Rise only. Not exported — a `"use server"` file exports only actions. */
+/** Rapid Rise only. Not exported, a `"use server"` file exports only actions. */
 async function requireRrAdmin(): Promise<void> {
   const profile = await requireProfile();
   if (profile.role !== "rr_admin") bounce("forbidden");
@@ -49,7 +49,7 @@ async function requireRrAdmin(): Promise<void> {
 /**
  * Ask Paystack what happened to one attempt.
  *
- * The ONLY safe resolution for an `unknown` — the status a lost HTTP response leaves
+ * The ONLY safe resolution for an `unknown`, the status a lost HTTP response leaves
  * behind, which blocks its invoice precisely so that nobody charges again to find out.
  * This verifies THAT EXACT REFERENCE and settles from the answer, so the outcome is
  * whatever actually happened rather than whatever we assumed.
@@ -80,7 +80,7 @@ export async function adminReconcileAttempt(formData: FormData): Promise<void> {
     case "refused":
       // The provider described a transaction that is not the charge we raised. Recorded
       // on the attempt, not settled, and surfaced as its own outcome rather than folded
-      // into a generic failure — this is the case somebody has to look at.
+      // into a generic failure, this is the case somebody has to look at.
       bounce("billing-mismatch");
     case "still-open":
       redirect("/admin/billing?saved=reconciled-open");
@@ -94,7 +94,7 @@ export async function adminReconcileAttempt(formData: FormData): Promise<void> {
  *
  * Goes through exactly the same claim → charge → settle sequence as the nightly worker,
  * so it inherits the in-flight lock rather than sitting beside it. An invoice with an
- * `unknown` attempt cannot be retried from here either — it has to be reconciled first,
+ * `unknown` attempt cannot be retried from here either, it has to be reconciled first,
  * which is the correct order and the one a support ticket most wants to skip.
  */
 export async function adminRetryCharge(formData: FormData): Promise<void> {
@@ -140,7 +140,7 @@ export async function adminRetryCharge(formData: FormData): Promise<void> {
 }
 
 /**
- * Change a farm's plan — the bill and the features together.
+ * Change a farm's plan, the bill and the features together.
  *
  * This used to write `billing_subscriptions.plan` alone, so an upgrade charged more and
  * granted nothing while a downgrade charged less and took nothing away. The rules now live
@@ -192,7 +192,7 @@ export async function adminSetPlan(formData: FormData): Promise<void> {
  *
  * Nothing in the product did this. `beginCheckout` refuses with
  * `billing-no-subscription`, so a farm could never start paying and the whole feature was
- * reachable only by hand-writing a row into `billing_subscriptions` — which is not a way
+ * reachable only by hand-writing a row into `billing_subscriptions`, which is not a way
  * to onboard a paying customer.
  *
  * The rules live in `app.start_billing_subscription`, not here: the trial length comes
@@ -222,7 +222,7 @@ export async function adminStartSubscription(formData: FormData): Promise<void> 
   if (!(BILLING_PERIODS as readonly string[]).includes(billingPeriod)) bounce("billing-bad-period");
 
   // Blank means "use the policy". A number means this farm, deliberately, gets that many
-  // days — including zero, which is how a test gets an invoice it can actually pay.
+  // days, including zero, which is how a test gets an invoice it can actually pay.
   let trialDays: number | null = null;
   if (trialRaw !== "") {
     const n = Number(trialRaw);
@@ -251,22 +251,22 @@ export async function adminStartSubscription(formData: FormData): Promise<void> 
  * Give a farm a price nobody else has.
  *
  * `SCOPE.md` §12 sells a Founding Farmer rate "locked for life" to the first twenty farms
- * and there was no way to give one. Price PINNING — the only mechanism the engine had —
+ * and there was no way to give one. Price PINNING, the only mechanism the engine had -
  * grandfathers a farm onto the version it signed up at, which stops a price rising; it
  * does not make one lower. So every founding promise made so far was one the billing
  * engine could not keep.
  *
- * ── Why it does not write the columns directly ───────────────────────────────
+ * == Why it does not write the columns directly ===============================
  * The rules live in `public.billing_set_subscription_discount`: percentage OR amount and
- * never both, a percentage inside 0,01–100%, an amount above zero. An `update` from here
+ * never both, a percentage inside 0,01-100%, an amount above zero. An `update` from here
  * would be a second place those rules have to be right, and the one that gets forgotten.
  *
- * ── Blank clears it ──────────────────────────────────────────────────────────
+ * == Blank clears it ==========================================================
  * Both fields empty removes the deal, which is the same call with two nulls. Ending a
  * discount by setting `until` to yesterday would leave a row that reads as a live deal to
  * anybody looking at the farm later.
  *
- * ── What it does NOT touch ───────────────────────────────────────────────────
+ * == What it does NOT touch ===================================================
  * Any invoice already raised. The discount is frozen onto an invoice while it is a draft,
  * so changing this today cannot restate a document the customer has already been sent or
  * paid. It applies from the next invoice, and the farm's own `/billing` screen quotes the
@@ -303,7 +303,7 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
     if (fixedCents < 1) bounce("billing-discount-bad");
   }
 
-  // Null is not "no end date I forgot to set" — it is the Founding Farmer default, and it
+  // Null is not "no end date I forgot to set", it is the Founding Farmer default, and it
   // is what "locked for life" means.
   let until: string | null = null;
   if (untilRaw !== "") {
@@ -329,7 +329,7 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
 /**
  * What the kill switch currently says.
  *
- * Returns the provider name and the two booleans and NOTHING else — never the key, never
+ * Returns the provider name and the two booleans and NOTHING else, never the key, never
  * a fragment of it, never a "configured as sk_live_…" hint. `BILLING_PROVIDER` decides
  * whether an adapter exists at all; `BILLING_CHARGING_ENABLED` decides separately whether
  * it may take money, and both are read live rather than from a cached bundle, because the

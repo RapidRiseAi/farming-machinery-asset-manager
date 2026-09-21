@@ -1,5 +1,5 @@
 -- 0360_budgets.sql
--- Budgets & budget-vs-actual — feature G1 (FR-10.4).
+-- Budgets & budget-vs-actual, feature G1 (FR-10.4).
 --
 -- A `budget` sets a spending target (ex-VAT integer cents, Scope §6) for a period,
 -- optionally narrowed to one machine and/or one cost category. "Actual" is never stored:
@@ -50,7 +50,7 @@ create unique index budgets_scope_uq
   nulls not distinct
   where deleted_at is null;
 
--- ── RLS + grants (mirror the standard farm-scoped pattern, 0101/0102) ──
+-- == RLS + grants (mirror the standard farm-scoped pattern, 0101/0102) ==
 alter table budgets enable row level security;
 alter table budgets force  row level security;
 create policy budgets_sel on budgets for select to authenticated
@@ -66,7 +66,7 @@ grant select, insert, update, delete on budgets to authenticated;
 grant all on budgets to service_role;
 -- anon gets ZERO access (default privileges in 0102 revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ────────────────────────
+-- == Audit (append-only history, per 0008) ========================
 create trigger budgets_audit
   after insert or update or delete on budgets
   for each row execute function app_audit();

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Everything this farm has put into FleetWise, as one JSON file.
  *
- * ── Why it exists ────────────────────────────────────────────────────────────
+ * == Why it exists ============================================================
  * Closing a lapsed farm's access is only defensible because their records stay theirs.
  * The product has said "nothing is deleted" since the downgrade design shipped, and a
  * promise nobody can act on is not a promise. This is the acting-on-it.
@@ -15,10 +15,10 @@ import { createClient } from "@/lib/supabase/server";
  * and API routes are not inside it, so somebody who can no longer use the product can still
  * take their history with them. That is the point, not an oversight.
  *
- * ── Scoping is RLS's job, not this file's ────────────────────────────────────
+ * == Scoping is RLS's job, not this file's ====================================
  * Every read goes through the CALLER's own client. There is no `farm_id` filter written
  * here for the farm-scoped tables, because adding one would imply the export is trusted to
- * scope itself — and then a table added later without that filter would leak. What comes
+ * scope itself, and then a table added later without that filter would leak. What comes
  * back is exactly what this person is allowed to read, by the same policies that govern
  * every screen. Multi-site users get the farm they are currently working in, for the same
  * reason the dashboard does.
@@ -33,7 +33,7 @@ const CAP = 5000;
 
 /**
  * The tables a farm would actually want back, with the ordering that makes the file
- * readable. `attachments` carries metadata only — the files themselves live in Storage and
+ * readable. `attachments` carries metadata only, the files themselves live in Storage and
  * are served by signed URL; listing their paths without the bytes would be a tease, so the
  * export says so in `notes` rather than pretending.
  */

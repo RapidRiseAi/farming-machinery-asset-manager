@@ -2,13 +2,13 @@
  * Commitment-aware reordering (migration 0503).
  *
  * `lib/stock.ts` answers "have we got one?". This answers the question after it: "will we
- * still have one once the services already on the schedule have been done?" — which is the
+ * still have one once the services already on the schedule have been done?", which is the
  * question that actually sends somebody to town, and the one 0451 said it could not yet ask.
  *
- * ── Why there is no rule mirrored in here ──────────────────────────────────────
+ * == Why there is no rule mirrored in here ======================================
  *
  * `lib/stock.ts` mirrors `app.stock_needs_reorder` in TypeScript, and `lib/fuel.ts` mirrors
- * the consumption engine, both deliberately — the screen and the nightly nudge must agree.
+ * the consumption engine, both deliberately, the screen and the nightly nudge must agree.
  * This file does NOT do that, because the arithmetic here is a join across four tables and
  * a projection from meter history, and a second implementation of it would be a second
  * thing to keep in step and a second place to be wrong.
@@ -54,7 +54,7 @@ export type ShortfallRow = {
   /** How many short, never negative. Zero when the shelf covers the commitment. */
   short_qty: number;
   is_short: boolean;
-  /** The 0451 rule — at or below the minimum you set — carried alongside, not replaced. */
+  /** The 0451 rule, at or below the minimum you set, carried alongside, not replaced. */
   needs_reorder: boolean;
   machine_count: number;
   sources: CommitmentSource[] | null;
@@ -73,7 +73,7 @@ export function committedRows(rows: ShortfallRow[]): ShortfallRow[] {
 
 /**
  * Numeric columns cross PostgREST as JSON numbers, but a `numeric` is the one type where
- * that is worth not assuming — the difference between 9 and "9.00" is invisible until a
+ * that is worth not assuming, the difference between 9 and "9.00" is invisible until a
  * comparison silently does the wrong thing. Coerced once, here, rather than at each use.
  */
 function qty(value: number | string | null | undefined): number {
@@ -121,7 +121,7 @@ export function readSources(value: unknown): CommitmentSource[] {
 }
 
 /**
- * Group a row's sources by machine, so the panel reads "New Holland — 250 h kit, 500 h kit:
+ * Group a row's sources by machine, so the panel reads "New Holland, 250 h kit, 500 h kit:
  * 8" rather than repeating a machine name once per kit line.
  */
 export function sourcesByMachine(

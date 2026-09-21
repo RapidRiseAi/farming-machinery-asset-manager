@@ -1,5 +1,5 @@
-// Shared checklist model + helpers (feature F11). Pure TypeScript — no server-only
-// imports — so it is safe in both server pages and client islands (the template
+// Shared checklist model + helpers (feature F11). Pure TypeScript, no server-only
+// imports, so it is safe in both server pages and client islands (the template
 // builder + the fill renderer), keeping the SQL field-type model and the UI in step.
 
 import { t, type Locale, type Lang } from "@/lib/i18n";
@@ -27,7 +27,7 @@ export type ChecklistField = {
   label: string;
   required: boolean;
   help_text: string | null;
-  /** Field extras — e.g. { max: 5 } for a rating. */
+  /** Field extras, e.g. { max: 5 } for a rating. */
   config: Record<string, unknown> | null;
   sort_order: number;
 };
@@ -66,13 +66,13 @@ export function formatChecklistValue(
   locale: Lang,
 ): string {
   if (fieldType === "section_break" || fieldType === "photo") return "";
-  if (valueText == null || valueText === "") return "—";
+  if (valueText == null || valueText === "") return "-";
   if (fieldType === "checkbox") {
     return valueText === "true"
       ? t("common.yes", locale)
       : valueText === "false"
         ? t("common.no", locale)
-        : "—";
+        : "-";
   }
   if (fieldType === "rating") return valueText;
   return valueText;

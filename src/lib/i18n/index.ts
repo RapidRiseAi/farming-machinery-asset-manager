@@ -15,7 +15,7 @@ export const defaultTone: Tone = "friendly";
  * What `t()` actually renders in: a language, optionally in the professional register.
  *
  * `Locale` is assignable to `Lang`, so every existing `t(key, locale)` call site stays
- * correct as written — tone reaches them by what gets passed in, not by a new argument
+ * correct as written, tone reaches them by what gets passed in, not by a new argument
  * threaded through hundreds of components.
  */
 export type Lang = Locale | `${Locale}-pro`;
@@ -25,7 +25,7 @@ export function langOf(locale: Lang, tone: Tone): Lang {
   return tone === "professional" ? (`${locale}-pro` as Lang) : locale;
 }
 
-/** The plain language behind a `Lang` — what belongs in `<html lang>`. */
+/** The plain language behind a `Lang`, what belongs in `<html lang>`. */
 export function localeOf(lang: Lang): Locale {
   return lang.endsWith("-pro") ? (lang.slice(0, -4) as Locale) : (lang as Locale);
 }
@@ -41,7 +41,7 @@ export function isTone(value: string | null | undefined): value is Tone {
 const base: Record<Locale, unknown> = { en, af };
 /**
  * Professional wording is an OVERLAY, not a translation: it holds only the keys whose
- * register actually differs. Everything else — nouns, machine types, field labels —
+ * register actually differs. Everything else, nouns, machine types, field labels -
  * resolves to the one dictionary, so there is no third and fourth file to keep at
  * parity and no way for a professional-tone user to hit an untranslated string.
  */
@@ -63,7 +63,7 @@ function lookup(dict: unknown, parts: string[]): string | undefined {
  * Translate a dot-path key (e.g. "auth.signIn").
  *
  * Resolution: professional overlay for this language → this language → English →
- * the key itself. Deliberately tiny — no runtime i18n library — to keep the mobile
+ * the key itself. Deliberately tiny, no runtime i18n library, to keep the mobile
  * bundle small (Scope §7).
  */
 export function t(key: string, lang: Lang = defaultLocale): string {

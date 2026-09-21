@@ -1,5 +1,5 @@
 /**
- * Owner/manager activity inbox (F13) — shared helpers so the nav badge and the inbox
+ * Owner/manager activity inbox (F13), shared helpers so the nav badge and the inbox
  * page agree on what "unread" means. The inbox is farm-scoped; every query below runs
  * under the caller's RLS (no service role), so it only ever sees the caller's own farm.
  */
@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const INBOX_ACTION_STATUSES = ["quoted", "invoiced"] as const;
 
 /**
- * Count of the caller's currently-deliverable unread alerts — the number shown on the
+ * Count of the caller's currently-deliverable unread alerts, the number shown on the
  * inbox nav badge. Mirrors the in-app centre's deliverability filter (`deliver_after`
  * null or already passed) so held-back quiet-hours rows don't inflate the badge.
  */

@@ -10,7 +10,7 @@
  * 1. THE COLUMN LISTS. `billing_payment_methods.authorization_code` is a Paystack
  *    CHARGING CREDENTIAL and is deliberately not granted to `authenticated` at the
  *    column level (migration 20260903160100). A browser session doing `select=*` on that
- *    table gets a permission ERROR — which is the intended behaviour, and also a
+ *    table gets a permission ERROR, which is the intended behaviour, and also a
  *    500 on a screen a farmer is looking at. So the safe columns are enumerated ONCE,
  *    here, and both pages spread the same constant. Adding a column to that table
  *    therefore defaults to invisible, which is the right way round.
@@ -24,7 +24,7 @@
  * 3. VAT. Rapid Rise is not VAT-registered, and `app.billing_force_vat_rate` pins the
  *    rate to 0 on every invoice while that holds. The VAT arithmetic is still built in
  *    full and gated on one boolean, so registering later is a flag flip rather than a
- *    rewrite — and no historical invoice is restated, because each one carries the rate
+ *    rewrite, and no historical invoice is restated, because each one carries the rate
  *    it was raised under.
  */
 
@@ -32,7 +32,7 @@ import type { StatusLook } from "@/components/ui/badge";
 import { exVatCents, vatOfInclCents } from "@/lib/money";
 import { billableAssetCount } from "@/lib/billing/pricing";
 
-// ── The safe column lists ────────────────────────────────────────────────────
+// == The safe column lists ====================================================
 
 /**
  * Every column of `billing_payment_methods` a browser session may read.
@@ -81,7 +81,7 @@ export const PAYMENT_COLUMNS =
   "id, farm_id, invoice_id, attempt_id, amount_incl_cents, currency, paid_at, provider, " +
   "provider_reference, channel, note";
 
-// ── Row shapes, as the screens read them ─────────────────────────────────────
+// == Row shapes, as the screens read them =====================================
 
 export type BillingPlan = "essential" | "professional" | "complete" | "done_for_you";
 export type BillingPeriodValue = "monthly" | "annual";
@@ -234,7 +234,7 @@ export type BillingSettingsRow = {
   downgrade_to_plan: string;
 };
 
-// ── Status vocabulary ────────────────────────────────────────────────────────
+// == Status vocabulary ========================================================
 //
 // Shape + word + colour, the same three signals every other domain enum in this app
 // carries (`components/ui/badge.tsx`). These maps live here rather than in the shared
@@ -282,7 +282,7 @@ export function billingLook(
   return (value && map[value]) || NEUTRAL;
 }
 
-// ── The estimate ─────────────────────────────────────────────────────────────
+// == The estimate =============================================================
 
 /**
  * What the next charge would come to, or an honest statement that we cannot say.
@@ -310,7 +310,7 @@ export type Estimate =
       grossInclCents: number;
       /** What the farm's discount takes off this invoice, VAT-inclusive cents. */
       discountCents: number;
-      /** What to call it on screen — "Founding Farmer" — or null when there is none. */
+      /** What to call it on screen, "Founding Farmer", or null when there is none. */
       discountLabel: string | null;
       /** gross − discount, VAT-inclusive cents. The figure that is charged. */
       totalInclCents: number;
@@ -346,7 +346,7 @@ export function activePrice(
   return null;
 }
 
-/** `YYYY-MM-DD` for a Date, in local terms — the same shape a Postgres `date` arrives as. */
+/** `YYYY-MM-DD` for a Date, in local terms, the same shape a Postgres `date` arrives as. */
 export function isoDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -355,14 +355,14 @@ export function isoDay(d: Date): string {
 /**
  * How many vehicles the NEXT INVOICE will be raised for.
  *
- * Mirrors `app.billing_billable_units` exactly — `coalesce(asset_quota, counted)` — and
+ * Mirrors `app.billing_billable_units` exactly, `coalesce(asset_quota, counted)`, and
  * that agreement is the whole point of it existing.
  *
  * The screen used to pass the COUNTED fleet straight into `estimateNextCharge`, which was
  * correct only for the metered farms that predate the quota model. Every farm that signs
  * up through `/signup` buys a quota, and a farm holding ten slots while running seven was
- * shown seven vehicles' worth of money and charged ten. At the extreme — slots bought,
- * nothing added to the fleet yet, which is EVERY farm in the minutes after it pays — the
+ * shown seven vehicles' worth of money and charged ten. At the extreme, slots bought,
+ * nothing added to the fleet yet, which is EVERY farm in the minutes after it pays, the
  * screen rendered R0,00 against a real invoice, and R0,00 is precisely the wrong price
  * this page's own header warns is the one a customer would never think to question.
  *
@@ -394,7 +394,7 @@ export function billsOnQuota(
  * The next charge, given the active price (or its absence), the billable vehicle count
  * and whether the seller is VAT-registered.
  *
- * `total = unit_price_incl × asset_count × months_charged` — the same arithmetic
+ * `total = unit_price_incl × asset_count × months_charged`, the same arithmetic
  * `app.generate_billing_invoices` uses, so the estimate and the invoice agree. Pass
  * `billedUnits(sub, counted)` as `assetCount`, never the raw count.
  */
@@ -447,7 +447,7 @@ export function estimateNextCharge({
  * The farm's own deal, as the screens read it.
  *
  * A Founding Farmer rate is a PERCENTAGE or an AMOUNT off each invoice, never both, and
- * `discount_until` null means for as long as they are a customer — which is what "locked
+ * `discount_until` null means for as long as they are a customer, which is what "locked
  * for life" means in `SCOPE.md` §12.
  */
 export type SubscriptionDiscount = Pick<
@@ -456,7 +456,7 @@ export type SubscriptionDiscount = Pick<
 >;
 
 /**
- * What comes off this invoice — the TypeScript mirror of `app.billing_discount_cents`.
+ * What comes off this invoice, the TypeScript mirror of `app.billing_discount_cents`.
  *
  * The SQL is the authority: it runs inside `app.billing_derive_invoice_totals`, so it
  * decides what is actually billed. This exists so the SCREEN shows the same figure, and
@@ -488,7 +488,7 @@ export function showsVat(vatRegistered: boolean, rateBps: number | null | undefi
   return vatRegistered && (rateBps ?? 0) > 0;
 }
 
-// ── What happens next, in words ──────────────────────────────────────────────
+// == What happens next, in words ==============================================
 
 /**
  * The single most important line on the owner's screen: when money moves, or why it
@@ -523,7 +523,7 @@ export function nextChargeState(
   if (sub.status === "trialing" && sub.trial_ends_on) {
     return { kind: "trialEnds", on: sub.trial_ends_on };
   }
-  // Everything below here is "a charge is coming" — and with no confirmed price there
+  // Everything below here is "a charge is coming", and with no confirmed price there
   // is no charge coming, whatever the date column says.
   if (estimate.kind !== "priced") return { kind: "unpriced" };
   return sub.next_billing_on ? { kind: "dueOn", on: sub.next_billing_on } : { kind: "none" };
@@ -533,7 +533,7 @@ export function nextChargeState(
  * The calm explanation shown when something has gone wrong with a payment.
  *
  * Returns the tone and the i18n stem; the wording lives in the dictionaries because it
- * is the copy that matters most on this screen — a farmer reading it is already worried,
+ * is the copy that matters most on this screen, a farmer reading it is already worried,
  * and the one thing they need told is that nothing has been deleted.
  */
 export type AccountNotice = {
@@ -564,10 +564,10 @@ export function accountNotice(sub: SubscriptionRow | null): AccountNotice | null
   }
 }
 
-// ── The three answers at the top of the owner's screen ───────────────────────
+// == The three answers at the top of the owner's screen =======================
 //
-// People open `/billing` to ask three things — when is the next payment and how much, am I
-// in trouble, will my card still work — and the first of them used to be answered in the
+// People open `/billing` to ask three things, when is the next payment and how much, am I
+// in trouble, will my card still work, and the first of them used to be answered in the
 // footer of the third card. These decide what the summary tiles say. They compute NO new
 // figure: every number is one the page already holds, and the only decision made here is
 // which of them is the answer. That decision is the part worth a test.
@@ -580,12 +580,12 @@ export type SummaryTone = "default" | "ok" | "due" | "overdue";
  *
  *  - `checking` beats everything. An attempt the provider has not answered blocks every
  *    other attempt on that bill, and a tile that printed an amount beside it would read as
- *    an invitation to pay it — the one action that takes the money twice.
+ *    an invitation to pay it, the one action that takes the money twice.
  *  - `owed` beats the estimate. With a bill outstanding, a retry charges THAT bill's
  *    balance, and after a failed pro-rata charge that is not the renewal figure. Quoting
  *    the estimate there would be the screen and the engine disagreeing about one number.
  *  - `nothing` whenever no charge is coming: no subscription, a cancellation taken effect
- *    or waiting on the period end, or no confirmed price. Never an amount of zero — R0,00
+ *    or waiting on the period end, or no confirmed price. Never an amount of zero, R0,00
  *    is the one wrong price a customer would not think to question.
  */
 export type ChargeSummary =
@@ -627,8 +627,8 @@ export function chargeSummary(
 }
 
 /**
- * The second tile: slots used against slots bought, or — for a metered farm, which bought
- * none — the vehicles counted.
+ * The second tile: slots used against slots bought, or, for a metered farm, which bought
+ * none, the vehicles counted.
  *
  * `free` mirrors `app.vehicle_allowance.remaining` exactly, `greatest(quota − used, 0)`,
  * which is what `vehicleSlotsFree` reads when it stops somebody adding a vehicle. The tile
@@ -661,7 +661,7 @@ export function fleetSummary(
 /**
  * The third tile: will the card still work.
  *
- * The expiry reading is `cardExpiryState`'s, unchanged — the tile only gives it a tone, so
+ * The expiry reading is `cardExpiryState`'s, unchanged, the tile only gives it a tone, so
  * it stays silent in exactly the five cases the nightly email is silent. No card at all is
  * worth a look only while something is going to be charged to it.
  */
@@ -688,13 +688,13 @@ export function cardSummary(
   }
 }
 
-// ── Small formatting decisions, made once ────────────────────────────────────
+// == Small formatting decisions, made once ====================================
 
 /**
  * What is still owed on an invoice, never below zero (a refund is its own row).
  *
  * A `void` bill was raised in error and an `uncollectible` one has been given up on, so
- * neither is owed — the rule the partner side already applies to a written-off document
+ * neither is owed, the rule the partner side already applies to a written-off document
  * (`outstandingCents` in `partner-docs.ts`: "that is the whole point of writing it off").
  * Without it, a voided bill sat in the history in amber reading "R730,00 outstanding"
  * beside its own "Voided" badge. The payment paths never saw the difference: they only
@@ -711,14 +711,14 @@ export function outstandingCents(
  * Which documents a row of the invoice history may offer.
  *
  * Two documents, and they are not interchangeable. The RECEIPT says "Paid in full", so it
- * exists only for a `paid` invoice — handing it over for money that has not arrived would
+ * exists only for a `paid` invoice, handing it over for money that has not arrived would
  * be a false record of payment. The INVOICE is the bill, and it is what somebody needs in
  * order to pay, so it is offered for anything actually issued: not a `draft`, which nobody
  * has decided to charge, and not a `void`, which was withdrawn.
  *
  * The PDF routes refuse the same cases (`billing-not-paid`, `billing-not-issued`,
  * `billing-voided`); this is only the affordance. It lives here because the history renders
- * twice — a card list on a phone, a table from `sm:` up — and the two must never offer
+ * twice, a card list on a phone, a table from `sm:` up, and the two must never offer
  * different documents for the same row.
  */
 export function invoiceDocuments(status: string): { receipt: boolean; invoice: boolean } {
@@ -728,7 +728,7 @@ export function invoiceDocuments(status: string): { receipt: boolean; invoice: b
 /**
  * A card's expiry as `MM/YY`, or null when the provider gave us neither.
  *
- * Never `toLocaleString` and never a Date — these arrive from Paystack as text and are
+ * Never `toLocaleString` and never a Date, these arrive from Paystack as text and are
  * displayed as text; parsing them into a date only invents a timezone question.
  */
 export function cardExpiry(month: string | null, year: string | null): string | null {
@@ -753,9 +753,9 @@ export const CARD_EXPIRY_WINDOW_DAYS = 45;
  * What the stored card's expiry date means today.
  *
  * `quiet` is deliberately one case rather than several. There are five separate reasons to
- * say nothing — no card, no subscription, a subscription that will never be charged again,
+ * say nothing, no card, no subscription, a subscription that will never be charged again,
  * a card that is not the one that WOULD be charged, and a date the provider sent that we
- * cannot read — and none of them is something to put on a farmer's screen. The SQL engine
+ * cannot read, and none of them is something to put on a farmer's screen. The SQL engine
  * makes exactly the same five silences, by omitting the row from its result.
  */
 export type CardExpiryState =
@@ -768,7 +768,7 @@ export type CardExpiryState =
  * The last day of the month printed on the card, as an ISO date.
  *
  * "12/28" means the END of December to a card network. Reading it as the 1st would nag a
- * farmer for a month about a card that is still perfectly good — which is why
+ * farmer for a month about a card that is still perfectly good, which is why
  * `app.billing_card_expiry_on` says the same thing in SQL and section (o) of the billing
  * suite pins it. Null for anything unreadable: provider data is text and may be anything,
  * and a card whose date we cannot read is one to stay quiet about, not to throw over.
@@ -797,17 +797,17 @@ function daysBetween(from: string, to: string): number | null {
  * Should this screen warn about the card, and how loudly.
  *
  * Every condition here is copied from `app.billing_cards_expiring`, and the copying is the
- * point — the two must agree or the email and the page become two opinions:
+ * point, the two must agree or the email and the page become two opinions:
  *
  *  - only the card the subscription would ACTUALLY be charged on
  *    (`default_payment_method_id`, which is what every charging shortlist joins on;
  *    `billing_payment_methods.is_default` is a display flag and is not that);
  *  - only an active, reusable, un-removed card;
- *  - only while a charge is still coming — `cancelled` is not warned about, because a
+ *  - only while a charge is still coming, `cancelled` is not warned about, because a
  *    subscription that will never be charged again does not care what its card does.
  *
  * `today` is passed in rather than read, so this stays pure and the arithmetic is testable
- * on a fixed date instead of on whatever day the suite happens to run — the flakiness that
+ * on a fixed date instead of on whatever day the suite happens to run, the flakiness that
  * tripped suite section (o) on 11 September.
  */
 export function cardExpiryState(
@@ -869,8 +869,8 @@ export function primaryCard(rows: PaymentMethodRow[] | null | undefined): Paymen
 /**
  * The one attempt that blocks every other attempt on an invoice.
  *
- * `pending` or `unknown` means the provider has not answered — recovery is verifying
- * THAT reference, never charging again — so a screen offering "try again" beside one of
+ * `pending` or `unknown` means the provider has not answered, recovery is verifying
+ * THAT reference, never charging again, so a screen offering "try again" beside one of
  * these would be offering the exact thing that takes money twice.
  */
 export function blockingAttempt(
@@ -916,14 +916,14 @@ export function planDiverged(
   return !!effectivePlan && effectivePlan !== sub.plan;
 }
 
-// ── Column lists for the tables the screens read alongside billing ───────────
+// == Column lists for the tables the screens read alongside billing ===========
 
 /**
  * The price catalogue, as the screens read it.
  *
  * Enumerated rather than `*` for the same reason as everything else here: a column
  * added to this table later should have to be asked for. `notes` is deliberately absent
- * — it is an internal remark about a price generation, not something to put in front of
+ *, it is an internal remark about a price generation, not something to put in front of
  * the customer it prices.
  */
 export const PRICE_COLUMNS =
@@ -931,8 +931,8 @@ export const PRICE_COLUMNS =
   "months_charged, vat_rate_bps, status, effective_from, effective_to";
 
 /**
- * The seller's own settings. `authenticated` may read this table in full — they are our
- * company details and they appear on the customer's own invoice — but the screens want
+ * The seller's own settings. `authenticated` may read this table in full, they are our
+ * company details and they appear on the customer's own invoice, but the screens want
  * only the handful of fields that change what is rendered.
  *
  * NOTE the primary key is a uuid and the one-row invariant is carried by a separate
@@ -948,12 +948,12 @@ export const SETTINGS_COLUMNS =
  *
  * `farms.plan` is what every entitlement gate resolves from; `billing_subscriptions.plan`
  * is what the farm bought. They part company only while a farm is downgraded for
- * non-payment, and the administrator's screen has to show both at once — so the farm row
+ * non-payment, and the administrator's screen has to show both at once, so the farm row
  * is read separately rather than inferred from the subscription.
  */
 // `billing_address` is read so /billing can tell a customer their invoices are going out
 // without one. Every invoice FREEZES these details at issue, so a blank address stays
-// blank on that document for ever — which is why it is worth saying before the next bill
+// blank on that document for ever, which is why it is worth saying before the next bill
 // rather than after.
 export const FARM_BILLING_COLUMNS =
   "id, name, plan, billing_period, status, asset_count, billing_address";
@@ -969,12 +969,12 @@ export type FarmBillingRow = {
   billing_address: string | null;
 };
 
-// ── The billable count, and the sentence that explains it ────────────────────
+// == The billable count, and the sentence that explains it ====================
 
 export type AssetBreakdown = { total: number; billable: number; notCounted: number };
 
 /**
- * What is being counted, what is not, and the total — from the farm's own machine
+ * What is being counted, what is not, and the total, from the farm's own machine
  * statuses.
  *
  * The rule is `pricing.ts`'s `billableAssetCount`, which is `app.billable_asset_count`'s,
@@ -989,7 +989,7 @@ export function assetBreakdown(statuses: readonly string[]): AssetBreakdown {
   return { total: statuses.length, billable, notCounted: statuses.length - billable };
 }
 
-// ── Grouping, so a row can show what happened to it ──────────────────────────
+// == Grouping, so a row can show what happened to it ==========================
 
 /** Every payment recorded against one invoice, newest first. */
 export function paymentsFor(
@@ -1029,13 +1029,13 @@ export function reconcileQueue(attempts: AttemptRow[] | null | undefined): Attem
 }
 
 /**
- * Whether a "try the payment again" button may be offered — and if not, what is in the
+ * Whether a "try the payment again" button may be offered, and if not, what is in the
  * way, so the screen can say so instead of showing a button that always fails.
  *
  * The middle test is the one that matters. An attempt still in flight means the provider
  * has not told us whether the money moved; a retry beside it is the exact button that
  * takes a farmer's money twice. The database refuses it anyway
- * (`billing_payment_attempts_inflight_uq`), which is what makes the refusal safe — but a
+ * (`billing_payment_attempts_inflight_uq`), which is what makes the refusal safe, but a
  * screen that offers it is still lying about what will happen.
  */
 export type RetryOffer =
@@ -1055,21 +1055,21 @@ export function retryOffer(
   return { kind: "offer", invoice, amountCents: owed };
 }
 
-// ── The administrator's list ─────────────────────────────────────────────────
+// == The administrator's list =================================================
 
 /**
  * One row of `/admin/billing`: the subscription, the farm it belongs to, and whether the
  * two plans have parted company.
  *
  * A subscription whose farm row is missing is KEPT rather than dropped. It should not
- * happen — `farm_id` is a NOT NULL foreign key — but an administrator's list exists
+ * happen, `farm_id` is a NOT NULL foreign key, but an administrator's list exists
  * precisely to show the state nobody expected, and quietly filtering a row out of a
  * billing console is how a farm stops being chased.
  */
 export type AdminBillingRow = {
   sub: SubscriptionRow;
   farm: FarmBillingRow | null;
-  /** `farms.plan` — what the entitlement gates actually honour. */
+  /** `farms.plan`, what the entitlement gates actually honour. */
   effectivePlan: string | null;
   /** True when the effective plan is not the plan they bought (a non-payment downgrade). */
   diverged: boolean;
@@ -1113,7 +1113,7 @@ export function adminTotals(rows: AdminBillingRow[]): {
 /**
  * Farms that are not on a subscription yet.
  *
- * These are invisible on the list above, which is built from subscriptions — so before
+ * These are invisible on the list above, which is built from subscriptions, so before
  * this existed, a farm with no subscription simply did not appear on the billing console
  * at all, and nothing in the product could put one there. `beginCheckout` refuses with
  * `billing-no-subscription`, so such a farm could never start paying.
@@ -1141,7 +1141,7 @@ export function farmsWithoutSubscription(
  *
  * `billing_price_versions` ships EMPTY on purpose, so this is `false` in every
  * environment until the founder confirms a figure. Both screens lead with that fact
- * rather than rendering a total of R0,00 — the one wrong number a customer would never
+ * rather than rendering a total of R0,00, the one wrong number a customer would never
  * think to question.
  */
 export function anyActivePrice(rows: PriceRow[] | null | undefined, today = new Date()): boolean {
@@ -1155,7 +1155,7 @@ export function anyActivePrice(rows: PriceRow[] | null | undefined, today = new 
   );
 }
 
-// ── What just happened, in the reader's own words ────────────────────────────
+// == What just happened, in the reader's own words ============================
 
 /** A `?saved=` outcome, resolved to a dictionary key and the tone it should carry. */
 export type SavedNotice = { key: string; tone: "success" | "info" };
@@ -1163,14 +1163,14 @@ export type SavedNotice = { key: string; tone: "success" | "info" };
 /**
  * Turn a `?saved=` code into something worth reading.
  *
- * Every billing action already reports WHICH of several things happened — slots added
+ * Every billing action already reports WHICH of several things happened, slots added
  * now and charged, or scheduled for the period after; a plan changed today, or booked for
  * the renewal; a payment taken, or merely being checked. All of it was thrown away by a
  * single `t("ui.savedChanges")`, so a farmer who pressed "Update slots" could not tell
  * whether they had just been charged.
  *
  * `checking` is deliberately INFO and not success. It means an attempt settled `unknown`
- * and the reconciler has it — telling somebody their payment went through when we do not
+ * and the reconciler has it, telling somebody their payment went through when we do not
  * yet know is how they end up paying twice.
  *
  * An unknown code falls back to the generic sentence rather than rendering the code, and
@@ -1202,15 +1202,15 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "billing.savedResumed", tone: "success" };
     // Success, and therefore a toast: the card was removed, which is what was asked. Its
     // sentence warns that the next renewal needs another card, and that warning does not
-    // depend on this message staying up — the card tile at the top of the page turns amber
+    // depend on this message staying up, the card tile at the top of the page turns amber
     // and says "add one before the next charge" for as long as it is true.
     case "card-removed":
       return { key: "billing.savedCardRemoved", tone: "success" };
     case "billing-details":
       return { key: "billing.savedBillingDetails", tone: "success" };
 
-    // ── Rapid Rise's own screen. Same resolver on purpose: two screens describing one
-    //    outcome in two ways is how a support call and a customer stop agreeing. ──
+    // == Rapid Rise's own screen. Same resolver on purpose: two screens describing one
+    //    outcome in two ways is how a support call and a customer stop agreeing. ==
     case "plan":
       return { key: "adminBilling.savedPlanNow", tone: "success" };
     case "plan-unchanged":
@@ -1242,7 +1242,7 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
 /**
  * May this outcome clear itself?
  *
- * `success` is a confirmation — the thing asked for happened, and the page now shows it —
+ * `success` is a confirmation, the thing asked for happened, and the page now shows it -
  * so it goes to a toast rather than a banner that shoves the whole page down on every
  * action. Everything else stays put as a `Flash`. Above all `checking`: "we are checking
  * that payment with the bank … do not pay again" is the sentence that stops somebody
@@ -1260,7 +1260,7 @@ export function savedIsTransient(notice: SavedNotice): boolean {
  * Turn a quote function's `reason` into a sentence in the reader's own language.
  *
  * `app.billing_quota_quote` and `app.billing_plan_quote` explain a refusal in English
- * prose — 'retire or sell a vehicle first', 'no confirmed price for that plan'. Rendering
+ * prose, 'retire or sell a vehicle first', 'no confirmed price for that plan'. Rendering
  * that straight to the screen puts an untranslated Postgres string in front of an
  * Afrikaans farmer, which is the same mistake `src/lib/errors.ts` exists to prevent for
  * every other refusal in the product.

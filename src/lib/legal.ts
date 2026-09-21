@@ -1,7 +1,7 @@
 /**
  * The terms and privacy wording, and the one place their version is set.
  *
- * ── Why the text lives here and not in the i18n dictionaries ─────────────────
+ * == Why the text lives here and not in the i18n dictionaries =================
  * Every other string in this product is a translation key. These are not, and the reason is
  * that they are a LEGAL INSTRUMENT rather than an interface: a translated clause is a
  * second document that can say something different from the first, and when two versions of
@@ -9,12 +9,12 @@
  * to litigate. So the English is authoritative, the Afrikaans summary points at it, and
  * both say so plainly.
  *
- * ── The version is a date ────────────────────────────────────────────────────
+ * == The version is a date ====================================================
  * `TERMS_VERSION` is what gets recorded against a sign-up. It is a date because the thing a
  * human asks later is "which wording was live then", and it is exported from one place so
  * the page a visitor reads and the value stored against them cannot drift.
  *
- * ── What these clauses are grounded in ───────────────────────────────────────
+ * == What these clauses are grounded in =======================================
  * Each one describes something the software actually does, and several were written by
  * reading the code rather than the other way round:
  *   · the lapse window and the closed state come from `app.farm_billing_gate` and
@@ -61,7 +61,7 @@ export const TERMS: Clause[] = [
   {
     heading: "What it costs",
     body: [
-      "You choose a plan and tell us how many vehicles you want to cover. The price is per vehicle per month and is shown before you pay. Every price we show is the final price — Rapid Rise AI is not a registered VAT vendor, so no VAT is added and our invoices are not tax invoices.",
+      "You choose a plan and tell us how many vehicles you want to cover. The price is per vehicle per month and is shown before you pay. Every price we show is the final price, Rapid Rise AI is not a registered VAT vendor, so no VAT is added and our invoices are not tax invoices.",
       "Paying yearly costs ten months instead of twelve.",
       "You pay by card through Paystack. Your card details go to Paystack and never reach our servers; we keep only the last four digits and the card’s expiry, so you can tell which card is on file.",
       "The subscription renews automatically at the end of each period, for the same plan and the same number of vehicle slots, until you cancel. We email a receipt for every payment.",
@@ -79,7 +79,7 @@ export const TERMS: Clause[] = [
     heading: "If a payment fails",
     body: [
       "We try the card again a few times over the following days and email you each time. If it still has not gone through, your plan is reduced for a while rather than switched off, and paying restores it exactly as it was.",
-      "If the account stays unpaid beyond that, we close it. Closing means you can no longer use FleetWise — it does not mean your records are deleted.",
+      "If the account stays unpaid beyond that, we close it. Closing means you can no longer use FleetWise, it does not mean your records are deleted.",
     ],
   },
   {
@@ -94,14 +94,14 @@ export const TERMS: Clause[] = [
     body: [
       "There is no refund button, on purpose. A refund is arranged with a person: email us and say what happened.",
       "If you ask for a refund because you no longer want the service, we refund and the subscription ends immediately.",
-      "If we refund you because something on our side went wrong, that is on us — you keep your subscription and it carries on as normal.",
+      "If we refund you because something on our side went wrong, that is on us, you keep your subscription and it carries on as normal.",
     ],
   },
   {
     heading: "Your records stay yours",
     body: [
       "Everything you put into FleetWise belongs to you. We do not sell it, and we do not use one farm’s data to do anything for another farm.",
-      "You can download your records as a file at any time, including after your account has been closed. Photos, voice notes and uploaded documents are not in that file — ask us and we will get them to you.",
+      "You can download your records as a file at any time, including after your account has been closed. Photos, voice notes and uploaded documents are not in that file, ask us and we will get them to you.",
       "We do not delete a closed account’s records as a matter of routine. If you want them deleted, ask, and we will do it and tell you when it is done.",
     ],
   },
@@ -124,7 +124,7 @@ export const TERMS: Clause[] = [
     heading: "If something goes wrong",
     body: [
       "If we fail to provide the service properly, tell us and we will fix it, or refund you.",
-      "We are not liable for money you lose because of a decision you made using — or despite — the records in FleetWise. It is a record-keeping tool, and it is only ever as accurate as what is put into it.",
+      "We are not liable for money you lose because of a decision you made using, or despite, the records in FleetWise. It is a record-keeping tool, and it is only ever as accurate as what is put into it.",
       "Nothing in these terms takes away rights you have under the Consumer Protection Act or any other law that applies to you.",
     ],
   },
@@ -148,17 +148,17 @@ export const PRIVACY: Clause[] = [
   {
     heading: "Who is responsible for what",
     body: [
-      "For the information your farm puts into FleetWise about your own people — drivers, mechanics, the staff you invite — YOUR farm is the responsible party under POPIA. We are the operator: we hold and process it for you, on your instructions.",
-      "For your account itself — who signed up, what you pay, what our support team can see — we are the responsible party.",
+      "For the information your farm puts into FleetWise about your own people, drivers, mechanics, the staff you invite, YOUR farm is the responsible party under POPIA. We are the operator: we hold and process it for you, on your instructions.",
+      "For your account itself, who signed up, what you pay, what our support team can see, we are the responsible party.",
     ],
   },
   {
     heading: "What we hold",
     body: [
       "Account and contact details: name, email address, phone number, the farm’s name and address, and the role each person has.",
-      "What your farm records: vehicles, meter readings, services, job cards, faults, costs, fuel, licences and the photos and notes attached to them. Where a person is named — a driver on a usage log, whoever reported a fault — that is personal information too.",
+      "What your farm records: vehicles, meter readings, services, job cards, faults, costs, fuel, licences and the photos and notes attached to them. Where a person is named, a driver on a usage log, whoever reported a fault, that is personal information too.",
       "Billing: what you were invoiced, what you paid, and the last four digits and expiry of the card. We never see or store a full card number.",
-      "Technical: sign-in times, and an audit record of changes including the IP address and rough location (city level) they came from. Never precise location — we do not ask your browser where you are.",
+      "Technical: sign-in times, and an audit record of changes including the IP address and rough location (city level) they came from. Never precise location, we do not ask your browser where you are.",
     ],
   },
   {
@@ -166,17 +166,17 @@ export const PRIVACY: Clause[] = [
     body: [
       "To run the service you are paying for, which is the contract between us.",
       "To take payment and to keep the accounting records the law requires us to keep.",
-      "To keep the service secure and to be able to answer “who changed this, and when” — a legitimate interest, and the reason the audit record exists.",
+      "To keep the service secure and to be able to answer “who changed this, and when”, a legitimate interest, and the reason the audit record exists.",
       "Some records we keep because another law says to, even if you ask us to delete them. Traffic-fine records under AARTO are the clearest example.",
     ],
   },
   {
     heading: "Who else touches it",
     body: [
-      "Supabase — the database, file storage and sign-in. Hosted in the EU.",
-      "Vercel — where the application runs.",
-      "Paystack — card payments. They see your payment details; we do not.",
-      "Resend — the email we send you: receipts, alerts, confirmation links.",
+      "Supabase, the database, file storage and sign-in. Hosted in the EU.",
+      "Vercel, where the application runs.",
+      "Paystack, card payments. They see your payment details; we do not.",
+      "Resend, the email we send you: receipts, alerts, confirmation links.",
       "If your farm turns on the optional voice assistant, Microsoft Azure Speech processes what is said, using the South Africa North region. A further optional step can send transcript TEXT to a language model outside South Africa, and that one only ever runs if the person has explicitly agreed to it and can be switched off again at any time.",
       "We do not sell your information, and we do not share it with anybody for advertising.",
     ],

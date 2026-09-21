@@ -16,7 +16,7 @@ import {
  * What every plan includes, however cheap.
  *
  * These are the capabilities `FEATURE_MIN_PLAN` deliberately does NOT list, because they
- * are ungated — the vehicle register, QR capture, servicing, job cards and faults. They
+ * are ungated, the vehicle register, QR capture, servicing, job cards and faults. They
  * are the reason somebody buys Essential at all, so leaving them off the comparison would
  * make the cheapest plan look empty.
  */
@@ -35,7 +35,7 @@ import { signUp } from "./actions";
  * Zero anonymous database access, like every other public page here: the prices come from
  * `src/lib/entitlements.ts`, which a test asserts agrees with the migration that seeds
  * `billing_price_versions`, and suite section (0) asserts again in SQL. What is DISPLAYED
- * and what is CHARGED therefore cannot drift — and the invoice is priced from the
+ * and what is CHARGED therefore cannot drift, and the invoice is priced from the
  * catalogue regardless of anything this form sends.
  */
 export default async function SignUpPage({
@@ -85,7 +85,7 @@ export default async function SignUpPage({
       ) : null}
 
       <form action={signUp} className="mt-5 space-y-4">
-        {/* Step 1 — the plan, the period and the vehicle count all move one number, so
+        {/* Step 1, the plan, the period and the vehicle count all move one number, so
             they belong in one box. The picker itself is untouched: its arithmetic is
             proven across 24 plan/period/count combinations. */}
         <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
@@ -135,7 +135,7 @@ export default async function SignUpPage({
           </div>
         </section>
 
-        {/* Step 2 — who they are. On the kit's Field/Input, which carry the 48px floor,
+        {/* Step 2, who they are. On the kit's Field/Input, which carry the 48px floor,
             real labels that stay put, and `aria-invalid` wiring. The hand-rolled inputs
             this replaces used `bg-surface`, a token committed config never defined, so
             they had no background at all in production. */}
@@ -167,7 +167,7 @@ export default async function SignUpPage({
 
         {/* An explicit tick, not a line of small print. ECTA §43 and the Consumer
             Protection Act both want the terms available BEFORE the transaction and an
-            affirmative act — and "by continuing you agree" is weaker precisely because the
+            affirmative act, and "by continuing you agree" is weaker precisely because the
             visitor need never have seen it. The links open in a new tab so a half-filled
             form is not thrown away by somebody who stops to read.
 
@@ -193,7 +193,7 @@ export default async function SignUpPage({
               says out loud that leaving it blank is normal.
 
               It is checked before anything is created and taken again under a row lock
-              inside the sign-up transaction — the only window where it can reach the
+              inside the sign-up transaction, the only window where it can reach the
               invoice being paid at checkout. `spellCheck` and `autoCapitalize` are off
               because Android will otherwise help a farmer turn FOUNDING20 into
               "Founding20" and the code is compared upper-case. */}

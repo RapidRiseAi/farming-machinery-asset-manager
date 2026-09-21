@@ -12,11 +12,11 @@ import { isDuplicateName } from "@/lib/suppliers";
  * Workshop-scoped rows behind the 0480 policy set, so every write goes through the ordinary
  * RLS client and the `workshop_id` comes from the session rather than from the form. A
  * guessed id belonging to another workshop matches zero rows instead of somebody else's
- * supplier — which is why the updates below carry no workshop filter of their own.
+ * supplier, which is why the updates below carry no workshop filter of their own.
  *
  * Nothing here touches `partner_expenses.supplier_id`. Attaching an expense to a supplier is
- * the 0481 trigger's job, from the name, so that every other writer in the product — the
- * capture form, the purchase-order conversion, the seed, an import — keeps working without
+ * the 0481 trigger's job, from the name, so that every other writer in the product, the
+ * capture form, the purchase-order conversion, the seed, an import, keeps working without
  * knowing this table exists.
  */
 
@@ -26,8 +26,8 @@ function s(fd: FormData, k: string): string | null {
 }
 
 /**
- * Payment terms as a whole number of days. Anything unparseable becomes null — "no term
- * agreed" — rather than 0, which would mean cash on delivery and would then be reported as
+ * Payment terms as a whole number of days. Anything unparseable becomes null, "no term
+ * agreed", rather than 0, which would mean cash on delivery and would then be reported as
  * an overdue account the moment the invoice was captured.
  */
 function terms(fd: FormData): number | null {
@@ -103,7 +103,7 @@ export async function updateSupplier(formData: FormData) {
  * Deactivating takes the supplier out of the pickers and changes nothing else: every
  * invoice already captured against it keeps its link, keeps aging on /money and keeps its
  * place on the VAT return. That separation is the whole reason `active` exists alongside
- * the soft delete — "we do not buy from them any more" and "this record should never have
+ * the soft delete, "we do not buy from them any more" and "this record should never have
  * existed" are different statements and only one of them may touch history.
  */
 export async function setSupplierActive(formData: FormData) {
@@ -128,8 +128,8 @@ export async function setSupplierActive(formData: FormData) {
 /**
  * Soft delete, like everything else in this schema.
  *
- * The invoices that pointed at this record keep their `supplier_id` — the row still exists,
- * it is simply no longer visible — so nothing about the money changes. What DOES change is
+ * The invoices that pointed at this record keep their `supplier_id`, the row still exists,
+ * it is simply no longer visible, so nothing about the money changes. What DOES change is
  * the payables ageing: 0482 joins through RLS, so a deleted supplier stops supplying the
  * heading and those invoices fall back to grouping under their own typed name. The confirm
  * dialog says so, because "the total moved" is otherwise a mystery.

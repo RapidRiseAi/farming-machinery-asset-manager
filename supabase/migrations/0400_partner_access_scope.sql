@@ -1,7 +1,7 @@
 -- 0400_partner_access_scope.sql
--- F16 — A partner sees the work they are doing, not the farm's books and address list.
+-- F16, A partner sees the work they are doing, not the farm's books and address list.
 --
--- ── WHAT WAS ACTUALLY HAPPENING ──────────────────────────────────────────────
+-- == WHAT WAS ACTUALLY HAPPENING ==============================================
 --
 -- An active `workshop_link` granted `app.has_farm_access`, which is the same predicate
 -- the farm's own staff are judged by. Measured against the demo farm, one contractor
@@ -19,12 +19,12 @@
 -- financials. That is the wrong default, and it is the kind of wrong default that only
 -- becomes visible after someone has been burned by it.
 --
--- ── THE MODEL ────────────────────────────────────────────────────────────────
+-- == THE MODEL ================================================================
 --
 -- Access becomes a per-link CHOICE, made by the farm, defaulting to the minimum:
 --
---   (default)            the vehicles this partner is actually working on — the ones
---                        with a work request or a document involving them — plus the
+--   (default)            the vehicles this partner is actually working on, the ones
+--                        with a work request or a document involving them, plus the
 --                        faults and job cards on those vehicles. Nothing else.
 --   see_all_vehicles     the whole fleet, for a partner who services everything.
 --   see_service_history  meter readings, service plans, past job cards on those vehicles.
@@ -33,7 +33,7 @@
 --   see_team             the farm's people and their contact details.
 --
 -- `partners` has NO toggle and is never visible to a workshop. A contractor has no
--- business reading the farm's list of other contractors under any setting — that is a
+-- business reading the farm's list of other contractors under any setting, that is a
 -- competitor list, not job information.
 --
 -- EXISTING LINKS TIGHTEN. The columns default to false, so every current connection
@@ -44,7 +44,7 @@
 -- Farm-side users are completely unaffected: every predicate below reduces to exactly
 -- its previous form for anyone who is not a workshop.
 
--- ── The choice, stored on the link ───────────────────────────────────────────
+-- == The choice, stored on the link ===========================================
 alter table workshop_links
   add column see_all_vehicles    boolean not null default false,
   add column see_service_history boolean not null default false,
@@ -53,12 +53,12 @@ alter table workshop_links
 
 comment on column workshop_links.see_all_vehicles is
   'Farm-granted: this partner may see the whole fleet, not only the vehicles they are '
-  'working on. Default false — the minimum needed to do the job.';
+  'working on. Default false, the minimum needed to do the job.';
 comment on column workshop_links.see_costs is
-  'Farm-granted: this partner may see what things cost. Default false — a mechanic does '
+  'Farm-granted: this partner may see what things cost. Default false, a mechanic does '
   'not need to know what the farm paid anyone else.';
 
--- ── Helpers ──────────────────────────────────────────────────────────────────
+-- == Helpers ==================================================================
 
 /*
  * Does the current user's workshop hold `key` on this farm?
@@ -123,7 +123,7 @@ revoke execute on function app.partner_machine_visible(uuid, uuid)  from public,
 grant  execute on function app.partner_scope(uuid, text)            to authenticated, service_role;
 grant  execute on function app.partner_machine_visible(uuid, uuid)  to authenticated, service_role;
 
--- ── The one predicate every machine-keyed table already routes through ───────
+-- == The one predicate every machine-keyed table already routes through =======
 -- 0341 gave these tables `app.row_visible_to_role(farm, machine)`. Extending THAT
 -- function narrows nine tables at once and keeps the rule in a single place, rather than
 -- nine copies of it that can drift.
@@ -148,7 +148,7 @@ create policy machines_sel on machines for select to authenticated
     and app.partner_machine_visible(farm_id, id)
   );
 
--- ── Money: off unless the farm says otherwise ────────────────────────────────
+-- == Money: off unless the farm says otherwise ================================
 do $do$
 declare t text;
 begin
@@ -188,7 +188,7 @@ create policy job_card_lines_sel on job_card_lines for select to authenticated
                   and app.partner_machine_visible(jc.farm_id, jc.machine_id))
   );
 
--- ── History: meter readings and service plans ────────────────────────────────
+-- == History: meter readings and service plans ================================
 do $do$
 declare t text;
 begin
@@ -201,7 +201,7 @@ begin
   end loop;
 end $do$;
 
--- ── The farm's people ────────────────────────────────────────────────────────
+-- == The farm's people ========================================================
 -- `users` is how a contractor would read the farm's staff directory: names, emails,
 -- phone numbers. Off unless the farm granted it. A partner always sees its OWN staff and
 -- itself, which is what the app needs to render "who did this".
@@ -214,7 +214,7 @@ create policy users_sel on users for select to authenticated
     or (farm_id is not null and app.has_farm_access(farm_id) and app.partner_scope(farm_id, 'team'))
   );
 
--- ── The farm's other contractors: never ──────────────────────────────────────
+-- == The farm's other contractors: never ======================================
 -- No toggle. A contractor reading the farm's partner directory is reading a competitor
 -- list with contact details, and no amount of farm consent makes that part of fixing a
 -- tractor. Global suggested rows (farm_id null) stay readable by everyone, as before.

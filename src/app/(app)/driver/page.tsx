@@ -25,7 +25,7 @@ type MachineRow = {
 /**
  * The driver's own home.
  *
- * The least computer-literate role had no screen of its own — an operator saw the same
+ * The least computer-literate role had no screen of its own, an operator saw the same
  * sidebar, the same bottom tabs and the same "More" sheet as the owner: a navigation
  * system built for fourteen destinations, handed to someone with four tasks. The QR
  * flow proves the right shape for this user (one big thing per screen, photos, no
@@ -66,7 +66,7 @@ export default async function DriverHomePage({
 
   const [{ data: mData }, { data: fData }] = await Promise.all([
     machinesQ,
-    // Their own reports, so the loop closes — a driver used to report a fault and never
+    // Their own reports, so the loop closes, a driver used to report a fault and never
     // hear anything again, so next time he tells the foreman and the system goes quiet.
     supabase
       .from("faults")
@@ -125,7 +125,7 @@ export default async function DriverHomePage({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-      {/* `?error=forbidden` was never rendered as anything a person could read — the
+      {/* `?error=forbidden` was never rendered as anything a person could read, the
           screen just changed. */}
       {sp.denied ? (
         <p className="rounded-xl border border-sand-200 bg-sand-100 p-3.5 text-sm text-sand-700" role="status">
@@ -180,7 +180,7 @@ export default async function DriverHomePage({
         </ul>
       </section>
 
-      {/* Which machine — a two-column grid of photographs, most-used first. Every
+      {/* Which machine, a two-column grid of photographs, most-used first. Every
           machine chooser in the app is a <Select> of names and serials; for a driver a
           picture is faster and needs no literacy at all. */}
       {machines.length > 0 ? (
@@ -233,13 +233,13 @@ export default async function DriverHomePage({
           </h2>
           {beingWorked ? (
             <p className="mt-1 text-sm text-sand-600">
-              {t("driver.beingWorkedOn", locale).replace("{machine}", nameById.get(beingWorked.machine_id) ?? "—")}
+              {t("driver.beingWorkedOn", locale).replace("{machine}", nameById.get(beingWorked.machine_id) ?? "-")}
             </p>
           ) : null}
           <ul className="mt-3 flex flex-col divide-y divide-sand-100">
             {openMine.slice(0, 4).map((f) => (
               <li key={f.id} className="py-2.5">
-                <p className="font-medium text-sand-900">{nameById.get(f.machine_id) ?? "—"}</p>
+                <p className="font-medium text-sand-900">{nameById.get(f.machine_id) ?? "-"}</p>
                 <p className="truncate text-sm text-sand-500">
                   {f.description} · {relativeDate(f.created_at, locale)}
                 </p>
@@ -249,7 +249,7 @@ export default async function DriverHomePage({
         </section>
       )}
 
-      {/* On a shared bakkie phone, signing out matters more than for anyone else — and
+      {/* On a shared bakkie phone, signing out matters more than for anyone else, and
           it sat two taps deep inside the overflow menu. */}
       <AssistantSafeSignOutForm action={signOut} className="pb-4" locale={locale}>
         <SubmitButton variant="secondary" size="lg" fullWidth leftIcon={<SignOutIcon />}>

@@ -1,9 +1,9 @@
 /**
- * Partner documents — quotes and invoices (F14b, migration 0381).
+ * Partner documents, quotes and invoices (F14b, migration 0381).
  *
  * The shared model both sides read: the partner building or uploading the document, and
  * the farmer receiving it. Totals are mirrored from the SQL triggers so a line edited in
- * the browser shows the same number the database will store — the same discipline
+ * the browser shows the same number the database will store, the same discipline
  * `src/lib/fuel.ts` keeps with the consumption engine.
  *
  * Money throughout is integer cents. LINES ARE EX-VAT; the document total is
@@ -24,7 +24,7 @@ export const DOC_STATUSES = [
   "draft", "sent", "accepted", "declined", "part_paid", "paid", "cancelled", "expired", "void",
   // The customer is never going to pay (0422/0423). Not the same as void: the invoice was
   // correct and the work was done, so it stays on the statement and in the farm's cost
-  // ledger — it just stops being money anyone is waiting for.
+  // ledger, it just stops being money anyone is waiting for.
   "written_off",
 ] as const;
 export type DocStatus = (typeof DOC_STATUSES)[number];
@@ -47,7 +47,7 @@ export type DocLine = {
 /**
  * Who a document is addressed to (0410). Exactly one of `farm_id` / `partner_client_id`
  * is set, or neither for a one-time customer typed straight onto the document. The
- * `bill_to_*` fields are what PRINTS, seeded from the farm or client and then editable —
+ * `bill_to_*` fields are what PRINTS, seeded from the farm or client and then editable -
  * a customer who moves premises next year must not silently restate last year's invoice.
  */
 export type BillTo = {
@@ -116,7 +116,7 @@ export type IssuerSnapshot = {
   doc_layout?: unknown;
 };
 
-// ── Totals, mirroring the 0381 triggers ────────────────────────────
+// == Totals, mirroring the 0381 triggers ============================
 
 /** qty × unit price − line discount, ex-VAT, floored at zero. */
 export function lineTotalCents(line: Pick<DocLine, "qty" | "unit_price_cents" | "discount_cents">): number {
@@ -128,7 +128,7 @@ export type DocTotals = {
   subtotalCents: number;
   /** The whole-document discount actually applied (never more than the subtotal). */
   discountCents: number;
-  /** Ex-VAT after discount — the figure that reaches the cost ledger. */
+  /** Ex-VAT after discount, the figure that reaches the cost ledger. */
   netCents: number;
   vatCents: number;
   /** VAT-inclusive: what the farmer pays. */
@@ -152,9 +152,9 @@ export function balanceDueCents(doc: Pick<PartnerDocument, "total_cents" | "amou
   return Math.max(0, doc.total_cents - (doc.amount_paid_cents || 0));
 }
 
-// ── Status vocabulary ──────────────────────────────────────────────
+// == Status vocabulary ==============================================
 
-/** A note is never started from scratch — it always corrects an invoice. */
+/** A note is never started from scratch, it always corrects an invoice. */
 export function isNote(kind: DocKind): boolean {
   return kind === "credit_note" || kind === "debit_note";
 }
@@ -169,7 +169,7 @@ export function statusesFor(kind: DocKind): DocStatus[] {
 /**
  * Is this document still awaiting the customer? Drives the "needs a decision" lists.
  *
- * A credit note awaits nobody — it is money going back, not a bill and not an offer.
+ * A credit note awaits nobody, it is money going back, not a bill and not an offer.
  * Before this it fell through the `else` branch and sat in the partner's "waiting on a
  * yes" pile forever, which is the sort of thing that makes a dashboard stop being read.
  */
@@ -189,8 +189,8 @@ export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
 
 /**
  * Is this document counted in the farm's cost ledger? Mirrors the 0412 trigger exactly:
- * an issued INVOICE adds, an issued CREDIT NOTE subtracts. A quote is never a cost — it
- * is not money owed — and a void document is not one either.
+ * an issued INVOICE adds, an issued CREDIT NOTE subtracts. A quote is never a cost, it
+ * is not money owed, and a void document is not one either.
  */
 export function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
   return (doc.kind === "invoice" || isNote(doc.kind))
@@ -215,11 +215,11 @@ export function isEditable(doc: Pick<PartnerDocument, "status" | "source">): boo
 }
 
 /**
- * How a mistake on this document gets fixed — the question AutoVault never answered, and
+ * How a mistake on this document gets fixed, the question AutoVault never answered, and
  * the reason its statements drift. Three ways to be wrong, three different answers:
  *
  *   delete   nothing left our hands, so there is no record to preserve
- *   void     it should not exist at all — wrong customer, duplicate. Keeps the number and
+ *   void     it should not exist at all, wrong customer, duplicate. Keeps the number and
  *            the history, stands the money down, and records why
  *   credit   the amount was wrong. A credit note against it, then a fresh invoice. This
  *            is what VAT Act s21 requires once a tax invoice has been issued
@@ -250,7 +250,7 @@ export function outstandingCents(
   creditedCents = 0,
 ): number {
   if (!isCosted(doc) || doc.kind !== "invoice") return 0;
-  // Written off is not outstanding — that is the whole point of writing it off.
+  // Written off is not outstanding, that is the whole point of writing it off.
   if (doc.status === "written_off") return 0;
   return Math.max(0, doc.total_cents - (doc.amount_paid_cents || 0) - creditedCents);
 }

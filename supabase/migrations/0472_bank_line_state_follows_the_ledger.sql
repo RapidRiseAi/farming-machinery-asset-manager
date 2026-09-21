@@ -1,5 +1,5 @@
 -- 0472_bank_line_state_follows_the_ledger.sql
--- G15c — A bank line's state is DERIVED, never typed.
+-- G15c, A bank line's state is DERIVED, never typed.
 --
 -- The obvious way to build this is to have the confirm action write two things: the payment
 -- row, and `bank_lines.status = 'matched'` alongside it. That is wrong in a way that only
@@ -9,7 +9,7 @@
 -- deleted from the document page because it was captured against the wrong invoice. An
 -- expense's `paid_on` is cleared because the debit order bounced. A whole invoice is
 -- deleted. None of those code paths know that a bank line exists, and none of them should
--- have to — the day someone adds a third way to reverse a payment, they will not remember
+-- have to, the day someone adds a third way to reverse a payment, they will not remember
 -- this table either. If `status` were typed at confirm time, each of those leaves a bank
 -- line still saying "matched, done" while the thing it matched has gone, and the
 -- reconciliation screen quietly stops listing money that is once again unaccounted for.
@@ -19,9 +19,9 @@
 -- `partner_documents.amount_paid_cents` (0381) and `stock_items.on_hand` (0450): one
 -- function recomputes them from whatever is actually true right now, and every path that
 -- can change what is true calls it. The confirm action writes to the ledger and nothing
--- else — which also means it cannot get the two writes half done.
+-- else, which also means it cannot get the two writes half done.
 
--- ── Recompute one line from the rows that settle it ──────────────────────────
+-- == Recompute one line from the rows that settle it ==========================
 -- Deliberately reads BOTH sides even though `bank_lines_one_settlement_ck` (0470) forbids
 -- a line carrying both. Reading only the side the caller came from would leave the other
 -- side's stale id in place when a line moved between them.
@@ -39,7 +39,7 @@ begin
    limit 1;
 
   -- An expense only counts as settled while it is actually marked paid. Clearing `paid_on`
-  -- — a bounced debit order, a payment reversed by the bank — is a real thing a partner
+  --, a bounced debit order, a payment reversed by the bank, is a real thing a partner
   -- does, and it has to put the bank line back on the unreconciled list.
   select e.id into v_exp
     from partner_expenses e
@@ -69,11 +69,11 @@ begin
 end $$;
 
 -- Not a caller-facing RPC. Nobody should be able to ask the database to restate a bank
--- line's status directly — the only honest way to change it is to change what settles it.
+-- line's status directly, the only honest way to change it is to change what settles it.
 revoke execute on function app.bank_line_resync(uuid) from public, anon, authenticated;
 grant  execute on function app.bank_line_resync(uuid) to service_role;
 
--- ── Every path that can change the answer ────────────────────────────────────
+-- == Every path that can change the answer ====================================
 -- `old` and `new` are both re-synced, because moving a settlement from one line to another
 -- changes two lines and only re-syncing the destination would leave the source claiming a
 -- payment it no longer has.

@@ -17,41 +17,41 @@ import { createServiceClient } from "@/lib/supabase/service";
  *
  *  - billing can be scheduled at its own hour, paused, or re-run on its own without
  *    re-running every notification engine in the product;
- *  - a failure in either is legible on its own — "billing failed" and "the digest failed"
+ *  - a failure in either is legible on its own, "billing failed" and "the digest failed"
  *    are different sentences to be woken up by;
  *  - and, the one that matters most, nobody can accidentally make a payment run happen by
  *    poking the nightly maintenance job.
  *
- * ── Order, and why ────────────────────────────────────────────────────────────
- *  1. reconcile stuck attempts  — an `unknown` BLOCKS its invoice, so clearing last
+ * == Order, and why ============================================================
+ *  1. reconcile stuck attempts , an `unknown` BLOCKS its invoice, so clearing last
  *                                 night's ambiguity first is what lets tonight charge it.
  *                                 Runs whether or not charging is enabled.
- *  2. capture asset snapshots   — what each farm is billed FOR, recorded before it is
+ *  2. capture asset snapshots  , what each farm is billed FOR, recorded before it is
  *                                 billed, so an invoice can always be explained.
- *  3. generate invoices         — raises nothing while `billing_price_versions` is empty,
+ *  3. generate invoices        , raises nothing while `billing_price_versions` is empty,
  *                                 which is the state the product ships in.
- *  4. run charges               — claim → charge → settle, and nothing at all when the
+ *  4. run charges              , claim → charge → settle, and nothing at all when the
  *                                 kill switch is off.
- *  5. apply downgrades          — grace expired: reduce the EFFECTIVE plan, delete nothing.
- *  6. close cancellations       — period-end cancellations that have reached their end.
- *  7. enqueue reminders         — tell the farm, after every state above has settled, so a
+ *  5. apply downgrades         , grace expired: reduce the EFFECTIVE plan, delete nothing.
+ *  6. close cancellations      , period-end cancellations that have reached their end.
+ *  7. enqueue reminders        , tell the farm, after every state above has settled, so a
  *                                 farmer is never told they are past due minutes before a
  *                                 successful charge in the same pass clears it.
- *  8. card expiry               — the card that is about to stop working. After the
+ *  8. card expiry              , the card that is about to stop working. After the
  *                                 charges, because one expiring this month may have been
  *                                 charged fine tonight.
- *  9. receipts + failure emails — what step 7 could only put in the app. Both claim
+ *  9. receipts + failure emails, what step 7 could only put in the app. Both claim
  *                                 before sending, so this pass is a safety net for a
  *                                 send that died rather than a second sender.
  *
- * ── Re-running is safe ────────────────────────────────────────────────────────
+ * == Re-running is safe ========================================================
  * Every step is idempotent by construction rather than by a guard in this file: invoice
  * generation is keyed on the period, claiming is keyed on the in-flight unique index,
  * reminders dedupe from the notification queue itself, and closing a cancellation is a
  * conditional update. A double-fired schedule, a manual re-run and a retry all land in
  * the same place.
  *
- * A failed step is reported and the pass CONTINUES — the same rule the nightly route
+ * A failed step is reported and the pass CONTINUES, the same rule the nightly route
  * settled on. Step 4 failing must not stop 5, 6 and 7, because a partial pass is worth far
  * more than none.
  */
@@ -62,7 +62,7 @@ export const dynamic = "force-dynamic";
  * The time budget, declared rather than inherited.
  *
  * This route makes one outbound HTTP call per charge and was running on whatever default
- * the platform happened to apply — which on Vercel is measured in seconds, not minutes.
+ * the platform happened to apply, which on Vercel is measured in seconds, not minutes.
  * A pass that is killed halfway is not a disaster (a claimed attempt settles `unknown` and
  * the reconciler resolves it on the next run) but it is a night of billing that silently
  * did not finish, and the evidence for it would have been an absent log line.
@@ -75,8 +75,8 @@ export const maxDuration = 300;
 /**
  * How much of the budget the CHARGING step may spend before it stops taking new pages.
  *
- * Deliberately well under `maxDuration`: steps 5 through 9 — downgrades, cancellations,
- * reminders, receipts, failure notices — still have to run, and a pass that charges
+ * Deliberately well under `maxDuration`: steps 5 through 9, downgrades, cancellations,
+ * reminders, receipts, failure notices, still have to run, and a pass that charges
  * everybody and then never tells anybody is the wrong half to complete.
  */
 const CHARGE_BUDGET_MS = 180_000;
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
   // Constant-time. A plain `!==` stops at the first wrong byte, so how long the refusal
-  // takes says how much of the token was right — and this route runs the whole billing
+  // takes says how much of the token was right, and this route runs the whole billing
   // pass and is reachable from the public internet.
   if (!bearerMatches(authHeader, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -99,7 +99,7 @@ export async function GET(request: Request) {
   const steps: Record<string, string> = {};
 
   // Open the ledger row FIRST. Everything below writes nothing at all when nothing is
-  // due — no invoice, no claim, no receipt, no reminder — so before this, a billing cron
+  // due, no invoice, no claim, no receipt, no reminder, so before this, a billing cron
   // that had fired every night and one that had never fired produced identical evidence.
   // The row is opened rather than written at the end on purpose: a pass that dies or hits
   // the function timeout is the pass worth knowing about.
@@ -111,14 +111,14 @@ export async function GET(request: Request) {
     const { error } = await supabase.rpc(fn);
     steps[name] = error ? `error: ${error.message}` : "ok";
     if (error) {
-      // Into the observability layer, not just into this response body — which goes back
+      // Into the observability layer, not just into this response body, which goes back
       // to Vercel's scheduler and is read by nobody. A billing engine that quietly stopped
       // working is the failure with the longest half-life in this product.
       captureError(new Error(error.message), { where: `cron:billing:${name}`, extra: { rpc: fn } });
     }
   };
 
-  // 1 ── Reconcile before charging. Runs with the kill switch off: verifying a payment
+  // 1 == Reconcile before charging. Runs with the kill switch off: verifying a payment
   // already taken is not a new charge, and turning charging off must never strand money.
   try {
     const reconciled = await reconcileStuckAttempts(supabase);
@@ -133,23 +133,23 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:billing:reconcile" });
   }
 
-  // 2 ── What each farm is billed for, recorded before it is billed.
+  // 2 == What each farm is billed for, recorded before it is billed.
   await run("asset_snapshots", BILLING_RPC.captureSnapshots);
 
-  // 3 ── Downgrades and term changes the customer asked for, landing on their date.
+  // 3 == Downgrades and term changes the customer asked for, landing on their date.
   //
   // BEFORE the generator, and that ordering is the whole point: a change due today has
   // to be applied before today's invoice is priced, or the farm is billed one more period
   // at the plan they asked to leave and has to be refunded for it.
   await run("apply_plan_changes", BILLING_RPC.applyPendingPlans);
 
-  // 4 ── Raise the period's invoices. Nothing happens with no active price version.
+  // 4 == Raise the period's invoices. Nothing happens with no active price version.
   await run("generate_invoices", BILLING_RPC.cronGenerateInvoices);
 
-  // 4 ── The charges themselves.
+  // 4 == The charges themselves.
   //
-  // DRAINED, not run once. `runBillingCharges` takes a bounded slice of the shortlist —
-  // it has to, or one pass holds an unbounded amount of work — and a single call therefore
+  // DRAINED, not run once. `runBillingCharges` takes a bounded slice of the shortlist -
+  // it has to, or one pass holds an unbounded amount of work, and a single call therefore
   // charged at most fifty farms and reported a number that looked like a finished night.
   // Everybody past that waited a full day, because this route runs once.
   //
@@ -198,7 +198,7 @@ export async function GET(request: Request) {
       steps["charges"] =
         `ok (considered ${considered}, succeeded ${succeeded}, failed ${failed}, ` +
         `unknown ${unknown}, passed ${passed}, pages ${pages}` +
-        (truncated ? ", TRUNCATED — more still due" : "") +
+        (truncated ? ", TRUNCATED, more still due" : "") +
         ")";
       if (truncated) {
         // Reported, not just counted. A night that ran out of time is a capacity problem
@@ -215,40 +215,40 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:billing:charges" });
   }
 
-  // 5 ── Grace has run out for somebody. Reduce the effective plan; delete nothing.
+  // 5 == Grace has run out for somebody. Reduce the effective plan; delete nothing.
   await run("apply_downgrades", BILLING_RPC.applyDowngrades);
 
-  // 6 ── Cancellations that have reached their period end.
+  // 6 == Cancellations that have reached their period end.
   await run("close_cancellations", BILLING_RPC.closeCancellations);
 
-  // 7 ── Tell the farm, last, once every state above has settled.
+  // 7 == Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);
 
-  // 7b ── The renewal that has NOT happened yet.
+  // 7b == The renewal that has NOT happened yet.
   //
   // After the charges on purpose: a subscription that renewed successfully tonight has
   // already moved its period on, so it cannot also be warned about the renewal that just
   // took place. Everything else here is a message about a payment that failed; this is the
-  // only one that reaches somebody while they can still act on it — which is the whole
+  // only one that reaches somebody while they can still act on it, which is the whole
   // difference between a recognised deduction and a disputed one.
   await run("renewal_notices", BILLING_RPC.enqueueRenewalNotices);
 
-  // 8 ── The card that is about to stop working.
+  // 8 == The card that is about to stop working.
   //
   // Deliberately AFTER the charges: a card expiring this month may still have been
   // charged successfully tonight, and warning before we know is a sentence we might have
-  // to take back. Warn, never block — an expired card often still works, so refusing to
+  // to take back. Warn, never block, an expired card often still works, so refusing to
   // try would turn a probable success into a certain failure.
   await run("card_expiry", BILLING_RPC.cardExpiry);
 
-  // Chase any support case whose deadline is near — in practice a card dispute, which
+  // Chase any support case whose deadline is near, in practice a card dispute, which
   // South Africa gives roughly 48 business hours to answer before Paystack accepts it on
   // our behalf and takes the money out of a payout. At most one chase a day per case: a
   // deadline that shouts every hour gets muted, and a muted alarm is worse than none.
   await run("support_escalations", "cron_escalate_support_tickets");
 
   // Deliver any case that has not reached the support dashboard yet. A post can fail when
-  // it is first attempted — the endpoint unset, the dashboard down — and the dispute that
+  // it is first attempted, the endpoint unset, the dashboard down, and the dispute that
   // arrived during an outage is precisely the one somebody needed to see.
   try {
     const posted = await postDueSupportTickets(supabase);
@@ -261,10 +261,10 @@ export async function GET(request: Request) {
   }
 
   // Sign-ups nobody finished. Soft-deleted after a week, and never one that has taken
-  // money — a part-paid sign-up is a conversation, not a dormant row (20260911140000).
+  // money, a part-paid sign-up is a conversation, not a dormant row (20260911140000).
   await run("sweep_dormant_signups", BILLING_RPC.sweepDormant);
 
-  // 9 ── Email what step 7 could only put in the app.
+  // 9 == Email what step 7 could only put in the app.
   //
   // Both are SAFETY NETS as much as senders. The receipt is normally emailed the moment
   // the webhook lands; this pass catches the ones where that request died, where the
@@ -302,7 +302,7 @@ export async function GET(request: Request) {
 
   const ok = Object.values(steps).every((s) => s.startsWith("ok") || s.startsWith("skipped"));
   // Close it with what every step actually said, so "the cron ran" and "the cron worked"
-  // stay different questions. Never throws — see the rule at the top of heartbeat.ts.
+  // stay different questions. Never throws, see the rule at the top of heartbeat.ts.
   await finishCronRun(supabase, runId, ok, steps);
   return NextResponse.json(
     { ok, ranAt: new Date().toISOString(), runId, steps },

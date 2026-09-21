@@ -2,7 +2,7 @@
  * Next's server-error hook (NFR-6).
  *
  * `onRequestError` fires for every uncaught error thrown while rendering a Server Component,
- * running a server action, or handling a route handler — which is where essentially all of
+ * running a server action, or handling a route handler, which is where essentially all of
  * this product's logic lives. Catching it here means no `try/catch` had to be sprinkled
  * through 40 route segments to get coverage.
  *
@@ -15,7 +15,7 @@ import type { Instrumentation } from "next";
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
   const { captureError } = await import("@/lib/observability");
   captureError(err, {
-    // The PATH, never the query string — a query string in this codebase has carried a
+    // The PATH, never the query string, a query string in this codebase has carried a
     // login credential before, and an error reporter must not be what leaks the next one.
     where: `${context.routerKind}:${request.path.split("?")[0]}`,
     extra: {

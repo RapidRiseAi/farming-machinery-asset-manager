@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * spreadsheet or a receipt book; they upload the finished PDF and type the total; the
  * farmer sees it in their document list, the invoice lands in the farm's cost ledger
  * exactly once, and nobody has to re-key line items into a second system. It is
- * deliberately NOT gated by the managed product — a partner on `portal` can do this on
+ * deliberately NOT gated by the managed product, a partner on `portal` can do this on
  * day one (see src/lib/contractor-plan.ts).
  *
  * The total is typed VAT-INCLUSIVE, because that is the number printed on the document
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
 
-  // The partner's letterhead and VAT rate — the uploaded document still carries their
+  // The partner's letterhead and VAT rate, the uploaded document still carries their
   // identity in the list, and the same rate the rest of their paperwork uses.
   const { data: shopData } = await supabase.from("workshops").select("*").eq("id", workshopId).maybeSingle();
   const brand = brandingFrom(shopData as never);
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   if (numErr) return NextResponse.json({ error: numErr.message }, { status: 400 });
 
   // Insert first with a placeholder path so the row's id can key the storage object, then
-  // fill the path in. `source = 'uploaded'` makes the totals authoritative as typed —
+  // fill the path in. `source = 'uploaded'` makes the totals authoritative as typed -
   // the 0381 rollup trigger deliberately leaves uploaded documents alone.
   const { data: created, error } = await supabase
     .from("partner_documents")
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   const svc = createServiceClient();
   const path = await uploadPartnerDocFile(svc, file, farmId, docId, "document");
   if (!path) {
-    // No file means no uploaded document — the check constraint would have caught a null,
+    // No file means no uploaded document, the check constraint would have caught a null,
     // and a row pointing at "pending" would be a lie. Take it back out.
     await supabase.from("partner_documents").update({ deleted_at: new Date().toISOString() }).eq("id", docId);
     return NextResponse.json({ error: "upload_failed" }, { status: 400 });

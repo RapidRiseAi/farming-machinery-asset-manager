@@ -25,7 +25,7 @@ import { setReorderWindow } from "@/app/(app)/parts/stock-actions";
  * A server component: every figure comes from `public.stock_shortfall`, and there is
  * nothing here for a browser to recompute. It leads with the shortfall COUNT because that
  * is the only number that changes what somebody does today, and it states the window in
- * words on the line beneath — "services due in the next 30 days" — because a total with an
+ * words on the line beneath, "services due in the next 30 days", because a total with an
  * invisible time-box behind it is a number nobody can check.
  *
  * Each row shows its working: the machines and kits behind the quantity. That is not
@@ -81,7 +81,7 @@ export function CommitmentCard({
                 <li key={r.stock_item_id} className="py-3">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="font-mono text-sm font-medium text-sand-900">
-                      {r.part_no ?? "—"}
+                      {r.part_no ?? "-"}
                     </span>
                     {r.description ? (
                       <span className="text-sm text-sand-600">{r.description}</span>
@@ -108,7 +108,7 @@ export function CommitmentCard({
                     </span>
                   </div>
 
-                  {/* On hand, committed, and what is left — the three numbers the whole
+                  {/* On hand, committed, and what is left, the three numbers the whole
                       card exists to put side by side. */}
                   <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
                     <div className="flex gap-1.5">
@@ -143,7 +143,7 @@ export function CommitmentCard({
                       {machines.map((m, i) => (
                         <span key={m.machine_id}>
                           {i > 0 ? " · " : ""}
-                          <span className="text-sand-700">{m.machine ?? "—"}</span>
+                          <span className="text-sand-700">{m.machine ?? "-"}</span>
                           {m.kits.length > 0 ? ` (${m.kits.join(", ")})` : ""}
                           {" "}
                           {qtyLabel(m.qty, r.unit)}

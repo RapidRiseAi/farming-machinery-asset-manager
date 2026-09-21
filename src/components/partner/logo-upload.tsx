@@ -15,7 +15,7 @@ import { uploadPartnerLogo } from "@/app/(app)/contractor/settings/actions";
  *
  * Raster images are compressed in the browser first (the shared machine-photo path), so
  * a 6 MB phone photo of a signboard becomes a few hundred KB. An SVG is passed straight
- * through — re-encoding a vector logo as JPEG is exactly the wrong thing to do to it.
+ * through, re-encoding a vector logo as JPEG is exactly the wrong thing to do to it.
  * Either way the result is ferried as a base64 data URL through a form field, the same
  * way the add-vehicle photo travels, so there is one upload story in this codebase.
  */
@@ -69,7 +69,7 @@ export function LogoUpload({
         />
         <div className="flex flex-1 flex-wrap items-center gap-2">
           {/* Visually replaced by the button below, but a screen reader still lands on
-              it — so it carries its own name rather than being an unlabelled control. */}
+              it, so it carries its own name rather than being an unlabelled control. */}
           <input
             ref={fileRef}
             type="file"

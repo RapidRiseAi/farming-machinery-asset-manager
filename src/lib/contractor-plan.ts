@@ -16,15 +16,15 @@
  *            payments and proofs, and cross-client analytics.
  *
  * The load-bearing decision is what is NOT gated. Uploading a document produced
- * elsewhere is core on every plan, as is branding it — so a partner on `portal` is never
+ * elsewhere is core on every plan, as is branding it, so a partner on `portal` is never
  * dependent on our invoicing to serve their farmers, and nothing they rely on degrades
  * if they never upgrade. Only BUILDING documents here is the paid step up.
  *
- * IMPORTANT — this is NOT a tenancy guard. A partner's data isolation is guaranteed
+ * IMPORTANT, this is NOT a tenancy guard. A partner's data isolation is guaranteed
  * SOLELY by RLS + `workshop_links` (0100/0101) and, for documents, by
  * `app.partner_doc_visible` (0381); this map only tailors which portal features a
  * partner sees, so it lives app-side with no SQL/RLS mirror (unlike the farm plan's
- * `app.has_entitlement`). PAYMENTS ARE DEFERRED — no money moves here.
+ * `app.has_entitlement`). PAYMENTS ARE DEFERRED, no money moves here.
  */
 
 export const WORKSHOP_PLANS = ["portal", "managed", "books"] as const;
@@ -43,9 +43,9 @@ export const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
  * updates, notes, quick-contact, business profile & branding, and UPLOADING a quote or
  * invoice produced in the partner's own system.
  *
- *   build_documents  — compose a quote/invoice from line items in FleetWise
- *   record_payments  — log payments and proofs against an invoice
- *   client_analytics — cross-client performance panel (per-farm/status rollups)
+ *   build_documents , compose a quote/invoice from line items in FleetWise
+ *   record_payments , log payments and proofs against an invoice
+ *   client_analytics, cross-client performance panel (per-farm/status rollups)
  */
 export const WORKSHOP_FEATURE_MIN_PLAN = {
   build_documents: "managed",
@@ -82,7 +82,7 @@ export function workshopPlanNameKey(plan: WorkshopPlan): string {
 }
 
 /**
- * Indicative monthly price per partner product, in whole rands, VAT-INCLUSIVE — the same
+ * Indicative monthly price per partner product, in whole rands, VAT-INCLUSIVE, the same
  * founder decision that governs the farm-plan display in the admin console. DISPLAY
  * ONLY: nothing here charges anyone, and the billing adapter (`src/lib/billing/*`) is
  * still the no-op. It exists so the admin console and the upgrade nudge can state the
@@ -93,7 +93,7 @@ export function workshopPlanNameKey(plan: WorkshopPlan): string {
  * DELIBERATELY UNSET while the three-tier ladder is priced (0492). The console renders a
  * dash where a number is missing rather than a stale one: a wrong price shown to the
  * person who sells the product is worse than no price, because it gets quoted. Nothing
- * here charges anyone either way — the billing adapter is still the no-op.
+ * here charges anyone either way, the billing adapter is still the no-op.
  */
 export const WORKSHOP_PLAN_PRICE_MONTHLY: Record<WorkshopPlan, number | null> = {
   portal: null,

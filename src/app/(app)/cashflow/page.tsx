@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  * `/money` next door answers three questions that all look backwards. This one looks
  * forwards, which is the question a small workshop actually loses sleep over: a partner
  * can be profitable on the P&L, owed R80 000, and still unable to settle a R12 000
- * supplier account on Friday — because profit is an opinion about a period and cash is a
+ * supplier account on Friday, because profit is an opinion about a period and cash is a
  * fact about a date.
  *
  * Ordered by what gets acted on. The verdict first (is there a week where this goes
@@ -72,7 +72,7 @@ export default async function CashflowPage({
   const horizon = horizonDays(sp.days);
   // Typed by the reader and never stored: `bank_statement_lines` (0470) is an import
   // queue, not an authoritative balance, and a forecast that invented one would be
-  // believed. Blank is a perfectly good answer — the forecast still reads as a change.
+  // believed. Blank is a perfectly good answer, the forecast still reads as a change.
   const openingRaw = sp.open;
   const opening = parseOpening(openingRaw);
   const openingRejected = openingRaw != null && openingRaw.trim() !== "" && opening == null;
@@ -99,7 +99,7 @@ export default async function CashflowPage({
       </div>
 
       {/* What you are looking at, and over what window. A GET form so the whole thing is
-          a shareable URL and works with no JavaScript at all — the same property the
+          a shareable URL and works with no JavaScript at all, the same property the
           period links on /money have. */}
       <Card>
         <CardHeader><CardTitle>{t("cash.windowTitle", locale)}</CardTitle></CardHeader>

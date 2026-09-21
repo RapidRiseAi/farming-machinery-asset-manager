@@ -1,7 +1,7 @@
 /**
  * Statements of account (0413).
  *
- * The arithmetic lives in SQL — `app.partner_statement` and `app.partner_ageing` — so the
+ * The arithmetic lives in SQL, `app.partner_statement` and `app.partner_ageing`, so the
  * screen, the PDF and the CSV cannot disagree with each other or with the database. This
  * file is the shape of what comes back plus the two derivations a renderer needs: the
  * running balance down the page, and the closing figure.
@@ -26,7 +26,7 @@ export type StatementRow = {
   reference: string | null;
   /**
    * The row's own detail and nothing else: a document's subject, a payment's method, null
-   * where there is none. The SENTENCE is composed here, not in SQL — a statement sent to
+   * where there is none. The SENTENCE is composed here, not in SQL, a statement sent to
    * an Afrikaans farm cannot have half its lines written in English by a Postgres
    * function, and `kind` already says what each row is.
    */
@@ -53,7 +53,7 @@ export const EMPTY_AGEING: Ageing = {
 
 /**
  * Run the balance down the page. The rows arrive in date order from SQL, opening balance
- * first, and each line moves the balance by what it is — nothing is re-derived from the
+ * first, and each line moves the balance by what it is, nothing is re-derived from the
  * documents, which is the whole point.
  */
 export function withRunningBalance(rows: readonly StatementRow[]): StatementLine[] {
@@ -78,7 +78,7 @@ export function statementTotals(rows: readonly StatementRow[]) {
       .reduce((s, r) => s + r.debit_cents, 0),
     creditedCents: rows.filter((r) => r.kind === "credit_note").reduce((s, r) => s + r.credit_cents, 0),
     // Refunds are negative payments (0422), so netting them in here keeps "received"
-    // meaning money the partner actually kept — and keeps the four subtotals adding up to
+    // meaning money the partner actually kept, and keeps the four subtotals adding up to
     // the closing balance, which is the only way a customer can check the page.
     paidCents: rows
       .filter((r) => r.kind === "payment" || r.kind === "refund")
@@ -118,7 +118,7 @@ export function statementLabel(row: Pick<StatementRow, "kind" | "description">, 
 /**
  * The default window: the last 90 days.
  *
- * Not the calendar month, which is the obvious choice and the wrong one — an invoice on
+ * Not the calendar month, which is the obvious choice and the wrong one, an invoice on
  * 30-day terms issued last month is exactly what the screen exists to chase, and a
  * month-to-date window opens on an empty table for the first days of every month. Ninety
  * days covers the terms a farm workshop actually gives, and the opening balance carries

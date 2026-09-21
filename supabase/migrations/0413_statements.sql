@@ -1,5 +1,5 @@
 -- 0413_statements.sql
--- G2c — A statement of account: what this customer owes, and how it got there.
+-- G2c, A statement of account: what this customer owes, and how it got there.
 --
 -- Ported from AutoVault's customer statement, with its arithmetic fixed. AutoVault
 -- assembles a statement in a 544-line API route
@@ -8,7 +8,7 @@
 -- is asked to pay:
 --
 --  1. NO OPENING BALANCE. Rows are filtered `created_at >= from`, and the running balance
---     starts at zero. A statement for March shows nothing owed from February — so the
+--     starts at zero. A statement for March shows nothing owed from February, so the
 --     closing balance is not what the customer owes, it is what they were billed in
 --     March. This is the classic statement bug and it makes the document useless for the
 --     one thing it exists for.
@@ -16,8 +16,8 @@
 --  2. CREDITS FOUND BY REGEX. `parseCreditNoteReference` matches `/\b(CN-[A-Z0-9-]{4,})\b/i`
 --     against a free-text description, and a line counts as a credit if the description
 --     matches `/credit\s+note\s+.*applied/i`. The accuracy of a customer's account
---     depends on how somebody worded a text field. Here the link is a column —
---     `corrects_document_id` — so it cannot be worded wrongly.
+--     depends on how somebody worded a text field. Here the link is a column -
+--     `corrects_document_id`, so it cannot be worded wrongly.
 --
 --  3. PAYMENTS ONLY APPEAR WHEN THE INVOICE IS FULLY PAID (`if paymentStatus !== 'paid'
 --     return rows`). A customer who has paid half of a R20 000 invoice sees the full
@@ -27,8 +27,8 @@
 --     invoice value (`recordedPaidCents > 0 ? … : invoiceContextAmount`). A credit
 --     appears on a customer's account that nobody ever received.
 --
---  5. THE INVOICE DEBIT IS INFLATED BY ITS OWN CREDIT NOTES —
---     `total + creditCents - debitCents + appliedCredits` — and then the credit note is
+--  5. THE INVOICE DEBIT IS INFLATED BY ITS OWN CREDIT NOTES -
+--     `total + creditCents - debitCents + appliedCredits`, and then the credit note is
 --     listed again as its own credit row. The same credit is counted twice in opposite
 --     directions and only nets out by luck.
 --
@@ -45,7 +45,7 @@
 --
 -- Nothing else. That is the whole definition, and it is why it fits on one screen.
 
--- ── The rows ─────────────────────────────────────────────────────────────────
+-- == The rows =================================================================
 --
 -- SECURITY INVOKER: RLS is the guarantor, exactly as it is for `app.fleet_downtime`. A
 -- partner pulling a statement sees its own documents because `partner_documents_sel`
@@ -129,9 +129,9 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 1, 2;
 $$;
 
--- ── The ageing ───────────────────────────────────────────────────────────────
+-- == The ageing ===============================================================
 --
--- What is overdue and by how long — the second half of every statement in the trade, and
+-- What is overdue and by how long, the second half of every statement in the trade, and
 -- absent from AutoVault entirely. Buckets are measured from the DUE date, not the issue
 -- date, because an invoice on 30-day terms is not overdue on day one.
 --
@@ -183,7 +183,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   from outstanding;
 $$;
 
--- ── PostgREST wrappers ───────────────────────────────────────────────────────
+-- == PostgREST wrappers =======================================================
 create or replace function public.partner_statement(
   p_workshop uuid, p_farm uuid, p_client uuid, p_from date, p_to date
 ) returns table (

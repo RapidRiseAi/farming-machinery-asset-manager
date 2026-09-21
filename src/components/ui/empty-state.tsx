@@ -12,7 +12,7 @@ export type EmptyStateProps = {
 };
 
 /**
- * Generic placeholder. Prefer one of the three below — empty means different things
+ * Generic placeholder. Prefer one of the three below, empty means different things
  * on different screens and they need opposite treatments (audit, Phase 1 item 4).
  */
 export function EmptyState({ icon, title, hint, action, className }: EmptyStateProps) {
@@ -37,7 +37,7 @@ export function EmptyState({ icon, title, hint, action, className }: EmptyStateP
 
 /**
  * Empty is the GOOD outcome: no faults, nothing in the inbox, the bench is clear.
- * This should feel like a result, not a gap — green, calm, and it does not nag you to
+ * This should feel like a result, not a gap, green, calm, and it does not nag you to
  * create something.
  */
 export function AllClear({
@@ -72,7 +72,7 @@ export function AllClear({
 
 /**
  * Empty because the farm hasn't set this up yet. Encouraging, with a single obvious
- * next step and — where it helps — a ghost preview of what the filled screen looks
+ * next step and, where it helps, a ghost preview of what the filled screen looks
  * like, so the value is visible before any work is done.
  */
 export function GetStarted({
@@ -129,7 +129,7 @@ export function GetStarted({
 
 /**
  * Empty because a filter or a search hid everything. The fix is to clear the filter,
- * NOT to add a machine — the old shared empty state offered "Add machine" here, which
+ * NOT to add a machine, the old shared empty state offered "Add machine" here, which
  * sent people to create a duplicate of something they already had.
  */
 export function NoMatches({
@@ -140,7 +140,7 @@ export function NoMatches({
 }: {
   title: ReactNode;
   hint?: ReactNode;
-  /** Should clear the filter — that is the actual fix. */
+  /** Should clear the filter, that is the actual fix. */
   action?: ReactNode;
   className?: string;
 }) {

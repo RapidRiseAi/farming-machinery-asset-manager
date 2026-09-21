@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   if (!machineId || !description || description.length > 2000 || (category?.length ?? 0) > 80) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
 
   const supabase = await createClient();
-  // RLS scopes this to the user's farm(s) — an unauthorised machine id returns null.
+  // RLS scopes this to the user's farm(s), an unauthorised machine id returns null.
   const { data: machine } = await supabase.from("machines").select("id, farm_id").eq("id", machineId).is("deleted_at", null).maybeSingle();
   const m = machine as { id: string; farm_id: string } | null;
   if (!m) return NextResponse.json({ error: "not_found" }, { status: 404 });

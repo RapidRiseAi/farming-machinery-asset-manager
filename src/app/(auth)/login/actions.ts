@@ -12,7 +12,7 @@ export async function signInWithPassword(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   // The password box is no longer `required` in HTML, because the same form now
   // also submits to the magic-link action, which does not want one. So the check
-  // moves here — where it belonged anyway, since HTML validation is a courtesy
+  // moves here, where it belonged anyway, since HTML validation is a courtesy
   // and not a guarantee.
   if (!email) redirect("/login?error=need-email");
   if (!password) redirect("/login?error=need-password");
@@ -22,14 +22,14 @@ export async function signInWithPassword(formData: FormData) {
   // Honour a language chosen on the login screen instead of silently discarding it.
   await syncLocaleOnSignIn();
   revalidatePath("/", "layout");
-  // /home dispatches by role — a driver must not land on the owner's money page.
+  // /home dispatches by role, a driver must not land on the owner's money page.
   redirect("/home");
 }
 
 /**
  * Email a link that signs them in so they can set a new password.
  *
- * Deliberately lands on `/account`, where the password form already is — one place that
+ * Deliberately lands on `/account`, where the password form already is, one place that
  * knows the rules, rather than a second screen repeating them.
  *
  * Whether the address exists is never revealed: the answer is the same either way, because
@@ -39,7 +39,7 @@ export async function sendPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   if (!email) redirect("/login?error=need-email");
 
-  // Configuration only — this URL goes in an email. See `siteUrl()`.
+  // Configuration only, this URL goes in an email. See `siteUrl()`.
   const origin = siteUrl();
   if (!origin) redirect("/login?error=email-not-configured");
 

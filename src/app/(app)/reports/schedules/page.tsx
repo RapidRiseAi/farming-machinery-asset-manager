@@ -32,8 +32,8 @@ export const dynamic = "force-dynamic";
  * Emailed reports (FR-11.5).
  *
  * `/reports` has always been able to answer the question; it has never been able to
- * answer it without being asked. This screen is the standing instruction — this report,
- * this often, to these people — and it leads with what is going out next, because the
+ * answer it without being asked. This screen is the standing instruction, this report,
+ * this often, to these people, and it leads with what is going out next, because the
  * failure it exists to prevent is a schedule that quietly stopped working and a farm that
  * did not notice because nothing arrived.
  */

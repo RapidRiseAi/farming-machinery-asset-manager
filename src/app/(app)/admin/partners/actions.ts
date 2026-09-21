@@ -11,7 +11,7 @@ import { isWorkshopPlan } from "@/lib/contractor-plan";
  * `workshops_guard_plan` trigger (0380/0382) rejects a plan change from anyone else, so
  * a partner cannot promote themselves even if they reach the row another way.
  *
- * PAYMENTS ARE DEFERRED — this records which product a partner is on. It charges nobody.
+ * PAYMENTS ARE DEFERRED, this records which product a partner is on. It charges nobody.
  */
 export async function setPartnerPlan(formData: FormData) {
   await requireRole(["rr_admin"]);

@@ -20,7 +20,7 @@ function statusOr(fd: FormData, k: string, dflt: FineStatus): FineStatus {
   return isFineStatus(v) ? v : dflt;
 }
 
-/** Owner/manager only, AARTO plan (Complete+) required — enforced server-side, not just hidden. */
+/** Owner/manager only, AARTO plan (Complete+) required, enforced server-side, not just hidden. */
 async function requireAartoManager() {
   const profile = await requireRole(["owner", "manager"]);
   if (!(await checkEntitlement("aarto", profile)).allowed) redirect("/fines?error=upgrade_required");
@@ -29,7 +29,7 @@ async function requireAartoManager() {
 
 /**
  * Record an AARTO fine (FR-13.2). The driver may already be identified (a usage-log
- * suggestion the user accepted, or a manual pick) — in which case we advance the status to
+ * suggestion the user accepted, or a manual pick), in which case we advance the status to
  * `driver_identified` unless a later status was explicitly chosen.
  */
 export async function createFine(formData: FormData) {

@@ -5,8 +5,8 @@
  * Everything that counts money lives in SQL (0486) for the reason recorded there: a
  * screen, a CSV, a PDF and an emailed copy must not be able to disagree, and a figure
  * computed in a React component exists in one place only until somebody adds an export.
- * What is left here is the reader's own opening balance — a number they type, which the
- * database has no business knowing — and the derived question that makes the forecast
+ * What is left here is the reader's own opening balance, a number they type, which the
+ * database has no business knowing, and the derived question that makes the forecast
  * worth opening: which bucket is the one where the account goes under.
  */
 
@@ -17,14 +17,14 @@ import { parseRandsToCents } from "@/lib/money";
 export type CashflowBucket = {
   bucket: string;
   ordinal: number;
-  /** null for `overdue` — it has no start. */
+  /** null for `overdue`, it has no start. */
   from_date: string | null;
-  /** null for `later` — it has no end. */
+  /** null for `later`, it has no end. */
   to_date: string | null;
   in_cents: number;
   out_cents: number;
   net_cents: number;
-  /** Cumulative movement from zero. NOT a bank balance — see `balanceAfter`. */
+  /** Cumulative movement from zero. NOT a bank balance, see `balanceAfter`. */
   running_cents: number;
   item_count: number;
 };
@@ -69,7 +69,7 @@ export const EMPTY_BUCKETS: CashflowBucket[] = CASH_BUCKETS.map((bucket, i) => (
  * How far ahead to look.
  *
  * Six weeks is the default rather than a month, because the question this screen exists
- * for — can I pay wages at the end of the month — is answered wrongly by a window that
+ * for, can I pay wages at the end of the month, is answered wrongly by a window that
  * stops on the 30th: the salary run and the supplier account that lands the day after are
  * the same problem, and a month-long horizon shows only one of them.
  */
@@ -85,7 +85,7 @@ export function horizonDays(raw: string | undefined): number {
  * The supplier term assumed by the forecast, restated from 0486 so the screen can say the
  * number out loud instead of describing it vaguely.
  *
- * `partner_expenses` carries no due date — only the supplier's own invoice date — so the
+ * `partner_expenses` carries no due date, only the supplier's own invoice date, so the
  * forecast has to assume one, and an assumption a reader cannot see is one they cannot
  * correct for. If this ever moves it moves in the migration first; this constant exists to
  * be shown, never to compute with.
@@ -97,7 +97,7 @@ export const SUPPLIER_TERMS_DAYS = 30;
  *
  * Deliberately not stored and deliberately not guessed: `bank_statement_lines` (0470) is
  * an import queue, not an authoritative balance, and a forecast that invented one would be
- * believed. Blank is a perfectly good answer — the forecast is still readable as a change,
+ * believed. Blank is a perfectly good answer, the forecast is still readable as a change,
  * it just cannot name the week the money runs out.
  */
 export function parseOpening(raw: string | undefined): number | null {
@@ -117,7 +117,7 @@ export function balanceAfter(rows: readonly CashflowBucket[], openingCents: numb
 }
 
 /**
- * The first bucket whose closing balance is below zero — the week the money runs out.
+ * The first bucket whose closing balance is below zero, the week the money runs out.
  *
  * Returns null when the reader has not said what is in the account (there is nothing to go
  * below) or when the account never goes under, which is the answer they were hoping for.

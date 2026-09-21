@@ -3,12 +3,12 @@ import { resolveLayout, type ResolvedLayout } from "@/lib/doc-layout";
 /**
  * The handful of document TEMPLATES a partner chooses between (migration 0505).
  *
- * ── What this is, and deliberately is not ────────────────────────────────────
+ * == What this is, and deliberately is not ====================================
  *
  * Not a builder. 0434 already settled that argument: a partner does not want to design a
  * document, they want theirs to look like the one they have been sending for fifteen
  * years, and the differences that actually matter are always the same few. What 0434 gave
- * them was sixteen individual switches — correct, but sixteen switches is still a design
+ * them was sixteen individual switches, correct, but sixteen switches is still a design
  * job, and most partners will never open it. So this layer sits ON TOP: four named,
  * opinionated presets that set those switches en masse, each one a shape a real workshop
  * actually sends.
@@ -19,13 +19,13 @@ import { resolveLayout, type ResolvedLayout } from "@/lib/doc-layout";
  * the switches afterwards and you can still change one. Nothing here can express a layout
  * the screen and the PDF cannot both render, because nothing here is new.
  *
- * ── What a template governs, and what it must never touch ────────────────────
+ * == What a template governs, and what it must never touch ====================
  *
  * SHAPE only: spacing, how the partner's colour appears, and which blocks are on the
  * page. It does NOT touch the seven wording keys (`quote_title`, `invoice_title`,
  * `bill_to_label`, …) or the thank-you, for two reasons:
  *
- *   * those are the partner's own words, typed once and expected to stay typed — a
+ *   * those are the partner's own words, typed once and expected to stay typed, a
  *     template switch that silently renamed their documents would be the worst kind of
  *     surprise;
  *   * `invoice_title` is load-bearing in law. A VAT-registered vendor's invoice must be
@@ -38,11 +38,11 @@ import { resolveLayout, type ResolvedLayout } from "@/lib/doc-layout";
  * read by every template. `brand_primary` is what an accent band or hairline is PAINTED
  * WITH, so choosing a template and choosing a colour are not competing settings.
  *
- * ── Why the map lives here and not in SQL ────────────────────────────────────
+ * == Why the map lives here and not in SQL ====================================
  *
  * Both renderers are TypeScript, so this is the only place that could be the source of
  * truth without a mirror to drift. 0505 validates the template NAME (a closed set, so a
- * typo fails where it is made — the same discipline 0434 applies to layout keys) and does
+ * typo fails where it is made, the same discipline 0434 applies to layout keys) and does
  * not attempt to know what each name means. `workshops.doc_template` is therefore a
  * RECORD OF THE CHOICE, not an authority: what renders is always `doc_layout`.
  */
@@ -54,7 +54,7 @@ export type DocTemplateId = (typeof DOC_TEMPLATES)[number];
 /**
  * The default, and the one existing partners are on.
  *
- * `classic` is not "our favourite" — it is defined as the layout every partner already
+ * `classic` is not "our favourite", it is defined as the layout every partner already
  * had before templates existed, key for key (see `DOC_TEMPLATE_LAYOUTS.classic` against
  * `resolveLayout({})`). That is what makes 0505 safe to apply: the column default names a
  * template that changes nothing.
@@ -62,8 +62,8 @@ export type DocTemplateId = (typeof DOC_TEMPLATES)[number];
 export const DEFAULT_DOC_TEMPLATE: DocTemplateId = "classic";
 
 /**
- * The layout keys a template sets. Everything else in `DocLayout` — the wording keys and
- * the thank-you — is deliberately outside a template's reach (see the header).
+ * The layout keys a template sets. Everything else in `DocLayout`, the wording keys and
+ * the thank-you, is deliberately outside a template's reach (see the header).
  */
 export const TEMPLATE_LAYOUT_KEYS = [
   "density",
@@ -81,7 +81,7 @@ export type TemplateLayoutKey = (typeof TEMPLATE_LAYOUT_KEYS)[number];
 export type TemplateLayout = Pick<ResolvedLayout, TemplateLayoutKey>;
 
 /**
- * Every key is spelled out on every template — never inherited, never omitted.
+ * Every key is spelled out on every template, never inherited, never omitted.
  *
  * `update_document_layout` MERGES, which is what stops a screen offering three settings
  * from wiping the other twelve. The flip side is that an omitted key would keep whatever
@@ -106,7 +106,7 @@ export const DOC_TEMPLATE_LAYOUTS: Record<DocTemplateId, TemplateLayout> = {
   },
   /**
    * For a long job. Tight rows and numbered lines, and a hairline instead of a filled
-   * band — which also gives back the top of the page. A twenty-line strip-and-rebuild
+   * band, which also gives back the top of the page. A twenty-line strip-and-rebuild
    * lands on one sheet instead of two, which matters to whoever is holding the printer.
    */
   compact: {
@@ -122,7 +122,7 @@ export const DOC_TEMPLATE_LAYOUTS: Record<DocTemplateId, TemplateLayout> = {
   /**
    * No colour anywhere, and a line to sign. For the partner who prints on paper, hands it
    * over at the vehicle and wants a signature, or whose customer photocopies and files
-   * everything — a solid colour band comes out of a mono copier as a grey smear that eats
+   * everything, a solid colour band comes out of a mono copier as a grey smear that eats
    * the business name with it.
    */
   plain: {
@@ -167,7 +167,7 @@ export function templateLayout(id: DocTemplateId): TemplateLayout {
   return DOC_TEMPLATE_LAYOUTS[id];
 }
 
-/** i18n keys — plain words a mechanic would use, not design vocabulary. */
+/** i18n keys, plain words a mechanic would use, not design vocabulary. */
 export function docTemplateNameKey(id: DocTemplateId): string {
   return `docTemplate.name.${id}`;
 }
@@ -180,7 +180,7 @@ export function docTemplateDescKey(id: DocTemplateId): string {
  * resolver so the miniature in the picker cannot drift from the real page or the PDF.
  *
  * `current` is the partner's live layout: their wording, their thank-you and anything
- * they hand-tuned outside the eight keys carries into the preview, which is the point —
+ * they hand-tuned outside the eight keys carries into the preview, which is the point -
  * a partner judging "Plain paper" should see their own document in it, not a specimen.
  */
 export function layoutForTemplate(id: DocTemplateId, current: unknown): ResolvedLayout {
@@ -191,7 +191,7 @@ export function layoutForTemplate(id: DocTemplateId, current: unknown): Resolved
  * Does the live layout still match the template the partner chose?
  *
  * The stored name records a choice; the switches below the picker can move afterwards.
- * When they have, the picker says so rather than showing a tick that is no longer true —
+ * When they have, the picker says so rather than showing a tick that is no longer true -
  * a settings screen that claims a state it is not in is worse than one that says nothing.
  */
 export function layoutMatchesTemplate(layout: ResolvedLayout, id: DocTemplateId): boolean {

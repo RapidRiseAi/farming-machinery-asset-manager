@@ -6,35 +6,35 @@
 -- it has the same problem in a worse shape. Rent, insurance, the monthly parts account,
 -- salaries, the accountant's retainer and the debit order for the alarm all repeat, and
 -- every one of them is typed in by hand every month. A partner who misses three of them
--- is not short of a receipt — their profit reads high, their VAT return under-claims
+-- is not short of a receipt, their profit reads high, their VAT return under-claims
 -- input VAT, and their creditors list says they owe less than they do. Nothing on any
 -- screen says so, because the row that would have said it was never captured.
 --
--- ── The shape ────────────────────────────────────────────────────────────────
+-- == The shape ================================================================
 --
 -- Deliberately the mirror of `recurring_invoices`: a schedule holds everything an expense
 -- needs plus a cadence and the date of the next one, and the nightly cron walks the ones
 -- that are due and writes ORDINARY `partner_expenses` rows. Not a parallel ledger, not a
--- flagged variety of expense — the same table, so a generated row lands in the VAT
+-- flagged variety of expense, the same table, so a generated row lands in the VAT
 -- return, `app.partner_pl`, the expense breakdown and the creditors ageing with no
 -- special casing anywhere. Nothing downstream needs to learn that this feature exists.
 --
--- ── Why there are no lines here, when the sales side has them ────────────────
+-- == Why there are no lines here, when the sales side has them ================
 --
 -- A `recurring_invoice` carries lines because the document it raises carries lines: an
 -- invoice is a list of things charged for, and the generator copies that list across. A
--- `partner_expense` is a single amount with a single VAT figure — 0430 made it that way
+-- `partner_expense` is a single amount with a single VAT figure, 0430 made it that way
 -- on purpose, because a supplier's invoice is a source document and what the books need
 -- from it is the total and the VAT line, not a re-typing of its contents. A lines table
 -- here would have exactly one row per schedule, forever, and its total would be a second
 -- place the amount lives. So the amount sits on the header, and this table has no child.
 --
--- ── Two decisions worth stating ──────────────────────────────────────────────
+-- == Two decisions worth stating ==============================================
 --
 -- 1. It records the expense as STILL OWED by default. `auto_paid` is the mirror of the
 --    sales side's `auto_send`: a stop order or debit order genuinely does leave the bank
 --    on the day, and for those the schedule can stamp `paid_on` itself. It is off by
---    default because the two errors are not symmetric — an expense wrongly marked paid
+--    default because the two errors are not symmetric, an expense wrongly marked paid
 --    disappears from the creditors list and from "who do I owe", and the partner finds
 --    out when the supplier phones. An expense wrongly left unpaid is visible and one tap
 --    from being corrected.
@@ -55,7 +55,7 @@ create table recurring_expenses (
   id                  uuid primary key default gen_random_uuid(),
   workshop_id         uuid not null references workshops(id) on delete cascade,
 
-  -- What the partner calls this schedule ("Workshop rent", "Santam — bakkie"). Separate
+  -- What the partner calls this schedule ("Workshop rent", "Santam, bakkie"). Separate
   -- from the supplier because one supplier can be several standing charges.
   name                text not null,
 
@@ -69,7 +69,7 @@ create table recurring_expenses (
   description         text,
   category            partner_expense_category not null default 'other',
 
-  -- Money, integer cents, EX-VAT — the same rule as everywhere else in this schema. The
+  -- Money, integer cents, EX-VAT, the same rule as everywhere else in this schema. The
   -- VAT amount is carried alongside rather than derived, exactly as `partner_expenses`
   -- carries it: a standing invoice has a printed VAT line and that is what may be
   -- claimed, so the schedule stores the figure it is going to copy rather than one it
@@ -83,7 +83,7 @@ create table recurring_expenses (
   vat_claimable       boolean not null default true,
 
   cadence             recurrence_cadence not null default 'monthly',
-  -- The next expense's DATE — the date that goes on the row, which is the date the VAT
+  -- The next expense's DATE, the date that goes on the row, which is the date the VAT
   -- return and the P&L period it. Moved forward by one cadence after each run.
   next_due_date       date not null,
   -- Stop after this date, or never (null). A two-year finance agreement should not have
@@ -114,7 +114,7 @@ create table recurring_expenses (
   constraint recurring_expenses_zero_ck   check (vat_rate_bps > 0 or vat_cents = 0),
   -- Only meaningful while the schedule is LIVE. When it reaches its end date the
   -- generator moves next_due_date past ends_on and switches active off in the same
-  -- update — that is the correct terminal state, and an unconditional check would refuse
+  -- update, that is the correct terminal state, and an unconditional check would refuse
   -- the very write that stops the schedule.
   constraint recurring_expenses_ends_ck check (
     ends_on is null or not active or ends_on >= next_due_date
@@ -126,7 +126,7 @@ create index recurring_expenses_due_idx on recurring_expenses(next_due_date)
 create index recurring_expenses_workshop_idx on recurring_expenses(workshop_id, active);
 
 comment on table recurring_expenses is
-  'A standing COST the nightly cron captures on a cadence (G19) — rent, insurance, '
+  'A standing COST the nightly cron captures on a cadence (G19), rent, insurance, '
   'salaries, a monthly account. Writes ordinary partner_expenses rows, so generated spend '
   'reaches the VAT return, the P&L and the creditors ageing with no special casing. '
   '`last_period_start` makes a run idempotent, so a double-fired cron cannot book '
@@ -136,11 +136,11 @@ comment on column recurring_expenses.last_period_start is
   'The period the last run covered. The idempotency key: the cron, a retry and the '
   'partner''s own "capture it now" all check it, so one period yields one expense.';
 
--- ── RLS: the partner's own books, and nobody else's ──────────────────────────
+-- == RLS: the partner's own books, and nobody else's ==========================
 -- Copied from `partner_expenses` (0430) rather than generalised, because these rows are
 -- the same class of secret: what a contractor pays its landlord and its staff is not
 -- something the farms it works for, or the contractor down the road, get to read.
--- Anon gets nothing — 0102 revokes the default privileges and no anon policy exists.
+-- Anon gets nothing, 0102 revokes the default privileges and no anon policy exists.
 alter table recurring_expenses enable row level security;
 alter table recurring_expenses force  row level security;
 
@@ -160,7 +160,7 @@ grant all on recurring_expenses to service_role;
 create trigger recurring_expenses_audit after insert or update or delete on recurring_expenses
   for each row execute function app_audit();
 
--- ── The generator ────────────────────────────────────────────────────────────
+-- == The generator ============================================================
 -- SECURITY DEFINER because the nightly cron runs with no session, exactly like the other
 -- 0205-pattern engines and like `app.generate_recurring_invoices`. It is never called
 -- from the client: execute is revoked from public, anon and authenticated (a function
@@ -186,7 +186,7 @@ begin
        and (p_only is null or re.id = p_only)
        and re.next_due_date <= current_date
        and (re.ends_on is null or re.next_due_date <= re.ends_on)
-     -- Locked as each row is fetched, and only the schedule row — the workshop join is a
+     -- Locked as each row is fetched, and only the schedule row, the workshop join is a
      -- filter, not something to hold. This is one step beyond the sales-side mirror and it
      -- is deliberate: `last_period_start` makes a SEQUENCE of runs idempotent, but two
      -- runs overlapping (a cron that fires twice within a second, a retry launched while
@@ -210,7 +210,7 @@ begin
     end if;
 
     -- An ordinary expense in every respect. Same table, same columns, same audit trigger
-    -- as one typed in by hand — the only thing that distinguishes it is that nobody had
+    -- as one typed in by hand, the only thing that distinguishes it is that nobody had
     -- to remember. `expense_date` is the PERIOD date, not today's: a run that happens
     -- late still books the cost into the month it belongs to, which is what keeps a VAT
     -- return built on the invoice basis correct.
@@ -222,7 +222,7 @@ begin
       coalesce(r.description, r.name),
       v_period,
       -- A stop order really does leave the bank on the day. Anything else is still owed
-      -- until the partner says otherwise — see note 1 in the header.
+      -- until the partner says otherwise, see note 1 in the header.
       case when r.auto_paid then v_period else null end,
       r.amount_cents, r.vat_rate_bps,
       -- Belt and braces against a schedule whose rate was later zeroed: a zero-rated
@@ -260,11 +260,11 @@ end $$;
 revoke execute on function public.cron_generate_recurring_expenses() from public, anon, authenticated;
 grant  execute on function public.cron_generate_recurring_expenses() to service_role;
 
--- ── "Capture it now" ─────────────────────────────────────────────────────────
+-- == "Capture it now" =========================================================
 -- The partner's own button, for the schedule they have just set up and do not want to
 -- wait a month to see work, and for the month the cron was not running. Ownership is
 -- checked HERE rather than relying on the generator, because the generator is SECURITY
--- DEFINER and would otherwise honour any id passed to it — including another workshop's,
+-- DEFINER and would otherwise honour any id passed to it, including another workshop's,
 -- which would write a cost into somebody else's books.
 create or replace function public.run_recurring_expense(p_id uuid) returns int
 language plpgsql security definer set search_path = public, pg_temp as $$

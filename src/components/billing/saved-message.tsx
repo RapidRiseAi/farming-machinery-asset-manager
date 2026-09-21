@@ -4,8 +4,8 @@ import { t, type Lang } from "@/lib/i18n";
 import { savedIsTransient, type SavedNotice } from "@/lib/billing/view";
 
 /**
- * Long enough to read one sentence about money at an unhurried pace — these say what was
- * charged and when, not "Saved" — and the reader can dismiss it sooner.
+ * Long enough to read one sentence about money at an unhurried pace, these say what was
+ * charged and when, not "Saved", and the reader can dismiss it sooner.
  */
 const TOAST_MS = 10_000;
 
@@ -17,8 +17,8 @@ const TOAST_MS = 10_000;
  *
  * A confirmation is a `Toast`, fixed just above the phone's tab bar, so it overlays the
  * page instead of pushing everything down on every action, and it clears itself. Anything
- * that must stay — `savedIsTransient` is false, which includes the "we are checking that
- * payment, do not pay again" message — is the ordinary inline `Flash`, exactly as before.
+ * that must stay, `savedIsTransient` is false, which includes the "we are checking that
+ * payment, do not pay again" message, is the ordinary inline `Flash`, exactly as before.
  *
  * Server component. `Toast` is the client piece and receives only serialisable props.
  */

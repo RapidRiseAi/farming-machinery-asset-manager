@@ -2,11 +2,11 @@
 -- Alerts that reach a farmer who never opens the app.
 --
 -- THE GAP
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `notification_channel` has been `('whatsapp','inapp','email')` since 0006, and email has
 -- never been delivered. Alerts go in-app and by web push, and push needs the app installed
--- and permission granted on the device. WhatsApp — the channel `SCOPE.md` §1 calls the
--- farmer's interface — waits on a provider.
+-- and permission granted on the device. WhatsApp, the channel `SCOPE.md` §1 calls the
+-- farmer's interface, waits on a provider.
 --
 -- So today a service falling due reaches an owner only if he opens FleetWise. `SCOPE.md`
 -- §1 says he should get value "even if he personally never types anything", and email is
@@ -14,20 +14,20 @@
 -- verification and scheduled reports.
 --
 -- OPT-IN, AND OFF UNTIL SOMEBODY ASKS
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `notify_email` defaults to FALSE. Turning it on for every existing user would start
 -- emailing sixteen farms on the next nightly run, which is a decision for the founder and
 -- not a side effect of a migration. `/account` offers the switch; enabling it for a cohort
 -- is one UPDATE when that decision is made.
 --
 -- THE SAME BOOKKEEPING AS PUSH
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A leased claim table, the same five-minute lease, the same retry-on-failure, and a
 -- terminal mark only when the provider accepted the message (20260908112916). A temporary
 -- failure at Resend must not discard a reminder, and a crash must not send it twice for
 -- ever: the lease expires and the row is retried.
 
--- ── The switch ──────────────────────────────────────────────────────────────
+-- == The switch ==============================================================
 alter table public.users
   add column if not exists notify_email boolean not null default false;
 
@@ -35,7 +35,7 @@ comment on column public.users.notify_email is
   'Send this person service, fault and licence alerts by email as well. Opt-in: push needs '
   'the app installed, and WhatsApp is not live.';
 
--- ── The marker, mirroring push_sent_at ──────────────────────────────────────
+-- == The marker, mirroring push_sent_at ======================================
 alter table public.notifications
   add column if not exists email_sent_at timestamptz;
 
@@ -43,7 +43,7 @@ create index if not exists notifications_email_pending_idx
   on public.notifications(user_id)
   where email_sent_at is null and deleted_at is null;
 
--- ── The claim table ─────────────────────────────────────────────────────────
+-- == The claim table =========================================================
 create table if not exists public.notification_email_delivery (
   notification_id uuid primary key
     references public.notifications(id) on delete cascade,
@@ -61,7 +61,7 @@ alter table public.notification_email_delivery force  row level security;
 -- session has no business reading who has been emailed what.
 grant all on public.notification_email_delivery to service_role;
 
--- ── Claim a batch ───────────────────────────────────────────────────────────
+-- == Claim a batch ===========================================================
 create or replace function public.claim_notification_email(p_claim_id uuid, p_limit integer)
 returns table (
   id uuid, user_id uuid, farm_id uuid, template text, payload jsonb
@@ -101,7 +101,7 @@ begin
     from claimed c join public.notifications n on n.id = c.notification_id;
 end $$;
 
--- ── Finish one ──────────────────────────────────────────────────────────────
+-- == Finish one ==============================================================
 -- `p_terminal` means "this row is done with": the provider accepted it, or there is
 -- nothing to send it to. Anything else releases the claim with a back-off so the reminder
 -- is tried again rather than quietly dropped.
@@ -142,7 +142,7 @@ revoke all on function public.finish_notification_email(uuid, uuid, boolean, tex
 grant execute on function public.claim_notification_email(uuid, integer) to service_role;
 grant execute on function public.finish_notification_email(uuid, uuid, boolean, text) to service_role;
 
--- ── The preference, on the screen that already owns the others ──────────────
+-- == The preference, on the screen that already owns the others ==============
 -- The four-argument version goes rather than gaining a defaulted fifth: PostgREST resolves
 -- by named arguments, and two candidates would start answering "function is not unique".
 drop function if exists public.set_notification_prefs(boolean, boolean, int, int);

@@ -1,15 +1,15 @@
 -- 20260903160000_saas_billing_core.sql
--- FleetWise SaaS subscription billing — the ledger half.
+-- FleetWise SaaS subscription billing, the ledger half.
 --
 -- WHAT THIS IS, AND WHAT IT IS EMPHATICALLY NOT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- This is FARMS PAYING RAPID RISE for FleetWise. One direction, one relationship:
 -- our customer pays us for software.
 --
 -- It is NOT, and must never become, the money that moves between a farm and its
 -- contractors, workshops or suppliers. That money is `partner_documents` /
--- `partner_payments` (F14/G1–G10) and FleetWise deliberately does not sit in the
--- middle of it — see the dormant PayFast seam in `src/lib/payments/*`, kept inert on
+-- `partner_payments` (F14/G1-G10) and FleetWise deliberately does not sit in the
+-- middle of it, see the dormant PayFast seam in `src/lib/payments/*`, kept inert on
 -- purpose. Nothing in this file touches those tables, and nothing in them may ever be
 -- reached from here. If a later reader finds themselves joining `billing_invoices` to
 -- `partner_documents`, the design has gone wrong.
@@ -18,20 +18,20 @@
 -- ledgers cannot be confused at a glance in a query, a backup or a stack trace.
 --
 -- WHERE SUBSCRIPTION STATE LIVES
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Here. Not at the provider. Paystack moves money and nothing else: it holds no plan,
--- no price, no period and no entitlement. The reason is not preference — the amount
+-- no price, no period and no entitlement. The reason is not preference, the amount
 -- changes with the farm's active vehicle count, so a fixed provider-side "Plan" object
 -- would be wrong the moment a farmer sells a tractor. We compute the amount, we raise
 -- the invoice, we ask Paystack to charge a stored authorization.
 --
 -- THE TWO PLANS, AND WHY THERE ARE TWO
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `farms.plan` is the EFFECTIVE plan. It is what `app.has_entitlement` (0251) and every
 -- gated route in the product already resolve from, and this migration does not change
 -- that by one character.
 --
--- `billing_subscriptions.plan` is the COMMERCIAL plan — what the farm actually bought
+-- `billing_subscriptions.plan` is the COMMERCIAL plan, what the farm actually bought
 -- and is billed for.
 --
 -- They are normally identical. They diverge in exactly one situation: a farm that has
@@ -42,11 +42,11 @@
 --
 -- Doing it this way means the downgrade needs no new entitlement code at all: every
 -- gated surface, the SQL helper and the TS map keep working unchanged. A later reader
--- may be tempted to "simplify" by collapsing the two columns. Don't — that is the same
+-- may be tempted to "simplify" by collapsing the two columns. Don't, that is the same
 -- as losing the record of what the customer is owed on recovery.
 --
 -- VAT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Founder position at time of writing: Rapid Rise is NOT VAT-registered. So the rate is
 -- zero, no VAT line appears, and an invoice must NOT be headed "Tax invoice" (VAT Act
 -- s20(4) reserves that for a registered vendor). The machinery is nonetheless built in
@@ -58,12 +58,12 @@
 -- idea in this codebase about "an issuer who may not charge VAT", not two.
 --
 -- PRICING IS DELIBERATELY UNSEEDED
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `docs/FLEETWISE_FOUNDER_DECISIONS.md` #1 says R44/R73/R89/R250. Shipped
 -- `src/lib/entitlements.ts` says R39/R69/R99/POA. Both claim to be VAT-inclusive, so
 -- only the numbers are in dispute. This migration creates the catalogue and inserts
 -- NOTHING into it. With no `active` price version the invoice generator raises no
--- invoice and there is nothing to charge — the safest resting state for an unresolved
+-- invoice and there is nothing to charge, the safest resting state for an unresolved
 -- price. Seeding the confirmed table is one INSERT, later, by decision.
 
 
@@ -125,7 +125,7 @@ create type billing_price_status as enum ('draft', 'active', 'retired');
 --
 -- `id` is a uuid, and that is load-bearing rather than habit: the shared `app_audit()`
 -- trigger (0008) does `(to_jsonb(new) ->> 'id')::uuid` on every audited table. The
--- obvious cleverness here — a boolean primary key fixed to true — was written first and
+-- obvious cleverness here, a boolean primary key fixed to true, was written first and
 -- made every UPDATE to this table fail with `invalid input syntax for type uuid: "true"`,
 -- which is to say: the first time anybody edited the dunning policy. Audited tables in
 -- this codebase have uuid ids. This one does too.
@@ -149,7 +149,7 @@ create table billing_settings (
   billing_email         text,
   support_email         text,
 
-  -- ── Dunning / lifecycle policy. PROPOSED DEFAULTS, ALL awaiting founder sign-off.
+  -- == Dunning / lifecycle policy. PROPOSED DEFAULTS, ALL awaiting founder sign-off.
   -- They live in the database rather than in code so that changing a policy is a
   -- decision somebody makes and the audit log records, not a deploy nobody reviews.
   trial_days            integer not null default 14,
@@ -164,7 +164,7 @@ create table billing_settings (
   -- Cancellation takes effect at period end by default: they paid for the period.
   cancel_at_period_end  boolean not null default true,
   -- Annual plans: whether adding vehicles mid-term raises a pro-rata charge. Off until
-  -- the founder decides — silently charging for a mid-year purchase is the fastest way
+  -- the founder decides, silently charging for a mid-year purchase is the fastest way
   -- to lose a customer's trust in their bill.
   prorate_annual_additions boolean not null default false,
   -- How many days after issue an invoice is due. Card subscriptions charge on issue, so
@@ -201,7 +201,7 @@ comment on column billing_settings.vat_registered is
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- The price catalogue — versioned, and immutable once it has been used
+-- The price catalogue, versioned, and immutable once it has been used
 -- ══════════════════════════════════════════════════════════════════════════════
 -- One row per (version, plan, billing period). A version is a named generation of the
 -- price list ("launch-2026"), so "what did we charge in March" is answerable from the
@@ -284,7 +284,7 @@ create table billing_subscriptions (
   id                    uuid primary key default gen_random_uuid(),
   farm_id               uuid not null references farms(id) on delete cascade,
 
-  -- The COMMERCIAL plan: what they bought. See the header — this is NOT the plan
+  -- The COMMERCIAL plan: what they bought. See the header, this is NOT the plan
   -- entitlements resolve from, and it survives a non-payment downgrade so recovery can
   -- restore exactly what they are owed.
   plan                  farm_plan not null,
@@ -297,7 +297,7 @@ create table billing_subscriptions (
 
   trial_ends_on         date,
   -- The day of the month charges land on. Held explicitly so it does not drift when a
-  -- month is short — a farm anchored on the 31st and billed on 28 February must still
+  -- month is short, a farm anchored on the 31st and billed on 28 February must still
   -- be the 31st in March.
   anchor_day            integer,
   current_period_start  date,
@@ -383,7 +383,7 @@ create index billing_asset_snapshots_farm_idx
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- The invoice — every figure snapshotted, and then frozen
+-- The invoice, every figure snapshotted, and then frozen
 -- ══════════════════════════════════════════════════════════════════════════════
 create table billing_invoices (
   id                uuid primary key default gen_random_uuid(),
@@ -399,7 +399,7 @@ create table billing_invoices (
   issued_on         date,
   due_on            date,
 
-  -- ── The snapshot. Every one of these is copied at issue time and never recomputed. A
+  -- == The snapshot. Every one of these is copied at issue time and never recomputed. A
   -- price change next year must not be able to restate this bill.
   plan              farm_plan not null,
   billing_period    billing_period not null,
@@ -417,7 +417,7 @@ create table billing_invoices (
   -- not silently restate last year's invoice.
   bill_to_snapshot  jsonb not null default '{}'::jsonb,
 
-  -- ── Money. Integer cents, always. VAT-inclusive is the source figure (it is what the
+  -- == Money. Integer cents, always. VAT-inclusive is the source figure (it is what the
   -- customer agreed to pay); the ex-VAT subtotal and VAT amount are derived from it by
   -- app.ex_vat_cents / app.vat_of_incl_cents, which mirror src/lib/money.ts.
   subtotal_ex_vat_cents bigint not null default 0,
@@ -517,11 +517,11 @@ grant  execute on function app.vat_of_incl_cents(bigint, integer) to authenticat
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- The VAT guard — a rate we may not charge cannot be written
+-- The VAT guard, a rate we may not charge cannot be written
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Same reasoning as 0401 on the partner side: a stale form, an import or a bug must not
 -- be able to issue VAT on behalf of an unregistered vendor. This runs BEFORE the totals
--- are derived, so the split is computed from the CORRECTED rate — the ordering mistake
+-- are derived, so the split is computed from the CORRECTED rate, the ordering mistake
 -- 0403 had to go back and fix on the partner side, where the guard sorted after the
 -- totals trigger and a stale form could still issue VAT.
 create or replace function app.billing_force_vat_rate() returns trigger
@@ -559,7 +559,7 @@ revoke execute on function app.billing_derive_invoice_totals() from public, anon
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Once an invoice leaves `draft` it is a statement about a period that has been billed.
 -- What may still change is what has been PAID against it, and whether it has been
--- voided or written off — nothing about the supply itself.
+-- voided or written off, nothing about the supply itself.
 --
 -- The guarantee is not "cannot change"; it is "cannot change without leaving a record".
 -- Voiding is allowed and keeps the row and its reason. Deleting is not.
@@ -674,7 +674,7 @@ create trigger billing_price_versions_freeze
 -- Who may touch billing
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Owners and Rapid Rise administrators. Not managers, not mechanics, not operators,
--- and emphatically not workshop users — a contractor with an active link to a farm has
+-- and emphatically not workshop users, a contractor with an active link to a farm has
 -- legitimate access to that farm's VEHICLES (F16 narrows even that) and no business
 -- whatsoever seeing what the farm pays Rapid Rise.
 --
@@ -696,11 +696,11 @@ grant  execute on function app.is_farm_billing_admin(uuid) to authenticated, ser
 
 comment on function app.is_farm_billing_admin(uuid) is
   'Billing is the owner''s business and Rapid Rise''s. Managers, mechanics, operators '
-  'and workshop users are excluded — a linked contractor must never read what the farm '
+  'and workshop users are excluded, a linked contractor must never read what the farm '
   'pays for its software.';
 
 
--- ── Farm-scoped billing tables: read for the owner, write for nobody but the server ──
+-- == Farm-scoped billing tables: read for the owner, write for nobody but the server ==
 -- Writes are service-role only ON PURPOSE. Every row in these tables is created by the
 -- billing engine or by a verified provider event; there is no legitimate browser path
 -- that mints an invoice or records a payment, and leaving one open would be the whole
@@ -716,7 +716,7 @@ comment on function app.is_farm_billing_admin(uuid) is
 -- to `authenticated`. Writing "we simply do not grant it" is therefore true of the
 -- statement and false of the database. Row-level security still refuses the writes (these
 -- tables are FORCE RLS with a SELECT policy and nothing else, so an INSERT matches no
--- permissive policy and is denied) — but relying on that alone leaves exactly one lock
+-- permissive policy and is denied), but relying on that alone leaves exactly one lock
 -- between a customer and their own invoice ledger, and RLS is the wrong lock for the
 -- COLUMN problem on billing_payment_methods next door.
 --

@@ -19,7 +19,7 @@ export type CorrectionDoc = {
   written_off_reason: string | null;
   /**
    * What is genuinely still owed: total less payments AND less anything already credited
-   * back. Not the raw balance — an invoice with a credit note against it owes less than
+   * back. Not the raw balance, an invoice with a credit note against it owes less than
    * `total − paid`, and a confirmation naming the wrong figure is worse than none.
    */
   outstanding_cents: number;
@@ -32,7 +32,7 @@ export type CreditNoteRef = { id: string; number: string; total_cents: number; s
  *
  * The panel exists because the honest answer used to be "phone the customer". A sent
  * document was correctly locked, and the only escape was a cancel button that erased the
- * farm's cost entry without recording a reason — so the number moved and nothing said
+ * farm's cost entry without recording a reason, so the number moved and nothing said
  * why.
  *
  * Three ways to be wrong, three different answers, and the panel names them in the words
@@ -113,7 +113,7 @@ export function CorrectionPanel({
         <>
           {/* Money back to the customer. Kept alongside the edit form rather than instead
               of it, because a refund on an invoice the customer has already PAID has to be
-              its own event — you cannot correct that away, and 0417 refuses to. */}
+              its own event, you cannot correct that away, and 0417 refuses to. */}
           <form action={createCreditNote} className="flex flex-col gap-3 border-t border-sand-100 pt-3">
             <input type="hidden" name="document_id" value={doc.id} />
             <p className="text-sm font-medium text-sand-900">{t("correct.overcharged", locale)}</p>

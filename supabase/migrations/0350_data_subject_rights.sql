@@ -1,4 +1,4 @@
--- 0350_data_subject_rights.sql  (F8 · POPIA NFR-3 — data-subject access & erasure)
+-- 0350_data_subject_rights.sql  (F8 · POPIA NFR-3, data-subject access & erasure)
 --
 -- Two guarded SECURITY DEFINER RPCs implementing the POPIA data-subject rights of
 -- ACCESS (export) and ERASURE (anonymise) for a person whose personal data we hold.
@@ -17,18 +17,18 @@
 --   `public.users.id` is referenced (RESTRICT) by meter_readings.by_user,
 --   faults.reported_by/assigned_to, job_cards.mechanic_user_id/approved_by,
 --   cost_entries.created_by, attachments.created_by, notifications.user_id, and by
---   usage_logs.driver_user_id — the AARTO driver-usage record we are legally obliged to
+--   usage_logs.driver_user_id, the AARTO driver-usage record we are legally obliged to
 --   retain. A hard DELETE would either fail or destroy maintenance/finance/AARTO history.
 --   So erasure ANONYMISES the identifying fields in-place (name/email/phone cleared, the
 --   account deactivated + soft-deleted) and nulls the free-text name COPIES elsewhere,
 --   leaving the de-identified structural history intact. The append-only audit_log is
 --   retained under the legal-obligation / audit-integrity basis (documented in POPIA.md).
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- Shared guard: may the current user act on p_user's personal data?
 -- Returns the subject's farm_id (may be null for rr_admin/workshop subjects) and
 -- raises if the caller is not entitled. Logs rr_admin cross-tenant access.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 create or replace function app.assert_can_manage_person(p_user uuid, p_action text)
 returns uuid
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -64,9 +64,9 @@ end $$;
 
 revoke execute on function app.assert_can_manage_person(uuid, text) from public, anon, authenticated;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- ACCESS (Data Subject Access Request): export everything we hold on a person.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 create or replace function public.export_personal_data(p_user uuid)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -115,9 +115,9 @@ end $$;
 revoke execute on function public.export_personal_data(uuid) from public, anon;
 grant  execute on function public.export_personal_data(uuid) to authenticated;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- ERASURE (Right to deletion, done as anonymisation): clear a person's PII.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 create or replace function public.erase_personal_data(p_user uuid, p_reason text default null)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$

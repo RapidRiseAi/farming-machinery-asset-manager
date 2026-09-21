@@ -53,7 +53,7 @@ export default async function ContractorDashboardPage({
   const profile = await requireProfile();
   const locale = profile.lang;
   // This dashboard belongs to the contractor (workshop) role. Everyone else has their own
-  // home — send them there rather than render an empty portal.
+  // home, send them there rather than render an empty portal.
   if (profile.role !== "workshop" || !profile.workshop_id) redirect("/machines");
 
   const sp = await searchParams;
@@ -70,9 +70,9 @@ export default async function ContractorDashboardPage({
   const { plan } = await workshopPlan(profile);
   const analyticsAllowed = plan != null && workshopPlanAllows(plan, "client_analytics");
 
-  // ── The aggregated feed: EVERY request assigned to THIS workshop, across ALL its
+  // == The aggregated feed: EVERY request assigned to THIS workshop, across ALL its
   // linked farms, in one place. Since F7 (0341) RLS itself workshop-scopes work_requests
-  // for a workshop user — so a contractor never sees another workshop's request even on a
+  // for a workshop user, so a contractor never sees another workshop's request even on a
   // shared farm. The explicit workshop_id filter is kept (belt-and-suspenders + intent).
   // Together: a contractor sees only its own work, and never an unlinked farm's data.
   const { data: wrData } = await supabase
@@ -97,7 +97,7 @@ export default async function ContractorDashboardPage({
       ? supabase.from("users").select("id, name, farm_id, role, phone, email").in("farm_id", farmIds).in("role", ["owner", "manager"]).is("deleted_at", null)
       : Promise.resolve({ data: [] }),
     // Real money, from the documents that carry it. The analytics used to sum
-    // `work_requests.invoice_amount_cents` — the field from before documents existed —
+    // `work_requests.invoice_amount_cents`, the field from before documents existed -
     // so a partner billing entirely through FleetWise documents saw R0 in the panel they
     // were paying for.
     supabase
@@ -118,13 +118,13 @@ export default async function ContractorDashboardPage({
     if (!cur || (u.role === "owner" && cur.role !== "owner")) contactByFarm.set(u.farm_id, u);
   }
 
-  // ── KPIs over the whole assigned set (not the filtered view) ──────
+  // == KPIs over the whole assigned set (not the filtered view) ======
   const openReqs = all.filter((r) => r.status !== "closed");
   const kpiNew = all.filter((r) => r.status === "requested").length;
   const kpiInProgress = all.filter((r) => r.status === "accepted" || r.status === "in_progress").length;
   const kpiToInvoice = all.filter((r) => r.status === "completed").length;
 
-  // ── Filters. Default KIND = the contractor's focus kinds (tailored per `kind`);
+  // == Filters. Default KIND = the contractor's focus kinds (tailored per `kind`);
   // "all" shows every type; a specific value narrows to it. Status / farm / sort too.
   const kindParam = sp.kind; // undefined = focus default, "all" = no kind filter, else a kind
   const statusParam = sp.status && isWorkStatus(sp.status) ? sp.status : "";
@@ -167,9 +167,9 @@ export default async function ContractorDashboardPage({
   const chip = (active: boolean) =>
     `focus-ring rounded-full px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`;
 
-  // ── The money, from partner_documents ─────────────────────────────
+  // == The money, from partner_documents =============================
   // An invoice owes what has not been paid; a credit note takes it back off. Anything
-  // still owed past its due date is overdue — the number a partner actually needs.
+  // still owed past its due date is overdue, the number a partner actually needs.
   const today = new Date().toISOString().slice(0, 10);
   const owedOf = (d: PartnerDoc) =>
     d.kind === "invoice" ? Math.max(0, d.total_cents - (d.amount_paid_cents ?? 0)) : 0;
@@ -185,12 +185,12 @@ export default async function ContractorDashboardPage({
   const quotedOut = docs.filter((d) => d.kind === "quote" && d.status === "sent")
     .reduce((s, d) => s + d.total_cents, 0);
 
-  // Per-customer rollup for the (gated) analytics panel — farms AND client-book
+  // Per-customer rollup for the (gated) analytics panel, farms AND client-book
   // customers, because a partner's book is not only the farms that found them.
   const byCustomer = new Map<string, { name: string; owed: number; billed: number; open: number }>();
   for (const d of docs) {
     const key = d.farm_id ? `farm:${d.farm_id}` : d.partner_client_id ? `client:${d.partner_client_id}` : `name:${d.bill_to_name}`;
-    const name = (d.farm_id ? farmById.get(d.farm_id)?.name : null) ?? d.bill_to_name ?? "—";
+    const name = (d.farm_id ? farmById.get(d.farm_id)?.name : null) ?? d.bill_to_name ?? "-";
     const cur = byCustomer.get(key) ?? { name, owed: 0, billed: 0, open: 0 };
     cur.owed += owedOf(d) + (isNote(d.kind) ? ledgerSign(d.kind) * d.total_cents : 0);
     if (d.kind === "invoice") cur.billed += d.total_cents;
@@ -198,7 +198,7 @@ export default async function ContractorDashboardPage({
   }
   for (const r of all) {
     if (r.status === "closed" || !r.farm_id) continue;
-    const cur = byCustomer.get(`farm:${r.farm_id}`) ?? { name: farmById.get(r.farm_id)?.name ?? "—", owed: 0, billed: 0, open: 0 };
+    const cur = byCustomer.get(`farm:${r.farm_id}`) ?? { name: farmById.get(r.farm_id)?.name ?? "-", owed: 0, billed: 0, open: 0 };
     cur.open += 1;
     byCustomer.set(`farm:${r.farm_id}`, cur);
   }
@@ -209,7 +209,7 @@ export default async function ContractorDashboardPage({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header — tailored per contractor kind */}
+      {/* Header, tailored per contractor kind */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -234,7 +234,7 @@ export default async function ContractorDashboardPage({
         <Stat label={t("contractor.kpiOpen", locale)} value={openReqs.length} />
       </div>
 
-      {/* What is owed — the question a partner asks before any other. */}
+      {/* What is owed, the question a partner asks before any other. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat
           label={t("contractor.owed", locale)}
@@ -286,7 +286,7 @@ export default async function ContractorDashboardPage({
                   <span className="font-medium text-sand-800">{t("contractor.client", locale)}</span>
                   <Select name="farm" defaultValue={farmParam}>
                     <option value="">{t("contractor.allClients", locale)}</option>
-                    {farmIds.map((fid) => (<option key={fid} value={fid}>{farmById.get(fid)?.name ?? "—"}</option>))}
+                    {farmIds.map((fid) => (<option key={fid} value={fid}>{farmById.get(fid)?.name ?? "-"}</option>))}
                   </Select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
@@ -323,8 +323,8 @@ export default async function ContractorDashboardPage({
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                      <span className="truncate font-semibold text-sand-900">{m?.name ?? "—"}</span>
-                                      <Badge tone="neutral">{farmById.get(r.farm_id)?.name ?? "—"}</Badge>
+                                      <span className="truncate font-semibold text-sand-900">{m?.name ?? "-"}</span>
+                                      <Badge tone="neutral">{farmById.get(r.farm_id)?.name ?? "-"}</Badge>
                                     </div>
                                     <p className="mt-0.5 text-sm text-sand-500">
                                       {workKindLabel(r.kind, locale)}{r.title ? ` · ${r.title}` : ""}
@@ -357,7 +357,7 @@ export default async function ContractorDashboardPage({
 
           {/* Sidebar: clients + parts shortcut + analytics */}
           <div className="flex flex-col gap-4">
-            {/* Your clients — the many-farms value prop + quick-contact the farmer */}
+            {/* Your clients, the many-farms value prop + quick-contact the farmer */}
             <Card>
               <CardHeader><CardTitle>{t("contractor.clients", locale)}</CardTitle></CardHeader>
               <ul className="flex flex-col divide-y divide-sand-100">
@@ -400,7 +400,7 @@ export default async function ContractorDashboardPage({
               </Card>
             ) : null}
 
-            {/* Cross-client analytics — part of the Managed product (F14e gating seam) */}
+            {/* Cross-client analytics, part of the Managed product (F14e gating seam) */}
             <Card>
               <CardHeader>
                 <CardTitle>

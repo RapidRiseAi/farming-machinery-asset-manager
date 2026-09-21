@@ -17,7 +17,7 @@ alter table workshops
   add column next_credit_no    int  not null default 1;
 
 comment on column workshops.doc_prefix_credit is
-  'Numbering prefix for this partner''s credit notes. Its own series — a credit note is '
+  'Numbering prefix for this partner''s credit notes. Its own series, a credit note is '
   'not an invoice, and sharing the invoice counter makes both series unreadable.';
 
 -- Backfill the counter past anything already issued, the way 0384 does for the other two,
@@ -49,7 +49,7 @@ begin
   loop
     v_guard := v_guard + 1;
     if v_guard > 10000 then
-      raise exception 'could not allocate a % number for workshop % — the sequence looks corrupt', p_kind, p_workshop;
+      raise exception 'could not allocate a % number for workshop %, the sequence looks corrupt', p_kind, p_workshop;
     end if;
 
     -- One counter per kind, incremented under the row lock the UPDATE takes, so two

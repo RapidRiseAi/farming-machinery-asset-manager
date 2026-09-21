@@ -1,11 +1,11 @@
 /**
- * Budgets & budget-vs-actual — feature G1 (FR-10.4). Shared by the machine-detail and
+ * Budgets & budget-vs-actual, feature G1 (FR-10.4). Shared by the machine-detail and
  * reports surfaces so both compute the same "actual". All money is integer cents, ex-VAT.
  *
  * A budget is a target (`amount_cents`) for a period (`period_start`..`period_end`),
  * optionally narrowed to one machine and/or one cost category. The "actual" is never
  * stored: it is summed live from the same `cost_entries` ledger (F1) that drives TCO, so
- * a budget and its actual can never drift. The SQL mirror is the `budgets` table (0360) —
+ * a budget and its actual can never drift. The SQL mirror is the `budgets` table (0360) -
  * the period bounds are stored, so this file only has to sum, never re-derive them.
  */
 import type { Locale, Lang } from "@/lib/i18n";
@@ -40,7 +40,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * Derive [period_start, period_end] (inclusive, YYYY-MM-DD) from a period type and an
  * anchor date that falls somewhere inside the desired period. Month → that calendar
  * month; quarter → the calendar quarter containing the anchor; year → that calendar year.
- * Pure integer/UTC math — no timezone drift.
+ * Pure integer/UTC math, no timezone drift.
  */
 export function computePeriodBounds(
   periodType: BudgetPeriodType,
@@ -114,7 +114,7 @@ export function budgetTone(s: BudgetStatus): "ok" | "warning" | "danger" {
   return s === "over" ? "danger" : s === "warning" ? "warning" : "ok";
 }
 
-// ── Localised labels ──────────────────────────────────────────────────────────
+// == Localised labels ==========================================================
 export function budgetPeriodLabel(type: string, locale: Lang): string {
   return t(`budgetPeriod.${type}`, locale);
 }

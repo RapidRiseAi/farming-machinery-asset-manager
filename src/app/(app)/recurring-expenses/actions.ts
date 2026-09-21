@@ -13,7 +13,7 @@ import { CADENCES, type Cadence } from "@/lib/recurring-expenses";
  * Standing costs (G19).
  *
  * These rows are workshop-scoped and RLS enforces it, so every write here goes through
- * the ordinary RLS client — never the service role — and a partner cannot touch another
+ * the ordinary RLS client, never the service role, and a partner cannot touch another
  * workshop's schedules even by guessing an id. The `workshop_id` is taken from the
  * session, never from the form.
  *
@@ -53,7 +53,7 @@ function money(fd: FormData): { amount_cents: number; vat_cents: number; vat_rat
     ? splitInclusive(typed, rateBps)
     : { exCents: typed, vatCents: Math.round((typed * rateBps) / 10000) };
 
-  // An explicitly typed VAT amount wins over the computed one — that is the whole reason
+  // An explicitly typed VAT amount wins over the computed one, that is the whole reason
   // the field is offered.
   const typedVat = parseRandsToCents(String(fd.get("vat_amount") ?? ""));
   return {
@@ -94,7 +94,7 @@ export async function createExpenseSchedule(formData: FormData) {
       amount_cents: m.amount_cents,
       vat_cents: m.vat_cents,
       vat_rate_bps: m.vat_rate_bps,
-      // Unticked means "I cannot claim this back" — entertainment, a passenger car,
+      // Unticked means "I cannot claim this back", entertainment, a passenger car,
       // club fees (VAT Act s17(2)). On a standing charge this is set once and then
       // applies every month, which is exactly why it is worth asking about here.
       vat_claimable: formData.get("vat_claimable") != null,
@@ -128,8 +128,8 @@ export async function updateExpenseSchedule(formData: FormData) {
   const { error } = await supabase
     .from("recurring_expenses")
     .update({
-      name: s(formData, "name") ?? "—",
-      supplier_name: s(formData, "supplier_name") ?? "—",
+      name: s(formData, "name") ?? "-",
+      supplier_name: s(formData, "supplier_name") ?? "-",
       supplier_vat_number: s(formData, "supplier_vat_number"),
       reference: s(formData, "reference"),
       description: s(formData, "description"),
@@ -152,7 +152,7 @@ export async function updateExpenseSchedule(formData: FormData) {
 }
 
 /**
- * Pause or restart a schedule — the one thing a partner does to one most often.
+ * Pause or restart a schedule, the one thing a partner does to one most often.
  *
  * Pausing is the honest answer to "we have stopped paying for this": deleting it would
  * lose the record of what was being paid and when it stopped, and editing the end date
@@ -176,7 +176,7 @@ export async function toggleExpenseSchedule(formData: FormData) {
 /**
  * Capture this schedule's expense now, rather than waiting for the night.
  *
- * `run_recurring_expense` checks ownership itself — the generator underneath is SECURITY
+ * `run_recurring_expense` checks ownership itself, the generator underneath is SECURITY
  * DEFINER and would otherwise honour any id handed to it. It is also the same code path
  * the cron uses, including the same "already done this period" guard, so pressing it
  * twice cannot book the same month's rent twice. A return of 0 is therefore a normal
@@ -199,7 +199,7 @@ export async function runExpenseScheduleNow(formData: FormData) {
 
 /**
  * Soft delete, like everything else in this schema. Expenses ALREADY captured are left
- * exactly where they are — they are real costs that were really incurred, and removing
+ * exactly where they are, they are real costs that were really incurred, and removing
  * them would restate a VAT period that may already have been filed. Only the future
  * stops.
  */

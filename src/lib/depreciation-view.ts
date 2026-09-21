@@ -1,8 +1,8 @@
 /**
  * The asset register as the screen reads it: pure, and therefore tested.
  *
- * Separate from `depreciation.ts` only because that module is `server-only` — it holds the
- * RPC call — and a `node:test` process cannot import one. The SUM itself is deliberately
+ * Separate from `depreciation.ts` only because that module is `server-only`, it holds the
+ * RPC call, and a `node:test` process cannot import one. The SUM itself is deliberately
  * not here: its inputs (purchase price, rate, residual) are withheld from the browser at
  * the column level, so there is nothing on this side to mirror and `farm_book_values`
  * stays the single authority.
@@ -15,7 +15,7 @@ export function registerTotals(rows: readonly BookValueRow[]): {
   cost: number;
   book: number;
   depreciated: number;
-  /** Machines with a purchase price but no policy — the register's own to-do list. */
+  /** Machines with a purchase price but no policy, the register's own to-do list. */
   undecided: number;
 } {
   let cost = 0;

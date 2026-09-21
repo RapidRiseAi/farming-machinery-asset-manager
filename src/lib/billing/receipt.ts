@@ -29,16 +29,16 @@ import { BILLING_RPC } from "@/lib/billing/service";
  *     every retry that does not go through moves them a step closer to losing the plan
  *     they are paying for, and "we tried again and it failed again" is news.
  *
- * ── Exactly once ─────────────────────────────────────────────────────────────
+ * == Exactly once =============================================================
  * Claim first, send second. `billing_claim_receipt` stamps the row only where it is
  * still unstamped, so exactly one caller gets `true` and the loser of the webhook/verify
  * race sends nothing. `false` is the ordinary answer, never an error.
  *
  * If the send then fails, the claim is HANDED BACK with the reason recorded, so the
- * nightly pass tries again. A receipt nobody received must not look sent — that is the
+ * nightly pass tries again. A receipt nobody received must not look sent, that is the
  * whole reason `release` exists rather than just letting the stamp stand.
  *
- * ── Env-gated, like everything else that leaves the building ─────────────────
+ * == Env-gated, like everything else that leaves the building =================
  * With `RESEND_API_KEY` unset this reports `skipped` and claims nothing, so a fresh
  * clone, the test suite and a preview deployment with no mail account all behave. There
  * is no silent success, and nothing is marked sent that was not.
@@ -220,7 +220,7 @@ export async function loadReceipt(
 function receiptBody(d: BillingReceiptData, farmName: string): { html: string; text: string } {
   const L = d.locale;
   const amount = rands(d.totalInclCents);
-  const period = `${shortDate(d.periodStart, L)} – ${shortDate(d.periodEnd, L)}`;
+  const period = `${shortDate(d.periodStart, L)} - ${shortDate(d.periodEnd, L)}`;
   const lines = [
     t("billingReceiptEmail.greeting", L).replace("{name}", farmName),
     "",
@@ -314,7 +314,7 @@ export async function sendDueReceipts(
   // Name the actual fault. The cron renders this into its step summary and into the
   // `cron_runs` ledger, so "something is unset" versus "RESEND_API_KEY is a placeholder,
   // not a key" is the difference between a line nobody can act on and one that diagnoses
-  // the deployment. `[SENSITIVE]` — what `vercel pull` writes — is truthy, so "unset" was
+  // the deployment. `[SENSITIVE]`, what `vercel pull` writes, is truthy, so "unset" was
   // never even the right guess.
   const configProblem = emailConfigProblem();
   if (configProblem) {
@@ -397,7 +397,7 @@ export async function sendDueFailureNotices(
   // Name the actual fault. The cron renders this into its step summary and into the
   // `cron_runs` ledger, so "something is unset" versus "RESEND_API_KEY is a placeholder,
   // not a key" is the difference between a line nobody can act on and one that diagnoses
-  // the deployment. `[SENSITIVE]` — what `vercel pull` writes — is truthy, so "unset" was
+  // the deployment. `[SENSITIVE]`, what `vercel pull` writes, is truthy, so "unset" was
   // never even the right guess.
   const configProblem = emailConfigProblem();
   if (configProblem) {

@@ -1,4 +1,4 @@
-# FleetWise system audit — 11 September 2026
+# FleetWise system audit, 11 September 2026
 
 ## Outcome
 

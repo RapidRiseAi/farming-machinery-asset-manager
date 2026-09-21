@@ -12,7 +12,7 @@
 -- a bar of signal or writes it on his hand, which is where fleet data goes to die.
 --
 -- WHAT THIS CHANGES
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `apply_offline_capture` gains `log_fuel` and `submit_checklist`, replayed through the
 -- same envelope: the client's idempotency key, the same retry-key mismatch rules, the same
 -- `sync_log` row, and the same authorisation re-checked from live rows rather than from
@@ -26,7 +26,7 @@
 -- part is the report; a pre-start check is the answers. Written down rather than discovered:
 -- an offline checklist keeps its answers and loses nothing else.
 
--- ── VAT, in one place ───────────────────────────────────────────────────────
+-- == VAT, in one place =======================================================
 -- Three paths now turn a VAT-inclusive cost into stored ex-VAT cents: the QR capture, the
 -- authenticated command, and this replay. They agreed by being copied, which is how they
 -- start disagreeing. The rate lookup and the arithmetic live here from now on.
@@ -186,7 +186,7 @@ begin
   return v_id;
 end $$;
 
--- ── Raising checklist defects on behalf of an offline capture ───────────────
+-- == Raising checklist defects on behalf of an offline capture ===============
 -- The one-argument version goes: with a default on the new parameter the two would be
 -- ambiguous, and PostgREST resolves by named arguments, so the app would start getting
 -- "function is not unique" rather than a defect.
@@ -265,7 +265,7 @@ begin
       checklist_instance_id
     ) values (
       v_farm, v_machine, v_actor,
-      left(format('%s — %s%s', coalesce(v_name, 'Checklist'), r.label,
+      left(format('%s, %s%s', coalesce(v_name, 'Checklist'), r.label,
              case when coalesce(btrim(r.notes), '') = '' then ''
                   else format(': %s', r.notes) end), 1000),
       'checklist', r.urgency, 'open', p_instance
@@ -285,7 +285,7 @@ revoke execute on function public.record_checklist_defects(uuid, uuid) from publ
 grant execute on function public.record_checklist_defects(uuid, uuid)
   to authenticated, service_role;
 
--- ── The replay itself ───────────────────────────────────────────────────────
+-- == The replay itself =======================================================
 create or replace function public.apply_offline_capture(
   p_client uuid, p_client_ts timestamptz, p_type text, p_scope text,
   p_actor uuid, p_fields jsonb
@@ -452,7 +452,7 @@ begin
       returning id into v_id;
     end if;
 
-  -- ── A diesel draw, captured at the bowser ────────────────────────────────
+  -- == A diesel draw, captured at the bowser ================================
   elsif p_type = 'log_fuel' then
     v_entity := 'fuel_issues';
     if app.plan_rank((select f.plan from public.farms f where f.id = v_machine.farm_id))
@@ -502,7 +502,7 @@ begin
         case when v_activity is null then 'Fuel draw' else format('Fuel draw (%s)',v_activity) end);
     end if;
 
-  -- ── A pre-start check, filled in at first light ──────────────────────────
+  -- == A pre-start check, filled in at first light ==========================
   elsif p_type = 'submit_checklist' then
     v_entity := 'checklist_instances';
     begin

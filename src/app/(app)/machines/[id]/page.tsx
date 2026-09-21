@@ -293,7 +293,7 @@ export default async function MachineDetailPage({
       : null;
   const perMeterLabel = machine.meter_type === "km" ? t("machine.costPerKm", locale) : t("machine.costPerHour", locale);
 
-  // Analytics (G1) — utilisation, downtime + repair-vs-replace over a trailing window.
+  // Analytics (G1), utilisation, downtime + repair-vs-replace over a trailing window.
   // Capacity + threshold are farm-configurable (settings); downtime is reconstructed from
   // the audit-log status trail server-side (0361 rpc). Retired/sold machines are excluded
   // from fleet reports, but the per-machine detail still shows these for the asset itself.
@@ -307,7 +307,7 @@ export default async function MachineDetailPage({
   const { data: downtimeData } = await supabase.rpc("machine_downtime_days", { p_machine: id, p_from: winFrom, p_to: todayYmd });
   const downtimeDays = Number(downtimeData ?? 0);
 
-  // Budgets (G1) — budget-vs-actual for this machine (actual summed from cost_entries).
+  // Budgets (G1), budget-vs-actual for this machine (actual summed from cost_entries).
   const budgets = (budgetRes.data as Budget[] | null) ?? [];
   const budgetRows = budgets.map((b) => budgetProgress(costRows, b));
   const canBudget = resourceRole === "owner" || resourceRole === "manager";
@@ -368,7 +368,7 @@ export default async function MachineDetailPage({
   type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist" | "work" | "audit"; title: string; sub: string; href?: string };
   const events: Ev[] = [];
   for (const c of recordChanges) {
-    // Who, when — and now where. The place is a signal a human reads, never evidence:
+    // Who, when, and now where. The place is a signal a human reads, never evidence:
     // it comes from request headers and can be forged (see 0510's threat model).
     const who = (c.user_id && changeActorName.get(c.user_id)) || t("machine.evAuditSystem", locale);
     const place = auditPlaceLabel(c, locale);
@@ -490,7 +490,7 @@ export default async function MachineDetailPage({
         the two things people actually came to do.
       */}
       <header className="flex flex-col gap-4 rounded-2xl border border-sand-200 bg-surface p-4 shadow-card sm:flex-row sm:items-start sm:gap-5">
-        {/* Above the fold and the subject of the page, so it loads eagerly —
+        {/* Above the fold and the subject of the page, so it loads eagerly -
             lazy-loading the LCP image only delays it. */}
         <Photo
           src={primaryPhotoUrl}
@@ -523,7 +523,7 @@ export default async function MachineDetailPage({
             </p>
           ) : null}
 
-          {/* The two numbers, said properly — this printed "6412 hours (2026-07-27)". */}
+          {/* The two numbers, said properly, this printed "6412 hours (2026-07-27)". */}
           <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
             {machine.meter_type !== "none" ? (
               <div>
@@ -531,7 +531,7 @@ export default async function MachineDetailPage({
                 <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">
                   {machine.current_reading != null
                     ? meterReading(machine.current_reading, machine.meter_type, locale)
-                    : "—"}
+                    : "-"}
                 </dd>
                 <dd className={`text-xs ${isStale ? "font-medium text-status-due" : "text-sand-500"}`}>
                   {machine.current_reading_date
@@ -576,7 +576,7 @@ export default async function MachineDetailPage({
         </div>
       </header>
 
-      {/* Out-of-service banner (active-but-down) — owner/manager can revert. */}
+      {/* Out-of-service banner (active-but-down), owner/manager can revert. */}
       {isOutOfService ? (
         <Card className="border-status-overdue bg-callout-danger-bg">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -599,7 +599,7 @@ export default async function MachineDetailPage({
 
       {/*
         Twenty cards on one scroll, all the same size, all always open, in schema order.
-        Grouped — not removed — into the five things someone actually comes here for.
+        Grouped, not removed, into the five things someone actually comes here for.
         Every section still runs the same query and the same server actions.
       */}
       <Tabs
@@ -649,9 +649,9 @@ export default async function MachineDetailPage({
                     </ul>
                   ) : <p className="mt-3 text-sm text-sand-400">{t("machine.noReadings", locale)}</p>}
 
-                  {/* ── When the number is wrong, or the meter itself changed ─────
+                  {/* == When the number is wrong, or the meter itself changed =====
                       A reading only ever moves forward, so one mistyped figure used to
-                      block every true reading after it for the life of the machine — and a
+                      block every true reading after it for the life of the machine, and a
                       replaced hour meter, which is routine on an older tractor, did the
                       same. Both are the farm office's to fix, so this is owner/manager
                       only and stays shut until it is needed. */}
@@ -754,7 +754,7 @@ export default async function MachineDetailPage({
                 </Card>
               ) : null}
 
-              {/* Fuel & consumption (F4) — Professional+ (F5 entitlement gate) */}
+              {/* Fuel & consumption (F4), Professional+ (F5 entitlement gate) */}
               {fuelAllowed ? (
               <Card>
                 <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
@@ -762,7 +762,7 @@ export default async function MachineDetailPage({
                   <div>
                     <p className="text-xs uppercase tracking-wide text-sand-400">{t("machine.fuelConsumption", locale)}</p>
                     <p className="text-2xl font-bold tabular-nums text-sand-900">
-                      {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "—"}
+                      {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "-"}
                     </p>
                     {fuelConsumption.intervals > 0 ? (
                       <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
@@ -779,7 +779,7 @@ export default async function MachineDetailPage({
 
                 {/* Queueable: a diesel draw is captured at the bowser, which is where the
                     signal is worst. This form always names a machine, which is how the
-                    replay finds the farm — the farm-level draw on /fuel stays online. */}
+                    replay finds the farm, the farm-level draw on /fuel stays online. */}
                 {canFuel && fuelTanks.length > 0 ? (
                   <OfflineForm
                     action={addFuelIssue}
@@ -812,7 +812,7 @@ export default async function MachineDetailPage({
                     ) : null}
                     <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
                       <Select id="f_activity" name="activity" defaultValue="">
-                        <option value="">—</option>
+                        <option value="">-</option>
                         {FUEL_ACTIVITIES.map((a) => (
                           <option key={a} value={a}>{activityLabel(a, locale)}</option>
                         ))}
@@ -860,22 +860,22 @@ export default async function MachineDetailPage({
                 </Card>
               )}
 
-              {/* Utilisation & downtime (§23) — trailing window. */}
+              {/* Utilisation & downtime (§23), trailing window. */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.utilisationTitle", locale)}</CardTitle></CardHeader>
                 <p className="mb-2 text-xs text-sand-500">{t("machine.utilisationWindow", locale).replace("{n}", String(UTILISATION_WINDOW_DAYS))}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <Stat
                     label={t("machine.utilisation", locale)}
-                    value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "—"}
+                    value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "-"}
                   />
                   <Stat
                     label={machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}
-                    value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+                    value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "-"}
                   />
                   <Stat
                     label={t("machine.idle", locale)}
-                    value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "—"}
+                    value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "-"}
                   />
                   <Stat
                     label={t("machine.downtime", locale)}
@@ -943,8 +943,8 @@ export default async function MachineDetailPage({
                           <div className={`h-full rounded-full ${statusBar[l.status] ?? "bg-status-ok"}`} style={{ width: `${Math.round(lineProgress(l) * 100)}%` }} />
                         </div>
                         <div className="mt-1.5 flex justify-between text-xs text-sand-500">
-                          <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "—"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
-                          <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "—"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
+                          <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "-"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
+                          <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "-"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
                         </div>
                         {canEdit ? (
                           <details className="mt-2">
@@ -1024,7 +1024,7 @@ export default async function MachineDetailPage({
                 ) : null}
               </Card>
 
-              {/* Service kit — parts BOM (F9): the exact oils/filters/part numbers a service needs */}
+              {/* Service kit, parts BOM (F9): the exact oils/filters/part numbers a service needs */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.serviceKit", locale)}</CardTitle></CardHeader>
                 <p className="mb-2 text-xs text-sand-500">{t("machine.serviceKitHint", locale)}</p>
@@ -1072,13 +1072,13 @@ export default async function MachineDetailPage({
                               <li key={item.id} className="py-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="min-w-0 truncate">
-                                    <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "—"}</span>
+                                    <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "-"}</span>
                                     {item.part_no && item.description ? <span className="text-sand-500"> · {item.description}</span> : null}
                                     <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
                                   </span>
                                   <span className="flex shrink-0 items-center gap-2">
                                     {costsVisible ? (
-                                      <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "—"}</span>
+                                      <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "-"}</span>
                                     ) : null}
                                     {canKit ? (
                                       <ConfirmDialog
@@ -1090,7 +1090,7 @@ export default async function MachineDetailPage({
                                         triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                         title={t("confirm.deleteKitItemTitle", locale).replace(
                                           "{part}",
-                                          item.part_no ?? item.description ?? "—",
+                                          item.part_no ?? item.description ?? "-",
                                         )}
                                         intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
                                         confirmLabel={t("confirm.deleteKitItemYes", locale)}
@@ -1132,7 +1132,7 @@ export default async function MachineDetailPage({
                                 <select name="part_catalogue_id" defaultValue="" className={`${inputCls} w-full`}>
                                   <option value="">{t("machine.kitFromCatalogue", locale)}</option>
                                   {catalogue.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.part_no}{c.description ? ` — ${c.description}` : ""}</option>
+                                    <option key={c.id} value={c.id}>{c.part_no}{c.description ? `, ${c.description}` : ""}</option>
                                   ))}
                                 </select>
                               ) : null}
@@ -1177,7 +1177,7 @@ export default async function MachineDetailPage({
                 <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
                 <div className="grid grid-cols-2 gap-3">
                   <Stat label={t("machine.tco", locale)} value={rands(tco)} />
-                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "—"} />
+                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} />
                   <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} />
                   <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
                   <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
@@ -1424,7 +1424,7 @@ export default async function MachineDetailPage({
                 )}
               </Card>
 
-              {/* Vehicle checklists (F11) — pre-use inspections, service sign-offs, condition reports */}
+              {/* Vehicle checklists (F11), pre-use inspections, service sign-offs, condition reports */}
               <Card>
                 <CardHeader
                   action={canFill ? (
@@ -1454,7 +1454,7 @@ export default async function MachineDetailPage({
                 )}
               </Card>
 
-              {/* Get something done — contractor work requests (F12b) */}
+              {/* Get something done, contractor work requests (F12b) */}
               <Card>
                 <CardHeader><CardTitle>{t("work.getSomethingDone", locale)}</CardTitle></CardHeader>
                 {workRequests.length > 0 ? (
@@ -1527,7 +1527,7 @@ export default async function MachineDetailPage({
                 ) : null}
               </Card>
 
-              {/* Who operated / when — AARTO driver-usage log (FR-13.1) — Complete+ (F5 gate) */}
+              {/* Who operated / when, AARTO driver-usage log (FR-13.1), Complete+ (F5 gate) */}
               {aartoAllowed ? (
               <Card>
                 <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
@@ -1568,7 +1568,7 @@ export default async function MachineDetailPage({
                   </ul>
                 )}
 
-                {/* AARTO fines on this vehicle (FR-13.2) — capture lives on the fines workflow,
+                {/* AARTO fines on this vehicle (FR-13.2), capture lives on the fines workflow,
                     pre-selecting this vehicle. */}
                 <div className="mt-4 border-t border-sand-100 pt-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -1629,20 +1629,20 @@ export default async function MachineDetailPage({
               content: (
                 <div className="flex flex-col gap-4">
               {/*
-                Audit / sale / warranty packs (FR-13.4) — the papers, as one PDF.
+                Audit / sale / warranty packs (FR-13.4), the papers, as one PDF.
 
                 This sat above the tabs, so it spent roughly 150px of phone screen on every
-                visit to every machine for a job a farmer does a few times a year — at an
+                visit to every machine for a job a farmer does a few times a year, at an
                 audit, or a sale. "Papers & licence" is already the warranty-and-licences
                 tab, which is what the packs are made of, so it is where somebody looks.
 
                 Hidden from operators and contractors: `authorizeMachinePack` refuses both
                 with a 403 before any query, so for them the card was a button that always
-                failed. The route is still what refuses — this is presentation only.
+                failed. The route is still what refuses, this is presentation only.
               */}
               <DocumentPacks machineId={machine.id} locale={locale} role={resourceRole ?? profile.role} />
 
-              {/* Compliance — warranty + licences (F6) */}
+              {/* Compliance, warranty + licences (F6) */}
               <Card>
                 <CardHeader><CardTitle>{t("compliance.title", locale)}</CardTitle></CardHeader>
 

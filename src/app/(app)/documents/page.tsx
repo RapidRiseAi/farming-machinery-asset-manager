@@ -20,13 +20,13 @@ import { FilterBar, type FilterGroup } from "@/components/ui/filter-bar";
 import { NewDocument } from "@/components/partner/new-document";
 import { UploadDocument } from "@/components/partner/upload-document";
 
-/** i18n key suffix per document kind — one map beats a ternary that forgets a kind. */
+/** i18n key suffix per document kind, one map beats a ternary that forgets a kind. */
 const KIND_KEY: Record<DocKind, string> = {
   quote: "Quote", invoice: "Invoice", credit_note: "Credit", debit_note: "Debit",
 };
 
 /**
- * Quotes and invoices — one route, two audiences (F14c/F14d).
+ * Quotes and invoices, one route, two audiences (F14c/F14d).
  *
  * A PARTNER sees what they have issued, across every farm they serve, with what is still
  * a draft and what is still unpaid at the top. A FARMER sees what has been sent to them,
@@ -34,7 +34,7 @@ const KIND_KEY: Record<DocKind, string> = {
  * is asking: `app.partner_doc_visible` (0381) already decides that, which is why two
  * contractors on the same farm never see each other's pricing.
  *
- * Operators never reach this screen — the same policy excludes them, and the nav does not
+ * Operators never reach this screen, the same policy excludes them, and the nav does not
  * offer it.
  */
 
@@ -133,7 +133,7 @@ export default async function DocumentsPage({
       ];
 
   // What is actually outstanding, in money rather than in counts. Credit notes come OFF
-  // it — a credit issued but not yet reflected here would have the partner chasing money
+  // it, a credit issued but not yet reflected here would have the partner chasing money
   // they have already given back.
   const openInvoices = rows.filter((r) => r.kind === "invoice" && ["sent", "part_paid"].includes(r.status));
   const noted = rows

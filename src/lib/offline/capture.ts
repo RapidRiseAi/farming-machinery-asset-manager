@@ -50,7 +50,7 @@ export async function queueMutation(input: Parameters<typeof prepareMutation>[0]
   return m;
 }
 
-/** Plain string fields from a form (drops File entries — media is handled separately). */
+/** Plain string fields from a form (drops File entries, media is handled separately). */
 export function fieldsFromForm(form: HTMLFormElement): Record<string, string> {
   const out: Record<string, string> = {};
   new FormData(form).forEach((v, k) => {

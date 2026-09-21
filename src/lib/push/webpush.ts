@@ -1,12 +1,12 @@
 /**
- * Self-hosted Web Push — VAPID (RFC 8292) + aes128gcm content encryption (RFC 8188 /
+ * Self-hosted Web Push, VAPID (RFC 8292) + aes128gcm content encryption (RFC 8188 /
  * RFC 8291), implemented with Node's built-in `crypto` only. No external provider, no
  * `web-push` dependency.
  *
  * Delivery is env-gated: if VAPID keys are not configured the caller no-ops gracefully
  * (see `getVapidConfig`). Generate a keypair with `node scripts/gen-vapid-keys.mjs`.
  *
- * This module is server-only (Node runtime) — never import it into a client component.
+ * This module is server-only (Node runtime), never import it into a client component.
  */
 import crypto from "node:crypto";
 import { validateWebPushSubscription } from "./subscription-validation";
@@ -70,11 +70,11 @@ function encryptPayload(payload: Buffer, p256dhB64: string, authB64: string): Ui
   const serverPub = ecdh.getPublicKey(); // 65 bytes uncompressed
   const sharedSecret = ecdh.computeSecret(clientPub);
 
-  // RFC 8291 §3.4 — derive the input keying material.
+  // RFC 8291 §3.4, derive the input keying material.
   const keyInfo = Buffer.concat([Buffer.from("WebPush: info\0"), clientPub, serverPub]);
   const ikm = hkdf(sharedSecret, authSecret, keyInfo, 32);
 
-  // RFC 8188 §2.2 — content-encryption key + nonce, salted per message.
+  // RFC 8188 §2.2, content-encryption key + nonce, salted per message.
   const salt = crypto.randomBytes(16);
   const cek = hkdf(ikm, salt, Buffer.from("Content-Encoding: aes128gcm\0"), 16);
   const nonce = hkdf(ikm, salt, Buffer.from("Content-Encoding: nonce\0"), 12);

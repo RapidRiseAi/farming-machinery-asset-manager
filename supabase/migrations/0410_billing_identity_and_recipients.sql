@@ -1,13 +1,13 @@
 -- 0410_billing_identity_and_recipients.sql
--- G2a — Who a document is addressed to, and the details that make it a tax invoice.
+-- G2a, Who a document is addressed to, and the details that make it a tax invoice.
 --
--- ── TWO PROBLEMS, ONE SHAPE ──────────────────────────────────────────────────
+-- == TWO PROBLEMS, ONE SHAPE ==================================================
 --
 -- 1. `farms` carried a name and nothing else. So every invoice a partner issued through
 --    FleetWise printed the SUPPLIER's VAT number and address in full and reduced the
 --    RECIPIENT to one line of free text. Section 20(4) of the VAT Act requires a full tax
 --    invoice to carry the recipient's name, address AND VAT registration number for a
---    supply over R5 000 — so a VAT-registered farmer could not claim the input tax on
+--    supply over R5 000, so a VAT-registered farmer could not claim the input tax on
 --    anything we produced. On a R40 000 repair that is about R5 200 the farmer simply
 --    loses, and they find out at their VAT return rather than at the moment we could
 --    have prevented it.
@@ -15,14 +15,14 @@
 -- 2. `partner_documents.farm_id` was `not null`, so a partner could only ever invoice a
 --    FleetWise tenant. That sits directly against the client book: `partner_clients`
 --    exists precisely to hold a customer who is NOT on FleetWise, and a partner could
---    record them, note their vehicles and phone them — but not bill them. The pitch is
+--    record them, note their vehicles and phone them, but not bill them. The pitch is
 --    "run your business on FleetWise"; what they could actually do was run the FleetWise
 --    slice of it and keep their old system for everyone else, which means they keep the
 --    old system.
 --
--- Both are the same question — WHO is this document for — so they are answered together.
+-- Both are the same question, WHO is this document for, so they are answered together.
 --
--- ── THE MODEL ────────────────────────────────────────────────────────────────
+-- == THE MODEL ================================================================
 --
 -- A document has exactly one recipient, in one of three forms:
 --
@@ -31,7 +31,7 @@
 --   partner_client_id set   someone in the partner's own client book who is not on
 --                           FleetWise. Only the partner ever sees it.
 --   neither set             a one-time customer, typed straight onto the document. No
---                           record to create first — which is the point: a walk-in job
+--                           record to create first, which is the point: a walk-in job
 --                           should not require filing a customer before you can bill it.
 --
 -- The BILLING DETAILS live on the document in all three cases (`bill_to_*`), seeded from
@@ -40,7 +40,7 @@
 -- `issuer_snapshot`: a customer who moves premises next year must not silently restate
 -- last year's invoice.
 
--- ── 1. A farm's billing identity ─────────────────────────────────────────────
+-- == 1. A farm's billing identity =============================================
 alter table farms
   add column trading_name    text,
   add column reg_number      text,
@@ -49,11 +49,11 @@ alter table farms
   add column billing_email   text;
 
 comment on column farms.vat_number is
-  'The farm''s VAT registration number. Printed on any tax invoice raised against them — '
+  'The farm''s VAT registration number. Printed on any tax invoice raised against them, '
   'without it a supply over R5 000 is not a full tax invoice under VAT Act s20(4) and the '
   'farmer cannot claim the input tax.';
 
--- ── 2. A client's billing identity ───────────────────────────────────────────
+-- == 2. A client's billing identity ===========================================
 -- `partner_clients` held a name, a contact and an address: an address-book entry rather
 -- than an account. Commercial terms were retyped on every document.
 alter table partner_clients
@@ -65,9 +65,9 @@ alter table partner_clients
   add constraint partner_clients_terms_ck check (payment_terms_days is null or payment_terms_days between 0 and 365),
   add constraint partner_clients_limit_ck check (credit_limit_cents is null or credit_limit_cents >= 0);
 
--- ── 3. The document's recipient ──────────────────────────────────────────────
+-- == 3. The document's recipient ==============================================
 -- `farm_id` becomes nullable. Its composite foreign keys are MATCH SIMPLE, so they stop
--- being enforced exactly when the column is null — which is correct, because a document
+-- being enforced exactly when the column is null, which is correct, because a document
 -- with no farm also has no machine and no work request to point at.
 alter table partner_documents
   alter column farm_id drop not null,
@@ -83,7 +83,7 @@ alter table partner_documents
 
 comment on column partner_documents.bill_to_name is
   'Who the document is made out to, as it prints. Seeded from the farm or the client and '
-  'then editable — the details true at issue are what belongs on the document.';
+  'then editable, the details true at issue are what belongs on the document.';
 
 -- The lines and payments inherit the farm through a composite FK, so they have to be
 -- nullable in step or a client-only document could carry no lines at all.
@@ -144,12 +144,12 @@ alter table partner_documents
 create index partner_documents_client_idx on partner_documents(partner_client_id)
   where partner_client_id is not null;
 
--- ── 4. Visibility with no farm ───────────────────────────────────────────────
+-- == 4. Visibility with no farm ===============================================
 -- `app.partner_doc_visible` is the single choke point every document policy and
 -- `partner_doc_visible_by_id` routes through, so the new case is expressed once.
 --
 -- A document with no farm belongs to its issuer alone. No farm-side user is a party to
--- it — there is no farm — so the farm branch simply does not arise, and rr_admin keeps
+-- it, there is no farm, so the farm branch simply does not arise, and rr_admin keeps
 -- its cross-tenant read. This is a WIDENING of nothing: it admits exactly the workshop
 -- that issued the row and no one else.
 create or replace function app.partner_doc_visible(p_farm uuid, p_workshop uuid) returns boolean
@@ -164,9 +164,9 @@ language sql stable security definer set search_path = public, pg_temp as $$
   end;
 $$;
 
--- ── 5. Nothing without a farm reaches the cost ledger ────────────────────────
+-- == 5. Nothing without a farm reaches the cost ledger ========================
 -- `cost_entries.farm_id` is not null and the whole ledger is farm-scoped, so a document
--- addressed to a client or a walk-in has nowhere to book — and should not, because that
+-- addressed to a client or a walk-in has nowhere to book, and should not, because that
 -- money is the partner's revenue, not any farm's cost. Made explicit rather than left to
 -- a null-propagating insert failing at some later date.
 create or replace function app_cost_from_partner_document() returns trigger
@@ -212,12 +212,12 @@ begin
 end $$;
 
 comment on function app_cost_from_partner_document() is
-  'A document with no farm books nothing — that money is the partner''s revenue, not a '
+  'A document with no farm books nothing, that money is the partner''s revenue, not a '
   'farm''s cost. 0411 extends this to net off credit notes.';
 
--- ── Who may fill the farm's billing identity in ──────────────────────────────
+-- == Who may fill the farm's billing identity in ==============================
 --
--- `farms_upd` (0101) is rr_admin only, deliberately — a farm row carries the plan and the
+-- `farms_upd` (0101) is rr_admin only, deliberately, a farm row carries the plan and the
 -- status, and a customer editing those would be editing their own subscription. But the
 -- billing block IS theirs, and nobody else can know their VAT number.
 --

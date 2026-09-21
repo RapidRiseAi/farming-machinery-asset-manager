@@ -10,15 +10,15 @@ import { MachinesIcon } from "@/components/ui/icons";
 /**
  * The link in the verification email.
  *
- * ── Why it is public and service-role ────────────────────────────────────────
- * The person clicking it is frequently NOT signed in — they are in their mail app, quite
+ * == Why it is public and service-role ========================================
+ * The person clicking it is frequently NOT signed in, they are in their mail app, quite
  * possibly on a different device from the one they signed up on. There is no session for
  * RLS to scope by, so the token IS the authorisation: it is matched by hash, it is single
  * use (the hash is cleared), and it expires. That is why `app.verify_email_token` is
- * service-role only and takes a hash rather than a user id — nothing here trusts a
+ * service-role only and takes a hash rather than a user id, nothing here trusts a
  * parameter to say who somebody is.
  *
- * ── Zero anon DB access is not violated ──────────────────────────────────────
+ * == Zero anon DB access is not violated ======================================
  * The product's rule is that an anonymous VISITOR never reaches the database with their own
  * credentials. This page does what `/m/[token]` and `/d/[token]` already do: validate an
  * unguessable token server-side and act through the service role. Same shape, same

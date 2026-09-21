@@ -1,5 +1,5 @@
 -- 0263_expiry_notifications.sql
--- Warranty + licence expiry reminders (FR-4.7, FR-13.3) — the 0205 engine, extended.
+-- Warranty + licence expiry reminders (FR-4.7, FR-13.3), the 0205 engine, extended.
 --
 -- Follows the 0205 pattern exactly: an app.* engine that is never PostgREST-reachable,
 -- EXECUTE revoked from public/anon/authenticated and granted only to service_role, fronted
@@ -13,7 +13,7 @@
 -- Per-farm thresholds (settings): warranty_lead_days (30), warranty_hours_lead (50),
 -- licence_lead_days (30, a fallback when a licence has no per-row lead).
 
--- ── Pure status helpers (no table access; mirrored in src/lib/compliance.ts) ──
+-- == Pure status helpers (no table access; mirrored in src/lib/compliance.ts) ==
 create or replace function app.expiry_status_of(p_expiry date, p_lead int) returns expiry_status
 language sql immutable set search_path = public, pg_temp as $$
   select case
@@ -38,7 +38,7 @@ $$;
 grant execute on function app.expiry_status_of(date, int)          to authenticated, service_role;
 grant execute on function app.worse_expiry(expiry_status, expiry_status) to authenticated, service_role;
 
--- ── Enqueue engine ────────────────────────────────────────────────
+-- == Enqueue engine ================================================
 -- Whether a status warrants a (re)notify: fire on any transition into expiring/expired,
 -- and re-fire weekly while still expired.
 create or replace function app.enqueue_expiry_notifications() returns void
@@ -51,7 +51,7 @@ declare
   v_deliver_after timestamptz;
   v_should        boolean;
 begin
-  -- ── (A) Warranty (machines) ─────────────────────────────────────
+  -- == (A) Warranty (machines) =====================================
   for r in
     select m.id, m.farm_id, m.name as machine_name, m.meter_type, m.current_reading,
            m.warranty_expiry_date, m.warranty_expiry_hours,
@@ -106,7 +106,7 @@ begin
     update machines set warranty_notified_status = v_status, warranty_notified_at = now() where id = r.id;
   end loop;
 
-  -- ── (B) Licences ────────────────────────────────────────────────
+  -- == (B) Licences ================================================
   for r in
     select l.id, l.farm_id, l.machine_id, l.type, l.number, l.expiry_date, l.reminder_lead_days,
            l.notified_status, l.last_notified_at, m.name as machine_name, f.settings
@@ -149,11 +149,11 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the app.* engine (0205 pattern) ─────────────────────
+-- == Lock down the app.* engine (0205 pattern) =====================
 revoke execute on function app.enqueue_expiry_notifications() from public, anon, authenticated;
 grant  execute on function app.enqueue_expiry_notifications() to service_role;
 
--- ── PostgREST-callable cron wrapper ───────────────────────────────
+-- == PostgREST-callable cron wrapper ===============================
 create or replace function public.cron_enqueue_expiry_notifications() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin perform app.enqueue_expiry_notifications(); end $$;

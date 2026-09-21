@@ -117,7 +117,7 @@ export function parseLocalReadRequest(input: string): LocalReadRequest | null {
     ? text.replace(/\bwat\s+(?:betaal|aanvaar|herstel|verwyder|verander)\s+is\b/g, "")
     : text;
   // Destructive or lifecycle-changing verbs are never reinterpreted as one of
-  // the assistant's three supported, confirmation-gated writes—even if the
+  // the assistant's three supported, confirmation-gated writes-even if the
   // sentence also contains words such as fault, reading or completed service.
   if (UNSUPPORTED_ACTION_CUE.test(actionText) || (!isRead && UNSUPPORTED_STATE_CUE.test(text))) {
     return { kind: "action_boundary", navigation: actionNavigation(text) };
@@ -448,7 +448,7 @@ export function formatJobCards(
         ? row.dateIn
         : null;
     const detail = row.workPerformed ?? row.problem;
-    return `${row.machine}: ${statusLabel(row.status, locale)}${date ? ` — ${date}` : ""}${detail ? ` — ${detail}` : ""}${total ? ` — ${total}` : ""}`;
+    return `${row.machine}: ${statusLabel(row.status, locale)}${date ? `, ${date}` : ""}${detail ? `, ${detail}` : ""}${total ? `, ${total}` : ""}`;
   });
   return `${boundedCount(rows.length, nouns[0], nouns[1], locale)}. ${boundedList(items, locale)}`;
 }
@@ -457,7 +457,7 @@ export function formatWorkRequests(rows: WorkRequestReadRow[], locale: Assistant
   if (!rows.length) return localized(locale, "There are no matching work requests.", "Daar is geen ooreenstemmende werkversoeke nie.");
   const items = rows.map((row) => {
     const total = amount(row.invoiceAmountCents ?? row.quoteAmountCents, locale);
-    return `${row.machine}: ${row.title ?? value(row.kind, localized(locale, "work request", "werkversoek"))} (${statusLabel(row.status, locale)})${total ? ` — ${total}` : ""}`;
+    return `${row.machine}: ${row.title ?? value(row.kind, localized(locale, "work request", "werkversoek"))} (${statusLabel(row.status, locale)})${total ? `, ${total}` : ""}`;
   });
   return `${boundedCount(rows.length, "matching work requests", "ooreenstemmende werkversoeke", locale)}. ${boundedList(items, locale)}`;
 }
@@ -467,7 +467,7 @@ export function formatDocuments(rows: DocumentReadRow[], locale: AssistantLocale
   const items = rows.map((row) => {
     const total = amount(outstandingOnly ? row.outstandingCents : row.totalCents, locale);
     const label = row.number ?? row.subject ?? value(row.kind, localized(locale, "document", "dokument"));
-    return `${label}: ${statusLabel(row.status, locale)}${row.machine ? ` — ${row.machine}` : ""}${total ? ` — ${total}` : ""}`;
+    return `${label}: ${statusLabel(row.status, locale)}${row.machine ? `, ${row.machine}` : ""}${total ? `, ${total}` : ""}`;
   });
   return `${boundedCount(rows.length, "matching documents", "ooreenstemmende dokumente", locale)}. ${boundedList(items, locale)}`;
 }
@@ -548,7 +548,7 @@ export async function answerLocalRead(
     // A question about ONE machine deserves that machine's answer. The fleet
     // sentence ("No visible machines are overdue or due soon for service.") is
     // right for "which machines need service?" and useless as a reply to "when
-    // is the Groen John Deere due for service?" — which is exactly where English
+    // is the Groen John Deere due for service?", which is exactly where English
     // phrasing lands, while the Afrikaans phrasing reaches the precise wording
     // through the deterministic intent. It is also where a machine chosen in a
     // clarification arrives.

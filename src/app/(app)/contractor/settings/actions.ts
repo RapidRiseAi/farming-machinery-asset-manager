@@ -13,7 +13,7 @@ import { isDocTemplate, templateLayout } from "@/lib/doc-templates";
 /**
  * A partner maintaining its own business profile and letterhead (F14a).
  *
- * Writes go through the RLS-bound client and land on the partner's OWN workshop row —
+ * Writes go through the RLS-bound client and land on the partner's OWN workshop row -
  * the `workshops_upd_self` policy (0380) allows exactly that row and no other, and the
  * `workshops_guard_plan` trigger rejects any attempt to change the paid product from
  * here. So there is nothing to check about which workshop is being edited: the database
@@ -60,7 +60,7 @@ export async function updatePartnerProfile(formData: FormData) {
       doc_prefix_quote: (s(formData, "doc_prefix_quote") ?? "QTE").slice(0, 8).toUpperCase(),
       doc_prefix_invoice: (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
       // A credit note is its own kind of document under VAT Act s21, so it gets its own
-      // series — sharing the invoice counter makes both unreadable in a partner's books.
+      // series, sharing the invoice counter makes both unreadable in a partner's books.
       doc_prefix_credit: (s(formData, "doc_prefix_credit") ?? "CN").slice(0, 8).toUpperCase(),
       quote_validity_days: intIn(formData, "quote_validity_days", 0, 365, 14),
       invoice_terms_days: intIn(formData, "invoice_terms_days", 0, 365, 30),
@@ -84,7 +84,7 @@ export async function updatePartnerProfile(formData: FormData) {
  *
  * The service client does the write. The bucket's own policy (0382) already restricts a
  * partner to their own prefix, but this action derives the prefix from the SESSION's
- * workshop id rather than anything the form said — so the path cannot be steered.
+ * workshop id rather than anything the form said, so the path cannot be steered.
  */
 export async function uploadPartnerLogo(formData: FormData) {
   const profile = await requireRole(["workshop"]);
@@ -125,7 +125,7 @@ export async function removePartnerLogo() {
  * How this partner's documents are laid out (G9).
  *
  * Goes through `update_document_layout`, which takes the workshop from the SESSION rather
- * than from an argument — so there is no id to tamper with and a partner cannot restyle
+ * than from an argument, so there is no id to tamper with and a partner cannot restyle
  * somebody else's documents. It merges rather than replaces, so a screen that offers
  * fifteen settings cannot wipe a sixteenth added later.
  *
@@ -167,12 +167,12 @@ export async function updateDocumentLayout(formData: FormData) {
  * The template is a name plus the eight 0434 layout keys it stands for, and the keys come
  * from `src/lib/doc-templates.ts` rather than from the form: the browser posts an id, and
  * the server decides what that id means. A tampered post can therefore only be an
- * unrecognised id — never an arbitrary layout — and the closed set is checked here as well
+ * unrecognised id, never an arbitrary layout, and the closed set is checked here as well
  * as by the 0505 trigger, so a bad id gets a sentence instead of a Postgres error string.
  *
  * `apply_document_template` records the choice and merges the keys in ONE transaction,
  * reusing `update_document_layout` underneath, so there is still exactly one write path to
- * `doc_layout`. The workshop comes from the session inside the RPC — there is no id here to
+ * `doc_layout`. The workshop comes from the session inside the RPC, there is no id here to
  * get wrong.
  *
  * NOT entitlement-gated, deliberately and in step with `updateDocumentLayout` above: a

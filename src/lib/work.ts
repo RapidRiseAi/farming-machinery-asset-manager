@@ -1,5 +1,5 @@
 /**
- * Work-request flow (F12b) — shared lifecycle constants + label/badge helpers so the
+ * Work-request flow (F12b), shared lifecycle constants + label/badge helpers so the
  * list page, detail page and server actions all agree on the enum values and rendering.
  * The status lifecycle mirrors migration 0310:
  *   requested → viewed → quoted → accepted → in_progress → completed → invoiced → closed

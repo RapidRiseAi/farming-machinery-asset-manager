@@ -1,5 +1,5 @@
 -- 0470_bank_statement_lines.sql
--- G15a — The bank statement, brought inside.
+-- G15a, The bank statement, brought inside.
 --
 -- Customers pay by EFT, and that happens entirely outside this product. So today the ONLY
 -- way an invoice ever becomes "paid" is a human opening internet banking on one screen,
@@ -7,12 +7,12 @@
 -- feature removes, and it is worth being precise about why it is worth removing: it is not
 -- slow, it is UNRELIABLE. A partner who is behind on it has a debtors list that chases
 -- people who already paid, an ageing report that is wrong, and a statement that will be
--- argued with. Every downstream number in G1–G14 is only as true as this typing.
+-- argued with. Every downstream number in G1-G14 is only as true as this typing.
 --
 -- WHAT THIS TABLE IS NOT. It is not the ledger. A bank line is a claim by the bank that
 -- money moved; the ledger entry is `partner_payments` (money in) or `partner_expenses.
 -- paid_on` (money out), and those stay exactly where they are with exactly the triggers
--- they already have. Importing a statement writes nothing to the books — it only puts a
+-- they already have. Importing a statement writes nothing to the books, it only puts a
 -- list of candidate facts next to them. Nothing is ever settled without a person pressing
 -- a button (0471/0472 carry the settlement links).
 --
@@ -23,16 +23,16 @@
 -- gave it into this single signed integer, in cents, with no float arithmetic anywhere.
 --
 -- Scope: WORKSHOP, exactly like `partner_expenses` (0430) and `partner_clients` (0390).
--- A bank statement is the most sensitive document a small business has — it shows every
--- customer who paid, every supplier, every salary and every personal transfer — so there
+-- A bank statement is the most sensitive document a small business has, it shows every
+-- customer who paid, every supplier, every salary and every personal transfer, so there
 -- is no farm path in these policies at all, not even for a farm the partner works for.
 
--- ── The batch a line arrived in ──────────────────────────────────────────────
+-- == The batch a line arrived in ==============================================
 -- Kept as its own row rather than a text column on every line, for two reasons that both
 -- matter when something goes wrong: a partner needs to see "I have loaded January twice
 -- and March not at all", and when a figure looks wrong the first question is always which
 -- file it came from. The counts are recorded at import time because they are a statement
--- about that IMPORT ("30 rows, 12 were new"), not a live property of the table — recomputing
+-- about that IMPORT ("30 rows, 12 were new"), not a live property of the table, recomputing
 -- them later would silently change what the partner was told at the time.
 create table bank_statement_imports (
   id            uuid primary key default gen_random_uuid(),
@@ -58,9 +58,9 @@ create table bank_statement_imports (
 create index bank_statement_imports_workshop_idx
   on bank_statement_imports(workshop_id, imported_at desc);
 
--- ── What state a line is in ──────────────────────────────────────────────────
+-- == What state a line is in ==================================================
 -- Three, and no more. `ignored` is the one that earns its place: a statement is full of
--- lines that will never reconcile against anything in here — bank charges, a transfer to
+-- lines that will never reconcile against anything in here, bank charges, a transfer to
 -- the owner's own savings, the monthly debit order for the premises rent captured as an
 -- expense in a different month. Without a way to say "this one is dealt with, stop showing
 -- it to me", the unmatched list grows for ever and the partner stops opening the screen,
@@ -85,7 +85,7 @@ create table bank_lines (
   -- lines that are identical in every visible way, "row 44" is how they tell them apart.
   row_no        int,
 
-  -- The nth identical transaction within its own statement — see the unique index below.
+  -- The nth identical transaction within its own statement, see the unique index below.
   occurrence    int not null default 1,
 
   -- The comparable form of the free text, computed by the DATABASE so that the dedupe key
@@ -101,7 +101,7 @@ create table bank_lines (
   status        bank_line_status not null default 'unmatched',
   -- What it was matched TO, kept here so the screen can render a matched line without a
   -- second query. These are maintained by the 0472 trigger from the settlement rows, never
-  -- typed by a caller — if they were typed, a soft-deleted payment would leave a bank line
+  -- typed by a caller, if they were typed, a soft-deleted payment would leave a bank line
   -- claiming to be settled by something that no longer exists.
   matched_document_id uuid references partner_documents(id) on delete set null,
   matched_payment_id  uuid references partner_payments(id)  on delete set null,
@@ -109,7 +109,7 @@ create table bank_lines (
   matched_at    timestamptz,
   -- There is deliberately no `matched_by`. It would have to be written by the confirm
   -- action rather than derived like everything else on this row, and it would duplicate
-  -- something the append-only `audit_log` already records for every update — including the
+  -- something the append-only `audit_log` already records for every update, including the
   -- ones a future code path makes without remembering this column exists.
 
   note          text,
@@ -156,7 +156,7 @@ create index bank_lines_import_idx   on bank_lines(import_id, row_no);
 -- the one case where it would be: a business genuinely can be charged the same R50 card fee
 -- twice on the same day with identical narrative. Those are two real transactions, and
 -- collapsing them would understate the month. The importer numbers identical tuples 1, 2,
--- 3… within the file it is loading — which is deterministic, so the same file re-imported
+-- 3… within the file it is loading, which is deterministic, so the same file re-imported
 -- produces the same numbers and collides, while a second genuine occurrence takes the next
 -- number and survives.
 --
@@ -169,7 +169,7 @@ create unique index bank_lines_natural_uq
 comment on table bank_lines is
   'One line off a bank statement (G15). Workshop-scoped: a statement names every customer, '
   'supplier and salary the partner has, so no farm path exists in these policies. '
-  'amount_cents is SIGNED — positive in, negative out — and this table is never the ledger: '
+  'amount_cents is SIGNED, positive in, negative out, and this table is never the ledger: '
   'settlement is a partner_payments row or partner_expenses.paid_on, confirmed by a person.';
 
 comment on column bank_lines.occurrence is
@@ -181,7 +181,7 @@ comment on column bank_lines.occurrence is
 -- RLS: the partner's own bank, and nobody else's
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Character-for-character the 0430 shape: own workshop or rr_admin, no farm helper anywhere
--- near it. anon gets nothing — 0102 revokes the default privileges and no anon policy
+-- near it. anon gets nothing, 0102 revokes the default privileges and no anon policy
 -- exists, so an unauthenticated request has no route to these rows at all.
 alter table bank_statement_imports enable row level security;
 alter table bank_statement_imports force  row level security;

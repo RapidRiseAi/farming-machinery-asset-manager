@@ -13,7 +13,7 @@
 -- Each synced row is keyed by (source_type, source_id) so re-fires upsert rather than
 -- duplicate. Soft-deleting the source soft-deletes its cost entry (history preserved).
 
--- ── Job-card lines → parts/labour/other ──────────────────────────
+-- == Job-card lines → parts/labour/other ==========================
 create or replace function app_cost_from_job_card_line() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -61,7 +61,7 @@ create trigger job_card_lines_cost
   after insert or update or delete on job_card_lines
   for each row execute function app_cost_from_job_card_line();
 
--- ── Machines → purchase + finance-interest cost entries ──────────
+-- == Machines → purchase + finance-interest cost entries ==========
 create or replace function app_cost_from_machine() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -113,7 +113,7 @@ create trigger machines_cost
   after insert or update on machines
   for each row execute function app_cost_from_machine();
 
--- ── Fuel deliveries → farm-level fuel cost (machine_id null) ──────
+-- == Fuel deliveries → farm-level fuel cost (machine_id null) ======
 -- So a farm's TCO already reflects fuel spend before the fuel UI (F4) ships. Fuel
 -- deliveries are tank-level (not attributable to one asset), hence machine_id = null.
 create or replace function app_cost_from_fuel_delivery() returns trigger
@@ -158,8 +158,8 @@ revoke execute on function
   app_cost_from_fuel_delivery()
 from anon, authenticated, public;
 
--- ── Canonical TCO rollup (Scope §23) ─────────────────────────────
--- SECURITY INVOKER so RLS applies — a caller only sums their own farm's ledger.
+-- == Canonical TCO rollup (Scope §23) =============================
+-- SECURITY INVOKER so RLS applies, a caller only sums their own farm's ledger.
 create or replace function app.machine_tco(p_machine uuid) returns bigint
 language sql stable set search_path = public, pg_temp as $$
   select coalesce(sum(amount_cents), 0)::bigint
@@ -168,7 +168,7 @@ language sql stable set search_path = public, pg_temp as $$
 $$;
 grant execute on function app.machine_tco(uuid) to authenticated, service_role;
 
--- ── Idempotent backfill for pre-existing rows (production) ────────
+-- == Idempotent backfill for pre-existing rows (production) ========
 -- No-op on the test DB (tables are empty when migrations run; the seed then fires the
 -- triggers above). Each block skips rows that already have a synced cost entry.
 insert into cost_entries (farm_id, machine_id, type, amount_cents, source_type, source_id, occurred_on)

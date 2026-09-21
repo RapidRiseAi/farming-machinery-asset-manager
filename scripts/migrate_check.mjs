@@ -1,10 +1,10 @@
-// Apply every migration, in order, to a throwaway PGlite database — and optionally run the
+// Apply every migration, in order, to a throwaway PGlite database, and optionally run the
 // SQL suites against it, each on a database of its own.
 //
 // The same stand-in the billing work has used before: a real Postgres, not the project's
 // own harness (`pnpm db:test` needs a psql that is not on this machine), and enough to
 // prove that a new migration parses, applies, and applies AFTER everything already in the
-// repo. CRs are stripped first — Windows checks files out CRLF and that is not what the
+// repo. CRs are stripped first, Windows checks files out CRLF and that is not what the
 // server would receive.
 //
 // A FRESH DATABASE PER SUITE, because that is what `supabase/tests/run.sh` does. Sharing
@@ -66,7 +66,7 @@ async function freshDb() {
   return { db, count: files.length };
 }
 
-// ── 1. Every migration applies, in order, to an empty database ───────────────
+// == 1. Every migration applies, in order, to an empty database ===============
 const { db, count } = await freshDb();
 console.log(`applied ${count} migrations cleanly`);
 
@@ -83,9 +83,9 @@ const checks = await db.query(`
 `);
 console.table(checks.rows);
 
-// ── 2. The rate limiter, exercised rather than asserted from its source ──────
+// == 2. The rate limiter, exercised rather than asserted from its source ======
 // Skipped when the function is absent, so this script also runs against a checkout that
-// predates it — which is how a suite failure gets attributed to a change rather than
+// predates it, which is how a suite failure gets attributed to a change rather than
 // assumed to belong to it.
 if (checks.rows.some((r) => r.proname === "billing_take_signup_slot")) {
   await db.exec(`select public.billing_take_signup_slot('1.2.3.4', 3);`);
@@ -95,13 +95,13 @@ if (checks.rows.some((r) => r.proname === "billing_take_signup_slot")) {
            public.billing_take_signup_slot('1.2.3.4', 3) as fourth_refused,
            public.billing_take_signup_slot('9.9.9.9', 3) as other_source;
   `);
-  console.log("limiter — expect second/third true, fourth false, other true:", slots.rows[0]);
+  console.log("limiter, expect second/third true, fourth false, other true:", slots.rows[0]);
 } else {
-  console.log("limiter — not present in this checkout, skipped");
+  console.log("limiter, not present in this checkout, skipped");
 }
 await db.close();
 
-// ── 3. The suites, each on its own database ──────────────────────────────────
+// == 3. The suites, each on its own database ==================================
 if (process.argv.includes("--suite")) {
   const only = process.argv[process.argv.indexOf("--suite") + 1];
   const names =
@@ -115,7 +115,7 @@ if (process.argv.includes("--suite")) {
     try {
       // `\set ON_ERROR_STOP` and `\timing` are psql meta-commands, not SQL. PGlite speaks
       // to the server directly and never sees a psql, so they are dropped. ON_ERROR_STOP
-      // is the behaviour here anyway — the first raised exception aborts the run.
+      // is the behaviour here anyway, the first raised exception aborts the run.
       const sql = read(path.join(testsDir, name))
         .split("\n")
         .filter((line) => !line.startsWith("\\"))

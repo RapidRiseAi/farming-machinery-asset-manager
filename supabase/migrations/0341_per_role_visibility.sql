@@ -1,5 +1,5 @@
 -- 0341_per_role_visibility.sql
--- F7 — Per-role visibility (FR-2.3, FR-8.1), enforced in RLS (not merely the UI).
+-- F7, Per-role visibility (FR-2.3, FR-8.1), enforced in RLS (not merely the UI).
 --
 -- Two role tightenings layered ON TOP of the existing farm-access model. Both are
 -- strictly ADDITIVE narrowings for exactly one role each; for every other role the
@@ -13,7 +13,7 @@
 --
 --   2) CONTRACTOR (workshop) → assigned work only. A `workshop` user sees (and may update)
 --      only the work_requests assigned to THEIR workshop, plus those requests' events and
---      media — not every request on a linked farm. This closes the gap F12c flagged
+--      media, not every request on a linked farm. This closes the gap F12c flagged
 --      ("the app-side workshop_id filter was load-bearing"): RLS now enforces it. Farm
 --      crew keep full access to all their farm's requests.
 --
@@ -21,7 +21,7 @@
 -- recursion), search_path pinned, execute revoked from public/anon and granted only to
 -- authenticated + service_role (anon has no `app` schema usage anyway).
 
--- ── Helper: is a machine-keyed row visible to the current role? ────
+-- == Helper: is a machine-keyed row visible to the current role? ====
 -- Non-operators: == app.has_farm_access(p_farm). Operators: additionally require the
 -- machine to be assigned to them. Farm-level rows (p_machine null, e.g. farm-level fuel)
 -- are therefore hidden from operators and unchanged for everyone else.
@@ -36,7 +36,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
      );
 $$;
 
--- ── Helper: is a work_request visible to the current role? ─────────
+-- == Helper: is a work_request visible to the current role? =========
 -- Farm access + workshop-scoping (workshop sees only its own assigned requests) +
 -- operator machine-scoping. Used for work_requests' child events and media.
 create or replace function app.work_request_visible(p_wr uuid) returns boolean

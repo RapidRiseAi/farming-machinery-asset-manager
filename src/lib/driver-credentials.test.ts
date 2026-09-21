@@ -5,7 +5,7 @@
  * uses to decide whether to warn a farm. `lapsedOn` mirrors
  * `app.driver_credential_lapses` (20260921090000), which is the authority when the
  * question is asked in the database. Either pair disagreeing means the screen says a PrDP
- * is fine on the morning the engine emails to say it expired — the same class of mistake
+ * is fine on the morning the engine emails to say it expired, the same class of mistake
  * that once quoted a production farm R0,00 against a real R750,00 invoice.
  *
  * The cases below are the ones `supabase/tests/driver_credentials.sql` section (e) asserts
@@ -44,7 +44,7 @@ function cred(over: Partial<CredentialRow> = {}): CredentialRow {
   };
 }
 
-// ── What state a document is in ──────────────────────────────────────────────
+// == What state a document is in ==============================================
 
 test("the last day on the card is a day the driver may still drive", () => {
   // `expiry < today` in SQL. On the 30th the PrDP is valid; on the 1st it is not. Off by
@@ -64,7 +64,7 @@ test("expiring starts exactly at the lead the farm chose", () => {
   assert.equal(credentialState(row(90), "2026-05-01"), "expiring");
   // Null falls back to the same 30 the SQL's `coalesce(..., 30)` uses.
   assert.equal(credentialState(row(null), "2026-06-01"), "expiring");
-  // A zero lead is a real choice — warn me on the day, not before — and not "use 30".
+  // A zero lead is a real choice, warn me on the day, not before, and not "use 30".
   assert.equal(credentialState(row(0), "2026-06-30"), "ok");
   assert.equal(credentialState(row(0), "2026-07-01"), "expiring");
 });
@@ -105,7 +105,7 @@ test("every state and every document kind has words in both languages", () => {
   }
 });
 
-// ── Whose document it is ─────────────────────────────────────────────────────
+// == Whose document it is =====================================================
 
 test("a person is named, and an unresolvable one still prints something", () => {
   const names = new Map([["user-1", "Sipho Ndlovu"]]);
@@ -116,7 +116,7 @@ test("a person is named, and an unresolvable one still prints something", () => 
   assert.ok(orphan.length > 0, "a row whose user cannot be resolved printed nothing");
 });
 
-// ── Were they licensed on the day of the offence? ────────────────────────────
+// == Were they licensed on the day of the offence? ============================
 
 test("a nomination is judged on the offence date, not on today", () => {
   const rows = [

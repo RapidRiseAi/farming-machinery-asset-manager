@@ -2,7 +2,7 @@
  * Alerts by email: what may be said, and what must not be thrown away.
  *
  * Two rules carry the weight here. A reminder is marked sent ONLY when the provider
- * accepted it — a Resend outage must delay it, never discard it — and money never goes in
+ * accepted it, a Resend outage must delay it, never discard it, and money never goes in
  * an inbox, because the recipient may have lost cost access since the alert was queued and
  * a mailbox is not the authenticated app.
  */

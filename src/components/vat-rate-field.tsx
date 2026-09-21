@@ -9,7 +9,7 @@ import { percentToBps } from "@/lib/format";
 /**
  * VAT asked in percent, stored in basis points.
  *
- * The settings field was `vat_rate_bps` with a default of 1500 — a farmer reads that as
+ * The settings field was `vat_rate_bps` with a default of 1500, a farmer reads that as
  * fifteen hundred percent, or types 15 and silently sets VAT to 0.15%. The visible input
  * now speaks percent; a hidden field posts the same `vat_rate_bps` name with the same
  * basis-point units, so `updateSettings` is untouched.

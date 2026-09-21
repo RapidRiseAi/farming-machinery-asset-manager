@@ -24,9 +24,9 @@ import {
  * One client in the partner's book (F15).
  *
  * Three states, and the screen says plainly which one you are in:
- *   * not on FleetWise — the partner keeps their own notes and vehicle list here;
- *   * asked — a request is with the customer, and only the customer can accept it;
- *   * connected — the farm's real fleet is now reachable, and the notebook vehicles can
+ *   * not on FleetWise, the partner keeps their own notes and vehicle list here;
+ *   * asked, a request is with the customer, and only the customer can accept it;
+ *   * connected, the farm's real fleet is now reachable, and the notebook vehicles can
  *     be copied across in one action.
  */
 
@@ -80,7 +80,7 @@ export default async function PartnerClientPage({
       ? supabase.from("farms").select("id, name").eq("id", client.farm_id).maybeSingle()
       : Promise.resolve({ data: null }),
     // What this customer owes against the limit filed below (0500). Runs under the
-    // caller's own RLS — a rival workshop passing this id reads zeros.
+    // caller's own RLS, a rival workshop passing this id reads zeros.
     supabase.rpc("partner_client_exposure", {
       p_workshop: profile.workshop_id,
       p_client: id,
@@ -125,7 +125,7 @@ export default async function PartnerClientPage({
         }
       />
 
-      {/* ── Where this client stands ─────────────────────────────── */}
+      {/* == Where this client stands =============================== */}
       <Card>
         <CardHeader><CardTitle>{t("clients.statusTitle", locale)}</CardTitle></CardHeader>
         {connected ? (
@@ -216,7 +216,7 @@ export default async function PartnerClientPage({
         )}
       </Card>
 
-      {/* ── What they owe against their limit (0500) ─────────────────
+      {/* == What they owe against their limit (0500) =================
           Sits immediately above the card where the limit is typed, so the number and the
           setting that governs it are read together. Shown whenever a limit is filed, not
           only when it is breached: "you have used 40% of it" is the useful state, and a
@@ -245,12 +245,12 @@ export default async function PartnerClientPage({
             </p>
           ) : null}
           {/* Said plainly, because the alternative is someone believing an invoice will be
-              refused. It will not — see the 0500 header for why that is deliberate. */}
+              refused. It will not, see the 0500 header for why that is deliberate. */}
           <p className="mt-2 text-xs text-sand-500">{t("credit.advisory", locale)}</p>
         </Card>
       ) : null}
 
-      {/* ── Contact ──────────────────────────────────────────────── */}
+      {/* == Contact ================================================ */}
       <Card>
         <CardHeader><CardTitle>{t("clients.contactTitle", locale)}</CardTitle></CardHeader>
         <div className="mb-3 flex flex-wrap gap-2">
@@ -281,7 +281,7 @@ export default async function PartnerClientPage({
           </div>
           <TextareaField name="address" rows={2} label={t("clients.address", locale)} defaultValue={client.address ?? ""} />
 
-          {/* Billing identity (0410). Held on the client so it is not retyped — and so it
+          {/* Billing identity (0410). Held on the client so it is not retyped, and so it
               is right on the invoice, where a missing VAT number costs them the claim. */}
           <fieldset className="flex flex-col gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3">
             <legend className="px-1 text-sm font-semibold text-sand-900">{t("clients.billing", locale)}</legend>
@@ -320,7 +320,7 @@ export default async function PartnerClientPage({
         </form>
       </Card>
 
-      {/* ── Their vehicles ───────────────────────────────────────── */}
+      {/* == Their vehicles ========================================= */}
       <Card>
         <CardHeader><CardTitle>{t("clients.vehiclesTitle", locale)}</CardTitle></CardHeader>
         <p className="mb-3 text-sm text-sand-600">

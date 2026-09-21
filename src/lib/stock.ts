@@ -1,8 +1,8 @@
 /**
- * What is on the shelf (§6 inventory, migrations 0450–0451).
+ * What is on the shelf (§6 inventory, migrations 0450-0451).
  *
  * `parts_catalogue` is a list of part numbers; this is the count of them. The split is
- * deliberate — a catalogue row may be GLOBAL (RR-seeded, `farm_id` null) and shared by
+ * deliberate, a catalogue row may be GLOBAL (RR-seeded, `farm_id` null) and shared by
  * every farm, so a quantity cannot live on it. A farm "starts tracking" a part by creating
  * a `stock_items` row against it, which is also what keeps the store to the handful of
  * parts a farm actually holds rather than the whole catalogue at zero.
@@ -42,7 +42,7 @@ export type StockMovement = {
  * reason `lib/fuel.ts` mirrors the consumption engine: the screen and the nightly nudge
  * must agree, or a farmer sees a green row and gets an alert about it the same night.
  *
- * A part with no reorder point is NOT low at zero — it is untracked for reordering, and
+ * A part with no reorder point is NOT low at zero, it is untracked for reordering, and
  * inventing a threshold produces nightly noise nobody asked for.
  */
 export function needsReorder(item: Pick<StockItem, "on_hand" | "reorder_point">): boolean {
@@ -63,7 +63,7 @@ export function stockTone(item: Pick<StockItem, "on_hand" | "reorder_point">): S
 
 /**
  * How a quantity changes the shelf. The sign lives here and in the SQL rollup, nowhere
- * else — `qty` on a movement is always positive so that a row cannot be read two ways.
+ * else, `qty` on a movement is always positive so that a row cannot be read two ways.
  */
 export function signedQty(kind: MoveKind, qty: number): number {
   return kind === "issue" ? -qty : qty;
@@ -72,7 +72,7 @@ export function signedQty(kind: MoveKind, qty: number): number {
 /**
  * Whether this movement will put a cost against the machine (0450's rule).
  *
- * Exported so the capture form can SAY so before the user presses anything — "this will
+ * Exported so the capture form can SAY so before the user presses anything, "this will
  * also add R500 to the tractor's costs" is the kind of thing that should never be a
  * surprise discovered later in a report.
  */
@@ -91,7 +91,7 @@ export function movementBooksCost(m: {
   );
 }
 
-/** Quantities read as words, not floats: 3, 2.5, 0.25 — never "3.000". */
+/** Quantities read as words, not floats: 3, 2.5, 0.25, never "3.000". */
 export function qtyLabel(qty: number, unit: string): string {
   const n = Number(qty);
   const trimmed = Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));

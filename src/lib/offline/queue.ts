@@ -1,4 +1,4 @@
-// Offline mutation queue — persistence + change notification.
+// Offline mutation queue, persistence + change notification.
 // Subscribers (the shell sync-status pill) are notified locally and across tabs
 // (BroadcastChannel) whenever the queue changes.
 

@@ -9,7 +9,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * The supplier statement as a spreadsheet — for the partner's bookkeeper, who will want to
+ * The supplier statement as a spreadsheet, for the partner's bookkeeper, who will want to
  * sort it, and for the supplier's, who will want to tie it to their own ledger.
  *
  * Same `app.supplier_statement` call as the screen and the PDF, so the three cannot
@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const out: (string | number)[][] = [
     ["Supplier statement", supplier.name],
     ["Period", `${from} to ${to}`],
-    ["Amounts", "Include VAT — what left, or has to leave, the bank"],
+    ["Amounts", "Include VAT, what left, or has to leave, the bank"],
     ["Due by", "Derived from this supplier's payment terms (30 days where none is on file)"],
     [],
     ["Date", "Type", "Their invoice", "Detail", "Category", "Due by", "Charged (R)", "Paid (R)", "Balance (R)"],

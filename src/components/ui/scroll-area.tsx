@@ -6,7 +6,7 @@ import { cn } from "./cn";
 /**
  * A scrollable panel that says so.
  *
- * The sidebar used to hide its long tail behind an "Everything else" disclosure —
+ * The sidebar used to hide its long tail behind an "Everything else" disclosure -
  * parts, partners, checklists, fines, settings, admin, install, all one click further
  * away than the rest and invisible until you found the summary. A person who never
  * opened it simply did not know those screens existed.
@@ -17,7 +17,7 @@ import { cn } from "./cn";
  * visible thin scrollbar (rather than the overlay scrollbar that stays invisible until
  * you are already scrolling).
  *
- * The fades are measured, not assumed — they appear only when there is genuinely more
+ * The fades are measured, not assumed, they appear only when there is genuinely more
  * to see, and the bottom one goes away when you reach the end. On a short list, or a
  * tall screen, you see no chrome at all.
  */
@@ -35,7 +35,7 @@ export function ScrollArea({
    * a THEME-AWARE colour (from-surface, from-surface-raised) - a literal such as
    * from-white cannot follow the theme. */
   fadeClassName?: string;
-  /** Accessible name — a scrollable region needs one to be reachable by keyboard. */
+  /** Accessible name, a scrollable region needs one to be reachable by keyboard. */
   label?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -55,7 +55,7 @@ export function ScrollArea({
     measure();
     el.addEventListener("scroll", measure, { passive: true });
     // The list changes with the role, the site switcher and the unread badge, and the
-    // window changes with the browser chrome — so watch both rather than measuring once.
+    // window changes with the browser chrome, so watch both rather than measuring once.
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     for (const child of Array.from(el.children)) ro.observe(child);

@@ -3,8 +3,8 @@ import test from "node:test";
 import { dateTime, daysAgo, relativeDate, shortDate } from "./format";
 
 // Run as a server would: Vercel formats in UTC. Without this the test passes on
-// any machine that already sits in South Africa — which is the machine a
-// developer here uses — so it would prove nothing. Node reads TZ when it
+// any machine that already sits in South Africa, which is the machine a
+// developer here uses, so it would prove nothing. Node reads TZ when it
 // formats, not when a module is imported, so setting it here still applies to
 // the functions imported above. `node --test` runs each file in its own
 // process, so this does not leak into other suites.

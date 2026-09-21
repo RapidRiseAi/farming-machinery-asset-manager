@@ -5,7 +5,7 @@ import { PRIVACY } from "@/lib/legal";
 import { LegalPage } from "../legal/legal-page";
 
 export const metadata: Metadata = {
-  title: `Privacy notice — ${APP_NAME}`,
+  title: `Privacy notice, ${APP_NAME}`,
   description: "What we hold, why, who else touches it, and what you can ask us to do about it.",
 };
 

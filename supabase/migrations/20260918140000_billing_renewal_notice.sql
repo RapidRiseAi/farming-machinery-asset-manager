@@ -3,15 +3,15 @@
 --
 -- `app.enqueue_billing_reminders` fires on `past_due`, `grace` and `downgraded`. Every one
 -- of those is a message about something that has already gone wrong. Nothing in this
--- product has ever said "R2 500 comes off your card on Friday" — the first a customer
+-- product has ever said "R2 500 comes off your card on Friday", the first a customer
 -- hears about a renewal is the receipt, or the decline.
 --
 -- WHY THIS MATTERS MORE ON THIS PRODUCT THAN MOST
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Annual is ten months' list price charged in one go. A Done-For-You farm with twenty
 -- vehicles is R50 000 leaving a bank account with no warning. A farmer who has forgotten
 -- the renewal date reads that as a fraudulent deduction, and the path from there is a
--- chargeback and a dispute we then have 48 business hours to answer — the most expensive
+-- chargeback and a dispute we then have 48 business hours to answer, the most expensive
 -- possible outcome of a payment that was entirely legitimate.
 --
 -- The Consumer Protection Act §14 also expects notice before a fixed-term agreement
@@ -20,7 +20,7 @@
 -- gives no advance notice at all is on the wrong side of the question.
 --
 -- WHEN
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Monthly: 3 days. Enough to move money across, not so far ahead that it is forgotten.
 -- Annual:  14 days. A larger amount deserves a fortnight, and it is the notice somebody
 --          needs in order to cancel before being charged rather than after.
@@ -29,10 +29,10 @@
 -- changing one stays a decision somebody makes and the audit log records.
 --
 -- WHAT IT DOES NOT DO
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- It does not charge, hold, schedule or alter anything. It queues one in-app notification
 -- per farm per period, and the existing delivery layer takes it from there. A farm that
--- has cancelled, lapsed, or has no price is silent — being reminded of a renewal that is
+-- has cancelled, lapsed, or has no price is silent, being reminded of a renewal that is
 -- not going to happen is worse than saying nothing.
 
 alter table public.billing_settings
@@ -93,7 +93,7 @@ begin
 
     -- Priced from the same catalogue the invoice will be raised from, and SILENT if there
     -- is no active price. Quoting a figure here that the generator will not produce would
-    -- be worse than saying nothing at all — this message exists to make the deduction
+    -- be worse than saying nothing at all, this message exists to make the deduction
     -- recognisable, so a wrong number defeats its whole purpose.
     select * into v_price
       from public.billing_price_versions p
@@ -103,7 +103,7 @@ begin
      limit 1;
     continue when not found or v_price.per_vehicle_monthly_incl_cents is null;
 
-    -- `coalesce(quota, counted)` — the same rule app.billing_billable_units applies, so
+    -- `coalesce(quota, counted)`, the same rule app.billing_billable_units applies, so
     -- the warned amount and the invoiced amount agree.
     v_units  := app.billing_billable_units(s.id);
     v_amount := v_price.per_vehicle_monthly_incl_cents::bigint
@@ -141,7 +141,7 @@ end $$;
 
 -- Revoked from everyone, and deliberately NOT granted to service_role either. Every engine
 -- function in `app` is reached through its `public.cron_*` wrapper, which is SECURITY
--- DEFINER and therefore runs as the owner — so the wrapper does not need the caller to
+-- DEFINER and therefore runs as the owner, so the wrapper does not need the caller to
 -- hold EXECUTE on what it calls. Suite section (j) enforces this and caught a direct grant
 -- here on the first run.
 revoke execute on function app.enqueue_billing_renewal_notices() from public, anon, authenticated;

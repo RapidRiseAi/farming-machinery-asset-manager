@@ -1,5 +1,5 @@
 /**
- * AARTO fine workflow — shared client/server model (feature G2, FR-13.2).
+ * AARTO fine workflow, shared client/server model (feature G2, FR-13.2).
  *
  * Mirrors the `fine_status` enum (migration 0370) and the nomination-deadline reminder
  * thresholds (0371) so the UI and the nightly engine agree. A fine is captured against a
@@ -24,7 +24,7 @@ export type FineStatus = (typeof FINE_STATUSES)[number];
 /** Statuses where a driver still has to be nominated (the §23 "pending nominations" set). */
 export const PENDING_NOMINATION_STATUSES: readonly FineStatus[] = ["received", "driver_identified"];
 
-/** Statuses that are still "live" (not paid / disputed-resolved / closed) — shown in the inbox. */
+/** Statuses that are still "live" (not paid / disputed-resolved / closed), shown in the inbox. */
 export const OPEN_FINE_STATUSES: readonly FineStatus[] = [
   "received",
   "driver_identified",

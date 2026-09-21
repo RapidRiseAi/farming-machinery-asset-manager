@@ -21,7 +21,7 @@ import {
  * than kept in React state.
  */
 
-/** Columns the loader selects. `tool_args` is read server-side only — see `toThreadEntry`. */
+/** Columns the loader selects. `tool_args` is read server-side only, see `toThreadEntry`. */
 export const THREAD_COLUMNS =
   "id, created_at, channel, locale, input_text, response_text, confirmation_status, result_status, error_code, proposal_expires_at, linked_record_type, linked_record_id, tool_args";
 
@@ -73,7 +73,7 @@ export type ThreadEntry = {
   channel: "typed" | "voice" | "whatsapp";
   input: string | null;
   /**
-   * Shown only when the stored text was written FOR the person — an answer, or
+   * Shown only when the stored text was written FOR the person, an answer, or
    * the localized outcome of a confirmation. Failure rows keep English
    * diagnostics meant for support ("The selected-farm role cannot perform this
    * intent."), so those render the localized status instead.

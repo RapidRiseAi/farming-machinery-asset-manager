@@ -62,7 +62,7 @@ export function advanceByCadence(from: string, cadence: Cadence): string {
   return target.toISOString().slice(0, 10);
 }
 
-/** Ex-VAT total of a schedule's lines — what each generated invoice will come to. */
+/** Ex-VAT total of a schedule's lines, what each generated invoice will come to. */
 export function scheduleNetCents(lines: readonly ScheduleLine[]): number {
   return lines.reduce(
     (sum, l) => sum + Math.max(0, Math.round(l.qty * l.unit_price_cents) - (l.discount_cents || 0)),
@@ -82,7 +82,7 @@ export function isLive(s: Pick<Schedule, "active" | "ends_on" | "next_issue_date
   return !s.ends_on || s.ends_on >= s.next_issue_date;
 }
 
-/** Due now — the generator would raise it on tonight's run. */
+/** Due now, the generator would raise it on tonight's run. */
 export function isDue(s: Pick<Schedule, "active" | "ends_on" | "next_issue_date">, today = new Date()): boolean {
   return isLive(s) && s.next_issue_date <= today.toISOString().slice(0, 10);
 }

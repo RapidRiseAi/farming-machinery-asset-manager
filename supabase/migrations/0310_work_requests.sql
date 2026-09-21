@@ -1,5 +1,5 @@
 -- 0310_work_requests.sql
--- Work-request flow (F12b) — the heart of the contractor value (spec §3).
+-- Work-request flow (F12b), the heart of the contractor value (spec §3).
 --
 -- A `work_request` is a farmer-initiated job sent to an assigned contractor (a
 -- `workshop`, 0002/0300). It is pre-filled with the vehicle it concerns and moves
@@ -8,21 +8,21 @@
 -- Each transition (plus free-text progress notes) is recorded in `work_request_events`
 -- for the timeline. Quote/invoice amounts are captured ex-VAT cents; the invoice amount
 -- flows into the machine's TCO ledger via the sync trigger in 0311 (the ONLY costed
--- path — no double-count).
+-- path, no double-count).
 --
 -- Tenancy is the usual denormalized farm_id + composite FK. RLS uses
 -- app.has_farm_access(farm_id), which already grants access to BOTH the farm's crew AND
--- a workshop linked to that farm through an active workshop_link (0100/0101) — so the
+-- a workshop linked to that farm through an active workshop_link (0100/0101), so the
 -- assigned contractor can see and update exactly the farms they serve, nothing else.
 -- Audit + soft-delete + anon-zero-DB per house rules.
 
--- ── Enums ─────────────────────────────────────────────────────────
+-- == Enums =========================================================
 create type work_request_kind     as enum ('repair','quote','inspection','parts','other');
 create type work_request_status   as enum
   ('requested','viewed','quoted','accepted','in_progress','completed','invoiced','closed');
 create type work_request_priority as enum ('low','normal','high','urgent');
 
--- ── work_requests ─────────────────────────────────────────────────
+-- == work_requests =================================================
 create table work_requests (
   id                   uuid primary key default gen_random_uuid(),
   farm_id              uuid not null,
@@ -52,7 +52,7 @@ create index work_requests_machine_idx     on work_requests(machine_id);
 create index work_requests_workshop_idx    on work_requests(workshop_id);
 create index work_requests_farm_status_idx on work_requests(farm_id, status);
 
--- ── work_request_events (status-change history + progress notes) ───
+-- == work_request_events (status-change history + progress notes) ===
 create table work_request_events (
   id              uuid primary key default gen_random_uuid(),
   farm_id         uuid not null,
@@ -70,10 +70,10 @@ create table work_request_events (
 create index work_request_events_wr_idx   on work_request_events(work_request_id, created_at);
 create index work_request_events_farm_idx on work_request_events(farm_id);
 
--- ── RLS + grants (standard farm-scoped pattern, 0101/0102) ────────
+-- == RLS + grants (standard farm-scoped pattern, 0101/0102) ========
 -- app.has_farm_access(farm_id) already resolves the linked-workshop side, so the
 -- assigned contractor gets exactly the same row visibility/mutation as the farm crew
--- for the farms they serve — nothing cross-tenant.
+-- for the farms they serve, nothing cross-tenant.
 do $do$
 declare t text;
 begin
@@ -90,7 +90,7 @@ begin
 end $do$;
 -- anon gets ZERO access (0102 default privileges revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ─────────────────────────
+-- == Audit (append-only history, per 0008) =========================
 create trigger work_requests_audit
   after insert or update or delete on work_requests
   for each row execute function app_audit();
@@ -98,7 +98,7 @@ create trigger work_request_events_audit
   after insert or update or delete on work_request_events
   for each row execute function app_audit();
 
--- ── Allow work-request media in `attachments` (proof/quote/invoice) ─
+-- == Allow work-request media in `attachments` (proof/quote/invoice) =
 -- Proof photos + quote/invoice files reuse the F1 attachments + jobcard-photos storage
 -- pattern; widen the parent_type whitelist to admit 'work_request'.
 alter table attachments drop constraint attachments_parent_type_ck;

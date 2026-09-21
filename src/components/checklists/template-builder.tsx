@@ -270,7 +270,7 @@ export function ChecklistTemplateBuilder({
               </div>
             ) : null}
 
-            {/* ── What makes this answer a defect ────────────────────────────
+            {/* == What makes this answer a defect ============================
                 A checklist used to record "Brakes: no" and stop there. A field with a
                 rule opens a fault the moment the answer matches, so the inspection
                 reaches somebody instead of sitting in a saved form. No rule is the

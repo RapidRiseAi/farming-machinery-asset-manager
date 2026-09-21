@@ -1,10 +1,10 @@
 -- 0404_nobody_promotes_themselves.sql
 -- Any signed-in user could make themselves an RR admin with one UPDATE.
 --
--- ── WHAT WAS ACTUALLY POSSIBLE ───────────────────────────────────────────────
+-- == WHAT WAS ACTUALLY POSSIBLE ===============================================
 --
 -- `users_upd` (0101) has always been `using (id = auth.uid() or …)`, so a user may edit
--- their own row — which is right for a name, a phone number, a language. But `role`,
+-- their own row, which is right for a name, a phone number, a language. But `role`,
 -- `farm_id` and `workshop_id` live on that same row, and `app.is_rr_admin()` is defined
 -- as `users.role = 'rr_admin'` for `auth.uid()`. So the row that decides what you may
 -- read was writable by you.
@@ -17,7 +17,7 @@
 --     → 9 farms · 26 machines · 16 cost entries · 15 users · 9 partner documents
 --
 -- That is every tenant in the system. `users_scope_ck` blocks the naive version (an
--- rr_admin may not hold a farm or a workshop), which is why this was not obvious — but
+-- rr_admin may not hold a farm or a workshop), which is why this was not obvious, but
 -- nulling both columns in the same statement satisfies it.
 --
 -- It is reachable in production by anyone with a login: PostgREST exposes the table, the
@@ -25,15 +25,15 @@
 -- `PATCH /rest/v1/users?id=eq.<self>` is the whole exploit. This predates every partner
 -- feature; it has been open since 0101.
 --
--- ── THE FIX ──────────────────────────────────────────────────────────────────
+-- == THE FIX ==================================================================
 --
--- A policy cannot express "you may edit this row but not these columns" — it sees the new
+-- A policy cannot express "you may edit this row but not these columns", it sees the new
 -- row, not the change. So the rule goes in a BEFORE UPDATE trigger, which can compare.
 --
 -- Administrative fields (role · farm_id · workshop_id · active · deleted_at) may be
 -- changed only by rr_admin, or by an owner/manager of the farm the subject belongs to,
--- and NEVER on your own row. Everything else — name, email, phone, language, tone,
--- notification preferences — stays self-editable exactly as before, so nothing the app
+-- and NEVER on your own row. Everything else, name, email, phone, language, tone,
+-- notification preferences, stays self-editable exactly as before, so nothing the app
 -- does today changes.
 --
 -- Two further limits on a farm owner: they cannot mint an rr_admin (only Rapid Rise
@@ -56,7 +56,7 @@ begin
     return new;                          -- a profile edit; the policy already judged it
   end if;
 
-  -- No JWT means this is the service role, a migration, or the seed — server-side code
+  -- No JWT means this is the service role, a migration, or the seed, server-side code
   -- that is trusted by definition and is how invites and admin tooling do their work.
   if auth.uid() is null then
     return new;
@@ -109,7 +109,7 @@ comment on function app_users_guard_privileges() is
   'deleted_at) out of reach of the person they describe. Without it, `users_upd` lets '
   'anyone set their own role to rr_admin and read every tenant.';
 
--- ── The same shape of mistake, one table over ────────────────────────────────
+-- == The same shape of mistake, one table over ================================
 -- `notifications_upd` is still farm-wide, so a linked contractor could mark the farm's
 -- alerts read. An UPDATE that names no columns in its WHERE clause does not consult the
 -- SELECT policy, so 0403's narrowing does not cover this on its own. A notification is

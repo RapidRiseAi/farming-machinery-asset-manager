@@ -114,7 +114,7 @@ export function formatNotification(
         claim: String(p.claim_number ?? ""),
         days: String(p.days ?? ""),
       });
-    // Work-request activity (F12b trigger 0311) — surfaced in the owner inbox + alerts.
+    // Work-request activity (F12b trigger 0311), surfaced in the owner inbox + alerts.
     case "work_request_status":
       return fill("notifications.tplWorkStatus", locale, {
         machine: m,
@@ -142,7 +142,7 @@ export function formatNotification(
       return fill("notifications.tplQuoteAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
     case "invoice_awaiting":
       return fill("notifications.tplInvoiceAwaiting", locale, { machine: m, amount: rands(p.amount_cents as number) });
-    // The money clock (G2 engine 0414). Each of these has a partner-side twin — the same
+    // The money clock (G2 engine 0414). Each of these has a partner-side twin, the same
     // fact told to the person who can act on it, which for an overdue invoice is both
     // sides at once.
     case "quote_expiring":
@@ -190,10 +190,10 @@ export function formatNotification(
         locale,
         { machine: m, deadline: String(p.deadline ?? ""), notice: String(p.notice_number ?? "") }
       );
-    // ── Subscription billing ────────────────────────────────────────────────
+    // == Subscription billing ================================================
     // These four were being WRITTEN by the dunning engine and rendered by nothing. With
     // `default: return template` below, a farmer whose card was declined read the literal
-    // string "billing_payment_failed" in their alert centre — the same failure wave 4b
+    // string "billing_payment_failed" in their alert centre, the same failure wave 4b
     // found on /reports/schedules, on the one message that most has to be legible.
     case "billing_payment_failed":
       return p.next_retry_on
@@ -226,7 +226,7 @@ export function formatNotification(
         amount: rands(Number(p.amount_cents ?? 0)),
         date: p.due_on ? shortDate(String(p.due_on), locale) : "",
       });
-    // ── Addressed to Rapid Rise, not to the farm ───────────────────────────
+    // == Addressed to Rapid Rise, not to the farm ===========================
     // A dispute carries roughly 48 BUSINESS HOURS before Paystack accepts it on our
     // behalf and takes the amount out of a payout, so the deadline is in the sentence
     // rather than left for the reader to already know.
@@ -241,7 +241,7 @@ export function formatNotification(
         event: String(p.event ?? ""),
       });
     // A support case whose deadline is close. The hours are in the sentence because that
-    // is the entire content of the message — "a ticket is due" without saying when is a
+    // is the entire content of the message, "a ticket is due" without saying when is a
     // line somebody reads and postpones.
     case "support_ticket_due":
       return fill("notifications.tplSupportTicketDue", locale, {
@@ -304,7 +304,7 @@ export function notificationUrl(template: string, payload: NotePayload): string 
     p.work_request_id
   )
     return `/work/${p.work_request_id}`;
-  // Anything that names a document opens that document — the partner-side reminders and
+  // Anything that names a document opens that document, the partner-side reminders and
   // the customer's answers from the emailed link included.
   if (p.document_id) return `/documents/${p.document_id}`;
   // A low-stock nudge opens the store it is about.
@@ -322,7 +322,7 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // and the reference and the lodging date are on the incident.
   if (template === "claim_outstanding") return "/incidents";
   // Disputes and refunds are addressed to Rapid Rise, whose billing screen is a different
-  // one — sending an rr_admin to a farm's own /billing page would show them nothing they
+  // one, sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.
   if (template === "billing_dispute" || template === "billing_refund") return "/admin/billing";
   // A ticket chase goes to the list of cases, not to a farm's billing page.

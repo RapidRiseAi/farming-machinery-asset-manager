@@ -1,6 +1,6 @@
 /**
  * Provider-free quick-contact deep links (F12a). No WhatsApp Cloud API, no SMS
- * gateway — just links every phone already handles: `tel:`, `https://wa.me/<e164>`
+ * gateway, just links every phone already handles: `tel:`, `https://wa.me/<e164>`
  * and `mailto:`. The full WhatsApp Business integration stays deferred.
  *
  * South-African-aware normalisation: a local `0XX…` number becomes `+27XX…`, a bare

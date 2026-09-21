@@ -23,7 +23,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
 
   /*
     Column mapping happens here, in the browser, and the CANONICAL sheet is what gets
-    validated and posted — so `validateCsv` and `importMachines` still see exactly the
+    validated and posted, so `validateCsv` and `importMachines` still see exactly the
     shape they always did. Headers used to be matched against a fixed set, so a real
     farm's spreadsheet (Afrikaans headings, a different order, an extra column the
     office added) failed wholesale.
@@ -66,7 +66,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
   const setColumn = (i: number, col: string) =>
     setMapping((m) => {
       const next = [...m];
-      // A canonical column can only come from one source column — picking it here
+      // A canonical column can only come from one source column, picking it here
       // releases it wherever it was.
       if (col !== SKIP_COLUMN) {
         for (let j = 0; j < next.length; j++) if (j !== i && next[j] === col) next[j] = SKIP_COLUMN;
@@ -131,12 +131,12 @@ export function ImportClient({ locale }: { locale: Lang }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-sand-900">{h}</p>
                   <p className="truncate text-sm text-sand-500">
-                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-400">—</span>}
+                    {sample[i]?.trim() ? sample[i] : <span className="text-sand-400">-</span>}
                   </p>
                 </div>
                 <label className="w-full sm:w-56">
                   <span className="sr-only">
-                    {t("machines.mapOurColumn", locale)} — {h}
+                    {t("machines.mapOurColumn", locale)}, {h}
                   </span>
                   <Select value={mapping[i] ?? SKIP_COLUMN} onChange={(e) => setColumn(i, e.target.value)}>
                     <option value={SKIP_COLUMN}>{t("machines.mapLeaveOut", locale)}</option>
@@ -214,8 +214,8 @@ export function ImportClient({ locale }: { locale: Lang }) {
               {result.rows.map((r) => (
                 <Tr key={r.line}>
                   <Td className="tabular-nums text-sand-500">{r.line}</Td>
-                  <Td className="font-medium">{r.cells.name || <span className="text-sand-400">—</span>}</Td>
-                  <Td className="text-sand-600">{r.cells.type || "—"}</Td>
+                  <Td className="font-medium">{r.cells.name || <span className="text-sand-400">-</span>}</Td>
+                  <Td className="text-sand-600">{r.cells.type || "-"}</Td>
                   <Td>
                     {r.valid ? (
                       <span className="flex flex-wrap items-center gap-1">

@@ -21,7 +21,7 @@ export type PartnerAccess = {
  * Written as four plain sentences rather than four permission names, because the person
  * deciding is a farmer, not an administrator. Each one says what the contractor will be
  * able to look at, and the card states up front what they can already see without any of
- * them — otherwise "all off" reads as "they can see nothing", which would be wrong and
+ * them, otherwise "all off" reads as "they can see nothing", which would be wrong and
  * would make the whole thing look broken.
  *
  * The one thing with no switch is the farm's other contractors, and the card says so.
@@ -44,7 +44,7 @@ export function PartnerAccessCard({ access, locale }: { access: PartnerAccess; l
     <Card>
       <CardHeader>
         <CardTitle>
-          {t("access.title", locale)} — {access.name}
+          {t("access.title", locale)}, {access.name}
           <Badge tone={granted === 0 ? "ok" : "info"} className="ml-2 align-middle">
             {granted === 0 ? t("access.minimum", locale) : t("access.nGranted", locale).replace("{n}", String(granted))}
           </Badge>

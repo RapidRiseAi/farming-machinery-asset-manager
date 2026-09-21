@@ -1,10 +1,10 @@
 /**
  * The charging worker, exercised without a network and without a database.
  *
- * ── The rule this file is built to obey ──────────────────────────────────────
+ * == The rule this file is built to obey ======================================
  * NO TEST HERE MAY BE CAPABLE OF A LIVE CHARGE. Every provider is a hand-written object
  * with no HTTP in it, every Supabase call goes to an in-memory fake, and `globalThis.fetch`
- * is replaced with something that throws — so a future edit that accidentally reached the
+ * is replaced with something that throws, so a future edit that accidentally reached the
  * real adapter would fail loudly rather than quietly contacting Paystack. The worker's
  * provider is always passed in explicitly, so `getSaasProvider()` (which dynamically
  * imports the adapter module) is never even reached.
@@ -14,7 +14,7 @@
  *  - two workers racing a single invoice: the second claim returns NULL, and the second
  *    worker must NOT charge;
  *  - a timeout AFTER the provider has already succeeded: settles `unknown`, never
- *    `failed`, and is then resolved by VERIFYING that exact reference — never by charging
+ *    `failed`, and is then resolved by VERIFYING that exact reference, never by charging
  *    again;
  *  - a success that does not match what we expected is never marked paid;
  *  - the kill switch stops new charges while reconciliation carries on;
@@ -34,7 +34,7 @@ import {
   runBillingCharges,
 } from "./worker";
 
-// ── A fetch that must never be called ────────────────────────────────────────
+// == A fetch that must never be called ========================================
 // Installed once, for the whole file. If any code path under test reaches real HTTP the
 // test fails on the spot instead of talking to a payment provider.
 const originalFetch = globalThis.fetch;
@@ -45,7 +45,7 @@ process.on("exit", () => {
   globalThis.fetch = originalFetch;
 });
 
-// ── Fakes ────────────────────────────────────────────────────────────────────
+// == Fakes ====================================================================
 
 type Result = { data: unknown; error: { message: string; code?: string } | null };
 
@@ -147,7 +147,7 @@ const FARM = "11111111-1111-4111-8111-111111111111";
 const INVOICE = "22222222-2222-4222-8222-222222222222";
 const CARD = "33333333-3333-4333-8333-333333333333";
 const ATTEMPT = "44444444-4444-4444-8444-444444444444";
-/** Obviously synthetic. Real prices are deliberately unseeded — see the contract §1. */
+/** Obviously synthetic. Real prices are deliberately unseeded, see the contract §1. */
 const AMOUNT = 1234;
 
 function due(over: Partial<DueCharge> = {}): DueCharge {
@@ -302,7 +302,7 @@ test("two simultaneous workers: the second claim returns NULL and it does not ch
   let charged = 0;
   const provider = fakeProvider({
     // Echo the reference we were given. That is what Paystack does, and
-    // `matchesExpectedCharge` refuses a transaction whose reference is not ours — so a
+    // `matchesExpectedCharge` refuses a transaction whose reference is not ours, so a
     // fixture that invented its own would be testing nothing.
     async chargeAuthorization(req) {
       charged += 1;
@@ -331,7 +331,7 @@ test("two simultaneous workers: the second claim returns NULL and it does not ch
   assert.equal(second.result, "skipped");
   assert.equal(second.result === "skipped" ? second.reason : "", "claimed-elsewhere");
   assert.equal(charged, 1, "the loser of the claim must not contact the provider");
-  assert.equal(claims, 2, "both workers must have tried to claim — the index decides");
+  assert.equal(claims, 2, "both workers must have tried to claim, the index decides");
   assert.equal(settleCalls(rpcCalls).length, 1);
 });
 
@@ -370,7 +370,7 @@ async function runBillingChargesWithRows(
 // Timeout is not failure
 // ═════════════════════════════════════════════════════════════════════════════
 
-test("a timeout AFTER a provider-side success settles unknown, and reconciliation — not a re-charge — resolves it", async () => {
+test("a timeout AFTER a provider-side success settles unknown, and reconciliation, not a re-charge, resolves it", async () => {
   let charged = 0;
   let verifiedReference: string | null = null;
 
@@ -384,7 +384,7 @@ test("a timeout AFTER a provider-side success settles unknown, and reconciliatio
         deferred: false,
         reason: "payment provider timed out",
         retryable: true,
-        // Nobody answered — that is the whole point of this case.
+        // Nobody answered, that is the whole point of this case.
         answered: false,
       };
     },
@@ -404,10 +404,10 @@ test("a timeout AFTER a provider-side success settles unknown, and reconciliatio
   assert.equal(
     settled[0].args.p_status,
     "unknown",
-    "a lost response must never settle `failed` — that starts dunning against a farm that may have paid",
+    "a lost response must never settle `failed`, that starts dunning against a farm that may have paid",
   );
 
-  // ── Now reconcile. It must VERIFY THAT EXACT REFERENCE and must not charge. ──
+  // == Now reconcile. It must VERIFY THAT EXACT REFERENCE and must not charge. ==
   const reconciler = fakeProvider({
     async verifyTransaction(reference: string) {
       verifiedReference = reference;
@@ -606,7 +606,7 @@ test("repeated cron execution charges once", async () => {
     },
   });
 
-  // First pass: one invoice due. Second pass: it is paid, so the shortlist is empty —
+  // First pass: one invoice due. Second pass: it is paid, so the shortlist is empty -
   // which is what `app.due_billing_charges` genuinely returns once the rollup has moved
   // the invoice to `paid`.
   let pass = 0;
@@ -712,7 +712,7 @@ test("reconciliation refuses a verified success that does not match, and leaves 
 //
 // (g) in the SQL suite proves an `unknown` attempt BLOCKS its invoice. Nothing proved
 // anything ever unblocks it. Before this branch existed, a charge whose request never
-// reached Paystack — a DNS failure, a proxy refusing it, a reference we mangled — settled
+// reached Paystack, a DNS failure, a proxy refusing it, a reference we mangled, settled
 // `unknown` and stayed there for ever: `verifyTransaction` answered "no such transaction"
 // on every pass, the reconciler fell through to `still-open`, and the invoice was never
 // offered to a worker again. The farm was never charged, never went `past_due`, never got
@@ -787,7 +787,7 @@ test("a reference the provider has never heard of is closed, and the invoice is 
   assert.equal(settled.length, 1);
   assert.equal(settled[0].args.p_attempt, ATTEMPT);
   // `abandoned`, NOT `failed`. `failed` would run `billing_register_failure` and start a
-  // farm down the dunning ladder for a request that never reached the provider — their
+  // farm down the dunning ladder for a request that never reached the provider, their
   // card is fine and they have done nothing wrong.
   assert.equal(settled[0].args.p_status, "abandoned");
   assert.match(String(settled[0].args.p_failure_reason), /reference not found/i);
@@ -796,7 +796,7 @@ test("a reference the provider has never heard of is closed, and the invoice is 
 test("an unknown is NOT closed when the failure is ours rather than the provider's", async () => {
   // Every one of these is `retryable: false`, and not one is an answer about the
   // customer's money. Closing an attempt on any of them would hand a possibly-charged
-  // invoice back to the charging queue — the double charge this whole design prevents.
+  // invoice back to the charging queue, the double charge this whole design prevents.
   const ourFaults = [
     { reason: "billing provider is not configured", answered: false },
     { reason: "reference is required", answered: false },
@@ -860,7 +860,7 @@ test("a provider outage still leaves the unknown blocking", async () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// "Try again" — the manual path
+// "Try again", the manual path
 //
 // It used to rebuild the AUTOMATIC shortlist (`billing_due_charges`) and look for the
 // invoice in it. That shortlist carries the retry timer, so after a decline the owner's
@@ -979,7 +979,7 @@ test("a manual retry is still refused with charging switched off", async () => {
 // `settleBillingAttempt` returns `{ error }` and all sixteen call sites ignored it (S6).
 // The one that costs money is the success branch: settling `succeeded` is the ONLY thing
 // that inserts a `billing_payments` row, so if that RPC fails the provider has taken the
-// customer's money and FleetWise has recorded nothing — while the worker returns
+// customer's money and FleetWise has recorded nothing, while the worker returns
 // `succeeded` and the nightly summary calls the pass healthy.
 //
 // The recovery already existed: a failed settle leaves the attempt `pending`, which is
@@ -1010,12 +1010,12 @@ test("a charge the provider took but we could not record is never reported as su
   assert.notEqual(
     outcome.result,
     "succeeded",
-    "the provider took the money and nothing was written down — reporting success here is a lie with a number attached",
+    "the provider took the money and nothing was written down, reporting success here is a lie with a number attached",
   );
   assert.equal(outcome.result, "unknown");
   assert.match(String(outcome.reason), /not recorded/i);
   // The attempt therefore stays as the claim left it, which is exactly what
-  // reconcileStuckAttempts collects — so the next pass verifies this reference and settles it.
+  // reconcileStuckAttempts collects, so the next pass verifies this reference and settles it.
   assert.equal(settleCalls(rpcCalls).length, 1, "it tried once and did not retry blindly");
 });
 
@@ -1072,7 +1072,7 @@ test("charging several farms at once takes exactly one charge per invoice", asyn
       // order it was dispatched.
       await new Promise((r) => setTimeout(r, charges.length % 3 === 0 ? 8 : 1));
       // The transaction has to belong to the invoice it was charged against, or the
-      // worker correctly refuses to mark it paid — that mismatch check is the thing
+      // worker correctly refuses to mark it paid, that mismatch check is the thing
       // standing between a provider mix-up and the wrong farm being credited.
       return {
         ok: true,
@@ -1113,7 +1113,7 @@ test("charging several farms at once takes exactly one charge per invoice", asyn
 
 test("an outcome is still attributed to its own invoice when they overlap", async () => {
   // Half succeed, half decline. Run in parallel, the risk is a result landing against the
-  // wrong row — which would tell a farm whose payment worked that it had failed, and start
+  // wrong row, which would tell a farm whose payment worked that it had failed, and start
   // the dunning ladder against them.
   const provider = fakeProvider({
     async chargeAuthorization(req) {
@@ -1158,7 +1158,7 @@ test("an outcome is still attributed to its own invoice when they overlap", asyn
 
   assert.equal(summary.considered, 8);
   assert.equal(summary.succeeded + summary.failed, 8);
-  // Every outcome names a distinct invoice — nothing was recorded against the wrong farm.
+  // Every outcome names a distinct invoice, nothing was recorded against the wrong farm.
   const invoices = summary.outcomes.map((o) => o.invoiceId);
   assert.equal(new Set(invoices).size, 8, "an outcome was attributed to the wrong invoice");
 });
@@ -1204,7 +1204,7 @@ test("a full shortlist says so, so the caller knows to come back for more", asyn
 test("a full page of invoices nobody can charge does not spin", async () => {
   // Every row passes over (no stored card). `moreDue` is true because the page is full,
   // so the cron's drain loop would ask again and get the identical page for ever. The
-  // guard is `claimed === 0` — no claim means no progress — and this pins the value the
+  // guard is `claimed === 0`, no claim means no progress, and this pins the value the
   // loop reads rather than the loop itself.
   const provider = fakeProvider({
     async chargeAuthorization() {

@@ -3,7 +3,7 @@
 -- Discounts are derived in `app.billing_derive_invoice_totals` rather than in the three
 -- functions that raise invoices, so the assertions here are about the invoice that comes
 -- out: the list price still on the document, the discount beside it, a total that cannot go
--- negative, and — once issued — a document that does not restate itself when the deal
+-- negative, and, once issued, a document that does not restate itself when the deal
 -- changes later.
 
 \set ON_ERROR_STOP on
@@ -13,8 +13,8 @@ begin;
 
 select pg_catalog.set_config('request.jwt.claims', '', false);
 
--- The price comes from whatever version is ACTIVE for complete/monthly — seeded by
--- 20260904120000 — rather than a figure invented here. Every expectation below is derived
+-- The price comes from whatever version is ACTIVE for complete/monthly, seeded by
+-- 20260904120000, rather than a figure invented here. Every expectation below is derived
 -- from it, so this suite cannot start disagreeing with the catalogue.
 create temporary table _d_price as
   select per_vehicle_monthly_incl_cents as unit, months_charged as months
@@ -61,7 +61,7 @@ insert into public.billing_subscriptions (id, farm_id, plan, billing_period, sta
   ('d1600000-0000-4000-9000-000000000004', 'd1000000-0000-4000-9000-000000000004',
    'complete', 'monthly', 'active', current_date, current_date, null, null, null, null);
 
--- ── (a) A percentage comes off, and the list price stays on the document ────
+-- == (a) A percentage comes off, and the list price stays on the document ====
 do $$
 declare inv public.billing_invoices%rowtype; n integer; v_gross bigint;
 begin
@@ -96,7 +96,7 @@ begin
   end if;
 end $$;
 
--- ── (b) A discount bigger than the bill leaves nothing owing, never less ────
+-- == (b) A discount bigger than the bill leaves nothing owing, never less ====
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
@@ -109,11 +109,11 @@ begin
       inv.discount_cents, v_gross;
   end if;
   if inv.total_incl_cents <> 0 then
-    raise exception 'DISCOUNT FAIL: total is % — an invoice must never go negative', inv.total_incl_cents;
+    raise exception 'DISCOUNT FAIL: total is %, an invoice must never go negative', inv.total_incl_cents;
   end if;
 end $$;
 
--- ── (c) A deal that has ended is not applied ────────────────────────────────
+-- == (c) A deal that has ended is not applied ================================
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
@@ -127,7 +127,7 @@ begin
   end if;
 end $$;
 
--- ── (d) A farm with no deal bills exactly as it did before any of this ──────
+-- == (d) A farm with no deal bills exactly as it did before any of this ======
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
@@ -141,7 +141,7 @@ begin
   end if;
 end $$;
 
--- ── (e) An issued invoice does not restate itself when the deal changes ─────
+-- == (e) An issued invoice does not restate itself when the deal changes =====
 do $$
 declare inv public.billing_invoices%rowtype; v_expect_discount bigint; v_expect_total bigint;
 begin
@@ -165,7 +165,7 @@ begin
   end if;
 end $$;
 
--- ── (f) A promo code is taken once, and only while there is room ────────────
+-- == (f) A promo code is taken once, and only while there is room ============
 insert into public.billing_promo_codes (code, label, discount_percent_bps, max_uses) values
   ('FOUNDING20', 'Founding Farmer', 2000, 1);
 
@@ -213,7 +213,7 @@ begin
   end if;
 end $$;
 
--- ── (g) Only Rapid Rise's own path may set one ──────────────────────────────
+-- == (g) Only Rapid Rise's own path may set one ==============================
 do $$
 declare v_denied boolean := false;
 begin
@@ -239,11 +239,11 @@ begin
   end if;
 end $$;
 
--- ── (h) A code typed at sign-up reaches the FIRST invoice ───────────────────
+-- == (h) A code typed at sign-up reaches the FIRST invoice ===================
 --
 -- The one this feature exists for, and the one that would have shipped broken. A discount
 -- is frozen onto an invoice while it is a draft, and `app.create_pending_signup` raises
--- the first invoice inside its own transaction — so a code applied from the sign-up route
+-- the first invoice inside its own transaction, so a code applied from the sign-up route
 -- AFTER that call returns would take effect from the SECOND period, and the farm would pay
 -- list price for the exact thing they entered the code for. `p_promo_code` puts it between
 -- creating the subscription and invoicing it, which is the only window that works.
@@ -287,7 +287,7 @@ begin
   end if;
 
   v_gross := inv.unit_price_incl_cents * inv.asset_count * inv.months_charged;
-  -- THE assertion. The first invoice — the one they are about to pay at checkout — is
+  -- THE assertion. The first invoice, the one they are about to pay at checkout, is
   -- discounted, not the second.
   if inv.discount_cents <> round(v_gross::numeric * 2500 / 10000)::bigint then
     raise exception 'DISCOUNT FAIL [h]: the first invoice took off % against a gross of %',
@@ -319,7 +319,7 @@ begin
   exception when others then
     v_failed := true;
     if sqlerrm not like 'SIGNUP_PROMO:%' then
-      raise exception 'DISCOUNT FAIL [h]: a bad code raised "%" — the route matches on the prefix', sqlerrm;
+      raise exception 'DISCOUNT FAIL [h]: a bad code raised "%", the route matches on the prefix', sqlerrm;
     end if;
   end;
   if not v_failed then
@@ -336,7 +336,7 @@ begin
   end if;
 end $$;
 
--- ── (i) The check the sign-up route runs before it creates anything ─────────
+-- == (i) The check the sign-up route runs before it creates anything =========
 do $$
 declare v jsonb;
 begin
@@ -373,7 +373,7 @@ begin
   end if;
 end $$;
 
--- ── (j) The seven-argument sign-up is GONE, not left beside the new one ─────
+-- == (j) The seven-argument sign-up is GONE, not left beside the new one =====
 --
 -- PostgREST resolves overloads by argument name. Two arities of this would make every
 -- existing call ambiguous, so 20260920160000 drops the old pair rather than adding to it.

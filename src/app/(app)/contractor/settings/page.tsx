@@ -28,8 +28,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
  * Everything a document needs to look like it came from THEM: the trading name, the
  * registration and VAT numbers a South African invoice is legally poorer without, the
  * banking details a farmer pays into, the colours, and the logo. Plus the document
- * defaults — numbering prefix, how long a quote stands, how long they give on an
- * invoice — so the builder starts from their house rules rather than ours.
+ * defaults, numbering prefix, how long a quote stands, how long they give on an
+ * invoice, so the builder starts from their house rules rather than ours.
  */
 export default async function PartnerSettingsPage({
   searchParams,
@@ -45,7 +45,7 @@ export default async function PartnerSettingsPage({
   const b = brandingFrom(workshop);
   const logoUrl = await signedBrandingUrl(workshop?.logo_path ?? null);
 
-  // `doc_template` is not part of `BRANDING_COLUMNS` — that list is the LETTERHEAD, and the
+  // `doc_template` is not part of `BRANDING_COLUMNS`, that list is the LETTERHEAD, and the
   // template is a record of which preset produced it, read only by this screen. One narrow
   // read rather than widening a shape four other surfaces depend on. RLS scopes it: a
   // partner reads its own workshop row and no other.
@@ -98,7 +98,7 @@ export default async function PartnerSettingsPage({
         ))}
       </nav>
 
-      {/* The letterhead as the farmer will see it, above the fields that change it —
+      {/* The letterhead as the farmer will see it, above the fields that change it -
           so a colour choice is judged against a document, not a swatch. */}
       <Card>
         <CardHeader><CardTitle>{t("partnerSettings.preview", locale)}</CardTitle></CardHeader>
@@ -131,7 +131,7 @@ export default async function PartnerSettingsPage({
       </Card>
 
       {/* Pick a document, then adjust it. The picker comes FIRST because it is the question
-          most partners will answer — four real documents to point at — and the switches
+          most partners will answer, four real documents to point at, and the switches
           below are for the one in ten who wants to move something afterwards. Both draw the
           same miniature, with this partner's own colour, logo and VAT number in it, so it is
           plain that choosing a template does not throw the letterhead away. */}
@@ -149,8 +149,8 @@ export default async function PartnerSettingsPage({
       </div>
 
       {/* How the document is LAID OUT, as opposed to what colour it is. Directly under the
-          letterhead preview because the two answer the same question — what does the thing
-          I send actually look like — and a partner comparing them wants them together. */}
+          letterhead preview because the two answer the same question, what does the thing
+          I send actually look like, and a partner comparing them wants them together. */}
       <DocumentLayoutForm
         locale={locale}
         current={(workshop as { doc_layout?: unknown } | null)?.doc_layout}
@@ -315,7 +315,7 @@ export default async function PartnerSettingsPage({
               label={t("partnerSettings.invoiceTerms", locale)}
               defaultValue={String(b.invoiceTermsDays)}
             />
-            {/* Registration first, then the rate — because "do you charge VAT at all"
+            {/* Registration first, then the rate, because "do you charge VAT at all"
                 decides whether the rate matters, and most one-van operations do not. */}
             <label className="flex items-start gap-3 text-sm text-sand-700 sm:col-span-2">
               <input

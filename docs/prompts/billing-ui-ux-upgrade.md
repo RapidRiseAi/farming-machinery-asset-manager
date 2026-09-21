@@ -5,7 +5,7 @@
 
 ---
 
-# FleetWise — billing and sign-up UI/UX upgrade
+# FleetWise, billing and sign-up UI/UX upgrade
 
 You are working on **FleetWise**, a multi-tenant PWA that South African farms use to manage
 machinery. Your job this session is the **user experience of the money screens**: `/billing`,
@@ -34,8 +34,8 @@ reader would otherwise have to work out.
 
 ### 1. Put the answer above the fold (highest value)
 
-`/billing` currently stacks nine cards. The single fact people arrive for — how much, and
-when — sits in the **footer of the third card**. On a phone that is three scrolls of plan
+`/billing` currently stacks nine cards. The single fact people arrive for, how much, and
+when, sits in the **footer of the third card**. On a phone that is three scrolls of plan
 and vehicle admin before they learn anything.
 
 Add a summary strip at the top answering all three questions at a glance: **next charge
@@ -43,7 +43,7 @@ with its date**, **slots used against slots bought**, and **the card with its ex
 state**.
 
 Use the existing **`Stat`** primitive (`@/components/ui/stat`). It already carries label,
-value, tone and an optional href. Six pages use it, **including `/admin/billing`** — and
+value, tone and an optional href. Six pages use it, **including `/admin/billing`**, and
 the customer-facing `/billing` renders the same kind of number with hand-rolled markup
 instead, so the two billing screens currently look like different products. Fixing that
 inconsistency is part of this job.
@@ -76,13 +76,13 @@ rows and the same statuses.
 
 `src/components/ui/toast.tsx` is built, exported from the barrel, and **called by nothing**.
 
-Route action confirmations through it — "slots added", "plan changed", "card removed" —
+Route action confirmations through it, "slots added", "plan changed", "card removed" -
 instead of a banner that shoves the whole page down on every action.
 
 **Keep `Flash` for anything that must persist.** In particular `billing.savedChecking`
 ("we are checking that payment with the bank") must **not** disappear on a timer: it is the
 message that stops somebody paying twice. `savedNotice()` in `src/lib/billing/view.ts`
-already returns a `tone` of `success` or `info` per outcome — use that to decide, and keep
+already returns a `tone` of `success` or `info` per outcome, use that to decide, and keep
 its rule that money which has not landed is never reported as success.
 
 ### 5. Make the plan comparison actually compare
@@ -124,7 +124,7 @@ Each of these has already cost this project a session.
   token system. Use `brand-*`, `sand-*`, `status-*` and `callout-*` tokens, never raw hex.
 - Both themes must agree. The design lint checks contrast and dark-mode blocks.
 
-## Gates — all must pass before you call anything done
+## Gates, all must pass before you call anything done
 
 ```bash
 pnpm typecheck
@@ -166,5 +166,5 @@ brief.
 | What is left overall | `docs/BILLING_RELEASE_GATES.md` |
 
 Put new pure logic in `src/lib/billing/view.ts` and test it in `view.test.ts`. That file is
-deliberately pure — no I/O, no Supabase client, no `process.env` — so both billing screens
+deliberately pure, no I/O, no Supabase client, no `process.env`, so both billing screens
 cannot disagree about what a status means or what the next charge comes to.

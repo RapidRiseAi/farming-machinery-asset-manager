@@ -24,12 +24,12 @@ import { ExpenseScheduleForm } from "@/components/recurring-expenses/schedule-fo
 export const dynamic = "force-dynamic";
 
 /**
- * Standing costs (G19) — the cost-side mirror of `/recurring`.
+ * Standing costs (G19), the cost-side mirror of `/recurring`.
  *
  * The failure this screen exists to prevent is not paying the wrong amount, it is not
  * RECORDING the payment. Rent that goes off by debit order and is never captured leaves a
  * partner reading a profit figure that is too high, an input-VAT claim that is too small
- * and a creditors list that is too short — and nothing anywhere says so, because the row
+ * and a creditors list that is too short, and nothing anywhere says so, because the row
  * that would have said it was never written. So the list leads with what is about to go
  * out, not with what exists.
  */
@@ -75,7 +75,7 @@ export default async function RecurringExpensesPage({
 
   // What the partner has committed to over a year, across everything still running. The
   // number that makes somebody open a schedule they have not looked at since they set it
-  // up — a monthly figure never does.
+  // up, a monthly figure never does.
   const committedExCents = live.reduce((sum, s) => sum + annualisedExCents(s), 0);
   const dueTotalCents = due.reduce((sum, s) => sum + scheduleTotalCents(s), 0);
 
@@ -112,7 +112,7 @@ export default async function RecurringExpensesPage({
                   <span className="text-sm text-sand-600">{s.supplier_name}</span>
                   <span className="ml-auto tabular-nums text-sm text-sand-800">{rands(scheduleTotalCents(s))}</span>
                   {/* A span, not a link: the whole row is already an anchor, and nesting
-                      one inside another is invalid HTML the browser silently un-nests —
+                      one inside another is invalid HTML the browser silently un-nests -
                       which is what threw React #418 on the machines list. */}
                   <span className="text-sm font-medium text-brand-ink">{t("recexp.dueOpen", locale)} →</span>
                 </Link>

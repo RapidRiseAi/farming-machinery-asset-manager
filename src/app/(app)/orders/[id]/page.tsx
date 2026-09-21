@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 /**
  * One purchase order (G16), in the order the questions are asked: what state is it in,
  * what is still to come, has it been invoiced, and only then the details of the order
- * itself. Editing the header is last on purpose — it is the thing least often needed
+ * itself. Editing the header is last on purpose, it is the thing least often needed
  * once an order is out, and putting it first would bury the receiving fields under a
  * form nobody came here to fill in.
  *
@@ -157,7 +157,7 @@ export default async function OrderPage({
             <p className="text-lg font-semibold tabular-nums text-sand-900">
               {summary.ordered > 0
                 ? `${formatQty(summary.received)} / ${formatQty(summary.ordered)}`
-                : "—"}
+                : "-"}
             </p>
             {summary.outstanding > 0 ? (
               <p className="text-xs text-sand-500">
@@ -168,7 +168,7 @@ export default async function OrderPage({
         </div>
 
         {/* The lifecycle, as buttons that say what they do. Nothing here types a status
-            that the 0474 engine owns — sending an order is a decision, receiving one is
+            that the 0474 engine owns, sending an order is a decision, receiving one is
             an observation, and only the first is a button. */}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-sand-200 pt-4">
           {order.status === "draft" ? (
@@ -236,7 +236,7 @@ export default async function OrderPage({
           )}
 
           {/* Deleting is refused server-side once an invoice points at the order, so the
-              button is not offered either — an action that always fails is worse than an
+              button is not offered either, an action that always fails is worse than an
               action that is not there. */}
           {!expense ? (
             <span className="ml-auto">

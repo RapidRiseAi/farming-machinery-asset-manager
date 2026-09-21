@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
  * One anchor, no client JS. Split out of the reports page so the pack feature owns its
  * own markup; the page keeps one line.
  *
- * The route behind it is Professional+ (`advanced_reports`) — the same gate the reports
+ * The route behind it is Professional+ (`advanced_reports`), the same gate the reports
  * page itself carries, so a farm that can see this button can always use it. The
  * per-vehicle packs on machine detail are core on every plan, which is where the actual
  * audit evidence lives; see the note at the top of

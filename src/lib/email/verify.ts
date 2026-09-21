@@ -10,17 +10,17 @@ import { APP_NAME, siteUrl } from "@/lib/env";
 /**
  * Proving that a sign-up's email address actually works.
  *
- * ── Why this is ours and not Supabase's ──────────────────────────────────────
+ * == Why this is ours and not Supabase's ======================================
  * Supabase can hold a user unconfirmed and email them itself, but an unconfirmed user
- * cannot sign in — and `signUp` signs them in and sends them to `/activate` to pay. Putting
+ * cannot sign in, and `signUp` signs them in and sends them to `/activate` to pay. Putting
  * an email round trip between "I want this" and "here is my card" is the wrong place for
  * friction in a product bought on a phone in a shed. So the auth user stays confirmed and
  * this is a separate, non-blocking check: it tells the truth about the address, prompts
  * until it is proven, and gates nothing.
  *
- * ── The token never touches the database ─────────────────────────────────────
- * Only its SHA-256 is stored. `public.users` is readable by the rest of the farm — that is
- * what the team screen is — and RLS filters rows, not columns; this codebase has already
+ * == The token never touches the database =====================================
+ * Only its SHA-256 is stored. `public.users` is readable by the rest of the farm, that is
+ * what the team screen is, and RLS filters rows, not columns; this codebase has already
  * been caught by that distinction once, on `billing_payment_methods.authorization_code`.
  * A colleague reading the hash learns nothing and cannot confirm somebody else's address.
  */
@@ -49,7 +49,7 @@ export type VerifySendResult =
 /**
  * Mint a token, store its hash, and email the link.
  *
- * Returns rather than throws, and names WHY — the sign-up must not fail because our mail
+ * Returns rather than throws, and names WHY, the sign-up must not fail because our mail
  * provider is down. A farm that has paid and cannot be emailed is a support problem; a farm
  * that could not sign up because of it is a lost customer.
  */
@@ -59,7 +59,7 @@ export async function sendVerificationEmail(
 ): Promise<VerifySendResult> {
   if (!opts.email) return { ok: false, reason: "no-email" };
   if (!emailConfigured()) return { ok: false, reason: "email-not-configured" };
-  // Configuration only — see `siteUrl()`. A link built from a request header and posted to
+  // Configuration only, see `siteUrl()`. A link built from a request header and posted to
   // somebody's inbox over our name is a phishing email we wrote ourselves. Refusing to send
   // is strictly better than sending one that points at "undefined/verify/…" or worse.
   const origin = siteUrl();

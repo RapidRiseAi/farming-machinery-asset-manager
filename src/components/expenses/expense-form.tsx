@@ -17,19 +17,19 @@ import { createExpense } from "@/app/(app)/expenses/actions";
  *
  * The form is a client component for one reason: it shows the split live. A partner types
  * R1 150,00 off a till slip and sees "R1 000,00 + R150,00 VAT" appear underneath before
- * pressing anything. That is what stops the commonest capture error — entering the
- * inclusive amount into an ex-VAT field — and it is invisible in a server-rendered form.
+ * pressing anything. That is what stops the commonest capture error, entering the
+ * inclusive amount into an ex-VAT field, and it is invisible in a server-rendered form.
  *
  * The VAT box is pre-filled from the rate and stays editable, because the supplier's own
  * VAT line is what may legally be claimed. `createExpense` does the same arithmetic
  * server-side; this preview cannot disagree with it because both call `splitInclusive`.
  *
- * ── The supplier is a picker, and still a text box (G18) ────────────────────
+ * == The supplier is a picker, and still a text box (G18) ====================
  *
  * Choosing from the book is what stops the third spelling of one business appearing on the
  * payables ageing. But a supplier invoice arrives from whoever the workshop bought from
  * that morning, and refusing to capture it until somebody has filed the business would move
- * the friction to the worst possible moment — so "someone new" stays one keystroke away and
+ * the friction to the worst possible moment, so "someone new" stays one keystroke away and
  * writes plain text, exactly as it did before. The 0481 trigger links that text to a record
  * if one already matches, so typing the name of a supplier you forgot was on the list ends
  * up in the same place as picking it.
@@ -47,7 +47,7 @@ export function ExpenseForm({
   const [inclusive, setInclusive] = useState(true);
   const [percent, setPercent] = useState(vatRegistered ? "15" : "0");
   const [vatOverride, setVatOverride] = useState("");
-  // "" means "someone new" — the default, so a workshop with an empty book sees exactly the
+  // "" means "someone new", the default, so a workshop with an empty book sees exactly the
   // form it saw before this feature existed.
   const [supplierId, setSupplierId] = useState("");
 
@@ -82,7 +82,7 @@ export function ExpenseForm({
             </SelectField>
           ) : null}
 
-          {/* Shown whenever no record was chosen — which is every time for a workshop that
+          {/* Shown whenever no record was chosen, which is every time for a workshop that
               has filed nobody, and the "someone new" case for everyone else. `required` is
               conditional for the same reason: the field is not on the form at all when a
               supplier has been picked, and a required field nobody can see cannot be
@@ -187,10 +187,10 @@ export function ExpenseForm({
         ) : null}
 
         {/* A business that is not registered for VAT can never reclaim input VAT, so asking
-            is not a choice — it is a question with one answer, and offering it invites the
+            is not a choice, it is a question with one answer, and offering it invites the
             wrong one. The 0490 trigger forces the column false regardless of what is
             posted; this only stops the screen implying otherwise. The VAT itself is still
-            captured, because it really was paid — it is simply all cost. */}
+            captured, because it really was paid, it is simply all cost. */}
         {!vatRegistered ? (
           <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
             {t("expenses.claimableNotRegistered", locale)}

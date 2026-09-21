@@ -29,13 +29,13 @@ import { createServiceClient } from "@/lib/supabase/service";
 /**
  * The owner's own billing actions.
  *
- * ── The rule every one of these obeys ────────────────────────────────────────
- * The role is re-checked HERE, server-side, on the farm being changed — never inferred
+ * == The rule every one of these obeys ========================================
+ * The role is re-checked HERE, server-side, on the farm being changed, never inferred
  * from what the page chose to render, and never from `profile.role` alone, which
  * describes the person's PRIMARY farm and says nothing about the one they are currently
  * looking at. `app.is_farm_billing_admin` says the same thing in SQL: owner or Rapid Rise,
  * and nobody else. Managers, mechanics, operators and linked contractors are excluded on
- * purpose — a contractor with legitimate access to a farm's vehicles has no business
+ * purpose, a contractor with legitimate access to a farm's vehicles has no business
  * seeing, let alone changing, what that farm pays Rapid Rise.
  *
  * Every write goes through the SERVICE client, because `authenticated` holds SELECT and
@@ -46,7 +46,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  * Every rejection is a translated error CODE, never a raw message and never a Postgres
  * string. `src/lib/errors.ts` turns it into a sentence in the reader's own language.
  *
- * This is a `"use server"` file, so it may export only async functions — constants and
+ * This is a `"use server"` file, so it may export only async functions, constants and
  * types live in `src/lib/billing/*`.
  */
 
@@ -89,14 +89,14 @@ async function requireBillingAdmin(): Promise<{ profile: Profile; farmId: string
 /**
  * Buy more vehicle slots, or give some back.
  *
- * The SCREEN does not decide what happens — \`app.change_billing_quota\` does, and it
+ * The SCREEN does not decide what happens, \`app.change_billing_quota\` does, and it
  * applies the founder's rules: more slots are charged pro-rata and available
  * immediately; fewer wait for the period already paid for; and fewer than the farm is
  * actually running is refused outright, because the only way to honour it would be to
  * delete real vehicles.
  *
  * The answer comes back as a WORD rather than a number, so the screen can say which of
- * those three happened — which is the part a farmer actually needs to read.
+ * those three happened, which is the part a farmer actually needs to read.
  */
 export async function changeVehicleSlots(formData: FormData): Promise<void> {
   const { farmId } = await requireBillingAdmin();
@@ -130,8 +130,8 @@ export async function changeVehicleSlots(formData: FormData): Promise<void> {
 /**
  * Move to a different plan, from the owner's own screen.
  *
- * \`app.change_billing_plan\` moves BOTH plans together — the commercial one on the
- * subscription and the effective one on the farm — which is the half that used to be
+ * \`app.change_billing_plan\` moves BOTH plans together, the commercial one on the
+ * subscription and the effective one on the farm, which is the half that used to be
  * missing, and it keeps the non-payment exception: a farm downgraded for not paying is
  * not handed its features back by asking for a bigger plan.
  */
@@ -194,7 +194,7 @@ export async function replacePaymentMethod(): Promise<void> {
 /**
  * Take a stored card off the account.
  *
- * The credential columns are not touched — the row and its evidence stay, and the status
+ * The credential columns are not touched, the row and its evidence stay, and the status
  * change is what stops `app.due_billing_charges` choosing it. Removing the only card does
  * not cancel anything; it means the next renewal has nothing to charge, which the billing
  * page says plainly rather than discovering on the night.
@@ -267,7 +267,7 @@ export async function resumeBilling(): Promise<void> {
  * "Try that payment again."
  *
  * Goes through `retryInvoiceCharge`, which rebuilds the same shortlist row the automatic
- * worker would have used — so a manual retry is subject to every condition the nightly
+ * worker would have used, so a manual retry is subject to every condition the nightly
  * pass is, INCLUDING the in-flight block. That is the point: a "try again" button is
  * otherwise the perfect way to bypass the one lock that stops a farm being charged twice,
  * and a farmer pressing it twice in ten seconds is not a hypothetical.

@@ -47,7 +47,7 @@ export default async function FuelPage({
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   // Fuel is a Professional+ feature (FR-19.2 mapping). Deny server-side for under-plan
-  // farms — fuel data is never fetched; an upgrade prompt shows instead.
+  // farms, fuel data is never fetched; an upgrade prompt shows instead.
   const gate = await checkEntitlement("fuel");
   const profile = gate.profile;
   const locale = profile.lang;
@@ -128,14 +128,14 @@ export default async function FuelPage({
   const consumption = [...issuesByMachine.entries()]
     .map(([mid, rows]) => ({
       machineId: mid,
-      name: machineName.get(mid) ?? "—",
+      name: machineName.get(mid) ?? "-",
       meterType: machineMeter.get(mid) ?? "none",
       litres: rows.reduce((a, r) => a + (r.litres ?? 0), 0),
       c: computeConsumption(rows, machineMeter.get(mid) ?? "none"),
     }))
     .sort((a, b) => (b.c.display ?? -1) - (a.c.display ?? -1) || b.litres - a.litres);
 
-  // Flagged draws (anomalies) — most recent first.
+  // Flagged draws (anomalies), most recent first.
   const anomalies = issues
     .filter((i) => i.anomaly_notified_at != null && i.machine_id != null)
     .slice(0, 10);
@@ -220,7 +220,7 @@ export default async function FuelPage({
                 ) : null}
                 <Field label={t("fuel.activityLabel", locale)} htmlFor="i_activity">
                   <Select id="i_activity" name="activity" defaultValue="">
-                    <option value="">—</option>
+                    <option value="">-</option>
                     {FUEL_ACTIVITIES.map((a) => (
                       <option key={a} value={a}>{activityLabel(a, locale)}</option>
                     ))}
@@ -289,7 +289,7 @@ export default async function FuelPage({
                     <span className="font-semibold text-sand-900">{t("fuel.balance", locale)}: {bal.toLocaleString("en-ZA", { maximumFractionDigits: 0 })} {t("fuel.litresShort", locale)}</span>
                   </span>
                   {/* The stick in the tank, against what the books said on that day. A
-                      short measurement is diesel that left without a draw being logged —
+                      short measurement is diesel that left without a draw being logged -
                       a leak, or somebody's jerrycan. It is reported, never adjusted away. */}
                   {(() => {
                     const dip = latestDip.get(tk.id);
@@ -407,7 +407,7 @@ export default async function FuelPage({
             {anomalies.map((i) => (
               <li key={i.id} className="flex items-center justify-between gap-3 py-2">
                 <span className="min-w-0">
-                  <Link href={`/machines/${i.machine_id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">{machineName.get(i.machine_id ?? "") ?? "—"}</Link>
+                  <Link href={`/machines/${i.machine_id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">{machineName.get(i.machine_id ?? "") ?? "-"}</Link>
                   <span className="ml-2 text-sand-500">{i.litres} {t("fuel.litresShort", locale)}{i.meter_reading != null ? ` @ ${i.meter_reading}` : ""}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
@@ -432,7 +432,7 @@ export default async function FuelPage({
                 <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="min-w-0 truncate">
                     <span className="font-medium text-sand-800">{d.litres} {t("fuel.litresShort", locale)}</span>
-                    <span className="text-sand-500"> · {tankName.get(d.tank_id) ?? "—"}{d.supplier ? ` · ${d.supplier}` : ""}</span>
+                    <span className="text-sand-500"> · {tankName.get(d.tank_id) ?? "-"}{d.supplier ? ` · ${d.supplier}` : ""}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
                     {d.price_per_l_cents != null ? <span className="tabular-nums text-sand-500">{rands(Math.round((d.litres ?? 0) * d.price_per_l_cents))}</span> : null}
@@ -453,7 +453,7 @@ export default async function FuelPage({
                 <li key={i.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="min-w-0 truncate">
                     <span className="font-medium text-sand-800">{i.litres} {t("fuel.litresShort", locale)}</span>
-                    <span className="text-sand-500"> · {i.machine_id ? (machineName.get(i.machine_id) ?? "—") : t("fuel.farmLevel", locale)}{i.activity ? ` · ${activityLabel(i.activity, locale)}` : ""}{draweeLabel(i) ? ` · ${draweeLabel(i)}` : ""}</span>
+                    <span className="text-sand-500"> · {i.machine_id ? (machineName.get(i.machine_id) ?? "-") : t("fuel.farmLevel", locale)}{i.activity ? ` · ${activityLabel(i.activity, locale)}` : ""}{draweeLabel(i) ? ` · ${draweeLabel(i)}` : ""}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
                     {i.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(i.cost_cents)}</span> : null}

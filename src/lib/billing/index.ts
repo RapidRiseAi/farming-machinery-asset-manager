@@ -3,27 +3,27 @@
  *
  * Two adapters exist:
  *
- *   noop      — the default, and the resting state of a fresh clone, of CI, and of
+ *   noop     , the default, and the resting state of a fresh clone, of CI, and of
  *               production until the founder switches billing on. Plans and entitlements
  *               are fully enforced; nothing charges anyone.
- *   paystack  — the real one (`./paystack`). Hosted checkout, server-to-server verify,
+ *   paystack , the real one (`./paystack`). Hosted checkout, server-to-server verify,
  *               charge-authorization for renewals, HMAC-SHA512 webhook verification.
  *
  * SCOPE: this is FARMS PAYING RAPID RISE for FleetWise. It is not, and must never become,
- * the money that moves between a farm and its contractors — that is `partner_documents` /
+ * the money that moves between a farm and its contractors, that is `partner_documents` /
  * `partner_payments`, and its dormant PayFast seam lives in `src/lib/payments/*` and stays
  * inert. Nothing here may import from there.
  *
  * THE TWO-PART SAFETY SWITCH, and why it is two parts:
  *
  *   BILLING_PROVIDER=paystack       the adapter is live. Webhooks are verified and money
- *                                   already taken is RECONCILED — but nothing new is
+ *                                   already taken is RECONCILED, but nothing new is
  *                                   charged.
  *   BILLING_CHARGING_ENABLED=true   additionally permits NEW charges.
  *
  * Splitting them is what makes the rollback safe. Turning charging off stops any further
  * rand moving while leaving the ledger reconciling payments that are already in flight;
- * the alternative — pulling the provider entirely — would strand a customer who paid
+ * the alternative, pulling the provider entirely, would strand a customer who paid
  * thirty seconds before somebody hit the switch.
  *
  * Every value is read LAZILY, inside the call (see `./config`), so a missing key can
@@ -72,7 +72,7 @@ export function getBillingAdapter(): BillingAdapter {
 
 /**
  * The richer SaaS-billing surface (hosted checkout, verify, charge-authorization,
- * webhook signature) — available only from a provider that implements it.
+ * webhook signature), available only from a provider that implements it.
  *
  * Returns null for the no-op adapter rather than a stub that pretends. A caller holding
  * null must degrade visibly: say billing is not switched on. A stub that silently

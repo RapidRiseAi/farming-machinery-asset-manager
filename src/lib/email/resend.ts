@@ -3,7 +3,7 @@ import "server-only";
 /**
  * Email, through Resend.
  *
- * Until now "send" meant "set a status and write an in-app alert" — the customer had to
+ * Until now "send" meant "set a status and write an in-app alert", the customer had to
  * log into FleetWise to discover they had been invoiced. Every tool a partner might use
  * instead emails the document with a link the customer can open without an account.
  *
@@ -26,7 +26,7 @@ export type EmailAttachment = {
 export type SendEmailInput = {
   to: string;
   from: string;
-  /** Where a reply should land — the partner's own address, not ours. */
+  /** Where a reply should land, the partner's own address, not ours. */
   replyTo?: string | null;
   cc?: string | null;
   subject: string;
@@ -52,13 +52,13 @@ export function emailConfigProblem(): string | null {
   const from = (process.env.EMAIL_FROM ?? "").trim();
 
   if (!key) return "RESEND_API_KEY is not set";
-  // `vercel pull` CANNOT decrypt secrets — it writes the literal string `[SENSITIVE]`, which
+  // `vercel pull` CANNOT decrypt secrets, it writes the literal string `[SENSITIVE]`, which
   // is perfectly truthy. That one fact is why every send failed at the provider for weeks
   // while this function reported everything was fine.
   if (/^\[.*\]$/.test(key)) return "RESEND_API_KEY is a placeholder, not a key";
   if (/\s/.test(key)) return "RESEND_API_KEY contains whitespace";
-  // Resend's documented key prefix. This module talks to exactly one provider — its
-  // endpoint and its error shape are both Resend's — so recognising Resend's own format is
+  // Resend's documented key prefix. This module talks to exactly one provider, its
+  // endpoint and its error shape are both Resend's, so recognising Resend's own format is
   // not over-fitting, and refusing loudly beats being rejected silently once per message.
   if (!key.startsWith("re_")) return "RESEND_API_KEY does not look like a Resend key";
   if (key.length < 20) return "RESEND_API_KEY is too short to be real";
@@ -66,7 +66,7 @@ export function emailConfigProblem(): string | null {
   if (!from) return "EMAIL_FROM is not set";
   if (/^\[.*\]$/.test(from)) return "EMAIL_FROM is a placeholder, not an address";
   // Resend only accepts a domain you have verified, so a malformed or invented FROM is a
-  // rejection at the provider — one per message, rather than once at startup.
+  // rejection at the provider, one per message, rather than once at startup.
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from)) return "EMAIL_FROM is not an email address";
 
   return null;
@@ -78,7 +78,7 @@ export function emailConfigured(): boolean {
 
 /**
  * The address we send FROM. Resend will only accept a domain you have verified, so this
- * is ours, not the partner's — but `replyTo` is the partner's, so a customer pressing
+ * is ours, not the partner's, but `replyTo` is the partner's, so a customer pressing
  * reply reaches the person who invoiced them rather than us. The display name is the
  * partner's business, which is what the customer recognises in their inbox.
  */

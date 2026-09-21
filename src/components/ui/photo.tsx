@@ -5,7 +5,7 @@ import { INTRINSIC, type ImageSize } from "@/lib/storage-image";
 /**
  * A photo from Storage, or a placeholder when there isn't one.
  *
- * Every image in this product was previously a bare `<img src>` — 13 of them,
+ * Every image in this product was previously a bare `<img src>`, 13 of them,
  * none with `width`/`height`, none with `loading`, none with `decoding`. So the
  * machines list fetched every machine's photo at once and shifted the layout as
  * each one landed.
@@ -20,14 +20,14 @@ import { INTRINSIC, type ImageSize } from "@/lib/storage-image";
  *
  * `next/image` is deliberately not used: these are signed URLs with a one-hour
  * expiry, so the optimiser would key its cache on a URL that changes hourly and
- * re-fetch every time — all of the cost, none of the benefit.
+ * re-fetch every time, all of the cost, none of the benefit.
  */
 export type PhotoProps = {
   /** Signed URL, or null/undefined when the record has no photo. */
   src?: string | null;
   /**
    * Describe the photo for someone who can't see it. Pass "" ONLY when the
-   * photo is decorative and the machine is already named in adjacent text —
+   * photo is decorative and the machine is already named in adjacent text -
    * an empty alt is correct there, a missing one never is.
    */
   alt: string;

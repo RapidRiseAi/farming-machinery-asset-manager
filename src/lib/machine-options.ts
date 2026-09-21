@@ -31,7 +31,7 @@ export const typeLabel = (key: string, locale: Lang) => t(`machineType.${key}`, 
 export const statusLabel = (key: string, locale: Lang) => t(`machineStatus.${key}`, locale);
 export const meterLabel = (key: string, locale: Lang) => t(`meterType.${key}`, locale);
 
-// Legacy English label maps — kept for any consumer not yet passing a locale.
+// Legacy English label maps, kept for any consumer not yet passing a locale.
 export const TYPE_LABELS: Record<string, string> = {
   tractor: "Tractor",
   harvester: "Harvester / Combine",

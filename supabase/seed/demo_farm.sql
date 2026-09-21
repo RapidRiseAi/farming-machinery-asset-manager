@@ -1,4 +1,4 @@
--- demo_farm.sql — the sales-demo & training sandbox (Scope §8).
+-- demo_farm.sql, the sales-demo & training sandbox (Scope §8).
 -- Creates one realistic farm ("Weltevrede Boerdery") with 12 machines and real
 -- histories: meter readings, service plans, faults (open + resolved), completed
 -- job cards with costed lines (one approved/locked), and watch items.
@@ -8,7 +8,7 @@
 --
 -- NOTE on users: this inserts rows into auth.users directly so the profile FKs
 -- resolve and the demo data is complete. Those demo accounts cannot *log in*
--- (no Auth identity/password) — that's fine for a data sandbox. Create a real
+-- (no Auth identity/password), that's fine for a data sandbox. Create a real
 -- login for the demo owner via the invite flow / Auth admin API separately.
 --
 -- Money is in integer cents, ex-VAT (Scope §6).
@@ -25,12 +25,12 @@ declare
   v_wstaff   uuid := '10000000-0000-0000-0000-000000000006';
 begin
   if exists (select 1 from farms where id = v_farm) then
-    raise notice 'demo farm already seeded — skipping';
+    raise notice 'demo farm already seeded, skipping';
     return;
   end if;
 
-  -- ── Farm (Complete plan, active) — a strong plan so the demo shows every
-  --     entitlement-gated surface (dashboard, fuel, advanced reports, AARTO). ──
+  -- == Farm (Complete plan, active), a strong plan so the demo shows every
+  --     entitlement-gated surface (dashboard, fuel, advanced reports, AARTO). ==
   insert into farms (id, name, plan, billing_period, status, settings) values
     (v_farm, 'Weltevrede Boerdery', 'complete', 'annual', 'active',
      jsonb_build_object(
@@ -39,9 +39,9 @@ begin
        'stale_reading_days',30,'approval_required',true,
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
 
-  -- ── External workshop + link (classified contractor, F12a) ─────
+  -- == External workshop + link (classified contractor, F12a) =====
   -- Managed product (F14e) so the demo shows document building, payments and the gated
-  -- client-analytics panel — plus a full letterhead (F14a), so every quote and invoice
+  -- client-analytics panel, plus a full letterhead (F14a), so every quote and invoice
   -- in the demo comes out in TJ's own colours rather than ours.
   insert into workshops (id, name, contact, kind, plan, phone, whatsapp, email, area,
                          trading_name, reg_number, vat_number, address, website,
@@ -52,7 +52,7 @@ begin
     -- surface is shown from, so it carries the top product for the same reason the demo
     -- FARM carries 'complete'. A demo that hides half the product demonstrates the gate,
     -- not the product.
-    (v_workshop, 'TJ Service & Repairs', 'TJ — 082 555 0134', 'mechanic', 'books',
+    (v_workshop, 'TJ Service & Repairs', 'TJ, 082 555 0134', 'mechanic', 'books',
      '+27825550134', '+27825550134', 'tj@tjrepairs.example', 'Bothaville',
      'TJ Service & Repairs', '2016/447123/07', '4820291847',
      E'12 Voortrekkerstraat\nBothaville 9660\nVrystaat', 'www.tjrepairs.example',
@@ -64,7 +64,7 @@ begin
   insert into workshop_links (workshop_id, farm_id, status) values
     (v_workshop, v_farm, 'active');
 
-  -- ── Users (auth shell + profiles) ──────────────────────────────
+  -- == Users (auth shell + profiles) ==============================
   insert into auth.users (id, email) values
     (v_owner,   'danie@weltevrede.example'),
     (v_manager, 'piet@weltevrede.example'),
@@ -82,9 +82,9 @@ begin
     (v_op2,     v_farm, null, 'operator', 'Sipho', '+27825550105', 'en', false),
     (v_wstaff,  null, v_workshop, 'workshop', 'TJ', '+27825550134', 'en', true);
 
-  -- ── Global service templates (RR-seeded library) ───────────────
+  -- == Global service templates (RR-seeded library) ===============
   insert into service_templates (farm_id, machine_type, name, lines) values
-    (null, 'tractor', 'Tractor — standard', '[
+    (null, 'tractor', 'Tractor, standard', '[
        {"task":"Engine oil + filter","interval_hours":250,"interval_months":12},
        {"task":"Hydraulic / transmission service","interval_hours":500,"interval_months":24},
        {"task":"Coolant service","interval_hours":1000,"interval_months":12},
@@ -98,7 +98,7 @@ begin
     (null, 'pump_generator', 'Pump / Generator', '[
        {"task":"Oil + filter","interval_hours":200,"interval_months":12}]'::jsonb);
 
-  -- ── 12 machines across the Section 4.1 types ───────────────────
+  -- == 12 machines across the Section 4.1 types ===================
   insert into machines
     (id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type,
      status, current_reading, current_reading_date, purchase_date, purchase_price_cents,
@@ -106,13 +106,13 @@ begin
     ('20000000-0000-0000-0000-000000000001', v_farm, 'Groen John Deere', 'tractor', 'John Deere', '6120M', 2019, 'JD6120M-01', null, 'hours', 'active',   4820, current_date - 2,  '2019-03-10', 145000000, 'Senwes', 'Werkswinkel', 'Hoof trekker vir lande'),
     ('20000000-0000-0000-0000-000000000002', v_farm, 'Rooi Massey',      'tractor', 'Massey Ferguson', '385', 2012, 'MF385-02', null, 'hours', 'active',   9130, current_date - 5,  '2012-06-01', 62000000,  'Afgri', 'Stoor', null),
     ('20000000-0000-0000-0000-000000000003', v_farm, 'Ou Ford',          'tractor', 'Ford', '6610', 1998, 'FORD6610-03', null, 'hours', 'standby', 15600, current_date - 40, '2005-01-15', 18000000, null, 'Agterste skuur', 'Reserwe trekker'),
-    ('20000000-0000-0000-0000-000000000004', v_farm, 'New Holland Groot','tractor', 'New Holland', 'T7.210', 2021, 'NHT7-04', null, 'hours', 'in_workshop', 2210, current_date - 1, '2021-09-20', 210000000, 'New Holland SA', 'Werkswinkel', 'Ingeboek — hidroulika lek'),
+    ('20000000-0000-0000-0000-000000000004', v_farm, 'New Holland Groot','tractor', 'New Holland', 'T7.210', 2021, 'NHT7-04', null, 'hours', 'in_workshop', 2210, current_date - 1, '2021-09-20', 210000000, 'New Holland SA', 'Werkswinkel', 'Ingeboek, hidroulika lek'),
     ('20000000-0000-0000-0000-000000000005', v_farm, 'Claas Stroper',    'harvester', 'Claas', 'Tucano 450', 2018, 'CLAAS450-05', null, 'hours', 'active', 3450, current_date - 7, '2018-02-01', 380000000, 'Claas SA', 'Masjienstoor', 'Graanstroper'),
     ('20000000-0000-0000-0000-000000000006', v_farm, 'John Deere Stroper','harvester', 'John Deere', 'S660', 2015, 'JDS660-06', null, 'hours', 'active', 5120, current_date - 9, '2015-04-12', 295000000, 'Senwes', 'Masjienstoor', null),
     ('20000000-0000-0000-0000-000000000007', v_farm, 'Wit Toyota Bakkie','bakkie', 'Toyota', 'Hilux 2.4 GD-6', 2020, 'AHV-VIN-07', 'CA 123-456', 'km', 'active', 148300, current_date - 1, '2020-07-01', 48000000, 'Toyota', 'Werf', 'Plaasbakkie'),
     ('20000000-0000-0000-0000-000000000008', v_farm, 'Isuzu Bakkie',     'bakkie', 'Isuzu', 'D-Max 250', 2017, 'ISZ-VIN-08', 'CA 654-321', 'km', 'active', 210500, current_date - 3, '2017-11-05', 39000000, 'Isuzu', 'Werf', null),
     ('20000000-0000-0000-0000-000000000009', v_farm, 'Mercedes Trok',    'truck', 'Mercedes-Benz', 'Actros 2645', 2016, 'MB-VIN-09', 'CA 987-654', 'km', 'active', 385000, current_date - 6, '2016-08-20', 165000000, null, 'Werf', 'Vervoer graan/vee'),
-    ('20000000-0000-0000-0000-000000000010', v_farm, 'Planter 8-ry',     'implement', 'John Deere', '1755', 2018, 'JD1755-10', null, 'none', 'active', null, null, '2018-08-01', 52000000, 'Senwes', 'Implementstoor', 'Planter — geen meter'),
+    ('20000000-0000-0000-0000-000000000010', v_farm, 'Planter 8-ry',     'implement', 'John Deere', '1755', 2018, 'JD1755-10', null, 'none', 'active', null, null, '2018-08-01', 52000000, 'Senwes', 'Implementstoor', 'Planter, geen meter'),
     ('20000000-0000-0000-0000-000000000011', v_farm, 'Sproeier',         'implement', 'Hardi', 'Navigator 3000', 2019, 'HARDI-11', null, 'none', 'active', null, null, '2019-05-01', 41000000, 'Hardi', 'Implementstoor', 'Trekker-gedrewe spuit'),
     ('20000000-0000-0000-0000-000000000012', v_farm, 'Waterpomp Lister', 'pump_generator', 'Lister', 'HR2', 2014, 'LISTER-12', null, 'hours', 'active', 1980, current_date - 15, '2014-03-01', 3500000, null, 'Besproeiingsdam', 'Diesel waterpomp');
 
@@ -124,7 +124,7 @@ begin
                             when 'implement' then 'Lande' else 'Werkswinkel' end
   where farm_id = v_farm;
 
-  -- ── Meter reading history (last ~4 months) for metered machines ─
+  -- == Meter reading history (last ~4 months) for metered machines =
   insert into meter_readings (farm_id, machine_id, reading, reading_date, source, by_user)
   select v_farm, m.id,
          greatest(0, m.current_reading - (g.n * (case when m.meter_type = 'km' then 850 else 45 end)))::numeric,
@@ -135,7 +135,7 @@ begin
   cross join generate_series(0, 4) as g(n)
   where m.farm_id = v_farm and m.meter_type in ('hours','km') and m.current_reading is not null;
 
-  -- ── Service plan lines (some OK, some due-soon, one overdue) ────
+  -- == Service plan lines (some OK, some due-soon, one overdue) ====
   -- Engine oil (250h) for hours-metered machines
   insert into service_plan_lines
     (farm_id, machine_id, task, interval_hours, interval_months,
@@ -162,15 +162,15 @@ begin
     (v_farm, '20000000-0000-0000-0000-000000000007', 'Major service', null, 6, current_date - 200, current_date - 20, 'overdue'),
     (v_farm, '20000000-0000-0000-0000-000000000008', 'Major service', null, 6, current_date - 90,  current_date + 90, 'ok');
 
-  -- ── Faults (mix of open + resolved) ────────────────────────────
+  -- == Faults (mix of open + resolved) ============================
   insert into faults (id, farm_id, machine_id, reported_by, reporter_name, description, category, urgency, status, created_at) values
     ('40000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000004', v_op1, 'Thabo', 'Hidroulika lek onder die masjien', 'hydraulic', 'limping', 'in_job', now() - interval '3 days'),
     ('40000000-0000-0000-0000-000000000002', v_farm, '20000000-0000-0000-0000-000000000001', v_op2, 'Sipho', 'Rook onder loading, verloor krag', 'noise', 'limping', 'resolved', now() - interval '35 days'),
     ('40000000-0000-0000-0000-000000000003', v_farm, '20000000-0000-0000-0000-000000000007', v_manager, 'Piet', 'Voorste band amper pap', 'tyre', 'can_work', 'open', now() - interval '1 day'),
     ('40000000-0000-0000-0000-000000000004', v_farm, '20000000-0000-0000-0000-000000000005', v_op1, 'Thabo', 'Stroper wil nie start nie', 'wont_start', 'stopped', 'open', now() - interval '6 hours'),
-    ('40000000-0000-0000-0000-000000000005', v_farm, '20000000-0000-0000-0000-000000000002', v_op2, 'Sipho', 'Elektriese fout — ligte werk nie', 'electrical', 'can_work', 'resolved', now() - interval '70 days');
+    ('40000000-0000-0000-0000-000000000005', v_farm, '20000000-0000-0000-0000-000000000002', v_op2, 'Sipho', 'Elektriese fout, ligte werk nie', 'electrical', 'can_work', 'resolved', now() - interval '70 days');
 
-  -- ── Job cards (insert unlocked, add lines, then approve/lock one) ─
+  -- == Job cards (insert unlocked, add lines, then approve/lock one) =
   insert into job_cards
     (id, farm_id, machine_id, created_from_fault_id, type, status, date_in, date_out,
      meter_reading, reported_problem, diagnosis, work_performed, recommendations,
@@ -180,7 +180,7 @@ begin
      '40000000-0000-0000-0000-000000000002', 'scheduled_service', 'completed',
      current_date - 34, current_date - 33, 4600,
      'Rook onder loading', 'Verstopte lugfilter + inspuiter diens', '500h diens gedoen; lugfilter vervang; inspuiters getoets',
-     'Voorbande 50% — vervang voor planttyd', v_mech, v_workshop),
+     'Voorbande 50%, vervang voor planttyd', v_mech, v_workshop),
     -- Repair: Rooi Massey electrical (resolved fault #5)
     ('30000000-0000-0000-0000-000000000002', v_farm, '20000000-0000-0000-0000-000000000002',
      '40000000-0000-0000-0000-000000000005', 'repair', 'approved',
@@ -191,7 +191,7 @@ begin
     ('30000000-0000-0000-0000-000000000003', v_farm, '20000000-0000-0000-0000-000000000004',
      '40000000-0000-0000-0000-000000000001', 'repair', 'in_progress',
      current_date - 2, null, 2210,
-     'Hidroulika lek', 'Besig om te ondersoek — vermoedelik seël', null, null, v_mech, v_workshop),
+     'Hidroulika lek', 'Besig om te ondersoek, vermoedelik seël', null, null, v_mech, v_workshop),
     -- Completed inspection: Claas pre-season
     ('30000000-0000-0000-0000-000000000004', v_farm, '20000000-0000-0000-0000-000000000005',
      null, 'inspection', 'completed', current_date - 20, current_date - 20, 3400,
@@ -223,17 +223,17 @@ begin
   update faults set job_card_id = '30000000-0000-0000-0000-000000000003'
    where id = '40000000-0000-0000-0000-000000000001';   -- in_job, not yet resolved
 
-  -- ── Watch items (open, from job cards) ─────────────────────────
+  -- == Watch items (open, from job cards) =========================
   insert into watch_items (farm_id, machine_id, source_job_card_id, text, status) values
-    (v_farm, '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Voorbande 50% — vervang voor planttyd', 'open'),
+    (v_farm, '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Voorbande 50%, vervang voor planttyd', 'open'),
     (v_farm, '20000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000004', 'Hou dop: stroper sny-onderdele slytasie', 'open');
 
-  -- ── A couple of attachment rows (placeholder URLs) ─────────────
+  -- == A couple of attachment rows (placeholder URLs) =============
   insert into attachments (farm_id, parent_type, parent_id, kind, url, created_by) values
     (v_farm, 'machine', '20000000-0000-0000-0000-000000000001', 'photo', 'demo://groen-jd.jpg', v_owner),
     (v_farm, 'fault',   '40000000-0000-0000-0000-000000000004', 'photo', 'demo://stroper-fault.jpg', v_op1);
 
-  -- ── Fuel module demo (F4): tank, deliveries, per-machine draws ──
+  -- == Fuel module demo (F4): tank, deliveries, per-machine draws ==
   -- Draws are ex-VAT costed (~R18.26/L). The Groen John Deere series runs a steady
   -- ~12 L/hr then spikes to 19 L/hr (a possible leak/theft the anomaly engine flags);
   -- the Toyota bakkie shows a steady ~12 L/100km.
@@ -262,7 +262,7 @@ begin
   -- Run the anomaly sweep once so the demo shows the flagged draw + a fuel_anomaly alert.
   perform app.enqueue_fuel_anomalies();
 
-  -- ── Parts catalogue + a service kit (F9) ───────────────────────
+  -- == Parts catalogue + a service kit (F9) =======================
   -- A couple of GLOBAL (RR-seeded) parts + this farm's own parts; all money ex-VAT cents.
   insert into parts_catalogue (id, farm_id, part_no, description, supplier, category, typical_cost_cents, created_by) values
     ('70000000-0000-0000-0000-000000000001', null,   'JD-RE504836', 'John Deere oil filter',        'John Deere', 'filter', 32000,  v_mech),
@@ -279,18 +279,18 @@ begin
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'JD-RE504836',   'John Deere oil filter',     1,  32000),
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'JD-RE509672',   'John Deere fuel filter',    1,  41000);
 
-  -- ── Partners directory (F12a) ──────────────────────────────────
+  -- == Partners directory (F12a) ==================================
   -- GLOBAL suggested partners (RR-curated, farm_id null, is_suggested true) that every
-  -- farm sees, plus this farm's own contractors — one already connected to TJ's workshop.
+  -- farm sees, plus this farm's own contractors, one already connected to TJ's workshop.
   insert into partners (farm_id, is_suggested, name, kind, phone, whatsapp, email, area, workshop_id, notes, created_by) values
     (null,   true,  'AgriParts Wholesale',   'parts_supplier',   '+27514440101', '+27514440101', 'sales@agriparts.example', 'Welkom',     null,        'Bulk filters, oils and belts', null),
     (null,   true,  'Vrystaat Auto Electric', 'auto_electrician', '+27514440202', '+27514440202', 'info@vsauto.example',     'Bloemfontein', null,      'Alternators, starters, wiring', null),
     (null,   true,  'Highway Towing 24/7',    'towing',           '+27824440303', '+27824440303', null,                      'N1 corridor', null,       'Heavy recovery, day and night', null),
-    (v_farm, false, 'TJ Service & Repairs',   'mechanic',         '+27825550134', '+27825550134', 'tj@tjrepairs.example',    'Bothaville',  v_workshop, 'Our main mechanic — connected', v_owner),
+    (v_farm, false, 'TJ Service & Repairs',   'mechanic',         '+27825550134', '+27825550134', 'tj@tjrepairs.example',    'Bothaville',  v_workshop, 'Our main mechanic, connected', v_owner),
     (v_farm, false, 'Bothaville Tyres',       'tyre',             '+27825550777', '+27825550777', 'shop@bvtyres.example',    'Bothaville',  null,       'Tractor + bakkie tyres',        v_owner);
 
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel + partners';
-  -- ── Checklist templates + a filled instance (F11) ──────────────
+  -- == Checklist templates + a filled instance (F11) ==============
   -- A GLOBAL daily pre-use inspection (RR library) + a farm service sign-off, and one
   -- completed inspection on the Groen John Deere so the machine timeline + checklist
   -- list have real data.
@@ -322,12 +322,12 @@ begin
     (v_farm, '72300000-0000-0000-0000-000000000001', '72100000-0000-0000-0000-000000000007', 6, 'text',          'Notes',             'Bande reg', null);
 
   raise notice 'demo farm "Weltevrede Boerdery" seeded: 12 machines with histories + fuel';
-  -- ── Work requests (F12b) — jobs sent to the TJ contractor ──────
+  -- == Work requests (F12b), jobs sent to the TJ contractor ======
   -- One fresh request (awaiting the contractor), one already invoiced so the invoice
   -- flows into the machine's TCO via the 0311 sync trigger (no double-count).
   insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, vat_rate_bps, created_by) values
     ('72000000-0000-0000-0000-000000000001', v_farm, '20000000-0000-0000-0000-000000000004', v_workshop, 'repair', 'requested', 'high',
-     'Hidroulika lek', 'Lek onder die masjien — kom kyk asseblief', 1500, v_owner),
+     'Hidroulika lek', 'Lek onder die masjien, kom kyk asseblief', 1500, v_owner),
     ('72000000-0000-0000-0000-000000000002', v_farm, '20000000-0000-0000-0000-000000000005', v_workshop, 'inspection', 'invoiced', 'normal',
      'Voor-seisoen inspeksie', 'Volledige inspeksie voor stroopseisoen', 1500, v_manager);
 
@@ -362,7 +362,7 @@ begin
     billing_email   = 'rekeninge@weltevrede.example'
   where id = v_farm;
 
-  -- ── Budgets (G1 · FR-10.4) — this-year spend targets so budget-vs-actual has colour ──
+  -- == Budgets (G1 · FR-10.4), this-year spend targets so budget-vs-actual has colour ==
   -- A whole-farm all-category budget (comfortably under) + a tight JD parts budget (goes
   -- over from the completed 500h service) + a bakkie all-category budget.
   insert into budgets (farm_id, machine_id, category, period_type, period_start, period_end, amount_cents, created_by) values
@@ -370,23 +370,23 @@ begin
     (v_farm, '20000000-0000-0000-0000-000000000001',  'parts', 'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,    100000, v_owner),
     (v_farm, '20000000-0000-0000-0000-000000000007',  null,    'year', date_trunc('year', current_date)::date, (date_trunc('year', current_date) + interval '1 year' - interval '1 day')::date,   3000000, v_manager);
 
-  -- ── Partner documents (F14/G2) — TJ's own paperwork, on TJ's letterhead ──
+  -- == Partner documents (F14/G2), TJ's own paperwork, on TJ's letterhead ==
   -- Six states, so every screen in the flow has something real:
   --   * a QUOTE waiting on the owner's yes (the farmer's "needs your decision" card);
   --   * an INVOICE part-paid (balance due, with a payment already recorded);
   --   * a DRAFT invoice TJ has not sent (the partner's own workspace);
   --   * an OLDER invoice, fully paid, so a statement has a balance to bring forward;
-  --   * a CREDIT NOTE correcting an overcharge — the path AutoVault never had;
+  --   * a CREDIT NOTE correcting an overcharge, the path AutoVault never had;
   --   * an invoice to a CLIENT-BOOK customer who is not on FleetWise at all.
   --
   -- Every one is built as a draft and then sent, because 0412 freezes the items the
-  -- moment a document is issued — the same order the app enforces.
+  -- moment a document is issued, the same order the app enforces.
   insert into partner_documents
     (id, farm_id, workshop_id, machine_id, work_request_id, kind, status, source, number, subject,
      issue_date, due_date, vat_rate_bps, notes, terms, created_by, bill_to_reference) values
     ('74000000-0000-0000-0000-000000000001', v_farm, v_workshop, '20000000-0000-0000-0000-000000000004',
      '72000000-0000-0000-0000-000000000001', 'quote', 'draft', 'built', 'TJQ-0001',
-     'Hidrouliese lek — New Holland', current_date - 2, current_date + 12, 1500,
+     'Hidrouliese lek, New Holland', current_date - 2, current_date + 12, 1500,
      'Ons het die pyp voorraad. Kan Donderdag begin as julle ja sê.',
      'Payment strictly 30 days from invoice date.', v_wstaff, 'WB-2291'),
     ('74000000-0000-0000-0000-000000000002', v_farm, v_workshop, '20000000-0000-0000-0000-000000000005',
@@ -395,7 +395,7 @@ begin
      'Dankie vir die werk.', 'Payment strictly 30 days from invoice date.', v_wstaff, null),
     ('74000000-0000-0000-0000-000000000003', v_farm, v_workshop, '20000000-0000-0000-0000-000000000001',
      null, 'invoice', 'draft', 'built', 'TJI-0002',
-     '500-uur diens — John Deere', current_date, current_date + 30, 1500,
+     '500-uur diens, John Deere', current_date, current_date + 30, 1500,
      null, 'Payment strictly 30 days from invoice date.', v_wstaff, null),
     -- Last month, settled in full: this is what makes the statement's opening balance
     -- and its "received" line demonstrate anything.
@@ -404,17 +404,17 @@ begin
      'Battery en kabels', current_date - 55, current_date - 25, 1500,
      null, 'Payment strictly 30 days from invoice date.', v_wstaff, null);
 
-  -- Lines. Totals are NEVER typed — the 0381 triggers roll them up from these rows.
+  -- Lines. Totals are NEVER typed, the 0381 triggers roll them up from these rows.
   insert into partner_document_lines (farm_id, document_id, sort_order, kind, part_no, description, qty, unit_price_cents) values
     (v_farm, '74000000-0000-0000-0000-000000000001', 0, 'part',   'HYD-3341', 'Hidrouliese hoëdrukpyp',      1,   142000),
     (v_farm, '74000000-0000-0000-0000-000000000001', 1, 'part',   'SEAL-88',  'Seëlstel',                     2,    18500),
-    (v_farm, '74000000-0000-0000-0000-000000000001', 2, 'labour', null,       'Arbeid — uitbou en inbou',   4.5,    52000),
+    (v_farm, '74000000-0000-0000-0000-000000000001', 2, 'labour', null,       'Arbeid, uitbou en inbou',   4.5,    52000),
     (v_farm, '74000000-0000-0000-0000-000000000002', 0, 'labour', null,       'Volledige inspeksie',          6,    52000),
-    (v_farm, '74000000-0000-0000-0000-000000000002', 1, 'other',  null,       'Reiskoste — Bothaville',       1,    45000),
+    (v_farm, '74000000-0000-0000-0000-000000000002', 1, 'other',  null,       'Reiskoste, Bothaville',       1,    45000),
     (v_farm, '74000000-0000-0000-0000-000000000003', 0, 'part',   'JD-500SVC','500-uur dienstel',             1,   238000),
-    (v_farm, '74000000-0000-0000-0000-000000000003', 1, 'labour', null,       'Arbeid — 500-uur diens',       5,    52000),
+    (v_farm, '74000000-0000-0000-0000-000000000003', 1, 'labour', null,       'Arbeid, 500-uur diens',       5,    52000),
     (v_farm, '74000000-0000-0000-0000-000000000004', 0, 'part',   'BAT-650',  'Battery 650CCA',               1,   185000),
-    (v_farm, '74000000-0000-0000-0000-000000000004', 1, 'labour', null,       'Arbeid — inbou',               1,    52000);
+    (v_farm, '74000000-0000-0000-0000-000000000004', 1, 'labour', null,       'Arbeid, inbou',               1,    52000);
 
   -- Now issue them. (TJI-0002 stays a draft: a partner pricing a job in private.)
   update partner_documents set status = 'sent', sent_at = now() - interval '2 days'
@@ -431,9 +431,9 @@ begin
   select v_farm, '74000000-0000-0000-0000-000000000004', total_cents, current_date - 30, 'eft', 'TJI-0000', v_owner
     from partner_documents where id = '74000000-0000-0000-0000-000000000004';
 
-  -- ── A correction, done properly (G2) ─────────────────────────────────────
+  -- == A correction, done properly (G2) =====================================
   -- TJ over-billed the travel on TJI-0001 and credits it back. The invoice is untouched
-  -- — it is a record of what the farmer was told they owed — and the farm's cost ledger
+  --, it is a record of what the farmer was told they owed, and the farm's cost ledger
   -- carries BOTH entries, so the history shows what was billed and what came off.
   insert into partner_documents
     (id, farm_id, workshop_id, machine_id, kind, status, source, number, subject,
@@ -442,11 +442,11 @@ begin
      'credit_note', 'draft', 'built', 'TJC-0001', 'Reiskoste dubbel gehef',
      '74000000-0000-0000-0000-000000000002', current_date - 4, 1500, v_wstaff);
   insert into partner_document_lines (farm_id, document_id, sort_order, kind, description, qty, unit_price_cents) values
-    (v_farm, '74000000-0000-0000-0000-000000000005', 0, 'other', 'Reiskoste — dubbel gehef', 1, 45000);
+    (v_farm, '74000000-0000-0000-0000-000000000005', 0, 'other', 'Reiskoste, dubbel gehef', 1, 45000);
   update partner_documents set status = 'sent', sent_at = now() - interval '4 days'
    where id = '74000000-0000-0000-0000-000000000005';
 
-  -- ── The partner's own client book (F15) ─────────────────────────────────
+  -- == The partner's own client book (F15) =================================
   -- Three states so the whole flow demos: a farm already connected, one that has been
   -- asked and has not answered, and one that is not on FleetWise at all (with the
   -- notebook vehicles that would be copied across if they ever joined).
@@ -456,7 +456,7 @@ begin
      'Groot kliënt. Diens al hul trekkers.'),
     ('76000000-0000-0000-0000-000000000002', v_workshop, 'Kleinfontein Trust', 'Marius',
      '+27824445566', '+27824445566', 'marius@kleinfontein.example', 'requested', null, null,
-     'Gevra om te koppel — wag nog.'),
+     'Gevra om te koppel, wag nog.'),
     ('76000000-0000-0000-0000-000000000003', v_workshop, 'Van Wyk Vervoer', 'Hennie',
      '+27825556677', '+27825556677', 'hennie@vanwyk.example', 'unlinked', null, null,
      'Nie op FleetWise nie. Ons hou hul rekords hier.');
@@ -472,17 +472,17 @@ begin
   where id = '76000000-0000-0000-0000-000000000003';
 
   -- An invoice to that customer. `farm_id` is null: nobody on FleetWise is a party to it,
-  -- it books no farm cost, and before 0410 a partner simply could not raise it — which is
+  -- it books no farm cost, and before 0410 a partner simply could not raise it, which is
   -- what forced them to keep a second system running alongside ours.
   insert into partner_documents
     (id, farm_id, partner_client_id, workshop_id, kind, status, source, number, subject,
      issue_date, due_date, vat_rate_bps, terms, created_by) values
     ('74000000-0000-0000-0000-000000000006', null, '76000000-0000-0000-0000-000000000003',
-     v_workshop, 'invoice', 'draft', 'built', 'TJI-0003', 'Remstelsel — Isuzu sleepwa',
+     v_workshop, 'invoice', 'draft', 'built', 'TJI-0003', 'Remstelsel, Isuzu sleepwa',
      current_date - 21, current_date - 7, 1500, 'Payment strictly 14 days from invoice date.', v_wstaff);
   insert into partner_document_lines (document_id, sort_order, kind, part_no, description, qty, unit_price_cents) values
     ('74000000-0000-0000-0000-000000000006', 0, 'part',   'BRK-2200', 'Remvoerstel',       2,  67500),
-    ('74000000-0000-0000-0000-000000000006', 1, 'labour', null,       'Arbeid — remwerk',  3,  52000);
+    ('74000000-0000-0000-0000-000000000006', 1, 'labour', null,       'Arbeid, remwerk',  3,  52000);
   update partner_documents set status = 'sent', sent_at = now() - interval '21 days'
    where id = '74000000-0000-0000-0000-000000000006';
 
@@ -507,7 +507,7 @@ begin
     (v_workshop, '76000000-0000-0000-0000-000000000003', 'Wit Isuzu trok',  'Isuzu',  'FTR 850',        'KLM 442 FS', 2016, 'Rem-probleem in Maart reggemaak'),
     (v_workshop, '76000000-0000-0000-0000-000000000002', 'Kleinfontein JD', 'John Deere', '6110M',      null,         2020, null);
 
-  -- ── Downtime (G1 · §23) — the New Holland went into the workshop 12 days ago. The
+  -- == Downtime (G1 · §23), the New Holland went into the workshop 12 days ago. The
   --    downtime engine (0361) reconstructs days-down from this status-change audit row.
   insert into audit_log (farm_id, entity, entity_id, action, diff, at) values
     (v_farm, 'machines', '20000000-0000-0000-0000-000000000004', 'update',

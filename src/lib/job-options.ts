@@ -2,7 +2,7 @@
  * Job-card option lists, shared by the server actions and the screens that offer them.
  *
  * These live here rather than in `jobcards/actions.ts` because a `"use server"` file may
- * only export async functions — and the job-card list needs the type list to offer a
+ * only export async functions, and the job-card list needs the type list to offer a
  * real choice instead of hardcoding `type="repair"` on every card it creates.
  */
 export const JOB_TYPES = ["scheduled_service", "repair", "inspection", "other"] as const;

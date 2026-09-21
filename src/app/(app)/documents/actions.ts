@@ -21,7 +21,7 @@ import { safePath } from "@/lib/safe-path";
  *
  * Two rules are enforced here rather than left to the UI:
  *   1. BUILDING a document from line items requires the `managed` product. UPLOADING one
- *      produced in the partner's own system does not — that is core on every plan, so a
+ *      produced in the partner's own system does not, that is core on every plan, so a
  *      partner is never dependent on our invoicing (F14e).
  *   2. Once a document is sent it stops being editable. It is a record of what someone
  *      was told they owed; changing it afterwards would make the ledger a rumour.
@@ -43,7 +43,7 @@ function back(fd: FormData, fallback: string): string {
 /**
  * The payment terms that actually apply to a document's recipient.
  *
- * A customer's own filed terms beat the partner's default — that is what agreeing terms
+ * A customer's own filed terms beat the partner's default, that is what agreeing terms
  * with a customer means, and retyping them on every invoice is how they drift. This exists
  * as one function because it was previously inline in ONE of the three places that raise an
  * invoice: converting a quote and raising a progress stage both used the workshop default,
@@ -108,7 +108,7 @@ type DocRow = {
   work_request_id: string | null;
 };
 
-/** Load a document through RLS — a caller who cannot see it gets `null`, not an error. */
+/** Load a document through RLS, a caller who cannot see it gets `null`, not an error. */
 async function loadDoc(
   supabase: Awaited<ReturnType<typeof createClient>>,
   id: string,
@@ -126,11 +126,11 @@ async function loadDoc(
   return (data as DocRow | null) ?? null;
 }
 
-// ── Create ───────────────────────────────────────────────────────────────────
+// == Create ===================================================================
 
 /**
  * Start a new quote or invoice. The number is allocated by `app.next_document_number`
- * (0380), which increments the partner's own counter under a row lock — so two staff
+ * (0380), which increments the partner's own counter under a row lock, so two staff
  * pressing "New invoice" at the same second get INV-0007 and INV-0008, never two 0007s.
  */
 /**
@@ -147,7 +147,7 @@ type Recipient =
  *
  * A farm must be one this partner is actually linked to, and a client must be one in
  * their own book. Both are re-derived from the database rather than trusted from the
- * form — otherwise a partner could raise an invoice against any farm id they could
+ * form, otherwise a partner could raise an invoice against any farm id they could
  * guess, and the farmer would find it in their costs.
  */
 async function resolveRecipient(
@@ -185,7 +185,7 @@ async function resolveRecipient(
     return data ? { farm_id: null, partner_client_id: clientId } : null;
   }
 
-  // A one-time customer. Nothing to verify — there is no record; the name on the
+  // A one-time customer. Nothing to verify, there is no record; the name on the
   // document is the whole of it.
   return { farm_id: null, partner_client_id: null };
 }
@@ -258,11 +258,11 @@ export async function createDocument(formData: FormData) {
   redirect(`/documents/${(data as { id: string }).id}`);
 }
 
-// ── Lines ────────────────────────────────────────────────────────────────────
+// == Lines ====================================================================
 
 /**
- * Add a line. Prices are typed the way a partner quotes them — the form says whether the
- * figure is VAT-inclusive — and stored ex-VAT, so the ledger stays consistent with every
+ * Add a line. Prices are typed the way a partner quotes them, the form says whether the
+ * figure is VAT-inclusive, and stored ex-VAT, so the ledger stays consistent with every
  * other cost in the system. The line total and the document totals are computed by the
  * 0381 triggers; nothing here types a total.
  */
@@ -355,13 +355,13 @@ export async function updateDocument(formData: FormData) {
   redirect(`/documents/${id}?saved=1`);
 }
 
-// ── Issue ────────────────────────────────────────────────────────────────────
+// == Issue ====================================================================
 
 /**
  * Send the document to the farmer. This is the moment it stops being a draft: the
  * letterhead is frozen onto the row (so a rebrand next year cannot restate this
- * invoice), the 0381 notify trigger tells the farm's owner/manager, and — for an
- * invoice — the cost trigger books it into the farm's ledger exactly once.
+ * invoice), the 0381 notify trigger tells the farm's owner/manager, and, for an
+ * invoice, the cost trigger books it into the farm's ledger exactly once.
  */
 export async function sendDocument(formData: FormData) {
   await requireRole(["workshop"]);
@@ -395,7 +395,7 @@ export async function sendDocument(formData: FormData) {
 /**
  * Turn an accepted quote into an invoice: same lines, same vehicle, same job, a new
  * number, back to draft so the partner can adjust before issuing. The quote stays as it
- * was — the pair is the record of what was agreed versus what was billed.
+ * was, the pair is the record of what was agreed versus what was billed.
  */
 export async function convertQuoteToInvoice(formData: FormData) {
   const profile = await requireRole(["workshop"]);
@@ -425,7 +425,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
 
   // The recipient must come across too. This previously copied `farm_id` alone, so
   // converting a quote raised for a CLIENT produced an invoice with neither farm nor
-  // client — permitted by the 0410 constraint (that is the one-time-customer case), so it
+  // client, permitted by the 0410 constraint (that is the one-time-customer case), so it
   // failed silently. The document still printed, because bill_to_* is snapshotted, but it
   // never reached that client's statement, ageing, debtors or credit limit.
   const termsDays = await termsDaysFor(
@@ -485,15 +485,15 @@ export async function convertQuoteToInvoice(formData: FormData) {
 /**
  * Bill PART of a quote: a deposit up front, a stage as work proceeds, or the balance.
  *
- * A deposit and a progress payment are the same thing to a ledger — an invoice for part
- * of an agreed job — so there is one action rather than two features that drift apart.
+ * A deposit and a progress payment are the same thing to a ledger, an invoice for part
+ * of an agreed job, so there is one action rather than two features that drift apart.
  * The invoice it raises is an ordinary invoice: its own number, its own single line, its
  * own cost entry through the existing 0418 trigger, its own row on the statement. Nothing
  * is netted anywhere, which is precisely why three stages of a R15 000 job can never add
  * up to more than R15 000 in the farm's costs.
  *
  * It is raised as a DRAFT. The partner reads it, adds anything the stage needs, and sends
- * it — the same as every other document here. `app.quote_billing` deliberately does not
+ * it, the same as every other document here. `app.quote_billing` deliberately does not
  * count a draft as billed for that reason.
  */
 export async function billQuoteStage(formData: FormData) {
@@ -511,7 +511,7 @@ export async function billQuoteStage(formData: FormData) {
     stageRaw === "deposit" || stageRaw === "final" ? stageRaw : "progress";
 
   // Either a percentage of the quote or a typed amount. Percent is what a partner
-  // actually says out loud ("fifty percent up front"), so it is offered first — but the
+  // actually says out loud ("fifty percent up front"), so it is offered first, but the
   // amount is what gets stored, because a percentage of a quote that is later revised
   // would silently restate an invoice that has already gone out.
   const rateBps = quote.vat_rate_bps ?? 1500;
@@ -588,7 +588,7 @@ export async function billQuoteStage(formData: FormData) {
   redirect(`/documents/${invoiceId}?staged=1`);
 }
 
-// ── The farmer's side ────────────────────────────────────────────────────────
+// == The farmer's side ========================================================
 
 /** Accept a quote. The partner sees it immediately; no money moves until they invoice. */
 export async function acceptDocument(formData: FormData) {
@@ -629,11 +629,11 @@ export async function declineDocument(formData: FormData) {
   redirect(`${back(formData, `/documents/${id}`)}?declined=1`);
 }
 
-// ── Payments ─────────────────────────────────────────────────────────────────
+// == Payments =================================================================
 
 /**
- * Record a payment against an invoice. Either side may log one — the partner because
- * they saw it land, the farmer because they sent it — and the 0381 rollup moves the
+ * Record a payment against an invoice. Either side may log one, the partner because
+ * they saw it land, the farmer because they sent it, and the 0381 rollup moves the
  * invoice to part-paid or paid on its own. Payments are rows, so a part payment is a
  * fact rather than an edited balance.
  */
@@ -644,7 +644,7 @@ export async function recordPayment(formData: FormData) {
   const doc = await loadDoc(supabase, id);
   if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
 
-  // Recording payments is part of the managed product — but only for the PARTNER. A
+  // Recording payments is part of the managed product, but only for the PARTNER. A
   // farmer telling their supplier "I have paid this" is never gated.
   if (profile.role === "workshop") {
     const gate = await checkWorkshopEntitlement("record_payments", profile);
@@ -686,11 +686,11 @@ export async function removePayment(formData: FormData) {
   redirect(`/documents/${id}`);
 }
 
-// ── Withdraw ─────────────────────────────────────────────────────────────────
+// == Withdraw =================================================================
 
 /**
  * Cancel a document. Nothing is destroyed: the row stays, the status says cancelled, and
- * the cost trigger stands the ledger entry down — so a mistaken invoice stops counting
+ * the cost trigger stands the ledger entry down, so a mistaken invoice stops counting
  * against the farm's TCO without erasing the fact that it was sent.
  */
 /**
@@ -702,8 +702,8 @@ export async function removePayment(formData: FormData) {
  * farmer's costs with no explanation of why the number moved.
  *
  * Voiding keeps the document, its number and its history; it stands the money down and
- * says why. That is what VAT Act s21 wants — the cancellation documented, not the
- * paperwork destroyed — and it is the difference between an audit trail with a gap in it
+ * says why. That is what VAT Act s21 wants, the cancellation documented, not the
+ * paperwork destroyed, and it is the difference between an audit trail with a gap in it
  * and an audit trail that lies.
  *
  * For a WRONG AMOUNT this is the wrong tool: issue a credit note and a fresh invoice, so
@@ -742,7 +742,7 @@ export async function voidDocument(formData: FormData) {
  * Raise a credit note against an issued invoice.
  *
  * The correction path proper. It starts as a DRAFT with the invoice's own lines copied
- * in, because the common case is crediting the whole thing — a partner crediting part of
+ * in, because the common case is crediting the whole thing, a partner crediting part of
  * it deletes the lines that were right and keeps the ones that were not, which is the
  * same motion as building any other document and needs no separate screen.
  *
@@ -761,7 +761,7 @@ export async function createCreditNote(formData: FormData) {
 /**
  * A DEBIT note: the invoice went out for too little.
  *
- * The mirror of a credit note and the half AutoVault has that we did not — a partner who
+ * The mirror of a credit note and the half AutoVault has that we did not, a partner who
  * left a part off an invoice could previously only raise a second invoice, which reads on
  * the customer's statement as an unrelated charge rather than as a correction to a job
  * they already know about.
@@ -821,7 +821,7 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
 
   // A CREDIT note copies the invoice's lines in, because crediting the whole thing is the
   // common case and trimming what was actually right is quicker than retyping what was
-  // wrong. A DEBIT note starts empty — it is the bit that was LEFT OFF, so there is
+  // wrong. A DEBIT note starts empty, it is the bit that was LEFT OFF, so there is
   // nothing on the invoice to copy.
   if (noteKind === "debit_note") {
     revalidatePath("/documents");
@@ -846,7 +846,7 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
   redirect(`/documents/${newId}?credit=1`);
 }
 
-/** Delete a draft outright — nothing was ever sent, so there is no record to preserve. */
+/** Delete a draft outright, nothing was ever sent, so there is no record to preserve. */
 export async function deleteDraft(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const id = String(formData.get("document_id") ?? "");
@@ -864,14 +864,14 @@ export async function deleteDraft(formData: FormData) {
   redirect("/documents?deleted=1");
 }
 
-// ── Correcting an issued document ────────────────────────────────────────────
+// == Correcting an issued document ============================================
 
 /**
  * Edit a document that has already gone out, keeping the version it replaced.
  *
  * The whole edit is one RPC (`revise_document`, 0417) rather than a snapshot followed by
  * an update, because two calls are two transactions and the second one can fail. Doing it
- * in the database means a correction and its history are the same act — there is no state
+ * in the database means a correction and its history are the same act, there is no state
  * of the world where a document changed and nobody recorded what it said before.
  *
  * The freeze triggers still refuse every other route, so this action is not the guard;
@@ -926,7 +926,7 @@ export async function reviseDocument(formData: FormData) {
           description: description.trim(),
           qty: Number(qtys[i] ?? 1) || 0,
           // Prices are typed the way the partner quotes them and stored ex-VAT, exactly as
-          // on the draft line form — otherwise a correction would silently change the
+          // on the draft line form, otherwise a correction would silently change the
           // basis of every figure on the document.
           unit_price_cents: inclusive ? exVatCents(typed, rateBps) : typed,
           discount_cents: 0,
@@ -975,7 +975,7 @@ export async function recordRefund(formData: FormData) {
 
   const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
   if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
-  // The rollup (0423) refuses this too — this is only so the partner reads a sentence
+  // The rollup (0423) refuses this too, this is only so the partner reads a sentence
   // rather than a Postgres exception.
   if (amount > (doc.amount_paid_cents ?? 0)) redirect(`/documents/${id}?error=refund-too-big`);
 
@@ -1001,14 +1001,14 @@ export async function recordRefund(formData: FormData) {
  * The customer is never going to pay.
  *
  * Without this the only ways to clear it were to pretend they paid (a lie in the books)
- * or to void the invoice (which claims it should never have been issued — also untrue,
+ * or to void the invoice (which claims it should never have been issued, also untrue,
  * the work was done). Both corrupt the record; leaving it corrupts the ageing instead,
  * with money nobody will ever collect sitting in "60+ days late" for ever and dragging
  * every total that reads from it.
  *
  * Goes through `write_off_document` (0423), which keeps a version like any other change
  * to an issued document. The invoice stays on the statement at full value and stays in
- * the farm's cost ledger — the work happened — but stops being outstanding and stops
+ * the farm's cost ledger, the work happened, but stops being outstanding and stops
  * being chased.
  */
 export async function writeOffDocument(formData: FormData) {

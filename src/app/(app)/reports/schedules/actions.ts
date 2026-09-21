@@ -16,11 +16,11 @@ import { isReportFormat, isReportKey } from "@/lib/report-export";
 import { CADENCES, type Cadence } from "@/lib/recurring";
 
 /**
- * Emailed reports (FR-11.5) — the write side.
+ * Emailed reports (FR-11.5), the write side.
  *
  * Two gates on every one of these, per the F5 rule that a gate lives at the ACTION and
  * not only in the nav: owner/manager in the SELECTED farm (or support admin), and that
- * farm's Professional+ entitlement. Neither is the tenancy guarantor — the database
+ * farm's Professional+ entitlement. Neither is the tenancy guarantor, the database
  * policies independently recheck the selected-farm authority.
  */
 

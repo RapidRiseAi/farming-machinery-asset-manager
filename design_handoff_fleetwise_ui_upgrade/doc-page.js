@@ -2,9 +2,9 @@
 // Copied omelette starter. Re-running copy_starter_component with this kind overwrites this file with the latest version (page content is unaffected).
 /* BEGIN USAGE */
 /**
- * <doc-page> — paged-document shell for printable HTML.
+ * <doc-page>, paged-document shell for printable HTML.
  *
- * FIRST, decide how the document paginates — up front, before building:
+ * FIRST, decide how the document paginates, up front, before building:
  *
  * - FLOWING document (the default): write the whole document as one
  *   normal HTML flow inside <doc-page>; the browser's print engine
@@ -13,16 +13,16 @@
  * - EXPLICIT pagination: a fixed set of pre-paginated pages, one
  *   <section class="page"> child per page. Use when the user asks for a
  *   specific page count, or the design implies one: a one-page resume, a
- *   two-sided flier, a poster, a certificate, a brochure — any richly
+ *   two-sided flier, a poster, a certificate, a brochure, any richly
  *   laid-out document without a single text flow.
  * - If in doubt, ask the user as part of the build.
  *
- * PAGE SIZING — paper differs by country (letter vs A4), so the printed
+ * PAGE SIZING, paper differs by country (letter vs A4), so the printed
  * sheet is not one fixed truth:
  * - FLOWING documents pin NO paper size: the print engine paginates
  *   onto the user's real paper, and the content reflows to it.
  * - EXPLICITLY PAGINATED documents print each page at a FIXED page box
- *   with overflow hidden — letter by default, size="a4" for a clearly
+ *   with overflow hidden, letter by default, size="a4" for a clearly
  *   metric user, the user's chosen paper when they export. Design each
  *   page to FILL that box, fitting letter and A4 alike without overlap.
  * - width/height pin an explicit fixed size, ONLY when the user gives
@@ -31,11 +31,11 @@
  * content.
  *
  * Sizing modes (attributes):
- *   (none)                      — portrait: flowing docs use the user's
+ *   (none)                     , portrait: flowing docs use the user's
  *           paper; explicitly paginated pages use the named size box
  *           (letter unless size="a4")
- *   orientation="landscape"     — the same, landscape
- *   width / height              — explicit fixed size, ONLY when the user
+ *   orientation="landscape"    , the same, landscape
+ *   width / height             , explicit fixed size, ONLY when the user
  *           gives one (e.g. width="22in" height="30in" for a 22×30
  *           poster): the page IS the design's size, printed at true
  *           dimensions (or scaled onto the user's paper at print time).
@@ -56,11 +56,11 @@
  *   </doc-page>
  *   <script src="doc-page.js"></script>
  * How the page box works, concretely: each .page prints as ONE full-bleed
- * sheet at a FIXED physical size — letter by default (set size="a4" for
- * a clearly metric user), the user's chosen paper when they export —
+ * sheet at a FIXED physical size, letter by default (set size="a4" for
+ * a clearly metric user), the user's chosen paper when they export -
  * with overflow hidden. Nothing scrolls and nothing reflows onto a next
  * sheet: content that misses the box is CLIPPED. Design each page to
- * FILL that page box, and to fit it — letter and A4 alike — without
+ * FILL that page box, and to fit it, letter and A4 alike, without
  * overlap. Each page is a size container; don't size anything in
  * viewport units (they track the window, not the page), and never set
  * width or height on the .page section itself (the component sizes the
@@ -77,7 +77,7 @@
  *     <p>…body…</p>
  *   </doc-page>
  *   <script src="doc-page.js"></script>
- * There is no manual page-splitting — the browser's print engine
+ * There is no manual page-splitting, the browser's print engine
  * paginates at export. Standard break-hygiene rules (`break-inside:
  * avoid` on figures, code blocks, images and table rows; `orphans/
  * widows: 3`) are applied so paragraphs and groups split cleanly. On
@@ -86,15 +86,15 @@
  * so any text-wrap you declare wins.
  *
  * Other attributes:
- *   size    — letter | a4 | legal (default letter). Flowing documents:
- *           preview proportion only — it does NOT pin their printed
+ *   size   , letter | a4 | legal (default letter). Flowing documents:
+ *           preview proportion only, it does NOT pin their printed
  *           paper (the print dialog's paper governs); leave it alone
  *           there. Explicitly paginated documents: it sets the page box
  *           the cards and the pinned @page share (the export dialog's
- *           choice overrides both at print) — set size="a4" for a
+ *           choice overrides both at print), set size="a4" for a
  *           clearly metric user. Scaled-fit: names the sheet the fit is
  *           computed against, same a4-for-metric-users advice.
- *   content-width / content-height — the design's own fixed dimensions
+ *   content-width / content-height, the design's own fixed dimensions
  *           (CSS lengths), for scaling a fixed-size design ONTO the
  *           named sheet: content lays out at exactly this size, and the
  *           component scales it to fit that sheet's printable area
@@ -102,7 +102,7 @@
  *           re-fits to the user's actual paper choice where available).
  *           Both must be set; they do not change the page box. For pages
  *           WITHOUT running header/footer slots.
- *   margin  — printable inset on every page of a FLOWING document
+ *   margin , printable inset on every page of a FLOWING document
  *           (default 0.75in); margin="0" makes pages full-bleed.
  *           Explicitly paginated pages are always full-bleed.
  *
@@ -110,7 +110,7 @@
  * `slot="header"` or `slot="footer"` and it repeats on every printed
  * page via `position: fixed`. To keep body text from sliding under it,
  * the component prints inside a single-cell table whose <thead>/<tfoot>
- * are spacers sized to the header/footer height — browsers repeat
+ * are spacers sized to the header/footer height, browsers repeat
  * thead/tfoot on every page, so each sheet's content starts below the
  * header and ends above the footer. On screen the header/footer render
  * once at the top/bottom of the sheet.
@@ -124,7 +124,7 @@
  *
  * Print best practices for the content you author:
  * - Multi-column text: use CSS columns (`column-count` +
- *   `column-gap`), never side-by-side flex/grid columns — only real
+ *   `column-gap`), never side-by-side flex/grid columns, only real
  *   CSS columns flow and break across pages. `column-span: all` lets
  *   a heading span the columns; `hyphens: auto` (needs `lang` on
  *   the html element) keeps narrow columns readable.
@@ -134,14 +134,14 @@
  *   `break-inside: avoid` rule, and keep each one shorter than a page.
  * - Extend `orphans: 3; widows: 3` to any custom text blocks you add
  *   (p and li are covered by default).
- * - Give long tables a <thead> — browsers repeat it on every printed
+ * - Give long tables a <thead>, browsers repeat it on every printed
  *   page.
  * - No `position: fixed`/`sticky` and no viewport units in content:
  *   fixed elements stamp every printed page (running headers/footers go
  *   in the component's slots) and `100vh` mis-sizes at print.
  *
  * Author content as static HTML so the user can click-to-edit any text
- * directly. Do not set width/padding/background on the document body —
+ * directly. Do not set width/padding/background on the document body -
  * the component owns the sheet box.
  */
 /* END USAGE */
@@ -167,7 +167,7 @@
   // Inc.' exactly for WebKit and 'Google Inc.' for Blink.
   const WK_PRINT = /apple/i.test(navigator.vendor || '');
   // CSS length → px number (CSS absolute units are exact: 1in = 96px).
-  // Returns NaN for anything safeLen would reject — callers gate on it.
+  // Returns NaN for anything safeLen would reject, callers gate on it.
   const PX_PER = { px: 1, in: 96, mm: 96 / 25.4, cm: 96 / 2.54, pt: 96 / 72, pc: 16 };
   const toPx = (v) => {
     const m = /^(\d+(?:\.\d+)?)(px|in|mm|cm|pt|pc)$/.exec((v || '').trim());
@@ -241,7 +241,7 @@
     @media print {
       .sheet.paginated { padding: 0; }
       /* The flowing-document vertical inset lives on the repeating
-       * thead/tfoot spacers, not the sheet padding — they must go too,
+       * thead/tfoot spacers, not the sheet padding, they must go too,
        * or each full-sheet .page is pushed ~margin down and spills onto
        * a second sheet. Paginated pages are full-bleed by definition
        * (content owns its insets). */
@@ -266,7 +266,7 @@
          * Every declaration is !important: per CSS Scoping, unimportant
          * shadow ::slotted rules LOSE to the document context, so a page
          * section's authored inline style would silently beat this print
-         * geometry. A model-authored height:100% did exactly that — the
+         * geometry. A model-authored height:100% did exactly that, the
          * percentage resolves as auto in the all-auto print ancestry, the
          * base rule's size containment turns auto into ZERO, and
          * overflow:hidden then paints nothing: a blank PDF with perfect
@@ -316,7 +316,7 @@
       .ftr-space { height: max(var(--doc-page-margin), calc(var(--doc-ftr-h) + var(--doc-ftr-pad))); }
       /* WebKit flowing documents: @page carries the vertical margin (see
        * _syncPrintPageRule), so the spacers keep only whatever a running
-       * header/footer needs BEYOND it — page 1 would otherwise double its
+       * header/footer needs BEYOND it, page 1 would otherwise double its
        * top inset. Paginated sheets already zero their spacers above. */
       .sheet.wk-print:not(.paginated) .hdr-space { height: max(0px, calc(max(var(--doc-page-margin), calc(var(--doc-hdr-h) + var(--doc-hdr-pad))) - var(--doc-page-margin))); }
       .sheet.wk-print:not(.paginated) .ftr-space { height: max(0px, calc(max(var(--doc-page-margin), calc(var(--doc-ftr-h) + var(--doc-ftr-pad))) - var(--doc-page-margin))); }
@@ -345,7 +345,7 @@
     }
 
     /** The named paper's [w, h], swapped when orientation="landscape".
-     *  Only the named size swaps — explicit width/height are exact values
+     *  Only the named size swaps, explicit width/height are exact values
      *  the author already oriented. */
     _paperSize() {
       const named = PAPER[(this.getAttribute('size') || '').toLowerCase()] || PAPER.letter;
@@ -362,7 +362,7 @@
     get pageMargin() { return safeLen(this.getAttribute('margin'), '0.75in'); }
 
     /** Scaled-fit mode's content box [w, h] as CSS lengths, or null when
-     *  the mode is off (either attribute missing/invalid/zero — a partial
+     *  the mode is off (either attribute missing/invalid/zero, a partial
      *  declaration falls back to normal flow rather than guessing). */
     _contentFit() {
       const w = safeLen(this.getAttribute('content-width'), null);
@@ -404,7 +404,7 @@
           const tag = document.getElementById(id);
           if (tag) tag.remove();
         });
-        // A live deck-stage deferred its own print-sizing meta to ours —
+        // A live deck-stage deferred its own print-sizing meta to ours -
         // hand the page-global meta over so the deck isn't left unmarked.
         const deck = document.querySelector('deck-stage');
         if (deck && typeof deck._ensurePrintSizingMeta === 'function') {
@@ -453,7 +453,7 @@
       // printable area (page minus margins on both axes). The factor is a
       // plain number var so calc(length * number) stays valid; 4 decimals
       // keeps the shadow style stable across re-measures. Upscaling is
-      // allowed — print transforms are vector, so text and CSS stay crisp
+      // allowed, print transforms are vector, so text and CSS stay crisp
       // (raster images soften, which the catalog bullet warns about).
       const fit = this._contentFit();
       let fitVars = '';
@@ -470,7 +470,7 @@
         }
       }
       this._sheet.classList.toggle('fit-mode', !!fitVars);
-      // Numeric w/h ratio for the paginated page cards' aspect-ratio —
+      // Numeric w/h ratio for the paginated page cards' aspect-ratio -
       // aspect-ratio takes a number, not a length ratio, so compute it
       // here (CSS length division isn't portable). 6 decimals keeps the
       // shadow style stable across re-syncs.
@@ -490,18 +490,18 @@
     }
 
     /** @page is a no-op inside shadow DOM, so the rule lives in <head>.
-     *  Re-appended on every sync so it stays last in source order — the
+     *  Re-appended on every sync so it stays last in source order, the
      *  @page cascade is source-order per descriptor, so this rule wins
      *  over any other @page rule in the document.
      *
      *  The @page SIZE is pinned where the page box IS part of the design:
      *  explicit-fixed-size mode (width + height authored), scaled-fit
      *  mode (the named sheet the fit targets), and explicit pagination
-     *  (the named size the cards share — so card and sheet agree on
+     *  (the named size the cards share, so card and sheet agree on
      *  every print path, and the export path's chosen paper overrides
      *  BOTH with one later rule). For FLOWING documents no paper size is
-     *  emitted at all — the true size comes from the user's preference,
-     *  injected by the export path or chosen in the print dialog — so a
+     *  emitted at all, the true size comes from the user's preference,
+     *  injected by the export path or chosen in the print dialog, so a
      *  flowing document never fights the paper it lands on.
      *  margin: 0 is emitted in every mode: it leaves Chrome no margin box
      *  to draw its date/URL/page-count header in, and the visual margin
@@ -515,12 +515,12 @@
       }
       document.head.appendChild(tag);
       // Three print-geometry regimes:
-      // - true-size: the page IS the design — pin its exact size.
+      // - true-size: the page IS the design, pin its exact size.
       // - scaled-fit (content-width/height): the fit factor is computed
       //   against the NAMED paper's printable area, so that paper must
       //   stay pinned or the scaled content overflows a smaller sheet
       //   (the export path re-fits and re-pins at print time on top).
-      // - default modes: no paper size — but landscape still needs the
+      // - default modes: no paper size, but landscape still needs the
       //   paper-agnostic 'size: landscape' keyword, because the size
       //   descriptor is what carries orientation; without it a landscape
       //   document prints portrait whenever nothing injects a size.
@@ -529,7 +529,7 @@
         'landscape';
       // Explicit pagination pins the page box to the SAME values that
       // size the cards (the named size by default, the export path's
-      // chosen paper when its later rule overrides both) — card and
+      // chosen paper when its later rule overrides both), card and
       // sheet agree on every print path, and a mismatched real paper
       // shrinks-to-fit in the dialog instead of clipping a Letter card
       // on A4. Declared before the paginated read below so both derive
@@ -554,7 +554,7 @@
       // re-opens the box Chrome draws its header furniture in). One cost,
       // learned in testing: Safari's own date/URL headers are a USER
       // dialog setting ("Print headers and footers") that renders in the
-      // margin area when room exists — margin: 0 only suppressed it by
+      // margin area when room exists, margin: 0 only suppressed it by
       // leaving no room, and no CSS controls it. The export dialog's
       // Safari guide teaches turning the setting off for flowing
       // documents. Explicitly paginated and fixed-size documents keep
@@ -566,7 +566,7 @@
         : 'margin: 0; ';
       // Shadow-internal marker (never serialized), kept in lockstep with
       // the @page decision above: the print CSS trims the first-page
-      // spacers ONLY while @page actually carries the margins — a
+      // spacers ONLY while @page actually carries the margins, a
       // true-size or scaled-fit sheet keeps margin: 0 and must keep its
       // spacers too. Re-synced here so attribute changes and pagination
       // flips move both together.
@@ -588,7 +588,7 @@
      *  widowed/orphaned words in body copy (browsers without text-wrap
      *  support drop the declarations). Zero-specificity via :where() so
      *  any text-wrap authored on those elements wins; document-level so the
-     *  rules reach the slotted (light DOM) content — shadow styles can't.
+     *  rules reach the slotted (light DOM) content, shadow styles can't.
      *  data-omelette-injected marks the tag for the host editor to strip
      *  at serialize, so it is never written back as authored source. */
     _ensureTextWrapDefaults() {
@@ -632,11 +632,11 @@
     /** True-size pages (explicit width AND height) also declare the page
      *  box as the preview size: the in-app preview reads
      *  meta[name="omelette-fixed-size"] (content "W,H" in px ints) and
-     *  scales the sheet into view — without it an 18in poster previews at
+     *  scales the sheet into view, without it an 18in poster previews at
      *  true size with scrollbars. Never overrides an author-set meta
      *  (only the component's own id is managed). The meta is page-global
      *  while doc-page instances are not, so every sync recomputes the
-     *  page-wide owner — the first connected true-size doc-page — and a
+     *  page-wide owner, the first connected true-size doc-page, and a
      *  non-true-size sibling's sync can never delete the owner's meta.
      *  Removed when no true-size page remains (the owner's disconnect
      *  re-syncs via any survivor) or when an author-set meta exists. */
@@ -680,7 +680,7 @@
      *  meta[name="omelette-print-sizing"] with content 'default-portrait',
      *  'default-landscape', or 'fixed' (fixed pages also carry the
      *  omelette-fixed-size meta with the page box in px). The export path
-     *  probes it to decide what true paper size to inject at print time —
+     *  probes it to decide what true paper size to inject at print time -
      *  in the default modes the component emits no paper size of its own.
      *  Same page-global ownership rules as the fixed-size meta above:
      *  first connected doc-page owns it, an authored meta is never
@@ -709,7 +709,7 @@
         return;
       }
       // A deck-stage that connected first injected its own meta and
-      // defers to any existing one — take it over, or the document ends
+      // defers to any existing one, take it over, or the document ends
       // up with two conflicting injected metas (a doc-page page is the
       // document; the deck re-ensures its meta if every doc-page leaves).
       const deckMeta = document.getElementById('deck-stage-print-sizing');
@@ -731,7 +731,7 @@
      *  they re-measure on content mutation, resize, and font load. The
      *  same pass detects explicit pagination (direct .page children) and
      *  toggles the sheet between the flowing-document card and the
-     *  page-per-card stack — content edits can add or remove pages at any
+     *  page-per-card stack, content edits can add or remove pages at any
      *  time, so this tracks the same mutations the measurement does. */
     _measure() {
       const hdr = this.querySelector(':scope > [slot="header"]');

@@ -13,7 +13,7 @@ export type ChipOption = {
 };
 
 export type FilterGroup = {
-  /** URL param this group writes — unchanged from the original form. */
+  /** URL param this group writes, unchanged from the original form. */
   paramName: string;
   /** Visible group name. The old chip rows had an aria-label and nothing on screen. */
   label: string;
@@ -24,15 +24,15 @@ export type FilterGroup = {
 /**
  * One filter control for a whole screen.
  *
- * The machines list stacked four separate chip rows — type, status, cost centre,
- * department — each an unlabelled horizontal scroller. On a phone that was roughly
+ * The machines list stacked four separate chip rows, type, status, cost centre,
+ * department, each an unlabelled horizontal scroller. On a phone that was roughly
  * 200px of identical-looking controls before the first machine, and no way to tell
  * which row filtered what: the group names existed only as `aria-label`.
  *
  * Now: search and one *Filters* button on a single line; what is actually filtering
  * shown as named, individually removable pills; and the groups themselves behind a
  * disclosure, each with a visible heading. Collapsed by default, because the list is
- * what people came for — and it opens already showing what they set.
+ * what people came for, and it opens already showing what they set.
  *
  * The URL params written are exactly the ones the old rows wrote, so every server
  * query, sort link and CSV route is untouched.
@@ -47,7 +47,7 @@ export function FilterBar({
   extra,
 }: {
   path: string;
-  /** Current query string, from the server — avoids dragging the page into Suspense. */
+  /** Current query string, from the server, avoids dragging the page into Suspense. */
   search: string;
   groups: FilterGroup[];
   filtersLabel: string;
@@ -69,8 +69,8 @@ export function FilterBar({
    * filter. It also prefetches, and it survives being opened in a new tab.
    *
    * (This replaced a `router.push` version that was observed not navigating. The cause
-   * was never established — `router.push` behaves correctly everywhere else in this
-   * app, including same-route query changes on a segment with a `loading.tsx` — so
+   * was never established, `router.push` behaves correctly everywhere else in this
+   * app, including same-route query changes on a segment with a `loading.tsx`, so
    * treat that as unexplained rather than as a known Next.js defect.)
    */
   const hrefWith = (changes: Record<string, string>) => {
@@ -114,7 +114,7 @@ export function FilterBar({
         </button>
       </div>
 
-      {/* What is filtering, in words, each removable on its own — previously you had to
+      {/* What is filtering, in words, each removable on its own, previously you had to
           find the right chip in the right unlabelled row and press it again. */}
       {active.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">

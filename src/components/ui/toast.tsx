@@ -64,7 +64,7 @@ export function Toast({
         {s.icon}
       </span>
       <span className="min-w-0 flex-1">{message}</span>
-      {/* Icon AND word, at the 48px floor — a toast close is still a thing a dusty
+      {/* Icon AND word, at the 48px floor, a toast close is still a thing a dusty
           thumb has to hit, and a lone ✕ is the one glyph this product does not use. */}
       <button
         type="button"

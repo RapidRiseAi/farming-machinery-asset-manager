@@ -15,7 +15,7 @@ export type ConfirmFact = { label: string; value: string; hint?: string };
 export type ConfirmDialogProps = {
   /** The server action the confirm button submits. Never wrapped or renamed. */
   action: (formData: FormData) => void | Promise<void>;
-  /** Hidden inputs carrying the action's payload — rendered inside the form. */
+  /** Hidden inputs carrying the action's payload, rendered inside the form. */
   children?: ReactNode;
 
   /** Trigger button (the thing on the page before anything opens). */
@@ -35,7 +35,7 @@ export type ConfirmDialogProps = {
   /** What is lost / what happens the moment they press it. */
   consequencesTitle?: string;
   consequences?: string[];
-  /** Reassurance under the consequences — e.g. "the work itself stays". */
+  /** Reassurance under the consequences, e.g. "the work itself stays". */
   footnote?: ReactNode;
 
   /**
@@ -59,7 +59,7 @@ export type ConfirmDialogProps = {
  * type-to-confirm for the irreversible, and an escape that reads as the easy way out.
  * Bottom sheet on a phone (thumb reach), centred modal from `sm` up.
  *
- * The server action, its field names and its redirect are untouched — this only puts
+ * The server action, its field names and its redirect are untouched, this only puts
  * a deliberate step in front of the submit.
  */
 export function ConfirmDialog({

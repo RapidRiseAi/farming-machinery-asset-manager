@@ -1,18 +1,18 @@
 /**
- * SaaS billing — the Paystack webhook, as logic rather than as a route.
+ * SaaS billing, the Paystack webhook, as logic rather than as a route.
  *
  * The route handler holds the raw bytes and nothing else; every decision is here, so the
  * rules can be exercised by a unit test with a fake Supabase and a fake provider and no
  * network anywhere near them.
  *
- * ── The order, and why each step is where it is ───────────────────────────────
+ * == The order, and why each step is where it is ===============================
  *
  *  1. SIZE. Refuse a body over 1 MB BEFORE hashing it. Paystack's events are a few
  *     kilobytes; a megabyte is either a bug or somebody making us burn CPU on an HMAC for
  *     a caller we have not decided to trust yet.
  *  2. SIGNATURE, before anything is parsed and before any field is believed. HMAC-SHA512
  *     of the RAW body keyed with the secret key, compared timing-safely, with a length
- *     check first because `timingSafeEqual` THROWS on unequal buffers — and a throw on
+ *     check first because `timingSafeEqual` THROWS on unequal buffers, and a throw on
  *     this path is a 500, which Paystack reads as "retry", which turns a malformed probe
  *     into a redelivery storm.
  *  3. PERSIST, idempotently on `(provider, dedupe_key)`, BEFORE any side effect. A side
@@ -20,14 +20,14 @@
  *  4. A DUPLICATE does nothing at all beyond raising `delivery_count`, and answers 200.
  *  5. RE-VERIFY server-to-server. The payload is a hint; `transaction/verify` is the
  *     truth. Nothing in a webhook body marks an invoice paid on its own authority.
- *  6. MATCH exactly — our stored reference, the expected amount, ZAR, `status: success`,
+ *  6. MATCH exactly, our stored reference, the expected amount, ZAR, `status: success`,
  *     and the farm and invoice in the metadata. Any mismatch is recorded and REFUSED.
  *
- * ── Why we answer 200 even when we could not finish ───────────────────────────
+ * == Why we answer 200 even when we could not finish ===========================
  * Paystack expects `200 OK`, and retries anything else every 3 minutes for the first four
  * attempts and then hourly for 72 hours. A non-2xx therefore asks for three days of
  * redeliveries. But we have already persisted the dedupe key, so
- * the redelivery would arrive, be recognised as a duplicate, and do nothing — the worst
+ * the redelivery would arrive, be recognised as a duplicate, and do nothing, the worst
  * of both worlds: a retry storm that cannot possibly help. Our recovery for an event we
  * could not process is the RECONCILER, which verifies that exact reference on the next
  * pass and is strictly stronger than a redelivery, because it works even if Paystack
@@ -35,11 +35,11 @@
  * only non-2xx answers are the ones where we recorded nothing (too large, unsigned, or
  * we failed to write the row at all).
  *
- * ── What must never be logged ─────────────────────────────────────────────────
+ * == What must never be logged =================================================
  * The raw payload, the signature header, the secret, a customer email, an authorization
  * code. Nothing in this file writes to a log at all; the strings it stores in
  * `processing_error` go through `redactMessage` first, and mismatches are reported as
- * FIELD NAMES only — one of the values is an amount of money and another is somebody's
+ * FIELD NAMES only, one of the values is an amount of money and another is somebody's
  * farm.
  */
 
@@ -67,7 +67,7 @@ export const WEBHOOK_PROVIDER = "paystack";
  * Events that move money in our ledger.
  *
  * `charge.success` / `charge.failed` are the two Paystack actually sends for this flow.
- * `transaction.success` and `invoice.payment_failed` are accepted defensively — they cost
+ * `transaction.success` and `invoice.payment_failed` are accepted defensively, they cost
  * nothing to handle and both end up at the same `transaction/verify` call, which is the
  * only thing that decides anything. Every other event type is RECORDED and ignored, so a
  * new Paystack event never becomes an unhandled exception on a payment path.
@@ -78,7 +78,7 @@ const FAILURE_EVENTS = new Set(["charge.failed", "invoice.payment_failed"]);
 /**
  * Events that mean money is going back, or is being taken back.
  *
- * These were `outcome: "ignored"` — recorded, like every signed delivery, and then nothing.
+ * These were `outcome: "ignored"`, recorded, like every signed delivery, and then nothing.
  *
  * A DISPUTE is the urgent one. South Africa gives roughly 48 BUSINESS HOURS to respond
  * before Paystack accepts the dispute on our behalf and takes the amount out of a payout.
@@ -87,7 +87,7 @@ const FAILURE_EVENTS = new Set(["charge.failed", "invoice.payment_failed"]);
  *
  * A REFUND is not urgent but it is a ledger fact: the invoice still reads `paid` and the
  * farm still has its plan. What a refund SHOULD do to both is a founder decision and is
- * deliberately not made here — being told is the part with no downside.
+ * deliberately not made here, being told is the part with no downside.
  */
 const DISPUTE_EVENTS = new Set([
   "charge.dispute.create",
@@ -102,7 +102,7 @@ const REFUND_EVENTS = new Set([
 ]);
 
 /**
- * A dispute's own id, or a refund's own reference — the idempotency key for its case.
+ * A dispute's own id, or a refund's own reference, the idempotency key for its case.
  *
  * Deliberately NOT the transaction reference: one transaction can be disputed and later
  * refunded, and keying both cases on the transaction would collapse two different
@@ -119,7 +119,7 @@ export function disputeOrRefundRef(data: Record<string, unknown>): string | null
  * When the dispute must be answered by.
  *
  * Paystack sends `due_at` on the dispute payload. Where it is missing or unreadable we fall
- * back to 48 hours from now — the CALENDAR reading of "roughly 48 business hours", which is
+ * back to 48 hours from now, the CALENDAR reading of "roughly 48 business hours", which is
  * always EARLIER than the real deadline. That direction is deliberate: chased too early
  * costs somebody a glance, chased too late costs the money, because Paystack accepts the
  * dispute on our behalf and takes it out of a payout.
@@ -139,7 +139,7 @@ export function disputeDeadline(data: Record<string, unknown>): string {
  * Paystack does not put it in the same place for every family: a charge event carries
  * `data.reference`, while dispute and refund payloads nest the transaction. All three
  * shapes are read rather than guessed at, and an event we cannot place is alerted anyway
- * with whatever it did carry — a dispute nobody can match is still a dispute.
+ * with whatever it did carry, a dispute nobody can match is still a dispute.
  */
 function relatedReference(data: Record<string, unknown>): string | null {
   const direct = asString(data.reference);
@@ -150,7 +150,7 @@ function relatedReference(data: Record<string, unknown>): string | null {
 }
 
 /**
- * The refund's own reference — NOT the transaction's.
+ * The refund's own reference, NOT the transaction's.
  *
  * This is the idempotency key: `billing_payments_ref_uq` is what stops a redelivery
  * recording the same refund twice, and Paystack retries for 72 hours. Using the
@@ -204,7 +204,7 @@ function asString(value: unknown): string | null {
  * Paystack sends no top-level event id, so `"<event>:<data.id>"` is the closest thing to
  * one: the transaction id is Paystack's own primary key and the event name distinguishes
  * a success from a failure on the same transaction. When either is missing we fall back
- * to a hash of the RAW body — which is exact, at the cost of treating a byte-different
+ * to a hash of the RAW body, which is exact, at the cost of treating a byte-different
  * re-serialisation of the same event as new. That direction is the safe one: a duplicate
  * we fail to recognise is caught by the transaction-id unique index on
  * `billing_payments`, whereas a false MATCH would silently drop a real event.
@@ -225,7 +225,7 @@ export function dedupeKeyFor(rawBody: string, parsed: unknown): string {
 export async function handlePaystackWebhook(input: WebhookInput): Promise<WebhookResult> {
   const { rawBody, signature, supabase, provider } = input;
 
-  // 1 ── Size, before any hashing.
+  // 1 == Size, before any hashing.
   if (typeof rawBody !== "string" || rawBody.length === 0) {
     return { status: 400, outcome: "rejected", reason: "empty body" };
   }
@@ -233,7 +233,7 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
     return { status: 413, outcome: "rejected", reason: "body too large" };
   }
 
-  // 2 ── Signature, before parsing and before trusting one single field.
+  // 2 == Signature, before parsing and before trusting one single field.
   if (!provider) {
     // No provider configured means no key to check against, so we cannot say yes. 401
     // rather than 500: this is a refusal, not a fault, and Paystack should not be told to
@@ -256,7 +256,7 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
   const eventType = (isObject(parsed) ? asString(parsed.event) : null) ?? "unparsed";
   const dedupeKey = dedupeKeyFor(rawBody, parsed);
 
-  // 3 ── Persist before any side effect.
+  // 3 == Persist before any side effect.
   const record = await recordWebhookEvent(supabase, {
     provider: WEBHOOK_PROVIDER,
     dedupeKey,
@@ -268,11 +268,11 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
   });
   if (record.error) {
     // We could not write it down, so we must not act on it. This IS a case where a
-    // redelivery helps — nothing was recorded, so the retry will be treated as new.
+    // redelivery helps, nothing was recorded, so the retry will be treated as new.
     return { status: 500, outcome: "rejected", reason: record.error.message };
   }
 
-  // 4 ── A duplicate does nothing.
+  // 4 == A duplicate does nothing.
   if (record.duplicate) {
     return { status: 200, outcome: "duplicate", eventType };
   }
@@ -287,14 +287,14 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
   // Money going the other way.
   //
   // A PROCESSED refund moves the ledger (20260911210000): it is recorded as a negative
-  // payment, which makes the invoice unpaid again — and both charging shortlists exclude a
+  // payment, which makes the invoice unpaid again, and both charging shortlists exclude a
   // refunded invoice, so it cannot be re-charged the following night. Everything else in
   // this family only alerts: `pending` and `processing` mean the money has not left yet,
   // `failed` means it never will, and a DISPUTE is money at risk rather than money moved.
   //
   // The subscription is untouched in every case. A refund the customer asked for should end
   // their plan and one we issue for our own mistake should not, and a webhook cannot tell
-  // those apart — docs/BILLING.md §11b. That is what the alert is for.
+  // those apart, docs/BILLING.md §11b. That is what the alert is for.
   if (DISPUTE_EVENTS.has(eventType) || REFUND_EVENTS.has(eventType)) {
     const data = isObject(parsed) && isObject(parsed.data) ? parsed.data : {};
     const reference = relatedReference(data);
@@ -320,13 +320,13 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
       }
     }
 
-    // ── The support case ──────────────────────────────────────────────────
+    // == The support case ==================================================
     // Opened BEFORE the alert, so the alert is never the only record: an alert is a
     // notification and notifications get read, dismissed and forgotten, while a dispute
     // that arrived at 3am has to survive until somebody is awake.
     //
-    // Idempotent on (kind, external_ref), so Paystack's redeliveries — up to 72 hours of
-    // them — refresh one case rather than opening a queue of identical ones.
+    // Idempotent on (kind, external_ref), so Paystack's redeliveries, up to 72 hours of
+    // them, refresh one case rather than opening a queue of identical ones.
     const isDispute = DISPUTE_EVENTS.has(eventType);
     const externalRef = disputeOrRefundRef(data) ?? reference ?? null;
     let ticket: string | null = null;
@@ -368,7 +368,7 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
       : 0;
 
     await finishWebhookEvent(supabase, record.id, {
-      // Not an error in the sense of "we failed" — but an event we could not place against
+      // Not an error in the sense of "we failed", but an event we could not place against
       // a farm is one nobody can act on, and it must not read as handled.
       error: attempt ? null : "no payment attempt matches this reference",
       farmId: attempt?.farm_id,
@@ -434,7 +434,7 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
  *
  * Both success and failure events go through here. Verifying a FAILURE too costs one API
  * call and buys the guarantee that an event claiming a charge failed can never mark
- * `failed` a transaction Paystack in fact took money for — which would start the dunning
+ * `failed` a transaction Paystack in fact took money for, which would start the dunning
  * machinery against a farm that has paid.
  */
 async function processVerified(args: {
@@ -450,7 +450,7 @@ async function processVerified(args: {
 
   if (!verified.ok) {
     // Could not confirm. Recorded with the reason, answered 200, and left to the
-    // reconciler — see the header: a redelivery would be recognised as a duplicate and
+    // reconciler, see the header: a redelivery would be recognised as a duplicate and
     // achieve nothing, whereas the reconciler verifies this exact reference again.
     const reason = redactMessage(verified.reason, 300);
     await finishWebhookEvent(supabase, eventId, {
@@ -535,7 +535,7 @@ async function processVerified(args: {
  * Store the card, when a verified and matched success offered a reusable one.
  *
  * This is how a card gets saved at all: the hosted checkout takes the first payment and
- * the authorization comes back on the verify. A non-reusable authorization is refused —
+ * the authorization comes back on the verify. A non-reusable authorization is refused -
  * storing a one-shot as if it were a subscription card makes a farm that appears set up
  * and then fails every renewal.
  */

@@ -22,13 +22,13 @@ export type QuoteBilling = {
 /**
  * "Bill part of this job."
  *
- * A deposit up front and a payment on completion are the same act to a ledger — an
- * invoice for part of an agreed job — so this is one control, not two features. The
+ * A deposit up front and a payment on completion are the same act to a ledger, an
+ * invoice for part of an agreed job, so this is one control, not two features. The
  * quick buttons are the amounts a workshop actually says out loud (half up front, the
  * rest at the end); the amount box is there for everything else.
  *
  * It shows what has already been billed against the quote, because the question a
- * partner has at this moment is never "what does the job cost" — they wrote the quote —
+ * partner has at this moment is never "what does the job cost", they wrote the quote -
  * it is "how much of it have I already asked for".
  */
 export function BillInStages({
@@ -84,7 +84,7 @@ export function BillInStages({
         <dd className="text-right font-semibold tabular-nums text-sand-900">{rands(billing.remaining_cents)}</dd>
       </dl>
 
-      {/* Billing past the quote is allowed — jobs grow — but it is never a silent thing. */}
+      {/* Billing past the quote is allowed, jobs grow, but it is never a silent thing. */}
       {billing.over_billed ? (
         <p className="mt-2 text-sm text-status-warn">
           <Badge tone="warning" className="mr-2 align-middle">{t("stage.overBilledBadge", locale)}</Badge>

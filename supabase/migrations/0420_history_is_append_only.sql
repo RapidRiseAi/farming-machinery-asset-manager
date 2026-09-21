@@ -1,7 +1,7 @@
 -- 0420_history_is_append_only.sql
 -- The version history has to REFUSE, not quietly do nothing.
 --
--- ── WHAT WAS ACTUALLY TRUE ───────────────────────────────────────────────────
+-- == WHAT WAS ACTUALLY TRUE ===================================================
 --
 -- `partner_document_revisions` (0417) is the record that makes editing an issued document
 -- safe: it is the thing that stops a correction being invisible. So the question "can
@@ -14,31 +14,31 @@
 --     update partner_document_revisions set …;  → ran, 0 rows, NO ERROR
 --     insert into partner_document_revisions …; → RLS violation
 --
--- Nothing was destroyed — 1 revision before, 1 after — but only because `0102` grants
+-- Nothing was destroyed, 1 revision before, 1 after, but only because `0102` grants
 -- table privileges broadly and leans on RLS, and 0417 defined a SELECT policy and no
 -- others, so UPDATE and DELETE matched no rows. That is default-deny doing its job, and
 -- it is a thin thing to rest an audit trail on:
 --
---   * it is silent. A caller is told nothing happened by being told nothing at all —
+--   * it is silent. A caller is told nothing happened by being told nothing at all -
 --     the same shape as the `wl_upd` bug found earlier this session, where a farm owner
 --     was shown "disconnected" for an update that matched zero rows.
 --   * it is one permissive policy away from being wrong. Anyone adding a `for all`
---     policy later — the obvious thing to write when adding, say, an admin cleanup —
+--     policy later, the obvious thing to write when adding, say, an admin cleanup -
 --     opens it without noticing.
 --
 -- So: say it twice, and make it loud.
 
--- ── 1. The grant should never have been there ────────────────────────────────
+-- == 1. The grant should never have been there ================================
 revoke insert, update, delete on partner_document_revisions from authenticated;
 
--- ── 2. And the table refuses out loud, whatever the grants say ───────────────
+-- == 2. And the table refuses out loud, whatever the grants say ===============
 -- Belt and braces on purpose. A trigger cannot be bypassed by a future policy, and it
--- raises rather than shrugging — so a caller who tries finds out, and so does anyone
+-- raises rather than shrugging, so a caller who tries finds out, and so does anyone
 -- reading the logs.
 create or replace function app_revisions_append_only() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  raise exception 'The version history cannot be % — it is the record that makes correcting a document safe.',
+  raise exception 'The version history cannot be %, it is the record that makes correcting a document safe.',
     case tg_op when 'DELETE' then 'deleted' else 'changed' end
     using errcode = '42501';
 end $$;
@@ -54,13 +54,13 @@ comment on table partner_document_revisions is
   'before the change is applied. UPDATE and DELETE are refused by trigger as well as by '
   'RLS, because an audit trail that can be quietly emptied is not an audit trail.';
 
--- ── 3. Close the one door that COULD have removed history ────────────────────
+-- == 3. Close the one door that COULD have removed history ====================
 --
 -- `partner_document_revisions.document_id` cascades, and a DRAFT can still be deleted.
 -- Nothing stopped `revise_document` running on a draft, so the sequence
 -- "revise a draft twice, then delete it" would have taken its versions with it.
 --
--- The fix is not to protect a draft's history — it is that a draft should never have had
+-- The fix is not to protect a draft's history, it is that a draft should never have had
 -- any. A draft is directly editable through the ordinary form; going through the
 -- correction machinery for one is redundant, and it manufactures history for a document
 -- nobody has ever seen. So: refuse. Revisions now exist only for documents that were
@@ -83,7 +83,7 @@ declare
   i          int := 0;
 begin
   if p_reason is null or length(btrim(p_reason)) < 3 then
-    raise exception 'Say what you are correcting — it is what makes the change readable later.'
+    raise exception 'Say what you are correcting, it is what makes the change readable later.'
       using errcode = '23514';
   end if;
 
@@ -104,7 +104,7 @@ begin
 
   -- A draft has not gone anywhere. Edit it directly; there is nothing to keep a version of.
   if d.status = 'draft' then
-    raise exception 'This is still a draft — edit it directly. Corrections are for documents that have been sent.'
+    raise exception 'This is still a draft, edit it directly. Corrections are for documents that have been sent.'
       using errcode = '42501';
   end if;
 
@@ -156,7 +156,7 @@ begin
         d.farm_id, p_document, i,
         coalesce(nullif(ln->>'kind', ''), 'part')::job_line_kind,
         nullif(ln->>'part_no', ''),
-        coalesce(nullif(ln->>'description', ''), '—'),
+        coalesce(nullif(ln->>'description', ''), '-'),
         coalesce((ln->>'qty')::numeric, 1),
         coalesce((ln->>'unit_price_cents')::bigint, 0),
         coalesce((ln->>'discount_cents')::bigint, 0)
@@ -197,7 +197,7 @@ end $$;
 
 -- `revise_document` writes the `total_cents_after` line above, which the new trigger would
 -- otherwise refuse. It is SECURITY DEFINER and runs as the owner, so it needs the trigger
--- to stand aside for that one write — the same transaction-local flag pattern 0417 uses
+-- to stand aside for that one write, the same transaction-local flag pattern 0417 uses
 -- for the freeze triggers, and for the same reason: one door, held open only from inside.
 create or replace function app_revisions_append_only() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -205,7 +205,7 @@ begin
   if coalesce(current_setting('app.revising', true), '') = 'closing' then
     return new;
   end if;
-  raise exception 'The version history cannot be % — it is the record that makes correcting a document safe.',
+  raise exception 'The version history cannot be %, it is the record that makes correcting a document safe.',
     case tg_op when 'DELETE' then 'deleted' else 'changed' end
     using errcode = '42501';
 end $$;

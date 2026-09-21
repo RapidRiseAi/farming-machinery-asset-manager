@@ -107,7 +107,7 @@ export function MoreMenu({
    * The same grouped shape the desktop sidebar renders. It used to take a flat
    * `items` array, which is how a books-tier partner ended up with 21
    * undifferentiated rows on a phone while their sidebar had three named
-   * sections — the two shells describing the product differently.
+   * sections, the two shells describing the product differently.
    */
   groups: NavGroup[];
   signOutSlot: ReactNode;
@@ -163,7 +163,7 @@ export function MoreMenu({
                     className={cn(
                       "focus-ring flex min-h-[52px] items-center gap-3 rounded-lg px-3 text-base font-medium",
                       // The selected state is the brand accent (gold) plus a
-                      // weight change and aria-current — never colour alone.
+                      // weight change and aria-current, never colour alone.
                       isActive
                         ? "bg-accent-tint font-semibold text-ink ring-1 ring-accent-rim"
                         : "text-ink hover:bg-surface-sunken",

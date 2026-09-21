@@ -3,7 +3,7 @@
  *
  * Three routes take the same four query parameters (PDF, CSV, send), and each was
  * validating them itself. Parsing in one place means the validation cannot drift between
- * them — the shape a caller can post to the SEND route is exactly the shape the download
+ * them, the shape a caller can post to the SEND route is exactly the shape the download
  * route accepts, which matters because one of them emails a customer.
  */
 export type StatementParty = {

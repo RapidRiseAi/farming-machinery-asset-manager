@@ -6,7 +6,7 @@ import { CheckIcon, InfoIcon } from "@/components/ui/icons";
 import { t, type Lang } from "@/lib/i18n";
 
 /**
- * `beforeinstallprompt` is not in the DOM lib — it is a Chromium extension to the spec,
+ * `beforeinstallprompt` is not in the DOM lib, it is a Chromium extension to the spec,
  * and the only way to trigger an install from a button rather than a browser menu.
  */
 type InstallPromptEvent = Event & {
@@ -19,9 +19,9 @@ type Platform = "installable" | "installed" | "ios" | "other";
 /**
  * The "download it" button.
  *
- * FleetWise already works offline — a service worker caches the shell and the last
+ * FleetWise already works offline, a service worker caches the shell and the last
  * views, and mutations go into an IndexedDB queue that drains when the signal comes
- * back — but nothing on any screen ever offered to install it, so that whole capability
+ * back, but nothing on any screen ever offered to install it, so that whole capability
  * was invisible unless you knew to dig through a browser menu.
  *
  * There is no .apk or .exe to download: this is a PWA, and installing it is what puts
@@ -30,7 +30,7 @@ type Platform = "installable" | "installed" | "ios" | "other";
  *
  * Three states, because the browsers genuinely differ:
  *   - Chromium (most Android phones): a real install button via `beforeinstallprompt`.
- *   - iOS Safari: no such API at all — the only route is Share → Add to Home Screen,
+ *   - iOS Safari: no such API at all, the only route is Share → Add to Home Screen,
  *     so we say exactly that instead of showing a button that cannot work.
  *   - Already installed: say so, rather than offering it again.
  */

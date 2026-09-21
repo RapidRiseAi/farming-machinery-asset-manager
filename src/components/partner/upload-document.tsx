@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
  *
  * The path that keeps a partner independent of our invoicing: they attach the PDF their
  * accounting package produced and type the total off it. Available on every partner
- * product — the paid step up is BUILDING documents here, not attaching ones made
+ * product, the paid step up is BUILDING documents here, not attaching ones made
  * elsewhere.
  *
  * The total is asked VAT-inclusive because that is the figure printed on the document in

@@ -12,8 +12,8 @@ For the manual setup steps, see [`PAYSTACK_GO_LIVE.md`](PAYSTACK_GO_LIVE.md).
 This is **farms paying Rapid Rise for software**. One direction, one relationship.
 
 It is **not** the money that moves between a farm and its contractors, workshops or
-suppliers. That is `partner_documents` / `partner_payments` (F14, G1–G10), and FleetWise
-deliberately does not sit in the middle of it — customers pay contractors by EFT outside
+suppliers. That is `partner_documents` / `partner_payments` (F14, G1-G10), and FleetWise
+deliberately does not sit in the middle of it, customers pay contractors by EFT outside
 the product, and the dormant PayFast seam in `src/lib/payments/*` stays inert.
 
 The two ledgers never meet:
@@ -39,7 +39,7 @@ count, so a fixed provider-side "Plan" object would be wrong the moment a farmer
 tractor. We compute the amount, we raise the invoice, and we ask Paystack to charge a
 stored card authorization for exactly that.
 
-## 3. The two plans — read this twice
+## 3. The two plans, read this twice
 
 | Column | Meaning |
 |---|---|
@@ -64,7 +64,7 @@ A later reader will be tempted to "simplify" by collapsing the two columns. Don'
 the same as losing the record of what the customer is owed on recovery, and it is asserted
 against in §(l).
 
-## 4. VAT — the position today
+## 4. VAT, the position today
 
 **Rapid Rise is not registered for VAT** (founder decision #8).
 
@@ -72,7 +72,7 @@ against in §(l).
 (`app.billing_force_vat_rate`) forces every invoice to a 0% rate with a null seller VAT
 number. It overrules the caller, so a stale form, an import or a bug cannot issue VAT we
 cannot legally collect. The UI shows no VAT line, and an invoice is correctly **not**
-headed "Tax invoice" — VAT Act s20(4) reserves that for a registered vendor.
+headed "Tax invoice", VAT Act s20(4) reserves that for a registered vendor.
 
 The full machinery is built anyway. Registering later is a flag flip plus a VAT number,
 and it **restates no historical invoice**: every invoice snapshots its own rate at issue,
@@ -101,7 +101,7 @@ billing period), priced per vehicle per month, **VAT-inclusive**, in integer cen
 
 `src/lib/entitlements.ts` carries the same figures, and a test reads the migration itself
 to prove the quoted price and the invoiced price agree. **Seeding a price releases only the
-FIRST lock** — invoices can now be raised, and with `BILLING_CHARGING_ENABLED` unset nothing
+FIRST lock**, invoices can now be raised, and with `BILLING_CHARGING_ENABLED` unset nothing
 can be charged. The conflict this replaced was:
 
 | Source | Essential | Professional | Complete | Done-For-You |
@@ -109,7 +109,7 @@ can be charged. The conflict this replaced was:
 | `FLEETWISE_FOUNDER_DECISIONS.md` #1 | R44 | R73 | R89 | R250 |
 | shipped `src/lib/entitlements.ts` | R39 | R69 | R99 | POA |
 
-Both claimed to be VAT-inclusive, so only the numbers were in dispute — which is why the
+Both claimed to be VAT-inclusive, so only the numbers were in dispute, which is why the
 catalogue shipped EMPTY rather than guessing: with no `active` price version
 `app.generate_billing_invoices` raises nothing, and there is nothing to charge.
 
@@ -127,12 +127,12 @@ values
   …;
 ```
 
-`months_charged` is 1 for monthly and **10 for annual** — annual pre-pay is two months
+`months_charged` is 1 for monthly and **10 for annual**, annual pre-pay is two months
 free. It lives on the row rather than in a constant so the offer can change without
 rewriting history.
 
-**Invoices are immutable.** Every pricing input — plan, period, vehicle count, unit price,
-months, price version, VAT rate, seller identity, who it was billed to — is snapshotted at
+**Invoices are immutable.** Every pricing input, plan, period, vehicle count, unit price,
+months, price version, VAT rate, seller identity, who it was billed to, is snapshotted at
 issue and frozen by `app.billing_freeze_invoice`. Changing the catalogue next year cannot
 restate last year's bill. What may still change is what has been **paid**, and whether it
 has been voided. Deleting an issued invoice is refused outright.
@@ -140,7 +140,7 @@ has been voided. Deleting an issued invoice is refused outright.
 ## 6. What counts as a billable vehicle
 
 Non-deleted machines, **excluding** `retired` and `sold`. **A vehicle that is out of
-service still counts** — it keeps its history and its papers, and a farm that could stop
+service still counts**, it keeps its history and its papers, and a farm that could stop
 paying by marking every tractor down would be a billing system with a hole in it.
 
 `app.billable_asset_count` and `app.recount_farm_assets` (0251, which maintains
@@ -149,7 +149,7 @@ paying by marking every tractor down would be a billing system with a hole in it
 Every invoice also writes a `billing_asset_snapshots` row, so "why does this bill say 37
 vehicles?" is answerable months later, after tractors have been bought and sold.
 
-### 6b. Counted, or bought? Both — and the invoice bills the second
+### 6b. Counted, or bought? Both, and the invoice bills the second
 
 **Amended 18 September 2026**, because a screen and the engine disagreed about this in
 production and quoted a customer R0,00 against a real R750,00 invoice.
@@ -163,8 +163,8 @@ coalesce(billing_subscriptions.asset_quota, app.billable_asset_count(farm_id))
 
 | `asset_quota` | Model | Billed on |
 |---|---|---|
-| a number | **quota** — every farm that signs up through `/signup` | the slots BOUGHT |
-| `null` | **metered** — every farm onboarded before the quota model, and every farm an administrator creates | the vehicles COUNTED |
+| a number | **quota**, every farm that signs up through `/signup` | the slots BOUGHT |
+| `null` | **metered**, every farm onboarded before the quota model, and every farm an administrator creates | the vehicles COUNTED |
 
 Two consequences that are easy to get wrong, and both were:
 
@@ -177,7 +177,7 @@ Two consequences that are easy to get wrong, and both were:
 
 `/billing` was passing the COUNTED figure into its estimate while the generator billed the
 quota, so a farm holding ten slots and running seven was shown seven vehicles' worth of
-money — and a farm that had just paid and added nothing yet was shown R0,00, which is
+money, and a farm that had just paid and added nothing yet was shown R0,00, which is
 exactly the number §2 of that page's own header warns is the one a customer never
 questions. `billedUnits()` in `src/lib/billing/view.ts` mirrors the SQL, and
 `view.test.ts` pins the three cases against it.
@@ -197,7 +197,7 @@ dies at 03:00 and how a row stays locked long after the process that locked it h
 
 The reference is minted **in our database, before Paystack is contacted**, and persisted.
 
-Two workers cannot both charge, and the reason is not "we check first" — two workers both
+Two workers cannot both charge, and the reason is not "we check first", two workers both
 check, both see nothing in flight, and both charge. It is a **unique index**:
 `billing_payment_attempts_inflight_uq` permits at most one `pending` or `unknown` attempt
 per invoice. Claiming *is* inserting that row, so the second worker loses on a duplicate
@@ -207,7 +207,7 @@ If the HTTP request times out we do not know whether the customer was charged. T
 settles **`unknown`**, never `failed`:
 
 - `failed` would start the dunning ladder against a farm that may well have paid.
-- `unknown` **blocks** the invoice — `app.due_billing_charges` excludes it entirely.
+- `unknown` **blocks** the invoice, `app.due_billing_charges` excludes it entirely.
 
 The only way forward is to ask Paystack about that exact reference. Nothing in the system
 charges again to resolve an unknown.
@@ -219,7 +219,7 @@ charges again to resolve an unknown.
 1. The **raw** body is read with `text()`, never `json()`. The signature covers the exact
    bytes Paystack sent; re-serialising is checking a signature over a body nobody sent.
 2. Bodies over 1 MB are refused before hashing.
-3. `x-paystack-signature` is verified **before anything is parsed or trusted** —
+3. `x-paystack-signature` is verified **before anything is parsed or trusted** -
    HMAC-SHA512 of the raw body keyed with the **API secret key**, compared with
    `timingSafeEqual`. There is **no separate webhook secret**.
 4. The event is persisted to `billing_webhook_events` **before** any side effect,
@@ -228,7 +228,7 @@ charges again to resolve an unknown.
 5. On a success event the transaction is **re-verified server-to-server**, and must match
    exactly on: our stored reference, the expected amount, `currency = ZAR`,
    `status = success`, and the invoice and farm in metadata. Any mismatch is recorded in
-   `processing_error` and refused — never marked paid.
+   `processing_error` and refused, never marked paid.
 
    Paystack does **not** ask for this. It is our choice, and the reason is that a signature
    proves the message came from Paystack, not that its contents match the invoice we
@@ -251,7 +251,7 @@ whoever holds it, with our secret key, can take money from that customer's card.
 
 - It lives in `billing_payment_methods.authorization_code`, which is **not granted to
   `authenticated` at the column level**. A browser session doing `select=*` on that table
-  gets a permission error, which is the correct trade — an error is a bug report, a
+  gets a permission error, which is the correct trade, an error is a bug report, a
   silently-omitted column is a leak nobody notices.
 - **RLS cannot do this.** RLS filters rows; the owner is legitimately entitled to their own
   row, and the leak is a *column* of it.
@@ -262,7 +262,7 @@ whoever holds it, with our secret key, can take money from that customer's card.
   Every billing table now revokes first and grants back precisely what is meant. §(e)
   asserts it with `has_column_privilege`, and a mutation re-granting it is caught.
 - Only `paymentMethodCredential()` in `src/lib/billing/service.ts` reads those columns, and
-  what it returns goes straight into an adapter call — never a log, an error, a Sentry
+  what it returns goes straight into an adapter call, never a log, an error, a Sentry
   extra or a response body.
 - Paystack will only charge an authorization presented with the **same email** it was
   created against. That is why `authorization_email` is stored beside the code and must not
@@ -274,7 +274,7 @@ whoever holds it, with our secret key, can take money from that customer's card.
 ## 10. Who can see billing
 
 Owners and Rapid Rise administrators. **Not** managers, mechanics, operators, or workshop
-users — a contractor with an active `workshop_link` has legitimate access to a farm's
+users, a contractor with an active `workshop_link` has legitimate access to a farm's
 vehicles and no business whatsoever seeing what the farm pays Rapid Rise.
 
 One predicate, `app.is_farm_billing_admin`, and §(b2) proves all four roles read zero.
@@ -288,7 +288,7 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 ## 11. Dunning, grace and cancellation
 
 All nine values live in the single audited `billing_settings` row, so changing one is a
-decision somebody makes and the audit log records — not a deploy nobody reviews.
+decision somebody makes and the audit log records, not a deploy nobody reviews.
 
 **These are PROPOSED defaults awaiting founder sign-off** (decision #9). They are built and
 tested at these values:
@@ -311,13 +311,13 @@ delivery layer. **Billing works with no WhatsApp anywhere near it.**
 ### 11a. The one message that arrives BEFORE anything goes wrong
 
 Every other billing notification is about a payment that has already failed. Until
-`20260918140000` nothing told a farm that money was *about* to leave — the first they heard
+`20260918140000` nothing told a farm that money was *about* to leave, the first they heard
 of a renewal was the receipt, or the decline.
 
 `app.enqueue_billing_renewal_notices` fixes that, and the reason it matters more here than
 on most products is the annual term: a Done-For-You farm with twenty vehicles is R50 000
 leaving a bank account unannounced. A farmer who has forgotten the date reads that as a
-fraudulent deduction, and the path from there is a chargeback — a dispute we then have 48
+fraudulent deduction, and the path from there is a chargeback, a dispute we then have 48
 business hours to answer, which is the most expensive possible outcome of a payment that
 was entirely legitimate. The Consumer Protection Act §14 also expects notice before a
 fixed-term agreement renews.
@@ -329,14 +329,14 @@ It is deliberately narrow:
 - **Priced from the live catalogue, and silent when there is none.** A figure the generator
   will not produce is worse than no message, because the whole job of this sentence is to
   make the deduction recognisable on a statement three days later.
-- **Billed units, not counted ones** — `app.billing_billable_units`, so the warned amount
+- **Billed units, not counted ones**, `app.billing_billable_units`, so the warned amount
   and the invoiced amount are the same number. See §6b.
 - **Once per farm per period**, deduped on the due date in the payload rather than on a
   time window, so a re-run or a double-fired schedule lands on the row already there.
 
 ## 11b. Refunds and disputes
 
-**Founder decision, 12 September 2026 — the whole policy.**
+**Founder decision, 12 September 2026, the whole policy.**
 
 Money only goes back when a person decides it should, one case at a time. The two ordinary
 ways a farm ends up paying less are not refunds at all, and both already happen without
@@ -346,7 +346,7 @@ anybody doing anything:
 |---|---|---|
 | **Move to a cheaper plan mid-cycle** (say R89 → R73) | They keep the plan they paid for until the period ends, then pay the smaller amount. `pending_plan` / `apply_pending_plan_changes`. | **No** |
 | **Cancel** | Access runs to the end of the period they paid for, and they are simply not charged again. `cancel_at_period_end`, true by default. | **No** |
-| **Upgrade mid-cycle** | Charged the pro-rata difference immediately — the direction that costs them money is the one that does not wait. | n/a |
+| **Upgrade mid-cycle** | Charged the pro-rata difference immediately, the direction that costs them money is the one that does not wait. | n/a |
 
 What is left is genuinely individual, and there are only really three of them: *"I do not
 recognise this deduction"*, *"you charged me after I cancelled"*, and *"somebody used my
@@ -357,14 +357,14 @@ because the same webhook arrives in all three cases and says nothing about which
 `refund.processed` opens a ticket with the farm, the owner and how to reach them, the
 subscription, the invoice, every payment on it (refunds included, so *"have we already
 given some back?"* is answered before it is asked), the card, the attempt history and the
-vehicle count — gathered at open time and frozen, so the ticket read next month shows what
+vehicle count, gathered at open time and frozen, so the ticket read next month shows what
 was true when the complaint arrived. Cases are worked in the **RapidRise OS support
 dashboard**; `20260912170000` posts them there, and `/admin/support` lists them here so a
 case is never invisible when that connection is down.
 
 **The card is labelled rather than asserted.** `evidence.card.source` is `charged` only when
 the attempt genuinely used that card, and `farm_default` when it is merely the card on
-file — which is the common case, because a first payment goes through hosted checkout and
+file, which is the common case, because a first payment goes through hosted checkout and
 captures the card during the transaction rather than charging one we hold. Presenting the
 second as the first would hand somebody an identification they never made, in a case that
 may end with a person being told their card was used without permission.
@@ -384,8 +384,8 @@ conversation, and what happens to the subscription depends on *why*:
 | **They asked for it** | Cancel it **immediately**. They wanted out; give them out. |
 | **Something broke on our side** | **Leave it running.** The fault was ours; they keep the plan. |
 
-FleetWise cannot tell these apart — Paystack's webhook says a refund happened and nothing
-more — so **nothing is automatic**. The `refund.*` events raise a `billing_refund` alert
+FleetWise cannot tell these apart, Paystack's webhook says a refund happened and nothing
+more, so **nothing is automatic**. The `refund.*` events raise a `billing_refund` alert
 to Rapid Rise (and only Rapid Rise; the farmer does not need to be told their own refund
 went through) whose wording states both branches, so the person reading it knows which one
 they are in. Immediate cancellation is `setCancellation({immediate: true})` on the
@@ -405,14 +405,14 @@ That last part was the trap, and it is worth knowing about before touching any o
 negative payment makes the invoice unpaid, and an unpaid invoice is what the nightly
 charging shortlist looks for. Recording the refund on its own would have refunded a
 customer at nine in the morning and charged them again at 03:20 the next day. So both
-shortlists refuse an invoice carrying a refund — derived from the payment row itself, not
+shortlists refuse an invoice carrying a refund, derived from the payment row itself, not
 from a flag, for the same reason `status` is a rollup and never typed.
 
-**What is still deliberately not automatic:** the SUBSCRIPTION, per the table above — a
+**What is still deliberately not automatic:** the SUBSCRIPTION, per the table above, a
 webhook cannot tell why the money went back. And **disputes move nothing at all yet**: a
 `charge.dispute.*` event raises its alert and does not touch the ledger, because what a LOST
 dispute should do to a subscription is an open founder decision. The mechanism it would need
-already exists, though — a lost dispute is economically a refund, so `billing_record_refund`
+already exists, though, a lost dispute is economically a refund, so `billing_record_refund`
 would give it both halves (a truthful ledger, and no re-charge) without new machinery.
 
 ## 12. The kill switch
@@ -421,14 +421,14 @@ Two parts, both required before a single rand can move:
 
 | Variable | Effect |
 |---|---|
-| `BILLING_PROVIDER=paystack` | The adapter is live. Webhooks are verified and payments **reconciled** — nothing new is charged. |
+| `BILLING_PROVIDER=paystack` | The adapter is live. Webhooks are verified and payments **reconciled**, nothing new is charged. |
 | `BILLING_CHARGING_ENABLED=true` | Additionally permits **new** charges. |
 
 Splitting them is what makes rollback safe. Pulling the provider entirely would strand a
 customer who paid thirty seconds before somebody hit the switch.
 
 Every method that would move money checks `chargingEnabled` **before making any network
-request** — asserted on an injected fetch spy, not merely on the return value.
+request**, asserted on an injected fetch spy, not merely on the return value.
 
 ## 13. Runbook
 
@@ -484,7 +484,7 @@ Issued invoices are immutable by trigger for the same reason.
 billing failure cannot disrupt maintenance jobs and vice versa. Same
 `Authorization: Bearer ${CRON_SECRET}` check. Steps, in order:
 
-1. **reconcile stuck attempts** — first, so a lost response is resolved before anything else
+1. **reconcile stuck attempts**, first, so a lost response is resolved before anything else
 2. capture asset snapshots
 3. apply pending plan changes, then generate invoices
 4. run charges
@@ -494,13 +494,13 @@ billing failure cannot disrupt maintenance jobs and vice versa. Same
 8. card expiry, support escalation and delivery, dormant sign-up sweep
 9. receipts and failure emails
 
-Each step's failure is reported and the pass **continues** — a partial night is worth much
+Each step's failure is reported and the pass **continues**, a partial night is worth much
 more than no night. Repeated execution is safe throughout.
 
 ### 14b. The charge step is DRAINED, not run once
 
-`runBillingCharges` takes a bounded slice of the shortlist — it has to, or one pass holds
-an unbounded amount of work — so a single call charged at most 50 farms and reported a
+`runBillingCharges` takes a bounded slice of the shortlist, it has to, or one pass holds
+an unbounded amount of work, so a single call charged at most 50 farms and reported a
 number that looked like a finished night. Everybody past that waited a full day, because
 this route runs once.
 
@@ -509,16 +509,16 @@ cannot run away:
 
 | Bound | Value | Why |
 |---|---|---|
-| `CHARGE_BUDGET_MS` | 180s | Steps 5–9 still have to run. A pass that charges everybody and never tells anybody is the wrong half to finish. |
+| `CHARGE_BUDGET_MS` | 180s | Steps 5-9 still have to run. A pass that charges everybody and never tells anybody is the wrong half to finish. |
 | `MAX_CHARGE_PAGES` | 40 | A second bound, so a bug that makes every page look full still terminates. |
-| `claimed === 0` | — | A full page where nothing was claimed (no card, claimed elsewhere) is the same page next time. No claim means no progress; stop. |
+| `claimed === 0` |, | A full page where nothing was claimed (no card, claimed elsewhere) is the same page next time. No claim means no progress; stop. |
 
 `maxDuration = 300` is now declared on the route. It was inheriting a platform default
 measured in seconds while making one outbound HTTP call per charge.
 
 Charges also run **six at a time** (`CHARGE_CONCURRENCY`). Correctness does not rest on
-that number — `billing_payment_attempts_inflight_uq` permits one live attempt per invoice
-however many workers ask — it is about not spending a function's whole budget waiting, and
+that number, `billing_payment_attempts_inflight_uq` permits one live attempt per invoice
+however many workers ask, it is about not spending a function's whole budget waiting, and
 about not bursting against one merchant account hard enough to be rate-limited. A 429 in
 the middle of a charging run is indistinguishable from a decline at the moment it arrives.
 
@@ -528,11 +528,11 @@ Stated plainly, so nobody mistakes "built" for "proven end to end".
 
 **Verified by running:**
 
-- All migrations apply cleanly to a fresh Postgres, in order (138 files, via PGlite —
+- All migrations apply cleanly to a fresh Postgres, in order (138 files, via PGlite -
   there is no Postgres in PATH on the build machine).
 - `supabase/tests/billing_subscription.sql`: 17 sections, 110+ assertions, passing.
 - **Mutation-tested: 8 mutations, 0 survivors**, with a clean control run that passes.
-  One mutation *did* survive the first time — disabling the VAT guard — which is why §(h3)
+  One mutation *did* survive the first time, disabling the VAT guard, which is why §(h3)
   exists.
 - 82 TypeScript tests across `safety`, `worker` and `webhook`, including: two simultaneous
   workers (the second claim returns NULL and does **not** charge), a timeout after a
@@ -542,10 +542,10 @@ Stated plainly, so nobody mistakes "built" for "proven end to end".
 - TS and SQL VAT splits agree across 140 (amount, rate) pairs at five rates.
 - Two real defects found by running rather than reading: a boolean primary key on
   `billing_settings` broke the shared `app_audit()` trigger, and the invoice generator
-  created invoices as `open` and then could not add their own lines — **every invoice would
+  created invoices as `open` and then could not add their own lines, **every invoice would
   have failed**.
 
-**Not verified — needs credentials nobody had in this session:**
+**Not verified, needs credentials nobody had in this session:**
 
 > **SUPERSEDED 18 September 2026.** Three of the four items below have since happened. They
 > are kept rather than edited, because hiding that this was once true hides when it stopped
@@ -561,7 +561,7 @@ Stated plainly, so nobody mistakes "built" for "proven end to end".
 - `pnpm db:test` could not run (no Postgres in PATH); PGlite stood in. That is a real
   Postgres, but it is not the project's own harness.
 
-## 15b. Where it actually stands — 18 September 2026
+## 15b. Where it actually stands, 18 September 2026
 
 Measured against the production database, not asserted from the code.
 
@@ -571,7 +571,7 @@ Measured against the production database, not asserted from the code.
   an `initial_checkout` through hosted checkout and `charge_authorization` renewals against
   a stored card.
 - **The webhook receives real deliveries and processes them.** Seven `charge.success`
-  events, one of which was correctly REFUSED — a probe carrying a reference we never
+  events, one of which was correctly REFUSED, a probe carrying a reference we never
   minted, recorded as `no payment attempt matches this reference` and credited to nothing.
   That is the re-verification rule in §8 working on live traffic rather than in a test.
 - **The billing cron fires on Vercel's own schedule**, nightly at 04:01 UTC, every step
@@ -582,11 +582,11 @@ Measured against the production database, not asserted from the code.
 - A real Paystack **decline**. Test mode accepts every valid stored authorization, so the
   only decline in the ledger is a hand-written row. The dunning ladder past the first
   failure is still unexercised end to end.
-- `pnpm db:test` still cannot run — there is no psql on the build machine. `pnpm db:check`
+- `pnpm db:test` still cannot run, there is no psql on the build machine. `pnpm db:check`
   (`scripts/migrate_check.mjs`) applies all 166 migrations and then every suite to PGlite
   instead, on a fresh database per suite because sharing one connection makes the first
   failure abort every suite after it. Four non-billing suites fail there on the stand-in's
-  stubbed `digest()` — identically on a clean checkout, which is how they were attributed
+  stubbed `digest()`, identically on a clean checkout, which is how they were attributed
   to the harness rather than to the schema. `billing_subscription.sql` passes.
 - `SUPPORT_WEBHOOK_URL` is unset, so `support_delivery` skips every night. A dispute's
   48-business-hour clock currently depends on somebody opening `/admin/support`.

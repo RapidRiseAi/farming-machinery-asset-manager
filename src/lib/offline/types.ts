@@ -1,4 +1,4 @@
-// Offline mutation queue — shared types.
+// Offline mutation queue, shared types.
 //
 // A "mutation" is one field capture (a reading, a fault, a job-card line, a job
 // completion) recorded on-device while offline. It carries a client-generated
@@ -10,7 +10,7 @@ export type MutationType =
   | "report_fault"
   | "add_job_line"
   | "complete_job"
-  // The two captures made where the signal is worst — at the bowser, and beside the
+  // The two captures made where the signal is worst, at the bowser, and beside the
   // machine at first light (20260920120000). Both name a machine and are app captures by
   // a signed-in person; neither is offered on the public QR scope.
   | "log_fuel"

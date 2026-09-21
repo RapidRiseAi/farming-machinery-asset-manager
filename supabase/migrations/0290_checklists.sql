@@ -1,5 +1,5 @@
 -- 0290_checklists.sql
--- Feature F11 — Vehicle checklists + template builder (provider-spec §7).
+-- Feature F11, Vehicle checklists + template builder (provider-spec §7).
 --
 -- Mirrors RapidRiseAi/TJ-autovault's inspection template → report pattern
 -- (inspection_templates / inspection_template_fields / inspection_reports), adapted to
@@ -7,28 +7,28 @@
 -- guarantor, the append-only audit trigger, and soft-delete on every table.
 --
 -- Four tables:
---   * checklist_templates       — a named, reusable checklist. FARM-owned, or GLOBAL
---     (RR-seeded library) when farm_id is null — visibility mirrors service_templates
+--   * checklist_templates      , a named, reusable checklist. FARM-owned, or GLOBAL
+--     (RR-seeded library) when farm_id is null, visibility mirrors service_templates
 --     (0004/0101): a global row is readable by every authenticated user; a farm row is
 --     governed by app.has_farm_access.
---   * checklist_template_fields — the template's ordered fields. Field types:
+--   * checklist_template_fields, the template's ordered fields. Field types:
 --     checkbox / text / number / photo / rating / section_break. farm_id MIRRORS the
 --     parent template (null for a global template); a composite FK keeps a FARM
 --     template's fields farm-isolated.
---   * checklist_instances       — a FILLED checklist ("report") for one machine:
+--   * checklist_instances      , a FILLED checklist ("report") for one machine:
 --     pre-use inspection, service sign-off, condition report. Optionally tied to a job
---     card (and, later, a contractor work request — F12).
---   * checklist_instance_values — one row per template field at fill time (value + note +
+--     card (and, later, a contractor work request, F12).
+--   * checklist_instance_values, one row per template field at fill time (value + note +
 --     optional photo attachment). The field's label/type/order are SNAPSHOTTED so a
 --     completed checklist renders faithfully even if the template later changes.
 --
 -- Photo-type fields reuse the polymorphic `attachments` table (kind=photo,
 -- parent_type=checklist_instance) written to the farm-scoped `checklist-photos` bucket
 -- (0291). A value points at its photo through a composite FK to attachments(id, farm_id)
--- — the same-farm reference key added in 0280 — so a value can never cite another
+--, the same-farm reference key added in 0280, so a value can never cite another
 -- tenant's photo. Plain, Supabase- and local-Postgres-compatible DDL.
 
--- ── checklist_templates (farm-owned, or GLOBAL when farm_id is null) ──
+-- == checklist_templates (farm-owned, or GLOBAL when farm_id is null) ==
 create table checklist_templates (
   id           uuid primary key default gen_random_uuid(),
   farm_id      uuid references farms(id),   -- null = GLOBAL (RR-seeded library)
@@ -46,7 +46,7 @@ create table checklist_templates (
 );
 create index checklist_templates_farm_idx on checklist_templates(farm_id);
 
--- ── checklist_template_fields (ordered fields of a template) ──────
+-- == checklist_template_fields (ordered fields of a template) ======
 create table checklist_template_fields (
   id          uuid primary key default gen_random_uuid(),
   template_id uuid not null,
@@ -75,7 +75,7 @@ create table checklist_template_fields (
 create index checklist_template_fields_template_idx on checklist_template_fields(template_id);
 create index checklist_template_fields_farm_idx on checklist_template_fields(farm_id);
 
--- ── checklist_instances (a filled checklist for one machine) ──────
+-- == checklist_instances (a filled checklist for one machine) ======
 create table checklist_instances (
   id              uuid primary key default gen_random_uuid(),
   farm_id         uuid not null,
@@ -107,7 +107,7 @@ create index checklist_instances_farm_idx    on checklist_instances(farm_id);
 create index checklist_instances_machine_idx on checklist_instances(machine_id);
 create index checklist_instances_jobcard_idx on checklist_instances(job_card_id);
 
--- ── checklist_instance_values (one row per field at fill time) ────
+-- == checklist_instance_values (one row per field at fill time) ====
 create table checklist_instance_values (
   id                uuid primary key default gen_random_uuid(),
   farm_id           uuid not null,
@@ -136,12 +136,12 @@ create table checklist_instance_values (
 create index checklist_instance_values_instance_idx on checklist_instance_values(instance_id);
 create index checklist_instance_values_farm_idx     on checklist_instance_values(farm_id);
 
--- ── attachments: allow checklist photos as a parent type ──────────
+-- == attachments: allow checklist photos as a parent type ==========
 alter table attachments drop constraint attachments_parent_type_ck;
 alter table attachments add constraint attachments_parent_type_ck
   check (parent_type in ('machine','fault','job_card','job_card_line','checklist_instance'));
 
--- ── RLS: templates + fields mirror service_templates (global readable by all) ──
+-- == RLS: templates + fields mirror service_templates (global readable by all) ==
 do $do$
 declare t text;
 begin
@@ -155,7 +155,7 @@ begin
   end loop;
 end $do$;
 
--- ── RLS: instances + values are the standard farm-scoped pattern (0101) ──
+-- == RLS: instances + values are the standard farm-scoped pattern (0101) ==
 do $do$
 declare t text;
 begin
@@ -169,7 +169,7 @@ begin
   end loop;
 end $do$;
 
--- ── Grants + audit for all four tables (anon stays at ZERO — 0102 default revoke) ──
+-- == Grants + audit for all four tables (anon stays at ZERO, 0102 default revoke) ==
 do $do$
 declare t text;
 begin

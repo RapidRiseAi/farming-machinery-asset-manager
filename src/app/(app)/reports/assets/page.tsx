@@ -27,23 +27,23 @@ export const dynamic = "force-dynamic";
 /**
  * The asset register: what the fleet is worth, on a date.
  *
- * ── THE TWO PEOPLE WHO ASK FOR THIS ──────────────────────────────────────────
+ * == THE TWO PEOPLE WHO ASK FOR THIS ==========================================
  * The broker, once a year, wants a schedule of values to insure. The accountant wants
  * book values for the financials. Both answers were assembled by hand off an invoice
  * folder, and both are the same table.
  *
- * ── THE DATE IS A FIELD, NOT TODAY ───────────────────────────────────────────
+ * == THE DATE IS A FIELD, NOT TODAY ===========================================
  * Because the question is almost never about today. It is "what was this worth at the
  * year end", asked in March about the previous February. `farm_book_values` takes the
  * date, so the register is as-at whatever day is typed rather than a figure that quietly
  * drifts between asking and printing.
  *
- * ── IT SAYS WHAT IT IS NOT ───────────────────────────────────────────────────
+ * == IT SAYS WHAT IT IS NOT ===================================================
  * Not a SARS capital-allowance schedule. A farmer who hands this to their accountant
- * believing it is one has been let down by a screen that did not say so, so it says so —
+ * believing it is one has been let down by a screen that did not say so, so it says so -
  * on the page, not only in the info panel.
  *
- * ── WHO SEES IT ──────────────────────────────────────────────────────────────
+ * == WHO SEES IT ==============================================================
  * Whoever may see the purchase price, decided in the database: `farm_book_values` repeats
  * `machine_financials`' gate, so a farm that has not opened costs to its operators has not
  * opened them here either. `canViewFarmCosts` only decides whether to render words
@@ -128,7 +128,7 @@ export default async function AssetRegisterPage({
       </div>
 
       {/* The register's own to-do list. A machine with a price and no policy is carried at
-          cost, which quietly overstates the whole register — so it is counted and named
+          cost, which quietly overstates the whole register, so it is counted and named
           rather than left to be noticed. */}
       {totals.undecided > 0 ? (
         <p className="rounded-lg border border-callout-warn-edge bg-callout-warn-bg px-3.5 py-2.5 text-sm leading-relaxed text-callout-warn-ink">
@@ -192,13 +192,13 @@ export default async function AssetRegisterPage({
                         ) : null}
                       </Td>
                       <Td className="text-right tabular-nums">
-                        {r.purchase_price_cents != null ? rands(r.purchase_price_cents) : "—"}
+                        {r.purchase_price_cents != null ? rands(r.purchase_price_cents) : "-"}
                       </Td>
                       <Td className="text-right tabular-nums text-sand-600">
-                        {r.depreciated_cents != null ? rands(r.depreciated_cents) : "—"}
+                        {r.depreciated_cents != null ? rands(r.depreciated_cents) : "-"}
                       </Td>
                       <Td className="text-right font-semibold tabular-nums">
-                        {r.book_value_cents != null ? rands(r.book_value_cents) : "—"}
+                        {r.book_value_cents != null ? rands(r.book_value_cents) : "-"}
                       </Td>
                     </Tr>
                   );

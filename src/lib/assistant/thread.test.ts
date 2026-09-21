@@ -219,7 +219,7 @@ test("leaves a short run alone", () => {
 
 test("never folds an exchange that did something, or one still waiting", () => {
   // The pending entry breaks the run: it can still be confirmed, so it keeps its
-  // own line and its Review button — and the two halves are too short to fold.
+  // own line and its Review button, and the two halves are too short to fold.
   const groups = groupThread([
     collapseEntry("a", "expired"),
     collapseEntry("b", "unfinished"),

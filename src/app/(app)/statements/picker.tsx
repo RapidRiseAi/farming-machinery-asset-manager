@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
  *
  * Three plain controls rather than a filter bar: a statement has exactly one customer and
  * one window, and there is nothing to combine. Changing the customer navigates
- * immediately — that is the common move — while the dates wait for "Show", because
+ * immediately, that is the common move, while the dates wait for "Show", because
  * half-typed dates would otherwise fire a query per keystroke.
  */
 export function StatementPicker({

@@ -6,7 +6,7 @@
 -- visitor can reach either reads nothing or goes through a service-role route holding an
 -- unguessable token. There was no limit on it of any kind.
 --
--- The damage is not a breach — a pending farm has no access and no data, and the dormant
+-- The damage is not a breach, a pending farm has no access and no data, and the dormant
 -- sweep already tidies them after a week. It is:
 --
 --   * `auth.users` rows that permanently burn an email address each, because the address
@@ -17,21 +17,21 @@
 --   * and enough noise in the ledger to hide a real problem in.
 --
 -- WHY A BUCKET AND NOT A CAPTCHA
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A captcha is a third-party script on the one page that has to work for a farmer on a
 -- bad connection, and it is the wrong tool for a form whose real cost only lands when
--- somebody pays. This costs nothing to a human being — the limit is far above what one
--- person does — and turns scripted abuse into a slow trickle.
+-- somebody pays. This costs nothing to a human being, the limit is far above what one
+-- person does, and turns scripted abuse into a slow trickle.
 --
 -- It follows the shape `app.assistant_turn_buckets` already established (20260813200621),
 -- deliberately, so this codebase has one idea about rate limiting rather than two: a
 -- coarse time bucket, an upsert whose WHERE clause is the limit, and the ON CONFLICT row
 -- lock doing the serialisation. Two requests in the same instant cannot both pass, because
--- neither is reading a count and then deciding — the conditional update IS the decision.
+-- neither is reading a count and then deciding, the conditional update IS the decision.
 
 create table if not exists app.signup_attempt_buckets (
   -- Whatever the route can establish about the source. An IP from a forwarded header is
-  -- attacker-influenced and is NOT a security boundary — see the note in the route. It is
+  -- attacker-influenced and is NOT a security boundary, see the note in the route. It is
   -- a cost multiplier, which is all a limiter of this kind ever is.
   source_key   text        not null,
   bucket_start timestamptz not null,
@@ -42,8 +42,8 @@ create table if not exists app.signup_attempt_buckets (
 );
 
 comment on table app.signup_attempt_buckets is
-  'Rate-limit buckets for the anonymous /signup action. Not a security boundary — the '
-  'source key comes from a forwarded header — but it turns scripted account creation from '
+  'Rate-limit buckets for the anonymous /signup action. Not a security boundary, the '
+  'source key comes from a forwarded header, but it turns scripted account creation from '
   'free into slow. Same shape as app.assistant_turn_buckets.';
 
 create index if not exists signup_attempt_buckets_expiry_idx
@@ -97,7 +97,7 @@ begin
      set attempts   = bucket.attempts + 1,
          updated_at = now()
    -- THE LIMIT IS THIS WHERE CLAUSE. Once the stored count reaches p_limit the update
-   -- matches no row, RETURNING yields nothing, and v_count stays null — which is the
+   -- matches no row, RETURNING yields nothing, and v_count stays null, which is the
    -- refusal. Nothing reads a count and then decides, so two simultaneous requests cannot
    -- both be told yes.
    where bucket.attempts < greatest(p_limit, 1)

@@ -72,7 +72,7 @@ import {
   WarningIcon,
 } from "@/components/ui/icons";
 
-// Written by Agent 2. Imported, never re-declared — a "use server" module is the only
+// Written by Agent 2. Imported, never re-declared, a "use server" module is the only
 // place a server action may live, and duplicating one here would give the same button
 // two different implementations.
 import {
@@ -99,17 +99,17 @@ export const dynamic = "force-dynamic";
 /**
  * What FleetWise costs this farm, how it gets paid, and every bill and receipt.
  *
- * ── WHO MAY OPEN IT ──────────────────────────────────────────────────────────
+ * == WHO MAY OPEN IT ==========================================================
  * The owner and Rapid Rise, and nobody else. `requireRole` bounces everyone else to
  * their OWN home rather than to `/dashboard`, which for a driver is the owner's money
  * page. This is a route-level denial, not a hidden nav item: RLS refuses the rows too
  * (`app.is_farm_billing_admin`), so a manager typing the URL gets neither the screen nor
  * the data behind it.
  *
- * ── THE ONE THING THIS SCREEN MUST NOT DO ────────────────────────────────────
- * There is no confirmed price. `billing_price_versions` ships EMPTY on purpose — two
+ * == THE ONE THING THIS SCREEN MUST NOT DO ====================================
+ * There is no confirmed price. `billing_price_versions` ships EMPTY on purpose, two
  * documents in this repo disagree about the figures and the founder has confirmed
- * neither — so with no active price row the invoice generator raises nothing and nothing
+ * neither, so with no active price row the invoice generator raises nothing and nothing
  * can be charged.
  *
  * A screen that quietly rendered R0,00 there would be stating a price, and R0,00 is the
@@ -117,27 +117,27 @@ export const dynamic = "force-dynamic";
  * DISCRIMINATED UNION (`Estimate` in `lib/billing/view.ts`) with an explicit `unpriced`
  * case, and this page renders words for it: your plan is on, nothing is being charged, a
  * price will be confirmed, and you will be asked for a card before anything is taken.
- * The moment a price is activated the same code path renders the real figure — no edit
+ * The moment a price is activated the same code path renders the real figure, no edit
  * here, no deploy.
  *
- * ── VAT ──────────────────────────────────────────────────────────────────────
+ * == VAT ======================================================================
  * Rapid Rise is not VAT-registered, and `app.billing_force_vat_rate` pins every invoice's
  * rate to zero while that holds. So no VAT line appears and nothing is ever headed "Tax
  * invoice" (VAT Act s20(4) reserves that for a registered vendor). The arithmetic is
  * built in full behind `showsVat()`, so registering later is a flag flip that restates
  * no historical bill.
  *
- * ── THE CREDENTIAL RULE ──────────────────────────────────────────────────────
+ * == THE CREDENTIAL RULE ======================================================
  * `billing_payment_methods.authorization_code` is a Paystack charging credential and is
  * not granted to `authenticated` at the COLUMN level. `select=*` on that table returns a
- * permission error, which is intended — and would also be a 500 on a farmer's screen. So
+ * permission error, which is intended, and would also be a 500 on a farmer's screen. So
  * the columns are enumerated once in `view.ts` and spread here. Note the query does NOT
  * filter on `deleted_at` either: that column is not granted, and a WHERE clause needs
  * SELECT privilege on what it names. The RLS policy already excludes deleted rows.
  *
- * ── THE STRESSED READER ──────────────────────────────────────────────────────
+ * == THE STRESSED READER ======================================================
  * `past_due`, `grace` and `downgraded` are written as a person would say them: what
- * happened, what to do about it, and — every time, without exception — that NOTHING HAS
+ * happened, what to do about it, and, every time, without exception, that NOTHING HAS
  * BEEN DELETED. A farmer reading this screen is already worried, and a dunning notice
  * would be the wrong genre for a message whose real content is "your data is fine".
  */
@@ -148,7 +148,7 @@ export default async function BillingPage({
     error?: string;
     saved?: string;
     checkout?: string;
-    /** 'plan' | 'slots' — show the priced review of a change before it is committed. */
+    /** 'plan' | 'slots', show the priced review of a change before it is committed. */
     change?: string;
     plan?: string;
     period?: string;
@@ -166,12 +166,12 @@ export default async function BillingPage({
   const farmId = profile.role === "rr_admin" ? await currentFarmId(profile) : profile.farm_id;
 
   // Who may change what the farm pays. The same rule `requireBillingAdmin` enforces in the
-  // actions — owner, or Rapid Rise — and it is enforced THERE regardless of this. Hiding a
+  // actions, owner, or Rapid Rise, and it is enforced THERE regardless of this. Hiding a
   // control is not a guard; this only spares a manager a button that would refuse them.
   const canManage = profile.role === "owner" || profile.role === "rr_admin";
 
   // The title and the info button share a row, and the lead runs full width beneath. As a
-  // wrapping row the lead's width pushed the button onto a line of its own on every phone —
+  // wrapping row the lead's width pushed the button onto a line of its own on every phone -
   // 56px of nothing above the summary tiles, on the one screen whose answer has to fit
   // above the fold at 360px.
   const header = (
@@ -250,7 +250,7 @@ export default async function BillingPage({
       .eq("farm_id", farmId)
       .order("requested_at", { ascending: false })
       .limit(24),
-    // NEVER `*`, and never a filter on `deleted_at` — see the credential note above.
+    // NEVER `*`, and never a filter on `deleted_at`, see the credential note above.
     supabase.from("billing_payment_methods").select(PAYMENT_METHOD_COLUMNS).eq("farm_id", farmId),
   ]);
 
@@ -274,7 +274,7 @@ export default async function BillingPage({
   const commercialPlan = sub?.plan ?? farm?.plan ?? "essential";
   const period = sub?.billing_period ?? farm?.billing_period ?? "monthly";
   const price = activePrice(prices, commercialPlan, period);
-  // The QUOTA when one was bought, the counted fleet when it was not — `billedUnits`
+  // The QUOTA when one was bought, the counted fleet when it was not, `billedUnits`
   // mirrors `app.billing_billable_units`, which is what the invoice generator uses.
   // Passing `assets.billable` here showed a farm holding slots it had not filled a
   // smaller number than it was charged, and showed a farm that had just paid R0,00.
@@ -282,11 +282,11 @@ export default async function BillingPage({
   const onQuota = billsOnQuota(sub);
   const saved = savedNotice(sp.saved);
 
-  // ── The priced review of a change, before anybody commits to it ─────────────
+  // == The priced review of a change, before anybody commits to it =============
   //
   // `changeOwnPlan` and `changeVehicleSlots` used to fire straight off a dropdown: one
   // press raised a proration invoice and charged the card on file, with no figure shown
-  // and no confirmation — while every merely destructive action in this product goes
+  // and no confirmation, while every merely destructive action in this product goes
   // through `ConfirmDialog`. The two that spend the customer's money were the two that
   // did not ask.
   //
@@ -296,7 +296,7 @@ export default async function BillingPage({
   //
   // It is a GET, deliberately. The quote is recomputed from the subscription on every
   // render rather than carried in a hidden field, so a stale tab or a tampered value
-  // cannot put a price in front of somebody that the engine will not honour — and a
+  // cannot put a price in front of somebody that the engine will not honour, and a
   // review that is only ever a navigation can never itself take money.
   const wantsPlanReview =
     sp.change === "plan" &&
@@ -316,7 +316,7 @@ export default async function BillingPage({
   let slotsReview: QuotaQuote | null = null;
   if (wantsPlanReview || wantsSlotsReview) {
     // Service client: both quote functions are SECURITY DEFINER and service-role only, on
-    // purpose — a grant to `authenticated` would let any signed-in user price a change on
+    // purpose, a grant to `authenticated` would let any signed-in user price a change on
     // somebody else's subscription and learn their fleet size on the way. The role on THIS
     // farm was established by `requireRole` and `canManage` above.
     const svc = createServiceClient();
@@ -341,7 +341,7 @@ export default async function BillingPage({
   // link that means "go and buy slots" says so in the query string.
   const quoteRefused = planReview?.kind === "unavailable" || slotsReview?.kind === "unavailable";
   const manageOpen = !!sp.manage || quoteRefused;
-  // The subscription goes in because the farm may have a deal — a Founding Farmer rate,
+  // The subscription goes in because the farm may have a deal, a Founding Farmer rate,
   // or something agreed at a kitchen table. The same rule runs in the database when the
   // invoice is raised (`app.billing_discount_cents`), and `view.test.ts` pins the two
   // together: a screen and the engine disagreeing about a price is the mistake that quoted
@@ -358,8 +358,8 @@ export default async function BillingPage({
   const diverged = sub ? planDiverged(sub, farm?.plan) : false;
 
   const card = primaryCard(methods);
-  // Mirrors `app.billing_cards_expiring` exactly — same 45-day horizon, same
-  // end-of-the-printed-month reading, same silences — so the screen and the email cannot
+  // Mirrors `app.billing_cards_expiring` exactly, same 45-day horizon, same
+  // end-of-the-printed-month reading, same silences, so the screen and the email cannot
   // become two opinions. `view.test.ts` pins the arithmetic and it was compared against
   // the SQL itself over 182 (month, year) pairs.
   const expiry = cardExpiryState(card, sub, new Date().toISOString().slice(0, 10));
@@ -367,13 +367,13 @@ export default async function BillingPage({
   const offer = retryOffer(payable, attempts);
 
   // The three tiles at the top of the page. Each only CHOOSES between figures worked out
-  // above — the estimate, the retry offer, the billed units, the expiry reading — and the
+  // above, the estimate, the retry offer, the billed units, the expiry reading, and the
   // choice is tested in `view.test.ts`. Nothing here is recomputed.
   const charge = chargeSummary(sub, next, estimate, offer);
   const fleet = fleetSummary(sub, unitsBilled, assets);
   const cardTile = cardSummary(card, expiry, charge);
 
-  // The history renders twice — cards on a phone, a table from `sm:` up — from this ONE
+  // The history renders twice, cards on a phone, a table from `sm:` up, from this ONE
   // pass, so the two can never disagree about a row, its status or its documents.
   const history = invoices.map((inv) => ({
     inv,
@@ -402,8 +402,8 @@ export default async function BillingPage({
     }
   })();
 
-  // Under the first tile's figure. An outstanding bill is named rather than dated — the
-  // renewal date beside a pro-rata balance would read as that balance's due date — except
+  // Under the first tile's figure. An outstanding bill is named rather than dated, the
+  // renewal date beside a pro-rata balance would read as that balance's due date, except
   // while the account is being retried or is in grace, when the next-charge sentence IS the
   // date that matters for it.
   const chargeWhen =
@@ -435,8 +435,8 @@ export default async function BillingPage({
       {header}
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      {/* Every action here already reports WHICH of several things happened — charged now
-          or scheduled for the renewal, taken or merely being checked — and all of it used
+      {/* Every action here already reports WHICH of several things happened, charged now
+          or scheduled for the renewal, taken or merely being checked, and all of it used
           to collapse into one "Saved changes". `savedNotice` is the shared resolver, so
           the owner's screen and the admin's cannot describe the same outcome differently.
           A confirmation clears itself as a toast; anything that must stay, "checking"
@@ -485,7 +485,7 @@ export default async function BillingPage({
         <Flash tone="warning" message={t("billing.checkoutUnknown", locale)} />
       ) : null}
 
-      {/* ── "Here is what that will cost." The step that was missing. ───────── */}
+      {/* == "Here is what that will cost." The step that was missing. ========= */}
       {planReview || slotsReview ? (
         <Card className="border-callout-info-edge bg-callout-info-bg">
           <CardHeader>
@@ -494,7 +494,7 @@ export default async function BillingPage({
 
           {(() => {
             const q = planReview ?? slotsReview!;
-            // 'unavailable' is the engine declining to price it — an unsellable plan, no
+            // 'unavailable' is the engine declining to price it, an unsellable plan, no
             // active price version, a quota below the fleet. It carries its own reason and
             // must NOT be rendered as a confirmable change.
             if (q.kind === "unavailable") {
@@ -510,7 +510,7 @@ export default async function BillingPage({
                   </p>
                   {/* NEVER the raw `reason`. The quote functions explain themselves in
                       English prose from a migration, and printing that puts an
-                      untranslated Postgres string in front of an Afrikaans farmer — the
+                      untranslated Postgres string in front of an Afrikaans farmer, the
                       same mistake `errors.ts` exists to prevent everywhere else. */}
                   <p className="mt-1 text-sm leading-relaxed text-sand-800">
                     {below && slotsReview
@@ -566,7 +566,7 @@ export default async function BillingPage({
                     </>
                   )}
 
-                  {/* The number that matters most, and it is stated even when it is zero —
+                  {/* The number that matters most, and it is stated even when it is zero -
                       "nothing today" is the reassurance somebody is looking for, and an
                       absent line is not an answer. */}
                   <dt className="font-semibold text-sand-900">{t("billing.quoteNowLine", locale)}</dt>
@@ -635,9 +635,9 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
-      {/* ── The three answers, before anything else ─────────────────────────
+      {/* == The three answers, before anything else =========================
           How much and when; how full the slots are; whether the card will work. The
-          first used to sit in the footer of the third card — three scrolls of plan and
+          first used to sit in the footer of the third card, three scrolls of plan and
           vehicle admin on a phone before anybody learned it. Rendered through `Stat`, the
           same tile `/admin/billing` uses, so the two billing screens read as one product.
           The next charge spans the row on a phone: it is the question most people came
@@ -755,7 +755,7 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
-      {/* ── The plan ───────────────────────────────────────────────────────── */}
+      {/* == The plan ========================================================= */}
       <Card>
         <CardHeader>
           <CardTitle>{t("billing.planTitle", locale)}</CardTitle>
@@ -788,7 +788,7 @@ export default async function BillingPage({
           <p className="mt-3 rounded-lg bg-sand-50 px-3 py-2.5 text-sm text-sand-700">
             {/* The sentence has no {plan}/{bought} slots, so these two replaces did
                 nothing. Naming both plans here would be an improvement, but it is a copy
-                decision in two languages rather than a bug fix — the card above already
+                decision in two languages rather than a bug fix, the card above already
                 states the plan in force. */}
             {t("billing.reducedNote", locale)}
           </p>
@@ -802,7 +802,7 @@ export default async function BillingPage({
         ) : null}
       </Card>
 
-      {/* ── What is being billed for, and the rule, in words ────────────────── */}
+      {/* == What is being billed for, and the rule, in words ================== */}
       <Card>
         <CardHeader>
           <CardTitle>
@@ -856,10 +856,10 @@ export default async function BillingPage({
         )}
       </Card>
 
-      {/* ── Changing what you pay, out of the way until it is asked for ─────
+      {/* == Changing what you pay, out of the way until it is asked for =====
           Both change forms used to sit inside the cards that describe the plan and the
           fleet, so reading this page meant scrolling past two forms nobody opened it
-          for. They live behind one disclosure now — native <details>, no JavaScript —
+          for. They live behind one disclosure now, native <details>, no JavaScript -
           and the two-step is untouched: each form is still a GET to this page that
           renders the priced review above, and only the review's own button commits.
           `?manage=` opens it, which is how the vehicle-limit wall on /machines/new
@@ -974,7 +974,7 @@ export default async function BillingPage({
         </details>
       ) : null}
 
-      {/* ── The estimate. `unpriced` is today's state and is said in words. ─── */}
+      {/* == The estimate. `unpriced` is today's state and is said in words. === */}
       <Card>
         <CardHeader>
           <CardTitle>{t("billing.estimateTitle", locale)}</CardTitle>
@@ -1029,8 +1029,8 @@ export default async function BillingPage({
               ) : null}
 
               {/* The deal, named and priced. A farm on a Founding Farmer rate should be
-                  able to see it on the screen that tells them what they pay — both what it
-                  costs and what they were given — and the same line appears on the invoice
+                  able to see it on the screen that tells them what they pay, both what it
+                  costs and what they were given, and the same line appears on the invoice
                   the generator raises, from the same rule in SQL. */}
               {estimate.discountCents > 0 ? (
                 <>
@@ -1088,7 +1088,7 @@ export default async function BillingPage({
         </div>
       </Card>
 
-      {/* ── How you pay ────────────────────────────────────────────────────── */}
+      {/* == How you pay ====================================================== */}
       <Card>
         <CardHeader>
           <CardTitle>{t("billing.cardTitle", locale)}</CardTitle>
@@ -1124,8 +1124,8 @@ export default async function BillingPage({
         )}
 
         {/* What the system has known for up to 45 days and never said on a screen.
-            WARN, NEVER BLOCK: a card past its printed expiry often still works — issuers
-            reissue on the same PAN and the networks run account-updater services — so
+            WARN, NEVER BLOCK: a card past its printed expiry often still works, issuers
+            reissue on the same PAN and the networks run account-updater services, so
             nothing here stops a charge being attempted. It sits directly above the
             "Replace card" button, which is the one thing that fixes it. */}
         {expiry.kind === "soon" || expiry.kind === "expired" ? (
@@ -1185,7 +1185,7 @@ export default async function BillingPage({
               {/* `removePaymentMethod` was written, guarded and reachable by nothing, so
                   the only way to take a card off the account was to cancel the whole
                   subscription. Behind a confirm because removing the last card means the
-                  next renewal has nothing to charge — which the dialog says outright
+                  next renewal has nothing to charge, which the dialog says outright
                   rather than leaving it to be discovered on the night. */}
               <ConfirmDialog
                 action={removePaymentMethod}
@@ -1226,7 +1226,7 @@ export default async function BillingPage({
         </div>
       </Card>
 
-      {/* ── Bills and receipts ─────────────────────────────────────────────── */}
+      {/* == Bills and receipts =============================================== */}
       <Card flush>
         <div className="p-4 pb-0 sm:p-5 sm:pb-0">
           <CardTitle>{t("billing.historyTitle", locale)}</CardTitle>
@@ -1247,7 +1247,7 @@ export default async function BillingPage({
                 the kit's pattern and it works, but "did October go through" should not
                 need thumb work: reference, period, amount and status read top to bottom,
                 with the downloads at full touch size. Same rows, same order, same badges
-                and same documents as the table — both render from `history`. */}
+                and same documents as the table, both render from `history`. */}
             <ul className="divide-y divide-edge-soft border-t border-edge-soft sm:hidden">
               {history.map(({ inv, owed, paidOn, look, docs }) => (
                 <li key={inv.id} className="px-4 py-3">
@@ -1255,7 +1255,7 @@ export default async function BillingPage({
                     <div className="min-w-0">
                       <p className="font-medium text-sand-900">{inv.invoice_ref}</p>
                       <p className="text-sm text-sand-600">
-                        {shortDate(inv.period_start, locale)} – {shortDate(inv.period_end, locale)}
+                        {shortDate(inv.period_start, locale)} - {shortDate(inv.period_end, locale)}
                       </p>
                     </div>
                     <StatusBadge
@@ -1320,7 +1320,7 @@ export default async function BillingPage({
                     <Tr key={inv.id}>
                       <Td className="font-medium text-sand-900">{inv.invoice_ref}</Td>
                       <Td className="whitespace-nowrap text-sand-600">
-                        {shortDate(inv.period_start, locale)} – {shortDate(inv.period_end, locale)}
+                        {shortDate(inv.period_start, locale)} - {shortDate(inv.period_end, locale)}
                       </Td>
                       <Td className="text-right tabular-nums">{inv.asset_count}</Td>
                       <Td className="text-right tabular-nums">{rands(inv.total_incl_cents)}</Td>
@@ -1366,7 +1366,7 @@ export default async function BillingPage({
                               {t("billing.downloadInvoice", locale)}
                             </a>
                           ) : (
-                            <span className="text-sm text-sand-500">—</span>
+                            <span className="text-sm text-sand-500">-</span>
                           )}
                         </div>
                       </Td>
@@ -1379,10 +1379,10 @@ export default async function BillingPage({
         )}
       </Card>
 
-      {/* ── Changing your mind, while there is still time ───────────────────── */}
+      {/* == Changing your mind, while there is still time ===================== */}
       {/* `resumeBilling` has existed since cancellation shipped and was imported by
-          nothing, so a farm that cancelled by mistake — or changed its mind the next
-          morning — had no way back except email. The engine already allows it right up
+          nothing, so a farm that cancelled by mistake, or changed its mind the next
+          morning, had no way back except email. The engine already allows it right up
           until `billing_close_cancellations` closes the period, and this is that window
           made visible. */}
       {sub && sub.status === "non_renewing" && canManage ? (
@@ -1402,7 +1402,7 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
-      {/* ── Stopping ───────────────────────────────────────────────────────── */}
+      {/* == Stopping ========================================================= */}
       {cancellable && sub ? (
         <Card>
           <CardHeader>
@@ -1448,10 +1448,10 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
-      {/* ── Who the invoice is made out to ─────────────────────────────────── */}
+      {/* == Who the invoice is made out to =================================== */}
       {/* Every invoice snapshots the farm's billing details at issue and freezes them,
           so a blank address is blank for ever on that document. All six invoices on
-          production carry a null `bill_to_snapshot.billing_address` — the fields exist on
+          production carry a null `bill_to_snapshot.billing_address`, the fields exist on
           /settings and nothing has ever pointed a new customer at them. Shown only while
           something is actually missing, so it stops nagging the moment it is filled in. */}
       {canManage && !farm?.billing_address ? (

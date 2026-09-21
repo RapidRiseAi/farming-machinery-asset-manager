@@ -17,8 +17,8 @@ import { Flash } from "@/components/ui/flash";
  * RR console.
  *
  * The price column is DISPLAY ONLY and VAT-inclusive, matching the founder decision that
- * governs the farm-plan display next door. Nothing here charges anyone — the billing
- * adapter is still the no-op — but a console that shows the product without the price
+ * governs the farm-plan display next door. Nothing here charges anyone, the billing
+ * adapter is still the no-op, but a console that shows the product without the price
  * leaves "there is a price difference" as folklore rather than a number someone can quote
  * to a partner on the phone.
  */
@@ -71,7 +71,7 @@ export default async function AdminPartnersPage({
     WORKSHOP_PLAN_PRICE_MONTHLY[plan as keyof typeof WORKSHOP_PLAN_PRICE_MONTHLY] ?? null;
   const priceLabel = (plan: string) => {
     const p = priceOf(plan);
-    return p == null ? "—" : `${rands(p * 100)}/month`;
+    return p == null ? "-" : `${rands(p * 100)}/month`;
   };
   const priced = partners.filter((p) => priceOf(p.plan) != null);
   const indicativeMonthly = priced.reduce((sum, p) => sum + (priceOf(p.plan) ?? 0), 0);
@@ -88,7 +88,7 @@ export default async function AdminPartnersPage({
           {partners.length} partner{partners.length === 1 ? "" : "s"} · {onBooks} on Books ·{" "}
           {priced.length === 0
             ? "the ladder is not priced yet, so there is no subtotal to show."
-            : `indicative ${rands(indicativeMonthly * 100)}/month across the ${priced.length} priced (VAT incl., display only — nothing is charged).`}
+            : `indicative ${rands(indicativeMonthly * 100)}/month across the ${priced.length} priced (VAT incl., display only, nothing is charged).`}
         </p>
       </Card>
 
@@ -154,7 +154,7 @@ export default async function AdminPartnersPage({
         <CardHeader><CardTitle>What the three products are</CardTitle></CardHeader>
         <dl className="flex flex-col gap-3 text-sm">
           <div>
-            <dt className="font-medium text-sand-900">Portal — {priceLabel("portal")}</dt>
+            <dt className="font-medium text-sand-900">Portal, {priceLabel("portal")}</dt>
             <dd className="text-sand-600">
               Their customers see their fleet with the partner in it: work requests, vehicle history, their own
               letterhead, and attaching the quotes and invoices they already produce elsewhere. Their existing
@@ -162,14 +162,14 @@ export default async function AdminPartnersPage({
             </dd>
           </div>
           <div>
-            <dt className="font-medium text-sand-900">Managed — {priceLabel("managed")}</dt>
+            <dt className="font-medium text-sand-900">Managed, {priceLabel("managed")}</dt>
             <dd className="text-sand-600">
               Everything above, plus billing their customers here: quotes and invoices built line by line,
               quote-to-invoice conversion, statements of account, payments and proofs, and cross-client analytics.
             </dd>
           </div>
           <div>
-            <dt className="font-medium text-sand-900">Books — {priceLabel("books")}</dt>
+            <dt className="font-medium text-sand-900">Books, {priceLabel("books")}</dt>
             <dd className="text-sand-600">
               Everything above, plus running the business here rather than only billing from it: profit and loss,
               cash-flow forecasting, the VAT return, expenses and receipts, suppliers, purchase orders, standing
@@ -180,7 +180,7 @@ export default async function AdminPartnersPage({
         </dl>
         <p className="mt-3 text-xs text-sand-500">
           Prices are not set yet, so this console shows a dash rather than a number. Nothing here charges
-          anyone either way — the billing adapter is still the no-op.
+          anyone either way, the billing adapter is still the no-op.
         </p>
       </Card>
     </div>

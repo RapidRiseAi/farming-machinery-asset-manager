@@ -1,4 +1,4 @@
-# FleetWise as an installable app that works offline — options and a plan
+# FleetWise as an installable app that works offline, options and a plan
 
 **Date:** 19 September 2026. **Status:** research and recommendation. Nothing here is built.
 
@@ -66,10 +66,10 @@ checks, and a mechanic working a job card.
 
 | Target | How | What the user gets | Notes |
 |---|---|---|---|
-| **Android — Play Store** | Trusted Web Activity via Bubblewrap / PWABuilder → `.aab` | A real Play Store app. It runs the PWA full-screen in Chrome, with offline exactly as the PWA. | The cheapest real "app". Needs Digital Asset Links on the domain. PWABuilder packages only from its web UI and its service had outages in 2026, so use Bubblewrap from CI instead. |
-| **Windows — installer** | (a) **MSIX** via PWABuilder, through the Microsoft Store or sideloaded with App Installer. (b) **Tauri 2**, which bundles a classic **NSIS `setup.exe` wizard** or a **WiX `.msi`**, with an auto-updater plugin. | (a) A modern signed install. (b) The "Next → Next → Install" wizard asked for. | (b) is the literal wizard, but around the hosted web app it is mostly cosmetic unless paired with §3.2. Either way, buy a code-signing certificate or SmartScreen will warn every farmer. |
+| **Android, Play Store** | Trusted Web Activity via Bubblewrap / PWABuilder → `.aab` | A real Play Store app. It runs the PWA full-screen in Chrome, with offline exactly as the PWA. | The cheapest real "app". Needs Digital Asset Links on the domain. PWABuilder packages only from its web UI and its service had outages in 2026, so use Bubblewrap from CI instead. |
+| **Windows, installer** | (a) **MSIX** via PWABuilder, through the Microsoft Store or sideloaded with App Installer. (b) **Tauri 2**, which bundles a classic **NSIS `setup.exe` wizard** or a **WiX `.msi`**, with an auto-updater plugin. | (a) A modern signed install. (b) The "Next → Next → Install" wizard asked for. | (b) is the literal wizard, but around the hosted web app it is mostly cosmetic unless paired with §3.2. Either way, buy a code-signing certificate or SmartScreen will warn every farmer. |
 | **iPhone** | Safari → Add to Home Screen. Web push works for home-screen apps since iOS 16.4. | Near-app behaviour. | An App Store listing that only wraps the website risks rejection under Apple's minimum-functionality rule (4.2). Only pursue iOS native with Phase 3. |
-| **macOS** | Chrome/Safari "install", or Tauri. | — | Low demand for a farm fleet tool. |
+| **macOS** | Chrome/Safari "install", or Tauri. |, | Low demand for a farm fleet tool. |
 
 ### 3.2 Offline-first: keeping field data on the device
 
@@ -84,12 +84,12 @@ checks, and a mechanic working a job card.
 
 ## 4. Recommendation
 
-**Phase 0 — decide and measure (a few days).**
+**Phase 0, decide and measure (a few days).**
 Record the scope change. Run the audit's release-gate-2 trial on a mid-range Android and an
 iPhone to find what actually fails in the field today. Agree the exact list of field
 screens that must work offline.
 
-**Phase 1 — finish offline in the web app (≈ 2–3 weeks).**
+**Phase 1, finish offline in the web app (≈ 2-3 weeks).**
 This is where the reliability gain is, and every later phase reuses it.
 - Add `log_fuel` and `submit_checklist` (and any other field capture) to the queue.
 - Build the **field pack** (option A): a local read model of the user's machines, service
@@ -102,19 +102,19 @@ This is where the reliability gain is, and every later phase reuses it.
   keep it that way.
 - Sync status visible on every field screen, as it is for the queue today.
 
-**Phase 2 — distribution (≈ 1 week plus store review).**
+**Phase 2, distribution (≈ 1 week plus store review).**
 - **Play Store** listing via Bubblewrap (TWA), built in CI.
 - **Windows**: MSIX through the Microsoft Store. If a classic setup wizard matters to the
   buyer, use a **Tauri 2 NSIS installer** with the updater plugin instead. Either way needs
   a code-signing certificate.
 - **iPhone**: keep home-screen install, with the existing `/install` page as the guide.
 
-**Phase 3 — native field app, only if Phase 1 device tests show the browser is not enough.**
+**Phase 3, native field app, only if Phase 1 device tests show the browser is not enough.**
 Triggers: storage eviction, no reliable background sync, or camera/voice limits. Then build
 a **Capacitor** app of the field screens only, bundling the Phase-1 client and moving the
 local store to SQLite. Adopt PowerSync's Capacitor SDK at that point **only if** it has
 reached GA and its Sync Rules can be generated from, or tested against, the same visibility
-rules as RLS. Otherwise keep option A. **≈ 4–8 weeks.** It brings native push, background
+rules as RLS. Otherwise keep option A. **≈ 4-8 weeks.** It brings native push, background
 work and an App Store listing that passes review.
 
 ---

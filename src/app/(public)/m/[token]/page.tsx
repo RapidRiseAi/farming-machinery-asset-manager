@@ -33,7 +33,7 @@ type PublicMachine = {
 /**
  * Three outcomes, kept apart on purpose: a token we do not know is a different
  * message from a lookup that could not run, and a driver in a field deserves to
- * be told which — "ask the office for a new sticker" is wrong advice when the
+ * be told which, "ask the office for a new sticker" is wrong advice when the
  * database simply blinked.
  *
  * Each status is its OWN member rather than `"not_found" | "unavailable"` on one,
@@ -75,7 +75,7 @@ async function getMachine(token: string): Promise<MachineLookup> {
     }
     if (!data) return { status: "not_found" };
     // PostgREST types a to-one embed as an ARRAY even though it returns a single
-    // object at runtime, so normalise rather than casting the shape away — a
+    // object at runtime, so normalise rather than casting the shape away, a
     // double cast here would hide it if the relation ever really did return many.
     const row = data as Record<string, unknown> & { farms?: unknown };
     const farms = Array.isArray(row.farms) ? (row.farms[0] ?? null) : (row.farms ?? null);
@@ -92,7 +92,7 @@ async function getMachine(token: string): Promise<MachineLookup> {
 }
 
 /** The machine's own photo, signed through the same service client the page already
- *  uses — stickers get swapped between machines and codes get scanned from the wrong
+ *  uses, stickers get swapped between machines and codes get scanned from the wrong
  *  side of a shed, so showing what you scanned catches a wrong report in one second. */
 async function getPhotoUrl(attachmentId: string | null): Promise<string | null> {
   if (!attachmentId) return null;
@@ -123,7 +123,7 @@ export default async function PublicMachinePage({
   const { token } = await params;
   const sp = await searchParams;
   const lookup = await getMachine(token);
-  // Nobody is signed in here, so there is no `users.language` to read — the device
+  // Nobody is signed in here, so there is no `users.language` to read, the device
   // decides (cookie → Accept-Language → English). Reads a cookie and a header only:
   // the zero-anon-DB property of this route is untouched. Audit bug 2.
   const locale = await deviceLocale();
@@ -156,7 +156,7 @@ export default async function PublicMachinePage({
     /*
       This is the one screen a farm worker with no login may ever see, and the
       product's shop window on every client farm. It used to be a heading, a
-      sentence and a language toggle stretched across the full width — no logo,
+      sentence and a language toggle stretched across the full width, no logo,
       no product name, and no link anywhere, so a driver who scanned a damaged
       sticker reached an anonymous dead end and stopped.
 
@@ -189,7 +189,7 @@ export default async function PublicMachinePage({
   const photoUrl = await getPhotoUrl(machine.primary_attachment_id);
 
   // Only surface the fuel quick-action when the farm's plan unlocks fuel (the server
-  // action enforces this too — this just hides the UI on under-plan farms).
+  // action enforces this too, this just hides the UI on under-plan farms).
   const machinePlan = machine.farms?.plan;
   const fuelAllowed = !!machinePlan && isPlan(machinePlan) && planAllows(machinePlan, "fuel");
   const metered = machine.meter_type !== "none";
@@ -226,7 +226,7 @@ export default async function PublicMachinePage({
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-5 bg-sand-50 p-5">
       <header className="flex items-center justify-between gap-2.5">
         <span className="flex items-center gap-2.5">
-          {/* The app's own icon, not a tractor emoji — that rendered differently on
+          {/* The app's own icon, not a tractor emoji, that rendered differently on
               every Android in the district and was read aloud as "tractor". */}
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white" aria-hidden>
             <MachinesIcon />
@@ -253,9 +253,9 @@ export default async function PublicMachinePage({
         </p>
       ) : null}
 
-      {/* What you scanned — photo first, so a wrong sticker is caught immediately. */}
+      {/* What you scanned, photo first, so a wrong sticker is caught immediately. */}
       <section className="flex items-center gap-3.5 rounded-2xl border border-sand-200 bg-surface p-3.5 shadow-card">
-        {/* Leads the page so a wrong sticker is caught instantly — eager for
+        {/* Leads the page so a wrong sticker is caught instantly, eager for
             that reason. */}
         <Photo
           src={photoUrl}
@@ -289,7 +289,7 @@ export default async function PublicMachinePage({
           reading: metered ? (
             <OfflineForm action={submitReading} type="log_reading" scope="public" locale={locale} className="flex flex-col gap-4">
               <input type="hidden" name="token" value={token} />
-              {/* Every field has a real label that stays put — there was not one
+              {/* Every field has a real label that stays put, there was not one
                   `<label>` on this page, and a placeholder disappears the moment you
                   start typing. */}
               <Field label={t("qr.newReadingLabel", locale)} htmlFor="qr-reading" hint={unitHint} required>
@@ -345,7 +345,7 @@ export default async function PublicMachinePage({
               </Field>
               <Field label={t("qr.fuelActivityLabel", locale)} htmlFor="qr-activity">
                 <Select id="qr-activity" name="activity" defaultValue="">
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {FUEL_ACTIVITIES.map((a) => (
                     <option key={a} value={a}>{activityLabel(a, locale)}</option>
                   ))}

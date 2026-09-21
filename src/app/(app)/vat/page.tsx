@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  *
  * This is the screen whose absence most directly sent a partner back to a spreadsheet.
  * Every invoice they raise here carries VAT, and until now there was no way to total it
- * for a period — so twice a year they exported everything and rebuilt the numbers
+ * for a period, so twice a year they exported everything and rebuilt the numbers
  * somewhere else, and once the numbers live somewhere else, so do the books.
  *
  * Two things it insists on, because both are how small businesses get this wrong:
@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
  *      two-month cycles and which two months depends on the category they registered
  *      under. A return built over the wrong pair double-counts one month and omits
  *      another, and nothing about the resulting number looks wrong.
- *   2. It is on the INVOICE basis — the VAT is declared when the invoice was issued, not
+ *   2. It is on the INVOICE basis, the VAT is declared when the invoice was issued, not
  *      when the customer paid. The page says so in words, next to the figure, because a
  *      partner who assumes otherwise under-declares and finds out two years later.
  */
@@ -113,7 +113,7 @@ export default async function VatPage({
   }[];
 
   // How much of the input VAT in this return has no supplier tax invoice behind it. The
-  // figure is still claimed — the founder's call was to warn, not block — but this is the
+  // figure is still claimed, the founder's call was to warn, not block, but this is the
   // part an auditor would disallow, so the return says so before it is filed.
   const unsupportedVat = expenses.filter(claimNeedsProof).reduce((s, e) => s + e.vat_cents, 0);
 
@@ -161,7 +161,7 @@ export default async function VatPage({
                     aria-current={active ? "true" : undefined}
                     className={buttonVariants({ variant: active ? "primary" : "secondary", size: "sm" })}
                   >
-                    {shortDate(p.from, locale)} – {shortDate(p.to, locale)}
+                    {shortDate(p.from, locale)} - {shortDate(p.to, locale)}
                     {isOpen ? ` · ${t("vat.periodOpen", locale)}` : ""}
                   </Link>
                 );

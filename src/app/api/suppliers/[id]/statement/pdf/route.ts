@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * supplier id belonging to another partner reads back no supplier row at all, and this
  * answers 404 rather than an empty statement carrying this partner's letterhead.
  *
- * The entitlement check answers 403 rather than redirecting — a 302 to HTML would hand the
+ * The entitlement check answers 403 rather than redirecting, a 302 to HTML would hand the
  * caller a "PDF" full of markup (the F5 rule, restated by 0492).
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -11,8 +11,8 @@ import { CADENCES, type Cadence } from "@/lib/recurring";
 /**
  * Standing invoices (G8).
  *
- * The recipient is resolved the same way a document's is — a farm the partner is actually
- * linked to, a client from their own book, or a typed name — and re-derived from the
+ * The recipient is resolved the same way a document's is, a farm the partner is actually
+ * linked to, a client from their own book, or a typed name, and re-derived from the
  * database rather than trusted from the form, so a schedule cannot be pointed at a farm
  * the partner has no relationship with.
  */
@@ -190,7 +190,7 @@ export async function updateSchedule(formData: FormData) {
   const { error } = await supabase
     .from("recurring_invoices")
     .update({
-      name: s(formData, "name") ?? "—",
+      name: s(formData, "name") ?? "-",
       subject: s(formData, "subject"),
       notes: s(formData, "notes"),
       cadence: cadence(formData),
@@ -208,7 +208,7 @@ export async function updateSchedule(formData: FormData) {
 /**
  * Raise this schedule's next invoice now, rather than waiting for the night.
  *
- * `run_recurring_invoice` checks ownership itself — the generator underneath is SECURITY
+ * `run_recurring_invoice` checks ownership itself, the generator underneath is SECURITY
  * DEFINER and would otherwise honour any id handed to it. It is also the same code path
  * the cron uses, including the same "already done this period" guard, so pressing it
  * twice cannot produce two invoices.

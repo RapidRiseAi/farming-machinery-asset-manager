@@ -3,7 +3,7 @@
  *
  * Several server actions take a `back` field from the submitted form and redirect to it
  * (`redirect(`${back}?error=…`)`). A form field is attacker-influenced, and Next's
- * `redirect()` will happily send the browser to an absolute URL — so an unvalidated
+ * `redirect()` will happily send the browser to an absolute URL, so an unvalidated
  * `back` is an open redirect wearing a convenience feature's clothes.
  *
  * The rules are deliberately strict rather than clever: one leading slash, nothing that

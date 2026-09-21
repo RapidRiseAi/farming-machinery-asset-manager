@@ -1,4 +1,4 @@
-# Self-serve sign-up and quota billing — the plan
+# Self-serve sign-up and quota billing, the plan
 
 **Status: PLANNED, not built.** Nothing in this document is implemented. It exists so the
 decisions are recorded before code is written, and so the next person can see why the
@@ -31,7 +31,7 @@ row, not a junk account.
 
 Steps 4 and 5 are **already built and proven in production** (8 September 2026): hosted
 checkout, signed webhook, ledger, stored card, branded receipt PDF, and the automatic
-renewal a month later. Steps 1–3 do not exist; step 3 exists only as an administrator
+renewal a month later. Steps 1-3 do not exist; step 3 exists only as an administrator
 creating a farm on someone's behalf.
 
 ## 2. The order of operations, and why it is not negotiable
@@ -39,16 +39,16 @@ creating a farm on someone's behalf.
 **The account is created BEFORE the payment, in a `pending` state with no access.**
 
 ```
-create farm + owner + subscription   (pending — no access, no data)
+create farm + owner + subscription   (pending, no access, no data)
         ↓
 raise the invoice
         ↓
-Paystack hosted checkout  ────────►  signed webhook confirms
+Paystack hosted checkout  ========►  signed webhook confirms
         ↓
-flip to active — access opens, receipt sends
+flip to active, access opens, receipt sends
 ```
 
-The tempting alternative — take the money, then create the farm on success — is wrong.
+The tempting alternative, take the money, then create the farm on success, is wrong.
 Any failure between Paystack saying "paid" and the database writing the farm leaves
 **money taken with nothing to attach it to**, and no row to reconcile against. An
 abandoned sign-up leaves a pending farm nobody can log into, which is tidy-up-able; a
@@ -64,7 +64,7 @@ Today `app.billable_asset_count` COUNTS machines that are not deleted, retired o
 and the invoice is that number × the per-vehicle price. Add a bakkie in March and March's
 invoice is R73 bigger. Nobody chooses anything.
 
-Under the new model the subscription carries an `asset_quota` — the number bought — and
+Under the new model the subscription carries an `asset_quota`, the number bought, and
 **that** is what is billed. The counted number does not disappear; it becomes the "you are
 using 7 of 10" figure on `/billing`, and the thing the ceiling is checked against.
 
@@ -93,14 +93,14 @@ Two things about that list:
 - **The check is server-side, in the action.** Not in the UI. A server action is an
   endpoint; hiding a button is not enforcement. This is the same rule F7 exists to uphold.
 - **The third path is a contractor**, not the farm. If the farm is at its ceiling, the
-  contractor's sync must be refused too — and the message has to make sense to someone who
+  contractor's sync must be refused too, and the message has to make sense to someone who
   is not the one paying ("Rooikoppies is at its vehicle limit; ask them to add slots"),
   not "upgrade your plan".
 
 **CSV import must be all-or-nothing.** Importing 50 rows into 10 free slots should be
 refused before a single row is written, naming the shortfall. A partial import that
 silently stops at the limit leaves the farmer believing their fleet is loaded when it is
-not — worse than a clean refusal.
+not, worse than a clean refusal.
 
 **Still to verify at build time:** whether `/api/v1/[resource]` can POST a machine. The
 offline `/api/sync` route only READS machines (meter and fault capture), so it is not a
@@ -139,14 +139,14 @@ nothing in this product deletes a farmer's records to make a billing change work
 what to retire first.
 
 **They retire or sell a vehicle.** It stops counting against the ceiling (retired and sold
-are already excluded everywhere), but the quota — and the bill — do not change until they
+are already excluded everywhere), but the quota, and the bill, do not change until they
 say so. That is the deal with a quota, and `/billing` should say it plainly.
 
 **They add slots mid-period.** Charge the difference immediately, or let it land on the
 next invoice? Not decided. Proration is the one piece of this that is genuinely fiddly and
-it can ship in a second pass — start by taking the new quota from the next period.
+it can ship in a second pass, start by taking the new quota from the next period.
 
-**Dormant pending farms.** Harmless (no access, no data), but they should be swept — a
+**Dormant pending farms.** Harmless (no access, no data), but they should be swept, a
 nightly job soft-deleting pending subscriptions older than, say, seven days, along with
 their farm and auth user, so an abandoned email can be reused cleanly.
 
@@ -161,7 +161,7 @@ their farm and auth user, so an abandoned email can be reused cleanly.
 
 ## 8. Build order
 
-1. `billing_subscriptions.asset_quota` + the `pending` status, and the access gate — with
+1. `billing_subscriptions.asset_quota` + the `pending` status, and the access gate, with
    the grandfathering rule above proven by an assertion before anything else lands.
 2. Ceiling enforcement on all three creation paths, server-side, with the isolation suite
    asserting each one refuses.

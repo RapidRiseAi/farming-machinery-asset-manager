@@ -1,5 +1,5 @@
 -- 0210_cost_entries.sql
--- Cost & True-Cost-of-Ownership (TCO) spine — feature F1 (FR-10.1/10.2/10.3, FR-8.4).
+-- Cost & True-Cost-of-Ownership (TCO) spine, feature F1 (FR-10.1/10.2/10.3, FR-8.4).
 --
 -- `cost_entries` is the single unified ledger of every cost that contributes to an
 -- asset's (or the farm's) total cost of ownership: the purchase price, finance
@@ -37,7 +37,7 @@ create index cost_entries_farm_idx    on cost_entries(farm_id);
 create index cost_entries_machine_idx on cost_entries(machine_id, occurred_on);
 create index cost_entries_source_idx  on cost_entries(source_type, source_id);
 
--- ── Machine finance details (FR-3.2) ─────────────────────────────
+-- == Machine finance details (FR-3.2) =============================
 -- Captured for display + to derive a finance-interest cost entry (0211). Money in
 -- integer cents, ex-VAT; interest rate in basis points.
 alter table machines
@@ -47,7 +47,7 @@ alter table machines
   add column finance_term_months   int,
   add column finance_interest_bps  int;      -- annual interest rate, basis points
 
--- ── RLS + grants (mirror the standard farm-scoped pattern, 0101/0102) ──
+-- == RLS + grants (mirror the standard farm-scoped pattern, 0101/0102) ==
 alter table cost_entries enable row level security;
 alter table cost_entries force  row level security;
 create policy cost_entries_sel on cost_entries for select to authenticated
@@ -63,7 +63,7 @@ grant select, insert, update, delete on cost_entries to authenticated;
 grant all on cost_entries to service_role;
 -- anon gets ZERO access (default privileges in 0102 revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ────────────────────────
+-- == Audit (append-only history, per 0008) ========================
 create trigger cost_entries_audit
   after insert or update or delete on cost_entries
   for each row execute function app_audit();

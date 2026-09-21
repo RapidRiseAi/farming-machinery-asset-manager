@@ -22,14 +22,14 @@ import { publicDocumentUrl, siteUrl } from "@/lib/public-url";
 export const dynamic = "force-dynamic";
 
 /**
- * The document as the customer sees it, from a link in an email — no account, no app.
+ * The document as the customer sees it, from a link in an email, no account, no app.
  *
  * Zero anon database access, exactly like the public QR page: the token is resolved by a
  * SERVICE-role read on the server, and the browser never speaks to Postgres. The token is
  * the only credential and it grants exactly this one document.
  *
  * The page leads with the decision, because that is why they opened the link. Everything
- * else — the items, the totals, how to pay — is underneath it, and the PDF is one tap away
+ * else, the items, the totals, how to pay, is underneath it, and the PDF is one tap away
  * for the person who wants to file it.
  */
 export default async function PublicDocumentPage({
@@ -62,12 +62,12 @@ export default async function PublicDocumentPage({
   const ink = onBrand(accent);
 
   // The layout the partner chose, resolved from the letterhead FROZEN onto the document at
-  // send time — the same source `brandingOf` above reads, so this page cannot restate an
+  // send time, the same source `brandingOf` above reads, so this page cannot restate an
   // old document in a new style.
   //
   // This page used to call `documentLabel(kind)` and hardcode the accent band, which meant
   // the one surface the PAYING CUSTOMER reads was the only one ignoring the partner's own
-  // wording, their chosen template, and — the part that actually matters — the fact that a
+  // wording, their chosen template, and, the part that actually matters, the fact that a
   // VAT-registered partner's invoice must be headed "Tax invoice" (VAT Act s20(4)). The
   // signed-in page and the PDF have both honoured it since 0434; only this one did not.
   const layout = resolveLayout(brand.doc_layout);
@@ -98,7 +98,7 @@ export default async function PublicDocumentPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 pb-16">
-      {/* The partner's letterhead — the customer is doing business with them, not with us. */}
+      {/* The partner's letterhead, the customer is doing business with them, not with us. */}
       <header
         className={
           layout.accent_style === "band"
@@ -179,7 +179,7 @@ export default async function PublicDocumentPage({
         </div>
       </section>
 
-      {/* The decision, first — it is why they opened the link. */}
+      {/* The decision, first, it is why they opened the link. */}
       {open && !voided ? (
         <section className="rounded-xl border border-sand-200 bg-surface p-5">
           <h2 className="text-lg font-semibold text-sand-900">{t("pubDoc.decide", locale)}</h2>
@@ -214,7 +214,7 @@ export default async function PublicDocumentPage({
 
           {/* Pay it now, if the partner has online payment switched on. First, because a
               customer who is already looking at the bill is the most likely they will
-              ever be to pay it — the bank details below are for everyone else. */}
+              ever be to pay it, the bank details below are for everyone else. */}
           {checkout ? (
             <form action={checkout.action} method="post" className="mt-3">
               {checkout.fields.map(([k, v]) => (

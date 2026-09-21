@@ -1,16 +1,16 @@
 -- 0392_contractor_cards_and_request_target.sql
 -- Two corrections from review of F15, both real.
 --
--- ── 1. A CONTRACTOR COULD READ ITS COMPETITORS' CARDS ────────────────────────
+-- == 1. A CONTRACTOR COULD READ ITS COMPETITORS' CARDS ========================
 --
 -- 0391 widened `workshops_sel` to let a farm see a contractor with a PENDING link, so a
 -- connection request would stop rendering as a nameless row. The clause it widened is
--- guarded by `app.has_farm_access(wl.farm_id)` — and that helper deliberately returns
+-- guarded by `app.has_farm_access(wl.farm_id)`, and that helper deliberately returns
 -- true for a WORKSHOP holding an active link to the farm (0340), because that is how a
 -- contractor reaches the farms it serves.
 --
 -- The consequence: any contractor already working for a farm could read the name, trade,
--- area, phone and email of every OTHER contractor linked to that same farm — including
+-- area, phone and email of every OTHER contractor linked to that same farm, including
 -- one that had merely asked. My own migration comment claimed the card was disclosed "to
 -- the one farm they asked", which was simply not true as written.
 --
@@ -52,13 +52,13 @@ create policy workshops_sel on workshops for select to authenticated
     )
   );
 
--- ── 2. AN APPROVAL BOUND THE WRONG CLIENT (OR NONE) ──────────────────────────
+-- == 2. AN APPROVAL BOUND THE WRONG CLIENT (OR NONE) ==========================
 --
 -- `approveLinkRequest` had no way to know WHICH client record the request came from, so
 -- it updated every unbound `requested` row for that workshop and set them all to the
 -- approving farm. With two outstanding requests that violates the
--- `(workshop_id, farm_id)` unique index, so the whole statement fails — after the link
--- has already gone active — and the error was swallowed, leaving the UI reporting success
+-- `(workshop_id, farm_id)` unique index, so the whole statement fails, after the link
+-- has already gone active, and the error was swallowed, leaving the UI reporting success
 -- with nothing bound. With one outstanding request it could still bind the wrong record.
 --
 -- Remember which farm each request was aimed at, and approval can bind exactly that row.

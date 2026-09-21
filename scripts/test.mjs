@@ -15,7 +15,7 @@ const files = tests("src").sort();
 if (!files.length) throw new Error("No tests found");
 
 // `server-only` is a build-time marker Next resolves through its own bundler alias, so a
-// plain node process cannot load ANY module that imports it — 24 of them under src/,
+// plain node process cannot load ANY module that imports it, 24 of them under src/,
 // including every billing, email and PDF module of consequence. The shim makes the marker
 // resolvable in this process only; it is deliberately not a stub in node_modules, which
 // would disarm the guard for the real build too. See scripts/server-only-shim.mjs.

@@ -19,7 +19,7 @@
 --   * status = 'quoted'   → a contractor quote the owner has not yet accepted/declined;
 --   * status = 'invoiced' → a contractor invoice the owner has not yet closed off.
 -- Once the owner accepts (→ accepted / in_progress …) or closes the request, the status
--- leaves that set and reminders stop automatically — no per-row dedupe column needed.
+-- leaves that set and reminders stop automatically, no per-row dedupe column needed.
 --
 -- Dedupe is read from the notification queue itself (the stale-meter idiom): at most one
 -- reminder per request per 7 days, so it re-fires weekly while still outstanding but
@@ -80,11 +80,11 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the app.* engine (0205 pattern) ─────────────────────
+-- == Lock down the app.* engine (0205 pattern) =====================
 revoke execute on function app.enqueue_work_request_reminders() from public, anon, authenticated;
 grant  execute on function app.enqueue_work_request_reminders() to service_role;
 
--- ── PostgREST-callable cron wrapper ───────────────────────────────
+-- == PostgREST-callable cron wrapper ===============================
 create or replace function public.cron_enqueue_work_request_reminders() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin perform app.enqueue_work_request_reminders(); end $$;

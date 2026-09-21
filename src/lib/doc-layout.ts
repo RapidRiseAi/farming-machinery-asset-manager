@@ -7,7 +7,7 @@ import type { DocKind } from "@/lib/partner-docs";
  * A closed set of choices rather than a designer, because the differences that actually
  * matter between one workshop's invoice and another's are always the same few: what the
  * document is CALLED, which blocks appear, and how dense it is. Every value here has to
- * be honoured identically by the screen and the PDF — anything only one of them could
+ * be honoured identically by the screen and the PDF, anything only one of them could
  * render would be a promise the other quietly breaks.
  *
  * `resolveLayout` is the only place defaults live, so a partner who has never opened the
@@ -137,7 +137,7 @@ export function documentTitle(
   }
 }
 
-/** Tailwind padding for a table cell at this density — one place, both tables. */
+/** Tailwind padding for a table cell at this density, one place, both tables. */
 export function cellPadding(density: Density): string {
   return density === "compact" ? "px-3 py-1" : "px-4 py-2";
 }

@@ -8,7 +8,7 @@ import { captureError } from "@/lib/observability";
 /**
  * Where Paystack returns the customer after a hosted checkout.
  *
- * ── This route is INFORMATIONAL. It grants nothing and marks nothing paid. ────
+ * == This route is INFORMATIONAL. It grants nothing and marks nothing paid. ====
  * That is the whole design, and it is not caution for its own sake: the customer's
  * browser is the one place in this flow an attacker fully controls. Anyone can open
  * `/api/billing/callback?reference=…` with any string in it, from any tab, at any time.
@@ -19,7 +19,7 @@ import { captureError } from "@/lib/observability";
  * the webhook (signature-checked, then re-verified), and the nightly reconciler
  * (verifying our own reference). This route only reads what happened so the page it
  * redirects to can say something true, and it only asks about a reference WE minted for a
- * farm THIS person can administer — otherwise the endpoint would be a free oracle for
+ * farm THIS person can administer, otherwise the endpoint would be a free oracle for
  * "does this Paystack reference exist and what is it worth", answered on our secret key.
  *
  * The redirect target is fixed (`/billing`) and built from `NEXT_PUBLIC_SITE_URL`. Nothing
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     const role = await effectiveFarmRole(attempt.farm_id, profile);
     if (role !== "owner" && role !== "rr_admin") return back(request, "unknown");
 
-    // Already settled by the webhook, which is the normal case — Paystack's event usually
+    // Already settled by the webhook, which is the normal case, Paystack's event usually
     // beats the browser back. Report what we hold rather than making another API call.
     if (attempt.status === "succeeded") return back(request, "paid");
     if (attempt.status === "failed") return back(request, "failed");
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 
     switch (verified.transaction.status) {
       case "success":
-        // Read as "Paystack says it went through" — NOT as "we have credited it". The
+        // Read as "Paystack says it went through", NOT as "we have credited it". The
         // page says the receipt is on its way; the webhook or the reconciler is what
         // actually moves the invoice, and this route stays out of it deliberately.
         return back(request, "paid");

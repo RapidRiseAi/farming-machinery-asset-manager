@@ -3,7 +3,7 @@
 --
 -- AutoVault carries both (`invoice_adjustments.note_type` is 'credit' or 'debit'); we
 -- shipped only the credit half, so overcharging had an answer and undercharging had none
--- — a partner who left a part off an invoice could either edit it (which 0412 refused) or
+--, a partner who left a part off an invoice could either edit it (which 0412 refused) or
 -- raise a second invoice that looks unrelated on the customer's statement.
 --
 -- A debit note is a credit note with the sign flipped, everywhere: its own number series,
@@ -16,7 +16,7 @@ alter table workshops
   add column next_debit_no    int  not null default 1;
 
 comment on column workshops.doc_prefix_debit is
-  'Numbering prefix for debit notes — its own series, like the credit notes in 0415.';
+  'Numbering prefix for debit notes, its own series, like the credit notes in 0415.';
 
 update workshops w set next_debit_no = greatest(
   w.next_debit_no,
@@ -27,7 +27,7 @@ update workshops w set next_debit_no = greatest(
   ), 1)
 );
 
--- ── Numbering ────────────────────────────────────────────────────────────────
+-- == Numbering ================================================================
 create or replace function app.next_document_number(p_workshop uuid, p_kind text)
 returns text
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -41,7 +41,7 @@ begin
   loop
     v_guard := v_guard + 1;
     if v_guard > 10000 then
-      raise exception 'could not allocate a % number for workshop % — the sequence looks corrupt', p_kind, p_workshop;
+      raise exception 'could not allocate a % number for workshop %, the sequence looks corrupt', p_kind, p_workshop;
     end if;
 
     if p_kind = 'quote' then
@@ -89,14 +89,14 @@ end $$;
 revoke execute on function public.next_document_number(uuid, text) from public, anon;
 grant  execute on function public.next_document_number(uuid, text) to authenticated;
 
--- ── Both notes must name what they adjust ────────────────────────────────────
+-- == Both notes must name what they adjust ====================================
 alter table partner_documents drop constraint partner_documents_credit_ck;
 alter table partner_documents
   add constraint partner_documents_note_ck check (
     kind not in ('credit_note', 'debit_note') or corrects_document_id is not null
   );
 
--- ── The ledger: credit subtracts, debit adds ─────────────────────────────────
+-- == The ledger: credit subtracts, debit adds =================================
 create or replace function app_cost_from_partner_document() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_net bigint; v_live boolean; v_sign int;
@@ -140,7 +140,7 @@ begin
   return null;
 end $$;
 
--- ── The cap applies to credits only ──────────────────────────────────────────
+-- == The cap applies to credits only ==========================================
 -- Crediting more than the invoice hands the customer a negative balance nothing explains.
 -- DEBITING more is merely unusual (a badly under-quoted job), so it is allowed.
 create or replace function app_partner_credit_within_invoice() returns trigger
@@ -165,7 +165,7 @@ begin
   return new;
 end $$;
 
--- ── The statement: a debit note is a debit ───────────────────────────────────
+-- == The statement: a debit note is a debit ===================================
 create or replace function app.partner_statement(
   p_workshop uuid, p_farm uuid, p_client uuid, p_from date, p_to date
 ) returns table (
@@ -232,7 +232,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 1, 2;
 $$;
 
--- ── The ageing: a debit note ages with the invoice it belongs to ─────────────
+-- == The ageing: a debit note ages with the invoice it belongs to =============
 create or replace function app.partner_ageing(
   p_workshop uuid, p_farm uuid, p_client uuid, p_as_at date default current_date
 ) returns table (
@@ -276,7 +276,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   from outstanding;
 $$;
 
--- ── The chase skips both notes ───────────────────────────────────────────────
+-- == The chase skips both notes ===============================================
 -- Neither note is an outstanding item of its own: a credit note owes nothing, and a debit
 -- note is chased through the invoice it belongs to, which the ageing above now includes.
 create or replace function app.enqueue_document_reminders() returns void

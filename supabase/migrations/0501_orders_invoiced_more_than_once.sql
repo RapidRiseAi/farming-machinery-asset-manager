@@ -13,39 +13,39 @@
 -- captures the second with no link to the order, which silently breaks the commitment
 -- figure the cash-flow forecast reads.
 --
--- ── What still must not happen ───────────────────────────────────────────────
+-- == What still must not happen ===============================================
 --
 -- The no-double-count rule is unchanged and is what the index was protecting. It survives
 -- because of WHERE the cost lives, not because of the index: a purchase order books
--- NOTHING (0473/0474 contain no path to cost_entries or partner_expenses at all — verified
+-- NOTHING (0473/0474 contain no path to cost_entries or partner_expenses at all, verified
 -- by reading, not by trusting), and each supplier invoice books its own cost exactly once
 -- as an ordinary `partner_expenses` row. Two invoices against one order are therefore two
 -- costs because two real bills arrived, which is correct. G24 asserts this against a ledger
 -- snapshot taken before the order exists, because the direction that catches a double-count
 -- is the one proving the cost is NOT there yet.
 --
--- ── Over-invoicing is flagged, never refused ─────────────────────────────────
+-- == Over-invoicing is flagged, never refused =================================
 --
 -- The same call `app.quote_billing` made for progress billing, and for the same reason:
--- jobs grow. A supplier may legitimately bill more than the order said — a price rose, an
+-- jobs grow. A supplier may legitimately bill more than the order said, a price rose, an
 -- extra part went in, freight was added. Refusing the capture would leave the partner
 -- unable to record a bill they have actually received, which is worse than showing them a
 -- number that does not match.
 --
--- ── The index is MOVED, not removed ──────────────────────────────────────────
+-- == The index is MOVED, not removed ==========================================
 --
 -- 0475's index was doing a second job that matters and must not be lost. Its own comment
 -- said it: "two people in the office capturing the same invoice, a double-submitted form and
 -- a retried request are all this same race, and it is refused by a unique index rather than
 -- by a read-then-write in application code." Simply dropping it would let a double-submit
--- create two identical expenses — a real double-count, of exactly the kind this codebase
+-- create two identical expenses, a real double-count, of exactly the kind this codebase
 -- refuses to leave to application logic. The isolation suite caught this: G16 asserted the
 -- old invariant and failed, which is the suite doing its job.
 --
 -- So uniqueness moves to the NATURAL key of a purchase: the supplier's own invoice number.
 -- Two DIFFERENT bills against one order are then fine, while the SAME bill twice is refused
 -- by the database. Supplier is part of the key because two suppliers may both number an
--- invoice "INV-001"; it is resolved the way 0482 groups creditors — by the linked record
+-- invoice "INV-001"; it is resolved the way 0482 groups creditors, by the linked record
 -- where there is one, and by the trimmed lower-cased name where there is not.
 --
 -- A bill with NO number (a till slip) gets no protection, and that is deliberate rather than
@@ -79,7 +79,7 @@ comment on column partner_expenses.purchase_order_id is
   'order itself books no cost - each expense books its own, exactly once - so several '
   'invoices against one order are several costs because several bills arrived.';
 
--- ── How much of an order has actually been invoiced ──────────────────────────
+-- == How much of an order has actually been invoiced ==========================
 -- Mirrors `app.quote_billing`'s shape so the two read the same way: what was committed,
 -- what has been billed against it, what is left, and whether it has gone over.
 create or replace function app.purchase_order_invoiced(p_order uuid)
@@ -135,7 +135,7 @@ revoke execute on function public.purchase_order_invoiced(uuid) from public, ano
 grant execute on function app.purchase_order_invoiced(uuid)    to authenticated, service_role;
 grant execute on function public.purchase_order_invoiced(uuid) to authenticated, service_role;
 
--- ── The forecast now carries what is still UNBILLED, not all-or-nothing ─────
+-- == The forecast now carries what is still UNBILLED, not all-or-nothing =====
 --
 -- 0486 dropped a purchase order from the cash-flow forecast the moment any expense linked
 -- to it, because under 0475 only one ever could. With part-invoicing allowed that would

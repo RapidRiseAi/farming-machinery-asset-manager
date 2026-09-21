@@ -1,5 +1,5 @@
 -- 20260903160200_saas_billing_engine.sql
--- FleetWise SaaS subscription billing — the engine.
+-- FleetWise SaaS subscription billing, the engine.
 --
 -- Counting, invoicing, claiming a charge, settling it, and chasing a farm that has not
 -- paid. Follows the 0205 engine pattern used by every other scheduled job in this
@@ -7,21 +7,21 @@
 -- public/anon/authenticated, and a thin `public.cron_*` wrapper the nightly route calls.
 --
 -- WHY THE NETWORK CALL IS NOT IN HERE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Nothing in this file talks to Paystack. Charging is split deliberately into three
 -- short database transactions with the HTTP request BETWEEN them:
 --
---     1. claim   — mint a reference and take the lock          (fast, transactional)
---     2. charge  — POST to Paystack                            (slow, no transaction)
---     3. settle  — record what happened                        (fast, transactional)
+--     1. claim  , mint a reference and take the lock          (fast, transactional)
+--     2. charge , POST to Paystack                            (slow, no transaction)
+--     3. settle , record what happened                        (fast, transactional)
 --
 -- Holding a transaction open across a payment API call is how a connection pool dies at
 -- 03:00 and how a row stays locked long after the process that locked it has gone. It
--- also means a timeout in step 2 leaves a durable, visible `pending`/`unknown` row —
+-- also means a timeout in step 2 leaves a durable, visible `pending`/`unknown` row -
 -- which is precisely what makes recovery possible instead of guesswork.
 --
 -- THE DOUBLE-CHARGE PROBLEM, AND HOW IT IS ACTUALLY PREVENTED
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Not by "checking first". Two workers both check, both see nothing in flight, and both
 -- charge. It is prevented by a UNIQUE INDEX
 -- (`billing_payment_attempts_inflight_uq`, migration ...160100): at most one attempt per
@@ -36,7 +36,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- What is billable
 -- ══════════════════════════════════════════════════════════════════════════════
--- Non-deleted machines, excluding `retired` and `sold`. `out_of_service` STILL COUNTS —
+-- Non-deleted machines, excluding `retired` and `sold`. `out_of_service` STILL COUNTS -
 -- a broken tractor is still a tractor on the system, still holding its history, still
 -- costing us to host.
 --
@@ -144,7 +144,7 @@ grant  execute on function app.billing_active_price(farm_plan, billing_period) t
 -- Skipped, with the reason recorded in the return count rather than raised: a farm with
 -- no active price, a bespoke (price-on-application) plan, zero billable vehicles, a
 -- cancelled subscription, or a farm still inside its trial. A zero-rand invoice is not a
--- kindness — Paystack will not process a zero charge, and it would sit "open" forever.
+-- kindness, Paystack will not process a zero charge, and it would sit "open" forever.
 create or replace function app.generate_billing_invoices(p_only uuid default null)
 returns integer
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -212,7 +212,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -254,7 +254,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,
@@ -298,7 +298,7 @@ revoke execute on function app.generate_billing_invoices(uuid) from public, anon
 
 -- Moving a billing date on by one period, with the anchor honoured.
 -- The 31st plus one month is the 28th of February in Postgres, which is what a business
--- expects — but the NEXT month must go back to the 31st, not stay on the 28th. That is
+-- expects, but the NEXT month must go back to the 31st, not stay on the 28th. That is
 -- what `anchor_day` is for, and why this is a function rather than `+ interval`.
 create or replace function app.billing_advance_period(
   p_from date, p_period billing_period, p_anchor integer default null
@@ -326,7 +326,7 @@ grant  execute on function app.billing_advance_period(date, billing_period, inte
 -- Claiming a charge
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Returns the invoices a worker MAY attempt: open, unpaid, past due, on a subscription
--- with a reusable stored card, and — critically — with no attempt already in flight.
+-- with a reusable stored card, and, critically, with no attempt already in flight.
 create or replace function app.due_billing_charges(p_limit integer default 50)
 returns table (
   invoice_id uuid, farm_id uuid, subscription_id uuid,
@@ -364,7 +364,7 @@ revoke execute on function app.due_billing_charges(integer) from public, anon, a
 
 
 -- Mint the reference and take the lock, in one statement. Returns null when another
--- worker already holds the claim — the caller treats that as "not mine", not as an error.
+-- worker already holds the claim, the caller treats that as "not mine", not as an error.
 create or replace function app.claim_billing_charge(
   p_invoice uuid, p_ref text, p_kind billing_attempt_kind, p_amount bigint
 ) returns uuid
@@ -469,7 +469,7 @@ revoke execute on function app.settle_billing_attempt(uuid, billing_attempt_stat
 -- Dunning
 -- ══════════════════════════════════════════════════════════════════════════════
 -- A failure schedules the next retry from the policy in `billing_settings`. When the
--- retries run out the farm enters GRACE — still fully entitled, because the most common
+-- retries run out the farm enters GRACE, still fully entitled, because the most common
 -- reason a card fails in farming is that the money arrives next week, and locking
 -- somebody out of their maintenance records over a timing problem is both wrong and bad
 -- business.

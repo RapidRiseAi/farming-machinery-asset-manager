@@ -9,20 +9,31 @@ const ORDER: ThemeChoice[] = ["system", "light", "dark"];
 const STORAGE_KEY = "fleetwise:theme";
 
 /**
- * Light / dark / follow-the-device.
+ * Light, dark, or follow the device.
  *
- * The palette's FleetWise Black is a sanctioned brand ground ("dark backgrounds,
- * premium sections"), so the dark theme is an on-brand treatment rather than an
- * inversion — and it matters for this product specifically, whose users are in a
- * workshop at night and a cab at noon.
+ * The palette's FleetWise Black is a sanctioned brand ground, so the dark theme is an
+ * on-brand treatment rather than an inversion. It matters for this product specifically,
+ * whose users are in a workshop at night and a cab at noon.
  *
- * Three states, not two. "System" is the default and the one most people should
- * stay on; an explicit choice is stamped as `data-theme` on <html>, which the
- * token blocks in globals.css are written to honour in BOTH directions (an
- * explicit light choice beats a dark OS, and vice versa).
+ * Three states, not two. "Match device" is the default and the one most people should stay
+ * on; an explicit choice is stamped as `data-theme` on <html>, which the token blocks in
+ * globals.css honour in BOTH directions, so an explicit light choice beats a dark OS and
+ * the other way round.
  *
- * The label is always visible — this project forbids icon-only controls, and
- * a lone sun glyph is exactly the kind of thing that reads as decoration.
+ * == Why the label is stacked rather than swapped =============================
+ * The three words are different lengths, in both languages, so a button that simply
+ * swapped its text changed width every time it was pressed: the control jumped under the
+ * finger that had just pressed it, and anything to its right shifted with it. Reported
+ * from the live site.
+ *
+ * All three labels are rendered, one per grid cell of a single-cell grid, so they occupy
+ * the same space. The inactive two are `invisible`, which keeps their width without
+ * showing them or reading them out. The button is therefore as wide as the longest word it
+ * can ever show, in whatever language is loaded, and it never moves again. An explicit
+ * `min-w` would have been a guess that Afrikaans breaks.
+ *
+ * The label is always visible: this project forbids icon-only controls, and a lone sun
+ * glyph is exactly the kind of thing that reads as decoration.
  */
 export function ThemeToggle({
   label,
@@ -35,8 +46,8 @@ export function ThemeToggle({
   labels: Record<ThemeChoice, string>;
   className?: string;
 }) {
-  // Start on "system" and correct after mount: the server cannot know what is in
-  // this browser's localStorage, and rendering a guess would mismatch on hydration.
+  // Start on "system" and correct after mount: the server cannot know what is in this
+  // browser's localStorage, and rendering a guess would mismatch on hydration.
   const [choice, setChoice] = useState<ThemeChoice>("system");
   const [ready, setReady] = useState(false);
 
@@ -64,15 +75,16 @@ export function ThemeToggle({
     }
   }
 
-  const Icon = choice === "dark" ? MoonIcon : choice === "light" ? SunIcon : DeviceIcon;
+  const shown: ThemeChoice = ready ? choice : "system";
+  const Icon = shown === "dark" ? MoonIcon : shown === "light" ? SunIcon : DeviceIcon;
 
   return (
     <button
       type="button"
       onClick={() => apply(ORDER[(ORDER.indexOf(choice) + 1) % ORDER.length])}
-      aria-label={`${label}: ${labels[choice]}`}
-      // Until the stored choice is read, the button's word could be wrong — say
-      // nothing to a screen reader rather than something false.
+      aria-label={`${label}: ${labels[shown]}`}
+      // Until the stored choice is read, the button's word could be wrong. Say nothing to
+      // a screen reader rather than something false.
       aria-live="polite"
       className={cn(
         "focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-lg border border-edge",
@@ -81,8 +93,24 @@ export function ThemeToggle({
         className,
       )}
     >
-      <Icon className="text-base text-ink-muted" aria-hidden />
-      <span>{ready ? labels[choice] : labels.system}</span>
+      <Icon className="shrink-0 text-base text-ink-muted" aria-hidden />
+      {/* One grid cell, three labels in it. The two that are not current keep their width
+          and show nothing, which is what stops the button resizing. `aria-hidden` on them
+          so the accessible name stays one word rather than three. */}
+      <span className="grid">
+        {ORDER.map((c) => (
+          <span
+            key={c}
+            aria-hidden={c !== shown}
+            className={cn(
+              "col-start-1 row-start-1 whitespace-nowrap text-center",
+              c === shown ? "visible" : "invisible",
+            )}
+          >
+            {labels[c]}
+          </span>
+        ))}
+      </span>
     </button>
   );
 }

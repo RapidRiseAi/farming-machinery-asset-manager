@@ -9,9 +9,9 @@ import { PLANS, perVehicleMonthlyCents } from "@/lib/entitlements";
 import { PublicShell, Tick } from "@/components/public-shell";
 
 /**
- * The app's front door — and the installed app's `start_url`.
+ * The app's front door, and the installed app's `start_url`.
  *
- * ── The session check, which is load-bearing and stays ───────────────────────
+ * == The session check, which is load-bearing and stays =======================
  * This used to be an unconditional splash with a "Sign in to get started" button, which is
  * why the installed app looked like it demanded a login on every launch. The session was
  * never lost: the auth cookie is good for over a year and refreshes itself; this screen
@@ -19,13 +19,13 @@ import { PublicShell, Tick } from "@/components/public-shell";
  *
  * It is deliberately a COOKIE-PRESENCE test rather than `getUser()`: it costs no network
  * round trip, so a farm on one bar of signal is not left staring at a splash while we wait
- * on an auth server it may not reach — and it is not a security decision. `/home` re-checks
+ * on an auth server it may not reach, and it is not a security decision. `/home` re-checks
  * properly and RLS validates the JWT on every query, so a stale or forged cookie earns a
  * redirect, never data.
  *
- * ── What changed ─────────────────────────────────────────────────────────────
+ * == What changed =============================================================
  * For everybody else this was a logo, a tagline and one button that said "Get started",
- * which went to SIGN IN — so a new visitor's only offered path was a form asking for
+ * which went to SIGN IN, so a new visitor's only offered path was a form asking for
  * credentials they do not have, and somebody returning had to guess that "get started"
  * meant "sign in". Now it says what the product does, and offers the two things a person
  * actually wants: come in, or start.
@@ -53,7 +53,7 @@ export default async function LandingPage() {
 
   return (
     <PublicShell locale={locale} width="wide">
-      {/* ── What this is ──────────────────────────────────────────────────── */}
+      {/* == What this is ==================================================== */}
       <section className="mx-auto max-w-2xl pt-6 text-center sm:pt-12">
         <h1 className="text-3xl font-bold tracking-tight text-sand-900 sm:text-4xl">
           {t("landing.headline", locale)}
@@ -86,7 +86,7 @@ export default async function LandingPage() {
         ) : null}
       </section>
 
-      {/* ── What it does, in three concrete claims ────────────────────────── */}
+      {/* == What it does, in three concrete claims ========================== */}
       <section className="mx-auto mt-12 grid max-w-4xl gap-4 sm:mt-16 sm:grid-cols-3">
         {points.map((k) => (
           <div key={k} className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
@@ -103,7 +103,7 @@ export default async function LandingPage() {
         ))}
       </section>
 
-      {/* ── The three things a person worries about before paying ─────────── */}
+      {/* == The three things a person worries about before paying =========== */}
       <section className="mx-auto mt-10 max-w-3xl rounded-2xl border border-sand-200 bg-surface p-5 sm:mt-12">
         <ul className="grid gap-3 sm:grid-cols-3">
           {(["cancel", "card", "data"] as const).map((k) => (

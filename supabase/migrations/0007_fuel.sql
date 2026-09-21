@@ -1,7 +1,7 @@
 -- 0007_fuel.sql
 -- Diesel & fuel module tables (Scope §9, v1.5). Created now so the full Section 6
 -- schema exists and RLS + isolation tests cover every table. NO fuel features/UI
--- are built until v1.5 — these tables are dormant in v1.
+-- are built until v1.5, these tables are dormant in v1.
 
 create table fuel_tanks (
   id         uuid primary key default gen_random_uuid(),

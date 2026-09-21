@@ -11,7 +11,7 @@ mobile-first for a mid-range Android on poor signal.
 It is two products sharing one spine, because the farm and the workshop are two sides of the
 same job.
 
-**For the farm** — a register of every machine with QR stickers on them; service schedules
+**For the farm**, a register of every machine with QR stickers on them; service schedules
 that come due by hours, kilometres or calendar; job cards that lock once approved; faults a
 driver can raise from a sticker without an account; diesel with per-machine consumption and
 theft/leak detection; costs and true TCO; budgets, utilisation and downtime; parts, service
@@ -19,7 +19,7 @@ kits and stock that knows what the next month of services has already spoken for
 roadworthy and warranty expiries; AARTO fines nominated against the driver who was in the
 seat; and the whole thing in English or Afrikaans, working offline.
 
-**For the contractor** — one login that reaches every farm they serve, with their own
+**For the contractor**, one login that reaches every farm they serve, with their own
 letterhead on quotes and invoices; corrections done properly (void, credit note, debit note,
 revision, write-off, refund); customer statements and supplier statements; a VAT return on
 the invoice basis with real SARS periods; expenses, suppliers, purchase orders and bank
@@ -42,7 +42,7 @@ cp .env.example .env.local     # fill in Supabase values
 pnpm dev                       # http://localhost:3000
 ```
 
-The build succeeds without any environment set — env is read lazily — so a preview deploy is
+The build succeeds without any environment set, env is read lazily, so a preview deploy is
 always possible. Auth and data need real values at runtime.
 
 ## The RLS gate
@@ -50,7 +50,7 @@ always possible. Auth and data need real values at runtime.
 This is the part to understand before changing anything.
 
 Tenant isolation is enforced by row-level security and **proven by tests before a feature is
-built on top of it**. Not by application checks, not by careful query writing — by policies,
+built on top of it**. Not by application checks, not by careful query writing, by policies,
 demonstrated. The suite runs as real Postgres roles and asserts what each persona can and
 cannot read, including the cases that matter most: cross-tenant reads, anonymous reads, an
 operator who may see only their assigned machines, and a contractor who may see only the
@@ -61,8 +61,8 @@ pnpm db:test    # build a database FROM the migrations, then run every isolation
 pnpm db:seed    # migrations + the demo farm (Weltevrede Boerdery, 12 machines)
 ```
 
-`db:test` runs four files — `rls_isolation.sql`, `public_api_and_qr.sql`,
-`post_release_popia.sql` and `selected_farm_administration.sql` — currently **60 assertion
+`db:test` runs four files, `rls_isolation.sql`, `public_api_and_qr.sql`,
+`post_release_popia.sql` and `selected_farm_administration.sql`, currently **60 assertion
 sections**. It drops and recreates the database named by `TEST_DB_NAME`, so give concurrent
 runs different names or they will destroy each other.
 
@@ -71,7 +71,7 @@ that are easy to get wrong and expensive to miss:
 
 - An `app`-schema function with **no explicit grant defaults to `EXECUTE TO PUBLIC`**. Revoke
   it, and *measure* with `has_function_privilege`.
-- Money is **integer cents, ex-VAT**, everywhere. Never `toLocaleString` — Node's trimmed ICU
+- Money is **integer cents, ex-VAT**, everywhere. Never `toLocaleString`, Node's trimmed ICU
   renders `en-US` while the browser renders `en-ZA`, which makes server and client HTML
   disagree and throws the page away on hydration.
 
@@ -95,7 +95,7 @@ log, no VAPID means no push, no billing provider means nothing charges anyone.
 
 ## Deploying
 
-A standard Next.js project — Vercel auto-detects it (pnpm via the `packageManager` field).
+A standard Next.js project, Vercel auto-detects it (pnpm via the `packageManager` field).
 Set the variables above, and schedule `/api/cron/nightly` (see
 [`docs/CRON.md`](docs/CRON.md)); it runs thirteen maintenance and alert
 engines, then any due report schedules, then push delivery. Authenticated by `CRON_SECRET`;
@@ -104,7 +104,7 @@ a failing step is reported and the pass continues.
 ## Project layout
 
 ```
-src/app          routes — (auth) login · (app) authed shell · (public) QR + customer documents
+src/app          routes, (auth) login · (app) authed shell · (public) QR + customer documents
                  admin · api (service-role routes, /api/v1 public API, cron)
 src/components   the UI kit and feature components
 src/lib          supabase clients, auth and entitlements, i18n (en/af), PDF engine,

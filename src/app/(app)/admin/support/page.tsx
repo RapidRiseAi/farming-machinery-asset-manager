@@ -12,7 +12,7 @@ import { PageInfoButton } from "@/components/ui/page-info-button";
 /**
  * Support cases, as Rapid Rise sees them.
  *
- * ── What this screen is and is not ───────────────────────────────────────────
+ * == What this screen is and is not ===========================================
  * Tickets are WORKED in the RapidRise OS support dashboard, which is where the
  * conversation, the replies and the resolution live. `20260912170000` posts every case
  * there as it opens.
@@ -22,13 +22,13 @@ import { PageInfoButton } from "@/components/ui/page-info-button";
  * the integration was down is precisely the one that matters. A record nobody can see is
  * the same as no record, so the cases are visible here whatever the integration is doing.
  *
- * ── Why the deadline is the first column that matters ────────────────────────
+ * == Why the deadline is the first column that matters ========================
  * A card dispute gives roughly 48 BUSINESS HOURS before Paystack settles it on our behalf
  * and takes the money out of a payout. Everything else on a ticket can wait; that cannot.
  * Overdue and due-soon are therefore states with their own words, not a date somebody has
  * to compare against today.
  *
- * Rapid Rise only — a case carries another farm's billing detail and, for a dispute, a
+ * Rapid Rise only, a case carries another farm's billing detail and, for a dispute, a
  * bank's claim about a person. `support_tickets_sel` enforces that in RLS; `requireRole`
  * here only spares a farm owner a screen that would be empty anyway.
  */
@@ -78,7 +78,7 @@ export default async function AdminSupportPage() {
     .select(
       "id, kind, status, subject, farm_id, external_ref, due_at, escalated_at, opened_at, resolved_at, evidence",
     )
-    // Open cases first, then by deadline — a case with a clock outranks one without.
+    // Open cases first, then by deadline, a case with a clock outranks one without.
     .order("resolved_at", { ascending: true, nullsFirst: true })
     .order("due_at", { ascending: true, nullsFirst: false })
     .order("opened_at", { ascending: false })
@@ -150,7 +150,7 @@ export default async function AdminSupportPage() {
                         </span>
                       </Td>
                       <Td>
-                        <span className="block text-sand-900">{s.farm ?? "—"}</span>
+                        <span className="block text-sand-900">{s.farm ?? "-"}</span>
                         {s.owner ? (
                           <span className="block text-xs text-sand-500">{s.owner}</span>
                         ) : null}
@@ -181,7 +181,7 @@ export default async function AdminSupportPage() {
                             ) : null}
                           </>
                         ) : (
-                          <span className="text-sm text-sand-500">—</span>
+                          <span className="text-sm text-sand-500">-</span>
                         )}
                       </Td>
                       <Td>

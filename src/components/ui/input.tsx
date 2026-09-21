@@ -1,8 +1,8 @@
 import type { InputHTMLAttributes } from "react";
 import { cn } from "./cn";
 
-// text-base (16px) avoids the iOS zoom-on-focus. 48px is the floor on a phone — the
-// same floor the buttons hold — stepping down to 44px once there is a mouse.
+// text-base (16px) avoids the iOS zoom-on-focus. 48px is the floor on a phone, the
+// same floor the buttons hold, stepping down to 44px once there is a mouse.
 export const controlBase =
   "block w-full min-h-[48px] sm:min-h-[44px] rounded-lg border border-sand-300 bg-surface px-3 text-base text-sand-900 " +
   "placeholder:text-sand-400 shadow-xs transition-colors " +

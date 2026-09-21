@@ -15,21 +15,21 @@ import {
 /**
  * Accidents and insurance claims.
  *
- * ── Money here is VAT-INCLUSIVE ──────────────────────────────────────────────
+ * == Money here is VAT-INCLUSIVE ==============================================
  * Every other amount in this product is ex-VAT cents with a rate captured beside it.
  * These are not: an excess and a settlement are figures a person copies off a letter from
  * their broker, and a screen that re-bases them would disagree with the document it was
  * copied from on every line. The columns are named `*_incl_cents` so nobody has to
  * remember, and the form says so under the fields.
  *
- * ── What this does NOT do ────────────────────────────────────────────────────
+ * == What this does NOT do ====================================================
  * Post anything to the books. A settlement is money coming in against a repair whose cost
  * is already on a job card, and the shape of that entry is an open founder decision
  * (`docs/BILLING.md` §11b). Recording that a claim was paid and posting a credit are two
  * different acts; doing the second by implication would leave a ledger nobody can
  * reconcile against their bank.
  *
- * ── Why the required-field checks are here AND in SQL ────────────────────────
+ * == Why the required-field checks are here AND in SQL ========================
  * `incidents_lodged_ck` and `incidents_settled_ck` are the authority and stay it. These
  * mirror them so that a farmer marking a claim paid without the amount gets a sentence
  * about the amount rather than a constraint name, and `incidents.test.ts` walks every
@@ -60,7 +60,7 @@ function dateOrNull(raw: string): string | null {
   return v;
 }
 
-/** Rands as typed — "4 500,50" or "4500.50" — to VAT-inclusive cents. Blank is null. */
+/** Rands as typed, "4 500,50" or "4500.50", to VAT-inclusive cents. Blank is null. */
 function centsOrNull(raw: string): number | null {
   const v = raw.trim().replace(/\s/g, "").replace(",", ".");
   if (v === "") return null;

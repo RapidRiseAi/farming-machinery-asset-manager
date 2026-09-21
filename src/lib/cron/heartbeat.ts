@@ -5,10 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Recording that a scheduled route ran.
  *
- * ── Why this exists ──────────────────────────────────────────────────────────
+ * == Why this exists ==========================================================
  * Measured on production before it was written. The NIGHTLY pass is provably firing on
- * Vercel's schedule — 90 `notifications` rows in the 03:00–03:59 UTC window across 14
- * distinct days — but only because those engines happen to WRITE something. The BILLING
+ * Vercel's schedule, 90 `notifications` rows in the 03:00-03:59 UTC window across 14
+ * distinct days, but only because those engines happen to WRITE something. The BILLING
  * pass, the one that moves money, writes nothing at all when nothing is due: no invoice,
  * no claim, no receipt, no reminder. Its entire output is a JSON body returned to
  * Vercel's scheduler, which is read by nobody.
@@ -18,14 +18,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * 11:35, 15:37, 19:39, 21:31 and 21:39 UTC; so was every charge attempt. Nothing
  * unattended has ever been observed from that route.
  *
- * ── The one rule ─────────────────────────────────────────────────────────────
+ * == The one rule =============================================================
  * THIS MUST NEVER BREAK A PASS. Both calls swallow their errors and return, because
  * telemetry that can stop the thing it watches is worse than no telemetry: a billing run
  * that refused to charge a customer because the heartbeat table was locked would be a
  * self-inflicted outage of the most expensive kind. A missing row is a question mark; a
  * missed charge is money.
  *
- * ── Reachability ─────────────────────────────────────────────────────────────
+ * == Reachability =============================================================
  * Both names go through `public.*` wrappers, because PostgREST exposes `public` only and
  * an `app.*` function is unreachable over REST no matter how it is granted. That is not a
  * theory: it is what silently broke the entire charging path (suite section (m)), and it
@@ -43,7 +43,7 @@ export const CRON_RPC = {
 export type CronTrigger = "schedule" | "manual";
 
 /**
- * Open a run row. Returns its id, or null if the ledger could not be written — in which
+ * Open a run row. Returns its id, or null if the ledger could not be written, in which
  * case the pass carries on unrecorded rather than not at all.
  */
 export async function startCronRun(

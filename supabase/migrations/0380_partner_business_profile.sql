@@ -1,5 +1,5 @@
 -- 0380_partner_business_profile.sql
--- F14a — Partner business profile & branding (the AutoVault `workshop_branding_settings`
+-- F14a, Partner business profile & branding (the AutoVault `workshop_branding_settings`
 -- + `workshop_accounts` billing columns, folded onto FleetWise's existing `workshops`
 -- spine rather than a parallel table).
 --
@@ -10,18 +10,18 @@
 -- audit (0008 workshops_audit) and grants therefore come along for free.
 --
 -- WHAT IT UNLOCKS. Documents a partner sends to a farmer (0381) are rendered in the
--- partner's own colours, wordmark and business details — not ours. A partner using their
+-- partner's own colours, wordmark and business details, not ours. A partner using their
 -- own accounting package still gets value: they upload their existing PDF and the same
 -- fields drive how it is presented and reconciled.
 --
 -- THE ONE POLICY CHANGE. Until now `workshops` was rr_admin-write-only (0101). A partner
--- must be able to maintain its own letterhead, so this adds a self-update policy —
+-- must be able to maintain its own letterhead, so this adds a self-update policy -
 -- deliberately NARROW: a workshop may update only its OWN row, and a guard trigger
 -- rejects any attempt to change `plan` (the paid tier) or `id` from that path. Only
 -- rr_admin still sets the plan, so there is no self-upgrade. Insert/delete stay
 -- rr_admin-only.
 
--- ── Business identity, banking, letterhead, document defaults ─────
+-- == Business identity, banking, letterhead, document defaults =====
 alter table workshops
   -- Identity as it must appear on a document (falls back to `name` when blank).
   add column trading_name        text,
@@ -66,7 +66,7 @@ comment on column workshops.next_invoice_no is
   'Next sequence number for this partner''s invoices. Allocated atomically by '
   'app.next_document_number() so two staff issuing at once cannot collide.';
 
--- ── Atomic per-partner document numbering ────────────────────────
+-- == Atomic per-partner document numbering ========================
 -- A partner's numbering must be theirs (INV-0001 for each, not a global sequence), must
 -- never repeat, and must survive two people pressing "issue" at the same second. A
 -- counter column plus an UPDATE ... RETURNING under a row lock gives exactly that
@@ -97,7 +97,7 @@ end $$;
 revoke execute on function app.next_document_number(uuid, text) from public, anon;
 grant  execute on function app.next_document_number(uuid, text) to authenticated, service_role;
 
--- PostgREST only exposes `public`, so the app reaches the allocator through a wrapper —
+-- PostgREST only exposes `public`, so the app reaches the allocator through a wrapper -
 -- which is also where the "only your own numbering" check lives. Without it a signed-in
 -- partner could burn another partner's sequence; the counter is not secret, but it is
 -- theirs.
@@ -117,7 +117,7 @@ end $$;
 revoke execute on function public.next_document_number(uuid, text) from public, anon;
 grant  execute on function public.next_document_number(uuid, text) to authenticated, service_role;
 
--- ── A partner may maintain its own letterhead — and nothing else ──
+-- == A partner may maintain its own letterhead, and nothing else ==
 create policy workshops_upd_self on workshops for update to authenticated
   using  (id = app.user_workshop_id())
   with check (id = app.user_workshop_id());

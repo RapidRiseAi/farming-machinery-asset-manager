@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
  *
  * Turnover is not profit, and output VAT is not a VAT return. Until this screen existed
  * the product could tell a workshop exactly what it had billed and nothing whatsoever
- * about what it had spent — so "did this month make money?" and "what do I owe SARS?"
+ * about what it had spent, so "did this month make money?" and "what do I owe SARS?"
  * were both unanswerable, and the answer to both lived in a spreadsheet somewhere else.
  *
  * The list is deliberately ordered by the SUPPLIER's invoice date rather than by capture
@@ -92,7 +92,7 @@ export default async function ExpensesPage({
   ]);
 
   // `supplier_id` (0481) and `purchase_order_id` (0475) are on the row but not on the
-  // shared `Expense` type, which several other screens read — widened here rather than
+  // shared `Expense` type, which several other screens read, widened here rather than
   // there so this page can render the two links without changing what they see.
   type ExpenseRow = Expense & { supplier_id: string | null; purchase_order_id: string | null };
   const expenses = (data ?? []) as ExpenseRow[];
@@ -111,7 +111,7 @@ export default async function ExpensesPage({
   // One round trip for the whole page rather than a signed URL per row.
   const receiptUrls = await signedReceiptUrls(supabase, expenses.map((e) => e.receipt_path));
 
-  // VAT being claimed with no supplier tax invoice behind it. Never blocked at capture —
+  // VAT being claimed with no supplier tax invoice behind it. Never blocked at capture -
   // stated here and on the return, because it is what an auditor disallows.
   const unsupported = expenses.filter(claimNeedsProof);
   const unsupportedVat = unsupported.reduce((s, e) => s + e.vat_cents, 0);
@@ -129,7 +129,7 @@ export default async function ExpensesPage({
       </div>
 
       {/* Receipt failures get sentences. A raw "receipt-too_big" on screen is the same
-          defect as the CSV import's "name_required — Preview", and it is not the user's
+          defect as the CSV import's "name_required, Preview", and it is not the user's
           job to know our error codes. Other codes on this page still pass through. */}
       <Flash
         tone="error"
@@ -198,8 +198,8 @@ export default async function ExpensesPage({
                       {e.reference ? <span className="block font-mono text-xs text-sand-500">{e.reference}</span> : null}
                       {e.description ? <span className="block text-xs text-sand-500">{e.description}</span> : null}
                       {/* Where this invoice came from. 0475 records the link and nothing
-                          showed it, so the one thing an order is raised for — checking that
-                          what was billed is what was agreed — meant hunting for the order
+                          showed it, so the one thing an order is raised for, checking that
+                          what was billed is what was agreed, meant hunting for the order
                           by supplier and date. The reference is the number said down the
                           phone; a nameless order still gets a link, because the row without
                           one is the one most in need of opening. */}

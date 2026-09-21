@@ -33,7 +33,7 @@ export async function inviteUser(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "operator");
   const language = String(formData.get("language") ?? "en") === "af" ? "af" : "en";
-  // `back` comes from a form field — never redirect to it unvalidated.
+  // `back` comes from a form field, never redirect to it unvalidated.
   const back = safePath(String(formData.get("back") ?? ""), "/team");
 
   if (!FARM_ROLES.includes(role)) redirect(`${back}?error=You+can+invite+manager/mechanic/operator+only`);
@@ -82,14 +82,14 @@ export async function inviteUser(formData: FormData) {
  * POPIA erasure (right to deletion): anonymise a person's personal data on request.
  * The guarded `erase_personal_data` RPC (owner/manager of the subject's farm, or
  * rr_admin) clears name/email/phone, deactivates + soft-deletes the profile, and nulls
- * free-text name copies — keeping legally-required history de-identified (see
+ * free-text name copies, keeping legally-required history de-identified (see
  * docs/POPIA.md). We then scrub + disable the auth identity so the residual email in
  * auth.users is removed and the person cannot sign back in.
  */
 export async function erasePerson(formData: FormData) {
   const { profile: actor, farmId } = await requireTeamManager();
   const id = String(formData.get("id") ?? "").trim();
-  // `back` comes from a form field — never redirect to it unvalidated.
+  // `back` comes from a form field, never redirect to it unvalidated.
   const back = safePath(String(formData.get("back") ?? ""), "/team");
   const reason = String(formData.get("reason") ?? "").trim() || "data-subject request";
   if (!id) redirect(`${back}?error=${encodeURIComponent("Missing person")}`);
@@ -110,7 +110,7 @@ export async function erasePerson(formData: FormData) {
   if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
 
   // Belt-and-braces: remove the residual email in auth.users and ban re-login. Soft-fails
-  // where Auth admin is unavailable — the DB anonymisation + deactivation already stands.
+  // where Auth admin is unavailable, the DB anonymisation + deactivation already stands.
   try {
     const svc = createServiceClient();
     await svc.auth.admin.updateUserById(id, {
@@ -119,7 +119,7 @@ export async function erasePerson(formData: FormData) {
       ban_duration: "876000h",
     });
   } catch {
-    // ignore — the person's app access is already revoked
+    // ignore, the person's app access is already revoked
   }
 
   revalidatePath(back);
@@ -131,7 +131,7 @@ export async function setUserActive(formData: FormData) {
   const { profile, farmId } = await requireTeamManager();
   const id = String(formData.get("id") ?? "");
   const active = String(formData.get("active") ?? "true") === "true";
-  // `back` comes from a form field — never redirect to it unvalidated.
+  // `back` comes from a form field, never redirect to it unvalidated.
   const back = safePath(String(formData.get("back") ?? ""), "/team");
   if (!id || id === profile.id) redirect(`${back}?error=${encodeURIComponent("You cannot change your own account status.")}`);
   const supabase = await createClient();

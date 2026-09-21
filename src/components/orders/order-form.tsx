@@ -4,7 +4,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import type { PurchaseOrder } from "@/lib/purchase-orders";
 
 /**
- * The order's own details — who it is with, our reference for it, and when they said it
+ * The order's own details, who it is with, our reference for it, and when they said it
  * would arrive. One form serves both raising a new order and correcting an existing one,
  * so the two can never drift apart.
  *
@@ -13,7 +13,7 @@ import type { PurchaseOrder } from "@/lib/purchase-orders";
  *
  * VAT is asked in PERCENT and posted as `vat_percent`, matching the expense form. A field
  * called `vat_rate_bps` with 1500 in it reads as fifteen hundred percent to everybody who
- * is not a programmer — the mistake this product has already made once and fixed.
+ * is not a programmer, the mistake this product has already made once and fixed.
  */
 export function OrderForm({
   locale,
@@ -66,7 +66,7 @@ export function OrderForm({
           hint={t("po.expectedHint", locale)}
           defaultValue={order?.expected_date ?? ""}
         />
-        {/* Percent, not the stored basis points — and without the "%" a display helper
+        {/* Percent, not the stored basis points, and without the "%" a display helper
             would add, because this is an input rather than a reading. */}
         <TextField
           name="vat_percent"

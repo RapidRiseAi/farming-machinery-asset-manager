@@ -7,13 +7,13 @@ import { buildBillingReceiptPdf } from "@/lib/pdf/billing-receipt";
 import { pdfResponse } from "@/lib/pdf/doc";
 
 /**
- * The bill itself — what is owed, by when, and how to pay it.
+ * The bill itself, what is owed, by when, and how to pay it.
  *
- * ── Why this is a second route and not a flag on the first ───────────────────
+ * == Why this is a second route and not a flag on the first ===================
  * The receipt route refuses anything not `paid`, and it is right to: that document says
  * "Paid in full", and serving it for money that has not arrived would hand somebody a
- * false record of payment. But that left the OTHER document — the one a farm office
- * actually needs in order to get a bill paid — existing nowhere at all. Not on the
+ * false record of payment. But that left the OTHER document, the one a farm office
+ * actually needs in order to get a bill paid, existing nowhere at all. Not on the
  * screen, not in an email, not in the product. A farm that pays against invoices had
  * nothing to file, and the only way to obtain one was to ask Rapid Rise.
  *
@@ -21,17 +21,17 @@ import { pdfResponse } from "@/lib/pdf/doc";
  * different for each, and a rule expressed as a query parameter is a rule somebody will
  * eventually pass the wrong way round.
  *
- * ── The guard is RLS, not a check written here ───────────────────────────────
+ * == The guard is RLS, not a check written here ===============================
  * The read goes through the CALLER's client and the SELECT policy on `billing_invoices`
  * is `app.is_farm_billing_admin(farm_id)`. An invoice belonging to another farm, or to
- * this farm but requested by a driver, simply is not there — no farm_id comparison for
+ * this farm but requested by a driver, simply is not there, no farm_id comparison for
  * somebody to forget, and no way for this route to be more permissive than every other
  * surface. Not-found and not-allowed are answered identically on purpose: telling
  * somebody an invoice exists but is not theirs is itself a disclosure.
  *
- * ── What it refuses, and why each one ────────────────────────────────────────
+ * == What it refuses, and why each one ========================================
  * A `draft` invoice has not been issued. The generator assembles as draft and issues in
- * the same transaction (that ordering was itself a defect once — `billing_freeze_invoice_line`
+ * the same transaction (that ordering was itself a defect once, `billing_freeze_invoice_line`
  * refuses lines on an issued invoice), so a draft sitting on screen means something went
  * wrong upstream, and handing it over as a bill would be asking for money nobody has
  * decided to charge.
@@ -51,7 +51,7 @@ export async function GET(
   const { id } = await params;
 
   // `getProfile`, never `requireProfile`: the latter REDIRECTS to /login, and anything
-  // that follows redirects — a browser download, `curl -L`, a script — would save the
+  // that follows redirects, a browser download, `curl -L`, a script, would save the
   // HTML login page as "FW-2026-000005.pdf". A file endpoint answers with a status, not
   // a page. The VAT routes settled this when they shipped.
   const profile = await getProfile();

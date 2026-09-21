@@ -5,7 +5,7 @@
  *
  * NO TEST IN THIS FILE CAN MAKE A LIVE CHARGE, and that is enforced rather than intended:
  * every adapter here is constructed with an injected `fetchImpl`, and several tests assert
- * that the injected fetch was **never called** — which is a much stronger statement than
+ * that the injected fetch was **never called**, which is a much stronger statement than
  * "it returned the right object". A test that merely checked the return value would still
  * pass if the adapter had quietly hit the network first.
  *
@@ -52,7 +52,7 @@ import {
   retryDateFor,
 } from "./policy";
 
-// ── Environment harness ───────────────────────────────────────────────────────
+// == Environment harness =======================================================
 
 const BILLING_VARS = [
   "BILLING_PROVIDER",
@@ -135,14 +135,14 @@ test("charging is impossible without a key, even with the switch on", () => {
   });
 });
 
-test("BILLING_PROVIDER must be paystack — a typo fails closed, it does not fall through", () => {
+test("BILLING_PROVIDER must be paystack, a typo fails closed, it does not fall through", () => {
   withEnv({ ...LIVE_ENV, BILLING_PROVIDER: "paystak" }, () => {
     assert.equal(billingConfigured(), false);
     assert.equal(chargingEnabled(), false);
   });
 });
 
-// ── The strong form: charging off means no HTTP request is even attempted ─────
+// == The strong form: charging off means no HTTP request is even attempted =====
 
 test("with charging off, initializeCheckout makes NO network call at all", async () => {
   const spy = spyFetch();
@@ -180,7 +180,7 @@ test("with charging off, chargeAuthorization makes NO network call at all", asyn
   assert.equal(spy.calls.length, 0, "no charge attempt may reach the network while charging is off");
 });
 
-test("reconciliation still works with charging off — money already taken must not be orphaned", async () => {
+test("reconciliation still works with charging off, money already taken must not be orphaned", async () => {
   const spy = spyFetch({
     status: true,
     data: {
@@ -233,7 +233,7 @@ test("a wrong signature of the RIGHT length is refused", () => {
   withEnv(LIVE_ENV, () => {
     const body = JSON.stringify({ event: "charge.success", data: { id: 1 } });
     const good = sign(body);
-    // Flip one hex digit — same length, so this exercises the comparison itself and not
+    // Flip one hex digit, same length, so this exercises the comparison itself and not
     // the length guard in front of it.
     const bad = (good[0] === "a" ? "b" : "a") + good.slice(1);
     assert.equal(bad.length, good.length);
@@ -243,7 +243,7 @@ test("a wrong signature of the RIGHT length is refused", () => {
 
 test("a signature of the wrong LENGTH is refused without throwing", () => {
   // timingSafeEqual throws on unequal-length buffers. If the length guard were missing
-  // this would be an unhandled exception in the webhook route — a 500, which Paystack
+  // this would be an unhandled exception in the webhook route, a 500, which Paystack
   // then retries every three minutes for 72 hours.
   withEnv(LIVE_ENV, () => {
     const body = JSON.stringify({ event: "charge.success" });
@@ -269,7 +269,7 @@ test("tampering with the body after signing is refused", () => {
   });
 });
 
-test("with no secret configured, EVERY signature is refused — including a valid-looking one", () => {
+test("with no secret configured, EVERY signature is refused, including a valid-looking one", () => {
   const body = JSON.stringify({ event: "charge.success" });
   const signature = sign(body);
   withEnv({ BILLING_PROVIDER: "paystack" }, () => {
@@ -323,7 +323,7 @@ test("with no site URL configured, no callback URL is invented", () => {
 
 // A realistic-shaped FAKE live key, assembled rather than written out as one literal.
 // The redactor must be tested against something that LOOKS like the real thing, but a
-// literal of that shape trips GitHub's push protection — a scanner cannot tell a fixture
+// literal of that shape trips GitHub's push protection, a scanner cannot tell a fixture
 // from a credential, and it is right not to try. Concatenation keeps the test honest
 // (the runtime value is unchanged) without parking a key-shaped string in the source.
 const FAKE_LIVE_KEY = "sk_" + "live_" + "abcdefghijklmnopqrstuvwxyz012345";
@@ -355,7 +355,7 @@ test("paystackKeyMode tells test from live without revealing the key", () => {
 // 5. The arithmetic
 // ══════════════════════════════════════════════════════════════════════════════
 
-test("at 0% VAT — today's state — the split is the whole amount and no VAT", () => {
+test("at 0% VAT, today's state, the split is the whole amount and no VAT", () => {
   const a = invoiceAmounts({ unitPriceInclCents: 4400, assetCount: 12, monthsCharged: 1, vatRateBps: 0 });
   assert.equal(a.totalInclCents, 52_800);
   assert.equal(a.subtotalExVatCents, 52_800);
@@ -371,7 +371,7 @@ test("at 15% the split reconciles exactly, including a value that rounds", () =>
   assert.equal(a.subtotalExVatCents + a.vatCents, a.totalInclCents);
 });
 
-test("the split reconciles for every amount in a sweep — this is the invariant that matters", () => {
+test("the split reconciles for every amount in a sweep, this is the invariant that matters", () => {
   for (const rate of [0, 1400, 1500, 2000]) {
     for (let incl = 0; incl < 400; incl++) {
       const a = invoiceAmounts({ unitPriceInclCents: incl, assetCount: 1, monthsCharged: 1, vatRateBps: rate });
@@ -385,7 +385,7 @@ test("the split reconciles for every amount in a sweep — this is the invariant
   }
 });
 
-test("annual charges ten months — two months free", () => {
+test("annual charges ten months, two months free", () => {
   assert.equal(monthsChargedFor("monthly"), 1);
   assert.equal(monthsChargedFor("annual"), 10);
   const annual = invoiceAmounts({ unitPriceInclCents: 4400, assetCount: 12, monthsCharged: 10, vatRateBps: 0 });
@@ -542,8 +542,8 @@ test("date arithmetic crosses a month end and a leap day correctly", () => {
 // 7b. The quoted price and the invoiced price are the same number
 // ══════════════════════════════════════════════════════════════════════════════
 // `PLAN_PRICING` is what a farmer is QUOTED on screen. `billing_price_versions` is what
-// they are actually INVOICED. These two have already drifted apart once — the shipped
-// code said R39/R69/R99 while the founder document said R44/R73/R89 — and a quote that
+// they are actually INVOICED. These two have already drifted apart once, the shipped
+// code said R39/R69/R99 while the founder document said R44/R73/R89, and a quote that
 // does not match the bill is how somebody stops trusting the bill.
 //
 // So this reads the seeding migration itself rather than a copy of the numbers: a

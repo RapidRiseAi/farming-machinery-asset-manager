@@ -3,17 +3,17 @@
 --
 -- A partner prices jobs all week and has no idea what proportion of that effort becomes
 -- money. It is the one number that tells them whether to price differently, chase harder,
--- or quote less and do more — and every ingredient for it has been sitting in
+-- or quote less and do more, and every ingredient for it has been sitting in
 -- `partner_documents` since 0381. This adds no tables and no columns.
 --
--- ── Why SQL, again ──────────────────────────────────────────────────────────
+-- == Why SQL, again ==========================================================
 --
 -- Same reason as 0460, and now with a second caller: the /money card, the money CSV and
 -- the money PDF all report this figure, and a conversion rate that reads 41% on screen
 -- and 38% in the export is worse than no conversion rate at all. The definition below is
 -- the only place it is decided.
 --
--- ── WHAT "CONVERTED" MEANS, AND WHY IT IS NOT JUST THE STATUS ───────────────
+-- == WHAT "CONVERTED" MEANS, AND WHY IT IS NOT JUST THE STATUS ===============
 --
 -- The obvious implementation is `status = 'accepted'`, and it is wrong in practice. That
 -- status is set by a human pressing a button on a screen; what actually happens is the
@@ -25,11 +25,11 @@
 -- So a quote counts as CONVERTED when either is true:
 --
 --   * an invoice has been ISSUED against it (`partner_documents.quote_id`, the link
---     progress billing already relies on — see `app.quote_billing`, 0432). You do not bill
+--     progress billing already relies on, see `app.quote_billing`, 0432). You do not bill
 --     a customer for work they did not agree to, so an invoice is the strongest evidence
 --     of acceptance there is. Drafts do not count: a draft has not left the building, and
 --     0432 makes exactly the same judgement about what has been billed.
---   * or its status says so — 'accepted', or the part_paid/paid a quote should never
+--   * or its status says so, 'accepted', or the part_paid/paid a quote should never
 --     reach but would be beyond argument if it did.
 --
 -- It is an OR, not an AND, in both directions: a quote marked accepted that has not been
@@ -37,16 +37,16 @@
 -- quote marked declined or expired that was later invoiced against is converted too,
 -- because money asked for outranks a status nobody went back to fix.
 --
--- ── AND WHY "EXPIRED" IS NOT JUST THE STATUS EITHER ─────────────────────────
+-- == AND WHY "EXPIRED" IS NOT JUST THE STATUS EITHER =========================
 --
 -- `app.expire_partner_quotes` (0414) moves a stale quote to 'expired', and it runs on the
--- nightly cron — which, per the handover, has never fired in production. A quote whose
+-- nightly cron, which, per the handover, has never fired in production. A quote whose
 -- validity date passed last March is not an open offer whether or not a scheduled job has
 -- caught up with it, so the classification treats a still-'sent' quote past its `due_date`
 -- as expired. Reading the pipeline as bigger than it is, is precisely the failure 0414 was
 -- written to prevent.
 --
--- ── THE TWO RATES ───────────────────────────────────────────────────────────
+-- == THE TWO RATES ===========================================================
 --
 -- `rate_bps` divides by everything sent, which for the current month includes quotes the
 -- customer has not answered yet and so reads low all month. `decided_rate_bps` divides by
@@ -54,13 +54,13 @@
 -- reported because neither is honest alone: the first understates a young period, the
 -- second flatters a partner sitting on a pile of quotes nobody ever replied to.
 --
--- Basis points, integer, computed with numeric arithmetic — the house rule about floats
+-- Basis points, integer, computed with numeric arithmetic, the house rule about floats
 -- is about money, but a rate that renders as 33.329999 is its own kind of wrong.
 --
--- ── VALUE IS EX-VAT ─────────────────────────────────────────────────────────
+-- == VALUE IS EX-VAT =========================================================
 --
--- The rand figures use the same expression as `app.partner_pl`'s revenue —
--- subtotal less document discount, ex-VAT — so "R48 000 of quotes accepted" on this card
+-- The rand figures use the same expression as `app.partner_pl`'s revenue -
+-- subtotal less document discount, ex-VAT, so "R48 000 of quotes accepted" on this card
 -- is directly comparable with "work invoiced" on the P&L above it. Using the VAT-inclusive
 -- `total_cents` would have made the two cards on one screen quietly incomparable.
 
@@ -146,10 +146,10 @@ $$;
 comment on function app.partner_quote_conversion(uuid, date, date) is
   'Quote pipeline for a period: sent, converted, declined, expired, still open, withdrawn, '
   'with an ex-VAT value for each and two conversion rates in basis points. A quote counts '
-  'as converted when an invoice has been issued against it OR its status says accepted — '
+  'as converted when an invoice has been issued against it OR its status says accepted, '
   'billing somebody is stronger evidence of a yes than a status field nobody updated.';
 
--- ── PostgREST wrapper + least privilege (0460 pattern) ──────────────────────
+-- == PostgREST wrapper + least privilege (0460 pattern) ======================
 -- The column list is restated rather than referenced: a RETURNS TABLE is not a named
 -- composite type, so `returns setof app.partner_quote_conversion` does not exist.
 create or replace function public.partner_quote_conversion(p_workshop uuid, p_from date, p_to date)
@@ -163,8 +163,8 @@ returns table (
 $$;
 
 -- app.* is helper-only; the public wrapper is the API. SECURITY INVOKER, so passing
--- another partner's workshop id is answered by RLS on `partner_documents` — which since
--- 0381 narrows the workshop role to its OWN documents — and returns zeros rather than a
+-- another partner's workshop id is answered by RLS on `partner_documents`, which since
+-- 0381 narrows the workshop role to its OWN documents, and returns zeros rather than a
 -- rival's pipeline. There is no workshop check in the body on purpose: a check written
 -- here would be a second, weaker copy of a rule the database already enforces.
 do $do$

@@ -2,7 +2,7 @@
 -- A refund request is a conversation, and until now it had nowhere to live.
 --
 -- FOUNDER DECISION, 12 September 2026
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Money only ever goes back by a HUMAN deciding, one case at a time. The two ordinary
 -- ways a farm pays less are already built and neither involves a refund:
 --
@@ -13,7 +13,7 @@
 --
 -- What is left is the genuinely individual case: "I do not recognise this deduction", "you
 -- charged me after I cancelled", "somebody used my card". Those are not policy, they are
--- support — and each needs a person looking at the actual facts.
+-- support, and each needs a person looking at the actual facts.
 --
 -- So this migration does not decide anything about money. It makes sure that when one of
 -- those arrives, EVERY fact the person deciding needs is already gathered, attached, and
@@ -21,7 +21,7 @@
 -- of our own tables while a 48-business-hour dispute clock runs.
 --
 -- WHY A TABLE HERE RATHER THAN ONLY A WEBHOOK TO THE SUPPORT DASHBOARD
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Tickets are read in RapidRise OS, not here, and `20260912170000` posts them there. But
 -- the record is written HERE first and unconditionally, because the outbound post can fail,
 -- the endpoint can be unset, and a dispute that arrived while the integration was down is
@@ -29,14 +29,14 @@
 -- let "we told somebody" depend on a network call nobody watched.
 --
 -- WHAT IT MUST NEVER CONTAIN
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `billing_payment_methods.authorization_code` is a Paystack CHARGING CREDENTIAL and is not
 -- granted to `authenticated` at the column level (20260903160100). Evidence is assembled by
--- a SECURITY DEFINER function, which would happily read it — so the column list below is
+-- a SECURITY DEFINER function, which would happily read it, so the column list below is
 -- explicit and the credential is absent by construction, not by the author remembering.
 -- Last4 and brand are what a human needs to recognise a card; the code is what charges it.
 
--- ── The shapes ──────────────────────────────────────────────────────────────
+-- == The shapes ==============================================================
 
 do $$ begin
   if not exists (select 1 from pg_type where typname = 'support_ticket_kind') then
@@ -63,7 +63,7 @@ create table if not exists public.support_tickets (
   invoice_id    uuid references public.billing_invoices(id),
   payment_id    uuid references public.billing_payments(id),
 
-  -- The provider's own reference for the thing that caused this — a dispute id, a refund
+  -- The provider's own reference for the thing that caused this, a dispute id, a refund
   -- reference. The unique index below makes auto-creation idempotent against it, so a
   -- redelivered webhook updates one ticket rather than opening a second.
   external_ref  text,
@@ -99,7 +99,7 @@ create table if not exists public.support_tickets (
 
 comment on table public.support_tickets is
   'One support case, with the evidence already gathered. Written here first and posted to '
-  'the RapidRise OS support dashboard by the outbound hook — because the post can fail and '
+  'the RapidRise OS support dashboard by the outbound hook, because the post can fail and '
   'the dispute that arrives while the integration is down is the one that matters.';
 
 -- Idempotent auto-creation. A provider redelivers webhooks; without this a dispute
@@ -112,9 +112,9 @@ create index if not exists support_tickets_open_idx
 create index if not exists support_tickets_farm_idx
   on public.support_tickets (farm_id, opened_at desc);
 
--- ── Who may read it ─────────────────────────────────────────────────────────
+-- == Who may read it =========================================================
 -- Rapid Rise only. A ticket carries another farm's billing detail and, for a dispute, the
--- bank's claim about a person — none of which belongs to the farm being discussed, let
+-- bank's claim about a person, none of which belongs to the farm being discussed, let
 -- alone to any other.
 
 alter table public.support_tickets enable row level security;
@@ -137,7 +137,7 @@ create trigger support_tickets_audit
   after insert or update or delete on public.support_tickets
   for each row execute function app_audit();
 
--- ── The evidence ────────────────────────────────────────────────────────────
+-- == The evidence ============================================================
 -- Assembled once, at open time. The point of the whole feature: whoever picks this up
 -- should not have to reassemble the case from Paystack's dashboard and six of our tables.
 
@@ -193,7 +193,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
 
     -- Every payment on that invoice, refunds included. A refund is a NEGATIVE row
     -- (20260911210000), so this is also how "have we already given some back?" is answered
-    -- — the single most common question on a refund request.
+    --, the single most common question on a refund request.
     'payments', (
       select jsonb_agg(jsonb_build_object(
         'id', p.id, 'amount_incl_cents', p.amount_incl_cents,
@@ -275,10 +275,10 @@ $$;
 
 comment on function app.support_ticket_evidence(uuid, uuid, uuid) is
   'Every fact a person needs to decide a refund, gathered at open time. Deliberately '
-  'excludes billing_payment_methods.authorization_code — the charging credential — because '
+  'excludes billing_payment_methods.authorization_code, the charging credential, because '
   'this object leaves the building.';
 
--- ── Opening one ─────────────────────────────────────────────────────────────
+-- == Opening one =============================================================
 
 create or replace function app.open_support_ticket(
   p_kind         support_ticket_kind,
@@ -321,10 +321,10 @@ end $$;
 
 comment on function app.open_support_ticket(support_ticket_kind, text, uuid, uuid, uuid, text, uuid, timestamptz) is
   'Open a ticket with its evidence already gathered. Idempotent on (kind, external_ref), so '
-  'a redelivered webhook refreshes one ticket rather than opening another — and never '
+  'a redelivered webhook refreshes one ticket rather than opening another, and never '
   'rewrites the evidence, which is contemporaneous with the complaint.';
 
--- ── What is overdue ─────────────────────────────────────────────────────────
+-- == What is overdue =========================================================
 -- The nightly chase. A dispute answered late is a dispute lost by default, and the only
 -- thing standing between that and a single 3am alert was somebody remembering.
 
@@ -375,9 +375,9 @@ comment on function app.escalate_support_tickets(interval) is
   'Chase tickets whose deadline is near, at most once a day each. A dispute answered late '
   'is a dispute lost by default.';
 
--- ── The wrappers PostgREST can reach ────────────────────────────────────────
+-- == The wrappers PostgREST can reach ========================================
 -- Engines live in `app`, which PostgREST does not expose, so each needs a thin public
--- wrapper or the call resolves to no function at all — the failure that silently broke the
+-- wrapper or the call resolves to no function at all, the failure that silently broke the
 -- entire charging path (suite section (m)).
 
 create or replace function public.open_support_ticket(

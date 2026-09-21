@@ -6,7 +6,7 @@ const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded cap (the client already comp
 
 /**
  * Upload a checklist photo-field image supplied as a base64 `data:` URL (ferried
- * through the fill server action, since the instance — and its storage path — only
+ * through the fill server action, since the instance, and its storage path, only
  * exists after insert) into the private `checklist-photos` bucket and record it in
  * `attachments` (parent_type=checklist_instance).
  *

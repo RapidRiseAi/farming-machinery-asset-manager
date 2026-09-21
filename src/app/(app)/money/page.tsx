@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
  * Did this month make money, who owes me, and who do I owe (0460).
  *
  * The commercial layer could raise an invoice, correct it, chase it on a statement and
- * file the VAT on it — and never answer the three questions a business is actually run
+ * file the VAT on it, and never answer the three questions a business is actually run
  * on. Everything here is an aggregation over data that already existed; the work was
  * deciding what the numbers MEAN, and those decisions live in SQL (see 0460) so that this
  * screen, a CSV and a PDF cannot drift apart.
@@ -120,7 +120,7 @@ export default async function MoneyPage({
           })}
         </div>
         <p className="mt-3 text-sm text-sand-600">
-          {shortDate(from, locale)} – {shortDate(to, locale)} · {t("money.basis", locale)}
+          {shortDate(from, locale)} - {shortDate(to, locale)} · {t("money.basis", locale)}
         </p>
       </Card>
 

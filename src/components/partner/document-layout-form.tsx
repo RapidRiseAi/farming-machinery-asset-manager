@@ -13,7 +13,7 @@ import { updateDocumentLayout } from "@/app/(app)/contractor/settings/actions";
  * Choosing how your documents look.
  *
  * The preview is the point. Every setting here changes a document a customer will read,
- * and a partner cannot judge "tight spacing" or "no colour" from the words — they have to
+ * and a partner cannot judge "tight spacing" or "no colour" from the words, they have to
  * see it. So the preview is a real, miniature document that re-renders as the switches
  * move, using the same resolver the actual page and the PDF use.
  *
@@ -35,7 +35,7 @@ export function DocumentLayoutForm({
   brandPrimary: string;
   vatRegistered: boolean;
   businessName: string;
-  /** Signed logo URL — passed through so this preview and the template picker's agree. */
+  /** Signed logo URL, passed through so this preview and the template picker's agree. */
   logoUrl?: string | null;
   vatNumber?: string | null;
 }) {
@@ -66,11 +66,11 @@ export function DocumentLayoutForm({
       </CardHeader>
       <p className="text-sm text-sand-600">{t("layout.lead", locale)}</p>
 
-      {/* ── The preview ─────────────────────────────────────────── */}
+      {/* == The preview =========================================== */}
       <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-sand-500">
         {t("layout.previewTitle", locale)}
       </p>
-      {/* The same miniature the template picker draws (0505) — one preview in the codebase,
+      {/* The same miniature the template picker draws (0505), one preview in the codebase,
           so the four templates and these switches can never show a different document. */}
       <DocumentPreview
         locale={locale}
@@ -82,7 +82,7 @@ export function DocumentLayoutForm({
         vatNumber={vatNumber}
       />
 
-      {/* ── The choices ─────────────────────────────────────────── */}
+      {/* == The choices =========================================== */}
       <form action={updateDocumentLayout} className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <p className="text-sm font-semibold text-sand-900">{t("layout.namesTitle", locale)}</p>

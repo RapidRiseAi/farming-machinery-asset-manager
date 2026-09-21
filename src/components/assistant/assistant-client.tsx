@@ -200,7 +200,7 @@ export function AssistantClient({
   const operationRef = useRef(0);
   const mountedRef = useRef(true);
 
-  // ── The thread ─────────────────────────────────────────────────────────
+  // == The thread =========================================================
   // Past exchanges. The LIVE exchange is not in here: it keeps rendering as the
   // cards below until the live area clears, and only then moves up into the
   // thread (see the transition effect). An exchange is therefore always in
@@ -356,7 +356,7 @@ export function AssistantClient({
   }, [turn]);
 
   /**
-   * Moves the live exchange into the thread when — and only when — the live area
+   * Moves the live exchange into the thread when, and only when, the live area
    * clears. One effect rather than an archive call at every place that resets
    * state: there are a dozen of those (new request, cancel, language switch,
    * offline processing, farm change) and the next one somebody adds would forget.
@@ -1045,7 +1045,7 @@ export function AssistantClient({
   const isListening = phase === "listening" || phase === "requesting_permission";
   const isBusy = ["stopping", "interpreting", "committing", "speaking"].includes(phase);
   // The live exchange's id, hidden from the thread while it is live so the same
-  // exchange never shows twice — for instance a pending proposal being reviewed.
+  // exchange never shows twice, for instance a pending proposal being reviewed.
   const liveId =
     turn && "conversationId" in turn
       ? turn.conversationId
@@ -1071,7 +1071,7 @@ export function AssistantClient({
     if (open) for (const entry of group.entries) threadRows.push({ kind: "entry", entry });
   }
 
-  // Keep the newest exchange in view, inside the thread's own scroll region —
+  // Keep the newest exchange in view, inside the thread's own scroll region -
   // never by moving the page, which would yank somebody away from what they
   // were reading.
   useEffect(() => {
@@ -1162,7 +1162,7 @@ export function AssistantClient({
               {t("assistant.threadTitle", locale)}
             </h2>
             {/* True, and worth saying: ai_interactions_sel returns only the
-                subject's own rows — not a colleague's, not the farm owner's. */}
+                subject's own rows, not a colleague's, not the farm owner's. */}
             <p className="text-xs text-ink-subtle">{t("assistant.threadPrivate", locale)}</p>
           </div>
           <div
@@ -1174,7 +1174,7 @@ export function AssistantClient({
             <ol className="flex flex-col gap-5">
               {threadRows.map((item) => {
                 if (item.kind === "toggle") {
-                  // The run is identified by its FIRST entry's id — which is also
+                  // The run is identified by its FIRST entry's id, which is also
                   // the key of that entry's own row once the run is open. Two
                   // children with the same key let React lose their identity
                   // across updates, so this key is prefixed.
@@ -1365,7 +1365,7 @@ export function AssistantClient({
         </Card>
       ) : null}
 
-      {/* Starters, shown only while there is nothing to read yet — the same
+      {/* Starters, shown only while there is nothing to read yet, the same
           reason a chat app hides its suggestions after the first message. */}
       {!turn && !transcript && !completion && visibleThread.length === 0 ? (
       <Card>
@@ -1386,9 +1386,9 @@ export function AssistantClient({
       </Card>
       ) : null}
 
-      {/* ── Composer ───────────────────────────────────────────────────────
-          Was a titled form — a field labelled "Request" and a button reading
-          "Interpret request" — which is why it read as paperwork rather than an
+      {/* == Composer =======================================================
+          Was a titled form, a field labelled "Request" and a button reading
+          "Interpret request", which is why it read as paperwork rather than an
           assistant. It is now one composer at the foot of the column with the
           microphone inside it: the arrangement every assistant people already
           use has trained them on, so none of it needs explaining.
@@ -1399,8 +1399,8 @@ export function AssistantClient({
           dressed as tidiness. */}
       {/* Not sticky. Pinned to the viewport it sat ON TOP of the thread and hid
           exactly the newest exchanges the thread scrolls into view. In flow, the
-          thread's own scroll region ends directly above it — the arrangement a
-          chat uses — and nothing is covered. */}
+          thread's own scroll region ends directly above it, the arrangement a
+          chat uses, and nothing is covered. */}
       <Card className="shadow-soft">
         <div
           aria-live="polite"
@@ -1511,7 +1511,7 @@ export function AssistantClient({
 
         {/* Always present, not folded into the starters: the ordinary screens
             are the fallback when the assistant cannot help, and withdrawing AI
-            permission has to stay reachable once a conversation has begun —
+            permission has to stay reachable once a conversation has begun -
             which is precisely when somebody might want to withdraw it. */}
         <div className="mt-4 border-t border-edge-soft pt-3">
           <p className="text-xs leading-5 text-ink-muted">

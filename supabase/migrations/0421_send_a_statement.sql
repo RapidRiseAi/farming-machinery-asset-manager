@@ -1,7 +1,7 @@
 -- 0421_send_a_statement.sql
 -- A statement you cannot send is half a feature.
 --
--- G2c built the statement — opening balance, every movement, ageing, PDF and CSV — and
+-- G2c built the statement, opening balance, every movement, ageing, PDF and CSV, and
 -- G2 built email for DOCUMENTS. But the customer this whole screen exists for is the one
 -- who never looks at an individual invoice and pays off a statement once a month, and
 -- there was no way to actually send them one. They could be emailed six invoices and no
@@ -19,7 +19,7 @@ alter table document_emails
   add column period_to   date;
 
 comment on column document_emails.document_id is
-  'The document that was emailed, or null when this was a STATEMENT — in which case the '
+  'The document that was emailed, or null when this was a STATEMENT, in which case the '
   'recipient is farm_id / partner_client_id and the window is period_from..period_to.';
 
 -- A statement row must know who it went to and for when; a document row must not pretend
@@ -34,9 +34,9 @@ alter table document_emails
 create index document_emails_statement_idx on document_emails(workshop_id, period_to desc)
   where document_id is null;
 
--- ── Who may read the record of a send ────────────────────────────────────────
+-- == Who may read the record of a send ========================================
 -- Documents: unchanged, follows the document. Statements: the partner who sent it, and
--- the farm it was sent to — a client-book customer has no login, so only the partner.
+-- the farm it was sent to, a client-book customer has no login, so only the partner.
 drop policy document_emails_sel on document_emails;
 create policy document_emails_sel on document_emails for select to authenticated
   using (

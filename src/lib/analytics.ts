@@ -1,13 +1,13 @@
 /**
- * Fleet analytics — feature G1 (Scope §23 utilisation + downtime, FR-10.5 repair-vs-
+ * Fleet analytics, feature G1 (Scope §23 utilisation + downtime, FR-10.5 repair-vs-
  * replace). Shared by the machine-detail and reports surfaces so both agree.
  *
  * Downtime itself is computed in SQL (0361 app.fleet_downtime, reconstructed from the
  * audit_log status trail); this module holds the constants + the two metrics that are
  * naturally computed in the app from lightweight data:
- *   • Utilisation — hours (or km) used vs the period's available capacity, from meter
+ *   • Utilisation, hours (or km) used vs the period's available capacity, from meter
  *     readings; and
- *   • Repair-vs-replace — lifetime maintenance/repair spend as a % of purchase price.
+ *   • Repair-vs-replace, lifetime maintenance/repair spend as a % of purchase price.
  * All money is integer cents, ex-VAT.
  */
 import type { CostBreakdown } from "@/lib/cost";
@@ -80,7 +80,7 @@ export type Utilisation = {
  * Utilisation of one asset over [fromYmd, toYmd].
  *
  * used  = (last reading on/before `to`) − (baseline reading), where the baseline is the
- *         last reading on/before `from`, or — if the asset has no pre-window reading —
+ *         last reading on/before `from`, or, if the asset has no pre-window reading -
  *         the first reading inside the window. Meters are monotonic (hours/km only
  *         accumulate), so this net delta is the units actually clocked up in the window.
  * avail = days-in-window × capacity/day (hours or km); meterless assets have none.
@@ -121,18 +121,18 @@ export function computeUtilisation(
 export type RepairReplace = {
   /** Lifetime maintenance/repair spend (parts + labour + other + contractor invoices). */
   maintCents: number;
-  /** Basis of comparison — the purchase price (proxy for current value). */
+  /** Basis of comparison, the purchase price (proxy for current value). */
   baseCents: number;
   /** maintCents ÷ baseCents × 100; null when there is no purchase price to compare. */
   ratioPct: number | null;
   thresholdPct: number;
-  /** True once ratio ≥ threshold — surface a "consider replacing" flag (FR-10.5). */
+  /** True once ratio ≥ threshold, surface a "consider replacing" flag (FR-10.5). */
   flagged: boolean;
 };
 
 /**
  * Repair-vs-replace indicator (FR-10.5). Maintenance/repair cost = the running-repair
- * cost types (parts, labour, other, contractor invoices) — NOT purchase, finance or fuel
+ * cost types (parts, labour, other, contractor invoices), NOT purchase, finance or fuel
  * (those are acquisition / running-fuel, not repair). Flag when that lifetime spend
  * crosses `thresholdPct` of the machine's purchase price.
  */

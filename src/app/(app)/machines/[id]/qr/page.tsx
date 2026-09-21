@@ -37,7 +37,7 @@ export default async function MachineQrPage({
   const svg = await QRCode.toString(url, { type: "svg", margin: 1, width: 260 });
 
   // Only owner/manager (or a cross-tenant RR admin) may rotate the token; the
-  // reissueQr action re-checks this — the UI gate here just hides the control.
+  // reissueQr action re-checks this, the UI gate here just hides the control.
   const canReissue = profile.role === "owner" || profile.role === "manager" || profile.role === "rr_admin";
 
   return (
@@ -70,7 +70,7 @@ export default async function MachineQrPage({
         </p>
       ) : null}
 
-      {/* Re-issue / replace the QR (FR-9.4) — lost, damaged, or possibly-copied sticker. */}
+      {/* Re-issue / replace the QR (FR-9.4), lost, damaged, or possibly-copied sticker. */}
       {canReissue ? (
         <div className="w-full rounded-2xl border border-sand-200 bg-sand-50 p-5 print:hidden">
           <h2 className="text-base font-semibold text-sand-900">{t("qr.reissueTitle", locale)}</h2>

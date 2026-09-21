@@ -1,10 +1,10 @@
 /**
  * Accidents and insurance claims, as the screens read them.
  *
- * Pure functions — no Supabase, no React — so the rules can be tested directly and the
+ * Pure functions, no Supabase, no React, so the rules can be tested directly and the
  * page stays a layout.
  *
- * ── The one number this file exists to produce ───────────────────────────────
+ * == The one number this file exists to produce ===============================
  * What the insurer still owes. It is the reason the table refuses a `claim_settled` row
  * with no figure and no date: a claim somebody ticked off and never filled in would leave
  * that total quietly too small, and too small is the direction nobody investigates.
@@ -99,7 +99,7 @@ export function incidentOpen(status: IncidentStatus): boolean {
  * How long a lodged claim has been waiting, in whole days, or null if it is not waiting.
  *
  * The same arithmetic `app.enqueue_incident_claim_chases` uses to decide when to speak, so
- * the screen and the reminder cannot disagree about how old a claim is — the chase says
+ * the screen and the reminder cannot disagree about how old a claim is, the chase says
  * "lodged 60 days ago" and the row it links to had better say 60 as well.
  */
 export function daysWaiting(row: Pick<IncidentRow, "status" | "claim_lodged_on">, on?: string): number | null {
@@ -114,7 +114,7 @@ export function daysWaiting(row: Pick<IncidentRow, "status" | "claim_lodged_on">
  * What the insurer still owes, VAT-inclusive cents.
  *
  * Only claims that are LODGED count. A rejected claim is not owed, a settled one has been
- * paid, and a `no_claim` was never asked for — putting any of those in this figure would
+ * paid, and a `no_claim` was never asked for, putting any of those in this figure would
  * make it a number a farm could not reconcile against a single letter from their broker.
  *
  * A lodged claim with no amount contributes zero rather than being skipped: the count of
@@ -181,7 +181,7 @@ export function incidentOrder(a: IncidentRow, b: IncidentRow, on?: string): numb
 /**
  * Which fields a status now requires, so the form can ask BEFORE the database refuses.
  *
- * The constraints in `20260921100000` are the authority and stay the authority — this is
+ * The constraints in `20260921100000` are the authority and stay the authority, this is
  * so a farmer gets a sentence about the settlement amount rather than a check-constraint
  * name, and `incidents.test.ts` walks every status against the SQL's two rules.
  */

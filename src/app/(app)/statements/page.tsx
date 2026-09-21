@@ -28,14 +28,14 @@ type Party = { key: string; label: string; farm_id: string | null; client_id: st
  * A statement of account: what this customer owes, and how it got there.
  *
  * The arithmetic is entirely in SQL (`app.partner_statement`, `app.partner_ageing`), so
- * this page, the PDF and the CSV cannot disagree — and neither can drift from what the
+ * this page, the PDF and the CSV cannot disagree, and neither can drift from what the
  * database would say. AutoVault assembles the same document in a 544-line API route and
  * gets six things wrong, every one of them a consequence of reconstructing a ledger from
  * whatever rows happen to be there rather than reading it.
  *
  * The one that matters most is the opening balance. AutoVault filters by date and starts
  * the running balance at zero, so a March statement shows nothing owed from February and
- * the closing figure is not what the customer owes — it is what they were billed in
+ * the closing figure is not what the customer owes, it is what they were billed in
  * March. The first row here is `Balance brought forward` for exactly that reason.
  */
 export default async function StatementsPage({
@@ -59,7 +59,7 @@ export default async function StatementsPage({
   const from = sp.from || period.from;
   const to = sp.to || period.to;
 
-  // Everyone this partner has ever billed — farms they are linked to and clients in their
+  // Everyone this partner has ever billed, farms they are linked to and clients in their
   // own book. Both, in one list, because a partner does not think of them as two kinds.
   const [{ data: linkData }, { data: clientData }] = await Promise.all([
     supabase
@@ -85,7 +85,7 @@ export default async function StatementsPage({
     const f = Array.isArray(l.farms) ? l.farms[0] : l.farms;
     if (f) farmParties.push({ key: `farm:${f.id}`, label: f.name, farm_id: f.id, client_id: null });
   }
-  // A client-book row that has been LINKED to a farm is that farm — the documents are
+  // A client-book row that has been LINKED to a farm is that farm, the documents are
   // addressed to the farm, not to the client record. Listing both put the same customer
   // in the picker twice, and choosing the second one showed R0 owed by somebody who owes
   // you money. Found by opening the page, not by reading it.
@@ -228,7 +228,7 @@ export default async function StatementsPage({
               <CardTitle>
                 {selected?.label}
                 <Badge tone="neutral" className="ml-2 align-middle">
-                  {shortDate(from, locale)} – {shortDate(to, locale)}
+                  {shortDate(from, locale)} - {shortDate(to, locale)}
                 </Badge>
               </CardTitle>
             </CardHeader>

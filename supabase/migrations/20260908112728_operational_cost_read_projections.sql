@@ -98,7 +98,7 @@ end $$;
 -- Normalise the role, WITHOUT assuming superuser.
 --
 -- PostgreSQL permits only a SUPERUSER to change the SUPERUSER, REPLICATION and BYPASSRLS
--- attributes — including to CLEAR them — and Supabase's `postgres` role is not a
+-- attributes, including to CLEAR them, and Supabase's `postgres` role is not a
 -- superuser. A bare `alter role … nosuperuser … nobypassrls` therefore fails with
 -- "permission denied to alter role" on the only database this has to run on, while passing
 -- every local rig, because PGlite and a developer's own Postgres both run as superuser.
@@ -107,7 +107,7 @@ end $$;
 --
 -- Those three are the security-critical attributes: a cost reader that could BYPASSRLS
 -- would hand every farm's finances to every caller. So rather than quietly attempting to
--- set them, this REFUSES to go on if they are ever wrong — a migration that stops is far
+-- set them, this REFUSES to go on if they are ever wrong, a migration that stops is far
 -- better than a projection layer built on a role that can see through RLS. The attributes a
 -- CREATEROLE role may legitimately change are still normalised.
 do $role_attributes$

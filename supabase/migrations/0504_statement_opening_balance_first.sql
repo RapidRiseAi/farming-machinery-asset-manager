@@ -62,7 +62,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
       from scope
      where issue_date < p_from
   ),
-  -- `description` carries the row's own DETAIL and nothing else — a document's subject, a
+  -- `description` carries the row's own DETAIL and nothing else, a document's subject, a
   -- payment's method, null where there is none. The sentence ("Payment received",
   -- "Written off as bad debt") is composed in `src/lib/statement.ts`, because a statement
   -- posted to an Afrikaans farm cannot have half its lines written in English by a

@@ -15,7 +15,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
    * is 2.12:1 and fails. That is the ONLY correct way to render a gold button,
    * and `design_lint` fails the build on the white variant.
    *
-   * Use it sparingly — the brand rule is "keep gold deliberate so it remains
+   * Use it sparingly, the brand rule is "keep gold deliberate so it remains
    * visually important". At most one per screen, on the action you actually
    * want taken; everything else stays `primary` or `secondary`.
    */
@@ -26,7 +26,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   ghost:
     "bg-transparent text-sand-700 hover:bg-sand-100 active:bg-sand-200 disabled:opacity-50",
   /**
-   * Destructive. The ink flips WITH the fill — white on the deep red in light
+   * Destructive. The ink flips WITH the fill, white on the deep red in light
    * (6.68:1), black on the lighter red in dark (6.34:1). A fixed `text-white`
    * would drop to 1.92:1 the moment the fill lightened for a dark surface.
    */
@@ -35,12 +35,12 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 /**
- * 48px minimum on a phone, 40–44px on desktop where there is a mouse. These users are
- * outdoors, in sunlight, often with dirty or gloved hands — the mobile figure is the
+ * 48px minimum on a phone, 40-44px on desktop where there is a mouse. These users are
+ * outdoors, in sunlight, often with dirty or gloved hands, the mobile figure is the
  * one that matters, so every size steps DOWN at `sm`, never up.
  */
 /**
- * 48px is the floor on a phone, for every size — a dense secondary action is still
+ * 48px is the floor on a phone, for every size, a dense secondary action is still
  * pressed by the same thumb, in the same sunlight, with the same dust on the glass.
  * `sm` therefore differs from `md` only once there is a mouse: the sizes step DOWN at
  * `sm:`, they never step down on the device that needs them big.

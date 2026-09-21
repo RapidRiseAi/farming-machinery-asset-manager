@@ -2,7 +2,7 @@
 -- A farm that has not paid yet gets no access. Everybody else is untouched.
 --
 -- THE RULE, AND THE ONE WAY TO GET IT WRONG
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The gate is "a subscription EXISTS and it is pending". It is NOT "there is no active
 -- subscription", and the difference is the whole migration:
 --
@@ -17,7 +17,7 @@
 -- different clothes.
 --
 -- WHY IT IS A FUNCTION AND NOT A SELECT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The obvious implementation is for the app layout to read `billing_subscriptions` through
 -- the caller's own RLS client. That works for an owner and silently fails open for
 -- everybody else: the SELECT policy on every billing table is
@@ -30,7 +30,7 @@
 --
 -- So the gate must see the subscription regardless of who is asking. TWO functions carry
 -- that, and it is worth being exact about which one does the work: the PUBLIC wrapper is
--- SECURITY DEFINER, and a definer function's callee runs as the definer as well — so the
+-- SECURITY DEFINER, and a definer function's callee runs as the definer as well, so the
 -- wrapper alone is already enough to make the answer role-independent. The inner function
 -- is definer too, as a second lock for any future caller that reaches it directly.
 --
@@ -45,12 +45,12 @@
 -- and the screen genuinely needs it.
 --
 -- WHAT IT DELIBERATELY DOES NOT DO
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- It does not look at `farms.status`. Suspending a farm is an administrator's act with its
 -- own meaning, and folding it in here would make one switch do two jobs. It does not look
 -- at `cancelled` either: a farm that cancelled keeps its records, and locking them out of
 -- their own maintenance history the moment they stop paying is not what any part of this
--- product does — the dunning ladder reduces the PLAN and deletes nothing.
+-- product does, the dunning ladder reduces the PLAN and deletes nothing.
 --
 -- Suite section (w) covers it, mutation-tested.
 

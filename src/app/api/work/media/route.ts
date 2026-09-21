@@ -16,11 +16,11 @@ const KINDS = ["photo", "quote", "invoice"];
 /**
  * Attach a quote / invoice / proof file to a work request and optionally record its
  * AMOUNT. An invoice amount is written to `work_requests.invoice_amount_cents` (ex-VAT),
- * which the 0311 sync trigger books as a single `invoice` cost_entry on the machine —
+ * which the 0311 sync trigger books as a single `invoice` cost_entry on the machine -
  * so the amount flows into TCO with NO double-count no matter how often it is edited.
  * A quote amount is recorded (never costed). The request is looked up through the
- * authenticated (RLS-scoped) client — which admits the farm crew AND the linked
- * workshop — so a caller can only reach their own farms; the file is stored via the
+ * authenticated (RLS-scoped) client, which admits the farm crew AND the linked
+ * workshop, so a caller can only reach their own farms; the file is stored via the
  * service role; amounts are written through the RLS client (farm-scoped by policy).
  */
 export async function POST(request: Request) {

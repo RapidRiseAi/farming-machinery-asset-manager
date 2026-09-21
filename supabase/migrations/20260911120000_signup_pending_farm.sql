@@ -2,24 +2,24 @@
 -- The front door: everything a self-serve sign-up writes, in one transaction.
 --
 -- WHY ONE FUNCTION AND NOT FOUR CALLS
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A sign-up creates a farm, an owner, a subscription and its first invoice. Done as four
 -- round trips from a server action, any failure after the second leaves a farm with no
--- owner, or an owner who cannot be invoiced, and no transaction to roll back — the exact
+-- owner, or an owner who cannot be invoiced, and no transaction to roll back, the exact
 -- shape docs/SIGNUP_AND_QUOTA_BILLING.md §2 is written to avoid on the money side.
 --
 -- So it is one SECURITY DEFINER function and one transaction. The only thing that cannot
 -- be inside it is the `auth.users` row, because that is Supabase's Auth API rather than a
 -- table this schema may write. The caller therefore creates the auth user FIRST and
--- deletes it if this function raises — stated in the action, and the only ordering that
+-- deletes it if this function raises, stated in the action, and the only ordering that
 -- leaves no orphan either way.
 --
 -- THE INVOICE IS RAISED HERE, NOT BY THE NIGHTLY CRON
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.generate_billing_invoices` did not consider `pending` at all, so a new sign-up had
 -- nothing to pay and `beginCheckout` would have refused it. Adding `pending` to the status
 -- list alone would have been worse than leaving it out: the nightly pass would then raise
--- an invoice a month, for ever, against every abandoned sign-up — farms nobody can log
+-- an invoice a month, for ever, against every abandoned sign-up, farms nobody can log
 -- into, quietly accruing paper.
 --
 -- So the arm is narrow and says so: a pending subscription is invoiced once, ever, and
@@ -28,7 +28,7 @@
 -- that moment it bills on the ordinary schedule like everybody else.
 --
 -- WHAT THIS DOES NOT DO
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- It does not decide the price. The quota and the plan come in; the amount comes from
 -- `app.billing_price_for_subscription` inside the generator, which is the same path every
 -- renewal takes. A sign-up screen quoting one figure while the invoice says another is
@@ -111,7 +111,7 @@ revoke execute on function app.create_pending_signup(
 comment on function app.create_pending_signup(uuid, text, text, text, farm_plan, billing_period, integer) is
   'Self-serve sign-up, in one transaction: farm, owner, pending subscription and the first '
   'invoice. The auth.users row is the caller''s job and must be created FIRST and removed '
-  'if this raises. Grants no access — app.farm_billing_gate keeps the farm shut until the '
+  'if this raises. Grants no access, app.farm_billing_gate keeps the farm shut until the '
   'invoice is paid.';
 
 create or replace function public.billing_create_pending_signup(
@@ -198,7 +198,7 @@ begin
     end if;
 
     -- S8. Was app.billing_active_price(s.plan, s.billing_period), which resolves the
-    -- CURRENTLY active version — so activating a new price silently moved every existing
+    -- CURRENTLY active version, so activating a new price silently moved every existing
     -- customer onto it at their next invoice, with no notice and no decision. Founder
     -- decision: a farm keeps the price it signed up at until somebody deliberately moves
     -- it. app.billing_price_for_subscription honours the pin and falls back to the active
@@ -251,7 +251,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -293,7 +293,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,

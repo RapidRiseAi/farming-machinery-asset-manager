@@ -44,7 +44,7 @@ function priceToCents(fd: FormData, k: string): number | null {
 }
 
 /** Validate that a chosen assigned-operator id is an active user of this farm.
- *  Returns the id when valid, or null (unassigns) — never lets a cross-farm id through. */
+ *  Returns the id when valid, or null (unassigns), never lets a cross-farm id through. */
 async function validOperatorId(
   supabase: SupabaseClient,
   farmId: string,
@@ -127,7 +127,7 @@ export async function createMachine(formData: FormData) {
 
   const supabase = await createClient();
 
-  // The ceiling. The GUARANTEE is the trigger on `machines` (20260910230000) — it covers
+  // The ceiling. The GUARANTEE is the trigger on `machines` (20260910230000), it covers
   // every creation path, including ones nobody has written yet, and cannot be raced by two
   // tabs adding the same vehicle. This is here only so the refusal is a sentence a farmer
   // can act on rather than a Postgres check_violation.
@@ -165,7 +165,7 @@ export async function createMachine(formData: FormData) {
 
   // Optional primary photo captured on the add form (compressed client-side to a
   // base64 data URL). Upload it, then mark it primary. A photo failure never blocks
-  // creation — the machine already exists.
+  // creation, the machine already exists.
   const attachmentId = await uploadMachinePhotoDataUrl(
     supabase,
     farmId,
@@ -280,7 +280,7 @@ export async function setPrimaryPhoto(formData: FormData) {
     .eq("kind", "photo")
     .is("deleted_at", null)
     .maybeSingle();
-  if (!att) return; // not this machine's photo — no-op
+  if (!att) return; // not this machine's photo, no-op
 
   await supabase
     .from("machines")
@@ -334,8 +334,8 @@ export async function importMachines(formData: FormData) {
   if (valid.length > MAX_IMPORT_ROWS) redirect(`/machines/import?error=Too+many+rows`);
 
   // Refused BEFORE a single row is written, naming the shortfall. The trigger would abort
-  // the whole insert anyway — which is what makes an import all-or-nothing rather than a
-  // fleet that silently stops at the limit — but "50 rows into 10 free slots" is a
+  // the whole insert anyway, which is what makes an import all-or-nothing rather than a
+  // fleet that silently stops at the limit, but "50 rows into 10 free slots" is a
   // different quality of answer from a constraint violation.
   const importClient = await createClient();
   // Same rule, read the same way: null is "no ceiling", not "no room".

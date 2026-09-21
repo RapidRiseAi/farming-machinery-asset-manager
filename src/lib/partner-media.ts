@@ -8,7 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  *   `partner-docs`      `{farm_id}/{doc_id}/…`     uploaded quotes/invoices, payment proofs
  *
  * Reads are served as short-lived signed URLs generated server-side, exactly as the
- * machine-photo and checklist-photo flows do — no bucket is ever made public.
+ * machine-photo and checklist-photo flows do, no bucket is ever made public.
  */
 
 const MAX_FILE = 8 * 1024 * 1024;

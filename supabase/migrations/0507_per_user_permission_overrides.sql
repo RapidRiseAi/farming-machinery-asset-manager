@@ -1,8 +1,8 @@
 -- 0507_per_user_permission_overrides.sql
--- FR-2.5 — Per-user permission overrides: the five fixed roles stay the baseline, and a
+-- FR-2.5, Per-user permission overrides: the five fixed roles stay the baseline, and a
 -- farm may hand ONE person a named grant on top.
 --
--- ── WHY NOT A ROLE BUILDER ───────────────────────────────────────────────────
+-- == WHY NOT A ROLE BUILDER ===================================================
 --
 -- The obvious shape is "let a farm define its own roles". It was rejected deliberately.
 -- A custom-role builder makes every policy in the product consult a dynamic table that a
@@ -13,10 +13,10 @@
 -- So: `app_role` is NOT widened, the five roles keep their meaning, and an override is a
 -- row saying "this person, on this farm, additionally may X" from a closed set of X.
 --
--- ── THE PROPERTY THAT MATTERS: ADDITIVE, BY CONSTRUCTION ─────────────────────
+-- == THE PROPERTY THAT MATTERS: ADDITIVE, BY CONSTRUCTION =====================
 --
--- F7 (0340–0341) is recorded in this repo as its most tenancy-sensitive change. This is
--- the second, so the additive property is not argued — it is made structural.
+-- F7 (0340-0341) is recorded in this repo as its most tenancy-sensitive change. This is
+-- the second, so the additive property is not argued, it is made structural.
 --
 -- Every grant is enforced by an ADDITIONAL PERMISSIVE POLICY. PostgreSQL combines
 -- permissive policies for a command with OR. A permissive policy can therefore only ever
@@ -30,13 +30,13 @@
 -- and every persona's visibility is byte-identical to the day before this file landed.
 -- Measured, not assumed: 51 personas x 61 RLS tables = 3,111 cells, identical either side.
 --
--- ── WHY NOT FOLDED INTO app.row_visible_to_role ──────────────────────────────
+-- == WHY NOT FOLDED INTO app.row_visible_to_role ==============================
 --
 -- That was the first design, and it does not work from a file numbered 0507. Migrations
 -- apply in filename order and `0507_...` sorts BEFORE `20260813195653_...`; the
 -- voice-assistant commands migration ends with its own
 -- `create or replace function app.row_visible_to_role` and its own `machines_sel`. A fold
--- written here is silently overwritten a moment later — measured with a probe migration
+-- written here is silently overwritten a moment later, measured with a probe migration
 -- before this file was written, not inferred. Extra policies survive that, because nothing
 -- else names them.
 --
@@ -44,7 +44,7 @@
 -- by argument, that nine tables still answer exactly as before. Adding a policy beside it
 -- means never touching the predicate F7, F16 and the assistant all depend on.
 --
--- ── THE CLOSED SET, AND WHY IT IS ONLY THREE ─────────────────────────────────
+-- == THE CLOSED SET, AND WHY IT IS ONLY THREE =================================
 --
 -- A permission nobody enforces is worse than a missing one: the farm believes it granted
 -- something. So every name here was checked against the live policy catalogue for a door
@@ -70,7 +70,7 @@
 --
 --   see_costs           `cost_entries_sel` / `budgets_sel` gate only on partner scope, so
 --                       an operator already reads the farm's entire spend. (Worth its own
---                       migration in the other direction; NOT this one — closing it would
+--                       migration in the other direction; NOT this one, closing it would
 --                       be a narrowing, which this file must never do.)
 --   see_service_history `meter_readings` / `service_plan_lines` are narrowed for operators
 --                       by the ASSIGNMENT rule, which `see_all_vehicles` already lifts.
@@ -80,10 +80,10 @@
 --
 -- `manage_team` is excluded on purpose, not by omission. A holder could insert a
 -- `user_farm_memberships` row making themselves 'owner', and `app.effective_farm_role`
--- treats an active membership as authoritative — 0404's escalation, rebuilt as a feature.
+-- treats an active membership as authoritative, 0404's escalation, rebuilt as a feature.
 -- Deciding who may reach a farm stays with the fixed roles.
 --
--- ── RELATION TO F16 partner_scope (0400) ─────────────────────────────────────
+-- == RELATION TO F16 partner_scope (0400) =====================================
 --
 -- Deliberately the same vocabulary, deliberately a different table, because these are
 -- different populations reached by different spines:
@@ -95,7 +95,7 @@
 --   default  minimum; a link tightens on landing  the role's baseline; nothing changes
 --
 -- Contractor scoping is NOT touched. `app.has_permission` returns false unless
--- `app.is_farm_side()`, so no grant row can widen a workshop user by any route — a farm
+-- `app.is_farm_side()`, so no grant row can widen a workshop user by any route, a farm
 -- cannot accidentally hand its contractor the fleet through this screen, and the
 -- competitor-list rule 0400 settled stays settled. Asserted in G30.
 
@@ -112,7 +112,7 @@
 -- ═════════════════════════════════════════════════════════════════════════════
 
 /*
- * Is p_user actually on p_farm — by primary farm or by an active F7 membership?
+ * Is p_user actually on p_farm, by primary farm or by an active F7 membership?
  *
  * SECURITY DEFINER because it must read `users` and `user_farm_memberships` past their own
  * policies while deciding a WITH CHECK on a third table.
@@ -179,7 +179,7 @@ comment on table user_permission_grants is
   'access. The five fixed roles remain the baseline; this table never removes anything.';
 comment on column user_permission_grants.permission is
   'A name from the closed set guarded by the user_permission_grants_check trigger. Mirrored '
-  'in src/lib/permissions.ts — change one, change the other.';
+  'in src/lib/permissions.ts, change one, change the other.';
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 3) THE GATE
@@ -205,7 +205,7 @@ comment on column user_permission_grants.permission is
  *   app.has_farm_access()  The 0251 rule. A caller may only probe a farm they can already
  *                          reach, so this can never become a cross-tenant oracle.
  *
- *   the row itself         Soft-deleted grants do not count, so revoking is immediate —
+ *   the row itself         Soft-deleted grants do not count, so revoking is immediate -
  *                          dynamic scoping, exactly like workshop_links and memberships.
  */
 create or replace function app.has_permission(p_farm uuid, p_permission text) returns boolean
@@ -234,8 +234,8 @@ grant  execute on function app.has_permission(uuid, text)       to authenticated
 -- 4) THE TABLE'S OWN RULES
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── The closed set, refused loudly (0505 / 0434 pattern) ─────────────────────
--- A farm that somehow posts 'see_everything' has not granted a permission — it has stored
+-- == The closed set, refused loudly (0505 / 0434 pattern) =====================
+-- A farm that somehow posts 'see_everything' has not granted a permission, it has stored
 -- a word no policy will ever read, and would go on believing the person could see the yard.
 --
 -- The same trigger stamps WHO. `granted_by` and `deleted_by` are the record of who opened
@@ -269,11 +269,11 @@ create trigger user_permission_grants_check
 -- trigger is created, not when it fires. Revoked for the reason 0505 records.
 revoke execute on function app_user_permission_grants_check() from anon, authenticated, public;
 
--- ── RLS ──────────────────────────────────────────────────────────────────────
+-- == RLS ======================================================================
 alter table user_permission_grants enable row level security;
 alter table user_permission_grants force  row level security;
 
--- You always see what has been granted TO YOU — a permission you cannot discover is a
+-- You always see what has been granted TO YOU, a permission you cannot discover is a
 -- permission you will not use. A farm's owner/manager (and rr_admin) see and manage the
 -- grants on farms they administer. Mirrors `ufm_sel` (0340) deliberately, including its
 -- use of `app.current_app_role()`: the two screens administer the same people, and a
@@ -294,7 +294,7 @@ create policy upg_sel on user_permission_grants for select to authenticated
 -- PostgREST, because the guard sat somewhere the request did not have to pass through. A
 -- self-service permission screen is that same surface. Assume an attacker holding a valid
 -- operator session and posting directly at the REST endpoint: `user_id <> auth.uid()` is
--- evaluated by the database on every insert and every update, so no route skips it — and
+-- evaluated by the database on every insert and every update, so no route skips it, and
 -- it covers the subtle direction too, where "granting" is an UPDATE clearing `deleted_at`
 -- on a revoked row rather than an INSERT.
 --
@@ -342,11 +342,11 @@ create policy upg_del on user_permission_grants for delete to authenticated
     )
   );
 
--- ── Grants (0102 pattern; anon gets nothing) ─────────────────────────────────
+-- == Grants (0102 pattern; anon gets nothing) =================================
 grant select, insert, update, delete on public.user_permission_grants to authenticated;
 grant all on public.user_permission_grants to service_role;
 
--- ── Audit (append-only history, 0008 pattern) ────────────────────────────────
+-- == Audit (append-only history, 0008 pattern) ================================
 -- Who gave whom what, and when it was taken away.
 create trigger user_permission_grants_audit
   after insert or update or delete on user_permission_grants
@@ -358,10 +358,10 @@ create trigger user_permission_grants_audit
 -- Every policy below is PERMISSIVE and therefore ORed with the policy already governing
 -- the table. None of them replaces, drops or rewrites anything. The names all carry a
 -- `_perm` suffix so a later migration recreating (say) `machines_sel` cannot silently take
--- one with it — which is exactly what happens to a `create or replace` from this file.
+-- one with it, which is exactly what happens to a `create or replace` from this file.
 
--- ── see_all_vehicles: the whole fleet, and everything hanging off it ─────────
--- One predicate, written once, applied by a loop — the shape 0341 and 0400 use, so the
+-- == see_all_vehicles: the whole fleet, and everything hanging off it =========
+-- One predicate, written once, applied by a loop, the shape 0341 and 0400 use, so the
 -- rule cannot drift between eleven copies of it.
 create policy machines_sel_perm on machines for select to authenticated
   using (deleted_at is null and app.has_permission(farm_id, 'see_all_vehicles'));
@@ -379,7 +379,7 @@ begin
   end loop;
 end $do$;
 
--- ── manage_stock: reopen the write 0452 closed, for one named person ─────────
+-- == manage_stock: reopen the write 0452 closed, for one named person =========
 -- Reading was never narrowed, so there is nothing to add for SELECT.
 do $do$
 declare t text;
@@ -398,7 +398,7 @@ begin
   end loop;
 end $do$;
 
--- ── manage_partners: the farm's own contractor directory ─────────────────────
+-- == manage_partners: the farm's own contractor directory =====================
 -- `farm_id is not null` is not decoration. `partners.farm_id` is null on the GLOBAL
 -- suggested rows RR curates for every customer, and no farm-level grant may ever reach
 -- those. `app.has_permission` already refuses a null farm; this states the invariant where

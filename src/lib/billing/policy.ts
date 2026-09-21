@@ -1,5 +1,5 @@
 /**
- * Dunning and lifecycle policy — the TypeScript twin of the policy columns on
+ * Dunning and lifecycle policy, the TypeScript twin of the policy columns on
  * `billing_settings` (migration 20260903160000).
  *
  * WHY THERE IS A TWIN AT ALL. The authority is the database row: a policy change should
@@ -28,7 +28,7 @@
  *
  * Two details in there are easy to get wrong and are reproduced deliberately below:
  * Postgres arrays are 1-BASED (so `retry_offsets_days[1]` is the first retry, which is
- * JavaScript's index 0), and an EXISTING grace end is kept rather than pushed out — a
+ * JavaScript's index 0), and an EXISTING grace end is kept rather than pushed out, a
  * farm cannot extend its own grace by failing again.
  *
  * DATES. Everything is a calendar date (`YYYY-MM-DD`), computed in UTC, because the
@@ -46,8 +46,8 @@ export type BillingPolicy = {
   trialDays: number;
   /**
    * Days after each failure on which to try again, in order. Three tries across a
-   * fortnight covers the ordinary causes — money arriving on payday, a reissued card,
-   * the bank's own outage — without becoming harassment.
+   * fortnight covers the ordinary causes, money arriving on payday, a reissued card,
+   * the bank's own outage, without becoming harassment.
    */
   retryOffsetsDays: readonly number[];
   /** After the last retry fails, how long full access continues while we reach them. */
@@ -82,7 +82,7 @@ export const PROPOSED_BILLING_POLICY: BillingPolicy = Object.freeze({
  */
 export const BILLING_POLICY_SIGNED_OFF = false;
 
-// ── Date arithmetic, in UTC, on calendar dates ────────────────────────────────
+// == Date arithmetic, in UTC, on calendar dates ================================
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -117,11 +117,11 @@ export function daysBetween(a: Date | IsoDate, b: Date | IsoDate): number {
   return Math.round((mb - ma) / 86_400_000);
 }
 
-// ── The policy questions ──────────────────────────────────────────────────────
+// == The policy questions ======================================================
 
 /**
  * When the retry for failure number `failureNumber` (1-based, as
- * `app.billing_register_failure` counts them) falls — or null when the retries are
+ * `app.billing_register_failure` counts them) falls, or null when the retries are
  * exhausted and the subscription goes to grace instead.
  */
 export function retryDateFor(
@@ -137,7 +137,7 @@ export function retryDateFor(
   return addDays(from, offsets[failureNumber - 1]);
 }
 
-/** True once this failure number has no retry left — the grace door. */
+/** True once this failure number has no retry left, the grace door. */
 export function retriesExhausted(
   failureNumber: number,
   policy: BillingPolicy = PROPOSED_BILLING_POLICY,
@@ -171,8 +171,8 @@ export type DunningStep = {
 /**
  * What `app.billing_register_failure` will do, without asking the database.
  *
- * `failedAttemptCount` is the count BEFORE this failure — the value currently on the
- * subscription row — exactly as the SQL reads it before adding one.
+ * `failedAttemptCount` is the count BEFORE this failure, the value currently on the
+ * subscription row, exactly as the SQL reads it before adding one.
  */
 export function dunningStep(
   failedAttemptCount: number,

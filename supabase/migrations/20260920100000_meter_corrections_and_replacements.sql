@@ -2,7 +2,7 @@
 -- Two things a farm could not do, and both of them trap the machine for good.
 --
 -- THE TRAP
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `machines.current_reading` only ever moves forward: `app_meter_reading_after` (0202)
 -- advances it on every reading, `record_meter_reading` (20260903074034) refuses a
 -- current/newer reading below it, and the offline path turns one into a `conflict` that
@@ -10,13 +10,13 @@
 -- was no action for them to use: nothing in the product updated or deleted a meter
 -- reading, although the RLS policies for it have existed all along.
 --
--- So one typo — 12500 where 1250 was meant — is permanent. Every true reading afterwards
+-- So one typo, 12500 where 1250 was meant, is permanent. Every true reading afterwards
 -- is refused as a decrease, and every service due date computed from it is wrong, for the
 -- life of the machine. The same wall stands in front of an ordinary event: an hour meter
 -- or an instrument cluster that gets replaced, which on older tractors is routine.
 --
 -- TWO DIFFERENT EVENTS, DELIBERATELY KEPT APART
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A CORRECTION says the reading never happened: somebody mistyped it. The row is voided
 -- (soft delete, with a reason), and the machine falls back to what the remaining history
 -- says. The audit trigger keeps the original values, so a correction is never a quiet edit.
@@ -27,7 +27,7 @@
 -- become unreachable the moment a meter starts again at zero.
 --
 -- WHAT FOLLOWS FROM THAT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.machine_effective_reading` is the single rule for "what does this machine read
 -- now": the newest surviving reading taken on or after the last meter replacement, and
 -- failing that, the replacement's own starting value. Both commands recompute from it, so
@@ -41,9 +41,9 @@
 -- unblocking the farm.
 --
 -- WHERE THE WORK HAPPENS, AND WHY
--- ─────────────────────────────────────────────────────────────────────────────
--- Every side effect — recomputing the machine, rebasing the plan, recalculating due dates
--- — happens in SECURITY DEFINER triggers, exactly as `app_meter_reading_after` (0202)
+-- =============================================================================
+-- Every side effect, recomputing the machine, rebasing the plan, recalculating due dates
+--, happens in SECURITY DEFINER triggers, exactly as `app_meter_reading_after` (0202)
 -- already does for an ordinary reading. That is not decoration: `app.recalc_machine_service`
 -- is revoked from `authenticated`, so an invoker-rights function cannot call it, and
 -- granting it would hand every signed-in user a cross-tenant recompute.
@@ -52,12 +52,12 @@
 -- who may rebase a machine (`meter_replacements_ins`: owner / manager / Rapid Rise).
 -- `correct_meter_reading` cannot be: see the note above it.
 
--- ── Why a reading was voided ────────────────────────────────────────────────
+-- == Why a reading was voided ================================================
 alter table public.meter_readings add column if not exists voided_reason text;
 comment on column public.meter_readings.voided_reason is
   'Why this reading was corrected away. Set by public.correct_meter_reading; null for live rows.';
 
--- ── The replacement event ───────────────────────────────────────────────────
+-- == The replacement event ===================================================
 create table if not exists public.meter_replacements (
   id               uuid primary key default gen_random_uuid(),
   farm_id          uuid not null,
@@ -128,7 +128,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── The one rule for "what does this machine read now" ───────────────────────
+-- == The one rule for "what does this machine read now" =======================
 create or replace function app.machine_effective_reading(p_machine uuid)
 returns table (reading numeric, reading_date date)
 language sql
@@ -164,7 +164,7 @@ comment on function app.machine_effective_reading(uuid) is
 revoke execute on function app.machine_effective_reading(uuid) from public, anon;
 grant execute on function app.machine_effective_reading(uuid) to authenticated, service_role;
 
--- ── The side effects, in triggers, with the rights to do them ───────────────
+-- == The side effects, in triggers, with the rights to do them ===============
 --
 -- Both are SECURITY DEFINER for one reason: `app.recalc_machine_service` is revoked from
 -- `authenticated` (0202). They run only as a consequence of a row the caller was already
@@ -211,7 +211,7 @@ begin
      and farm_id = new.farm_id;
 
   -- A line last done at 1 200 hours, on a meter that read 1 400 and now reads 0, was done
-  -- 200 hours ago — so it is "done at −200", floored at zero. That is the honest reading of
+  -- 200 hours ago, so it is "done at −200", floored at zero. That is the honest reading of
   -- "it was already due when the meter changed", and what recalc then works from.
   v_delta := coalesce(new.previous_reading, new.new_reading) - new.new_reading;
   if v_delta <> 0 then
@@ -234,11 +234,11 @@ create trigger meter_replacements_after
 
 revoke execute on function app_meter_replacement_after() from public, anon, authenticated;
 
--- ── Correcting a reading ────────────────────────────────────────────────────
+-- == Correcting a reading ====================================================
 -- SECURITY DEFINER, and this one is not a preference.
 --
 -- Voiding a reading is an UPDATE that sets `deleted_at`, which makes the row invisible to
--- `meter_readings_sel` — and Postgres refuses an update whose new row the caller could no
+-- `meter_readings_sel`, and Postgres refuses an update whose new row the caller could no
 -- longer see ("new row violates row-level security policy"). Measured, not assumed: adding
 -- a permissive SELECT policy makes the identical statement succeed.
 --
@@ -312,7 +312,7 @@ comment on function public.correct_meter_reading(uuid, uuid, uuid, text) is
   'Voids one mistyped meter reading, rolls the machine back to what the surviving history '
   'says, and recalculates its service plan. The audit trigger keeps the original row.';
 
--- ── Recording a replaced meter ──────────────────────────────────────────────
+-- == Recording a replaced meter ==============================================
 create or replace function public.record_meter_replacement(
   p_farm uuid,
   p_machine uuid,

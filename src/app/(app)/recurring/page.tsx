@@ -20,7 +20,7 @@ type Party = { key: string; label: string; farm_id: string | null; client_id: st
 /**
  * Standing invoices (G8).
  *
- * The failure this screen exists to prevent is not billing the wrong amount — it is
+ * The failure this screen exists to prevent is not billing the wrong amount, it is
  * forgetting entirely. A monthly service contract that nobody raises for three months is
  * three months of income that simply never happened, and there was nothing anywhere to
  * notice it. So the list leads with what is due, not with what exists.
@@ -102,7 +102,7 @@ export default async function RecurringPage({
                   <Badge tone="warning">{t("recurring.dueBadge", locale)}</Badge>
                   <span className="ml-auto text-sm text-sand-600">{shortDate(s.next_issue_date, locale)}</span>
                   {/* A span, not a link: the whole row is already an anchor, and nesting
-                      one inside another is invalid HTML the browser silently un-nests —
+                      one inside another is invalid HTML the browser silently un-nests -
                       which is what threw React #418 on the machines list. */}
                   <span className="text-sm font-medium text-brand-ink">{t("recurring.dueOpen", locale)} →</span>
                 </Link>

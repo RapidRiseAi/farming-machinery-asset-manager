@@ -3,7 +3,7 @@
 --
 -- Found by driving 0450 rather than by reading it. The server actions in
 -- `parts/stock-actions.ts` guard every write with
--- `requireRole(["owner","manager","mechanic"])`, so the screen behaves correctly — but the
+-- `requireRole(["owner","manager","mechanic"])`, so the screen behaves correctly, but the
 -- 0450 policies only asked for `app.has_farm_access(farm_id) and app.is_farm_side()`,
 -- which admits an OPERATOR. Signed in as the demo driver and querying the REST endpoint
 -- directly returned the store and its movements, and nothing in the database would have
@@ -17,7 +17,7 @@
 -- fair question for a driver standing at the shed at six in the morning, the catalogue it
 -- joins to is already readable by every farm role, and a store nobody can consult is a
 -- store people work around. It is the WRITE that decides what a machine costs, so it is
--- the write that narrows — to the same three roles that maintain the parts catalogue.
+-- the write that narrows, to the same three roles that maintain the parts catalogue.
 
 do $do$
 declare t text;

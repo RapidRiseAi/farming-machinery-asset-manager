@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  *
  *   * The EVIDENCE is never gated. A per-machine compliance pack
  *     (/api/packs/machine/[id]/compliance) is core on every plan, reachable from machine
- *     detail, and it is the document an auditor actually works through — asset by asset.
+ *     detail, and it is the document an auditor actually works through, asset by asset.
  *     An Essential farm that has faithfully captured its licences and services can always
  *     produce them. 0382 promised that uploading your own paperwork stays free forever
  *     and 0492 called a tier "an upgrade, never a repossession"; locking a farm out of
@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
  *     /reports beside nine other report families, every one of which is Professional+.
  *     Un-gating one of them and leaving its siblings gated would make the tier arbitrary.
  *
- * Contractors and operators are refused outright — see the note in pack-data.ts. For a
+ * Contractors and operators are refused outright, see the note in pack-data.ts. For a
  * contractor the old route would have blended every linked farm into one document under
  * no farm's name, because `currentFarmId` is null for a workshop.
  */

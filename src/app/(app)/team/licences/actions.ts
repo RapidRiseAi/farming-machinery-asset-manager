@@ -8,24 +8,24 @@ import { homePathFor, requireProfile } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 
 /**
- * Driver and operator documents — the licence in the person's pocket.
+ * Driver and operator documents, the licence in the person's pocket.
  *
- * ── Why these writes go through the BROWSER client ───────────────────────────
+ * == Why these writes go through the BROWSER client ===========================
  * Everywhere money is involved this codebase reaches for the service client, because the
  * engine's functions are service-role only. Here the opposite is right: `driver_credentials`
- * has a real SELECT and write policy — owner/manager write, the person reads their own row,
- * a linked workshop sees nothing — and using the service key would step over every one of
+ * has a real SELECT and write policy, owner/manager write, the person reads their own row,
+ * a linked workshop sees nothing, and using the service key would step over every one of
  * those rules and put the whole guarantee in this file instead of in the database.
  *
  * So the role check below is a courtesy that produces a sentence. RLS is what actually
  * refuses, and `supabase/tests/driver_credentials.sql` proves it by trying: a driver
  * extending their own expired PrDP updates zero rows.
  *
- * ── The one thing a farm must not be able to do ──────────────────────────────
+ * == The one thing a farm must not be able to do ==============================
  * Change WHO a credential belongs to. Re-pointing an existing row at a different person is
  * how one driver's valid licence silently becomes another's, on a record the farm may
  * later rely on in front of an AARTO nomination. `user_id` and `person_name` are set once,
- * at capture, and are not in the update path at all — a mistake is deleted and recaptured,
+ * at capture, and are not in the update path at all, a mistake is deleted and recaptured,
  * which leaves both events in `audit_log`.
  */
 
@@ -104,7 +104,7 @@ export async function addDriverCredential(formData: FormData): Promise<void> {
  *
  * Clearing `notified_status` is the whole job. Without it the nightly pass compares the
  * new status against the old marker, finds them the same where a renewal moved a row from
- * `expired` straight back to `expired` on a short renewal, and stays silent — or worse,
+ * `expired` straight back to `expired` on a short renewal, and stays silent, or worse,
  * keeps the row marked `expired` so the weekly re-fire never stops for a document that is
  * now perfectly valid.
  */
@@ -150,7 +150,7 @@ export async function removeDriverCredential(formData: FormData): Promise<void> 
   const supabase = await createClient();
   // Checked BEFORE the write rather than with `.select()` after it. A soft delete makes the
   // row fail its own SELECT policy (`deleted_at is null`), so asking the update to return
-  // it asks for the one row the policy has just been told to hide — the same trap that
+  // it asks for the one row the policy has just been told to hide, the same trap that
   // made `correct_meter_reading` a definer function earlier in this schema.
   const { data: found } = await supabase
     .from("driver_credentials")

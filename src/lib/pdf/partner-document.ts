@@ -12,14 +12,14 @@ import { balanceDueCents, type DocKind } from "@/lib/partner-docs";
  * A quote, invoice or credit note as a PDF on the partner's letterhead.
  *
  * Pulled out of the authenticated route so the emailed attachment and the customer's
- * public link render the SAME document — a partner's copy and the customer's copy
+ * public link render the SAME document, a partner's copy and the customer's copy
  * disagreeing is the kind of defect nobody reports and everybody distrusts.
  *
- * ── WHAT MAKES IT A TAX INVOICE ──────────────────────────────────────────────
+ * == WHAT MAKES IT A TAX INVOICE ==============================================
  *
  * The old version printed the supplier's VAT number and address in full and reduced the
  * recipient to `farm.name`. Section 20(4) of the VAT Act requires the recipient's name,
- * address AND VAT registration number on a full tax invoice for a supply over R5 000 —
+ * address AND VAT registration number on a full tax invoice for a supply over R5 000 -
  * so a VAT-registered farmer could not claim the input tax on anything we produced, and
  * would only discover it at their VAT return. The bill-to block below is that fix.
  */
@@ -75,7 +75,7 @@ export type PdfContext = {
 /**
  * The layout the partner chose, frozen onto the document at send time. The SAME resolver
  * the screen uses, so a customer who compares the emailed PDF with the page they were
- * linked to sees the same document — which is the entire point of putting the choices in
+ * linked to sees the same document, which is the entire point of putting the choices in
  * one closed set rather than letting each renderer interpret them.
  */
 const LABEL: Record<DocKind, string> = {
@@ -103,7 +103,7 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   // "Tax invoice" because under VAT Act s20(4) it has to be headed as one to be a valid
   // tax invoice, and the customer's accountant will send it back if it is not.
   // A partner who is not VAT registered issues no VAT line anywhere on the document.
-  // Printing "VAT 0.00" would still assert they charge it — the claim they must not make.
+  // Printing "VAT 0.00" would still assert they charge it, the claim they must not make.
   const charging = Number(doc.vat_rate_bps) > 0;
   const label =
     doc.kind === "quote" ? (layout.quote_title ?? "Quote")
@@ -148,11 +148,11 @@ export async function buildDocumentPdf(ctx: PdfContext): Promise<{ bytes: Uint8A
   if (brand.phone) pdf.kv("Phone", brand.phone);
   if (brand.email) pdf.kv("Email", brand.email);
 
-  // The recipient block, in full — this is what makes it claimable.
+  // The recipient block, in full, this is what makes it claimable.
   //
   // The heading follows the partner's own `bill_to_label` (0434), like every other surface.
   // It was hardcoded to "To" here, so a partner who renamed it saw their wording on screen
-  // and ours on the printed document — the one artefact the customer keeps.
+  // and ours on the printed document, the one artefact the customer keeps.
   pdf.heading(layout.bill_to_label ?? "To");
   pdf.kv("Customer", doc.bill_to_name ?? "");
   if (doc.bill_to_contact) pdf.kv("Attention", doc.bill_to_contact);

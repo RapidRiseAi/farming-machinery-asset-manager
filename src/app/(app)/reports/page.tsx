@@ -25,7 +25,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ from?: string; to?: string; inactive?: string; group?: string }>;
 }) {
   // Advanced reports are a Professional+ feature (FR-19.2). Deny server-side for
-  // under-plan farms — report data is never computed; an upgrade prompt shows instead.
+  // under-plan farms, report data is never computed; an upgrade prompt shows instead.
   const gate = await checkEntitlement("advanced_reports");
   const profile = gate.profile;
   const locale = profile.lang;
@@ -117,7 +117,7 @@ export default async function ReportsPage({
           {costsVisible ? <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("reports.downloadExcel", locale)} ↓
           </a> : null}
-          {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4) — fleet compliance summary PDF. */}
+          {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4), fleet compliance summary PDF. */}
           <FleetCompliancePackLink locale={locale} />
           <PrintButton label={t("reports.print", locale)} />
         </div>
@@ -209,8 +209,8 @@ export default async function ReportsPage({
                   <Td className="text-right">{rands(r.other)}</Td>
                   <Td className="text-right">{rands(r.total)}</Td>
                   <Td className="text-right font-medium">{rands(r.tco)}</Td>
-                  <Td className="text-right">{r.perHour != null ? rands(r.perHour) : "—"}</Td>
-                  <Td className="text-right">{r.perKm != null ? rands(r.perKm) : "—"}</Td>
+                  <Td className="text-right">{r.perHour != null ? rands(r.perHour) : "-"}</Td>
+                  <Td className="text-right">{r.perKm != null ? rands(r.perKm) : "-"}</Td>
                 </Tr>
               ))}
             </Tbody>
@@ -339,7 +339,7 @@ export default async function ReportsPage({
                     <Td className="text-right tabular-nums">
                       {r.consumption != null
                         ? `${r.consumption.toLocaleString("en-ZA", { maximumFractionDigits: 2 })} ${r.meterType === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)}`
-                        : "—"}
+                        : "-"}
                     </Td>
                   </Tr>
                 ))}
@@ -350,7 +350,7 @@ export default async function ReportsPage({
       </Card>
 
       {/* SARS diesel logbooks (Scope §9). The module's whole argument is that a rebate
-          claim stands or falls on the logbooks — so these are the two records an audit
+          claim stands or falls on the logbooks, so these are the two records an audit
           asks for, and the notice says plainly that they are a draft until an accountant
           has read them. We produce the records; the claim is the farmer's. */}
       <Card>
@@ -464,9 +464,9 @@ export default async function ReportsPage({
                       <Td className="font-medium">
                         <Link href={`/machines/${r.machineId}`} className="focus-ring rounded text-brand-ink hover:underline">{r.name}</Link>
                       </Td>
-                      <Td className="text-right tabular-nums">{r.used != null ? `${fmt(r.used)} ${unit}` : "—"}</Td>
-                      <Td className="text-right tabular-nums">{r.pct != null ? `${r.pct.toFixed(0)}%` : "—"}</Td>
-                      <Td className="text-right tabular-nums">{r.idle != null ? `${fmt(r.idle)} ${unit}` : "—"}</Td>
+                      <Td className="text-right tabular-nums">{r.used != null ? `${fmt(r.used)} ${unit}` : "-"}</Td>
+                      <Td className="text-right tabular-nums">{r.pct != null ? `${r.pct.toFixed(0)}%` : "-"}</Td>
+                      <Td className="text-right tabular-nums">{r.idle != null ? `${fmt(r.idle)} ${unit}` : "-"}</Td>
                       <Td className="text-right tabular-nums">{r.downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} {t("machine.daysShort", locale)}</Td>
                     </Tr>
                   );
@@ -477,7 +477,7 @@ export default async function ReportsPage({
         )}
       </Card>
 
-      {/* Contractors (F13) — outstanding value, throughput, responsiveness, spend */}
+      {/* Contractors (F13), outstanding value, throughput, responsiveness, spend */}
       <Card flush>
         <CardHeader
           className="px-4 pt-4"
@@ -495,7 +495,7 @@ export default async function ReportsPage({
           {costsVisible ? <Stat label={t("reports.spendViaContractors", locale)} value={rands(data.contractors.spendViaContractors)} /> : null}
           <Stat
             label={t("reports.responsiveness", locale)}
-            value={data.contractors.responsiveness.requestedToViewedHrs != null ? `${data.contractors.responsiveness.requestedToViewedHrs} ${t("reports.hoursShort", locale)}` : "—"}
+            value={data.contractors.responsiveness.requestedToViewedHrs != null ? `${data.contractors.responsiveness.requestedToViewedHrs} ${t("reports.hoursShort", locale)}` : "-"}
             delta={t("reports.toViewed", locale)}
           />
         </div>
@@ -521,7 +521,7 @@ export default async function ReportsPage({
               <span className="font-medium text-sand-700">
                 {data.contractors.responsiveness.viewedToQuotedHrs != null
                   ? `${data.contractors.responsiveness.viewedToQuotedHrs} ${t("reports.hoursShort", locale)}`
-                  : "—"}
+                  : "-"}
               </span>
               {data.contractors.responsiveness.sample > 0 ? (
                 <span className="text-sand-400"> · {t("reports.sampleN", locale).replace("{n}", String(data.contractors.responsiveness.sample))}</span>

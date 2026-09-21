@@ -1,7 +1,7 @@
 -- 0242_fuel_consumption_anomaly.sql
 -- Fuel consumption metric (§23: L/hr for hours meters, L/100km for km meters) and the
 -- fuel-anomaly notification engine (FR-6.3 / FR-14.2: flag a draw that deviates from the
--- asset's rolling baseline — possible leak/theft). Follows the 0205 pattern exactly:
+-- asset's rolling baseline, possible leak/theft). Follows the 0205 pattern exactly:
 -- app.* engine (never PostgREST-reachable), EXECUTE revoked from public/anon/authenticated
 -- and granted only to service_role, fronted by a public.cron_* wrapper the nightly route
 -- calls; retired/sold + soft-deleted machines never enqueue; quiet hours honoured.
@@ -9,7 +9,7 @@
 -- Dedupe marker so an anomalous issue notifies at most once.
 alter table fuel_issues add column if not exists anomaly_notified_at timestamptz;
 
--- ── Consumption metric (SECURITY INVOKER → RLS applies) ───────────
+-- == Consumption metric (SECURITY INVOKER → RLS applies) ===========
 -- Interval ("brim-to-brim") method: order a machine's metered draws by meter, and for
 -- each consecutive pair with a positive meter delta attribute the LATER draw's litres to
 -- that interval. Lifetime consumption = Σ interval litres ÷ Σ meter delta. The same
@@ -49,7 +49,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
 $$;
 grant execute on function app.machine_fuel_consumption(uuid) to authenticated, service_role;
 
--- ── Fuel-anomaly enqueue (Scope §23 / FR-6.3 / FR-14.2) ───────────
+-- == Fuel-anomaly enqueue (Scope §23 / FR-6.3 / FR-14.2) ===========
 -- For each metered draw with enough history, compare its interval consumption to the
 -- machine's rolling baseline (mean of ALL prior intervals). If it exceeds the baseline by
 -- the farm's threshold (settings.fuel_anomaly_pct, default 50%) and at least
@@ -117,11 +117,11 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the app.* engine (0205 pattern) ─────────────────────
+-- == Lock down the app.* engine (0205 pattern) =====================
 revoke execute on function app.enqueue_fuel_anomalies() from public, anon, authenticated;
 grant  execute on function app.enqueue_fuel_anomalies() to service_role;
 
--- ── PostgREST-callable cron wrapper ───────────────────────────────
+-- == PostgREST-callable cron wrapper ===============================
 create or replace function public.cron_enqueue_fuel_anomalies() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin perform app.enqueue_fuel_anomalies(); end $$;

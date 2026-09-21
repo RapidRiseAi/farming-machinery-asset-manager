@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * FleetWise design tokens — built on the Official Colour Palette
+ * FleetWise design tokens, built on the Official Colour Palette
  * (`FleetWise_Official_Colour_Palette.pdf`, internal brand reference).
  *
  * The seven brand colours are ANCHORS, pinned to exact hex values and never
@@ -20,15 +20,15 @@ import type { Config } from "tailwindcss";
  * colours") is about accents; a darker shade of the same hue is not a new
  * accent, and two of them are unavoidable:
  *
- *   • Gold #EAA50C is 1.92:1 on cream — it CANNOT carry text. It is a fill
+ *   • Gold #EAA50C is 1.92:1 on cream, it CANNOT carry text. It is a fill
  *     (black on gold = 9.89:1). `gold-600` #936505 is the same hue darkened
  *     until it clears 4.5:1, so "important numbers" can be gold and legible.
- *   • Warm Grey #E6E2D7 is 1.17:1 on cream — a lovely surface tint and an
+ *   • Warm Grey #E6E2D7 is 1.17:1 on cream, a lovely surface tint and an
  *     invisible border. `sand-300` is the shade that reaches the 3:1 that
  *     WCAG SC 1.4.11 requires of a control boundary.
  *
  * The neutral ramp travels from the warm yellow of the cream to the faint green
- * cast of the charcoal (#242824 has more green than red or blue) — the brand's
+ * cast of the charcoal (#242824 has more green than red or blue), the brand's
  * own two ends, joined rather than replaced by a generic grey.
  *
  * EVERY step below was solved numerically against the real page ground and
@@ -39,7 +39,7 @@ import type { Config } from "tailwindcss";
  * `ok` is the brand green itself and `due` is a shade of the brand gold, so the
  * traffic light is drawn almost entirely from the palette. `overdue` red is the
  * one functional colour outside it and is used ONLY for overdue/fault/destructive
- * states — never as chrome.
+ * states, never as chrome.
  */
 const config: Config = {
   content: [
@@ -57,7 +57,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Primary: FleetWise Green. 600 is the exact brand hex and carries
+        // == Primary: FleetWise Green. 600 is the exact brand hex and carries
         //    buttons, headings and navigation. White on it = 8.75:1.
         brand: {
           50: "#e8f2ec",
@@ -65,9 +65,9 @@ const config: Config = {
           200: "#97c8ad",
           300: "#5faa84", //  dark-theme text green (5.13:1 on the dark surface)
           400: "#2a8a5f",
-          500: "#0a6e3c", //  5.72:1 — hover/active partner
-          600: "#00572c", // ★ FleetWise Green — 7.89:1
-          700: "#014524", // 10.09:1 — hover
+          500: "#0a6e3c", //  5.72:1, hover/active partner
+          600: "#00572c", // ★ FleetWise Green, 7.89:1
+          700: "#014524", // 10.09:1, hover
           800: "#013620",
           900: "#012718",
           950: "#001a0f",
@@ -79,15 +79,15 @@ const config: Config = {
            * a link cannot use a fixed step and work in both themes. `brand-ink`
            * resolves to brand-700 in light and brand-300 in dark.
            *
-           * `bg-brand-600` deliberately stays literal — a green button is the
+           * `bg-brand-600` deliberately stays literal, a green button is the
            * brand's green in both themes; only TEXT needs to move.
            */
           ink: "rgb(var(--brand-ink) / <alpha-value>)",
           /** Chip / callout ground that follows the theme. */
           tint: "rgb(var(--brand-tint) / <alpha-value>)",
         },
-        // ── Accent: FleetWise Gold. 500 is the exact brand hex and is a FILL
-        //    ONLY (1.92:1 — never text on a light ground). 600+ are the text
+        // == Accent: FleetWise Gold. 500 is the exact brand hex and is a FILL
+        //    ONLY (1.92:1, never text on a light ground). 600+ are the text
         //    shades. Keep gold deliberate: CTAs, key figures, selected states.
         gold: {
           50: "#fdf7e6",
@@ -95,18 +95,18 @@ const config: Config = {
           200: "#f7dc8d",
           300: "#f3c74f",
           400: "#eeb423",
-          500: "#eaa50c", // ★ FleetWise Gold — fill only
-          600: "#936505", //  4.61:1 — the lightest gold that may carry text
+          500: "#eaa50c", // ★ FleetWise Gold, fill only
+          600: "#936505", //  4.61:1, the lightest gold that may carry text
           700: "#6f4c04",
           800: "#4d3506",
           900: "#332305",
           950: "#1f1503",
         },
         /**
-         * ── Neutral: Warm Cream → Warm Grey → Charcoal → Black.
+         * == Neutral: Warm Cream → Warm Grey → Charcoal → Black.
          *
          * Resolved from CSS variables rather than fixed hex, because this scale
-         * carries the app's ENTIRE neutral vocabulary — ~1,500 usages of
+         * carries the app's ENTIRE neutral vocabulary, ~1,500 usages of
          * `text-sand-500`, `bg-sand-50`, `border-sand-200` across 445 files.
          * Fixed hex made every one of them light-only.
          *
@@ -115,12 +115,12 @@ const config: Config = {
          * correct in both. The values, the duty each step owes and the measured
          * ratios are in `globals.css`; the light values are:
          *
-         *   50  #f7f3e8 ★ Warm Cream — page ground
-         *   200 #e6e2d7 ★ Warm Grey  — decorative divider / card edge
-         *   300 #8f8b7f   3.07:1     — CONTROL border (SC 1.4.11)
-         *   400 #716e64   4.60:1     — placeholder text, decorative icons
-         *   500 #5d5a52   6.21:1     — SECONDARY TEXT
-         *   900 #242824 ★ Charcoal   — body text, 13.49:1
+         *   50  #f7f3e8 ★ Warm Cream, page ground
+         *   200 #e6e2d7 ★ Warm Grey , decorative divider / card edge
+         *   300 #8f8b7f   3.07:1    , CONTROL border (SC 1.4.11)
+         *   400 #716e64   4.60:1    , placeholder text, decorative icons
+         *   500 #5d5a52   6.21:1    , SECONDARY TEXT
+         *   900 #242824 ★ Charcoal  , body text, 13.49:1
          *   950 #000000 ★ FleetWise Black
          */
         sand: {
@@ -136,12 +136,12 @@ const config: Config = {
           900: "rgb(var(--sand-900) / <alpha-value>)",
           950: "rgb(var(--sand-950) / <alpha-value>)",
         },
-        // ── Traffic-light service statuses (Scope §4.3). All AA as text on
+        // == Traffic-light service statuses (Scope §4.3). All AA as text on
         //    cream AND on white. `ok`/`due` are drawn from the brand itself.
         status: {
           // Variable-driven so the traffic light survives a theme change. On
           // cream: ok 7.89:1, due 5.14:1, overdue 6.03:1. The same fixed hexes
-          // on a dark card are 1.63 / 2.50 / 2.13 — which is what put the
+          // on a dark card are 1.63 / 2.50 / 2.13, which is what put the
           // required-field asterisk, every "Delete" and money shown in red or
           // green below AA once dark mode existed. Values in globals.css.
           ok: "rgb(var(--status-ok) / <alpha-value>)",
@@ -149,21 +149,21 @@ const config: Config = {
           overdue: "rgb(var(--status-overdue) / <alpha-value>)",
 
           // `warn` and `bad` are the same two colours under the names the
-          // financial screens reach for — a caution ("you have billed more than
+          // financial screens reach for, a caution ("you have billed more than
           // you quoted", "no receipt on file", negative cash) and a failure
           // ("this email did not send").
           //
           // They were used 19 times across 13 files and DEFINED NOWHERE, in any
           // version of this config. Tailwind emits nothing for an unknown token,
           // so every one of those cells has been rendering as ordinary body text
-          // — including the 60-day column of the debtors ageing, which exists
+          //, including the 60-day column of the debtors ageing, which exists
           // precisely to say "this is getting late". `design_lint` now fails on
           // a status token that has no definition, so it cannot recur.
           warn: "rgb(var(--status-due) / <alpha-value>)",
           bad: "rgb(var(--status-overdue) / <alpha-value>)",
         },
         /**
-         * The destructive SOLID — a filled danger button.
+         * The destructive SOLID, a filled danger button.
          *
          * It needs its own pair because the text has to flip WITH the fill:
          * white on the deep red (6.68:1) in light, black on the light red
@@ -175,9 +175,9 @@ const config: Config = {
           hover: "rgb(var(--danger-solid-hover) / <alpha-value>)",
           ink: "rgb(var(--danger-solid-ink) / <alpha-value>)",
         },
-        // ── Danger: the shade family of the functional red above, so an error
+        // == Danger: the shade family of the functional red above, so an error
         //    callout, a destructive button and an overdue badge are visibly the
-        //    same idea. This is NOT a second accent — it is the one functional
+        //    same idea. This is NOT a second accent, it is the one functional
         //    colour the palette does not supply, used only for overdue, fault
         //    and destructive states, never as chrome. See docs/DESIGN.md §4.
         danger: {
@@ -193,10 +193,10 @@ const config: Config = {
           900: "#4a0d0c",
           950: "#2e0808",
         },
-        // ── Callout tones. One place that fixes the tint/border/text triple for
+        // == Callout tones. One place that fixes the tint/border/text triple for
         //    Flash, banners and inline notices, each verified: text clears 4.5:1
         //    on its own tint, and the tint is distinguishable from BOTH the cream
-        //    page ground and a white card. Tone is never carried by colour alone —
+        //    page ground and a white card. Tone is never carried by colour alone -
         //    every callout also has its own icon and words.
         callout: {
           "danger-bg": "rgb(var(--callout-danger-bg) / <alpha-value>)",
@@ -212,7 +212,7 @@ const config: Config = {
           "info-edge": "rgb(var(--callout-info-edge) / <alpha-value>)",
           "info-ink": "rgb(var(--callout-info-ink) / <alpha-value>)",
         },
-        // ── Semantic surface aliases, resolved from the CSS custom properties
+        // == Semantic surface aliases, resolved from the CSS custom properties
         //    in globals.css. These are what make the dark theme a token swap
         //    rather than a rewrite: `bg-surface` is correct in both themes.
         surface: {
@@ -231,7 +231,7 @@ const config: Config = {
           DEFAULT: "rgb(var(--edge) / <alpha-value>)",
           soft: "rgb(var(--edge-soft) / <alpha-value>)",
         },
-        // ── The gold accent, as tokens rather than fixed steps ────────────
+        // == The gold accent, as tokens rather than fixed steps ============
         //    `gold-*` above is hardcoded hex and cannot follow the theme, while
         //    `sand-*` inverts. Combining the two put near-white text on a
         //    near-white ground (1.02:1) on the selected nav row, and white on
@@ -263,7 +263,7 @@ const config: Config = {
       },
       /**
        * One type scale, seven steps. Before this there were 32 distinct sizes
-       * in use, 24 of them arbitrary `text-[1.05rem]`-style one-offs — four of
+       * in use, 24 of them arbitrary `text-[1.05rem]`-style one-offs, four of
        * which sat within 0.15rem of each other, a difference the eye cannot
        * resolve but which makes consistent vertical rhythm impossible.
        *
@@ -291,7 +291,7 @@ const config: Config = {
         card: "var(--shadow-card)",
         soft: "var(--shadow-soft)",
         pop: "var(--shadow-pop)",
-        // Gold focus/selected glow — the accent used as emphasis, not as text.
+        // Gold focus/selected glow, the accent used as emphasis, not as text.
         gold: "0 0 0 3px rgb(234 165 12 / 0.28)",
       },
       borderRadius: {

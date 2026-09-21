@@ -11,7 +11,7 @@
 --
 -- It was written during F14 to answer "what does this user actually see?" and never
 -- removed. It is worth being precise about why it mattered, because reading it quickly
--- makes it look harmless — it does NOT bypass row-level security:
+-- makes it look harmless, it does NOT bypass row-level security:
 --
 --   * it is SECURITY INVOKER, so it runs with the caller's own privileges;
 --   * its body calls set_config('request.jwt.claims', …) with a uuid THE CALLER CHOOSES;
@@ -19,20 +19,20 @@
 --     setting.
 --
 -- So it does not switch the fence off. It moves the caller to the other side of it, and
--- then RLS works perfectly — on behalf of somebody else. That is the more dangerous
+-- then RLS works perfectly, on behalf of somebody else. That is the more dangerous
 -- shape, because every policy still "passes" while answering the wrong question.
 --
 -- Measured against the live database before removing it: an operator at Weltevrede, who
 -- legitimately reads zero partner documents, called it with a contractor's user id and
 -- read back 5 documents / 10 lines / 1 payment, and with the platform admin's id read
--- back 6 / 12 / 1. Any signed-in user could do this for any user id. Row counts only —
--- not row contents — but that is still one tenant confirming the existence and size of
+-- back 6 / 12 / 1. Any signed-in user could do this for any user id. Row counts only -
+-- not row contents, but that is still one tenant confirming the existence and size of
 -- another tenant's commercial paperwork, from an account with no business seeing any
 -- of it.
 --
 -- `anon` could reach it too: the function carried no explicit grant, and the Postgres
 -- default for a function is EXECUTE TO PUBLIC. What stopped an anonymous caller was not
--- the function but this schema's table grants, which give anon no SELECT anywhere — the
+-- the function but this schema's table grants, which give anon no SELECT anywhere, the
 -- belt holding after somebody had removed the braces. That is worth keeping in mind the
 -- next time a grant looks redundant.
 --
@@ -41,14 +41,14 @@
 -- and deliberately left out: the isolation suite's own `_t_login` helper does exactly
 -- that, so such a trigger would need a name-prefix exemption that anybody could name
 -- their way around, while adding a confusing new way for a legitimate migration to fail.
--- Instead the rule is asserted where it can be enforced honestly — in the isolation
+-- Instead the rule is asserted where it can be enforced honestly, in the isolation
 -- suite (see the "no debug back doors" section of rls_isolation.sql), and by a
 -- repeatable repo-versus-production comparison (scripts/schema_diff.sql, docs/SCHEMA_DRIFT.md),
 -- which is what found this in the first place.
 
 drop function if exists public._f14_probe(uuid);
 
--- ── While we are here: the app schema is helper-only, and should say so ──────
+-- == While we are here: the app schema is helper-only, and should say so ======
 -- The probe was reachable by anon because a function with no explicit grant defaults to
 -- EXECUTE TO PUBLIC. Auditing for that turned up eleven helpers in the `app` schema
 -- still carrying that default: accessible_farm_ids, advance_by_cadence,
@@ -56,15 +56,15 @@ drop function if exists public._f14_probe(uuid);
 -- machine_fuel_consumption, machine_tco, user_farm_id, user_workshop_id, worse_expiry.
 --
 -- Being accurate about the severity: this is NOT currently reachable. PostgREST exposes
--- only `public` and `graphql_public` — asking for the `app` schema over the API answers
--- PGRST106 "Invalid schema: app" — and anon has no direct database connection. So this
+-- only `public` and `graphql_public`, asking for the `app` schema over the API answers
+-- PGRST106 "Invalid schema: app", and anon has no direct database connection. So this
 -- is defence in depth, not a live hole, and it is recorded that way rather than dressed
 -- up.
 --
 -- It is still worth closing, for two reasons. It contradicts the convention the rest of
 -- this schema already follows (compare app.row_visible_to_role and
 -- app.partner_vat_return, which revoke from public and grant back explicitly), and the
--- set of exposed schemas is a dashboard setting — one toggle away from making the
+-- set of exposed schemas is a dashboard setting, one toggle away from making the
 -- inconsistency matter. Every one of the eleven except advance_by_cadence already holds
 -- an explicit `authenticated` grant, so removing the PUBLIC default takes nothing away
 -- from a signed-in user; advance_by_cadence is only ever called from inside

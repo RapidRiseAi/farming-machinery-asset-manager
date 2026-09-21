@@ -1,8 +1,8 @@
 -- 0471_bank_line_settlements.sql
--- G15b — Which bank line settled which thing, said once.
+-- G15b, Which bank line settled which thing, said once.
 --
 -- The confirm button on the reconciliation screen does one of exactly two things: it
--- inserts a `partner_payments` row (money in — and the 0381 rollup trigger then moves the
+-- inserts a `partner_payments` row (money in, and the 0381 rollup trigger then moves the
 -- invoice's paid amount and status, which is the whole point of using the existing table
 -- rather than writing a total ourselves), or it stamps `partner_expenses.paid_on` (money
 -- out). Both of those tables already exist, already have their RLS, their audit trigger and
@@ -14,7 +14,7 @@
 --   1. Pressing confirm twice must not take the money twice. This is not a hypothetical:
 --      a server action on a phone with a bad signal is exactly the thing people press
 --      again, and the second press arrives while the first is still in flight. An
---      application-level "have I already done this?" check cannot decide it — both requests
+--      application-level "have I already done this?" check cannot decide it, both requests
 --      read the same empty answer before either writes. A UNIQUE INDEX can, and does: the
 --      second insert fails with 23505 and the action reports it as "already recorded"
 --      rather than as an error, because from the partner's point of view it is not one.
@@ -27,15 +27,15 @@
 -- The index is PARTIAL on two counts, and both are load-bearing:
 --
 --   * `bank_line_id is not null`, because the vast majority of payments and expenses have
---     nothing to do with a bank import — one recorded by hand, one captured off a till slip
---     — and they must all be free to carry null.
+--     nothing to do with a bank import, one recorded by hand, one captured off a till slip
+--    , and they must all be free to carry null.
 --   * `deleted_at is null`, because undoing a match SOFT deletes the payment (the audit
 --     trail keeps that it was once recorded and then reversed). Without this clause the
 --     reversed row would keep the bank line's slot reserved for ever, and a partner who
 --     undid a match to fix a date could never confirm that line again. What must be refused
 --     is a second LIVE settlement, not the memory of a withdrawn one.
 
--- ── Money in: the payment a bank line created ────────────────────────────────
+-- == Money in: the payment a bank line created ================================
 alter table partner_payments
   add column bank_line_id uuid references bank_lines(id) on delete set null;
 
@@ -46,7 +46,7 @@ comment on column partner_payments.bank_line_id is
 create unique index partner_payments_bank_line_uq
   on partner_payments(bank_line_id) where bank_line_id is not null and deleted_at is null;
 
--- ── Money out: the supplier bill a bank line settled ─────────────────────────
+-- == Money out: the supplier bill a bank line settled =========================
 alter table partner_expenses
   add column bank_line_id uuid references bank_lines(id) on delete set null;
 
@@ -60,9 +60,9 @@ create unique index partner_expenses_bank_line_uq
 -- ══════════════════════════════════════════════════════════════════════════════
 -- A settlement has to make sense: same workshop, right direction
 -- ══════════════════════════════════════════════════════════════════════════════
--- RLS already makes the cross-workshop case unreachable through the app — `bank_lines` is
+-- RLS already makes the cross-workshop case unreachable through the app, `bank_lines` is
 -- scoped to the caller's own workshop and `partner_payments` to documents their workshop
--- issued — so this trigger is not the tenancy guarantor and is not pretending to be. It is
+-- issued, so this trigger is not the tenancy guarantor and is not pretending to be. It is
 -- here because a settlement pointing at another business's bank account would be silent,
 -- permanent, and invisible in every total it corrupts; the cost of refusing it outright is
 -- one lookup per confirmation.
@@ -70,8 +70,8 @@ create unique index partner_expenses_bank_line_uq
 -- The direction check is the one that will actually fire in practice. A money-OUT line
 -- (negative) confirmed against an INVOICE would record a customer receipt for money that
 -- left the account, and the 0381 rollup would dutifully mark the invoice paid. Refusing it
--- at the table means no future caller — a bulk "match everything obvious" action, an import
--- from another system — can introduce it by accident.
+-- at the table means no future caller, a bulk "match everything obvious" action, an import
+-- from another system, can introduce it by accident.
 create or replace function app_bank_settlement_guard() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -93,7 +93,7 @@ begin
       raise exception 'a bank line may only settle a document its own workshop issued';
     end if;
     -- A receipt comes from money arriving. Refunds (0422) are negative payments and are
-    -- deliberately allowed to come from a negative line — money genuinely going back out.
+    -- deliberately allowed to come from a negative line, money genuinely going back out.
     if not new.is_refund and v_line.amount_cents <= 0 then
       raise exception 'money leaving the bank cannot be a customer receipt';
     end if;

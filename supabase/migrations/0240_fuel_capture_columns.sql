@@ -6,22 +6,22 @@
 --
 -- Money stays integer cents, ex-VAT (Scope §6). RLS, the FORCE-RLS farm-scoped policies
 -- (0101), grants (0102) and the append-only audit trigger (0008) already cover all three
--- fuel tables; adding columns does not change any of that — audit captures the whole row
+-- fuel tables; adding columns does not change any of that, audit captures the whole row
 -- via to_jsonb, so the new fields are audited automatically.
 
--- ── Deliveries: capture the VAT rate and who recorded the fill ────
+-- == Deliveries: capture the VAT rate and who recorded the fill ====
 -- (litres, price_per_l_cents, date, supplier, invoice_no, doc_url already exist in 0007.)
 alter table fuel_deliveries
   add column if not exists vat_rate_bps int,                     -- VAT rate captured (bps; 1500 = 15%)
   add column if not exists by_user      uuid references users(id);
 
--- ── Issues (per-machine draws): capture cost + a free-text driver ──
+-- == Issues (per-machine draws): capture cost + a free-text driver ==
 -- litres, meter_reading, activity, by_user, date, machine_id already exist in 0007.
---   * cost_cents        — ex-VAT total cost of THIS draw. This is the authoritative
+--   * cost_cents       , ex-VAT total cost of THIS draw. This is the authoritative
 --                         per-machine fuel cost that flows into cost_entries/TCO (0241).
---   * price_per_l_cents — optional unit price (ex-VAT), kept for display/reconciliation.
---   * vat_rate_bps      — VAT rate captured at entry (bps).
---   * driver_name       — free-text operator name for anonymous QR draws (mirrors
+--   * price_per_l_cents, optional unit price (ex-VAT), kept for display/reconciliation.
+--   * vat_rate_bps     , VAT rate captured at entry (bps).
+--   * driver_name      , free-text operator name for anonymous QR draws (mirrors
 --                         usage_logs.driver_name); signed-in captures use by_user.
 alter table fuel_issues
   add column if not exists cost_cents        bigint,

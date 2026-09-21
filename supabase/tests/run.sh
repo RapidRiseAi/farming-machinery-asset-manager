@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Apply the Supabase auth shim + all migrations to a fresh local Postgres database,
 # then run the RLS isolation suite. Designed to run with zero external dependencies
-# (no Docker, no Supabase CLI) — just a local Postgres cluster.
+# (no Docker, no Supabase CLI), just a local Postgres cluster.
 #
 # Usage: supabase/tests/run.sh
 # Env:   TEST_DB_NAME (default: farmapp_test)

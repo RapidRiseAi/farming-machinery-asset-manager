@@ -7,7 +7,7 @@ import { movementsByBucket, CASH_BUCKETS, type CashflowMovement } from "@/lib/ca
 /**
  * What is behind each bucket, one row per expected movement.
  *
- * A total nobody can take apart is a total nobody believes — the same reason 0460 split
+ * A total nobody can take apart is a total nobody believes, the same reason 0460 split
  * the expense breakdown out of the P&L. Here it matters more than usual, because the
  * reader's next action is almost always about ONE of these lines: phone the farmer who is
  * 40 days late, or ring the supplier and ask for another two weeks.

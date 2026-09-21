@@ -2,17 +2,17 @@
 -- Money we gave back was not written down anywhere.
 --
 -- WHAT HAPPENED BEFORE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `refund.processed` arrived from Paystack, was recorded as a webhook EVENT, raised an
 -- alert to Rapid Rise, and changed nothing else. So the money left our account and the
--- ledger still said the invoice was paid in full. Every figure downstream — what a farm has
--- paid us, what the month collected, the reconciliation against Paystack — was wrong by the
+-- ledger still said the invoice was paid in full. Every figure downstream, what a farm has
+-- paid us, what the month collected, the reconciliation against Paystack, was wrong by the
 -- amount of every refund ever issued.
 --
 -- THE TRAP THIS HAD TO AVOID, AND IT IS A BAD ONE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `billing_payments` already permits a negative row (`nonzero_ck` forbids zero, not minus),
--- and `app.billing_rollup_invoice_payments` already sums them — so simply inserting the
+-- and `app.billing_rollup_invoice_payments` already sums them, so simply inserting the
 -- refund makes `amount_paid_cents` fall and the invoice flip from 'paid' back to 'open'.
 --
 -- Which is correct, and which would have put it straight back on the nightly charging
@@ -21,32 +21,32 @@
 -- system could do to somebody, and it is what "just record the negative" buys on its own.
 --
 -- So the two halves ship together: the ledger tells the truth, AND both charging shortlists
--- refuse an invoice that carries a refund. Not a flag on the invoice — a refund IS a row in
+-- refuse an invoice that carries a refund. Not a flag on the invoice, a refund IS a row in
 -- the payments ledger, and deriving the exclusion from that row keeps one source of truth,
 -- which is the same reason `status` is a rollup and never typed.
 --
 -- WHAT IS DELIBERATELY NOT AUTOMATIC
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The SUBSCRIPTION. Founder decision of 11 September, written up in `docs/BILLING.md` §11b:
 -- a refund the customer asked for ends the plan immediately, a refund we issue because
--- something broke leaves them on it. A webhook cannot tell those apart — Paystack says an
--- amount moved and nothing about why — so nothing here touches the subscription, the plan,
+-- something broke leaves them on it. A webhook cannot tell those apart, Paystack says an
+-- amount moved and nothing about why, so nothing here touches the subscription, the plan,
 -- or the dunning state. The alert to Rapid Rise already exists and remains how a human is
 -- brought in.
 --
 -- RECORDED EVEN WHEN IT LOOKS WRONG
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A refund larger than the payments we hold against that invoice is recorded, not refused.
 -- Paystack cannot refund more than was charged, so that case means OUR records are missing
--- a payment — and a ledger that quietly drops the evidence of its own gap is worse than one
+-- a payment, and a ledger that quietly drops the evidence of its own gap is worse than one
 -- that shows an impossible number somebody has to explain. The outcome word says so, and
 -- the shortlist exclusion means the odd state is inert rather than dangerous.
 
 begin;
 
--- ── Recording it ─────────────────────────────────────────────────────────────
+-- == Recording it =============================================================
 -- Idempotent on the REFUND's own Paystack reference via `billing_payments_ref_uq`, so a
--- redelivered webhook — and Paystack retries for 72 hours — cannot record it twice. The
+-- redelivered webhook, and Paystack retries for 72 hours, cannot record it twice. The
 -- unique index does that work, not a check somebody could forget, which is the same
 -- discipline `billing_payment_attempts_inflight_uq` uses to stop a double charge.
 create or replace function app.billing_record_refund(
@@ -107,7 +107,7 @@ end;
 $fn$;
 
 -- The ENGINE grants to nobody. Everything reaches it through the public wrapper below,
--- which is SECURITY DEFINER — that is the rule suite section (j) enforces, and granting
+-- which is SECURITY DEFINER, that is the rule suite section (j) enforces, and granting
 -- the engine directly to service_role fires it by name.
 revoke execute on function app.billing_record_refund(text, text, bigint, timestamptz)
   from public, anon, authenticated, service_role;
@@ -126,7 +126,7 @@ revoke execute on function public.billing_record_refund(text, text, bigint, time
 grant execute on function public.billing_record_refund(text, text, bigint, timestamptz)
   to service_role;
 
--- ── Never charge a refunded invoice again ────────────────────────────────────
+-- == Never charge a refunded invoice again ====================================
 -- Both shortlists, because there are two: the nightly one and the manual "Try again". A
 -- guard on one of them is not a guard.
 -- The DEFAULT is part of the existing signature: dropping it in a `create or replace`
@@ -147,7 +147,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     join public.billing_subscriptions s on s.id = i.subscription_id and s.deleted_at is null
     -- S7. A deleted farm is never charged, full stop. A CANCELLED one is not charged
     -- either: cancelling is our own act, and taking money afterwards reads as a mistake
-    -- however correct the underlying debt is. A SUSPENDED farm still is — suspension
+    -- however correct the underlying debt is. A SUSPENDED farm still is, suspension
     -- withholds the service, it does not forgive what is already invoiced.
     join public.farms fm on fm.id = i.farm_id
      and fm.deleted_at is null and fm.status <> 'cancelled'
@@ -161,7 +161,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
      and coalesce(i.due_on, i.issued_on, current_date) <= current_date
      -- GRACE IS NOW RETRIED (founder decision, 2026-09-10). Until this, exhausting the
      -- retry ladder set status='grace' with next_retry_on = null, and 'grace' was not in
-     -- this list at all — so the stored card was never presented again by anything, and a
+     -- this list at all, so the stored card was never presented again by anything, and a
      -- farm whose money simply arrived late was downgraded without ever being asked twice.
      --
      -- The two arms are not the same test. For a live subscription a NULL retry date means

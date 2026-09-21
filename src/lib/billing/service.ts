@@ -1,12 +1,12 @@
 /**
- * SaaS billing — the service-role data layer.
+ * SaaS billing, the service-role data layer.
  *
  * Everything in this file runs with the service key. `billing_*` tables grant the
  * browser SELECT only (and `billing_payment_methods` withholds the credential columns at
  * the COLUMN level), so every write in the billing system passes through here after a
  * route or action has already re-checked the caller's role.
  *
- * ── Why these are RPC names and not `app.*` calls ────────────────────────────
+ * == Why these are RPC names and not `app.*` calls ============================
  * PostgREST exposes `public` and `graphql_public` only; a call into schema `app` answers
  * PGRST106. Every engine function the migrations define lives in `app`, so the ones the
  * worker needs are reached through thin `public.*` wrappers, exactly as the fourteen
@@ -17,12 +17,12 @@
  * `app.settle_billing_attempt` and `app.generate_billing_invoices(uuid)` went out with no
  * `public.*` wrapper at all, so every call on the charging path answered PGRST202 and the
  * whole feature was unreachable. Migration `20260906120000` adds them. Nothing here
- * caught it — the tests in this directory mock the Supabase client, so they assert the
- * ARGUMENTS and never that the function exists — which is why the isolation suite now
+ * caught it, the tests in this directory mock the Supabase client, so they assert the
+ * ARGUMENTS and never that the function exists, which is why the isolation suite now
  * carries section (m), asserting each name AND its parameter names against `pg_proc`.
  * If you add an entry below, add it there in the same commit.
  *
- * ── The credential rule ──────────────────────────────────────────────────────
+ * == The credential rule ======================================================
  * `authorization_code` / `authorization_email` are a charging credential. They are read
  * in exactly one function here, passed straight to the adapter, and never returned to a
  * caller, put in an error, or logged. `redactMessage` exists so that a provider or
@@ -47,7 +47,7 @@ export const BILLING_RPC = {
   // must never be relaxed by something that could be passed the wrong way round.
   invoiceChargeableNow: "billing_invoice_chargeable_now",
   // Changing plan (20260910180000). The quote is separate from the commit so a screen can
-  // price the change before anybody presses anything, and BOTH are service-role only —
+  // price the change before anybody presses anything, and BOTH are service-role only -
   // they are SECURITY DEFINER, so a grant to `authenticated` would let any signed-in user
   // price a change on somebody else's subscription and learn their fleet size on the way.
   planQuote: "billing_plan_quote",
@@ -55,7 +55,7 @@ export const BILLING_RPC = {
   // Disputes and refunds, addressed to Rapid Rise rather than the farm (20260910200000).
   notifyRr: "billing_notify_rr",
   // How many vehicle slots are left (20260910230000), and whether the farm has paid at
-  // all (20260911100000). The only two wrappers here a signed-in user may call — see the
+  // all (20260911100000). The only two wrappers here a signed-in user may call, see the
   // v_pub_auth_ok note in the suite's section (j) for the four tests they had to pass.
   vehicleAllowance: "farm_vehicle_allowance",
   billingGate: "farm_billing_gate",
@@ -64,8 +64,8 @@ export const BILLING_RPC = {
   // must only ever be reached from an action that has established who is asking.
   reopenSubscription: "billing_reopen_subscription",
   // Money we gave back (20260911210000). Named here rather than inlined at the call site
-  // so suite section (m) — which asserts every RPC name AND its parameter names against
-  // pg_proc — covers it: PostgREST resolves overloads by named argument, so a rename
+  // so suite section (m), which asserts every RPC name AND its parameter names against
+  // pg_proc, covers it: PostgREST resolves overloads by named argument, so a rename
   // breaks the call as completely as a deletion.
   recordRefund: "billing_record_refund",
   claimCharge: "billing_claim_charge",
@@ -108,8 +108,8 @@ export const BILLING_RPC = {
   // a wrapper a browser could call to set its own discount could set it to 100%.
   //
   // `checkPromoCode` reads and takes nothing, so the sign-up route can answer a typo
-  // before it has created an auth user. `billing_take_promo_code` — the one that locks the
-  // code's row and spends a place on the offer — is NOT listed, because no TypeScript
+  // before it has created an auth user. `billing_take_promo_code`, the one that locks the
+  // code's row and spends a place on the offer, is NOT listed, because no TypeScript
   // calls it: it is invoked from inside `app.create_pending_signup`, between creating the
   // subscription and raising the first invoice, which is the only window where a code can
   // reach the invoice the visitor is about to pay.
@@ -183,14 +183,14 @@ export type ServiceError = { message: string; code?: string };
  * Paystack's floor for a ZAR transaction: R1.00.
  *
  * The engine already raises nothing for a farm with no billable vehicles, so this only
- * bites a farm with a real bill under a rand — a one-vehicle farm on a promotional price,
+ * bites a farm with a real bill under a rand, a one-vehicle farm on a promotional price,
  * say. Checked here so the refusal is OUR sentence with a reason attached, rather than a
  * provider rejection arriving as a settled `failed` attempt that starts the dunning
  * machinery over ninety cents.
  */
 export const PAYSTACK_MIN_CHARGE_CENTS = 100;
 
-// ── Redaction ────────────────────────────────────────────────────────────────
+// == Redaction ================================================================
 
 /**
  * A message safe to store or report.
@@ -211,7 +211,7 @@ export function redactMessage(raw: unknown, max = 500): string {
     .slice(0, max);
 }
 
-// ── References ───────────────────────────────────────────────────────────────
+// == References ===============================================================
 
 /**
  * OUR reference for a charge attempt, minted before the provider is contacted.
@@ -226,7 +226,7 @@ export function newAttemptReference(prefix = "FWB"): string {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
 }
 
-// ── The provider ─────────────────────────────────────────────────────────────
+// == The provider =============================================================
 
 /**
  * The configured SaaS billing provider, or null when none is wired.
@@ -273,7 +273,7 @@ export async function providerState(): Promise<ProviderState> {
   };
 }
 
-// ── Engine calls ─────────────────────────────────────────────────────────────
+// == Engine calls =============================================================
 
 /** Invoices a worker may attempt right now. Empty is the normal, healthy answer. */
 export async function dueBillingCharges(
@@ -290,7 +290,7 @@ export async function dueBillingCharges(
  *
  * Same row shape as `dueBillingCharges`, so the worker hands it to identical code. The
  * difference is entirely in the SQL (see 20260910140000): no retry window, and `grace`,
- * `non_renewing` and `downgraded` are included — a farm being chased for money must be
+ * `non_renewing` and `downgraded` are included, a farm being chased for money must be
  * able to pay, which was precisely what "Try again" could not do.
  *
  * Everything else is the same, the in-flight block included. It returns at most one row.
@@ -313,7 +313,7 @@ export async function invoiceChargeableNow(
  * A null is NOT an error and must never be reported as one: at most one attempt may be
  * in flight per invoice (`billing_payment_attempts_inflight_uq`), so a second worker
  * losing the insert is the constraint doing precisely its job. It also returns null when
- * the invoice already carries an `unknown` attempt — a standing instruction to reconcile
+ * the invoice already carries an `unknown` attempt, a standing instruction to reconcile
  * before anything else is tried.
  */
 export async function claimBillingCharge(
@@ -358,7 +358,7 @@ export async function settleBillingAttempt(
  *
  * Idempotent twice over in SQL (`billing_invoices_farm_period_uq` for the race,
  * `next_billing_on` for the repeat), so pressing "pay now" twice cannot produce a second
- * bill. With no active price version this raises nothing and returns 0 — which is the
+ * bill. With no active price version this raises nothing and returns 0, which is the
  * state the product ships in.
  */
 export async function generateInvoicesFor(
@@ -372,7 +372,7 @@ export async function generateInvoicesFor(
   return { made: typeof data === "number" ? data : 0, error: null };
 }
 
-// ── Reads ────────────────────────────────────────────────────────────────────
+// == Reads ====================================================================
 
 export async function getAttemptByReference(
   supabase: SupabaseClient,
@@ -427,7 +427,7 @@ export async function unresolvedAttempts(
   // `as unknown as` and not a bare cast: supabase-js parses the literal select string to
   // infer a row type, and for a multi-row `.in()` query it widens to `GenericStringError[]`
   // rather than to our shape, so TypeScript refuses the direct conversion (TS2352). The
-  // column list and `AttemptRow` are kept in step by hand — see `ATTEMPT_COLUMNS`.
+  // column list and `AttemptRow` are kept in step by hand, see `ATTEMPT_COLUMNS`.
   const rows = ((data ?? []) as unknown as AttemptRow[]).slice().sort((a, b) => {
     if (a.status !== b.status) return a.status === "unknown" ? -1 : 1;
     return a.requested_at < b.requested_at ? -1 : 1;
@@ -439,7 +439,7 @@ export async function unresolvedAttempts(
  * The charging credential for a stored card.
  *
  * The ONLY read of these two columns anywhere in the app. What it returns goes straight
- * into an adapter call and nowhere else — not into a log line, an error, a Sentry extra
+ * into an adapter call and nowhere else, not into a log line, an error, a Sentry extra
  * or a response body.
  */
 export async function paymentMethodCredential(
@@ -540,9 +540,9 @@ export async function getInvoiceById(
   return (data as InvoiceRow | null) ?? null;
 }
 
-// ── Writes that have no engine function ──────────────────────────────────────
+// == Writes that have no engine function ======================================
 
-/** Where the hosted checkout sent the customer. Evidence, not a credential — but a
+/** Where the hosted checkout sent the customer. Evidence, not a credential, but a
  *  single-use payment URL all the same, so it is stored and never printed. */
 export async function recordCheckoutSession(
   supabase: SupabaseClient,
@@ -591,13 +591,13 @@ export async function noteReconciliation(
  *
  * Refuses a non-reusable authorization outright. Paystack marks an authorization
  * reusable only when it may be charged again; storing a one-off as if it were a
- * subscription card produces a farm that looks set up and then fails every renewal — and
+ * subscription card produces a farm that looks set up and then fails every renewal, and
  * `billing_payment_methods_reusable_ck` would reject the row anyway. Doing it here as
  * well means the refusal has a reason attached rather than arriving as a constraint
  * violation.
  *
- * Idempotent on `(farm_id, provider, signature)`: the same card captured twice — a
- * webhook and a callback racing, say — updates the one row.
+ * Idempotent on `(farm_id, provider, signature)`: the same card captured twice, a
+ * webhook and a callback racing, say, updates the one row.
  */
 export async function storeAuthorization(
   supabase: SupabaseClient,
@@ -648,7 +648,7 @@ export async function storeAuthorization(
     existingId = (data as { id: string } | null)?.id ?? null;
   }
 
-  // Only one card per farm may be the default, and it is a partial unique index — so the
+  // Only one card per farm may be the default, and it is a partial unique index, so the
   // incumbent stands down before the newcomer claims it.
   await supabase
     .from("billing_payment_methods")
@@ -684,7 +684,7 @@ export async function storeAuthorization(
   return { paymentMethodId: id };
 }
 
-// ── Checkout ─────────────────────────────────────────────────────────────────
+// == Checkout =================================================================
 
 /** Where the browser should go next, or why it cannot. */
 export type CheckoutStart =
@@ -709,7 +709,7 @@ export function siteOrigin(): string | null {
  *
  * `authorization_url` arrives over the network. Redirecting to it unchecked would make a
  * compromised or mistyped adapter response into an open redirect the customer is
- * following with a payment in mind — the most credible phishing context there is.
+ * following with a payment in mind, the most credible phishing context there is.
  */
 export function isPaystackCheckoutUrl(raw: string): boolean {
   try {
@@ -764,7 +764,7 @@ export async function beginCheckout(
   const amount = invoice.total_incl_cents - invoice.amount_paid_cents;
   if (amount <= 0) return { ok: false, code: "billing-nothing-due" };
   // Paystack refuses a ZAR transaction under R1.00. Refused here, with a reason, rather
-  // than at the provider — where it would arrive as a decline and be indistinguishable
+  // than at the provider, where it would arrive as a decline and be indistinguishable
   // from a card problem.
   if (amount < PAYSTACK_MIN_CHARGE_CENTS) return { ok: false, code: "billing-below-minimum" };
 
@@ -776,7 +776,7 @@ export async function beginCheckout(
     amountCents: amount,
   });
   if (claimError) return { ok: false, code: "billing-claim-failed" };
-  // Null means another attempt is already in flight on this invoice — possibly an
+  // Null means another attempt is already in flight on this invoice, possibly an
   // `unknown` one, which must be reconciled before anything else is tried.
   if (!attemptId) return { ok: false, code: "billing-in-flight" };
 
@@ -797,7 +797,7 @@ export async function beginCheckout(
 
   const session = await provider.initializeCheckout(init);
   if (!session.ok) {
-    // `transaction/initialize` moves no money — it creates a page. A failure here cannot
+    // `transaction/initialize` moves no money, it creates a page. A failure here cannot
     // have charged anybody, so the attempt is ABANDONED rather than left `unknown`: an
     // unknown would block every later attempt on this invoice for a request that never
     // could have taken a rand.
@@ -849,13 +849,13 @@ export function chargeRequestFor(
   };
 }
 
-// ── Company settings ─────────────────────────────────────────────────────────
+// == Company settings =========================================================
 
 /**
  * The singleton `billing_settings` row.
  *
- * Read by `singleton`, never by `id`. The primary key is a uuid — the shared `app_audit()`
- * trigger casts `id` to uuid, so a boolean primary key broke it — and the one-row property
+ * Read by `singleton`, never by `id`. The primary key is a uuid, the shared `app_audit()`
+ * trigger casts `id` to uuid, so a boolean primary key broke it, and the one-row property
  * is held by the `singleton` column and its unique index instead. A reader that looked the
  * row up by a hard-coded id would find nothing.
  */
@@ -888,10 +888,10 @@ export async function billingSettings(
   return (data as BillingSettings | null) ?? null;
 }
 
-// ── Webhook events ───────────────────────────────────────────────────────────
+// == Webhook events ===========================================================
 //
-// `billing_webhook_events` is granted to `service_role` and to nothing else — not even
-// SELECT for `authenticated` — because a payload carries the customer's email and the
+// `billing_webhook_events` is granted to `service_role` and to nothing else, not even
+// SELECT for `authenticated`, because a payload carries the customer's email and the
 // full authorization object. Every function below therefore requires the service client.
 
 export type WebhookRecord = {
@@ -909,7 +909,7 @@ export type WebhookRecord = {
  * read-then-write here: the route is precisely the thing being delivered to more than
  * once, sometimes concurrently, so "have we seen this before?" would lose the very race
  * it exists to win. The insert is attempted first and a duplicate-key error IS the
- * answer — at which point the only thing that happens is `delivery_count` going up, which
+ * answer, at which point the only thing that happens is `delivery_count` going up, which
  * makes a redelivery storm visible instead of silent.
  */
 export async function recordWebhookEvent(
@@ -995,7 +995,7 @@ export async function finishWebhookEvent(
     .eq("id", eventId);
 }
 
-// ── Subscription writes the owner and Rapid Rise screens need ────────────────
+// == Subscription writes the owner and Rapid Rise screens need ================
 
 /**
  * Ask for a cancellation.
@@ -1003,7 +1003,7 @@ export async function finishWebhookEvent(
  * Period-end is the default and the only one an owner normally reaches: they have paid
  * for the period, so `non_renewing` keeps them fully entitled until `current_period_end`
  * and `app.billing_close_cancellations()` closes it on the night it expires. Immediate
- * cancellation ends it now. Nothing is deleted either way — that is the promise the whole
+ * cancellation ends it now. Nothing is deleted either way, that is the promise the whole
  * downgrade path is built on.
  */
 export async function setCancellation(
@@ -1068,8 +1068,8 @@ export async function resumeSubscription(
 /**
  * May this farm be used at all?
  *
- * `"pending"` means a subscription row exists and has not been paid for. Everything else —
- * including NO subscription row at all — is `"ok"`, and that is the load-bearing half:
+ * `"pending"` means a subscription row exists and has not been paid for. Everything else -
+ * including NO subscription row at all, is `"ok"`, and that is the load-bearing half:
  * Weltevrede has twelve vehicles and no subscription, as does every farm onboarded before
  * billing existed, so a gate written as "no active subscription" would lock out the whole
  * customer base. See 20260911100000.
@@ -1179,8 +1179,8 @@ export type VehicleAllowance = {
  * Ask how much room a farm has left for another vehicle.
  *
  * This is NOT the guarantee. `app.billing_enforce_vehicle_quota` is a trigger on
- * `machines`, so the ceiling holds for every creation path — including ones nobody has
- * written yet — and cannot be raced by two tabs adding the same vehicle. This exists so
+ * `machines`, so the ceiling holds for every creation path, including ones nobody has
+ * written yet, and cannot be raced by two tabs adding the same vehicle. This exists so
  * the refusal is a sentence a farmer can act on instead of a Postgres error, and if the
  * two ever disagree the trigger wins.
  *
@@ -1208,7 +1208,7 @@ export async function vehicleAllowance(
  * How many more vehicles this farm may add, or null when there is no ceiling.
  *
  * Reads `enforced` rather than `remaining`, deliberately. A caller that tested
- * `remaining <= 0` would block every farm that never bought a quota — which is every farm
+ * `remaining <= 0` would block every farm that never bought a quota, which is every farm
  * that existed before the quota model, and every farm an administrator creates.
  */
 export async function vehicleSlotsFree(
@@ -1225,7 +1225,7 @@ export async function vehicleSlotsFree(
  *
  * Shaped like `app.notify_farm` and landing in the same alert centre, but addressed to
  * the rr_admins rather than the farm's owners and managers: a dispute or a refund is our
- * problem, not the farmer's. No quiet hours either — a dispute carries roughly 48 business
+ * problem, not the farmer's. No quiet hours either, a dispute carries roughly 48 business
  * hours, and holding the alert until 07:00 spends part of a clock that cannot be paused.
  *
  * A failure to alert is deliberately NOT thrown. The webhook has to answer 200: Paystack
@@ -1265,7 +1265,7 @@ export type PlanChangeQuote = {
  * Price a plan change without making it.
  *
  * The owner's screen has to be able to say "R42,00 now, then R267,00 a month" before they
- * press anything, and the engine must then charge exactly that — a screen and an engine
+ * press anything, and the engine must then charge exactly that, a screen and an engine
  * that disagree about a price is worse than either number alone.
  */
 export async function planChangeQuote(
@@ -1298,15 +1298,15 @@ export type PlanChangeResult = {
  * Change what a farm is billed for AND what it can use, together.
  *
  * This replaced `adminSetSubscriptionPlan`, which wrote `billing_subscriptions.plan` and
- * nothing else — so an upgrade charged more and granted nothing, and a downgrade charged
+ * nothing else, so an upgrade charged more and granted nothing, and a downgrade charged
  * less and took nothing away. Its reasoning for writing only half was sound: an admin
  * screen that wrote both would be the one place able to silently un-downgrade a farm that
  * has not paid. That concern is now handled INSIDE the engine, which writes
  * `plan_before_downgrade` instead of `farms.plan` for a farm in that state, so the
  * upgrade is honoured when they pay and not before.
  *
- * Everything else that makes this safe also lives in SQL — the rank rule, the proration,
- * the refusal to raise an unpayable invoice — because two screens call it and a rule in
+ * Everything else that makes this safe also lives in SQL, the rank rule, the proration,
+ * the refusal to raise an unpayable invoice, because two screens call it and a rule in
  * one screen is a rule the other does not have.
  */
 export async function changeSubscriptionPlan(
@@ -1347,7 +1347,7 @@ export async function deactivatePaymentMethod(
  * The farm's default (or any active) stored card, display columns only.
  *
  * Never selects `*`: `authorization_code` and `authorization_email` are withheld from
- * `authenticated` at the COLUMN level, so a `select=*` from a browser session errors —
+ * `authenticated` at the COLUMN level, so a `select=*` from a browser session errors -
  * and this runs as the service role, where it would succeed and quietly carry a charging
  * credential into whatever the caller does next.
  */
@@ -1374,8 +1374,8 @@ export async function activePaymentMethod(
 /**
  * The address a NEW hosted checkout is raised against for a farm.
  *
- * ── Read this before using it anywhere else ──────────────────────────────────
- * This is for `initializeCheckout` ONLY — the first payment, where no authorization
+ * == Read this before using it anywhere else ==================================
+ * This is for `initializeCheckout` ONLY, the first payment, where no authorization
  * exists yet. It must NEVER be used to charge a stored card. Paystack's rule is explicit:
  * "only the email used to create an authorization can be used to charge it", so a
  * recurring charge takes `billing_payment_methods.authorization_email` (part of the
@@ -1389,7 +1389,7 @@ export async function activePaymentMethod(
  * transaction must belong to the farmer, not to a staff member.
  *
  * `fallback` is the caller's own address, used only when the farm has no active owner on
- * file — which is a broken farm, but not a reason to refuse a payment.
+ * file, which is a broken farm, but not a reason to refuse a payment.
  */
 export async function billingContactEmail(
   supabase: SupabaseClient,

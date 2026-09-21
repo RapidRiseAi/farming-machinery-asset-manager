@@ -5,7 +5,7 @@ import { TERMS } from "@/lib/legal";
 import { LegalPage } from "../legal/legal-page";
 
 export const metadata: Metadata = {
-  title: `Terms of use — ${APP_NAME}`,
+  title: `Terms of use, ${APP_NAME}`,
   description: "What you get, what it costs, and what happens if you stop paying.",
 };
 

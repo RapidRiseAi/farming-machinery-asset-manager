@@ -23,7 +23,7 @@ import { addLine, saveLine, removeLine } from "@/app/(app)/orders/actions";
  *
  * Each line is its own small form rather than a read-only row with an "edit" mode. That is
  * a deliberate trade: it is more markup, and it means the screen is honest about the two
- * things that actually happen at a parts counter — the price on the delivery note is not
+ * things that actually happen at a parts counter, the price on the delivery note is not
  * always the price that was agreed, and quantities arrive in instalments. Making the
  * second require a mode switch is how a receiving record stops being kept.
  *
@@ -43,7 +43,7 @@ export function LineEditor({
   locale: Lang;
   order: PurchaseOrder;
   lines: PurchaseOrderLine[];
-  /** False once the order is cancelled — there is nothing left to buy or receive. */
+  /** False once the order is cancelled, there is nothing left to buy or receive. */
   editable: boolean;
 }) {
   return (

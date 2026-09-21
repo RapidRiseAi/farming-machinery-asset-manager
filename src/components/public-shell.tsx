@@ -10,15 +10,15 @@ import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher
  * The frame around every page somebody sees BEFORE they have an account: the landing page,
  * sign in, sign up, the terms.
  *
- * ── Why these three share a shell ────────────────────────────────────────────
+ * == Why these three share a shell ============================================
  * They were three unrelated layouts with three different headers, and a visitor moving
  * between them could reasonably wonder whether they were still on the same site. That is
  * not a small thing on the screens where somebody decides whether to type a card number
  * into you.
  *
- * ── What the footer is for ───────────────────────────────────────────────────
+ * == What the footer is for ===================================================
  * A registered company name, a registration number and a real address, on every page before
- * the sale. Half of looking trustworthy is being identifiable — and for a South African
+ * the sale. Half of looking trustworthy is being identifiable, and for a South African
  * electronic transaction, ECTA §43 wants exactly this information available before somebody
  * transacts, not buried afterwards.
  */
@@ -41,7 +41,7 @@ export function PublicShell({
           </span>
           <span className="text-lg font-semibold tracking-tight text-sand-900">{APP_NAME}</span>
         </Link>
-        {/* The switcher shows the LANGUAGE choice, which is independent of tone — an
+        {/* The switcher shows the LANGUAGE choice, which is independent of tone, an
             af-pro reader must see AF selected, not "af-pro". `localeOf` is the same
             narrowing every other caller of this control uses. */}
         <DeviceLanguageSwitcher current={localeOf(locale)} label={t("auth.language", locale)} />

@@ -2,7 +2,7 @@
 -- Where a payment came from, and why the same one cannot land twice.
 --
 -- A "pay now" link means a payment provider will call us back to say money arrived. Every
--- provider worth using RETRIES that callback — PayFast repeats an ITN until it gets a 200,
+-- provider worth using RETRIES that callback, PayFast repeats an ITN until it gets a 200,
 -- and will happily send the same one several times if the first response is slow. So the
 -- single most important thing about accepting automated payments is not accepting the
 -- same one twice.

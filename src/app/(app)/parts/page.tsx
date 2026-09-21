@@ -102,7 +102,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
     const p = partById.get(s.part_catalogue_id);
     return {
       ...s,
-      part_no: p?.part_no ?? "—",
+      part_no: p?.part_no ?? "-",
       description: p?.description ?? null,
       supplier: p?.supplier ?? null,
       typical_cost_cents: p?.typical_cost_cents ?? null,
@@ -195,7 +195,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
         />
       ) : null}
 
-      {/* The store — what is actually on the shelf (0450). Farm side only. */}
+      {/* The store, what is actually on the shelf (0450). Farm side only. */}
       {showStore ? (
         <StoreCard locale={locale} rows={storeRows} machines={machines} canManage={canManageStock} />
       ) : null}
@@ -256,7 +256,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                             triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                             title={t("confirm.deletePartTitle", locale).replace(
                               "{part}",
-                              p.part_no ?? p.description ?? "—",
+                              p.part_no ?? p.description ?? "-",
                             )}
                             intro={t("confirm.deletePartIntro", locale)}
                             consequencesTitle={t("confirm.whatHappens", locale)}
@@ -272,10 +272,10 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                       </details>
                     ) : null}
                   </Td>
-                  <Td>{p.description ?? "—"}</Td>
-                  <Td>{p.category ?? "—"}</Td>
-                  <Td>{p.supplier ?? "—"}</Td>
-                  <Td className="text-right tabular-nums">{p.typical_cost_cents != null ? rands(p.typical_cost_cents) : "—"}</Td>
+                  <Td>{p.description ?? "-"}</Td>
+                  <Td>{p.category ?? "-"}</Td>
+                  <Td>{p.supplier ?? "-"}</Td>
+                  <Td className="text-right tabular-nums">{p.typical_cost_cents != null ? rands(p.typical_cost_cents) : "-"}</Td>
                   <Td>
                     <Badge tone={p.farm_id == null ? "info" : "neutral"}>
                       {p.farm_id == null ? t("parts.scopeGlobal", locale) : t("parts.scopeFarm", locale)}

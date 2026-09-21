@@ -6,7 +6,7 @@ import { useEffect } from "react";
  * Ask the service worker to keep this person's own screens ready for offline use.
  *
  * The offline story used to be "whatever you happened to visit while you had signal is
- * what you get" — so a farmer who had only ever opened the dashboard found that
+ * what you get", so a farmer who had only ever opened the dashboard found that
  * everything else, tapped in a shed with no bars, showed them the dashboard again. (The
  * worker's fallback list applied to every uncached page, not just a cold launch; that is
  * fixed in sw.js.)
@@ -14,7 +14,7 @@ import { useEffect } from "react";
  * The fix has two halves. The worker no longer substitutes a different page for the one
  * asked for. And this component hands it the list of routes the shell has decided this
  * ROLE can reach, so a driver warms the driver's screens, a contractor theirs, and an
- * owner theirs — no hardcoded guess about who is using the app.
+ * owner theirs, no hardcoded guess about who is using the app.
  *
  * It also guards the other edge of caching a signed-in page: Cache Storage is
  * origin-wide and keyed by URL alone, so on a shared browser the previous person's
@@ -37,7 +37,7 @@ export function WarmRoutes({ paths, contextKey }: { paths: string[]; contextKey:
     const send = () => {
       if (cancelled) return;
       /*
-       * Cache Storage is ORIGIN-wide and keyed only by URL — there is nothing in a cache
+       * Cache Storage is ORIGIN-wide and keyed only by URL, there is nothing in a cache
        * key about who was signed in or which farm they had open. On a shared farm-office
        * browser that means a page cached for one person could be served, offline, to the
        * next. So before warming anything, check whether the context changed since last
@@ -48,7 +48,7 @@ export function WarmRoutes({ paths, contextKey }: { paths: string[]; contextKey:
         previous = window.localStorage.getItem(CONTEXT_KEY);
         window.localStorage.setItem(CONTEXT_KEY, contextKey);
       } catch {
-        /* private mode or storage disabled — fall through and clear, which is the safe
+        /* private mode or storage disabled, fall through and clear, which is the safe
            direction: we would rather re-fetch than serve the wrong person's page. */
       }
       const changed = previous !== contextKey;

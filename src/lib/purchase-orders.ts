@@ -1,9 +1,9 @@
 /**
- * What is on order (G16, migrations 0473–0475).
+ * What is on order (G16, migrations 0473-0475).
  *
  * The shared model the list, the order screen and the server actions all read, so a
  * figure shown on one cannot be interpreted differently on another. Everything in here
- * MIRRORS SQL rather than deciding anything of its own — the totals trigger in 0473 and
+ * MIRRORS SQL rather than deciding anything of its own, the totals trigger in 0473 and
  * `app.purchase_order_derived_status` in 0474 are the authority, and these functions
  * exist so a screen can show a running total or an accurate status without waiting for a
  * round trip. Where the two could ever disagree, the database wins; that is why the
@@ -58,7 +58,7 @@ export type PurchaseOrderLine = {
 /**
  * PostgREST hands `numeric` back as a JSON number, but a column read through a view or a
  * hand-written select can arrive as a string. Both are accepted here rather than at
- * fifteen call sites, and anything unreadable counts as zero — a quantity that renders as
+ * fifteen call sites, and anything unreadable counts as zero, a quantity that renders as
  * `NaN` is worse than one that renders as nothing.
  */
 export function qty(value: number | string | null | undefined): number {
@@ -89,7 +89,7 @@ export function orderTotalsFromLines(
   return { subtotalCents, vatCents, totalCents: subtotalCents + vatCents };
 }
 
-/** Still to come on this line. Never negative — an over-delivery is not a negative debt. */
+/** Still to come on this line. Never negative, an over-delivery is not a negative debt. */
 export function outstandingQty(line: Pick<PurchaseOrderLine, "qty_ordered" | "qty_received">): number {
   return Math.max(0, qty(line.qty_ordered) - qty(line.qty_received));
 }
@@ -107,7 +107,7 @@ export type ReceivedSummary = {
  * How much of the order has actually turned up.
  *
  * The clamp is the part worth reading twice: a supplier who sends twelve of one item and
- * none of another has not completed the order, and an unclamped sum would say they had —
+ * none of another has not completed the order, and an unclamped sum would say they had -
  * the surplus on one line silently covering the shortfall on the one somebody is waiting
  * for. 0474 does the same thing in SQL and this must not disagree with it.
  */
@@ -133,7 +133,7 @@ export function receivedSummary(
 /**
  * What the status will be once the database has looked at the lines. Mirrors
  * `app.purchase_order_derived_status`, including the part that leaves draft, closed and
- * cancelled alone — those are decisions a person made, not deliveries.
+ * cancelled alone, those are decisions a person made, not deliveries.
  */
 export function derivedStatus(
   current: PurchaseOrderStatus,
@@ -166,7 +166,7 @@ export function isLate(order: Pick<PurchaseOrder, "status" | "expected_date">, t
  *
  * Deliberately permissive: a supplier who invoices on despatch bills before anything has
  * arrived, and refusing the capture would mean the invoice goes in with no link to the
- * order at all — which loses precisely the comparison this feature exists to make. Only a
+ * order at all, which loses precisely the comparison this feature exists to make. Only a
  * draft (never sent) and a cancelled order are refused, because neither can be owed for.
  */
 export function canConvert(status: PurchaseOrderStatus): boolean {

@@ -1,13 +1,13 @@
 -- 0417_document_revisions.sql
--- G3 — Fix a mistake by fixing it, and keep every version you fixed.
+-- G3, Fix a mistake by fixing it, and keep every version you fixed.
 --
--- ── WHY THIS REPLACES THE HARD FREEZE ────────────────────────────────────────
+-- == WHY THIS REPLACES THE HARD FREEZE ========================================
 --
 -- 0412 made an issued document immutable and offered a credit note as the only route to a
 -- wrong amount. That is what the accounting textbooks say, and for a customer who pays
 -- invoice-by-invoice it is right. But a great many farm customers run a MONTHLY ACCOUNT:
 -- they never look at an individual invoice, they pay off a statement. For them, three
--- lines — the wrong invoice, a credit note, a replacement invoice — where one corrected
+-- lines, the wrong invoice, a credit note, a replacement invoice, where one corrected
 -- line belongs makes the statement HARDER to read, not more honest. The correction is
 -- noise on a page whose whole job is to be scannable.
 --
@@ -16,7 +16,7 @@
 -- is the guarantee that actually matters. Nobody was ever protected by immutability
 -- itself; they were protected by being able to reconstruct what a customer was told.
 --
--- ── HOW IT IS ENFORCED ───────────────────────────────────────────────────────
+-- == HOW IT IS ENFORCED =======================================================
 --
 -- Editing goes through ONE SECURITY DEFINER function, `public.revise_document`, which:
 --
@@ -32,15 +32,15 @@
 -- server action, or by hand, that does not leave a version behind. The rule is a property
 -- of the database, not a convention in the app.
 --
--- ── WHAT STAYS SHUT ──────────────────────────────────────────────────────────
+-- == WHAT STAYS SHUT ==========================================================
 --
 -- DELETING an issued document. That is the specific thing that makes AutoVault's
--- statements disagree with themselves — its route hard-deletes invoices with the
+-- statements disagree with themselves, its route hard-deletes invoices with the
 -- service-role client, so a statement printed last month and one printed today differ
 -- with nothing on either page to explain it. `void` does the same job, keeps the number,
 -- and records why.
 
--- ── The versions ─────────────────────────────────────────────────────────────
+-- == The versions =============================================================
 create table partner_document_revisions (
   id           uuid primary key default gen_random_uuid(),
   document_id  uuid not null references partner_documents(id) on delete cascade,
@@ -51,7 +51,7 @@ create table partner_document_revisions (
   reason       text not null,
   -- The whole document AND its lines as they were. A snapshot rather than a column-level
   -- diff, because the question anyone actually asks is "what did the customer get?", and
-  -- answering it from a pile of field-level deltas is a reconstruction — the same mistake
+  -- answering it from a pile of field-level deltas is a reconstruction, the same mistake
   -- AutoVault's statement route makes.
   snapshot     jsonb not null,
   total_cents_before bigint not null,
@@ -79,14 +79,14 @@ alter table partner_document_revisions enable row level security;
 alter table partner_document_revisions force  row level security;
 
 -- Visibility follows the document, including the draft rule. A farmer can see how an
--- invoice they were sent has changed since — which is the point of keeping the versions.
+-- invoice they were sent has changed since, which is the point of keeping the versions.
 create policy partner_document_revisions_sel on partner_document_revisions for select to authenticated
   using (app.partner_doc_visible_by_id(document_id));
 
 grant select on partner_document_revisions to authenticated;
 grant all    on partner_document_revisions to service_role;
 
--- ── The one door ─────────────────────────────────────────────────────────────
+-- == The one door =============================================================
 --
 -- `app.revising` is set only inside `revise_document` and is transaction-local, so it
 -- cannot leak to another statement, another request, or another connection.
@@ -109,7 +109,7 @@ begin
       using errcode = '42501';
   end if;
 
-  -- Everything below is now permitted — but only through `revise_document`, which has
+  -- Everything below is now permitted, but only through `revise_document`, which has
   -- already written the previous version away.
   if old.status <> 'draft' and not v_revising then
     if new.subtotal_cents is distinct from old.subtotal_cents
@@ -153,14 +153,14 @@ begin
   return coalesce(new, old);
 end $$;
 
--- ── Revise ───────────────────────────────────────────────────────────────────
+-- == Revise ===================================================================
 --
 -- Takes the change as data rather than letting the caller update the table, so the
 -- snapshot and the edit are one atomic act. A caller cannot snapshot and then fail to
 -- edit, or edit and forget to snapshot.
 --
 -- `p_patch` carries only the fields being changed; anything absent is left alone.
--- `p_lines` REPLACES the line set when present, and is left alone when null — so a
+-- `p_lines` REPLACES the line set when present, and is left alone when null, so a
 -- correction to the due date does not require resending every line.
 create or replace function public.revise_document(
   p_document uuid,
@@ -179,7 +179,7 @@ declare
   i          int := 0;
 begin
   if p_reason is null or length(btrim(p_reason)) < 3 then
-    raise exception 'Say what you are correcting — it is what makes the change readable later.'
+    raise exception 'Say what you are correcting, it is what makes the change readable later.'
       using errcode = '23514';
   end if;
 
@@ -249,7 +249,7 @@ begin
         d.farm_id, p_document, i,
         coalesce(nullif(ln->>'kind', ''), 'part')::job_line_kind,
         nullif(ln->>'part_no', ''),
-        coalesce(nullif(ln->>'description', ''), '—'),
+        coalesce(nullif(ln->>'description', ''), '-'),
         coalesce((ln->>'qty')::numeric, 1),
         coalesce((ln->>'unit_price_cents')::bigint, 0),
         coalesce((ln->>'discount_cents')::bigint, 0)
@@ -264,7 +264,7 @@ begin
   select total_cents, amount_paid_cents into v_after, v_paid
     from partner_documents where id = p_document;
 
-  -- You cannot correct an invoice down below what has already been paid — that is not a
+  -- You cannot correct an invoice down below what has already been paid, that is not a
   -- correction, it is a refund, and it needs a credit note so the money going back is
   -- visible as its own event.
   if d.kind = 'invoice' and v_after < v_paid then
@@ -281,5 +281,5 @@ grant  execute on function public.revise_document(uuid, text, jsonb, jsonb) to a
 
 comment on function public.revise_document(uuid, text, jsonb, jsonb) is
   'The ONLY way an issued document changes. Snapshots the current version and its lines '
-  'into partner_document_revisions, then applies the edit — one atomic act, so no edit '
+  'into partner_document_revisions, then applies the edit, one atomic act, so no edit '
   'can exist without the version it replaced.';

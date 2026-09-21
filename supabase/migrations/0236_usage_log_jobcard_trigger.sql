@@ -1,7 +1,7 @@
 -- 0236_usage_log_jobcard_trigger.sql  (F3 · FR-13.1 capture hook)
 -- When a job card is completed/approved, record a driver-usage log with the
 -- mechanic/operator as the driver (Scope: "driver = mechanic/operator"). This is a
--- DB trigger so it is route-independent — completion via the job-card editor, the
+-- DB trigger so it is route-independent, completion via the job-card editor, the
 -- lifecycle actions, or anywhere else all produce exactly one usage_log.
 --
 -- It mirrors the completion gate in 0202 (`app_jobcard_completed`) so the two stay

@@ -1,5 +1,5 @@
 // Lightweight, dependency-free, server-rendered charts for the dashboard.
-// Pure HTML/CSS (flex + width/height %) — no SVG runtime, no client JS, themed
+// Pure HTML/CSS (flex + width/height %), no SVG runtime, no client JS, themed
 // with the design tokens. Each chart is labelled for assistive tech.
 
 type Datum = { key: string; label: string; value: number; href?: string };
@@ -11,7 +11,7 @@ function compactRands(cents: number): string {
   return "R" + r.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 }
 
-/** Vertical bar chart — used for the 6-month spend trend. Values are cents. */
+/** Vertical bar chart, used for the 6-month spend trend. Values are cents. */
 export function SpendTrend({ data, title }: { data: Datum[]; title: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
@@ -38,7 +38,7 @@ export function SpendTrend({ data, title }: { data: Datum[]; title: string }) {
   );
 }
 
-/** Horizontal labelled bars — used for spend-by-type and cost-per-machine. */
+/** Horizontal labelled bars, used for spend-by-type and cost-per-machine. */
 export function HBars({
   data,
   title,

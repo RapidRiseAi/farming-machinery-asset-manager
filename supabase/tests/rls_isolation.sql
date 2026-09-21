@@ -1,8 +1,8 @@
--- rls_isolation.sql — the tenancy/RLS correctness gate (Scope ground rule #3).
+-- rls_isolation.sql, the tenancy/RLS correctness gate (Scope ground rule #3).
 --
 -- Proves, for EVERY table, that:
 --   * Farm A users see only Farm A rows; Farm B users see only Farm B rows.
---   * A workshop linked to Farm A sees Farm A rows only — never Farm B.
+--   * A workshop linked to Farm A sees Farm A rows only, never Farm B.
 --   * Revoking a workshop link immediately removes access.
 --   * RR admin sees across all tenants.
 --   * The anon role sees nothing and cannot write.
@@ -16,10 +16,10 @@
 \timing off
 set client_min_messages to warning;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- Assertion helpers. SECURITY INVOKER (default) so RLS is evaluated
 -- against the current role.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 create or replace function _t_assert(tbl text, expected bigint, who text)
 returns void language plpgsql as $$
 declare c bigint;
@@ -36,9 +36,9 @@ create or replace function _t_login(uid uuid) returns void language sql as $$
 $$;
 grant execute on function _t_login(uuid) to public;
 
--- ─────────────────────────────────────────────────────────────────
--- Seed (as superuser — RLS bypassed)
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
+-- Seed (as superuser, RLS bypassed)
+-- =================================================================
 insert into farms (id, name) values
   ('11111111-1111-1111-1111-111111111111', 'Farm A'),
   ('22222222-2222-2222-2222-222222222222', 'Farm B');
@@ -109,7 +109,7 @@ insert into attachments (farm_id, parent_type, parent_id, kind, url) values
   ('22222222-2222-2222-2222-222222222222', 'machine', 'bb222222-2222-2222-2222-222222222222', 'photo', 'http://x/b');
 
 -- notifications are produced by the fault-reported trigger (0203): one per farm,
--- to that farm's owner. (No explicit seed needed — the faults above generate them.)
+-- to that farm's owner. (No explicit seed needed, the faults above generate them.)
 
 insert into fuel_tanks (id, farm_id, name) values
   ('af111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'Tank A'),
@@ -134,9 +134,9 @@ insert into sync_log (farm_id, client_id, mutation, scope, status, client_ts, en
   ('11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 'log_reading', 'app', 'applied', now(), 'meter_readings'),
   ('22222222-2222-2222-2222-222222222222', 'c2222222-2222-2222-2222-222222222222', 'log_reading', 'app', 'applied', now(), 'meter_readings');
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- Structural: job-card totals computed by trigger (1 × 15000c = 15000c)
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 do $$ declare v bigint; begin
   select total_cents into v from job_cards where id = 'ac111111-1111-1111-1111-111111111111';
   if v is distinct from 15000 then raise exception 'TOTALS FAIL: expected 15000 got %', v; end if;
@@ -208,14 +208,14 @@ end $$;
 reset role;
 
 -- ═════════════════════════════════════════════════════════════════
--- Persona: WORKSHOP W → only its linked farm (A), never Farm B —
+-- Persona: WORKSHOP W → only its linked farm (A), never Farm B -
 -- and, since F16 (0400), only the part of Farm A it is working on.
 -- ═════════════════════════════════════════════════════════════════
 --
 -- Until 0400 an active link handed a contractor the same view as the farm's own staff:
 -- every vehicle, every cost entry, the whole team directory and the farm's other
--- contractors. The counts below encode the NEW default — the minimum needed to do a job
--- — and the F16 section further down proves each grant turns its own slice back on.
+-- contractors. The counts below encode the NEW default, the minimum needed to do a job
+--, and the F16 section further down proves each grant turns its own slice back on.
 --
 -- W has no work request and no document against Farm A's machine, so at this point it is
 -- working on nothing there: it can see the farm exists and that it is linked, and that
@@ -236,7 +236,7 @@ do $$ begin
   perform _t_assert('attachments',        1, 'workshopW');
   -- 0403: a notification is addressed to a PERSON, and these are addressed to Farm A's
   -- owner. Before 0403 the policy was farm-wide, so the contractor could read the
-  -- payloads — quote totals, fault descriptions, fuel anomalies — of everything 0400
+  -- payloads, quote totals, fault descriptions, fuel anomalies, of everything 0400
   -- had just gated. The narrower rule applies to everyone, not only contractors.
   perform _t_assert('notifications',      0, 'workshopW');
   perform _t_assert('fuel_tanks',         0, 'workshopW');  -- costs not granted
@@ -327,7 +327,7 @@ end $$;
 reset role;
 
 -- ═════════════════════════════════════════════════════════════════
--- Structural: job-card lock — approving locks the card; edits then fail
+-- Structural: job-card lock, approving locks the card; edits then fail
 -- ═════════════════════════════════════════════════════════════════
 update job_cards
   set status = 'approved', approved_by = 'a1111111-1111-1111-1111-111111111111',
@@ -383,14 +383,14 @@ language sql as $$
 $$;
 grant execute on function _t_notif(uuid, text) to public;
 
--- ── Fixtures ──────────────────────────────────────────────────────
+-- == Fixtures ======================================================
 -- Manager A so Farm A notifications target owner+manager (2 rows/event).
 insert into auth.users (id, email) values
   ('a1111111-1111-1111-1111-1111111111aa', 'managerA@test');
 insert into users (id, farm_id, workshop_id, role, name) values
   ('a1111111-1111-1111-1111-1111111111aa', '11111111-1111-1111-1111-111111111111', null, 'manager', 'Manager A');
 
--- A RETIRED Farm A machine with an overdue line — must never enqueue.
+-- A RETIRED Farm A machine with an overdue line, must never enqueue.
 insert into machines (id, farm_id, name, type, status) values
   ('aa999999-9999-9999-9999-999999999999', '11111111-1111-1111-1111-111111111111', 'Retired A', 'tractor', 'retired');
 insert into service_plan_lines (id, farm_id, machine_id, task, interval_hours, status) values
@@ -403,7 +403,7 @@ update service_plan_lines set status = 'overdue'
 update service_plan_lines set status = 'due_soon'
   where machine_id = 'bb222222-2222-2222-2222-222222222222';   -- Farm B
 
--- ── (a) authenticated CANNOT execute the new functions ────────────
+-- == (a) authenticated CANNOT execute the new functions ============
 set role authenticated;
 do $$
 declare
@@ -435,7 +435,7 @@ begin
 end $$;
 reset role;
 
--- ── (b) enqueue notifies only the right farm's owner/manager ──────
+-- == (b) enqueue notifies only the right farm's owner/manager ======
 set role service_role;
 do $$ begin perform app.enqueue_service_notifications(); end $$;
 reset role;
@@ -451,7 +451,7 @@ begin
   if _t_notif(fb,'service_overdue')  <> 0 then raise exception 'ENQUEUE FAIL: Farm B leaked service_overdue'; end if;
   if _t_notif(fa,'service_due_soon') <> 0 then raise exception 'ENQUEUE FAIL: Farm A leaked service_due_soon'; end if;
 
-  -- (c) the retired machine's line was skipped — dedupe marker untouched (null).
+  -- (c) the retired machine's line was skipped, dedupe marker untouched (null).
   select notified_status::text into v from service_plan_lines where id = 'a9111111-1111-1111-1111-111111111111';
   if v is not null then raise exception 'RETIRED FAIL: retired-machine line got notified_status = %', v; end if;
 
@@ -462,7 +462,7 @@ begin
   if not found then raise exception 'DEDUPE FAIL: Farm A line not marked notified'; end if;
 end $$;
 
--- ── (d) dedupe: a second run enqueues nothing new ─────────────────
+-- == (d) dedupe: a second run enqueues nothing new =================
 set role service_role;
 do $$ begin perform app.enqueue_service_notifications(); end $$;
 reset role;
@@ -473,7 +473,7 @@ do $$ begin
      then raise exception 'DEDUPE FAIL: Farm B service_due_soon changed on re-run'; end if;
 end $$;
 
--- ── (d) weekly overdue escalation: age the marker > 7 days, re-run ─
+-- == (d) weekly overdue escalation: age the marker > 7 days, re-run =
 update service_plan_lines set last_notified_at = now() - interval '8 days'
   where machine_id = 'aa111111-1111-1111-1111-111111111111';
 set role service_role;
@@ -485,7 +485,7 @@ do $$ begin
        _t_notif('11111111-1111-1111-1111-111111111111','service_overdue'); end if;
 end $$;
 
--- ── (d) return-to-ok resets the marker silently (no new message) ──
+-- == (d) return-to-ok resets the marker silently (no new message) ==
 update service_plan_lines set status = 'ok'
   where machine_id = 'aa111111-1111-1111-1111-111111111111';
 set role service_role;
@@ -499,7 +499,7 @@ do $$ declare v text; begin
   if v <> 'ok' then raise exception 'RESET FAIL: notified_status = % (expected ok)', v; end if;
 end $$;
 
--- ── (e) stale-meter nudge: farm-scoped, deduped weekly ────────────
+-- == (e) stale-meter nudge: farm-scoped, deduped weekly ============
 update machines set current_reading_date = current_date - 60
   where id = 'aa111111-1111-1111-1111-111111111111';           -- Farm A machine now stale
 set role service_role;
@@ -521,7 +521,7 @@ do $$ begin
      then raise exception 'STALE DEDUPE FAIL: Farm A stale_meter changed on re-run'; end if;
 end $$;
 
--- ── (e) weekly digest: one per active farm's owner/manager ────────
+-- == (e) weekly digest: one per active farm's owner/manager ========
 set role service_role;
 do $$ begin perform app.enqueue_weekly_digest(); end $$;
 reset role;
@@ -539,7 +539,7 @@ do $$ declare p jsonb; begin
      then raise exception 'DIGEST FAIL: payload missing count keys: %', p; end if;
 end $$;
 
--- ── (f) quiet-hours delivery gate ─────────────────────────────────
+-- == (f) quiet-hours delivery gate =================================
 do $$
 declare
   h int := extract(hour from (now() at time zone 'Africa/Johannesburg'))::int;
@@ -555,7 +555,7 @@ begin
      then raise exception 'QUIET FAIL: active window returned % (expected future ts)', after; end if;
 end $$;
 
--- ── (g) notifications stay farm-isolated with the new columns ──────
+-- == (g) notifications stay farm-isolated with the new columns ======
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
@@ -575,7 +575,7 @@ select 'ALL 0205 NOTIFICATION-ENGINE TESTS PASSED' as result;
 -- ═══ 0206: ADMIN FARM-ACCESS (IMPERSONATION) AUDIT (appended) ════
 -- Proves: (a) a non-admin authenticated user CANNOT call
 -- log_admin_farm_access (raises); (b) an rr_admin call appends exactly one
--- append-only audit_log row for that farm; (c) that row stays farm-scoped —
+-- append-only audit_log row for that farm; (c) that row stays farm-scoped -
 -- Owner B cannot see Farm A's admin-access row. Nothing above is modified.
 -- ═════════════════════════════════════════════════════════════════
 set role authenticated;
@@ -590,7 +590,7 @@ begin
   exception
     when others then
       if sqlstate = 'P0001' and sqlerrm like 'ADMIN FAIL%' then raise; end if;   -- our own marker bubbles up
-      -- otherwise the expected refusal — swallow
+      -- otherwise the expected refusal, swallow
       null;
   end;
 end $$;
@@ -613,11 +613,11 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'ADMIN FAIL: Owner B sees % admin_farm_access rows (expected 0)', c; end if;
 end $$;
 
--- ── S10 support mode: the paired 'exit' row ──────────────────────
+-- == S10 support mode: the paired 'exit' row ======================
 -- "Act into farm" used to write one row and change nothing else. Support mode now
 -- pins a farm-context cookie on enter and clears it on leave, and leaving writes a
 -- matching 'exit' row so the log shows DURATION rather than only that someone looked.
--- The cookie is app-layer (a narrowing of what the UI queries — rr_admin already reads
+-- The cookie is app-layer (a narrowing of what the UI queries, rr_admin already reads
 -- every farm through app.is_rr_admin()), so what must hold in SQL is: the exit action
 -- is admin-only, and it lands as its own audit row alongside the enter.
 
@@ -665,7 +665,7 @@ select 'ALL 0206 ADMIN-AUDIT TESTS PASSED' as result;
 -- Proves: (a) a job-card part line auto-generates a farm-scoped `parts` cost entry via
 -- the SECURITY DEFINER sync trigger; (b) cost_entries stay tenant-isolated (own-farm
 -- visible, cross-tenant = 0, workshop scoped to its linked farm, rr_admin sees all,
--- anon none — anon covered in the anon sweep above); (c) app.machine_tco sums the
+-- anon none, anon covered in the anon sweep above); (c) app.machine_tco sums the
 -- ledger under RLS and cannot read another farm's TCO; (d) a manual invoice-style entry
 -- raises TCO; (e) cross-tenant cost writes are rejected; (f) soft-deleting a source line
 -- soft-deletes its cost entry while preserving the row for audit. Nothing above is
@@ -756,7 +756,7 @@ end $$;
 
 select 'ALL 0210/0211 COST-ENTRIES & TCO TESTS PASSED' as result;
 
--- ═══ 0220: OFFLINE SYNC — deterministic LWW conflict resolution ══
+-- ═══ 0220: OFFLINE SYNC, deterministic LWW conflict resolution ══
 -- Proves: (a) two conflicting offline reading edits for the same machine reconcile
 -- deterministically by client timestamp (last-writer-wins); (b) the superseded value
 -- is preserved (no silent loss); (c) BOTH reading rows survive in history + audit_log
@@ -784,7 +784,7 @@ do $$ begin
 end $$;
 reset role;
 
--- (a)(b)(c) forced conflict — as the service role (the /api/sync route's identity).
+-- (a)(b)(c) forced conflict, as the service role (the /api/sync route's identity).
 set role service_role;
 do $$
 declare
@@ -827,7 +827,7 @@ end $$;
 select 'ALL 0220 OFFLINE-SYNC TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F3: FIELD CAPTURE & ACCOUNTABILITY (0230–0236, appended) ═════
+-- ═══ F3: FIELD CAPTURE & ACCOUNTABILITY (0230-0236, appended) ═════
 -- Proves: (a) usage_logs cross-tenant WRITE denial; (b) a `stopped` fault flips the
 -- machine to out_of_service (active-but-down), while retired/sold are never flipped;
 -- (c) the extended fault lifecycle (acknowledged / in_progress) + assignee persist;
@@ -904,7 +904,7 @@ reset role;
 select 'ALL F3 FIELD-CAPTURE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F4: FUEL MODULE (0240–0242, appended section) ═══════════════
+-- ═══ F4: FUEL MODULE (0240-0242, appended section) ═══════════════
 -- Proves:
 --   (a) NO DOUBLE-COUNT: with the per-issue attribution model (0241), a delivery books
 --       ZERO fuel cost entries and each costed issue books exactly ONE per-machine fuel
@@ -982,7 +982,7 @@ do $$ declare j jsonb; begin
 end $$;
 reset role;
 
--- A retired Farm A machine with an identical anomalous series — must NEVER enqueue.
+-- A retired Farm A machine with an identical anomalous series, must NEVER enqueue.
 insert into machines (id, farm_id, name, type, status, meter_type) values
   ('aaf20000-0000-0000-0000-0000000000ff', '11111111-1111-1111-1111-111111111111', 'Fuel Retired', 'tractor', 'retired', 'hours');
 insert into fuel_issues (farm_id, tank_id, machine_id, date, litres, meter_reading) values
@@ -1058,11 +1058,11 @@ reset role;
 select 'ALL F4 FUEL-MODULE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F5: PLANS & ENTITLEMENT GATING (0250–0251, appended) ════════
--- Proves: (a) app.has_entitlement / public.has_entitlement gate by the FARM's plan —
+-- ═══ F5: PLANS & ENTITLEMENT GATING (0250-0251, appended) ════════
+-- Proves: (a) app.has_entitlement / public.has_entitlement gate by the FARM's plan -
 -- essential denies dashboard/fuel/aarto, allows ungated core; complete allows the P+/C+
 -- features but not api_access; done_for_you unlocks api_access; (b) cross-tenant
--- isolation — a user cannot read another farm's entitlement (no plan probing), while
+-- isolation, a user cannot read another farm's entitlement (no plan probing), while
 -- rr_admin reads any farm's real result; (c) anon cannot execute the helper; (d) the
 -- asset_count trigger keeps farms.asset_count current (out_of_service counts; retired /
 -- sold / soft-deleted excluded). Farm A/B were seeded with no plan → default 'essential'.
@@ -1106,8 +1106,8 @@ do $$ begin
 end $$;
 reset role;
 
--- (c) cross-tenant isolation: Owner A cannot read Farm B's entitlement — not even an
--- ungated feature — because they have no access to Farm B (no plan probing).
+-- (c) cross-tenant isolation: Owner A cannot read Farm B's entitlement, not even an
+-- ungated feature, because they have no access to Farm B (no plan probing).
 set role authenticated;
 do $$ declare fb uuid := '22222222-2222-2222-2222-222222222222'; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1167,7 +1167,7 @@ end $$;
 
 select 'ALL F5 ENTITLEMENT TESTS PASSED' as result;
 
--- ═══ F6: COMPLIANCE REMINDERS & WEB PUSH (0260–0263, appended) ═══
+-- ═══ F6: COMPLIANCE REMINDERS & WEB PUSH (0260-0263, appended) ═══
 -- Proves:
 --   (a) `licences` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop
 --       scoped to its linked farm, rr_admin sees all, anon covered in the anon sweep);
@@ -1183,12 +1183,12 @@ select 'ALL F5 ENTITLEMENT TESTS PASSED' as result;
 -- alerts target 2 recipients. Nothing above this line is modified.
 -- ═════════════════════════════════════════════════════════════════
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 -- Active machines with a warranty expiring soon (date within the default 30-day lead).
 insert into machines (id, farm_id, name, type, meter_type, current_reading, status, warranty_expiry_date) values
   ('aae60000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Warranty A', 'tractor', 'hours', 100, 'active', current_date + 10),
   ('bbe60000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'Warranty B', 'tractor', 'hours', 100, 'active', current_date + 10);
--- A RETIRED Farm A machine with an EXPIRED warranty — must NEVER enqueue.
+-- A RETIRED Farm A machine with an EXPIRED warranty, must NEVER enqueue.
 insert into machines (id, farm_id, name, type, status, warranty_expiry_date) values
   ('aae60000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'Retired Warranty A', 'tractor', 'retired', current_date - 5);
 
@@ -1203,7 +1203,7 @@ insert into push_subscriptions (id, farm_id, user_id, endpoint, p256dh, auth) va
   ('50b50000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'https://push.example/ownerA', 'p256dh-a', 'auth-a'),
   ('50b50000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-1111111111aa', 'https://push.example/managerA', 'p256dh-m', 'auth-m');
 
--- ── (a) licences isolation ────────────────────────────────────────
+-- == (a) licences isolation ========================================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1230,7 +1230,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (b) push_subscriptions own-user isolation ─────────────────────
+-- == (b) push_subscriptions own-user isolation =====================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1254,7 +1254,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (c) authenticated CANNOT execute the expiry engine / cron wrapper ──
+-- == (c) authenticated CANNOT execute the expiry engine / cron wrapper ==
 set role authenticated;
 do $$
 declare calls text[] := array[
@@ -1275,7 +1275,7 @@ begin
 end $$;
 reset role;
 
--- ── (d) run the expiry engine as the service role (the nightly route's identity) ──
+-- == (d) run the expiry engine as the service role (the nightly route's identity) ==
 set role service_role;
 do $$ begin perform app.enqueue_expiry_notifications(); end $$;
 reset role;
@@ -1315,7 +1315,7 @@ do $$ declare fa uuid := '11111111-1111-1111-1111-111111111111'; begin
   end if;
 end $$;
 
--- ── (e) per-user prefs: notify_inapp = false suppresses the in-app row ──
+-- == (e) per-user prefs: notify_inapp = false suppresses the in-app row ==
 insert into machines (id, farm_id, name, type, meter_type, current_reading, status, warranty_expiry_date) values
   ('aae60000-0000-0000-0000-0000000000e5', '11111111-1111-1111-1111-111111111111', 'Prefs A', 'tractor', 'hours', 100, 'active', current_date + 10);
 update users set notify_inapp = false where id = 'a1111111-1111-1111-1111-1111111111aa';   -- Manager A opts out of in-app
@@ -1349,7 +1349,7 @@ select 'ALL F6 COMPLIANCE & PUSH TESTS PASSED' as result;
 -- farm-isolated: the composite FK to attachments(id, farm_id) lets a machine point
 -- ONLY at a photo of its own farm; and the new capture columns (cost_centre /
 -- department) are farm-scoped like the rest of the row. Runs as superuser (RLS
--- bypassed for seeding) — FK + tenant checks still apply.
+-- bypassed for seeding), FK + tenant checks still apply.
 reset role;
 
 insert into attachments (id, farm_id, parent_type, parent_id, kind, storage_path) values
@@ -1397,7 +1397,7 @@ reset role;
 
 select 'ALL F10 VEHICLE-CAPTURE TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F9: SERVICE KITS & PARTS CATALOGUE (0270–0271, appended) ════
+-- ═══ F9: SERVICE KITS & PARTS CATALOGUE (0270-0271, appended) ════
 -- Proves:
 --   (a) parts_catalogue visibility mirrors service_templates: own-farm rows + GLOBAL
 --       (farm_id null) rows are visible; other farms' rows never are.
@@ -1410,7 +1410,7 @@ select 'ALL F10 VEHICLE-CAPTURE TESTS PASSED' as result;
 -- Fresh fixtures reuse the base Farm A / Farm B machines; nothing above is modified.
 -- ═════════════════════════════════════════════════════════════════
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 insert into parts_catalogue (id, farm_id, part_no, description, typical_cost_cents) values
   ('9a000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'OIL-15W40', 'Engine oil 15W40 20L', 120000),
   ('9a000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'OIL-15W40', 'Engine oil 15W40 20L', 120000),
@@ -1425,7 +1425,7 @@ insert into service_kit_items (id, farm_id, service_kit_id, part_catalogue_id, p
   ('9d000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', '9c000000-0000-0000-0000-0000000000a1', '9a000000-0000-0000-0000-0000000000f0', 'FILT-GLOBAL', 'Oil filter', 1,  15000),
   ('9d000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', '9c000000-0000-0000-0000-0000000000b1', null,                                    'OIL-15W40',   'Engine oil', 2, 120000);
 
--- ── (a) parts_catalogue: own-farm + GLOBAL visible; other farms hidden ──
+-- == (a) parts_catalogue: own-farm + GLOBAL visible; other farms hidden ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1438,7 +1438,7 @@ do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('parts_catalogue', 3, 'rrAdmin');   end $$;  -- A + B + GLOBAL
 reset role;
 
--- ── (b) service_kits / service_kit_items farm isolation ───────────
+-- == (b) service_kits / service_kit_items farm isolation ===========
 set role authenticated;
 do $$ begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1462,7 +1462,7 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (b) cross-tenant WRITE denials (Owner A → Farm B) ─────────────
+-- == (b) cross-tenant WRITE denials (Owner A → Farm B) =============
 set role authenticated;
 do $$ declare ok boolean; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
@@ -1481,7 +1481,7 @@ do $$ declare ok boolean; begin
 end $$;
 reset role;
 
--- ── (b) anon sees nothing and cannot write the new tables ─────────
+-- == (b) anon sees nothing and cannot write the new tables =========
 set role anon;
 do $$ declare t text; c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -1500,13 +1500,13 @@ do $$ declare t text; c bigint; begin
 end $$;
 reset role;
 
--- ── (c) scope check: a kit needs a machine OR a machine_type ───────
+-- == (c) scope check: a kit needs a machine OR a machine_type =======
 do $$ declare ok boolean := false; begin
   begin insert into service_kits (farm_id, name) values ('11111111-1111-1111-1111-111111111111', 'scopeless'); exception when check_violation then ok := true; end;
   if not ok then raise exception 'KIT SCOPE FAIL: a kit with neither machine nor machine_type was accepted'; end if;
 end $$;
 
--- ── (d) NO DOUBLE-COUNT: kit/items book no cost; applying a kit (== job_card_lines) books once ──
+-- == (d) NO DOUBLE-COUNT: kit/items book no cost; applying a kit (== job_card_lines) books once ==
 -- Kit items themselves never create cost_entries (there is no kit→cost path).
 do $$ declare c bigint; begin
   execute $q$ select count(*) from cost_entries where source_type like 'service_kit%' $q$ into c;
@@ -1529,11 +1529,11 @@ end $$;
 select 'ALL F9 SERVICE-KITS & PARTS-CATALOGUE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F12a: CONTRACTOR SPINE & PARTNERS DIRECTORY (0300–0301) ═════
+-- ═══ F12a: CONTRACTOR SPINE & PARTNERS DIRECTORY (0300-0301) ═════
 -- ═════════════════════════════════════════════════════════════════
 -- `partners` tenancy mirrors service_templates/parts_catalogue:
 --   (a) GLOBAL suggested rows (farm_id null, is_suggested true) are visible to ALL
---       authenticated users; farm-owned rows only via app.has_farm_access — INCLUDING
+--       authenticated users; farm-owned rows only via app.has_farm_access, INCLUDING
 --       the linked workshop, which proves the contractor spine still isolates by farm;
 --   (b) cross-tenant writes are rejected;
 --   (c) mutation is restricted to the owning farm's owner/manager (an operator is denied);
@@ -1552,7 +1552,7 @@ insert into partners (id, farm_id, is_suggested, name, kind, created_by) values
   ('ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111',   false, 'Farm A Mechanic', 'mechanic',       'a1111111-1111-1111-1111-111111111111'),
   ('cb000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222',   false, 'Farm B Mechanic', 'mechanic',       'b2222222-2222-2222-2222-222222222222');
 
--- ── (a) visibility: own-farm + GLOBAL; other farms hidden; workshop link holds ──
+-- == (a) visibility: own-farm + GLOBAL; other farms hidden; workshop link holds ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');       -- Owner A
@@ -1561,7 +1561,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'PARTNERS ISOLATION FAIL [ownerA]: sees % Farm B partners', c; end if;
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('partners', 2, 'ownerB');    end $$;  -- Farm B + GLOBAL
--- A contractor sees ONLY the global suggested rows — never the farm's own partner list
+-- A contractor sees ONLY the global suggested rows, never the farm's own partner list
 -- (F16 / 0400). That list is a competitor directory with phone numbers, and there is no
 -- setting that makes it part of fixing a tractor.
 do $$ declare c bigint; begin
@@ -1574,7 +1574,7 @@ do $$ declare c bigint; begin
 end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('partners', 3, 'rrAdmin');   end $$;  -- A + B + GLOBAL
 
--- ── (b) cross-tenant write denied (Owner A → a Farm B partner) ────
+-- == (b) cross-tenant write denied (Owner A → a Farm B partner) ====
 do $$ declare ok boolean := false; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
   begin insert into partners (farm_id, is_suggested, name) values ('22222222-2222-2222-2222-222222222222', false, 'HACK');
@@ -1582,7 +1582,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'PARTNERS ISOLATION FAIL [ownerA]: wrote a Farm B partner'; end if;
 end $$;
 
--- ── (c) role gating: an operator cannot write even its OWN farm's partner ──
+-- == (c) role gating: an operator cannot write even its OWN farm's partner ==
 do $$ declare ok boolean := false; begin
   perform _t_login('a0000000-0000-0000-0000-0000000000a9');       -- Operator A
   begin insert into partners (farm_id, is_suggested, name) values ('11111111-1111-1111-1111-111111111111', false, 'op-hack');
@@ -1591,7 +1591,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (d) anon sees nothing and cannot write ────────────────────────
+-- == (d) anon sees nothing and cannot write ========================
 set role anon;
 do $$ declare c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -1608,7 +1608,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (e) scope invariant: (farm_id IS NULL) = is_suggested (check constraint) ──
+-- == (e) scope invariant: (farm_id IS NULL) = is_suggested (check constraint) ==
 do $$ declare ok1 boolean := false; ok2 boolean := false; begin
   begin insert into partners (farm_id, is_suggested, name) values (null, false, 'bad-global');
   exception when check_violation then ok1 := true; end;
@@ -1618,7 +1618,7 @@ do $$ declare ok1 boolean := false; ok2 boolean := false; begin
   if not ok2 then raise exception 'PARTNERS SCOPE FAIL: farm-owned row with is_suggested=true accepted'; end if;
 end $$;
 
--- ── (f) owner CAN add a partner to its own farm (positive path) ───
+-- == (f) owner CAN add a partner to its own farm (positive path) ===
 set role authenticated;
 do $$ begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
@@ -1640,7 +1640,7 @@ select 'ALL F12a CONTRACTOR-SPINE & PARTNERS TESTS PASSED' as result;
 -- Fresh fixtures reuse the base Farm A / Farm B machines; nothing above is modified.
 -- ═════════════════════════════════════════════════════════════════
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 insert into checklist_templates (id, farm_id, machine_type, name) values
   ('ca000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'tractor', 'Farm A pre-use inspection'),
   ('ca000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'tractor', 'Farm B pre-use inspection'),
@@ -1666,7 +1666,7 @@ insert into checklist_instance_values (id, farm_id, instance_id, template_field_
   ('cd000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'cc000000-0000-0000-0000-0000000000a1', 'cb000000-0000-0000-0000-0000000000a2', 1, 'photo',    'Damage photo', null,   'ce000000-0000-0000-0000-0000000000a1'),
   ('cd000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'cc000000-0000-0000-0000-0000000000b1', 'cb000000-0000-0000-0000-0000000000b1', 0, 'text',     'Notes',        'B note', null);
 
--- ── (a) templates + fields: own-farm + GLOBAL visible; other farms hidden ──
+-- == (a) templates + fields: own-farm + GLOBAL visible; other farms hidden ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1680,7 +1680,7 @@ do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('checklist_templates', 3, 'rrAdmin'); perform _t_assert('checklist_template_fields', 4, 'rrAdmin'); end $$;  -- A + B + GLOBAL
 reset role;
 
--- ── (b) instances / values farm isolation ─────────────────────────
+-- == (b) instances / values farm isolation =========================
 set role authenticated;
 do $$ begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -1704,11 +1704,11 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (b/c) cross-tenant WRITE + composite-FK denials (Owner A → Farm B) ──
+-- == (b/c) cross-tenant WRITE + composite-FK denials (Owner A → Farm B) ==
 set role authenticated;
 do $$ declare ok boolean; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
-  -- a GLOBAL template (only RR admin may) — farm_id null fails the ins check
+  -- a GLOBAL template (only RR admin may), farm_id null fails the ins check
   ok := false;
   begin insert into checklist_templates (farm_id, name) values (null, 'HACK GLOBAL'); exception when others then ok := true; end;
   if not ok then raise exception 'CHECKLIST ISOLATION FAIL [ownerA]: wrote a GLOBAL template'; end if;
@@ -1737,7 +1737,7 @@ do $$ declare ok boolean; begin
 end $$;
 reset role;
 
--- ── (b) anon sees nothing and cannot write the new tables ─────────
+-- == (b) anon sees nothing and cannot write the new tables =========
 set role anon;
 do $$ declare t text; c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -1758,10 +1758,10 @@ reset role;
 
 select 'ALL F11 CHECKLIST TESTS PASSED' as result;
 
--- ═══ F12b: WORK-REQUEST FLOW (0310–0311, appended section) ═══════
+-- ═══ F12b: WORK-REQUEST FLOW (0310-0311, appended section) ═══════
 -- ═════════════════════════════════════════════════════════════════
 -- Proves for work_requests + work_request_events:
---   (a) farm isolation — each farm sees only its own requests;
+--   (a) farm isolation, each farm sees only its own requests;
 --   (b) the LINKED WORKSHOP sees AND can update its assigned farm's requests
 --       (app.has_farm_access resolves the workshop_link) but never another farm's;
 --   (c) cross-tenant writes are rejected;
@@ -1781,7 +1781,7 @@ insert into work_request_events (farm_id, work_request_id, from_status, to_statu
   ('11111111-1111-1111-1111-111111111111', 'd1000000-0000-0000-0000-0000000000a1', null, 'requested', 'created', 'a1111111-1111-1111-1111-111111111111'),
   ('22222222-2222-2222-2222-222222222222', 'd2000000-0000-0000-0000-0000000000b1', null, 'requested', 'created', 'b2222222-2222-2222-2222-222222222222');
 
--- ── (a) farm isolation + (b) linked-workshop visibility ───────────
+-- == (a) farm isolation + (b) linked-workshop visibility ===========
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');       -- Owner A
@@ -1794,8 +1794,8 @@ do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t
 do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); perform _t_assert('work_requests', 1, 'workshopW'); perform _t_assert('work_request_events', 1, 'workshopW'); end $$;  -- linked to Farm A
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('work_requests', 2, 'rrAdmin');   perform _t_assert('work_request_events', 2, 'rrAdmin');   end $$;
 
--- ── (b) linked workshop UPDATES its assigned farm's request, and can NOT
---        touch another farm's — both under the workshopW login ──
+-- == (b) linked workshop UPDATES its assigned farm's request, and can NOT
+--        touch another farm's, both under the workshopW login ==
 do $$ declare st work_request_status; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W (linked to Farm A only)
   update work_requests set status = 'viewed', updated_at = now() where id = 'd1000000-0000-0000-0000-0000000000a1';
@@ -1815,7 +1815,7 @@ do $$ declare st work_request_status; c bigint; begin
   if c < 1 then raise exception 'WORK-REQ NOTIFY FAIL: status change queued % notifications', c; end if;
 end $$;
 
--- ── (c) cross-tenant write denied (Owner A → a Farm B request) ────
+-- == (c) cross-tenant write denied (Owner A → a Farm B request) ====
 set role authenticated;
 do $$ declare ok boolean := false; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
@@ -1826,7 +1826,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (d) anon sees nothing and cannot write ────────────────────────
+-- == (d) anon sees nothing and cannot write ========================
 set role anon;
 do $$ declare t text; c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -1845,7 +1845,7 @@ do $$ declare t text; c bigint; begin
 end $$;
 reset role;
 
--- ── (e) INVOICE → COST, NO DOUBLE-COUNT (the F1 invoice→TCO path) ──
+-- == (e) INVOICE → COST, NO DOUBLE-COUNT (the F1 invoice→TCO path) ==
 -- Booking an invoice amount produces exactly ONE cost_entry; re-editing updates it in
 -- place; clearing it soft-deletes it; a quote never costs. Mutate as superuser (RLS
 -- bypassed) so the assertion is about the sync trigger alone.
@@ -1884,12 +1884,12 @@ select 'ALL F12b WORK-REQUEST-FLOW TESTS PASSED' as result;
 -- signed-in contractor's OWN workshop, across ALL the farms that workshop is linked to,
 -- in ONE view. Its query is RLS(app.has_farm_access → linked farms) AND an explicit
 -- `workshop_id = <my workshop>` filter. This section proves that combination is airtight:
---   (a) AGGREGATION — a workshop linked to TWO farms sees its requests from BOTH in the
+--   (a) AGGREGATION, a workshop linked to TWO farms sees its requests from BOTH in the
 --       one dashboard query;
---   (b) OWN-WORKSHOP ONLY — on a farm shared by two contractors, RLS is now workshop-scoped
+--   (b) OWN-WORKSHOP ONLY, on a farm shared by two contractors, RLS is now workshop-scoped
 --       (F7/0341): W can NO LONGER see X's request row even though both are linked to the
 --       shared farm. What used to be an app-only workshop_id filter is now an RLS guarantee;
---   (c) NEVER AN UNLINKED FARM — a request assigned to W but on a farm W is NOT linked to
+--   (c) NEVER AN UNLINKED FARM, a request assigned to W but on a farm W is NOT linked to
 --       stays invisible (RLS dominates the assignment); a workshop cannot update it;
 --   (d) the `workshops.plan` gating column reads back with its default.
 -- Fresh fixtures (Farm E, Workshop X, distinct request ids) leave earlier counts intact.
@@ -1911,13 +1911,13 @@ insert into users (id, farm_id, workshop_id, role, name) values
   ('e4000000-0000-0000-0000-0000000000e4', null, 'e3000000-0000-0000-0000-0000000000e3', 'workshop', 'Workshop X Staff');
 
 -- Requests: one for W on Farm E (aggregation), one for X on the SHARED Farm A (own-only),
--- and one for W on Farm B — a farm W is NOT linked to (unlinked-farm isolation).
+-- and one for W on Farm B, a farm W is NOT linked to (unlinked-farm isolation).
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, created_by) values
   ('d3000000-0000-0000-0000-0000000000e1', 'e1000000-0000-0000-0000-0000000000e1', 'ee100000-0000-0000-0000-0000000000e1', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'normal', 'E tractor service', null),
   ('d4000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'e3000000-0000-0000-0000-0000000000e3', 'parts',  'requested', 'normal', 'A parts order',     'a1111111-1111-1111-1111-111111111111'),
   ('d5000000-0000-0000-0000-0000000000b2', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'normal', 'B (unlinked)',      'b2222222-2222-2222-2222-222222222222');
 
--- ── (a) aggregation + (b) own-workshop-only + (c) unlinked-farm isolation ──
+-- == (a) aggregation + (b) own-workshop-only + (c) unlinked-farm isolation ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');          -- Workshop W (linked to Farm A + Farm E)
@@ -1928,7 +1928,7 @@ do $$ declare c bigint; begin
   if c <> 2 then raise exception 'F12c FAIL [W dashboard]: aggregated own-workshop count=% (expected 2)', c; end if;
 
   -- (b) F7 STRENGTHENING: RLS is now workshop-scoped, not merely farm-scoped. On the
-  --     shared Farm A, W can NO LONGER see X's request — the RLS predicate (0341) enforces
+  --     shared Farm A, W can NO LONGER see X's request, the RLS predicate (0341) enforces
   --     what used to be only an app-side workshop_id filter. This is the F12c gap closed.
   execute $q$ select count(*) from work_requests where workshop_id = 'e3000000-0000-0000-0000-0000000000e3' $q$ into c;
   if c <> 0 then raise exception 'F12c FAIL [W sees shared farm]: X-request visibility=% (expected 0 after F7 RLS workshop-scoping)', c; end if;
@@ -1963,7 +1963,7 @@ do $$ declare st work_request_status; begin
 end $$;
 reset role;
 
--- ── (d) the contractor-plan gating column reads back with its default ──
+-- == (d) the contractor-plan gating column reads back with its default ==
 do $$ declare p workshop_plan; begin
   select plan into p from workshops where id = '33333333-3333-3333-3333-333333333333';  -- W (top fixture, no plan set)
   if p <> 'portal' then raise exception 'F12c FAIL [plan default]: Workshop W plan=% (expected portal)', p; end if;
@@ -1973,20 +1973,20 @@ end $$;
 
 select 'ALL F12c CONTRACTOR-DASHBOARD TESTS PASSED' as result;
 
--- ═══ F13: OWNER INBOX — WORK-REQUEST REMINDERS (0330, appended) ══
+-- ═══ F13: OWNER INBOX, WORK-REQUEST REMINDERS (0330, appended) ══
 -- ═════════════════════════════════════════════════════════════════
 -- Proves the outstanding quote/invoice reminder engine (app.enqueue_work_request_
 -- reminders):
 --   (a) authenticated / anon CANNOT execute the app.* engine or its public.cron_* wrapper;
 --   (b) a 'quoted' request enqueues `quote_awaiting` and an 'invoiced' request enqueues
---       `invoice_awaiting`, to that farm's owner/manager only — never cross-tenant;
+--       `invoice_awaiting`, to that farm's owner/manager only, never cross-tenant;
 --   (c) retired/sold machines are excluded (Scope §4.1);
 --   (d) the 7-day queue dedupe means a second run enqueues nothing new.
 -- Fresh fixtures (distinct ids) so earlier counts are undisturbed.
 
 -- Seed as superuser (RLS bypassed). Inserting a status directly does NOT fire the 0311
 -- AFTER-UPDATE notify trigger, so the only rows the reminder templates below can create
--- are the reminders themselves — keeping the assertion about this engine alone.
+-- are the reminders themselves, keeping the assertion about this engine alone.
 -- Manager A opted out of in-app earlier (F6 §e); re-enable so Farm A targets owner+manager.
 update users set notify_inapp = true where id = 'a1111111-1111-1111-1111-1111111111aa';
 
@@ -1996,7 +1996,7 @@ insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, p
   ('e3000000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111', 'aa999999-9999-9999-9999-999999999999', '33333333-3333-3333-3333-333333333333', 'repair',     'quoted',   'normal', 50000,  null,   1500, 'a1111111-1111-1111-1111-111111111111'),
   ('e4000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', null,                                     'repair',     'invoiced', 'normal', null,   70000,  1500, 'b2222222-2222-2222-2222-222222222222');
 
--- ── (a) authenticated cannot execute the engine or its wrapper ────
+-- == (a) authenticated cannot execute the engine or its wrapper ====
 set role authenticated;
 do $$
 declare calls text[] := array[
@@ -2016,7 +2016,7 @@ begin
 end $$;
 reset role;
 
--- ── (b)+(c) enqueue reminders to the right farm's owner/manager ───
+-- == (b)+(c) enqueue reminders to the right farm's owner/manager ===
 set role service_role;
 do $$ begin perform app.enqueue_work_request_reminders(); end $$;
 reset role;
@@ -2030,13 +2030,13 @@ begin
   if _t_notif(fa,'invoice_awaiting') <> 2 then raise exception 'F13 ENQUEUE FAIL: Farm A invoice_awaiting = % (expected 2)', _t_notif(fa,'invoice_awaiting'); end if;
   -- Farm B: owner only → 1 invoice reminder, and it never saw a quote.
   if _t_notif(fb,'invoice_awaiting') <> 1 then raise exception 'F13 ENQUEUE FAIL: Farm B invoice_awaiting = % (expected 1)', _t_notif(fb,'invoice_awaiting'); end if;
-  -- (c) the retired-machine quote (e3) contributed nothing — else Farm A quote_awaiting = 4.
+  -- (c) the retired-machine quote (e3) contributed nothing, else Farm A quote_awaiting = 4.
   --     and no cross-tenant leak in either direction.
   if _t_notif(fb,'quote_awaiting')   <> 0 then raise exception 'F13 ISOLATION FAIL: Farm B leaked quote_awaiting = %',   _t_notif(fb,'quote_awaiting'); end if;
   if _t_notif(fa,'quote_awaiting')    = 4 then raise exception 'F13 RETIRED FAIL: retired-machine quote enqueued a reminder'; end if;
 end $$;
 
--- ── (d) 7-day queue dedupe: a second run adds nothing new ─────────
+-- == (d) 7-day queue dedupe: a second run adds nothing new =========
 set role service_role;
 do $$ begin perform app.enqueue_work_request_reminders(); end $$;
 reset role;
@@ -2050,7 +2050,7 @@ begin
   if _t_notif(fb,'invoice_awaiting') <> 1 then raise exception 'F13 DEDUPE FAIL: Farm B invoice_awaiting re-fired to %', _t_notif(fb,'invoice_awaiting'); end if;
 end $$;
 
--- ── anon cannot execute the wrapper ───────────────────────────────
+-- == anon cannot execute the wrapper ===============================
 set role anon;
 do $$ begin
   begin perform public.cron_enqueue_work_request_reminders();
@@ -2065,24 +2065,24 @@ reset role;
 select 'ALL F13 OWNER-INBOX REMINDER TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- ═══ F7: MULTI-SITE + PER-ROLE VISIBILITY (0340–0341, appended) ══
+-- ═══ F7: MULTI-SITE + PER-ROLE VISIBILITY (0340-0341, appended) ══
 -- ═════════════════════════════════════════════════════════════════
 -- Proves the three F7 access paths, each ADDITIVE to (never weakening) the model above:
---   (A) MULTI-SITE — a user whose PRIMARY farm is F and who holds an ACTIVE
+--   (A) MULTI-SITE, a user whose PRIMARY farm is F and who holds an ACTIVE
 --       user_farm_membership to G sees exactly F ∪ G (machines + child rows), never a
 --       third farm H; revoking the membership immediately removes G (dynamic scoping,
 --       like workshop_links); the memberships table is itself tenant/own-user isolated
 --       and anon-denied.
---   (B) OPERATOR — a user whose role is `operator` sees ONLY machines assigned to them
+--   (B) OPERATOR, a user whose role is `operator` sees ONLY machines assigned to them
 --       (assigned_operator_id = auth.uid()) and only those machines' child rows; a
 --       non-assigned machine (and its readings/faults/work) is invisible. Owner/manager
 --       keep full-farm access (operator gating never leaks upward).
---   (C) CONTRACTOR — a `workshop` user sees (and may update) ONLY the work_requests
+--   (C) CONTRACTOR, a `workshop` user sees (and may update) ONLY the work_requests
 --       assigned to its own workshop, even on a farm shared with another contractor;
 --       another workshop's request on the SAME farm is invisible and un-updatable.
 -- Fresh fixtures (Farms F/G/H, distinct ids) leave every earlier count intact.
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 insert into farms (id, name) values
   ('f0000000-0000-0000-0000-0000000000f1', 'Farm F'),
   ('f0000000-0000-0000-0000-0000000000f2', 'Farm G'),
@@ -2125,7 +2125,7 @@ insert into faults (farm_id, machine_id, description, urgency, status) values
   ('f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f2', 'F2 fault', 'limping', 'open');
 
 -- MS's cross-site access: an ACTIVE membership to Farm G (role manager). MS reaches Farm F
--- via users.farm_id (primary) and Farm G via this membership — proving the UNION.
+-- via users.farm_id (primary) and Farm G via this membership, proving the UNION.
 insert into user_farm_memberships (id, user_id, farm_id, role, active) values
   ('f7000000-0000-0000-0000-0000000000f1', 'f5000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f2', 'manager', true);
 
@@ -2139,7 +2139,7 @@ insert into work_request_events (farm_id, work_request_id, from_status, to_statu
   ('f0000000-0000-0000-0000-0000000000f1', 'f6000000-0000-0000-0000-0000000000f1', null, 'requested', 'M created'),
   ('f0000000-0000-0000-0000-0000000000f1', 'f6000000-0000-0000-0000-0000000000f2', null, 'requested', 'N created');
 
--- ── (A) MULTI-SITE: MS sees Farm F ∪ Farm G, never Farm H ─────────
+-- == (A) MULTI-SITE: MS sees Farm F ∪ Farm G, never Farm H =========
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('f5000000-0000-0000-0000-0000000000f1');       -- MS (owner F + member G)
@@ -2162,7 +2162,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (A) membership table isolation + own-user visibility ──────────
+-- == (A) membership table isolation + own-user visibility ==========
 set role authenticated;
 do $$ begin
   perform _t_login('f5000000-0000-0000-0000-0000000000f1');       -- MS sees its own membership row
@@ -2182,7 +2182,7 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (A) dynamic scoping: revoking the membership removes Farm G ────
+-- == (A) dynamic scoping: revoking the membership removes Farm G ====
 update user_farm_memberships set active = false where id = 'f7000000-0000-0000-0000-0000000000f1';
 set role authenticated;
 do $$ declare c bigint; begin
@@ -2195,7 +2195,7 @@ end $$;
 reset role;
 update user_farm_memberships set active = true where id = 'f7000000-0000-0000-0000-0000000000f1';
 
--- ── (A) anon: memberships table denies read + write ───────────────
+-- == (A) anon: memberships table denies read + write ===============
 set role anon;
 do $$ declare c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -2213,7 +2213,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (A) a non-admin cannot grant themselves a membership to another farm ──
+-- == (A) a non-admin cannot grant themselves a membership to another farm ==
 set role authenticated;
 do $$ declare ok boolean := false; begin
   perform _t_login('f5000000-0000-0000-0000-0000000000f2');       -- Operator F (no admin rights anywhere)
@@ -2224,7 +2224,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (B) OPERATOR: sees ONLY the assigned machine + its child rows ──
+-- == (B) OPERATOR: sees ONLY the assigned machine + its child rows ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('f5000000-0000-0000-0000-0000000000f2');       -- Operator F (assigned F1 only)
@@ -2247,11 +2247,11 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (C) CONTRACTOR: each workshop sees ONLY its own assigned requests on the SHARED farm ──
+-- == (C) CONTRACTOR: each workshop sees ONLY its own assigned requests on the SHARED farm ==
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M (linked to Farm F)
-  -- Only M's request (f6..f1), NOT N's (f6..f2) — even though BOTH are on the shared Farm F.
+  -- Only M's request (f6..f1), NOT N's (f6..f2), even though BOTH are on the shared Farm F.
   perform _t_assert('work_requests', 1, 'workshopM');
   execute $q$ select count(*) from work_requests where workshop_id = 'f3000000-0000-0000-0000-0000000000f2' $q$ into c;
   if c <> 0 then raise exception 'F7 CONTRACTOR FAIL [M sees N]: workshop M sees % of N''s requests (expected 0)', c; end if;
@@ -2264,7 +2264,7 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (C) a workshop cannot UPDATE another workshop's request on the shared farm ──
+-- == (C) a workshop cannot UPDATE another workshop's request on the shared farm ==
 do $$ declare st work_request_status; begin
   set role authenticated;
   perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M
@@ -2274,7 +2274,7 @@ do $$ declare st work_request_status; begin
   if st <> 'requested' then raise exception 'F7 CONTRACTOR FAIL [M mutated N]: N''s request status=% (expected requested)', st; end if;
 end $$;
 
--- ── (C) but a workshop CAN update its OWN assigned request (positive path) ──
+-- == (C) but a workshop CAN update its OWN assigned request (positive path) ==
 set role authenticated;
 do $$ declare st work_request_status; begin
   perform _t_login('f4000000-0000-0000-0000-0000000000f1');       -- Workshop M
@@ -2288,7 +2288,7 @@ select 'ALL F7 MULTI-SITE & PER-ROLE TESTS PASSED' as result;
 
 -- F8 · POPIA data-subject rights (export + erasure RPCs)
 -- Proves: (a) execute is REVOKED from anon on both RPCs (and the app.* guard is
--- revoked from public/anon/authenticated); (b) the RPCs are FARM-SCOPED — a farm's
+-- revoked from public/anon/authenticated); (b) the RPCs are FARM-SCOPED, a farm's
 -- owner/manager may only act on their OWN farm's people, cross-farm attempts raise;
 -- (c) rr_admin may act cross-tenant and the access is logged; (d) erasure anonymises
 -- the identity in place (name/email cleared, deactivated + soft-deleted) and nulls
@@ -2308,7 +2308,7 @@ insert into usage_logs (farm_id, machine_id, driver_user_id, driver_name, occurr
   ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111',
    'e5111111-1111-1111-1111-111111111111', 'Operator A2', current_date, 321, 'app');
 
--- ── (a) execute privileges ────────────────────────────────────────
+-- == (a) execute privileges ========================================
 do $$ begin
   if has_function_privilege('anon', 'public.export_personal_data(uuid)', 'execute')
     then raise exception 'F8 ISOLATION FAIL: anon can execute export_personal_data'; end if;
@@ -2322,7 +2322,7 @@ do $$ begin
     then raise exception 'F8 ISOLATION FAIL: authenticated can call the internal guard directly'; end if;
 end $$;
 
--- ── (b) farm scoping — Owner B may NOT export a Farm A person ──────
+-- == (b) farm scoping, Owner B may NOT export a Farm A person ======
 set role authenticated;
 do $$ begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
@@ -2346,7 +2346,7 @@ do $$ declare j jsonb; begin
 end $$;
 reset role;
 
--- ── (c) rr_admin exports cross-tenant AND the access is logged ────
+-- == (c) rr_admin exports cross-tenant AND the access is logged ====
 set role authenticated;
 do $$ declare j jsonb; c int; begin
   perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
@@ -2359,7 +2359,7 @@ do $$ declare j jsonb; c int; begin
 end $$;
 reset role;
 
--- ── (e) self-erase is blocked ─────────────────────────────────────
+-- == (e) self-erase is blocked =====================================
 set role authenticated;
 do $$ begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -2371,7 +2371,7 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (b′) erasure scoping — Owner B may NOT erase a Farm A person ───
+-- == (b′) erasure scoping, Owner B may NOT erase a Farm A person ===
 set role authenticated;
 do $$ begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');   -- Owner B
@@ -2383,7 +2383,7 @@ do $$ begin
 end $$;
 reset role;
 
--- ── (d) Owner A erases their farm's person → identity anonymised ──
+-- == (d) Owner A erases their farm's person → identity anonymised ==
 set role authenticated;
 do $$ declare r jsonb; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -2412,7 +2412,7 @@ end $$;
 
 select 'ALL F8 POPIA DATA-SUBJECT-RIGHTS TESTS PASSED' as result;
 
--- ═══ G2: AARTO FINE WORKFLOW (0370–0371, appended section) ═══════
+-- ═══ G2: AARTO FINE WORKFLOW (0370-0371, appended section) ═══════
 -- Proves:
 --   (a) `fines` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop scoped to
 --       its linked farm, rr_admin sees all; anon covered in the anon sweep below).
@@ -2443,7 +2443,7 @@ insert into fines (id, farm_id, machine_id, notice_number, offence, offence_date
   ('f2720000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb720000-0000-0000-0000-0000000000b1', 'NB-OK',   'Speeding', current_date - 30, current_date + 200, 'received'),
   ('f1720000-0000-0000-0000-0000000000f0', '11111111-1111-1111-1111-111111111111', 'aa720000-0000-0000-0000-0000000000f0', 'NA-RET',  'Speeding', current_date - 30, current_date - 2,   'received');
 
--- ── (a) fines isolation ───────────────────────────────────────────
+-- == (a) fines isolation ===========================================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -2489,7 +2489,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (b) authenticated CANNOT execute the reminder engine / cron wrapper ──
+-- == (b) authenticated CANNOT execute the reminder engine / cron wrapper ==
 set role authenticated;
 do $$
 declare calls text[] := array[
@@ -2510,7 +2510,7 @@ begin
 end $$;
 reset role;
 
--- ── (c) run the engine as the service role (the nightly route's identity) ──
+-- == (c) run the engine as the service role (the nightly route's identity) ==
 set role service_role;
 do $$ begin perform app.enqueue_aarto_nomination_reminders(); end $$;
 reset role;
@@ -2533,7 +2533,7 @@ begin
   end if;
   -- Farm B's fine has a distant deadline → silent.
   if _t_notif(fb, 'aarto_nomination_due') <> 0 then
-    raise exception 'AARTO ENQUEUE FAIL: Farm B enqueued % (expected 0 — deadline not near)', _t_notif(fb, 'aarto_nomination_due');
+    raise exception 'AARTO ENQUEUE FAIL: Farm B enqueued % (expected 0, deadline not near)', _t_notif(fb, 'aarto_nomination_due');
   end if;
 end $$;
 
@@ -2554,7 +2554,7 @@ end $$;
 
 select 'ALL G2 AARTO-FINE-WORKFLOW TESTS PASSED' as result;
 
--- ═══ G1: BUDGETS & UTILISATION/DOWNTIME ANALYTICS (0360–0361, appended) ═══
+-- ═══ G1: BUDGETS & UTILISATION/DOWNTIME ANALYTICS (0360-0361, appended) ═══
 -- Proves:
 --   (a) `budgets` is tenant-isolated (own-farm visible, cross-tenant = 0, workshop scoped
 --       to its linked farm, rr_admin sees all, anon covered in the anon sweep); a
@@ -2562,17 +2562,17 @@ select 'ALL G2 AARTO-FINE-WORKFLOW TESTS PASSED' as result;
 --   (b) downtime (0361) is reconstructed from the audit_log status trail under RLS: a
 --       Farm A owner sees a Farm A machine's down-days; a Farm B owner sees 0 for it
 --       (audit_log is farm-scoped); anon cannot execute the function.
--- Fresh fixtures appended at the end — nothing above is disturbed.
+-- Fresh fixtures appended at the end, nothing above is disturbed.
 -- ═════════════════════════════════════════════════════════════════
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 -- Farm A: one machine-scoped budget + one whole-farm budget; Farm B: one machine budget.
 insert into budgets (id, farm_id, machine_id, category, period_type, period_start, period_end, amount_cents) values
   ('b6a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'parts', 'month',   date '2026-06-01', date '2026-06-30', 500000),
   ('b6a00000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', null,                                   null,    'quarter', date '2026-04-01', date '2026-06-30', 5000000),
   ('b6b00000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', 'parts', 'month',   date '2026-06-01', date '2026-06-30', 400000);
 
--- ── (a) budgets isolation ─────────────────────────────────────────
+-- == (a) budgets isolation =========================================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
@@ -2582,7 +2582,7 @@ do $$ declare c bigint; begin
 end $$;
 do $$ begin perform _t_login('b2222222-2222-2222-2222-222222222222'); perform _t_assert('budgets', 1, 'ownerB');    end $$;
 do $$ begin perform _t_login('c3333333-3333-3333-3333-333333333333'); -- Budgets are the farm's spending targets. A contractor seeing them could price against
--- what the farm has left in the year — off by default (F16 / 0400).
+-- what the farm has left in the year, off by default (F16 / 0400).
   perform _t_assert('budgets', 0, 'workshopW'); end $$;
 do $$ begin perform _t_login('d4444444-4444-4444-4444-444444444444'); perform _t_assert('budgets', 3, 'rrAdmin');   end $$;
 reset role;
@@ -2617,7 +2617,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (b) downtime reconstruction + isolation (0361) ────────────────
+-- == (b) downtime reconstruction + isolation (0361) ================
 -- A fresh Farm A machine that went into the workshop 10 days ago (synthetic audit trail).
 insert into machines (id, farm_id, name, type, status) values
   ('a6100000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Downtime A', 'tractor', 'active');
@@ -2667,16 +2667,16 @@ reset role;
 select 'ALL G1 BUDGETS & ANALYTICS TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- F14 — PARTNER DOCUMENTS (quotes & invoices, branding, plans)
+-- F14, PARTNER DOCUMENTS (quotes & invoices, branding, plans)
 -- ═════════════════════════════════════════════════════════════════
 -- What this section has to prove, because the app relies on all of it:
 --   (a) a farm sees the documents raised against IT and nobody else's;
 --   (b) two contractors serving the SAME farm never see each other's pricing;
---   (c) an operator sees no documents at all — a driver is not in the payables;
+--   (c) an operator sees no documents at all, a driver is not in the payables;
 --   (d) an invoice reaches the cost ledger EXACTLY ONCE, and a quote never does;
 --   (e) a partner invoice document standing over a work request's own amount does not
 --       double-count that job;
---   (f) totals are derived, not typed — lines roll up, payments roll up, status follows;
+--   (f) totals are derived, not typed, lines roll up, payments roll up, status follows;
 --   (g) anon can do nothing, and cannot allocate a document number;
 --   (h) a partner cannot promote its own plan, and cannot burn another partner's
 --       numbering sequence;
@@ -2715,7 +2715,7 @@ do $$ declare sub bigint; vat bigint; tot bigint; begin
   if tot <> 276000 then raise exception 'F14 FAIL [total]: % (expected 276000)', tot; end if;
 end $$;
 
--- (d) A DRAFT invoice is not money owed — nothing in the ledger yet.
+-- (d) A DRAFT invoice is not money owed, nothing in the ledger yet.
 do $$ declare c bigint; begin
   select count(*) into c from cost_entries
    where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
@@ -2729,7 +2729,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'F14 FAIL [quote costed]: a quote reached the cost ledger'; end if;
 end $$;
 
--- (e) Set the work request's own invoice amount FIRST, so 0311 books an entry — then
+-- (e) Set the work request's own invoice amount FIRST, so 0311 books an entry, then
 -- issue the partner invoice over the top and prove the job is costed exactly once.
 update work_requests set invoice_amount_cents = 999900, vat_rate_bps = 1500
   where id = 'd1000000-0000-0000-0000-0000000000a1';
@@ -2779,7 +2779,7 @@ do $$ declare s text; begin
   select status into s from partner_documents where id = 'f1400000-0000-0000-0000-000000000001';
   if s <> 'paid' then raise exception 'F14 FAIL [paid]: status=% (expected paid)', s; end if;
 end $$;
--- Paid in full is still a cost — it does not vanish from the ledger once settled.
+-- Paid in full is still a cost, it does not vanish from the ledger once settled.
 do $$ declare c bigint; begin
   select count(*) into c from cost_entries
    where source_type = 'partner_document' and source_id = 'f1400000-0000-0000-0000-000000000001' and deleted_at is null;
@@ -2795,7 +2795,7 @@ do $$ declare c bigint; begin
 end $$;
 update partner_documents set status = 'sent' where id = 'f1400000-0000-0000-0000-000000000001';  -- restore
 
--- ── (a)(b)(c) visibility ──────────────────────────────────────────
+-- == (a)(b)(c) visibility ==========================================
 set role authenticated;
 
 -- Farm A's owner sees BOTH documents raised against Farm A (W's invoice + X's quote) and
@@ -2841,7 +2841,7 @@ do $$ declare c bigint; begin
 end $$;
 
 -- (b) THE PRIVACY CASE. Workshop W is linked to Farm A, and so is Workshop X. W must see
--- its OWN two documents (Farm A invoice + Farm E quote) and NOT X's Farm A quote — even
+-- its OWN two documents (Farm A invoice + Farm E quote) and NOT X's Farm A quote, even
 -- though W has full farm access to Farm A.
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W
@@ -2882,7 +2882,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'F14 FAIL [X lines leak]: % (expected 0)', c; end if;
 end $$;
 
--- ── Cross-tenant writes are rejected ──────────────────────────────
+-- == Cross-tenant writes are rejected ==============================
 do $$ begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
   begin
@@ -2932,7 +2932,7 @@ do $$ declare c bigint; begin
   if c <> 1 then raise exception 'F14 FAIL [own branding]: a partner could not set its own letterhead'; end if;
 
   -- Workshop X's row is not W's to touch. RLS makes it invisible to the UPDATE, so the
-  -- statement affects zero rows rather than raising — assert the value did not move.
+  -- statement affects zero rows rather than raising, assert the value did not move.
   update workshops set trading_name = 'HACKED' where id = 'e3000000-0000-0000-0000-0000000000e3';
 end $$;
 reset role;
@@ -2966,7 +2966,7 @@ do $$ declare a text; b text; begin
   if a = b then raise exception 'F14 FAIL [numbering repeat]: two allocations both returned %', a; end if;
 end $$;
 
--- 0384: the allocator SKIPS a number already in use. Found by driving the built app —
+-- 0384: the allocator SKIPS a number already in use. Found by driving the built app -
 -- the counter and the rows had drifted apart (demo rows inserted directly; the same
 -- happens after a restore or an import), and pressing "Start it" failed with a raw
 -- Postgres unique-violation and created nothing.
@@ -2993,7 +2993,7 @@ reset role;
 set role authenticated;
 reset role;
 
--- ── (g) anon can do nothing ───────────────────────────────────────
+-- == (g) anon can do nothing =======================================
 set role anon;
 do $$ declare c bigint; begin
   perform set_config('request.jwt.claims', '', false);
@@ -3018,22 +3018,22 @@ reset role;
 select 'ALL F14 PARTNER-DOCUMENT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- F15 — PARTNER CLIENT BOOK + the connect handshake
+-- F15, PARTNER CLIENT BOOK + the connect handshake
 -- ═════════════════════════════════════════════════════════════════
 -- `partner_clients` / `partner_client_vehicles` are the FIRST tables scoped to a
 -- WORKSHOP rather than a farm, so the claims that matter are:
---   (a) a partner sees only its own book — not another partner's;
+--   (a) a partner sees only its own book, not another partner's;
 --   (b) a FARM user cannot read a partner's private notes about them;
 --   (c) writing a client row grants NOTHING: setting farm_id on one does not let the
 --       partner read that farm;
 --   (d) a partner may RAISE a pending link, and pending grants nothing;
---   (e) a partner CANNOT promote its own request to active — only the farm can;
+--   (e) a partner CANNOT promote its own request to active, only the farm can;
 --   (f) anon sees nothing.
 --
 -- Reuses Workshop W (linked to Farm A + Farm E) and Workshop X (linked to Farm A).
 
 insert into partner_clients (id, workshop_id, name, email) values
-  ('f1500000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'W''s client — Farm B', 'ownerB@test'),
+  ('f1500000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'W''s client, Farm B', 'ownerB@test'),
   ('f1500000-0000-0000-0000-000000000002', '33333333-3333-3333-3333-333333333333', 'W''s offline client', null),
   ('f1500000-0000-0000-0000-000000000003', 'e3000000-0000-0000-0000-0000000000e3', 'X''s own client', null);
 
@@ -3058,7 +3058,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'F15 FAIL [BOOK LEAK]: X sees W''s notebook vehicles'; end if;
 end $$;
 
--- (b) A farm user cannot read a partner's private notes about them — including the
+-- (b) A farm user cannot read a partner's private notes about them, including the
 --     farm that is literally the subject of the row.
 do $$ declare c bigint; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B (the subject)
@@ -3102,7 +3102,7 @@ reset role;
 update partner_clients set farm_id = null where id = 'f1500000-0000-0000-0000-000000000003';
 set role authenticated;
 
--- (d) A partner may RAISE a pending link — and pending grants nothing.
+-- (d) A partner may RAISE a pending link, and pending grants nothing.
 do $$ declare c bigint; begin
   perform _t_login('e4000000-0000-0000-0000-0000000000e4');            -- Workshop X
   insert into workshop_links (workshop_id, farm_id, status)
@@ -3175,7 +3175,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- The farm turning ON "see the whole fleet" is what opens it — and only that.
+-- The farm turning ON "see the whole fleet" is what opens it, and only that.
 reset role;
 update workshop_links set see_all_vehicles = true
   where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
@@ -3200,7 +3200,7 @@ update workshop_links set status = 'revoked'
   where workshop_id = 'e3000000-0000-0000-0000-0000000000e3'
     and farm_id = '22222222-2222-2222-2222-222222222222';
 
--- (g) 0391: a farm can READ the card of a contractor asking to connect — otherwise the
+-- (g) 0391: a farm can READ the card of a contractor asking to connect, otherwise the
 --     request renders as an empty row and cannot be decided. It is the contractor's own
 --     business card, offered to the one farm they asked, and it grants nothing.
 -- X's request to Farm B was revoked above; put it back to pending for this check.
@@ -3264,7 +3264,7 @@ do $$ declare c bigint; begin
   if c <> 1 then raise exception 'F15 FAIL [own card]: a partner cannot read its own workshop row'; end if;
 end $$;
 
--- The farm side still sees the contractors it works with — that must not have broken.
+-- The farm side still sees the contractors it works with, that must not have broken.
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');            -- Owner A
   select count(*) into c from workshops where id = 'e3000000-0000-0000-0000-0000000000e3';
@@ -3302,7 +3302,7 @@ end $$;
 select 'ALL F15 PARTNER-CLIENT-BOOK TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- F16 — PARTNER ACCESS SCOPE (0400)
+-- F16, PARTNER ACCESS SCOPE (0400)
 -- ═════════════════════════════════════════════════════════════════
 -- The claim: an active link is permission to do a JOB, not a key to the farm. What a
 -- contractor sees is the farm's choice, defaulting to the minimum, and each grant opens
@@ -3313,8 +3313,8 @@ select 'ALL F15 PARTNER-CLIENT-BOOK TESTS PASSED' as result;
 
 insert into farms (id, name) values ('f1600000-0000-0000-0000-000000000001', 'Farm P');
 insert into machines (id, farm_id, name, type) values
-  ('f1610000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'P — theirs',     'tractor'),
-  ('f1610000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001', 'P — not theirs', 'bakkie');
+  ('f1610000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'P, theirs',     'tractor'),
+  ('f1610000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001', 'P, not theirs', 'bakkie');
 insert into workshops (id, name, kind) values
   ('f1620000-0000-0000-0000-000000000001', 'Workshop Y', 'mechanic');
 insert into workshop_links (workshop_id, farm_id, status) values
@@ -3341,7 +3341,7 @@ insert into partners (farm_id, is_suggested, name, kind, phone) values
 
 set role authenticated;
 
--- ── (a) The default: only the vehicle they were given ────────────────────────
+-- == (a) The default: only the vehicle they were given ========================
 do $$ declare c bigint; begin
   perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y
   select count(*) into c from machines where farm_id = 'f1600000-0000-0000-0000-000000000001';
@@ -3371,7 +3371,7 @@ do $$ declare c bigint; begin
   if c <> 1 then raise exception 'F16 FAIL [too tight]: a contractor cannot see its own work request'; end if;
 end $$;
 
--- ── (b) Each grant opens exactly its own slice ───────────────────────────────
+-- == (b) Each grant opens exactly its own slice ===============================
 reset role;
 update workshop_links set see_all_vehicles = true
   where workshop_id = 'f1620000-0000-0000-0000-000000000001';
@@ -3416,7 +3416,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (c) A contractor cannot grant itself anything ────────────────────────────
+-- == (c) A contractor cannot grant itself anything ============================
 do $$ begin
   perform _t_login('f1630000-0000-0000-0000-000000000001');
   update workshop_links set see_costs = true, see_team = true
@@ -3438,7 +3438,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (d) The farm side is completely unaffected ───────────────────────────────
+-- == (d) The farm side is completely unaffected ===============================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
@@ -3453,13 +3453,13 @@ reset role;
 
 select 'ALL F16 PARTNER-ACCESS-SCOPE TESTS PASSED' as result;
 
--- ── F16b: a partner who is not VAT registered cannot issue VAT (0401) ────────
+-- == F16b: a partner who is not VAT registered cannot issue VAT (0401) ========
 insert into workshops (id, name, kind, vat_registered) values
   ('f1660000-0000-0000-0000-000000000001', 'Small Operator', 'mechanic', false);
 insert into workshop_links (workshop_id, farm_id, status) values
   ('f1660000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'active');
 
--- Try to issue at 15% anyway — the guard forces it to zero.
+-- Try to issue at 15% anyway, the guard forces it to zero.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, vat_rate_bps)
 values ('f1670000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
         'f1660000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'SO-0001', 1500);
@@ -3486,13 +3486,13 @@ end $$;
 select 'ALL F16b VAT-REGISTRATION TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- F16c — THE SIDE DOORS (0403)
+-- F16c, THE SIDE DOORS (0403)
 -- ═════════════════════════════════════════════════════════════════
--- Five ways round the F16 scope, all found by review of 0400–0402. The lesson is the
+-- Five ways round the F16 scope, all found by review of 0400-0402. The lesson is the
 -- same in each: narrowing the tables a contractor can READ is not the same as narrowing
 -- what they can REACH. These assertions exist so the doors stay shut.
 
--- ── (a) A notification is addressed to a person ──────────────────────────────
+-- == (a) A notification is addressed to a person ==============================
 --
 -- `notifications_sel` was farm-wide, so a linked contractor could read the payloads of
 -- everything 0400 had just gated: quote and invoice totals, fault descriptions, fuel
@@ -3500,7 +3500,7 @@ select 'ALL F16b VAT-REGISTRATION TESTS PASSED' as result;
 -- so the recipient is who may read them.
 insert into notifications (farm_id, user_id, channel, template, payload) values
   ('f1600000-0000-0000-0000-000000000001', 'f1640000-0000-0000-0000-000000000001',
-   'inapp', 'fuel_anomaly', '{"amount":"R12 340","machine":"P — not theirs"}'),
+   'inapp', 'fuel_anomaly', '{"amount":"R12 340","machine":"P, not theirs"}'),
   ('f1600000-0000-0000-0000-000000000001', 'f1630000-0000-0000-0000-000000000001',
    'inapp', 'work_request_status', '{"title":"Y works on this one"}');
 
@@ -3528,7 +3528,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (b) Storage resolves to the same decision the tables make ────────────────
+-- == (b) Storage resolves to the same decision the tables make ================
 --
 -- 0382's object policies were farm-scoped only, so a contractor could list and download
 -- every file under a farm they were linked to: other contractors' invoice PDFs out of
@@ -3592,10 +3592,10 @@ begin
 end $$;
 reset role;
 
--- ── (c) The VAT guard fires on the update that matters ───────────────────────
+-- == (c) The VAT guard fires on the update that matters =======================
 --
 -- 0401 fired only when `vat_rate_bps` or `workshop_id` was in the UPDATE. Sending a draft
--- touches `status` and `sent_at` — so a document priced at 15% while the partner was
+-- touches `status` and `sent_at`, so a document priced at 15% while the partner was
 -- registered went OUT at 15% after they deregistered. And because trigger order is
 -- alphabetical, the totals trigger ran first: the money was computed WITH VAT and only
 -- the rate was zeroed, leaving a row that shows no VAT line while still charging it.
@@ -3627,12 +3627,12 @@ do $$ declare r int; v bigint; tot bigint; sub bigint; begin
     raise exception 'F16c FAIL [VAT ON SEND]: sent at % bps charging % cents of VAT the partner may not collect', r, v;
   end if;
   if tot <> sub then
-    raise exception 'F16c FAIL [VAT IN THE TOTAL]: total % <> subtotal % — the VAT line is hidden but still billed', tot, sub;
+    raise exception 'F16c FAIL [VAT IN THE TOTAL]: total % <> subtotal %, the VAT line is hidden but still billed', tot, sub;
   end if;
 end $$;
 
 -- An `uploaded` document's totals are typed by hand, not derived, so the guard has to
--- correct those too — this is the case where a stray vat_cents simply survived.
+-- correct those too, this is the case where a stray vat_cents simply survived.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, upload_path,
                                vat_rate_bps, subtotal_cents, vat_cents, total_cents)
 values ('f16c0000-0000-0000-0000-000000000002', 'f1600000-0000-0000-0000-000000000001',
@@ -3643,16 +3643,16 @@ do $$ declare r int; v bigint; tot bigint; begin
   select vat_rate_bps, vat_cents, total_cents into r, v, tot
     from partner_documents where id = 'f16c0000-0000-0000-0000-000000000002';
   if r <> 0 or v <> 0 or tot <> 100000 then
-    raise exception 'F16c FAIL [uploaded]: typed totals kept VAT — % bps, % cents, total %', r, v, tot;
+    raise exception 'F16c FAIL [uploaded]: typed totals kept VAT, % bps, % cents, total %', r, v, tot;
   end if;
 end $$;
 
--- ── (d) An owner looking at a second site can actually change it ─────────────
+-- == (d) An owner looking at a second site can actually change it =============
 --
 -- `wl_upd` (0101) allowed an update only on the PRIMARY farm. Since F7 an owner can be
 -- looking at a second site through `user_farm_memberships`, and both the access card and
 -- the disconnect button write against the farm being VIEWED. On a secondary farm that
--- update matched zero rows, raised nothing, and redirected saying it had worked — so an
+-- update matched zero rows, raised nothing, and redirected saying it had worked, so an
 -- owner could be told a contractor was disconnected while their access carried on.
 insert into farms (id, name) values ('f16d0000-0000-0000-0000-000000000001', 'Farm Q');
 insert into auth.users (id, email) values ('f16d0000-0000-0000-0000-000000000002', 'ownerQ@test');
@@ -3703,25 +3703,25 @@ reset role;
 select 'ALL F16c SIDE-DOOR TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- F16d — NOBODY PROMOTES THEMSELVES (0404)
+-- F16d, NOBODY PROMOTES THEMSELVES (0404)
 -- ═════════════════════════════════════════════════════════════════
 -- The row that decides what you may read was writable by you. `users_upd` (0101) lets a
 -- person edit their own row, `role` sits on that row, and `app.is_rr_admin()` is defined
 -- as that column. One UPDATE and an ordinary login read every tenant in the system.
 --
 -- `users_scope_ck` blocks the naive version (an rr_admin holds no farm and no workshop),
--- so the exploit nulls both columns in the same statement — which is why this was not
+-- so the exploit nulls both columns in the same statement, which is why this was not
 -- obvious from reading the policy.
 
 -- A farm-side person for Owner P to administer. (A contractor's staff account belongs to
--- the workshop, not to any farm, so no farmer may touch it — asserted below.)
+-- the workshop, not to any farm, so no farmer may touch it, asserted below.)
 insert into auth.users (id, email) values ('f16f0000-0000-0000-0000-000000000001', 'driverR@test');
 insert into users (id, farm_id, role, name, email) values
   ('f16f0000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'operator', 'Driver R', 'driverr@test');
 
 set role authenticated;
 
--- ── (a) A contractor cannot promote itself ───────────────────────────────────
+-- == (a) A contractor cannot promote itself ===================================
 do $$ declare r text; c bigint; begin
   perform _t_login('f1630000-0000-0000-0000-000000000001');            -- Workshop Y staff
   begin
@@ -3736,7 +3736,7 @@ do $$ declare r text; c bigint; begin
   end if;
 end $$;
 
--- ── (b) Nor can a farm owner, an operator, or anyone else ────────────────────
+-- == (b) Nor can a farm owner, an operator, or anyone else ====================
 do $$ declare r text; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');            -- Owner B
   begin
@@ -3751,7 +3751,7 @@ do $$ declare r text; begin
   end if;
 end $$;
 
--- ── (c) You cannot quietly reassign yourself to another farm either ──────────
+-- == (c) You cannot quietly reassign yourself to another farm either ==========
 do $$ declare f uuid; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');
   begin
@@ -3766,7 +3766,7 @@ do $$ declare f uuid; begin
   end if;
 end $$;
 
--- ── (d) The profile edits the app actually makes still work ──────────────────
+-- == (d) The profile edits the app actually makes still work ==================
 do $$ declare n text; l text; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');
   update users set name = 'Owner B (renamed)', language = 'af', phone = '+27820001234'
@@ -3777,7 +3777,7 @@ do $$ declare n text; l text; begin
   end if;
 end $$;
 
--- ── (e) An owner can still deactivate someone on their own farm ──────────────
+-- == (e) An owner can still deactivate someone on their own farm ==============
 -- This is the one administrative write the app makes (`/team`), and the POPIA erasure
 -- RPC depends on it too.
 do $$ declare a boolean; begin
@@ -3793,8 +3793,8 @@ reset role;
 update users set active = true where id = 'f16f0000-0000-0000-0000-000000000001';
 set role authenticated;
 
--- ── (f) …but not mint an rr_admin, not reach another farm's people, and not ──
---        touch a contractor's staff account, which belongs to the workshop ───
+-- == (f) …but not mint an rr_admin, not reach another farm's people, and not ==
+--        touch a contractor's staff account, which belongs to the workshop ===
 do $$ declare r text; begin
   perform _t_login('f1640000-0000-0000-0000-000000000001');            -- Owner P
   begin
@@ -3835,7 +3835,7 @@ do $$ declare a boolean; begin
   end if;
 end $$;
 
--- ── (g) rr_admin is unaffected ───────────────────────────────────────────────
+-- == (g) rr_admin is unaffected ===============================================
 do $$ declare a boolean; begin
   perform _t_login('d4444444-4444-4444-4444-444444444444');
   update users set active = false where id = 'b2222222-2222-2222-2222-222222222222';
@@ -3844,9 +3844,9 @@ do $$ declare a boolean; begin
   update users set active = true where id = 'b2222222-2222-2222-2222-222222222222';
 end $$;
 
--- ── (h) A contractor cannot mark the farm's alerts read ──────────────────────
+-- == (h) A contractor cannot mark the farm's alerts read ======================
 -- `notifications_upd` was farm-wide, and an UPDATE naming no columns in its WHERE clause
--- never consults the SELECT policy — so 0403's narrowing did not cover this by itself.
+-- never consults the SELECT policy, so 0403's narrowing did not cover this by itself.
 do $$ declare c bigint; begin
   perform _t_login('f1630000-0000-0000-0000-000000000001');
   update notifications set read_at = now();
@@ -3862,7 +3862,7 @@ reset role;
 select 'ALL F16d PRIVILEGE-ESCALATION TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G2 — CORRECTIONS, RECIPIENTS AND STATEMENTS (0410–0414)
+-- G2, CORRECTIONS, RECIPIENTS AND STATEMENTS (0410-0414)
 -- ═════════════════════════════════════════════════════════════════
 -- The claim: a mistake can be fixed without pretending it never happened, a partner can
 -- bill someone who is not on FleetWise, and a statement of account adds up.
@@ -3888,7 +3888,7 @@ insert into users (id, farm_id, role, name, email) values
 insert into partner_clients (id, workshop_id, name, vat_number, payment_terms_days) values
   ('62400000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001', 'Off-grid Farming CC', '4987654321', 7);
 
--- ── (a) The bill-to seeds itself, which is what makes it a tax invoice ────────
+-- == (a) The bill-to seeds itself, which is what makes it a tax invoice ========
 -- Before 0410 the recipient block was `farm.name` and nothing else, so a supply over
 -- R5 000 was not a full tax invoice under VAT Act s20(4) and the farmer could not claim.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, due_date)
@@ -3903,15 +3903,15 @@ do $$ declare n text; v text; a text; begin
     from partner_documents where id = '62500000-0000-0000-0000-000000000001';
   if n is null then raise exception 'G2 FAIL [addressee]: no bill-to name was seeded'; end if;
   if v <> '4123456789' then
-    raise exception 'G2 FAIL [TAX INVOICE]: the recipient VAT number is % — without it the farmer cannot claim', coalesce(v, 'missing');
+    raise exception 'G2 FAIL [TAX INVOICE]: the recipient VAT number is %, without it the farmer cannot claim', coalesce(v, 'missing');
   end if;
   if a is null then raise exception 'G2 FAIL [TAX INVOICE]: no recipient address on the document'; end if;
 end $$;
 
--- ── (b) A partner can bill someone who is not on FleetWise ───────────────────
--- `farm_id` was `not null`, so a partner could only invoice a FleetWise tenant — they
+-- == (b) A partner can bill someone who is not on FleetWise ===================
+-- `farm_id` was `not null`, so a partner could only invoice a FleetWise tenant, they
 -- could record a client-book customer, phone them, and not bill them.
--- Built as a draft, then sent — the same order the app enforces, because 0412 freezes
+-- Built as a draft, then sent, the same order the app enforces, because 0412 freezes
 -- the items the moment a document is issued.
 insert into partner_documents (id, farm_id, partner_client_id, workshop_id, kind, status, source, number, issue_date, due_date)
 values ('62500000-0000-0000-0000-000000000002', null, '62400000-0000-0000-0000-000000000001',
@@ -3937,14 +3937,14 @@ do $$ declare c bigint; begin
   select count(*) into c from partner_documents
    where workshop_id = '62100000-0000-0000-0000-000000000001' and farm_id is null;
   if c <> 2 then raise exception 'G2 FAIL [recipients]: % documents with no farm (expected 2)', c; end if;
-  -- A document with no farm books NO farm cost — that money is the partner's revenue.
+  -- A document with no farm books NO farm cost, that money is the partner's revenue.
   select count(*) into c from cost_entries
    where source_type = 'partner_document'
      and source_id in ('62500000-0000-0000-0000-000000000002', '62500000-0000-0000-0000-000000000003');
   if c <> 0 then raise exception 'G2 FAIL [ledger]: a farmless document booked % farm costs', c; end if;
 end $$;
 
--- ── (c) Nothing issued can be deleted or quietly re-priced ───────────────────
+-- == (c) Nothing issued can be deleted or quietly re-priced ===================
 -- AutoVault HARD DELETES an invoice with the service-role client
 -- (`admin.from('invoices').delete()`), so a statement printed last month and one printed
 -- today disagree with nothing to explain why.
@@ -3984,7 +3984,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G2 FAIL [RE-PRICE]: the items on an issued invoice were changed'; end if;
 end $$;
 
--- ── (d) A credit note is the correction, and it nets off the ledger ──────────
+-- == (d) A credit note is the correction, and it nets off the ledger ==========
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
                                corrects_document_id, issue_date)
 values ('62600000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
@@ -4002,7 +4002,7 @@ do $$ declare inv bigint; cred bigint; begin
    where source_type = 'partner_document' and source_id = '62600000-0000-0000-0000-000000000001' and deleted_at is null;
   if inv is null or inv <= 0 then raise exception 'G2 FAIL: the invoice is not in the farm ledger (%)', inv; end if;
   if cred is null or cred >= 0 then
-    raise exception 'G2 FAIL [CREDIT]: a credit note booked % — it must be NEGATIVE so the correction nets out of TCO instead of erasing it', cred;
+    raise exception 'G2 FAIL [CREDIT]: a credit note booked %, it must be NEGATIVE so the correction nets out of TCO instead of erasing it', cred;
   end if;
 end $$;
 
@@ -4032,7 +4032,7 @@ do $$ declare ok boolean := false; v_total bigint; begin
   end if;
 end $$;
 
--- ── (e) A void keeps the record and stands the money down ────────────────────
+-- == (e) A void keeps the record and stands the money down ====================
 do $$ declare ok boolean := false; begin
   begin
     update partner_documents set status = 'void' where id = '62500000-0000-0000-0000-000000000003';
@@ -4054,7 +4054,7 @@ do $$ declare st text; c bigint; begin
   if c <> 1 then raise exception 'G2 FAIL: voiding destroyed the record instead of keeping it'; end if;
 end $$;
 
--- ── (f) The statement adds up, and carries a balance forward ─────────────────
+-- == (f) The statement adds up, and carries a balance forward =================
 -- Payments: two part-payments against the Farm S invoice, one in each period.
 insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method) values
   ('62000000-0000-0000-0000-000000000001', '62500000-0000-0000-0000-000000000001', 300000, current_date - 35, 'eft'),
@@ -4093,7 +4093,7 @@ begin
      where d.id = '62500000-0000-0000-0000-000000000001'
        and c.id = '62600000-0000-0000-0000-000000000001'
   ) then
-    raise exception 'G2 FAIL [STATEMENT]: closing balance is % — it must equal invoice minus credits minus payments', v_close;
+    raise exception 'G2 FAIL [STATEMENT]: closing balance is %, it must equal invoice minus credits minus payments', v_close;
   end if;
 
   -- A part-payment appears. AutoVault only emits a payment row when the invoice is FULLY
@@ -4104,7 +4104,7 @@ begin
                                current_date - 400, current_date)
    where kind = 'payment';
   if v_rows <> 2 then
-    raise exception 'G2 FAIL [PART PAYMENTS]: % payment rows (expected 2) — a part-paid invoice must show what was received', v_rows;
+    raise exception 'G2 FAIL [PART PAYMENTS]: % payment rows (expected 2), a part-paid invoice must show what was received', v_rows;
   end if;
 
   -- A quote is not a financial event and has no place on a statement of account.
@@ -4116,7 +4116,7 @@ begin
   if v_quotes <> 0 then raise exception 'G2 FAIL: % quotes on a statement of account', v_quotes; end if;
 end $$;
 
--- ── (g) Ageing measures from the DUE date, and nets credits off ──────────────
+-- == (g) Ageing measures from the DUE date, and nets credits off ==============
 do $$ declare cur bigint; over bigint; tot bigint; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   select current_cents, d30_cents + d60_cents + d90_cents, total_cents into cur, over, tot
@@ -4129,7 +4129,7 @@ do $$ declare cur bigint; over bigint; tot bigint; begin
   if tot <> over then raise exception 'G2 FAIL [AGEING]: buckets (%) do not sum to the total (%)', over, tot; end if;
 end $$;
 
--- ── (h) A statement is still farm-isolated ───────────────────────────────────
+-- == (h) A statement is still farm-isolated ===================================
 do $$ declare c bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');        -- Owner A, another farm
   select count(*) into c
@@ -4152,7 +4152,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (i) Anon reaches none of it ──────────────────────────────────────────────
+-- == (i) Anon reaches none of it ==============================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform app.partner_statement(null, null, null, current_date, current_date);
@@ -4171,7 +4171,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (j) Quotes expire, and overdue invoices get chased ───────────────────────
+-- == (j) Quotes expire, and overdue invoices get chased =======================
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, due_date)
 values ('62700000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
         '62100000-0000-0000-0000-000000000001', 'quote', 'sent', 'built', 'ZQ-0001',
@@ -4181,7 +4181,7 @@ do $$ begin perform app.expire_partner_quotes(); end $$;
 do $$ declare st text; begin
   select status into st from partner_documents where id = '62700000-0000-0000-0000-000000000001';
   if st <> 'expired' then
-    raise exception 'G2 FAIL: a quote past its validity date is still % — `expired` has been in the enum since 0381 with nothing ever setting it', st;
+    raise exception 'G2 FAIL: a quote past its validity date is still %, `expired` has been in the enum since 0381 with nothing ever setting it', st;
   end if;
 end $$;
 
@@ -4210,7 +4210,7 @@ do $$ declare before_c bigint; after_c bigint; begin
   end if;
 end $$;
 
--- ── (k) A partner never sees another partner's account ───────────────────────
+-- == (k) A partner never sees another partner's account =======================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W, unrelated
@@ -4227,15 +4227,15 @@ reset role;
 select 'ALL G2 CORRECTION & STATEMENT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G3 — EDITS WITH HISTORY, AND DEBIT NOTES (0416–0418)
+-- G3, EDITS WITH HISTORY, AND DEBIT NOTES (0416-0418)
 -- ═════════════════════════════════════════════════════════════════
 -- The claim: an issued document can be CORRECTED, and cannot be corrected quietly.
 -- The guarantee moved from "it cannot change" to "it cannot change without leaving the
--- version it replaced" — so every assertion here is about the door being single.
+-- version it replaced", so every assertion here is about the door being single.
 
 set role authenticated;
 
--- ── (a) The correction works, and the old version survives ───────────────────
+-- == (a) The correction works, and the old version survives ===================
 do $$
 declare v_before bigint; v_after bigint; v_rev int; v_snapshot jsonb;
 begin
@@ -4247,7 +4247,7 @@ begin
   perform public.revise_document(
     '62500000-0000-0000-0000-000000000001',
     'Charged for a gearbox we did not fit',
-    jsonb_build_object('subject', 'Gearbox — corrected'),
+    jsonb_build_object('subject', 'Gearbox, corrected'),
     jsonb_build_array(jsonb_build_object(
       'kind', 'labour', 'description', 'Gearbox (corrected)', 'qty', 1, 'unit_price_cents', 600000
     ))
@@ -4276,7 +4276,7 @@ begin
   end if;
 end $$;
 
--- ── (b) There is no second door ──────────────────────────────────────────────
+-- == (b) There is no second door ==============================================
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   begin
@@ -4309,7 +4309,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G3 FAIL [ERASURE]: an issued invoice was deleted'; end if;
 end $$;
 
--- ── (c) A correction has to say what it is ───────────────────────────────────
+-- == (c) A correction has to say what it is ===================================
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   begin
@@ -4318,7 +4318,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G3 FAIL: a document was corrected with no reason given'; end if;
 end $$;
 
--- ── (d) You cannot correct an invoice below what has been paid ───────────────
+-- == (d) You cannot correct an invoice below what has been paid ===============
 -- That is a refund, and a refund has to be visible as its own event.
 do $$ declare ok boolean := false; v_total bigint; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
@@ -4339,7 +4339,7 @@ do $$ declare ok boolean := false; v_total bigint; begin
   end if;
 end $$;
 
--- ── (e) Another partner cannot correct your paperwork ────────────────────────
+-- == (e) Another partner cannot correct your paperwork ========================
 do $$ declare ok boolean := false; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
   begin
@@ -4350,7 +4350,7 @@ do $$ declare ok boolean := false; begin
   end if;
 end $$;
 
--- ── (f) The customer can see how it changed ──────────────────────────────────
+-- == (f) The customer can see how it changed ==================================
 do $$ declare c bigint; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');        -- Owner S, the customer
   select count(*) into c from partner_document_revisions
@@ -4369,7 +4369,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (g) A debit note adds, where a credit note subtracts ─────────────────────
+-- == (g) A debit note adds, where a credit note subtracts =====================
 do $$ declare v_num text; v_id uuid; v_ledger bigint; begin
   select app.next_document_number('62100000-0000-0000-0000-000000000001', 'debit_note') into v_num;
   insert into partner_documents
@@ -4386,7 +4386,7 @@ do $$ declare v_num text; v_id uuid; v_ledger bigint; begin
   select amount_cents into v_ledger from cost_entries
    where source_type = 'partner_document' and source_id = v_id and deleted_at is null;
   if v_ledger is null or v_ledger <= 0 then
-    raise exception 'G3 FAIL [DEBIT NOTE]: booked % — a debit note must ADD to the farm''s costs', v_ledger;
+    raise exception 'G3 FAIL [DEBIT NOTE]: booked %, a debit note must ADD to the farm''s costs', v_ledger;
   end if;
 end $$;
 
@@ -4400,7 +4400,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G3 FAIL: a debit note was issued against nothing'; end if;
 end $$;
 
--- ── (h) The statement still adds up, with both notes and a correction ────────
+-- == (h) The statement still adds up, with both notes and a correction ========
 set role authenticated;
 do $$
 declare v_close bigint; v_indep bigint; v_debits bigint;
@@ -4431,7 +4431,7 @@ begin
       v_close, v_indep;
   end if;
 
-  -- The corrected invoice appears ONCE, at its current value — not once per version.
+  -- The corrected invoice appears ONCE, at its current value, not once per version.
   select count(*) into v_debits
     from app.partner_statement('62100000-0000-0000-0000-000000000001',
                                '62000000-0000-0000-0000-000000000001', null,
@@ -4452,7 +4452,7 @@ begin
   end if;
 end $$;
 
--- ── (i) Anon reaches none of it ──────────────────────────────────────────────
+-- == (i) Anon reaches none of it ==============================================
 reset role;
 set role anon;
 do $$ declare ok boolean := false; begin
@@ -4462,12 +4462,12 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (j) A correction cannot slip under the credits already issued ───────────
+-- == (j) A correction cannot slip under the credits already issued ===========
 -- The cap in 0412 only ever ran when a NOTE was written. 0417 made the INVOICE editable,
 -- which reopened the same hole from the other side: shrink the invoice under its credits
 -- and the customer's balance goes negative with nothing to explain it. Reproduced locally
 -- before it was fixed; it did NOT show on the demo project only because that invoice had
--- a payment and the "below what has been paid" guard caught it first — luck, not cover.
+-- a payment and the "below what has been paid" guard caught it first, luck, not cover.
 set role authenticated;
 do $$
 declare v_inv uuid; v_cn uuid; ok boolean := false; v_after bigint; v_credits bigint;
@@ -4502,7 +4502,7 @@ begin
     select total_cents into v_after from partner_documents where id = v_inv;
     select coalesce(sum(total_cents),0) into v_credits from partner_documents
      where corrects_document_id = v_inv and kind = 'credit_note' and status not in ('draft','void');
-    raise exception 'G3 FAIL [NEGATIVE BALANCE]: invoice corrected to % under % of credits — the customer''s balance is %',
+    raise exception 'G3 FAIL [NEGATIVE BALANCE]: invoice corrected to % under % of credits, the customer''s balance is %',
       v_after, v_credits, v_after - v_credits;
   end if;
 
@@ -4515,7 +4515,7 @@ reset role;
 select 'ALL G3 REVISION & DEBIT-NOTE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G4 — THE HISTORY IS APPEND-ONLY (0420)
+-- G4, THE HISTORY IS APPEND-ONLY (0420)
 -- ═════════════════════════════════════════════════════════════════
 -- The version history is what makes editing an issued document safe, so "can anyone
 -- remove it?" is the load-bearing question. Before 0420 the honest answer was "not
@@ -4525,7 +4525,7 @@ select 'ALL G3 REVISION & DEBIT-NOTE TESTS PASSED' as result;
 
 set role authenticated;
 
--- ── (a) A partner cannot empty or rewrite their own history ─────────────────
+-- == (a) A partner cannot empty or rewrite their own history =================
 do $$ declare ok boolean := false; c_before bigint; c_after bigint; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
   select count(*) into c_before from partner_document_revisions;
@@ -4535,7 +4535,7 @@ do $$ declare ok boolean := false; c_before bigint; c_after bigint; begin
     delete from partner_document_revisions;
   exception when insufficient_privilege then ok := true; end;
   if not ok then
-    raise exception 'G4 FAIL [SILENT]: deleting the version history did not even raise — an audit trail that can be quietly emptied is not one';
+    raise exception 'G4 FAIL [SILENT]: deleting the version history did not even raise, an audit trail that can be quietly emptied is not one';
   end if;
 
   ok := false;
@@ -4553,7 +4553,7 @@ do $$ declare ok boolean := false; c_before bigint; c_after bigint; begin
   end if;
 end $$;
 
--- ── (b) Nor forge one ────────────────────────────────────────────────────────
+-- == (b) Nor forge one ========================================================
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   begin
@@ -4564,8 +4564,8 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G4 FAIL: a partner wrote a version by hand'; end if;
 end $$;
 
--- ── (c) Neither can rr_admin, and neither can the farm ───────────────────────
--- Nobody has this. The trigger has no exception for a role — only for the one function
+-- == (c) Neither can rr_admin, and neither can the farm =======================
+-- Nobody has this. The trigger has no exception for a role, only for the one function
 -- that writes it, from inside itself.
 do $$ declare ok boolean := false; begin
   perform _t_login('d4444444-4444-4444-4444-444444444444');        -- rr_admin
@@ -4576,10 +4576,10 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (d) A draft has no history to lose ───────────────────────────────────────
+-- == (d) A draft has no history to lose =======================================
 -- `document_id` cascades and a DRAFT can still be deleted, so "revise a draft, then
 -- delete it" would have taken its versions with it. Closed by refusing to revise a draft
--- at all — it is directly editable, so the correction machinery is redundant there.
+-- at all, it is directly editable, so the correction machinery is redundant there.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name)
 values ('64000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
         '62100000-0000-0000-0000-000000000001', 'invoice', 'draft', 'built', 'DRAFT-0001',
@@ -4605,7 +4605,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'G4 FAIL: a deleted draft left % orphan versions', c; end if;
 end $$;
 
--- ── (e) And correcting an issued document still works ────────────────────────
+-- == (e) And correcting an issued document still works ========================
 -- The point of all the above is to make the edit safe, not to make it impossible.
 set role authenticated;
 do $$ declare v_rev int; v_versions bigint; begin
@@ -4630,7 +4630,7 @@ reset role;
 select 'ALL G4 APPEND-ONLY-HISTORY TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G5 — REFUNDS AND WRITE-OFFS (0422–0423)
+-- G5, REFUNDS AND WRITE-OFFS (0422-0423)
 -- ═════════════════════════════════════════════════════════════════
 -- Two ways a balance goes to zero that the statement could not express, and both matter
 -- for the same reason: a balance that cannot be cleared CORRECTLY sits on the page for
@@ -4638,8 +4638,8 @@ select 'ALL G4 APPEND-ONLY-HISTORY TESTS PASSED' as result;
 --
 --   a refund     money going back after they had already paid. A negative payment, so the
 --                running balance climbs back.
---   a write-off  they are never going to pay. The invoice stays at full value — the work
---                was done — but stops being outstanding, stops being chased, and posts a
+--   a write-off  they are never going to pay. The invoice stays at full value, the work
+--                was done, but stops being outstanding, stops being chased, and posts a
 --                matching credit so the account nets to zero.
 --
 -- The claim under test is that neither can be used to move money quietly: a refund cannot
@@ -4668,8 +4668,8 @@ do $$ declare v_total bigint; begin
   end if;
 end $$;
 
--- ── (a) A refund is negative and a payment is positive ───────────────────────
--- Stated as a constraint so no code path — ours or a future one — can write a payment
+-- == (a) A refund is negative and a payment is positive =======================
+-- Stated as a constraint so no code path, ours or a future one, can write a payment
 -- whose sign disagrees with what it claims to be.
 do $$ declare ok boolean := false; begin
   begin
@@ -4677,7 +4677,7 @@ do $$ declare ok boolean := false; begin
     values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
             50000, true, current_date);
   exception when check_violation then ok := true; end;
-  if not ok then raise exception 'G5 FAIL: a POSITIVE refund was accepted — the sign says money came in'; end if;
+  if not ok then raise exception 'G5 FAIL: a POSITIVE refund was accepted, the sign says money came in'; end if;
 end $$;
 
 do $$ declare ok boolean := false; begin
@@ -4689,7 +4689,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G5 FAIL: a NEGATIVE payment was accepted without being called a refund'; end if;
 end $$;
 
--- ── (b) You cannot refund money that never arrived ───────────────────────────
+-- == (b) You cannot refund money that never arrived ===========================
 do $$ declare ok boolean := false; v_paid bigint; begin
   begin
     insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on)
@@ -4697,13 +4697,13 @@ do $$ declare ok boolean := false; v_paid bigint; begin
             -20000, true, current_date);
   exception when check_violation then ok := true; end;
   if not ok then
-    raise exception 'G5 FAIL: an invoice with no payments was refunded — the account now shows a negative receipt';
+    raise exception 'G5 FAIL: an invoice with no payments was refunded, the account now shows a negative receipt';
   end if;
   select amount_paid_cents into v_paid from partner_documents where id = '65000000-0000-0000-0000-000000000001';
   if v_paid <> 0 then raise exception 'G5 FAIL: the refused refund still moved amount_paid to %', v_paid; end if;
 end $$;
 
--- ── (c) A real payment, then a real refund ───────────────────────────────────
+-- == (c) A real payment, then a real refund ===================================
 insert into partner_payments (farm_id, document_id, amount_cents, is_refund, paid_on, method)
 values ('62000000-0000-0000-0000-000000000001', '65000000-0000-0000-0000-000000000001',
         400000, false, current_date - 60, 'eft');
@@ -4726,11 +4726,11 @@ do $$ declare v_paid bigint; v_status text; v_credit bigint; begin
                                current_date - 400, current_date)
    where kind = 'refund' and document_id = '65000000-0000-0000-0000-000000000001';
   if v_credit is null or v_credit >= 0 then
-    raise exception 'G5 FAIL: the refund reads as % on the statement — it has to reduce what was received', v_credit;
+    raise exception 'G5 FAIL: the refund reads as % on the statement, it has to reduce what was received', v_credit;
   end if;
 end $$;
 
--- ── (d) Writing off needs a reason, and belongs to the issuer ────────────────
+-- == (d) Writing off needs a reason, and belongs to the issuer ================
 set role authenticated;
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z, the issuer
@@ -4750,7 +4750,7 @@ do $$ declare ok boolean := false; begin
   end if;
 end $$;
 
--- The farm cannot write off its own debt either — it is the partner's decision to stop
+-- The farm cannot write off its own debt either, it is the partner's decision to stop
 -- asking for the money, not the debtor's.
 do $$ declare ok boolean := false; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
@@ -4761,7 +4761,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (e) The write-off itself ─────────────────────────────────────────────────
+-- == (e) The write-off itself =================================================
 do $$ declare v_before bigint; begin
   select total_cents into v_before from app.partner_ageing(
     '62100000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001', null, current_date);
@@ -4776,7 +4776,7 @@ do $$ declare v_versions bigint; begin
   select count(*) into v_versions from partner_document_revisions
    where document_id = '65000000-0000-0000-0000-000000000001';
   if v_versions <> 1 then
-    raise exception 'G5 FAIL: writing off left % versions on file (expected 1) — the decision has no before-picture', v_versions;
+    raise exception 'G5 FAIL: writing off left % versions on file (expected 1), the decision has no before-picture', v_versions;
   end if;
 end $$;
 reset role;
@@ -4810,7 +4810,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (f) The statement stays readable, and nets to zero ───────────────────────
+-- == (f) The statement stays readable, and nets to zero =======================
 -- The invoice is still there at full value, because the customer really was billed it.
 -- The write-off posts its own credit line, so the account does not carry a balance for a
 -- debt everyone has given up on.
@@ -4821,10 +4821,10 @@ do $$ declare v_net bigint; v_writeoff bigint; v_rows bigint; begin
                                current_date - 400, current_date)
    where document_id = '65000000-0000-0000-0000-000000000001';
   if v_rows < 4 then
-    raise exception 'G5 FAIL: the written-off invoice shows only % lines — invoice, payment, refund and write-off are all part of what happened', v_rows;
+    raise exception 'G5 FAIL: the written-off invoice shows only % lines, invoice, payment, refund and write-off are all part of what happened', v_rows;
   end if;
   if v_net <> 0 then
-    raise exception 'G5 FAIL [STATEMENT]: the written-off invoice leaves % on the account — a statement that cannot be cleared is one nobody can reconcile', v_net;
+    raise exception 'G5 FAIL [STATEMENT]: the written-off invoice leaves % on the account, a statement that cannot be cleared is one nobody can reconcile', v_net;
   end if;
 
   select credit_cents into v_writeoff
@@ -4837,21 +4837,21 @@ do $$ declare v_net bigint; v_writeoff bigint; v_rows bigint; begin
   end if;
 end $$;
 
--- ── (g) The farm still carries the cost ──────────────────────────────────────
+-- == (g) The farm still carries the cost ======================================
 -- Not paying a bill does not un-do the work. The machine's cost of ownership keeps it.
 do $$ declare v_cents bigint; begin
   select amount_cents into v_cents from cost_entries
    where source_type = 'partner_document' and source_id = '65000000-0000-0000-0000-000000000001'
      and deleted_at is null;
   if v_cents is null then
-    raise exception 'G5 FAIL [LEDGER]: writing the invoice off deleted the farm''s cost entry — the work still happened';
+    raise exception 'G5 FAIL [LEDGER]: writing the invoice off deleted the farm''s cost entry, the work still happened';
   end if;
   if v_cents <> 1000000 then
     raise exception 'G5 FAIL: the cost entry is % (expected the 1000000 ex-VAT that was billed)', v_cents;
   end if;
 end $$;
 
--- ── (h) It cannot be written off twice, or quietly reopened ──────────────────
+-- == (h) It cannot be written off twice, or quietly reopened ==================
 set role authenticated;
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
@@ -4886,12 +4886,12 @@ end $$;
 select 'ALL G5 REFUND & WRITE-OFF TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G6 — THE PURCHASE SIDE AND THE VAT RETURN (0430–0431)
+-- G6, THE PURCHASE SIDE AND THE VAT RETURN (0430-0431)
 -- ═════════════════════════════════════════════════════════════════
 -- Two claims. First, a partner's purchases are the partner's: not the farms they work
 -- for, not another contractor, nobody. A farm being able to read what its contractor pays
 -- its suppliers would hand over the contractor's margin on every job, which is exactly
--- the class of leak F16 was built to close — so the new table gets the same treatment
+-- the class of leak F16 was built to close, so the new table gets the same treatment
 -- from the start rather than being tightened later.
 --
 -- Second, the VAT return has to be arithmetic somebody can be audited on: output VAT on
@@ -4903,17 +4903,17 @@ insert into partner_expenses (id, workshop_id, supplier_name, category, expense_
 values
   -- Workshop Z's own purchases, inside the period. The G6 window is a quiet stretch of the
   -- calendar nothing else in this suite uses, so the arithmetic below states its own
-  -- inputs rather than inheriting every document G2–G5 happened to leave lying around.
+  -- inputs rather than inheriting every document G2-G5 happened to leave lying around.
   ('66000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
    'Bearing Supplies', 'parts', current_date - 276, 200000, 1500, 30000, true),
-  -- Claimed VAT it may NOT claim (entertainment) — must be excluded from input VAT
+  -- Claimed VAT it may NOT claim (entertainment), must be excluded from input VAT
   ('66000000-0000-0000-0000-000000000002', '62100000-0000-0000-0000-000000000001',
    'Steakhouse', 'other', current_date - 275, 100000, 1500, 15000, false),
   -- Outside the period entirely
   ('66000000-0000-0000-0000-000000000003', '62100000-0000-0000-0000-000000000001',
    'Old Supplier', 'parts', current_date - 400, 500000, 1500, 75000, true);
 
--- ── (a) A farm cannot read its contractor's purchases ────────────────────────
+-- == (a) A farm cannot read its contractor's purchases ========================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
@@ -4923,14 +4923,14 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (b) Nor can another contractor ───────────────────────────────────────────
+-- == (b) Nor can another contractor ===========================================
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
   select count(*) into c from partner_expenses;
   if c <> 0 then raise exception 'G6 FAIL [COMPETITOR]: another workshop read % purchase rows', c; end if;
 end $$;
 
--- ── (c) And a contractor cannot write into somebody else's books ─────────────
+-- == (c) And a contractor cannot write into somebody else's books =============
 do $$ declare ok boolean := false; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');
   begin
@@ -4940,7 +4940,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G6 FAIL: a workshop wrote an expense into another workshop''s books'; end if;
 end $$;
 
--- ── (d) The owner sees exactly its own ───────────────────────────────────────
+-- == (d) The owner sees exactly its own =======================================
 do $$ declare c bigint; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
   select count(*) into c from partner_expenses;
@@ -4948,7 +4948,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (e) Anon reaches nothing, and cannot run the return ──────────────────────
+-- == (e) Anon reaches nothing, and cannot run the return ======================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform count(*) from partner_expenses; exception when others then ok := true; end;
@@ -4961,7 +4961,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (f) The arithmetic ───────────────────────────────────────────────────────
+-- == (f) The arithmetic =======================================================
 -- Built from scratch for this section so the assertion states its own inputs: two
 -- invoices, a credit note against one, a draft that must not count, and a voided one.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number,
@@ -5004,13 +5004,13 @@ begin
 
   -- Sales at the standard rate: R10 000 + R4 000 ex-VAT. The DRAFT is not a supply.
   if v.standard_ex_cents <> 1400000 then
-    raise exception 'G6 FAIL: standard-rated sales are % (expected 1400000 — a draft or a void has been counted)', v.standard_ex_cents;
+    raise exception 'G6 FAIL: standard-rated sales are % (expected 1400000, a draft or a void has been counted)', v.standard_ex_cents;
   end if;
 
   -- Output VAT: 15% of (10 000 + 4 000 − 1 000) = R1 950.
   v_expected_output := 195000;
   if v.output_vat_cents <> v_expected_output then
-    raise exception 'G6 FAIL: output VAT is % (expected % — the credit note must SUBTRACT)',
+    raise exception 'G6 FAIL: output VAT is % (expected %, the credit note must SUBTRACT)',
       v.output_vat_cents, v_expected_output;
   end if;
   if v.credits_ex_cents <> 100000 then
@@ -5020,7 +5020,7 @@ begin
   -- Input VAT: only the claimable purchase inside the window. The steakhouse is blocked,
   -- the year-old invoice is out of period.
   if v.input_vat_cents <> 30000 then
-    raise exception 'G6 FAIL: input VAT is % (expected 30000 — blocked or out-of-period VAT has been claimed)', v.input_vat_cents;
+    raise exception 'G6 FAIL: input VAT is % (expected 30000, blocked or out-of-period VAT has been claimed)', v.input_vat_cents;
   end if;
   if v.blocked_vat_cents <> 15000 then
     raise exception 'G6 FAIL: blocked VAT is % (expected 15000, shown but not claimed)', v.blocked_vat_cents;
@@ -5032,7 +5032,7 @@ begin
   end if;
 end $$;
 
--- ── (g) Another partner's return is not readable through the same function ───
+-- == (g) Another partner's return is not readable through the same function ===
 -- SECURITY INVOKER, so RLS answers: a workshop passing somebody else's id gets zeroes
 -- rather than their turnover.
 do $$ declare v record; begin
@@ -5046,7 +5046,7 @@ do $$ declare v record; begin
 end $$;
 reset role;
 
--- ── (h) A written-off invoice still declared its VAT ─────────────────────────
+-- == (h) A written-off invoice still declared its VAT =========================
 -- The supply happened. Bad-debt relief is a separate claim (s22), so the return reports
 -- the amount rather than quietly removing it.
 set role authenticated;
@@ -5056,7 +5056,7 @@ do $$ declare v record; begin
   select * into v from app.partner_vat_return(
     '62100000-0000-0000-0000-000000000001', current_date - 300, current_date - 250);
   if v.output_vat_cents <> 195000 then
-    raise exception 'G6 FAIL: writing an invoice off changed the VAT declared (now %) — the supply still happened', v.output_vat_cents;
+    raise exception 'G6 FAIL: writing an invoice off changed the VAT declared (now %), the supply still happened', v.output_vat_cents;
   end if;
   if v.written_off_vat_cents <> 60000 then
     raise exception 'G6 FAIL: written-off VAT reported as % (expected 60000, so a s22 claim can be raised knowingly)',
@@ -5068,10 +5068,10 @@ reset role;
 select 'ALL G6 PURCHASE & VAT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G7 — BILLING A JOB IN STAGES (0432)
+-- G7, BILLING A JOB IN STAGES (0432)
 -- ═════════════════════════════════════════════════════════════════
 -- A deposit and a progress payment are the same act to a ledger: an invoice for PART of
--- an agreed job. The claim under test is the one that makes that shape safe — three
+-- an agreed job. The claim under test is the one that makes that shape safe, three
 -- invoices against one quote put their OWN amounts into the farm's costs and nothing
 -- more, because nothing is netted anywhere.
 --
@@ -5090,7 +5090,7 @@ values ('68000000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-0000000
         1, 'labour', 'Full engine rebuild', 1, 1000000);
 update partner_documents set status = 'accepted' where id = '68000000-0000-0000-0000-000000000001';
 
--- ── (a) Nothing billed yet ───────────────────────────────────────────────────
+-- == (a) Nothing billed yet ===================================================
 set role authenticated;
 do $$ declare b record; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
@@ -5102,7 +5102,7 @@ do $$ declare b record; begin
 end $$;
 reset role;
 
--- ── (b) A draft stage is not billed ──────────────────────────────────────────
+-- == (b) A draft stage is not billed ==========================================
 -- A draft has not left the building. Counting it would tell a partner they had asked for
 -- money they have not asked for.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
@@ -5122,7 +5122,7 @@ do $$ declare b record; begin
 end $$;
 reset role;
 
--- ── (c) Send it, and it counts ───────────────────────────────────────────────
+-- == (c) Send it, and it counts ===============================================
 update partner_documents set status = 'sent', sent_at = now() where id = '68000000-0000-0000-0000-000000000002';
 
 set role authenticated;
@@ -5135,7 +5135,7 @@ do $$ declare b record; begin
 end $$;
 reset role;
 
--- ── (d) The balance, and NO DOUBLE COUNTING in the farm's ledger ─────────────
+-- == (d) The balance, and NO DOUBLE COUNTING in the farm's ledger =============
 -- The whole reason for this shape. Each stage carries its own lines and its own cost
 -- entry; there is no "less deposit previously invoiced" line to get wrong.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
@@ -5174,7 +5174,7 @@ do $$ declare b record; begin
 end $$;
 reset role;
 
--- ── (e) Both stages appear on the statement, in their own right ──────────────
+-- == (e) Both stages appear on the statement, in their own right ==============
 do $$ declare c bigint; v_charged bigint; begin
   select count(*), coalesce(sum(debit_cents), 0) into c, v_charged
     from app.partner_statement('62100000-0000-0000-0000-000000000001',
@@ -5187,7 +5187,7 @@ do $$ declare c bigint; v_charged bigint; begin
   end if;
 end $$;
 
--- ── (f) Over-billing is flagged, not refused ─────────────────────────────────
+-- == (f) Over-billing is flagged, not refused =================================
 -- Jobs grow. Refusing the invoice would push the partner outside the system, which is
 -- worse than a number in orange.
 insert into partner_documents (id, farm_id, workshop_id, kind, status, source, number, issue_date,
@@ -5211,7 +5211,7 @@ do $$ declare b record; begin
   end if;
 end $$;
 
--- ── (g) A stage must belong to a quote, and only an invoice can be one ───────
+-- == (g) A stage must belong to a quote, and only an invoice can be one =======
 do $$ declare ok boolean := false; begin
   begin
     insert into partner_documents (farm_id, workshop_id, kind, status, source, number, issue_date, bill_to_name, billing_stage)
@@ -5222,7 +5222,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (h) The other farm sees none of it ───────────────────────────────────────
+-- == (h) The other farm sees none of it =======================================
 set role authenticated;
 do $$ declare b record; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');        -- Farm B owner
@@ -5236,7 +5236,7 @@ reset role;
 select 'ALL G7 STAGE-BILLING TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G8 — STANDING INVOICES (0433)
+-- G8, STANDING INVOICES (0433)
 -- ═════════════════════════════════════════════════════════════════
 -- The whole point of a schedule is that it runs when nobody is watching, which makes two
 -- things load-bearing: it must be impossible to bill a customer twice for the same month,
@@ -5257,7 +5257,7 @@ insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind
 values ('69000000-0000-0000-0000-000000000001', '62100000-0000-0000-0000-000000000001',
         0, 'other', 'Monthly service contract', 1, 300000);
 
--- ── (a) It raises exactly one invoice ────────────────────────────────────────
+-- == (a) It raises exactly one invoice ========================================
 do $$ declare v_made int; c bigint; begin
   select app.generate_recurring_invoices('69000000-0000-0000-0000-000000000001') into v_made;
   if v_made <> 1 then raise exception 'G8 FAIL: the generator raised % invoices (expected 1)', v_made; end if;
@@ -5294,7 +5294,7 @@ do $$ declare v_next date; v_last date; begin
   end if;
 end $$;
 
--- ── (b) THE ONE THAT MATTERS: it cannot bill the same period twice ───────────
+-- == (b) THE ONE THAT MATTERS: it cannot bill the same period twice ===========
 -- The generator is re-run against the SAME period by forcing the date back, which is what
 -- a retry after a half-finished night looks like from the database's point of view.
 update recurring_invoices set next_issue_date = last_period_start
@@ -5321,7 +5321,7 @@ do $$ declare v_next date; begin
   end if;
 end $$;
 
--- ── (c) A schedule with no lines raises nothing ──────────────────────────────
+-- == (c) A schedule with no lines raises nothing ==============================
 -- Better than a R0,00 invoice arriving at a customer every month.
 insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date, created_by)
 values ('69000000-0000-0000-0000-000000000002', '62100000-0000-0000-0000-000000000001',
@@ -5332,7 +5332,7 @@ do $$ declare v_made int; begin
   if v_made <> 0 then raise exception 'G8 FAIL: a schedule with no lines raised % invoices', v_made; end if;
 end $$;
 
--- ── (d) auto_send produces a SENT invoice, and it is costed ──────────────────
+-- == (d) auto_send produces a SENT invoice, and it is costed ==================
 insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
                                 vat_rate_bps, auto_send, created_by)
 values ('69000000-0000-0000-0000-000000000003', '62100000-0000-0000-0000-000000000001',
@@ -5357,7 +5357,7 @@ do $$ declare st text; v_doc uuid; v_cost bigint; begin
   end if;
 end $$;
 
--- ── (e) It stops at its end date ─────────────────────────────────────────────
+-- == (e) It stops at its end date =============================================
 insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
                                 ends_on, vat_rate_bps, created_by)
 values ('69000000-0000-0000-0000-000000000004', '62100000-0000-0000-0000-000000000001',
@@ -5374,7 +5374,7 @@ do $$ declare v_active boolean; begin
   end if;
 end $$;
 
--- ── (f) A partner cannot reach another partner's schedules ───────────────────
+-- == (f) A partner cannot reach another partner's schedules ===================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');        -- Workshop W
@@ -5401,7 +5401,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'G8 FAIL: the farm being billed read % of its contractor''s schedules', c; end if;
 end $$;
 
--- ── (g) The generator itself is not callable from a session ──────────────────
+-- == (g) The generator itself is not callable from a session ==================
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   begin perform app.generate_recurring_invoices(null);
@@ -5427,26 +5427,26 @@ reset role;
 select 'ALL G8 STANDING-INVOICE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G9 — DOCUMENT LAYOUT (0434)
+-- G9, DOCUMENT LAYOUT (0434)
 -- ═════════════════════════════════════════════════════════════════
--- The layout is display, not money, so the claims are narrower — but two of them still
+-- The layout is display, not money, so the claims are narrower, but two of them still
 -- matter. A partner must not be able to restyle another partner's documents (their
 -- documents are their identity to their customers), and the stored value must be a
 -- closed set, because both the screen and the PDF have to understand every key. A typo
 -- that stores silently is a setting the partner believes they changed and did not.
 
--- ── (a) The guard refuses a key neither renderer knows ───────────────────────
+-- == (a) The guard refuses a key neither renderer knows =======================
 do $$ declare ok boolean := false; begin
   begin
     update workshops set doc_layout = '{"make_it_fancy": true}'::jsonb
      where id = '62100000-0000-0000-0000-000000000001';
   exception when others then ok := true; end;
   if not ok then
-    raise exception 'G9 FAIL: an unknown layout setting was stored — the partner would think it applied';
+    raise exception 'G9 FAIL: an unknown layout setting was stored, the partner would think it applied';
   end if;
 end $$;
 
--- … and a bad value for a known key ──────────────────────────────────────────
+-- … and a bad value for a known key ==========================================
 do $$ declare ok boolean := false; begin
   begin
     update workshops set doc_layout = '{"density": "enormous"}'::jsonb
@@ -5455,7 +5455,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G9 FAIL: an invalid density was stored'; end if;
 end $$;
 
--- ── (b) A real setting is stored, and merged rather than replaced ────────────
+-- == (b) A real setting is stored, and merged rather than replaced ============
 set role authenticated;
 do $$ declare v jsonb; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
@@ -5470,7 +5470,7 @@ do $$ declare v jsonb; begin
   if (v->>'show_banking')::boolean then raise exception 'G9 FAIL: show_banking did not stick'; end if;
 end $$;
 
--- ── (c) A partner cannot restyle somebody else's documents ───────────────────
+-- == (c) A partner cannot restyle somebody else's documents ===================
 -- The RPC takes the workshop from the SESSION, so there is no id to tamper with. This
 -- proves the other half: Workshop W calling it changes W's own row and not Z's.
 do $$ declare v_z jsonb; v_w jsonb; begin
@@ -5488,7 +5488,7 @@ do $$ declare v_z jsonb; v_w jsonb; begin
   end if;
 end $$;
 
--- ── (d) A farm user has no layout to change ──────────────────────────────────
+-- == (d) A farm user has no layout to change ==================================
 do $$ declare ok boolean := false; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');        -- Farm S owner
   begin
@@ -5509,17 +5509,17 @@ reset role;
 select 'ALL G9 DOCUMENT-LAYOUT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════
--- G10 — ONLINE PAYMENT (0435)
+-- G10, ONLINE PAYMENT (0435)
 -- ═════════════════════════════════════════════════════════════════
 -- A payment provider calls back to say money arrived, and EVERY provider worth using
 -- retries that callback until it gets a clean response. So the load-bearing property is
--- not that a payment can be recorded — it is that the same one cannot be recorded twice.
+-- not that a payment can be recorded, it is that the same one cannot be recorded twice.
 --
 -- The defence is a unique index rather than a "have I seen this?" check in the route,
 -- because application logic loses the race: two retries arriving together both look,
 -- both see nothing, and both insert. A unique index is decided by the database.
 
--- ── (a) The same provider reference cannot land twice ────────────────────────
+-- == (a) The same provider reference cannot land twice ========================
 insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, provider, provider_ref)
 values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
         100000, current_date, 'card', 'payfast', 'pf-abc-123');
@@ -5542,7 +5542,7 @@ do $$ declare c bigint; begin
   if c <> 1 then raise exception 'G10 FAIL: % payments exist for one provider reference', c; end if;
 end $$;
 
--- ── (b) Hand-recorded payments are unaffected ────────────────────────────────
+-- == (b) Hand-recorded payments are unaffected ================================
 -- The index is partial for exactly this reason: two cash payments of the same amount on
 -- the same day are ordinary, and must both be allowed.
 insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method)
@@ -5555,7 +5555,7 @@ do $$ declare c bigint; begin
   if c <> 2 then raise exception 'G10 FAIL: two identical cash payments collapsed to %', c; end if;
 end $$;
 
--- ── (c) A half-recorded payment is refused ───────────────────────────────────
+-- == (c) A half-recorded payment is refused ===================================
 -- A reference with no provider (or the reverse) is how a reconciliation goes wrong six
 -- months later, when nobody can say where a payment came from.
 do $$ declare ok boolean := false; begin
@@ -5567,7 +5567,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G10 FAIL: a provider reference was stored with no provider'; end if;
 end $$;
 
--- ── (d) A different reference is a different payment ─────────────────────────
+-- == (d) A different reference is a different payment =========================
 insert into partner_payments (farm_id, document_id, amount_cents, paid_on, method, provider, provider_ref)
 values ('62000000-0000-0000-0000-000000000001', '68000000-0000-0000-0000-000000000002',
         2000, current_date, 'card', 'payfast', 'pf-abc-124');
@@ -5577,7 +5577,7 @@ do $$ declare c bigint; begin
   if c <> 2 then raise exception 'G10 FAIL: a genuinely new payment was refused (% on file)', c; end if;
 end $$;
 
--- ── (e) The farm still cannot see another farm's payments ────────────────────
+-- == (e) The farm still cannot see another farm's payments ====================
 -- Nothing about adding a provider column loosens who may read a payment.
 set role authenticated;
 do $$ declare c bigint; begin
@@ -5597,12 +5597,12 @@ reset role;
 select 'ALL G10 ONLINE-PAYMENT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G11 — NO DEBUG BACK DOORS
+-- G11, NO DEBUG BACK DOORS
 --
 -- This section exists because of a real incident, not a hypothetical one. A helper
 -- called public._f14_probe(uuid) was created directly on the live database during F14
 -- to answer "what does this user see?", and was never removed. It survived a whole
--- session of green tests because it was never in this repo — db:test builds a database
+-- session of green tests because it was never in this repo, db:test builds a database
 -- FROM the migrations, so an object that exists only in production is invisible to it.
 --
 -- The shape to watch for is not "a policy is missing". It is a function that rewrites
@@ -5612,11 +5612,11 @@ select 'ALL G10 ONLINE-PAYMENT TESTS PASSED' as result;
 -- it was dropped: an operator who legitimately read zero partner documents read back
 -- another tenant's counts by passing that tenant's user id.
 --
--- The test harness legitimately needs this power — that is what _t_login does — so the
+-- The test harness legitimately needs this power, that is what _t_login does, so the
 -- rule is "nothing OUTSIDE the harness", and harness helpers are the `_t_` prefix.
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── (a) No application function may rewrite the caller's identity ────────────
+-- == (a) No application function may rewrite the caller's identity ============
 do $$
 declare offenders text;
 begin
@@ -5634,7 +5634,7 @@ begin
   end if;
 end $$;
 
--- ── (b) The specific helper that caused this, by name ────────────────────────
+-- == (b) The specific helper that caused this, by name ========================
 -- Named explicitly so that anyone re-creating it for "just one quick check" trips a
 -- test that tells them the story rather than a generic failure.
 do $$ declare c int; begin
@@ -5642,11 +5642,11 @@ do $$ declare c int; begin
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = '_f14_probe';
   if c <> 0 then
-    raise exception 'G11 FAIL: public._f14_probe is back. It lets any caller read as any user id — see migration 0440.';
+    raise exception 'G11 FAIL: public._f14_probe is back. It lets any caller read as any user id, see migration 0440.';
   end if;
 end $$;
 
--- ── (c) Nothing in public/app is executable by anon except by explicit grant ──
+-- == (c) Nothing in public/app is executable by anon except by explicit grant ==
 -- The probe was reachable by anon purely because a function with no grant defaults to
 -- EXECUTE TO PUBLIC. Only the deliberately public entry points should be callable by an
 -- unauthenticated caller; everything else must have had that default revoked.
@@ -5667,21 +5667,21 @@ end $$;
 select 'ALL G11 NO-DEBUG-BACK-DOOR TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G12 — THE SUPPLIER'S TAX INVOICE ON AN EXPENSE (0430 bucket, app layer G6b)
+-- G12, THE SUPPLIER'S TAX INVOICE ON AN EXPENSE (0430 bucket, app layer G6b)
 --
 -- `partner_expenses.receipt_path` and the `partner-receipts` bucket were both created by
 -- 0430; only the way to put a file there was missing, so the column sat unused. Attaching
 -- one adds a WRITE path to an existing row and a new object namespace, and both need the
 -- same answer as the row itself: a partner's supplier invoices are the partner's.
 --
--- The storage policies themselves cannot be exercised here — the local test Postgres has
+-- The storage policies themselves cannot be exercised here, the local test Postgres has
 -- no `storage` schema, which is why 0430 skips creating them. They were instead measured
 -- against the live project: signing a URL for TJ's receipt returned 200 for TJ and 400
 -- for another contractor, for the farm the contractor works for, and for anon. What IS
 -- testable here is the column those policies protect, and the write that sets it.
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── (a) The owning partner can attach one ────────────────────────────────────
+-- == (a) The owning partner can attach one ====================================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');        -- Workshop Z
@@ -5693,8 +5693,8 @@ do $$ declare c bigint; begin
   if c <> 1 then raise exception 'G12 FAIL: a partner could not attach a receipt to its own expense'; end if;
 end $$;
 
--- ── (b) Another contractor cannot attach one to it ───────────────────────────
--- Not an error — RLS makes it match zero rows, which is the shape to assert. A silent
+-- == (b) Another contractor cannot attach one to it ===========================
+-- Not an error, RLS makes it match zero rows, which is the shape to assert. A silent
 -- "success" that changed nothing is exactly how a leak hides, so the check is that the
 -- stored path is still the one the owner wrote.
 do $$ declare c bigint; begin
@@ -5710,7 +5710,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (c) The farm cannot read the path ────────────────────────────────────────
+-- == (c) The farm cannot read the path ========================================
 -- The path contains the workshop id and the expense id. Even without the object, a farm
 -- being able to enumerate its contractor's supplier invoices is the margin leak again.
 do $$ declare c bigint; begin
@@ -5720,7 +5720,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (d) anon reads nothing ───────────────────────────────────────────────────
+-- == (d) anon reads nothing ===================================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform count(*) from partner_expenses where receipt_path is not null;
@@ -5732,12 +5732,12 @@ reset role;
 select 'ALL G12 EXPENSE-RECEIPT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G13 — WHAT IS ON THE SHELF (0450–0451)
+-- G13, WHAT IS ON THE SHELF (0450-0451)
 --
 -- Two things to prove. The first is the money rule, because parts are the one place where
 -- two paths could each claim the same rand: `job_card_lines` have booked parts cost since
 -- 0211, and now a stock issue can too. The rule 0450 encodes, asserted here in BOTH
--- directions — that the cost appears where it should, AND that it does not appear where
+-- directions, that the cost appears where it should, AND that it does not appear where
 -- it should not, which is the half that catches a double-count:
 --
 --     receipt                  stock up,   no cost
@@ -5746,8 +5746,8 @@ select 'ALL G12 EXPENSE-RECEIPT TESTS PASSED' as result;
 --     adjustment / return      stock only, no cost
 --
 -- The second is that a contractor never sees a farm's shelf. `app.has_farm_access`
--- deliberately admits a workshop with an active link — that is how a contractor reaches
--- the vehicles it works on — so farm-side-only had to be said explicitly, and is worth an
+-- deliberately admits a workshop with an active link, that is how a contractor reaches
+-- the vehicles it works on, so farm-side-only had to be said explicitly, and is worth an
 -- assertion because the failure mode is silent.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -5763,7 +5763,7 @@ insert into job_cards (id, farm_id, machine_id, type, status) values
   ('69300000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
    '69000000-0000-0000-0000-000000000001', 'scheduled_service', 'open');
 
--- ── (a) A receipt raises the shelf and books nothing ─────────────────────────
+-- == (a) A receipt raises the shelf and books nothing =========================
 insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, occurred_on)
 values ('69400000-0000-0000-0000-000000000001', '62000000-0000-0000-0000-000000000001',
         '69200000-0000-0000-0000-000000000001', 'receipt', 10, 25000, current_date - 5);
@@ -5777,7 +5777,7 @@ do $$ declare v numeric; c bigint; begin
   end if;
 end $$;
 
--- ── (b) An issue with NO job card books the cost against the machine ─────────
+-- == (b) An issue with NO job card books the cost against the machine =========
 insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, occurred_on)
 values ('69400000-0000-0000-0000-000000000002', '62000000-0000-0000-0000-000000000001',
         '69200000-0000-0000-0000-000000000001', 'issue', 2, 25000,
@@ -5792,7 +5792,7 @@ do $$ declare v numeric; a bigint; begin
   end if;
 end $$;
 
--- ── (c) An issue NAMING a job card books nothing ─────────────────────────────
+-- == (c) An issue NAMING a job card books nothing =============================
 -- The no-double-count rule. The job card's own line owns that rand.
 insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, job_card_id, occurred_on)
 values ('69400000-0000-0000-0000-000000000003', '62000000-0000-0000-0000-000000000001',
@@ -5808,7 +5808,7 @@ do $$ declare v numeric; c bigint; begin
   end if;
 end $$;
 
--- ── (d) Returns move stock only ──────────────────────────────────────────────
+-- == (d) Returns move stock only ==============================================
 insert into stock_movements (id, farm_id, stock_item_id, kind, qty, unit_cost_cents, machine_id, occurred_on)
 values ('69400000-0000-0000-0000-000000000004', '62000000-0000-0000-0000-000000000001',
         '69200000-0000-0000-0000-000000000001', 'return', 1, 25000,
@@ -5821,7 +5821,7 @@ do $$ declare v numeric; c bigint; begin
   if c <> 0 then raise exception 'G13 FAIL: a return booked a cost'; end if;
 end $$;
 
--- ── (e) Removing a movement reverses BOTH the shelf and the money ────────────
+-- == (e) Removing a movement reverses BOTH the shelf and the money ============
 -- A correction that fixed the count and left the cost behind would overstate the machine
 -- for ever, and nothing downstream would ever notice.
 update stock_movements set deleted_at = now() where id = '69400000-0000-0000-0000-000000000002';
@@ -5835,7 +5835,7 @@ end $$;
 -- put it back so the totals below are the ones described
 update stock_movements set deleted_at = null where id = '69400000-0000-0000-0000-000000000002';
 
--- ── (f) The farm side can read its own shelf ─────────────────────────────────
+-- == (f) The farm side can read its own shelf =================================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');
@@ -5845,7 +5845,7 @@ do $$ declare c bigint; begin
   if c <> 4 then raise exception 'G13 FAIL: the farm owner sees % of its own 4 movements', c; end if;
 end $$;
 
--- ── (g) A LINKED contractor sees none of it ──────────────────────────────────
+-- == (g) A LINKED contractor sees none of it ==================================
 -- Workshop Z holds an ACTIVE workshop_link to Farm S, so app.has_farm_access(Farm S) is
 -- true for it. What a farm keeps on its shelves is still none of its business.
 do $$ declare c bigint; begin
@@ -5856,7 +5856,7 @@ do $$ declare c bigint; begin
   if c <> 0 then raise exception 'G13 FAIL [CONTRACTOR]: a linked contractor read % stock movements', c; end if;
 end $$;
 
--- ── (h) Nor can it write into the farm's store ───────────────────────────────
+-- == (h) Nor can it write into the farm's store ===============================
 do $$ declare ok boolean := false; begin
   perform _t_login('62200000-0000-0000-0000-000000000001');
   begin
@@ -5866,7 +5866,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G13 FAIL: a contractor wrote a stock item into a farm store'; end if;
 end $$;
 
--- ── (i) Another farm sees nothing ────────────────────────────────────────────
+-- == (i) Another farm sees nothing ============================================
 do $$ declare c bigint; begin
   perform _t_login('b2222222-2222-2222-2222-222222222222');
   select count(*) into c from stock_items;
@@ -5874,7 +5874,7 @@ do $$ declare c bigint; begin
 end $$;
 reset role;
 
--- ── (j) anon reads nothing, and cannot run the engine ────────────────────────
+-- == (j) anon reads nothing, and cannot run the engine ========================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform count(*) from stock_items; exception when others then ok := true; end;
@@ -5886,7 +5886,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (k) The engine is service-role only ──────────────────────────────────────
+-- == (k) The engine is service-role only ======================================
 set role authenticated;
 do $$ declare ok boolean := false; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');
@@ -5895,7 +5895,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- on_hand is 6, reorder_point 3 — not low yet, so nothing should be queued.
+-- on_hand is 6, reorder_point 3, not low yet, so nothing should be queued.
 select app.enqueue_low_stock_nudges();
 do $$ declare c bigint; begin
   select count(*) into c from notifications
@@ -5924,7 +5924,7 @@ do $$ declare c bigint; v numeric; r bigint; begin
   end if;
 end $$;
 
--- ── (l) An issue with no cost on it books nothing, rather than booking zero ──
+-- == (l) An issue with no cost on it books nothing, rather than booking zero ==
 -- A farm that does not track what a part cost still wants the stock to move.
 insert into stock_movements (id, farm_id, stock_item_id, kind, qty, machine_id, occurred_on)
 values ('69400000-0000-0000-0000-000000000009', '62000000-0000-0000-0000-000000000001',
@@ -5938,10 +5938,10 @@ end $$;
 
 select 'ALL G13 STOCK TESTS PASSED' as result;
 
--- ── (m) An operator may LOOK but not TOUCH (0452) ────────────────────────────
+-- == (m) An operator may LOOK but not TOUCH (0452) ============================
 -- Reading is open to the whole farm side on purpose: "have we got a filter?" is a fair
 -- question for a driver at the shed. Writing decides what a machine costs, so it narrows
--- to the three roles that maintain the catalogue. Found by driving 0450 — the server
+-- to the three roles that maintain the catalogue. Found by driving 0450, the server
 -- action guarded correctly and the POLICY did not, which is UI-only enforcement.
 set role authenticated;
 do $$ declare c bigint; ok boolean := false; begin
@@ -5960,10 +5960,10 @@ reset role;
 select 'ALL G13b OPERATOR-WRITE TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G14 — DID THIS MONTH MAKE MONEY, WHO OWES ME, WHO DO I OWE (0460)
+-- G14, DID THIS MONTH MAKE MONEY, WHO OWES ME, WHO DO I OWE (0460)
 --
 -- Every figure here is an aggregation over tables that already existed, so the risk is
--- not tenancy — it is arithmetic that looks right and is not. Three judgements in 0460
+-- not tenancy, it is arithmetic that looks right and is not. Three judgements in 0460
 -- are the ones worth pinning down, because each is a place where a plausible
 -- implementation would be wrong:
 --
@@ -6032,7 +6032,7 @@ values
   ('6a400000-0000-0000-0000-000000000002', '6a100000-0000-0000-0000-000000000001',
    'Steakhouse', 'other', current_date - 698, 20000, 1500, 3000, false);
 
--- ── (a) The P&L adds up, and says what it counted ────────────────────────────
+-- == (a) The P&L adds up, and says what it counted ============================
 --   revenue  100000 + 50000 + 10000 − 20000 = 140000
 --   bad debt                                 =  50000  (YI-0002)
 --   cost      30000 + 20000 + 3000 blocked   =  53000
@@ -6044,19 +6044,19 @@ do $$ declare r record; begin
     raise exception 'G14 FAIL: revenue is % rather than 140000 (invoices + debit note − credit note)', r.revenue_ex_cents;
   end if;
   if r.bad_debt_ex_cents <> 50000 then
-    raise exception 'G14 FAIL: bad debt is % rather than 50000 — a written-off invoice must stay in revenue AND come off as a cost', r.bad_debt_ex_cents;
+    raise exception 'G14 FAIL: bad debt is % rather than 50000, a written-off invoice must stay in revenue AND come off as a cost', r.bad_debt_ex_cents;
   end if;
   if r.expenses_ex_cents <> 50000 then
     raise exception 'G14 FAIL: expenses are % rather than 50000', r.expenses_ex_cents;
   end if;
   if r.blocked_vat_cents <> 3000 then
-    raise exception 'G14 FAIL: blocked VAT is % rather than 3000 — VAT you cannot reclaim is still money spent', r.blocked_vat_cents;
+    raise exception 'G14 FAIL: blocked VAT is % rather than 3000, VAT you cannot reclaim is still money spent', r.blocked_vat_cents;
   end if;
   if r.cost_cents <> 53000 then raise exception 'G14 FAIL: cost is % rather than 53000', r.cost_cents; end if;
   if r.profit_cents <> 37000 then raise exception 'G14 FAIL: profit is % rather than 37000', r.profit_cents; end if;
 end $$;
 
--- ── (b) The breakdown decomposes the total, exactly ──────────────────────────
+-- == (b) The breakdown decomposes the total, exactly ==========================
 -- A total nobody can take apart is a total nobody believes.
 do $$ declare v_sum bigint; v_cost bigint; begin
   select coalesce(sum(cost_cents), 0) into v_sum
@@ -6069,7 +6069,7 @@ do $$ declare v_sum bigint; v_cost bigint; begin
   end if;
 end $$;
 
--- ── (c) Revenue agrees with the VAT return over the same window ──────────────
+-- == (c) Revenue agrees with the VAT return over the same window ==============
 -- The two screens are read by the same person in the same week. If they disagree, both
 -- are useless. The document selection in 0460 is copied from partner_vat_return for
 -- exactly this reason, and this is what keeps it copied.
@@ -6083,7 +6083,7 @@ do $$ declare v_pl bigint; v_vat bigint; begin
   end if;
 end $$;
 
--- ── (d) Who owes me: aggregated, credit-noted, and not chasing a write-off ───
+-- == (d) Who owes me: aggregated, credit-noted, and not chasing a write-off ===
 --   YI-0001 total 115000 less credit note 23000 = 92000 outstanding
 --   YI-0002 written off  -> must NOT appear
 do $$ declare r record; n bigint; begin
@@ -6098,7 +6098,7 @@ do $$ declare r record; n bigint; begin
   end if;
 end $$;
 
--- ── (e) Who I owe: what has not been paid, gross ─────────────────────────────
+-- == (e) Who I owe: what has not been paid, gross =============================
 --   30000 + 4500 + 20000 + 3000 = 57500 (what actually leaves the bank)
 do $$ declare v bigint; begin
   select coalesce(sum(total_cents), 0) into v
@@ -6114,11 +6114,11 @@ do $$ declare v bigint; p bigint; begin
   select profit_cents into p
     from app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
   if p <> 37000 then
-    raise exception 'G14 FAIL: paying a supplier changed profit to % — when it was paid is cash, not cost', p;
+    raise exception 'G14 FAIL: paying a supplier changed profit to %, when it was paid is cash, not cost', p;
   end if;
 end $$;
 
--- ── (f) Cash is not profit ───────────────────────────────────────────────────
+-- == (f) Cash is not profit ===================================================
 -- The expense was paid TODAY, the work was invoiced 700 days ago. A cash view over today
 -- must show the money leaving and no revenue; the P&L window above is unmoved.
 do $$ declare r record; begin
@@ -6130,7 +6130,7 @@ do $$ declare r record; begin
   if r.net_cents <> -34500 then raise exception 'G14 FAIL: net cash is % rather than -34500', r.net_cents; end if;
 end $$;
 
--- ── (g) Another workshop asking about these books gets nothing ───────────────
+-- == (g) Another workshop asking about these books gets nothing ===============
 -- Every function is SECURITY INVOKER, so passing somebody else's workshop id is answered
 -- by RLS on the underlying tables rather than by a check somebody could forget to write.
 set role authenticated;
@@ -6147,7 +6147,7 @@ do $$ declare r record; n bigint; begin
   if n <> 0 then raise exception 'G14 FAIL [COMPETITOR]: another workshop read % of its rival''s suppliers', n; end if;
 end $$;
 
--- ── (h) The farm it works for cannot read its contractor's books either ──────
+-- == (h) The farm it works for cannot read its contractor's books either ======
 do $$ declare r record; begin
   perform _t_login('62300000-0000-0000-0000-000000000001');        -- a farm owner
   select * into r from app.partner_pl('6a100000-0000-0000-0000-000000000001',
@@ -6158,7 +6158,7 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
--- ── (i) anon runs none of it ─────────────────────────────────────────────────
+-- == (i) anon runs none of it =================================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform app.partner_pl('6a100000-0000-0000-0000-000000000001', current_date - 705, current_date - 690);
@@ -6175,7 +6175,7 @@ reset role;
 select 'ALL G14 MONEY-ANSWER TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G17 — HOW MANY QUOTES TURN INTO WORK (0476)
+-- G17, HOW MANY QUOTES TURN INTO WORK (0476)
 --
 -- The figure is only worth having if its definition survives contact with how partners
 -- actually work, and two of the branches below are the ones a plausible implementation
@@ -6183,7 +6183,7 @@ select 'ALL G14 MONEY-ANSWER TESTS PASSED' as result;
 --
 --   * `status = 'accepted'` alone is not conversion. The customer phones, says yes, and
 --     the partner goes straight to invoicing; the quote sits at 'sent' for ever. So an
---     ISSUED invoice against a quote counts as converted — you do not bill somebody for
+--     ISSUED invoice against a quote counts as converted, you do not bill somebody for
 --     work they did not agree to.
 --   * but a DRAFT invoice does not. A draft has not left the building, and treating it as
 --     evidence of a yes would let a partner's own unsent paperwork inflate their rate.
@@ -6239,7 +6239,7 @@ select id, '6d000000-0000-0000-0000-000000000001', 1, 'labour', 'Billed work', 1
 -- QI-1 goes out, so QQ-5 is converted. QI-2 stays a DRAFT, so QQ-1 must stay OPEN.
 update partner_documents set status='sent', sent_at=now() where number='QI-1';
 
--- ── (a) Every branch, on inputs stated above ─────────────────────────────────
+-- == (a) Every branch, on inputs stated above =================================
 do $$ declare r record; begin
   select * into r from app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001',
                                                     current_date - 610, current_date - 590);
@@ -6251,15 +6251,15 @@ do $$ declare r record; begin
   end if;
   if r.declined_count <> 1 then raise exception 'G17 FAIL: declined is % rather than 1', r.declined_count; end if;
   if r.expired_count <> 1 then
-    raise exception 'G17 FAIL: expired is % rather than 1 — a quote past its date is expired whether or not the nightly job has run', r.expired_count;
+    raise exception 'G17 FAIL: expired is % rather than 1, a quote past its date is expired whether or not the nightly job has run', r.expired_count;
   end if;
   if r.open_count <> 1 then
-    raise exception 'G17 FAIL: open is % rather than 1 — a DRAFT invoice must not count as acceptance', r.open_count;
+    raise exception 'G17 FAIL: open is % rather than 1, a DRAFT invoice must not count as acceptance', r.open_count;
   end if;
   if r.withdrawn_count <> 1 then raise exception 'G17 FAIL: withdrawn is % rather than 1', r.withdrawn_count; end if;
 end $$;
 
--- ── (b) The buckets partition the pipeline exactly ───────────────────────────
+-- == (b) The buckets partition the pipeline exactly ===========================
 -- If the parts stop adding back to the whole, some quote has fallen into two buckets or
 -- none, and every rate built on them is quietly wrong.
 do $$ declare r record; begin
@@ -6274,7 +6274,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (c) Both rates, and the reason there are two ─────────────────────────────
+-- == (c) Both rates, and the reason there are two =============================
 -- 2 of 5 sent = 40%. 2 of the 4 that actually got an answer = 50%. Reporting only the
 -- first understates a young period; only the second flatters a partner sitting on quotes
 -- nobody ever replied to.
@@ -6289,7 +6289,7 @@ do $$ declare r record; begin
   if r.converted_cents <> 200000 then raise exception 'G17 FAIL: value converted is % rather than 200000', r.converted_cents; end if;
 end $$;
 
--- ── (d) A rival workshop reads a rival's pipeline as zeros ───────────────────
+-- == (d) A rival workshop reads a rival's pipeline as zeros ===================
 -- SECURITY INVOKER, so RLS on partner_documents answers rather than a check in the body.
 set role authenticated;
 do $$ declare r record; begin
@@ -6302,7 +6302,7 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
--- ── (e) anon runs none of it ─────────────────────────────────────────────────
+-- == (e) anon runs none of it =================================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform app.partner_quote_conversion('6d100000-0000-0000-0000-000000000001', current_date, current_date);
@@ -6318,14 +6318,14 @@ reset role;
 
 select 'ALL G17 QUOTE-CONVERSION TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════════════════
--- G16 — WHAT IS ON ORDER (0473–0475)
+-- G16, WHAT IS ON ORDER (0473-0475)
 --
 -- Two things to prove, and the first one matters more than everything else here.
 --
 -- THE MONEY. A purchase order is a commitment, not a cost. Ordering ten bearings is not
 -- spending; the order can be cancelled the same afternoon and no money ever moves. So
 -- raising an order, pricing it, and receiving every last item of it must change NOTHING
--- in `cost_entries` and nothing in `partner_expenses` — and then the supplier's invoice,
+-- in `cost_entries` and nothing in `partner_expenses`, and then the supplier's invoice,
 -- captured once, must produce exactly one expense and never a second. That is the
 -- codebase's signature invariant applied to a new pair of tables, and it is asserted in
 -- both directions, because the direction that catches a double-count is the one that
@@ -6337,8 +6337,8 @@ select 'ALL G17 QUOTE-CONVERSION TESTS PASSED' as result;
 -- rollup that was correct on the day it was written and has since been bypassed.
 --
 -- Tenancy is the ordinary workshop-scoped shape (0430): a rival workshop reads zero, the
--- FARM this workshop works for reads zero — its contractor's buying prices are the margin
--- behind every quote it is given — and anon reads nothing at all.
+-- FARM this workshop works for reads zero, its contractor's buying prices are the margin
+-- behind every quote it is given, and anon reads nothing at all.
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- Its own farm, workshops and people, so every number below states its own inputs.
@@ -6370,7 +6370,7 @@ create temp table _g16_ledger_before as
   select (select count(*) from cost_entries)     as cost_entries,
          (select count(*) from partner_expenses) as expenses;
 
--- ── (a) The header's totals follow the lines, and cannot be typed ────────────
+-- == (a) The header's totals follow the lines, and cannot be typed ============
 insert into purchase_orders (id, workshop_id, supplier_name, reference, order_date, expected_date, vat_rate_bps)
 values ('6c400000-0000-0000-0000-000000000001', '6c100000-0000-0000-0000-000000000001',
         'Bearing Co', 'PO-1001', current_date - 9, current_date - 2, 1500);
@@ -6447,7 +6447,7 @@ do $$ declare r record; begin
 end $$;
 update purchase_orders set vat_rate_bps = 1500 where id = '6c400000-0000-0000-0000-000000000001';
 
--- ── (b) Receiving moves the status, and only where it is the engine's to move ─
+-- == (b) Receiving moves the status, and only where it is the engine's to move =
 -- A draft is not with the supplier yet, so quantities typed against one are a mistake
 -- being corrected rather than a delivery arriving.
 update purchase_order_lines set qty_received = 2 where id = '6c500000-0000-0000-0000-000000000001';
@@ -6529,7 +6529,7 @@ do $$ declare r record; begin
   if r.total_cents <> 115000 then raise exception 'G16 FAIL: the cancelled order is worth % rather than 115000', r.total_cents; end if;
 end $$;
 
--- ── (c) A PURCHASE ORDER BOOKS NOTHING, ANYWHERE ────────────────────────────
+-- == (c) A PURCHASE ORDER BOOKS NOTHING, ANYWHERE ============================
 -- Two orders raised, priced, edited, delivered, closed and cancelled. If any of that
 -- moved money, this is where it shows.
 do $$ declare b record; c bigint; e bigint; begin
@@ -6544,7 +6544,7 @@ do $$ declare b record; c bigint; e bigint; begin
   end if;
 end $$;
 
--- ── (d) Nobody else reads the order book ────────────────────────────────────
+-- == (d) Nobody else reads the order book ====================================
 set role authenticated;
 do $$ begin
   perform _t_login('6c200000-0000-0000-0000-000000000001');       -- P staff, whose orders these are
@@ -6601,7 +6601,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (e) The invoice arrives: exactly one expense, and never a second ────────
+-- == (e) The invoice arrives: exactly one expense, and never a second ========
 -- Bearing Co's invoice, captured the ordinary way. The only thing the purchase order does
 -- is get remembered on it.
 insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
@@ -6629,7 +6629,7 @@ end $$;
 
 -- RECONCILED BY 0501. Two people in the office capturing the same invoice, a
 -- double-submitted form and a retried request are all one race, and it is still refused by a
--- unique index rather than by a read-then-write in application code — but the index has
+-- unique index rather than by a read-then-write in application code, but the index has
 -- MOVED. 0475 hung it on the purchase order, which also made a part-shipping supplier
 -- unrecordable; 0501 hangs it on the supplier's own invoice number, which is the natural key
 -- of a purchase. So the protection is unchanged in strength and the legitimate case opens up.
@@ -6697,12 +6697,12 @@ end $$;
 
 select 'ALL G16 PURCHASE-ORDER TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════════════════
--- G15 — BANK STATEMENT IMPORT & RECONCILIATION (0470–0472)
+-- G15, BANK STATEMENT IMPORT & RECONCILIATION (0470-0472)
 --
 -- A bank statement is the most sensitive document a small business holds: it names every
 -- customer who paid, every supplier, every salary and every personal transfer. So the first
--- half of this section is ordinary tenancy — a rival workshop, the FARM the partner works
--- for, and anon all read nothing — and the second half is the two properties this feature
+-- half of this section is ordinary tenancy, a rival workshop, the FARM the partner works
+-- for, and anon all read nothing, and the second half is the two properties this feature
 -- is actually built on, both of which are enforced by INDEXES rather than by code, because
 -- code loses races:
 --
@@ -6776,10 +6776,10 @@ insert into bank_statement_imports (id, workshop_id, file_name, account_label, r
 values ('6b600000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-000000000001',
         'aug.csv', 'Cheque account', 4, 0);
 
--- ── (a) The fingerprint the dedupe key is built on ───────────────────────────
+-- == (a) The fingerprint the dedupe key is built on ===========================
 -- `parseStatement` in src/lib/banking.ts computes the same string in the browser when it
 -- numbers occurrences within a file. If the two ever drift, re-imports start duplicating
--- again and nothing in the app would say so — so the exact value is pinned here.
+-- again and nothing in the app would say so, so the exact value is pinned here.
 insert into bank_lines (id, workshop_id, import_id, txn_date, description, reference, amount_cents, row_no, occurrence)
 values ('6b500000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-000000000001',
         '6b600000-0000-0000-0000-000000000001', current_date - 2,
@@ -6788,11 +6788,11 @@ values ('6b500000-0000-0000-0000-000000000001', '6b100000-0000-0000-0000-0000000
 do $$ declare v text; begin
   select fingerprint into v from bank_lines where id = '6b500000-0000-0000-0000-000000000001';
   if v <> 'eftinbetalingweltevredeinv0007' then
-    raise exception 'G15 FAIL: fingerprint is "%" — src/lib/banking.ts computes a different one', v;
+    raise exception 'G15 FAIL: fingerprint is "%", src/lib/banking.ts computes a different one', v;
   end if;
 end $$;
 
--- ── (b) Re-importing the same statement adds nothing ─────────────────────────
+-- == (b) Re-importing the same statement adds nothing =========================
 -- The import action inserts with `on conflict do nothing` against the natural-key index and
 -- reports back only what was actually written. Run twice here, exactly as a partner
 -- re-uploading Friday's overlapping download would.
@@ -6866,7 +6866,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G15 FAIL: bank_lines_natural_uq did not refuse a duplicate line'; end if;
 end $$;
 
--- ── (c) The partner itself can load and read its own statement ───────────────
+-- == (c) The partner itself can load and read its own statement ===============
 -- Asserted before the denials, because a policy set that denies everybody is trivially
 -- "isolated" and completely useless. The import action inserts through the ordinary RLS
 -- client, so this is the path it actually takes.
@@ -6886,7 +6886,7 @@ do $$ declare n bigint; begin
 end $$;
 reset role;
 
--- ── (d) Another workshop reads none of it ────────────────────────────────────
+-- == (d) Another workshop reads none of it ====================================
 -- The rival has an ACTIVE link to the same farm, so it reaches the farm's own data. It must
 -- still reach nothing of this partner's banking.
 set role authenticated;
@@ -6907,7 +6907,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G15 FAIL [COMPETITOR]: a rival wrote a line into another workshop''s statement'; end if;
 end $$;
 
--- ── (e) The farm the partner works for reads none of it either ───────────────
+-- == (e) The farm the partner works for reads none of it either ===============
 -- A workshop_link admits a partner to a farm's yard. It does not admit the farm to the
 -- partner's bank account, and that direction is the one nobody thinks to check.
 do $$ declare n bigint; begin
@@ -6917,7 +6917,7 @@ do $$ declare n bigint; begin
 end $$;
 reset role;
 
--- ── (f) anon gets nothing at all ─────────────────────────────────────────────
+-- == (f) anon gets nothing at all =============================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform count(*) from bank_lines;
@@ -6930,7 +6930,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G15 FAIL: anon selected from bank_statement_imports'; end if;
 end $$;
 -- The resync helper is not an RPC. Nobody may ask the database to restate a line's status
--- directly — the only honest way to change it is to change what settles it.
+-- directly, the only honest way to change it is to change what settles it.
 do $$ declare ok boolean := false; begin
   begin perform app.bank_line_resync('6b500000-0000-0000-0000-000000000001');
   exception when others then ok := true; end;
@@ -6946,9 +6946,9 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (g) Confirming money in creates exactly ONE payment ──────────────────────
+-- == (g) Confirming money in creates exactly ONE payment ======================
 -- Run as the partner's own staff through RLS, because that is the path the confirm action
--- takes. The insert carries the bank line and nothing else — no total is written here.
+-- takes. The insert carries the bank line and nothing else, no total is written here.
 set role authenticated;
 do $$ declare n bigint; begin
   perform _t_login('6b200000-0000-0000-0000-000000000001');            -- BK staff
@@ -6962,7 +6962,7 @@ do $$ declare n bigint; begin
   if n <> 1 then raise exception 'G15 FAIL: confirming created % payments rather than 1', n; end if;
 end $$;
 
--- The second press. It loses to `partner_payments_bank_line_uq` — which is the point: an
+-- The second press. It loses to `partner_payments_bank_line_uq`, which is the point: an
 -- application-level check would let both through, because both read the same empty answer.
 do $$ declare ok boolean := false; n bigint; begin
   begin
@@ -6979,14 +6979,14 @@ do $$ declare ok boolean := false; n bigint; begin
 end $$;
 reset role;
 
--- ── (h) The invoice's paid state followed the EXISTING trigger ───────────────
+-- == (h) The invoice's paid state followed the EXISTING trigger ===============
 -- Nothing in this feature writes `amount_paid_cents` or `status`. They moved because 0381's
 -- rollup saw a payment row, exactly as it does for a payment captured by hand.
 do $$ declare r record; begin
   select status, amount_paid_cents, total_cents, paid_at into r
     from partner_documents where id = '6b300000-0000-0000-0000-000000000001';
   if r.amount_paid_cents <> 115000 then
-    raise exception 'G15 FAIL: the invoice shows % paid rather than 115000 — the 0381 rollup did not run', r.amount_paid_cents;
+    raise exception 'G15 FAIL: the invoice shows % paid rather than 115000, the 0381 rollup did not run', r.amount_paid_cents;
   end if;
   if r.status <> 'paid' then
     raise exception 'G15 FAIL: the invoice is % rather than paid', r.status;
@@ -6994,7 +6994,7 @@ do $$ declare r record; begin
   if r.paid_at is null then raise exception 'G15 FAIL: the invoice has no paid_at'; end if;
 end $$;
 
--- ── (i) ...and the bank line's own state followed the ledger ─────────────────
+-- == (i) ...and the bank line's own state followed the ledger =================
 -- `status` is a rollup (0472), not something the confirm action typed. That is what stops a
 -- payment reversed on another screen leaving a line claiming to be reconciled.
 do $$ declare r record; begin
@@ -7039,7 +7039,7 @@ do $$ declare n bigint; begin
 end $$;
 reset role;
 
--- ── (j) Money out settles a supplier bill, once ──────────────────────────────
+-- == (j) Money out settles a supplier bill, once ==============================
 set role authenticated;
 do $$ declare v_line uuid; ok boolean := false; begin
   perform _t_login('6b200000-0000-0000-0000-000000000001');
@@ -7074,7 +7074,7 @@ do $$ declare v_line uuid; ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (k) A settlement that does not make sense is refused ─────────────────────
+-- == (k) A settlement that does not make sense is refused =====================
 -- RLS already makes the cross-workshop case unreachable through the app. The guard exists
 -- because a settlement pointing at another business's bank account would be silent,
 -- permanent, and invisible in every total it corrupts.
@@ -7112,9 +7112,9 @@ do $$ declare ok boolean := false; v_line uuid; begin
   if not ok then raise exception 'G15 FAIL [DIRECTION]: money arriving was booked as paying a supplier'; end if;
 end $$;
 
--- ── (l) A removed line stays removed across a re-import ──────────────────────
--- The natural-key index covers deleted rows on purpose. A line somebody removed — a heading
--- the parser read as data, a row from the wrong account — must not come back every Friday,
+-- == (l) A removed line stays removed across a re-import ======================
+-- The natural-key index covers deleted rows on purpose. A line somebody removed, a heading
+-- the parser read as data, a row from the wrong account, must not come back every Friday,
 -- or the button is worthless.
 update bank_lines set deleted_at = now()
  where workshop_id = '6b100000-0000-0000-0000-000000000001' and amount_cents = -5000 and occurrence = 2;
@@ -8234,21 +8234,21 @@ end $$;
 
 select 'ALL H2 ATOMIC VOICE-COMMAND TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════
--- G19 — STANDING COSTS: RECURRING EXPENSES (0483)
+-- G19, STANDING COSTS: RECURRING EXPENSES (0483)
 -- ═════════════════════════════════════════════════════════════════
 -- The sales side has had standing invoices since 0433. This is the same feature on the
 -- cost side, and it has to hold two claims that are not the same claim.
 --
 -- The first is tenancy, and it is the ordinary one: what a contractor pays in rent,
--- insurance and salaries is the contractor's business. Not the farms they work for — a
--- farm reading its contractor's cost base is reading its margin on every job — and not
+-- insurance and salaries is the contractor's business. Not the farms they work for, a
+-- farm reading its contractor's cost base is reading its margin on every job, and not
 -- the contractor down the road.
 --
 -- The second is arithmetic, and it is the one that makes this feature worth having or
 -- worth deleting. A generated expense must be captured EXACTLY ONCE per period. Booking
 -- October's rent twice is not a cosmetic duplicate: it overstates cost on the money
 -- screen, over-claims input VAT on a return that gets FILED, and inflates the creditors
--- list. So the idempotency key is asserted against the two ways it is actually attacked —
+-- list. So the idempotency key is asserted against the two ways it is actually attacked -
 -- a cron that fires twice, and a partner pressing "capture it now" on a schedule that has
 -- already run this period.
 --
@@ -8284,7 +8284,7 @@ insert into users (id, farm_id, workshop_id, role, name, email) values
 -- account that would pass every read test by accident.
 --
 -- Every due schedule is dated TODAY on purpose. One cadence forward is a month, so after
--- one run nothing is due again — which makes "run it twice, get one expense" a statement
+-- one run nothing is due again, which makes "run it twice, get one expense" a statement
 -- about the whole table rather than about one carefully filtered period.
 insert into recurring_expenses (
   id, workshop_id, name, supplier_name, reference, category,
@@ -8316,7 +8316,7 @@ insert into recurring_expenses (
    'Tyre bay rent', 'Nywerheidspark', null, 'rent',
    111100, 1500, 16665, true, 'monthly', current_date, null, false, true);
 
--- ── (a) A farm cannot read its contractor's standing costs ───────────────────
+-- == (a) A farm cannot read its contractor's standing costs ===================
 set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('6f200000-0000-0000-0000-000000000003');       -- Farm RE owner
@@ -8326,7 +8326,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (b) Nor can another contractor ───────────────────────────────────────────
+-- == (b) Nor can another contractor ===========================================
 do $$ declare c bigint; begin
   perform _t_login('6f200000-0000-0000-0000-000000000002');       -- Workshop RE-B
   select count(*) into c from recurring_expenses
@@ -8340,7 +8340,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (c) And cannot write one into somebody else's books ──────────────────────
+-- == (c) And cannot write one into somebody else's books ======================
 -- The interesting half: a cost schedule planted in another workshop's account would
 -- quietly reduce their profit every month for as long as nobody looked.
 do $$ declare ok boolean := false; begin
@@ -8354,14 +8354,14 @@ do $$ declare ok boolean := false; begin
   end if;
 end $$;
 
--- ── (d) The owner sees exactly its own four ──────────────────────────────────
+-- == (d) The owner sees exactly its own four ==================================
 do $$ declare c bigint; begin
   perform _t_login('6f200000-0000-0000-0000-000000000001');       -- Workshop RE-A
   select count(*) into c from recurring_expenses;
   if c <> 4 then raise exception 'G19 FAIL: Workshop A sees % of its own 4 schedules', c; end if;
 end $$;
 
--- ── (e) The generator is service-role only, from a signed-in session ─────────
+-- == (e) The generator is service-role only, from a signed-in session =========
 -- It is SECURITY DEFINER and takes an id, so a caller who could execute it could write a
 -- cost into any workshop's books. `run_recurring_expense` is the only door, and it checks
 -- ownership before it opens.
@@ -8379,7 +8379,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (f) Anon reaches nothing at all ──────────────────────────────────────────
+-- == (f) Anon reaches nothing at all ==========================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform count(*) from recurring_expenses; exception when others then ok := true; end;
@@ -8400,7 +8400,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (g) THE IDEMPOTENCY KEY. Two runs, one expense ───────────────────────────
+-- == (g) THE IDEMPOTENCY KEY. Two runs, one expense ===========================
 -- The cron firing twice is not hypothetical: a retry after a half-finished night looks
 -- exactly like this. `last_period_start` is what makes the second run a no-op.
 do $$ declare first_run int; second_run int; begin
@@ -8411,7 +8411,7 @@ do $$ declare first_run int; second_run int; begin
     raise exception 'G19 FAIL: the first run captured % expenses rather than 3', first_run;
   end if;
   if second_run <> 0 then
-    raise exception 'G19 FAIL [DOUBLE BOOK]: a second run captured % more expenses — the same period was billed twice', second_run;
+    raise exception 'G19 FAIL [DOUBLE BOOK]: a second run captured % more expenses, the same period was billed twice', second_run;
   end if;
 end $$;
 
@@ -8424,7 +8424,7 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (h) …including when the partner presses the button themselves ────────────
+-- == (h) …including when the partner presses the button themselves ============
 -- Same guard, reached by a different door. And the door itself is locked: B may not
 -- capture A's cost even though the generator underneath would happily do it.
 set role authenticated;
@@ -8453,9 +8453,9 @@ do $$ declare made int; c bigint; begin
 end $$;
 reset role;
 
--- ── (i) The generated row is a correct expense ───────────────────────────────
+-- == (i) The generated row is a correct expense ===============================
 -- Ex-VAT integer cents, the schedule's category, the PERIOD's date (not the night the
--- cron happened to run — a late run must still land in the month the cost belongs to),
+-- cron happened to run, a late run must still land in the month the cost belongs to),
 -- and still owed, because rent is not a debit order unless the partner says it is.
 do $$ declare e record; begin
   select * into e from partner_expenses
@@ -8491,7 +8491,7 @@ do $$ declare e record; begin
   end if;
 end $$;
 
--- ── (j) A paused schedule and a not-yet-due one produce nothing ──────────────
+-- == (j) A paused schedule and a not-yet-due one produce nothing ==============
 do $$ declare c bigint; begin
   select count(*) into c from partner_expenses
    where workshop_id = '6f100000-0000-0000-0000-000000000001'
@@ -8501,9 +8501,9 @@ do $$ declare c bigint; begin
   end if;
 end $$;
 
--- ── (k) A schedule that has reached its end date stops itself ────────────────
+-- == (k) A schedule that has reached its end date stops itself ================
 -- The next period falls past `ends_on`, so the run that captured the final expense is
--- also the run that switches the schedule off — otherwise it sits due for ever, and the
+-- also the run that switches the schedule off, otherwise it sits due for ever, and the
 -- only thing standing between it and a repeat is the idempotency key doing a job it was
 -- not meant to do alone.
 do $$ declare r record; n int; begin
@@ -8521,7 +8521,7 @@ do $$ declare r record; n int; begin
   end if;
 end $$;
 
--- ── (l) The date moved on, by the same arithmetic the screen uses ────────────
+-- == (l) The date moved on, by the same arithmetic the screen uses ============
 do $$ declare r record; begin
   select * into r from recurring_expenses where id = '6f300000-0000-0000-0000-000000000001';
   if r.next_due_date <> app.advance_by_cadence(current_date, 'monthly') then
@@ -8532,17 +8532,17 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (m) It reaches the money screen with no special casing ───────────────────
+-- == (m) It reaches the money screen with no special casing ===================
 -- The whole point of writing ordinary `partner_expenses` rows. If this ever fails, the
 -- feature has grown a parallel ledger and the P&L is understating cost by whatever the
--- standing charges come to — which is exactly the money a partner set the schedule up to
+-- standing charges come to, which is exactly the money a partner set the schedule up to
 -- stop losing track of.
 --   rent 400000 + retainer 250000 = 650000, no blocked VAT (both claimable)
 do $$ declare r record; begin
   select * into r from app.partner_pl('6f100000-0000-0000-0000-000000000001',
                                       current_date, current_date);
   if r.expenses_ex_cents <> 650000 then
-    raise exception 'G19 FAIL: the P&L sees % of standing cost rather than 650000 — generated expenses are not reaching the money screen', r.expenses_ex_cents;
+    raise exception 'G19 FAIL: the P&L sees % of standing cost rather than 650000, generated expenses are not reaching the money screen', r.expenses_ex_cents;
   end if;
   if r.cost_cents <> 650000 then
     raise exception 'G19 FAIL: cost is % rather than 650000', r.cost_cents;
@@ -8563,28 +8563,28 @@ end $$;
 
 select 'ALL G19 RECURRING-EXPENSE TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════════════════
--- G18 — SUPPLIERS ARE RECORDS, NOT TYPING (0480–0482)
+-- G18, SUPPLIERS ARE RECORDS, NOT TYPING (0480-0482)
 --
 -- The defect this section exists to pin is not a leak; it is a report that was wrong in a
 -- way nobody could see. `app.partner_creditors` grouped the payables ageing by
 -- `btrim(supplier_name)`, so "Agri Diesel" and "agri diesel " were two businesses owed
 -- money, and the partner reading "who do I owe" added them up by eye. The section proves
--- the old behaviour FIRST — two rows, on the same data — and then proves it is gone, with
+-- the old behaviour FIRST, two rows, on the same data, and then proves it is gone, with
 -- the totals unchanged. A merge that quietly changed what is owed would be worse than the
 -- split it replaced.
 --
 -- Around that sit the guarantees the merge rests on:
 --
 --   * the record is workshop-scoped, on the 0430 policy set: a rival workshop reads none
---     and can write none, the FARM this workshop works for reads none — a supplier list
---     with terms and account numbers is the margin behind every quote it is given (F16) —
+--     and can write none, the FARM this workshop works for reads none, a supplier list
+--     with terms and account numbers is the margin behind every quote it is given (F16) -
 --     and anon reads nothing at all;
 --   * the composite foreign key makes an expense pointing at ANOTHER workshop's supplier
 --     structurally impossible, not merely unreachable through the screens;
 --   * the resolution trigger links by trimmed, case-insensitive name and NEVER invents a
 --     supplier for a name it does not know. Auto-creating would put the typo back wearing
 --     a better coat, and would do it at the moment nobody is looking;
---   * the backfill is idempotent, because "run it again" is an ordinary operation — a
+--   * the backfill is idempotent, because "run it again" is an ordinary operation, a
 --     partner who files a supplier today has three years of invoices to attach to it.
 --
 -- `app.link_suppliers()` is deliberately GLOBAL (it files a supplier per distinct name for
@@ -8614,12 +8614,12 @@ insert into users (id, farm_id, workshop_id, role, name, email) values
   ('6e200000-0000-0000-0000-000000000002', null, '6e100000-0000-0000-0000-000000000002', 'workshop', 'S Staff', 's@test'),
   ('6e300000-0000-0000-0000-000000000001', '6e000000-0000-0000-0000-000000000001', null, 'owner', 'Owner V', 'v@test');
 
--- ── (a) The defect, reproduced on real rows ─────────────────────────────────
+-- == (a) The defect, reproduced on real rows =================================
 -- Two invoices from ONE business, captured on two days by two people who typed its name
 -- differently. Nothing here is contrived: the padding and the capital D are what actually
 -- comes off a phone keyboard in a workshop.
---   R1 150,00 five days ago  (1 000,00 + 150,00 VAT)  -> the 0–30 day bucket
---   R  575,00 forty days ago (  500,00 +  75,00 VAT)  -> the 31–60 day bucket
+--   R1 150,00 five days ago  (1 000,00 + 150,00 VAT)  -> the 0-30 day bucket
+--   R  575,00 forty days ago (  500,00 +  75,00 VAT)  -> the 31-60 day bucket
 insert into partner_expenses (id, workshop_id, supplier_name, reference, category, expense_date,
                               amount_cents, vat_rate_bps, vat_cents, vat_claimable)
 values
@@ -8641,7 +8641,7 @@ do $$ declare c bigint; begin
 end $$;
 
 -- THE OLD BEHAVIOUR, measured on these exact rows. 0460 grouped by `btrim(supplier_name)`,
--- so the defect is reproduced by asking that key what it would have done — the replaced
+-- so the defect is reproduced by asking that key what it would have done, the replaced
 -- function cannot be called to demonstrate its own bug, and quoting the key is the honest
 -- substitute. Two businesses owed money, where there is one.
 create temp table _g18_before as
@@ -8662,7 +8662,7 @@ do $$ declare r record; begin
 end $$;
 
 -- The fallback path, before anything is filed. Nothing is linked yet, so this is the new
--- function grouping purely on the lower-cased trimmed name — which already fixes the
+-- function grouping purely on the lower-cased trimmed name, which already fixes the
 -- original complaint for a workshop that never files a supplier at all. Worth pinning
 -- separately: the two paths through the function are not the same code and one of them
 -- being right has never implied the other is.
@@ -8677,7 +8677,7 @@ do $$ declare r record; c bigint; begin
   end if;
 end $$;
 
--- ── (b) The backfill files one record per business and attaches the history ──
+-- == (b) The backfill files one record per business and attaches the history ==
 do $$ declare res jsonb; c bigint; begin
   res := app.link_suppliers();
 
@@ -8700,9 +8700,9 @@ do $$ declare res jsonb; c bigint; begin
   if c <> 1 then raise exception 'G18 FAIL: the second workshop filed % records rather than 1', c; end if;
 end $$;
 
--- ── (c) Running it again creates nothing and links nothing ──────────────────
+-- == (c) Running it again creates nothing and links nothing ==================
 -- The reason this matters is not tidiness. A partner files a supplier today and wants
--- three years of invoices attached to it, so this function is meant to be re-run — and a
+-- three years of invoices attached to it, so this function is meant to be re-run, and a
 -- re-run that duplicated records would recreate the very split it was written to fix.
 do $$ declare res jsonb; c bigint; e bigint; begin
   select count(*) into c from suppliers;
@@ -8725,8 +8725,8 @@ do $$ declare res jsonb; c bigint; e bigint; begin
   end if;
 end $$;
 
--- ── (d) THE POINT: one business, one line, same money ───────────────────────
--- Two invoices, two spellings, two ageing buckets — and now one creditor. The buckets
+-- == (d) THE POINT: one business, one line, same money =======================
+-- Two invoices, two spellings, two ageing buckets, and now one creditor. The buckets
 -- must survive the merge intact: 1 150,00 five days old is not the same debt as 575,00
 -- forty days old, and a report that merged them into a single "total owed" would have
 -- traded one lie for another.
@@ -8759,7 +8759,7 @@ do $$ declare v bigint; begin
   if v <> 172500 then raise exception 'G18 FAIL: the public wrapper owed % rather than 172500', v; end if;
 end $$;
 
--- ── (e) The resolution trigger links by name, and invents nothing ───────────
+-- == (e) The resolution trigger links by name, and invents nothing ===========
 insert into suppliers (id, workshop_id, name, contact_person, phone, vat_number, payment_terms_days)
 values ('6e500000-0000-0000-0000-000000000001', '6e100000-0000-0000-0000-000000000001',
         'Bearing Co', 'Riaan', '+27821234567', '4123456789', 30);
@@ -8807,7 +8807,7 @@ end $$;
 
 -- Correcting the name away from the supplier drops the link. Leaving it would file the row
 -- under a business it no longer names, and the ageing would report money owed to the wrong
--- one — the exact failure this feature exists to end, arriving by a different door.
+-- one, the exact failure this feature exists to end, arriving by a different door.
 update partner_expenses set supplier_name = 'Somebody Else' where id = '6e400000-0000-0000-0000-000000000004';
 do $$ declare v uuid; begin
   select supplier_id into v from partner_expenses where id = '6e400000-0000-0000-0000-000000000004';
@@ -8843,7 +8843,7 @@ do $$ declare res jsonb; v uuid; c bigint; begin
   if c <> 3 then raise exception 'G18 FAIL: workshop R holds % supplier records rather than 3', c; end if;
 end $$;
 
--- ── (f) One workshop's supplier, one workshop's expense ─────────────────────
+-- == (f) One workshop's supplier, one workshop's expense =====================
 -- RLS already stops S READING R's suppliers; the composite foreign key makes the
 -- cross-workshop write impossible even from a caller that has bypassed the screens
 -- entirely (this insert runs as the superuser, with RLS out of the picture).
@@ -8885,7 +8885,7 @@ end $$;
 insert into suppliers (id, workshop_id, name)
 values ('6e500000-0000-0000-0000-000000000003', '6e100000-0000-0000-0000-000000000002', 'Agri Diesel');
 
--- ── (g) Nobody else reads the supplier book ─────────────────────────────────
+-- == (g) Nobody else reads the supplier book =================================
 set role authenticated;
 do $$ begin
   perform _t_login('6e200000-0000-0000-0000-000000000001');       -- R staff, whose suppliers these are
@@ -8962,11 +8962,11 @@ reset role;
 
 select 'ALL G18 SUPPLIER TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════════════════
--- G20 — WHAT IS ABOUT TO HAPPEN TO THE BANK ACCOUNT (0486)
+-- G20, WHAT IS ABOUT TO HAPPEN TO THE BANK ACCOUNT (0486)
 --
 -- 0460 answers three questions that all look backwards. This one looks forwards, and a
 -- forecast is a different kind of risk from a report: nothing here is a new table, so the
--- danger is not tenancy leaking — it is arithmetic that looks right and is not, and a row
+-- danger is not tenancy leaking, it is arithmetic that looks right and is not, and a row
 -- silently included or silently dropped. Each assertion below pins a decision where a
 -- plausible implementation would be wrong:
 --
@@ -8978,7 +8978,7 @@ select 'ALL G18 SUPPLIER TESTS PASSED' as result;
 --   * an unpaid supplier invoice leaves the bank GROSS. The ledger is ex-VAT; the bank is
 --     not, and the VAT coming back from SARS in six weeks does not help on Friday.
 --   * a CANCELLED purchase order is not a commitment, and one already converted to an
---     expense (0475) must not be counted twice — once as a commitment and once as a bill.
+--     expense (0475) must not be counted twice, once as a commitment and once as a bill.
 --   * both functions are SECURITY INVOKER, so a rival workshop asking about these books is
 --     answered by RLS rather than by a check in the body.
 --
@@ -9007,7 +9007,7 @@ insert into users (id, farm_id, workshop_id, role, name, email) values
   ('70200000-0000-0000-0000-000000000002', null, '70100000-0000-0000-0000-000000000002', 'workshop', 'V2 Staff', 'v2@test'),
   ('70200000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', null, 'owner', 'U Owner', 'u@test');
 
--- ── Money in: four invoices, only two of which are real forecast ─────────────
+-- == Money in: four invoices, only two of which are real forecast =============
 --   I1  sent, due 40 days ago, R1 000 ex -> R1 150 gross, less a R230 credit note = 92000
 --   I2  DRAFT, due in 25 days                        -> never forecast: nobody owes a draft
 --   I3  WRITTEN OFF, due 20 days ago                 -> never forecast: given up on (G5)
@@ -9049,7 +9049,7 @@ update partner_documents set status = 'sent', sent_at = now()
  where id in ('70300000-0000-0000-0000-000000000001', '70300000-0000-0000-0000-000000000004',
               '70300000-0000-0000-0000-000000000005');
 -- VI-0003 was earned, declared, and given up on. It stays revenue on the P&L and comes off
--- again as bad debt (G14) — but it is NOT money about to arrive.
+-- again as bad debt (G14), but it is NOT money about to arrive.
 update partner_documents
    set status = 'written_off', sent_at = now(), written_off_at = now(),
        written_off_reason = 'Customer liquidated'
@@ -9060,8 +9060,8 @@ insert into partner_payments (farm_id, document_id, amount_cents, paid_on, metho
 values ('70000000-0000-0000-0000-000000000001', '70300000-0000-0000-0000-000000000004',
         22000, current_date - 1, 'eft');
 
--- ── Money in: a standing invoice not raised yet ──────────────────────────────
--- Issued in 3 days on 30-day terms, so the CASH is expected on day 33 — not day 3. Left
+-- == Money in: a standing invoice not raised yet ==============================
+-- Issued in 3 days on 30-day terms, so the CASH is expected on day 33, not day 3. Left
 -- with no `bill_to_name` on purpose, so the party label falls back to the schedule's name.
 insert into recurring_invoices (id, workshop_id, farm_id, name, cadence, next_issue_date,
                                 vat_rate_bps, active, created_by)
@@ -9072,7 +9072,7 @@ insert into recurring_invoice_lines (recurring_id, workshop_id, sort_order, kind
 values ('70400000-0000-0000-0000-000000000001', '70100000-0000-0000-0000-000000000001',
         1, 'labour', 'Standby fee', 1, 40000);   -- 40000 ex + 6000 VAT = 46000 gross
 
--- ── Money out: three supplier invoices, one of them already settled ──────────
+-- == Money out: three supplier invoices, one of them already settled ==========
 --   E1  unpaid, dated 60 days ago -> due 30 days ago -> overdue, GROSS 115000
 --   E2  PAID a day ago                                -> never forecast
 --   E3  unpaid, dated 10 days ago, and it is the invoice for PO3 (0475)
@@ -9084,7 +9084,7 @@ values
   ('70500000-0000-0000-0000-000000000002', '70100000-0000-0000-0000-000000000001',
    'Oil Depot', 'OD-12', 'parts', current_date - 50, current_date - 1, 70000, 1500, 10500, true);
 
--- ── Money out: three purchase orders ─────────────────────────────────────────
+-- == Money out: three purchase orders =========================================
 --   PO1  sent,          arriving in 2 days  -> committed, forecast at 69000 gross
 --   PO2  CANCELLED                          -> never forecast: no money will move
 --   PO3  part received, already invoiced    -> never forecast: E3 owns that rand
@@ -9110,17 +9110,17 @@ update purchase_orders set status = 'cancelled'     where id = '70600000-0000-00
 update purchase_orders set status = 'part_received' where id = '70600000-0000-0000-0000-000000000003';
 
 -- The supplier's invoice for PO3 arrives. From this moment the ORDER stops being a
--- forecast outflow and the EXPENSE becomes one — exactly once between them.
+-- forecast outflow and the EXPENSE becomes one, exactly once between them.
 insert into partner_expenses (id, workshop_id, purchase_order_id, supplier_name, reference, category,
                               expense_date, paid_on, amount_cents, vat_rate_bps, vat_cents, vat_claimable)
 values ('70500000-0000-0000-0000-000000000003', '70100000-0000-0000-0000-000000000001',
         '70600000-0000-0000-0000-000000000003', 'Filter Supply', 'FS-77', 'parts',
         current_date - 10, null, 30000, 1500, 4500, true);
 
--- ── (a) An overdue invoice is expected NOW, and a supplier bill leaves GROSS ─
+-- == (a) An overdue invoice is expected NOW, and a supplier bill leaves GROSS =
 -- Both of the overdue rows are in the `overdue` bucket, not in a future one and not
 -- missing. In: VI-0001 at 115000 less the 23000 credit note = 92000. Out: E1 at
--- 100000 + 15000 VAT = 115000 — the amount the bank actually loses, not the ex-VAT
+-- 100000 + 15000 VAT = 115000, the amount the bank actually loses, not the ex-VAT
 -- 100000 the ledger records.
 set role authenticated;
 do $$ declare r record; begin
@@ -9131,7 +9131,7 @@ do $$ declare r record; begin
     raise exception 'G20 FAIL: overdue money in is % rather than 92000 (a 115000 invoice less a 23000 credit note)', r.in_cents;
   end if;
   if r.out_cents <> 115000 then
-    raise exception 'G20 FAIL: overdue money out is % rather than 115000 — an unpaid supplier invoice must be forecast GROSS (100000 + 15000 VAT)', r.out_cents;
+    raise exception 'G20 FAIL: overdue money out is % rather than 115000, an unpaid supplier invoice must be forecast GROSS (100000 + 15000 VAT)', r.out_cents;
   end if;
   if r.net_cents <> -23000 or r.running_cents <> -23000 then
     raise exception 'G20 FAIL: overdue net/running is %/% rather than -23000/-23000', r.net_cents, r.running_cents;
@@ -9158,7 +9158,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (b) A draft invoice is not forecast, and neither is a written-off one ────
+-- == (b) A draft invoice is not forecast, and neither is a written-off one ====
 -- A draft has never been sent, so nobody owes it; a written-off invoice was given up on
 -- deliberately and is no longer chased. Forecasting either is forecasting money that is
 -- not coming.
@@ -9173,8 +9173,8 @@ do $$ declare n bigint; begin
   if n <> 0 then raise exception 'G20 FAIL: a WRITTEN-OFF invoice was forecast as money coming in (% rows)', n; end if;
 end $$;
 
--- ── (c) A part-paid invoice is forecast for the REMAINDER, in `later` ────────
--- R920 gross, R220 already received, R700 still to come, due in 45 days — past the end of
+-- == (c) A part-paid invoice is forecast for the REMAINDER, in `later` ========
+-- R920 gross, R220 already received, R700 still to come, due in 45 days, past the end of
 -- any month, so this bucket cannot move with the calendar.
 do $$ declare r record; begin
   perform _t_login('70200000-0000-0000-0000-000000000001');
@@ -9188,7 +9188,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (d) Cash arrives on the TERMS date, not the issue date ──────────────────
+-- == (d) Cash arrives on the TERMS date, not the issue date ==================
 -- The standing invoice is raised in 3 days on the workshop's 30-day terms, so the money is
 -- expected on day 33. Forecasting it on day 3 would show cash that is a month away as cash
 -- this week, which is the single most dangerous way for a forecast to be wrong.
@@ -9208,8 +9208,8 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (e) A cancelled purchase order is not forecast ──────────────────────────
--- No money will move on it. Nor on one already converted to an expense (0475) — that rand
+-- == (e) A cancelled purchase order is not forecast ==========================
+-- No money will move on it. Nor on one already converted to an expense (0475), that rand
 -- is owned by the supplier's invoice now, and counting both would overstate the outflow by
 -- exactly the orders that are going best.
 do $$ declare n bigint; r record; begin
@@ -9221,7 +9221,7 @@ do $$ declare n bigint; r record; begin
   select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
    where source_id = '70600000-0000-0000-0000-000000000003';
   if n <> 0 then
-    raise exception 'G20 FAIL: an order already invoiced was forecast AGAIN alongside its expense — double count (% rows)', n;
+    raise exception 'G20 FAIL: an order already invoiced was forecast AGAIN alongside its expense, double count (% rows)', n;
   end if;
   -- Its expense is the one that carries the money, exactly once.
   select * into r from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
@@ -9239,7 +9239,7 @@ do $$ declare n bigint; r record; begin
   end if;
 end $$;
 
--- ── (f) A settled supplier invoice is not forecast ──────────────────────────
+-- == (f) A settled supplier invoice is not forecast ==========================
 do $$ declare n bigint; begin
   perform _t_login('70200000-0000-0000-0000-000000000001');
   select count(*) into n from app.partner_cashflow_items('70100000-0000-0000-0000-000000000001', 365)
@@ -9247,7 +9247,7 @@ do $$ declare n bigint; begin
   if n <> 0 then raise exception 'G20 FAIL: an ALREADY PAID supplier invoice was forecast as money going out (% rows)', n; end if;
 end $$;
 
--- ── (g) Five buckets, always, and the running total is the sum of them ───────
+-- == (g) Five buckets, always, and the running total is the sum of them =======
 -- An empty bucket that vanishes makes the running balance unreadable, and "nothing goes
 -- out next week" is itself an answer. The last running figure is the whole forecast:
 --   in  92000 + 70000 + 46000 = 208000
@@ -9277,15 +9277,15 @@ do $$ declare n bigint; v_last bigint; v_items bigint; v_buckets bigint; begin
   if n <> 6 then raise exception 'G20 FAIL: the forecast holds % movements rather than 6', n; end if;
 end $$;
 
--- ── (h) The horizon shortens the future and never hides the past ────────────
+-- == (h) The horizon shortens the future and never hides the past ============
 -- Asked for a week, the two rows whose CASH DATE is further out drop away: VI-0004 (due in
 -- 45 days) and the invoice for the received order (due in 20). The two overdue rows stay,
--- because they are not in the future at all — a window on the next seven days is not a
+-- because they are not in the future at all, a window on the next seven days is not a
 -- reason to stop showing a debt that is thirty days late.
 --
 -- The standing invoice and the open order stay too, and that is deliberate rather than a
--- leak: the horizon selects on the date that DEFINES each movement — when a schedule
--- raises its invoice, when an order is due to arrive — and the bucket is then worked out
+-- leak: the horizon selects on the date that DEFINES each movement, when a schedule
+-- raises its invoice, when an order is due to arrive, and the bucket is then worked out
 -- from the cash date that follows it. Selecting on the cash date instead would mean a
 -- 30-day window never showed a single standing invoice, because none of them is ever paid
 -- inside the term they are raised in.
@@ -9301,7 +9301,7 @@ do $$ declare n bigint; r record; begin
   end if;
   select * into r from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 7) where ordinal = 1;
   if r.net_cents <> -23000 then
-    raise exception 'G20 FAIL: shortening the horizon changed the OVERDUE bucket to % — the past is not in the window', r.net_cents;
+    raise exception 'G20 FAIL: shortening the horizon changed the OVERDUE bucket to %, the past is not in the window', r.net_cents;
   end if;
   select * into r from app.partner_cashflow('70100000-0000-0000-0000-000000000001', 7) where ordinal = 5;
   if r.running_cents <> -46000 then
@@ -9309,7 +9309,7 @@ do $$ declare n bigint; r record; begin
   end if;
 end $$;
 
--- ── (i) A rival workshop on the SAME farm reads zeros ───────────────────────
+-- == (i) A rival workshop on the SAME farm reads zeros =======================
 -- Both functions are SECURITY INVOKER with no workshop check in the body, so passing
 -- somebody else's id is answered by RLS on the underlying tables. A second check written
 -- here would be a weaker copy of a rule the database already enforces.
@@ -9321,11 +9321,11 @@ do $$ declare n bigint; v bigint; begin
   if v <> 0 then raise exception 'G20 FAIL [COMPETITOR]: a rival workshop read a forecast worth %', v; end if;
 end $$;
 
--- ── (j) The farm it works for reads none of its contractor's buying ────────
+-- == (j) The farm it works for reads none of its contractor's buying ========
 -- What a workshop pays its suppliers, what it has on order and what it bills on standing
 -- arrangements is the margin behind every quote that farm is given, and RLS keeps all
 -- three workshop-scoped. What the farm DOES see through these functions is the invoices it
--- was itself sent — its own debt, which it has every right to read and already reads on
+-- was itself sent, its own debt, which it has every right to read and already reads on
 -- /documents. That is the correct answer rather than a leak, and it is asserted here so
 -- that nobody later "fixes" it by writing a workshop check into the function body: such a
 -- check would be a second, weaker copy of the rule RLS already enforces, and the first
@@ -9345,9 +9345,9 @@ do $$ declare n bigint; v_out bigint; begin
 end $$;
 reset role;
 
--- ── (k) anon runs none of it ────────────────────────────────────────────────
--- A function created with no explicit grant defaults to EXECUTE TO PUBLIC — the shape that
--- left `public._f14_probe` on production (0440) — so the revoke is asserted, not assumed.
+-- == (k) anon runs none of it ================================================
+-- A function created with no explicit grant defaults to EXECUTE TO PUBLIC, the shape that
+-- left `public._f14_probe` on production (0440), so the revoke is asserted, not assumed.
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform app.partner_cashflow('70100000-0000-0000-0000-000000000001', 365);
@@ -9374,18 +9374,18 @@ reset role;
 select 'ALL G20 CASHFLOW TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G21 — VAT YOU CANNOT CLAIM, AND TERMS YOU ACTUALLY SET (0490, 0491)
+-- G21, VAT YOU CANNOT CLAIM, AND TERMS YOU ACTUALLY SET (0490, 0491)
 --
 -- Two rules that were captured and then not honoured, which is the worst of the three
 -- possible states: absent settings are obvious, wrong ones are visible, but a setting the
 -- product stores and ignores buys trust its output has not earned.
 --
 -- 1. A business not registered for VAT can NEVER reclaim input VAT. 0401 guarded the sales
---    side — a non-registered partner's documents are forced to a zero rate. The purchase
+--    side, a non-registered partner's documents are forced to a zero rate. The purchase
 --    side had no equivalent, so a non-registered workshop could capture a supplier invoice
 --    at 15% with `vat_claimable` ticked (the default) and `app.partner_pl` would count the
 --    ex-VAT figure as the cost and nothing as blocked. Measured before 0490 on exactly
---    that input: cost 100000, blocked 0, against R1 150 that genuinely left the bank —
+--    that input: cost 100000, blocked 0, against R1 150 that genuinely left the bank -
 --    profit overstated by the VAT, on EVERY purchase the business makes.
 --
 -- 2. `suppliers.payment_terms_days` was asked for on /suppliers, stored, and then ignored
@@ -9397,7 +9397,7 @@ insert into workshops (id, name, kind, vat_registered, default_vat_rate_bps)
 values ('7a000000-0000-0000-0000-000000000001', 'Not Registered Co', 'mechanic', false, 0),
        ('7a000000-0000-0000-0000-000000000002', 'Registered Co',     'mechanic', true,  1500);
 
--- ── (a) A non-registered business cannot store a claimable expense ───────────
+-- == (a) A non-registered business cannot store a claimable expense ===========
 -- Written with vat_claimable TRUE on purpose: the guard must correct it, not trust it.
 insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
                               amount_cents, vat_rate_bps, vat_cents, vat_claimable)
@@ -9410,8 +9410,8 @@ do $$ declare v boolean; begin
   end if;
 end $$;
 
--- ── (b) …and the money says so: all of it is cost ───────────────────────────
--- The whole point. R1 150 left the bank, so R1 150 is the cost — not R1 000 with the VAT
+-- == (b) …and the money says so: all of it is cost ===========================
+-- The whole point. R1 150 left the bank, so R1 150 is the cost, not R1 000 with the VAT
 -- quietly forgotten.
 do $$ declare r record; begin
   select * into r from app.partner_pl('7a000000-0000-0000-0000-000000000001',
@@ -9424,7 +9424,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (c) An update cannot smuggle the claim back in ───────────────────────────
+-- == (c) An update cannot smuggle the claim back in ===========================
 update partner_expenses set vat_claimable = true
  where id = '7a100000-0000-0000-0000-000000000001';
 do $$ declare v boolean; begin
@@ -9432,7 +9432,7 @@ do $$ declare v boolean; begin
   if v then raise exception 'G21 FAIL: an UPDATE restored a claim the business may not make'; end if;
 end $$;
 
--- ── (d) A REGISTERED business is untouched ──────────────────────────────────
+-- == (d) A REGISTERED business is untouched ==================================
 -- The guard must be a rule about registration, not a blanket refusal.
 insert into partner_expenses (id, workshop_id, supplier_name, category, expense_date,
                               amount_cents, vat_rate_bps, vat_cents, vat_claimable)
@@ -9449,7 +9449,7 @@ do $$ declare v boolean; r record; begin
   end if;
 end $$;
 
--- ── (e) Registering later frees the claim, without rewriting history ────────
+-- == (e) Registering later frees the claim, without rewriting history ========
 -- The switch is a settings change, not a migration. Rows already captured keep what was
 -- true when they were captured; the next capture obeys the new answer.
 update workshops set vat_registered = true where id = '7a000000-0000-0000-0000-000000000001';
@@ -9465,7 +9465,7 @@ do $$ declare v_new boolean; v_old boolean; begin
 end $$;
 update workshops set vat_registered = false where id = '7a000000-0000-0000-0000-000000000001';
 
--- ── (f) The forecast uses the supplier's OWN terms where they are filed ─────
+-- == (f) The forecast uses the supplier's OWN terms where they are filed =====
 -- Two identical bills, same date, different suppliers: one filed at 60 days, one not filed
 -- at all. If the forecast ignored the record, both would land on the same day.
 insert into suppliers (id, workshop_id, name, payment_terms_days)
@@ -9501,13 +9501,13 @@ end $$;
 select 'ALL G21 VAT-REGISTRATION AND SUPPLIER-TERMS TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G22 — THE BOOKS TIER, AND WHY IT IS NOT A TENANCY CONTROL (0492)
+-- G22, THE BOOKS TIER, AND WHY IT IS NOT A TENANCY CONTROL (0492)
 --
 -- A third partner product sits above `managed` and unlocks the accounting half of the
 -- product: profit and loss, cash flow, the VAT return, expenses, suppliers, purchase
 -- orders, standing costs and bank reconciliation.
 --
--- There is a real temptation, when a tier is worth money, to enforce it in SQL — and that
+-- There is a real temptation, when a tier is worth money, to enforce it in SQL, and that
 -- would be a mistake this codebase has deliberately avoided since 0320. A partner's
 -- isolation must never depend on what they PAID: a lapsed subscription that silently
 -- widened what a contractor could read would be a catastrophe, and a downgrade that
@@ -9518,14 +9518,14 @@ select 'ALL G21 VAT-REGISTRATION AND SUPPLIER-TERMS TESTS PASSED' as result;
 --
 --   1. the new rung exists and nobody was moved onto it;
 --   2. a partner cannot promote ITSELF onto it (the money question);
---   3. buying it changes NOTHING about what a partner can see (the safety question) —
+--   3. buying it changes NOTHING about what a partner can see (the safety question) -
 --      the same contractor reads the same rows on `books` as on `portal`.
 --
 -- (3) is the assertion that would fail if someone ever "helpfully" mirrored this map into
 -- a policy.
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── (a) The rung exists, and the default did not move ────────────────────────
+-- == (a) The rung exists, and the default did not move ========================
 do $$ declare n int; d text; begin
   select count(*) into n from pg_enum e
     join pg_type t on t.oid = e.enumtypid
@@ -9539,7 +9539,7 @@ do $$ declare n int; d text; begin
   end if;
 end $$;
 
--- ── (b) Nobody was silently promoted or demoted by the migration ─────────────
+-- == (b) Nobody was silently promoted or demoted by the migration =============
 -- 0492 adds a label; it must not touch a single existing row. A migration that moved
 -- partners onto a tier is either giving the product away or repossessing it. Checked
 -- WITHOUT a login on purpose: this is a statement about every row in the table, not about
@@ -9553,7 +9553,7 @@ end $$;
 
 set role authenticated;
 
--- ── (c) A partner cannot buy itself the books ────────────────────────────────
+-- == (c) A partner cannot buy itself the books ================================
 -- The same 0380/0382 guard that refuses a self-set 'managed' must refuse 'books'. Asserted
 -- separately because a guard written as an equality against one label would pass the
 -- existing F14 test and let this one through.
@@ -9568,14 +9568,14 @@ do $$ begin
   end;
 end $$;
 
--- ── (d) The plan is not, and must never become, a visibility rule ────────────
+-- == (d) The plan is not, and must never become, a visibility rule ============
 -- Count what Workshop W can read on `portal`, buy it the top product as RR, and count
 -- again. The numbers must be identical. If a future change mirrors the entitlement map
 -- into a policy, this is where it is caught.
 --
 -- Note the `set role authenticated` above: without it these counts run as the owner, RLS
 -- is bypassed, and the whole comparison degenerates into reading the same raw table
--- twice. The non-zero guard below exists for the same reason — a before/after test whose
+-- twice. The non-zero guard below exists for the same reason, a before/after test whose
 -- baseline is zero passes no matter what the policies do.
 do $$
 declare
@@ -9625,10 +9625,10 @@ end $$;
 
 reset role;
 
--- ── (e) There is deliberately no SQL mirror of the partner entitlement map ───
+-- == (e) There is deliberately no SQL mirror of the partner entitlement map ===
 -- The farm plan has `app.has_entitlement` because farm entitlements gate row-returning
 -- RPCs. The partner plan gates screens, so a function of this shape appearing would mean
--- somebody had started enforcing a PRICE in the database — see (d) for why that is the
+-- somebody had started enforcing a PRICE in the database, see (d) for why that is the
 -- wrong place. Named explicitly so the decision is refused, not merely undocumented.
 do $$ declare n int; begin
   select count(*) into n from pg_proc p
@@ -9643,7 +9643,7 @@ end $$;
 select 'ALL G22 PARTNER BOOKS-TIER TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G23 — A CREDIT LIMIT THAT IS ACTUALLY USED (0500)
+-- G23, A CREDIT LIMIT THAT IS ACTUALLY USED (0500)
 --
 -- `partner_clients.credit_limit_cents` was captured by 0410 and then never compared to
 -- anything. This is the third instance of that shape (0490 VAT-claimable, 0491 supplier
@@ -9675,7 +9675,7 @@ insert into partner_clients (id, workshop_id, name, farm_id, credit_limit_cents)
 values ('7c100000-0000-0000-0000-000000000002', '7c000000-0000-0000-0000-000000000001',
         'Farm Client', '11111111-1111-1111-1111-111111111111', 200000);
 
--- ── (a) Nothing invoiced: no exposure, but the limit is still reported ───────
+-- == (a) Nothing invoiced: no exposure, but the limit is still reported =======
 do $$ declare r record; begin
   select * into r from app.partner_client_exposure(
     '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
@@ -9687,7 +9687,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (b) A DRAFT is not owed ─────────────────────────────────────────────────
+-- == (b) A DRAFT is not owed =================================================
 -- The partner's own unsent paperwork must never consume their customer's credit.
 insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
                                number, issue_date, bill_to_name, total_cents, vat_rate_bps)
@@ -9702,7 +9702,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (c) An issued invoice is owed, and over-limit is reported ───────────────
+-- == (c) An issued invoice is owed, and over-limit is reported ===============
 insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
                                number, issue_date, bill_to_name, total_cents, vat_rate_bps)
 values ('7c200000-0000-0000-0000-000000000002', '7c000000-0000-0000-0000-000000000001',
@@ -9722,9 +9722,9 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (d) …and it is ADVISORY: raising another one is not refused ──────────────
+-- == (d) …and it is ADVISORY: raising another one is not refused ==============
 -- The load-bearing decision (0500 header). If a future change adds a blocking trigger,
--- this is where it is caught — deliberately, because blocking would stop legitimate work.
+-- this is where it is caught, deliberately, because blocking would stop legitimate work.
 do $$ begin
   insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
                                  number, issue_date, bill_to_name, total_cents, vat_rate_bps)
@@ -9735,7 +9735,7 @@ exception when others then
   raise exception 'G23 FAIL [advisory]: an over-limit customer could not be invoiced (%) - the limit must warn, never block', sqlerrm;
 end $$;
 
--- ── (e) A credit note reduces what is owed ──────────────────────────────────
+-- == (e) A credit note reduces what is owed ==================================
 insert into partner_documents (id, workshop_id, partner_client_id, kind, status, source,
                                number, issue_date, bill_to_name, total_cents, vat_rate_bps,
                                corrects_document_id)
@@ -9752,7 +9752,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (f) A written-off invoice leaves the limit, as it leaves the ageing ─────
+-- == (f) A written-off invoice leaves the limit, as it leaves the ageing =====
 do $$ declare before_owed bigint; after_owed bigint; begin
   select outstanding_cents into before_owed from app.partner_client_exposure(
     '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000001');
@@ -9770,7 +9770,7 @@ do $$ declare before_owed bigint; after_owed bigint; begin
    where id = '7c200000-0000-0000-0000-000000000002';
 end $$;
 
--- ── (g) A document addressed to the LINKED FARM counts against that customer ─
+-- == (g) A document addressed to the LINKED FARM counts against that customer =
 -- Without this arm, a partner who invoices a farm customer would read zero exposure
 -- against a limit they had filed on that same customer's record.
 insert into partner_documents (id, workshop_id, farm_id, kind, status, source,
@@ -9787,7 +9787,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (h) No limit filed → reported as absent, and never "over" ───────────────
+-- == (h) No limit filed → reported as absent, and never "over" ===============
 do $$ declare r record; begin
   select * into r from app.partner_client_exposure(
     '7c000000-0000-0000-0000-000000000001', '7c100000-0000-0000-0000-000000000003');
@@ -9797,7 +9797,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (i) The over-limit list agrees with the per-client figure ───────────────
+-- == (i) The over-limit list agrees with the per-client figure ===============
 -- Built from the same function on purpose; this asserts it stayed that way, and that a
 -- client with no limit never appears.
 do $$ declare v_over bigint; v_one bigint; n int; begin
@@ -9815,7 +9815,7 @@ do $$ declare v_over bigint; v_one bigint; n int; begin
   end if;
 end $$;
 
--- ── (j) A rival workshop reads nothing, and anon cannot execute ─────────────
+-- == (j) A rival workshop reads nothing, and anon cannot execute =============
 set role authenticated;
 do $$ declare r record; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');            -- Workshop W, unrelated
@@ -9840,7 +9840,7 @@ end $$;
 select 'ALL G23 CREDIT-LIMIT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G24 — ONE ORDER, SEVERAL SUPPLIER INVOICES (0501)
+-- G24, ONE ORDER, SEVERAL SUPPLIER INVOICES (0501)
 --
 -- 0475's partial unique index allowed exactly one live expense per purchase order. That made
 -- a double-count structurally impossible, and it also made a part-shipping supplier
@@ -9849,12 +9849,12 @@ select 'ALL G23 CREDIT-LIMIT TESTS PASSED' as result;
 --
 -- So the assertions have to carry the weight the index used to. Two of them matter most:
 --
---   * the cost still lands exactly once PER BILL — asserted against a ledger snapshot taken
+--   * the cost still lands exactly once PER BILL, asserted against a ledger snapshot taken
 --     before the order exists, because the direction that catches a double-count is the one
 --     proving the cost is NOT there yet;
 --   * the cash-flow forecast now carries the UNBILLED REMAINDER. 0486 dropped the whole
 --     order the moment any expense linked to it, which was right when only one ever could.
---     Left alone, part-billing would have understated the outflow by the remainder — a
+--     Left alone, part-billing would have understated the outflow by the remainder, a
 --     forecast that quietly shrinks is worse than no forecast.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -9865,7 +9865,7 @@ insert into suppliers (id, workshop_id, name, payment_terms_days)
 values ('7d100000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-000000000001',
         'Filter Wholesale', 30);
 
--- ── (a) An order books NOTHING ──────────────────────────────────────────────
+-- == (a) An order books NOTHING ==============================================
 -- Snapshot first: this is the assertion that catches a double-count, so it has to run
 -- before the order can possibly have contributed anything.
 do $$ declare v_cost bigint; v_exp bigint; begin
@@ -9904,7 +9904,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (b) The FIRST partial invoice: six of ten ───────────────────────────────
+-- == (b) The FIRST partial invoice: six of ten ===============================
 insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
                               category, expense_date, amount_cents, vat_rate_bps, vat_cents,
                               vat_claimable)
@@ -9923,7 +9923,7 @@ do $$ declare r record; begin
   if r.fully_invoiced then raise exception 'G24 FAIL: a part-invoiced order reports fully invoiced'; end if;
 end $$;
 
--- ── (c) The SECOND invoice is allowed at all — the point of 0501 ─────────────
+-- == (c) The SECOND invoice is allowed at all, the point of 0501 =============
 do $$ begin
   insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
                                 category, expense_date, amount_cents, vat_rate_bps, vat_cents,
@@ -9950,7 +9950,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (d) …and the cost landed once PER BILL, not once per order ──────────────
+-- == (d) …and the cost landed once PER BILL, not once per order ==============
 -- Two real bills arrived, so two costs is correct. What must NOT happen is the order
 -- contributing a third.
 do $$ declare n bigint; total bigint; begin
@@ -9964,7 +9964,7 @@ do $$ declare n bigint; total bigint; begin
   end if;
 end $$;
 
--- ── (e) The forecast carries the REMAINDER, then drops the order ────────────
+-- == (e) The forecast carries the REMAINDER, then drops the order ============
 -- The defect 0501 would have introduced if the 0486 arm had been left alone.
 do $$ declare v_po bigint; begin
   -- Fully billed now, so the order must contribute nothing.
@@ -9988,7 +9988,7 @@ do $$ declare v_po bigint; begin
    where id = '7d400000-0000-0000-0000-000000000002';
 end $$;
 
--- ── (f) Over-invoicing is flagged, not refused ──────────────────────────────
+-- == (f) Over-invoicing is flagged, not refused ==============================
 do $$ declare r record; begin
   insert into partner_expenses (id, workshop_id, supplier_id, supplier_name, purchase_order_id,
                                 category, expense_date, amount_cents, vat_rate_bps, vat_cents,
@@ -10007,7 +10007,7 @@ exception when others then
   raise exception 'G24 FAIL [flag not refuse]: a supplier billing more than the order was refused (%) - jobs grow', sqlerrm;
 end $$;
 
--- ── (g) Cross-tenant and anon ───────────────────────────────────────────────
+-- == (g) Cross-tenant and anon ===============================================
 set role authenticated;
 do $$ declare r record; begin
   perform _t_login('c3333333-3333-3333-3333-333333333333');            -- unrelated workshop
@@ -10028,11 +10028,11 @@ end $$;
 select 'ALL G24 PART-INVOICED ORDER TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G25 — SUPPLIER STATEMENTS (0502)
+-- G25, SUPPLIER STATEMENTS (0502)
 --
 -- 0413 built the statement for a CUSTOMER and catalogued six ways AutoVault got the same
 -- document wrong. This is the mirror, on the purchase side, and it is exposed to five of
--- those six faults for exactly the same reasons — so the section proves the arithmetic
+-- those six faults for exactly the same reasons, so the section proves the arithmetic
 -- before it proves the isolation.
 --
 -- Every figure below states its own inputs. Eight bills against one supplier, on dates
@@ -10162,7 +10162,7 @@ do $$ declare v uuid; begin
   end if;
 end $$;
 
--- ── (a) The opening balance, and that it is FIRST ────────────────────────────
+-- == (a) The opening balance, and that it is FIRST ============================
 do $$
 declare
   v_from date := current_date - 60;
@@ -10201,7 +10201,7 @@ begin
   end if;
 end $$;
 
--- ── (b) A bill outside the period is inside the opening figure, and nowhere else ──
+-- == (b) A bill outside the period is inside the opening figure, and nowhere else ==
 do $$
 declare
   v_from date := current_date - 60;
@@ -10233,7 +10233,7 @@ begin
   end if;
 end $$;
 
--- ── (c) GROSS, not ex-VAT ───────────────────────────────────────────────────
+-- == (c) GROSS, not ex-VAT ===================================================
 -- The single most likely way for this to be quietly wrong, because `amount_cents` is the
 -- column somebody reaches for first and it is ex-VAT by house rule.
 do $$
@@ -10272,7 +10272,7 @@ begin
   end if;
 end $$;
 
--- ── (d) The derived due date is the SUPPLIER's own term ─────────────────────
+-- == (d) The derived due date is the SUPPLIER's own term =====================
 -- A supplier invoice carries no due date, so 0502 derives one exactly as 0491 taught the
 -- cash-flow forecast to: the supplier's filed terms, falling back to 30 days. Two screens
 -- naming different dates for the same bill is how a partner stops trusting either.
@@ -10288,7 +10288,7 @@ do $$ declare v_due date; begin
   end if;
 end $$;
 
--- ── (e) The ageing, and that it AGREES with the statement and with /money ───
+-- == (e) The ageing, and that it AGREES with the statement and with /money ===
 -- Three functions, one figure. The statement's closing balance, this supplier's ageing
 -- total and the /money payables row for the same supplier are read by the same person in
 -- the same week; two of them disagreeing makes all three useless.
@@ -10333,7 +10333,7 @@ begin
   end if;
 end $$;
 
--- ── (f) A soft-deleted bill leaves the statement and the ageing together ────
+-- == (f) A soft-deleted bill leaves the statement and the ageing together ====
 do $$ declare n bigint; v_total bigint; begin
   update partner_expenses set deleted_at = now() where id = '7e500000-0000-0000-0000-000000000004';
 
@@ -10352,7 +10352,7 @@ do $$ declare n bigint; v_total bigint; begin
   update partner_expenses set deleted_at = null where id = '7e500000-0000-0000-0000-000000000004';
 end $$;
 
--- ── (g) The remittance: what one payment run covered ────────────────────────
+-- == (g) The remittance: what one payment run covered ========================
 -- E5 and E7 were settled on the same day, which is how paying a supplier actually happens
 -- - one banking session, several invoices - and is the entire reason the advice exists.
 do $$ declare n bigint; v_ex bigint; v_vat bigint; v_total bigint; begin
@@ -10390,7 +10390,7 @@ do $$ declare n bigint; v_ex bigint; v_vat bigint; v_total bigint; begin
   end if;
 end $$;
 
--- ── (h) Nobody but this partner reads any of it ─────────────────────────────
+-- == (h) Nobody but this partner reads any of it =============================
 set role authenticated;
 
 -- The owner of the books first, so every zero below is isolation and not an empty table.
@@ -10411,7 +10411,7 @@ do $$ declare n bigint; v_total bigint; begin
 end $$;
 
 -- A RIVAL partner. Both are on the `books` plan, so this zero is RLS refusing and not an
--- entitlement — the partner plan is not a tenancy control (G22).
+-- entitlement, the partner plan is not a tenancy control (G22).
 do $$ declare n bigint; v_total bigint; begin
   perform _t_login('7e200000-0000-0000-0000-000000000002');          -- SB staff
   select count(*) into n
@@ -10478,7 +10478,7 @@ end $$;
 reset role;
 select set_config('request.jwt.claims', '', false);
 
--- ── (i) Anon executes nothing ──────────────────────────────────────────────
+-- == (i) Anon executes nothing ==============================================
 do $$
 declare f text;
 begin
@@ -10517,13 +10517,13 @@ reset role;
 select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G26 — COMMITMENT-AWARE REORDERING (0503)
+-- G26, COMMITMENT-AWARE REORDERING (0503)
 --
 -- 0451 could only answer "are you at or below the minimum you set". This section proves
 -- the sentence it said it could not yet write: "you have 2 filters and the 250-hour
--- service due next week needs 6". Three existing things are joined — `service_kit_items`
+-- service due next week needs 6". Three existing things are joined, `service_kit_items`
 -- (what a service consumes, 0271), the 0202 due engine (what falls due) and `stock_items`
--- (what is on the shelf, 0450) — and NO new table is added, so everything below runs
+-- (what is on the shelf, 0450), and NO new table is added, so everything below runs
 -- against the schema that was already there.
 --
 -- What is worth asserting, and why each one is here rather than assumed:
@@ -10539,7 +10539,7 @@ select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
 --     was out of range come IN. A constant buried in a function body would pass a test
 --     that only ever looked at one window.
 --   * A RETIRED machine's service never counts (Scope §4.1 / C8). Asserted at the WIDEST
---     window, with every other machine deliberately inside it — the direction that
+--     window, with every other machine deliberately inside it, the direction that
 --     actually catches a missing status filter, because at a narrow window a retired
 --     machine is excluded for the wrong reason.
 --   * Farm isolation, with a non-zero baseline first. `app.stock_commitment` /
@@ -10548,7 +10548,7 @@ select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
 --     proves nothing, so the owner's own two rows are asserted before the other farm's
 --     zero is believed.
 --   * An operator may LOOK but not TOUCH. 0452 closed exactly this gap on `stock_items` /
---     `stock_movements` — the server action guarded correctly and the POLICY did not — and
+--     `stock_movements`, the server action guarded correctly and the POLICY did not, and
 --     nothing in 0503 may reopen it. Reading stays open on purpose: "have we got a filter?"
 --     is a fair question for a driver at the shed at six in the morning.
 --   * anon executes nothing. G11 already fails the suite for ANY app-schema function anon
@@ -10556,7 +10556,7 @@ select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
 --     notifications and a silent grant on it would be worth catching by name.
 --   * Warn, never block. The last block issues stock the farm has already committed and
 --     asserts it SUCCEEDS. This is the one assertion that fails if somebody later decides
---     a shortfall should refuse an issue — the same call 0430 made for missing receipts
+--     a shortfall should refuse an issue, the same call 0430 made for missing receipts
 --     and 0500 for a credit limit.
 --   * One shelf, one sentence a week. An item that is both below its minimum AND short
 --     must raise the shortfall line only; an item that is low but NOT short must still
@@ -10564,7 +10564,7 @@ select 'ALL G25 SUPPLIER-STATEMENT TESTS PASSED' as result;
 --     is the failure mode a one-sided test would wave through.
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── Fixtures ─────────────────────────────────────────────────────────────────
+-- == Fixtures =================================================================
 -- Own farms and own machines, so the arithmetic below states all of its own inputs. The
 -- shelf quantities are NEVER typed: they come from receipts through the 0450 rollup, which
 -- is also how a farm gets them.
@@ -10585,7 +10585,7 @@ insert into users (id, farm_id, role, name) values
 -- Four machines, each carrying one of the cases:
 --   M-due      hours meter, service reachable ONLY by projecting the observed rate
 --   M-far      hours meter, same rate, service far too far away for a 30-day window
---   M-retired  overdue today, and retired — must never count
+--   M-retired  overdue today, and retired, must never count
 --   M-type     calendar basis, no kit of its own, relies on a machine_type kit template
 insert into machines (id, farm_id, name, type, meter_type, status, assigned_operator_id) values
   ('7fb00000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-000000000001', 'R Tractor Due',     'tractor',   'hours', 'active',
@@ -10620,7 +10620,7 @@ insert into meter_readings (farm_id, machine_id, reading, reading_date, source, 
 -- by hand would test the arithmetic below against a fiction.
 -- TWO lines fall due together on M-due, deliberately. Nothing in the schema links a kit to
 -- a plan line, so the convention is that a machine's kit counts ONCE however many of its
--- tasks come round together — three tasks on one visit is one service, and counting the kit
+-- tasks come round together, three tasks on one visit is one service, and counting the kit
 -- three times would treble the shopping list. With one line per machine that property would
 -- be untested and a per-line sum would pass.
 insert into service_plan_lines (id, farm_id, machine_id, task, interval_hours, last_done_reading) values
@@ -10678,7 +10678,7 @@ insert into service_kit_items (farm_id, service_kit_id, part_catalogue_id, part_
   --     resolves a supplier from whatever was typed
   ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', null,                                   '  Oil-R  ',    20),
   -- (C) BOTH a catalogue link and a part number naming a DIFFERENT shelf. The catalogue
-  --     link wins and the row counts exactly once — a kit item that counted on both
+  --     link wins and the row counts exactly once, a kit item that counted on both
   --     branches would double-count silently.
   ('7f000000-0000-0000-0000-000000000001', '7fc00000-0000-0000-0000-000000000001', '7fd00000-0000-0000-0000-000000000001', 'OIL-R',         1),
   -- (D) free text naming a part the farm does not keep: there is no shelf to be short of,
@@ -10702,7 +10702,7 @@ do $$ declare a numeric; b numeric; begin
   end if;
 end $$;
 
--- ── (a) A due service's kit consumes exactly the right quantity ───────────────
+-- == (a) A due service's kit consumes exactly the right quantity ===============
 -- Filters: 6 from the due machine's kit (A) + 1 from the both-columns item (C) + 2 from the
 -- harvester's TYPE template = 9, across 2 machines.
 -- Oil:     20, from the padded mis-cased free-text item (B) alone.
@@ -10767,7 +10767,7 @@ end $$;
 
 -- On hand vs committed vs short, which is the sentence the screen has to be able to write.
 -- `select * into` leaves every field NULL when nothing matches, and NULL <> 4 is NULL, not
--- true — so without the `found` guards below these three blocks would pass in silence if the
+-- true, so without the `found` guards below these three blocks would pass in silence if the
 -- shelf dropped off the report altogether, which is the one failure that matters most.
 -- Found by deliberately breaking them.
 do $$
@@ -10795,7 +10795,7 @@ begin
   end if;
 end $$;
 
--- ── (b) The window is a SETTING, and the owner sets it ───────────────────────
+-- == (b) The window is a SETTING, and the owner sets it =======================
 -- The load-bearing decision. Run as the farm's owner through the app-facing path, so this
 -- doubles as proof that RLS does not hide a farm's own commitment from it (the zero-baseline
 -- trap: a farm-isolation test that compares 0 to 0 passes for the wrong reason).
@@ -10862,7 +10862,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G26 FAIL: an operator moved the farm''s reorder window'; end if;
 end $$;
 
--- ── (c) An operator may LOOK but not TOUCH (0452, not reopened) ───────────────
+-- == (c) An operator may LOOK but not TOUCH (0452, not reopened) ===============
 -- Reading the shelf stays open to the whole farm side on purpose. What narrows for an
 -- operator is the F7 per-role view of `service_plan_lines` / `machines` / `meter_readings`,
 -- so the COMMITMENT they see is their own assigned machine's - 7 filters (6 + 1), not 9.
@@ -10892,7 +10892,7 @@ do $$ declare v_rows int; v_flt numeric; ok boolean := false; begin
   end if;
 end $$;
 
--- ── (d) Another farm reads nothing ───────────────────────────────────────────
+-- == (d) Another farm reads nothing ===========================================
 -- Both functions are SECURITY INVOKER so RLS answers the id, rather than a check inside a
 -- function body that somebody could forget to write.
 do $$ declare v_rows int; begin
@@ -10907,7 +10907,7 @@ do $$ declare v_rows int; begin
   end if;
 end $$;
 
--- ── (e) A signed-in farm user cannot run the engine ──────────────────────────
+-- == (e) A signed-in farm user cannot run the engine ==========================
 do $$ declare ok boolean := false; begin
   perform _t_login('7fa00000-0000-0000-0000-000000000001');
   begin perform app.enqueue_stock_shortfall_nudges(); exception when insufficient_privilege then ok := true; end;
@@ -10915,7 +10915,7 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (f) anon executes nothing ────────────────────────────────────────────────
+-- == (f) anon executes nothing ================================================
 -- G11 fails the suite for ANY app-schema function anon can execute; these are named
 -- individually because a function with no explicit grant defaults to EXECUTE TO PUBLIC,
 -- which is how the F14 debug probe stayed reachable (0440).
@@ -10997,7 +10997,7 @@ begin
 end $$;
 reset role;
 
--- ── (g) One shelf, one sentence a week ───────────────────────────────────────
+-- == (g) One shelf, one sentence a week =======================================
 -- The filter shelf is now BOTH below a minimum (4 <= 10) and short (4 of 9). The oil shelf
 -- is below its minimum (25 <= 30) and NOT short. So the filter must raise the shortfall
 -- line only, and the oil must still raise 0451's low-stock line - the second half is what
@@ -11051,7 +11051,7 @@ begin
    where template = 'stock_short' and payload->>'stock_item_id' = '7fe00000-0000-0000-0000-000000000001' limit 1;
   if not found then raise exception 'G26 FAIL: no shortfall notification was queued for the filter shelf'; end if;
   -- `is distinct from`, not `<>`. A missing jsonb key yields NULL, NULL <> 30 is NULL, and
-  -- an OR chain containing a NULL never becomes true — so the plain form could not see the
+  -- an OR chain containing a NULL never becomes true, so the plain form could not see the
   -- one failure it exists to catch. Found by deliberately nulling 'days' and watching this
   -- block pass.
   if (v_payload->>'part_no') is distinct from 'FLT-R'
@@ -11063,7 +11063,7 @@ begin
   end if;
 end $$;
 
--- ── (h) Warn, never block ────────────────────────────────────────────────────
+-- == (h) Warn, never block ====================================================
 -- Nothing may refuse an issue because the shelf is already spoken for. A mechanic at six in
 -- the morning fitting the last filter must be able to record what actually happened - the
 -- same call 0430 made for a missing receipt and 0500 for a credit limit. This is the
@@ -11110,10 +11110,10 @@ select 'ALL G26 REORDER TESTS PASSED' as result;
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- ═════════════════════════════════════════════════════════════════
--- G27 — DOCUMENT TEMPLATES (0505)
+-- G27, DOCUMENT TEMPLATES (0505)
 -- ═════════════════════════════════════════════════════════════════
 -- Four named documents a partner picks between, each one a preset over the 0434 layout
--- keys. There is no new layout system and no SQL mirror of the presets — both renderers
+-- keys. There is no new layout system and no SQL mirror of the presets, both renderers
 -- are TypeScript, so `src/lib/doc-templates.ts` is the single source of truth and this
 -- migration knows only the closed set of NAMES.
 --
@@ -11122,7 +11122,7 @@ select 'ALL G26 REORDER TESTS PASSED' as result;
 --   1. THE DEFAULT CHANGES NOTHING. `classic` is defined as the layout every partner
 --      already had, and the column defaults to it. A migration that quietly restyled
 --      documents customers have been receiving for a year is the one unrecoverable
---      mistake available in this feature — you cannot un-send an invoice that went out
+--      mistake available in this feature, you cannot un-send an invoice that went out
 --      looking different. Asserted as a statement about EVERY row, without a login, and
 --      with `doc_layout` proven untouched as well as the new column.
 --
@@ -11132,7 +11132,7 @@ select 'ALL G26 REORDER TESTS PASSED' as result;
 --      long as they went on sending them.
 --
 --   3. A PARTNER MAY SET ITS OWN AND ONLY ITS OWN. The RPC takes the workshop from the
---      session, so there is no id to tamper with — but "no id" is only half the claim.
+--      session, so there is no id to tamper with, but "no id" is only half the claim.
 --      The other half is that a second partner calling it moves ITS row and not the
 --      first one's. A partner's documents are their identity to their customers.
 --
@@ -11141,7 +11141,7 @@ select 'ALL G26 REORDER TESTS PASSED' as result;
 --      instead of the snapshot. `issuer_snapshot` carries the letterhead AND the layout
 --      (0381/0434). Switching template must leave a sent document's snapshot byte-
 --      identical, or a partner who picks a different document next year silently
---      restates last year's invoice — and a customer reprinting from their own filing
+--      restates last year's invoice, and a customer reprinting from their own filing
 --      gets a different piece of paper than the one they were sent.
 --
 --   5. ANON HAS NOTHING. No public path reads or writes a partner's letterhead.
@@ -11172,7 +11172,7 @@ insert into users (id, farm_id, workshop_id, role, name) values
   ('8a200000-0000-0000-0000-000000000002', null, '8a100000-0000-0000-0000-000000000002', 'workshop', 'Rival Co Staff'),
   ('8a300000-0000-0000-0000-000000000001', '8a000000-0000-0000-0000-000000000001', null, 'owner', 'Owner Template');
 
--- ── (a) The column landed naming a template that changes nothing ─────────────
+-- == (a) The column landed naming a template that changes nothing =============
 -- Checked WITHOUT a login on purpose: this is a claim about every workshop in the table,
 -- not about what any one person can see.
 do $$ declare d text; n bigint; begin
@@ -11190,7 +11190,7 @@ end $$;
 
 -- … and the layout itself was not touched while the column was added. `classic` IS
 -- `resolveLayout({})`, so a partner who never opened the screen must still have an EMPTY
--- doc_layout — 0505 stamping the eight keys onto every row would be the same restyle by a
+-- doc_layout, 0505 stamping the eight keys onto every row would be the same restyle by a
 -- different route, and would also overwrite a switch somebody had set by hand.
 do $$ declare n bigint; begin
   select count(*) into n from workshops
@@ -11202,7 +11202,7 @@ do $$ declare n bigint; begin
   end if;
 end $$;
 
--- ── (b) An unknown template name is refused ──────────────────────────────────
+-- == (b) An unknown template name is refused ==================================
 -- Direct, as superuser: this is the trigger's job, not a policy's, so it must hold even
 -- for the one role that RLS never stops.
 do $$ declare ok boolean := false; begin
@@ -11235,7 +11235,7 @@ do $$ declare v text; begin
   update workshops set doc_template = 'classic' where id = '8a100000-0000-0000-0000-000000000001';
 end $$;
 
--- ── A sent invoice, frozen with the letterhead AND the layout it went out with ─
+-- == A sent invoice, frozen with the letterhead AND the layout it went out with =
 -- Written before any template is chosen, exactly as `sendDocument` writes it: the
 -- snapshot is the document's own copy of how it looked, and nothing after this point may
 -- alter it.
@@ -11264,9 +11264,9 @@ values
 
 set role authenticated;
 
--- ── (c) A partner sets its OWN template, through the one write path ───────────
+-- == (c) A partner sets its OWN template, through the one write path ===========
 -- `apply_document_template` records the choice and merges the layout in one transaction,
--- calling 0434's `update_document_layout` underneath — so this also proves the merge still
+-- calling 0434's `update_document_layout` underneath, so this also proves the merge still
 -- reaches doc_layout by that single route.
 do $$ declare v_tpl text; v jsonb; begin
   perform _t_login('8a200000-0000-0000-0000-000000000001');            -- Template Co
@@ -11308,7 +11308,7 @@ do $$ declare v jsonb; begin
   if v->>'density' <> 'compact' then raise exception 'G27 FAIL: the template''s density did not apply'; end if;
 end $$;
 
--- ── (d) … and cannot touch another partner's ─────────────────────────────────
+-- == (d) … and cannot touch another partner's =================================
 do $$ declare v_own text; v_other text; begin
   perform _t_login('8a200000-0000-0000-0000-000000000002');            -- Rival Co
   perform public.apply_document_template('totals_only', jsonb_build_object(
@@ -11339,7 +11339,7 @@ do $$ declare v text; begin
   end if;
 end $$;
 
--- ── (e) A farm user has no template to choose ────────────────────────────────
+-- == (e) A farm user has no template to choose ================================
 do $$ declare ok boolean := false; begin
   perform _t_login('8a300000-0000-0000-0000-000000000001');            -- Farm Template owner
   begin
@@ -11348,9 +11348,9 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G27 FAIL: a farm user chose a partner''s document template'; end if;
 end $$;
 
--- ── (f) THE ONE THAT MATTERS: a sent document is not restated ────────────────
+-- == (f) THE ONE THAT MATTERS: a sent document is not restated ================
 -- Template Co has now switched template twice and rewritten its layout. The invoice it
--- sent before any of that must be byte-identical — both the whole snapshot and, called out
+-- sent before any of that must be byte-identical, both the whole snapshot and, called out
 -- separately, the layout inside it, because a change that reached only the nested object
 -- would still restate the document while an object-level compare on a shallow copy could
 -- miss it.
@@ -11391,7 +11391,7 @@ end $$;
 
 -- … and the OTHER direction, which is the half an implementation forgets. The DRAFT
 -- raised at the same time carries no snapshot at all, so `brandingOf(null, current)`
--- resolves it against the partner's CURRENT settings — a document still being written
+-- resolves it against the partner's CURRENT settings, a document still being written
 -- picks up the template just chosen. If a snapshot ever appeared on a draft, that
 -- fallback would stop working and the partner would be editing one document while
 -- looking at another.
@@ -11409,7 +11409,7 @@ end $$;
 
 reset role;
 
--- ── (g) anon has nothing ─────────────────────────────────────────────────────
+-- == (g) anon has nothing =====================================================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform public.apply_document_template('plain', '{}'::jsonb);
@@ -11423,11 +11423,11 @@ do $$ declare ok boolean := false; begin
 end $$;
 reset role;
 
--- ── (h) There is deliberately no SQL mirror of the template presets ──────────
+-- == (h) There is deliberately no SQL mirror of the template presets ==========
 -- The database knows the closed set of NAMES (so a typo fails where it is made) and
 -- nothing about what each name means. Both renderers are TypeScript; a function here that
 -- expanded a name into layout keys would be a second copy of the map with nothing keeping
--- it honest — the same decision 0492 recorded for the partner plan. Named explicitly so
+-- it honest, the same decision 0492 recorded for the partner plan. Named explicitly so
 -- the decision is refused rather than merely undocumented.
 do $$ declare n int; begin
   select count(*) into n from pg_proc p
@@ -11440,7 +11440,7 @@ do $$ declare n int; begin
   end if;
 end $$;
 
--- ── (i) The grants and privilege flags, measured rather than assumed ─────────
+-- == (i) The grants and privilege flags, measured rather than assumed =========
 -- Every earlier assertion in this section is about behaviour a policy or a trigger
 -- produces. This one is about the doors themselves: a function that quietly kept the
 -- PostgreSQL default (`EXECUTE TO PUBLIC`) is exactly the hole G11 was written for, and a
@@ -11495,7 +11495,7 @@ select 'ALL G27 DOCUMENT-TEMPLATE TESTS PASSED' as result;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G28 — THE BALANCE BROUGHT FORWARD IS THE FIRST LINE (0504)
+-- G28, THE BALANCE BROUGHT FORWARD IS THE FIRST LINE (0504)
 --
 -- `app.partner_statement` ended with the ordinal pair (entry_date, kind) from 0413 until
 -- 0504. The opening row is dated p_from, and 'credit_note', 'debit_note' and 'invoice' all
@@ -11504,8 +11504,8 @@ select 'ALL G27 DOCUMENT-TEMPLATE TESTS PASSED' as result;
 -- Balance column from the wrong start for those rows.
 --
 -- The closing total was never wrong, which is exactly why this survived four migrations and
--- a live click-through: every subtotal reconciled. Only the Balance column — the one a
--- customer checks a statement against, line by line — was wrong.
+-- a live click-through: every subtotal reconciled. Only the Balance column, the one a
+-- customer checks a statement against, line by line, was wrong.
 --
 -- These assertions pin the ORDER, not just the arithmetic, because the arithmetic already
 -- passed while the document was unreadable.
@@ -11531,7 +11531,7 @@ values ('7f200000-0000-0000-0000-000000000001', '7f000000-0000-0000-0000-0000000
         '7f100000-0000-0000-0000-000000000001', 'credit_note', 'sent', 'SO-CN-SAMEDAY',
         date '2026-03-01', 5000, 750, 5750, '7f200000-0000-0000-0000-000000000001');
 
--- ── (a) The opening row is FIRST, on a window whose first day carries documents ──
+-- == (a) The opening row is FIRST, on a window whose first day carries documents ==
 do $$ declare first_kind text; begin
   select kind into first_kind
     from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
@@ -11543,7 +11543,7 @@ do $$ declare first_kind text; begin
   end if;
 end $$;
 
--- ── (b) …and it carries the right figure, so (a) cannot pass on an empty statement ──
+-- == (b) …and it carries the right figure, so (a) cannot pass on an empty statement ==
 do $$ declare d bigint; c bigint; n int; begin
   select count(*) into n
     from app.partner_statement('7f000000-0000-0000-0000-000000000001', null,
@@ -11562,7 +11562,7 @@ do $$ declare d bigint; c bigint; n int; begin
   end if;
 end $$;
 
--- ── (c) The running balance a renderer computes never starts from the wrong place ──
+-- == (c) The running balance a renderer computes never starts from the wrong place ==
 -- This is the defect as the CUSTOMER met it: the first Balance cell on the page.
 do $$ declare first_bal bigint; begin
   select sum(debit_cents - credit_cents)
@@ -11577,7 +11577,7 @@ do $$ declare first_bal bigint; begin
   end if;
 end $$;
 
--- ── (d) The tie-break after the rank is unchanged ───────────────────────────
+-- == (d) The tie-break after the rank is unchanged ===========================
 -- 0504 lifts 'opening' and changes nothing else. Two documents share 2026-03-01, and
 -- 'credit_note' must still precede 'invoice' exactly as the ordinal ordering had it.
 do $$ declare k2 text; k3 text; begin
@@ -11592,7 +11592,7 @@ do $$ declare k2 text; k3 text; begin
   end if;
 end $$;
 
--- ── (e) The closing balance is untouched by the reordering ──────────────────
+-- == (e) The closing balance is untouched by the reordering ==================
 -- The figure that was ALWAYS right must stay right; a reordering that moved money would be
 -- a far worse bug than the one being fixed.
 do $$ declare closing bigint; begin
@@ -11605,7 +11605,7 @@ do $$ declare closing bigint; begin
   end if;
 end $$;
 
--- ── (f) Still gated ─────────────────────────────────────────────────────────
+-- == (f) Still gated =========================================================
 -- `create or replace function` preserves grants, but this is the assertion that would catch
 -- a future restatement pasted in without them (G11).
 do $$ begin
@@ -11987,11 +11987,11 @@ reset role;
 select 'ALL G29 SCHEDULED-REPORT TESTS PASSED' as result;
 
 -- ================================================================================
--- G30 — PER-USER PERMISSION OVERRIDES (0507)
+-- G30, PER-USER PERMISSION OVERRIDES (0507)
 --
 -- 0507 hands a farm one lever it did not have: "this person, on this farm, may
 -- additionally X" from a closed set of three names. It does it by adding TWENTY new
--- PERMISSIVE policies across thirteen tables — including `machines`, the most
+-- PERMISSIVE policies across thirteen tables, including `machines`, the most
 -- tenancy-sensitive table in the product. It shipped without a section here.
 --
 -- The claim the whole design rests on is that this is ADDITIVE BY CONSTRUCTION:
@@ -11999,10 +11999,10 @@ select 'ALL G29 SCHEDULED-REPORT TESTS PASSED' as result;
 -- property of the mechanism, not of the boolean expressions, and this section proves
 -- BOTH halves of it:
 --
---   * the mechanism   — every policy 0507 adds is PERMISSIVE, and the full set is
+--   * the mechanism  , every policy 0507 adds is PERMISSIVE, and the full set is
 --                       still present (a later migration recreating `machines_sel`
 --                       must not have taken `machines_sel_perm` with it);
---   * the expressions — with no grant rows `app.has_permission` is false for every
+--   * the expressions, with no grant rows `app.has_permission` is false for every
 --                       persona, so every one of those policies contributes nothing
 --                       and each persona's counts are exactly the pre-0507 numbers.
 --
@@ -12019,7 +12019,7 @@ select 'ALL G29 SCHEDULED-REPORT TESTS PASSED' as result;
 reset role;
 select pg_catalog.set_config('request.jwt.claims', '', false);
 
--- ── Fixtures (superuser; RLS bypassed) ────────────────────────────
+-- == Fixtures (superuser; RLS bypassed) ============================
 insert into farms (id, name) values
   ('30000000-0000-0000-0000-000000000001', 'Farm P'),
   ('30000000-0000-0000-0000-000000000002', 'Farm Q');
@@ -12141,7 +12141,7 @@ do $$ declare c int; begin
   end if;
 end $$;
 
--- ── THE BLAST RADIUS, PINNED BY NAME ─────────────────────────────
+-- == THE BLAST RADIUS, PINNED BY NAME =============================
 -- Counting policies is not enough, so the reach of `app.has_permission` is pinned
 -- STRUCTURALLY: every table it
 -- may be consulted for, which command, and under which name. Anything wired to it that
@@ -12201,7 +12201,7 @@ begin
 end $$;
 
 -- ══════════════════════════════════════════════════════════════════
--- (b) THE GATE ITSELF (G11): definer, pinned, and measured — not assumed
+-- (b) THE GATE ITSELF (G11): definer, pinned, and measured, not assumed
 -- ══════════════════════════════════════════════════════════════════
 -- An app-schema function with no explicit grant defaults to EXECUTE TO PUBLIC. That is
 -- how the F14 debug probe stayed reachable by anon until 0440 removed it, so the grant
@@ -12220,7 +12220,7 @@ do $$ declare r record; n int := 0; begin
       raise exception 'G30 FAIL [SEARCH PATH]: app.% does not pin search_path (config=%)', r.proname, r.proconfig;
     end if;
     if has_function_privilege('anon', r.oid, 'execute') then
-      raise exception 'G30 FAIL [ANON EXECUTE]: anon may execute app.% — the 0440 default-PUBLIC hole', r.proname;
+      raise exception 'G30 FAIL [ANON EXECUTE]: anon may execute app.%, the 0440 default-PUBLIC hole', r.proname;
     end if;
     if not has_function_privilege('authenticated', r.oid, 'execute') then
       raise exception 'G30 FAIL [AUTH EXECUTE]: authenticated may NOT execute app.%; the policies would fail closed for everybody', r.proname;
@@ -12432,7 +12432,7 @@ begin
     execute format('select count(*) from public.%I where farm_id = %L',
                    e[i][1], '30000000-0000-0000-0000-000000000001') into c;
     if c <> e[i][2]::bigint then
-      raise exception 'G30 FAIL [SLICE]: see_all_vehicles moved % to % (expected %) — the vehicle grant leaked into another surface', e[i][1], c, e[i][2];
+      raise exception 'G30 FAIL [SLICE]: see_all_vehicles moved % to % (expected %), the vehicle grant leaked into another surface', e[i][1], c, e[i][2];
     end if;
   end loop;
 
@@ -12452,7 +12452,7 @@ begin
   exception when insufficient_privilege then blocked := true;
   end;
   if not blocked then
-    raise exception 'G30 FAIL [SLICE]: see_all_vehicles let an operator write stock — that is manage_stock''s door';
+    raise exception 'G30 FAIL [SLICE]: see_all_vehicles let an operator write stock, that is manage_stock''s door';
   end if;
 
   blocked := false;
@@ -12485,7 +12485,7 @@ reset role;
 -- (e) A GRANT CANNOT REMOVE ACCESS
 -- ══════════════════════════════════════════════════════════════════
 -- Owner, manager and mechanic already hold full farm access. Handing them all three
--- grants must be a no-op — never a narrowing. This is the direction a RESTRICTIVE
+-- grants must be a no-op, never a narrowing. This is the direction a RESTRICTIVE
 -- policy, or a rewritten baseline predicate, would break.
 reset role;
 select pg_catalog.set_config('request.jwt.claims', '', false);
@@ -12517,7 +12517,7 @@ begin
       execute format('select count(*) from public.%I where farm_id = %L',
                      t, '30000000-0000-0000-0000-000000000001') into c;
       if c <> want then
-        raise exception 'G30 FAIL [NO NARROWING %]: % visible=% expected % — holding a grant CHANGED what a full-access role sees', p[i][1], t, c, want;
+        raise exception 'G30 FAIL [NO NARROWING %]: % visible=% expected %, holding a grant CHANGED what a full-access role sees', p[i][1], t, c, want;
       end if;
     end loop;
   end loop;
@@ -12735,7 +12735,7 @@ reset role;
 
 -- The rule holds for the ADMINS too, in both shapes. A manager may grant a colleague
 -- (positive control, so the negatives are not passing vacuously) but not themselves,
--- and an owner may not re-point an existing row at themselves — the UPDATE path, which
+-- and an owner may not re-point an existing row at themselves, the UPDATE path, which
 -- a WITH CHECK written only for INSERT would miss.
 set role authenticated;
 do $$ declare blocked boolean; c bigint; begin
@@ -12819,7 +12819,7 @@ do $$ declare blocked boolean; begin
 end $$;
 reset role;
 
--- The row that got past RLS anyway — a service-role import, a future migration, an
+-- The row that got past RLS anyway, a service-role import, a future migration, an
 -- attacker with the service key. `app.has_permission` refuses to answer for a farm the
 -- caller cannot already reach (the 0251 rule), so the row is inert rather than a hole.
 reset role;
@@ -12866,7 +12866,7 @@ do $$ declare c bigint; begin
   select count(*) into c from cost_entries where farm_id = '30000000-0000-0000-0000-000000000001';
   if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % cost entries (expected 0)', c; end if;
   select count(*) into c from partners where farm_id = '30000000-0000-0000-0000-000000000001';
-  if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % of the farm''s other contractors (expected 0 — the competitor-list rule 0400 settled)', c; end if;
+  if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % of the farm''s other contractors (expected 0, the competitor-list rule 0400 settled)', c; end if;
   select count(*) into c from users where farm_id = '30000000-0000-0000-0000-000000000001';
   if c <> 0 then raise exception 'G30 FAIL [CONTRACTOR]: sees % of the farm''s people (expected 0)', c; end if;
 end $$;
@@ -12888,7 +12888,7 @@ set role authenticated;
 do $$ declare c bigint; begin
   perform _t_login('31000000-0000-0000-0000-000000000004');
   select count(*) into c from machines where farm_id = '30000000-0000-0000-0000-000000000001';
-  if c <> 2 then raise exception 'G30 FAIL [REVOKE]: setup — holder sees % machines before revoking (expected 2)', c; end if;
+  if c <> 2 then raise exception 'G30 FAIL [REVOKE]: setup, holder sees % machines before revoking (expected 2)', c; end if;
 end $$;
 reset role;
 
@@ -12967,7 +12967,7 @@ do $$ declare live int; begin
   select count(*) into live from user_permission_grants
    where user_id = '31000000-0000-0000-0000-000000000005' and deleted_at is null;
   if live <> 1 then
-    raise exception 'G30 FAIL [MULTI-SITE]: setup — the grant row should still be live (found %), otherwise the test above proves nothing', live;
+    raise exception 'G30 FAIL [MULTI-SITE]: setup, the grant row should still be live (found %), otherwise the test above proves nothing', live;
   end if;
 end $$;
 reset role;
@@ -12978,7 +12978,7 @@ delete from user_farm_memberships where id = '39000000-0000-0000-0000-0000000000
 -- ══════════════════════════════════════════════════════════════════
 -- (l) THE CLOSED SET, AND ANON
 -- ══════════════════════════════════════════════════════════════════
--- A name outside the set is not a permission granted — it is a word no policy will ever
+-- A name outside the set is not a permission granted, it is a word no policy will ever
 -- read, while the farm goes on believing the person can see the yard. Refused loudly,
 -- and refused for the SERVICE-ROLE path too (a table trigger, not an app check).
 set role authenticated;
@@ -13017,7 +13017,7 @@ do $$ declare blocked boolean := false; begin
     blocked := true;
   end;
   if not blocked then
-    raise exception 'G30 FAIL [CLOSED SET]: the service-role/superuser path stored an unknown permission — the guard is not on the table';
+    raise exception 'G30 FAIL [CLOSED SET]: the service-role/superuser path stored an unknown permission, the guard is not on the table';
   end if;
 end $$;
 
@@ -13050,9 +13050,9 @@ select 'ALL G30 PER-USER PERMISSION OVERRIDE TESTS PASSED' as result;
 -- G32 - AUDIT / SALE / WARRANTY DOCUMENT PACKS ARE ASSEMBLED THROUGH RLS (FR-13.4)
 --
 -- The packs feature adds NO DATABASE OBJECT: no table, no view, no function, no
--- migration. Everything a pack contains already exists — service history, licences,
+-- migration. Everything a pack contains already exists, service history, licences,
 -- warranty, checklists, faults and their resolutions, operator assignments, meter
--- readings, costs — and src/lib/pdf/pack-data.ts simply SELECTs it through the CALLER'S
+-- readings, costs, and src/lib/pdf/pack-data.ts simply SELECTs it through the CALLER'S
 -- RLS client. That is the whole tenancy argument, so it is the thing this section has to
 -- prove: a pack cannot contain another farm's machine because the caller cannot SELECT
 -- another farm's machine.
@@ -13064,7 +13064,7 @@ select 'ALL G30 PER-USER PERMISSION OVERRIDE TESTS PASSED' as result;
 --       48 raw rows proves nothing). So the owner's counts are asserted FIRST, and each
 --       one raises if it is zero.
 --   (b) THE CROSS-FARM MACHINE ID. `authorizeMachinePack` resolves the machine through
---       RLS and answers 404 when it is not there. This proves the "not there" — for the
+--       RLS and answers 404 when it is not there. This proves the "not there", for the
 --       machine row AND for all nine child tables a pack reads, because a pack that
 --       404'd on the machine and then still summed another farm's costs would be worse
 --       than one that never checked.
@@ -13078,7 +13078,7 @@ select 'ALL G30 PER-USER PERMISSION OVERRIDE TESTS PASSED' as result;
 --   (e) OPERATOR NARROWING. The route refuses operators outright, but if that check were
 --       ever dropped, RLS (F7) must still narrow. Belt and braces, measured.
 --   (f) THE CONTRACTOR LEAK THE ROUTE EXISTS TO CLOSE. F16 (0400) withholds the cost
---       ledger from a contractor without `see_costs` — but `purchase_price_cents` and
+--       ledger from a contractor without `see_costs`, but `purchase_price_cents` and
 --       `supplier` live on the MACHINE row, which a contractor working on that machine
 --       can read. So RLS alone does NOT stop a linked contractor pulling a sale pack and
 --       reading what the farm paid and who from. This section asserts that the leak is
@@ -13193,7 +13193,7 @@ values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-0000000
         'parts', 1230500, current_date - 59);
 
 -- The contractor is working on M1 only. Under F16's default scope that is the ONLY
--- machine it reaches — which is what makes (f) below a statement about one row and not
+-- machine it reaches, which is what makes (f) below a statement about one row and not
 -- about the fleet.
 insert into work_requests (
   id, farm_id, machine_id, workshop_id, kind, status, title, created_by)
@@ -13201,9 +13201,9 @@ values ('32400000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-0000000
         '32200000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-00000000000f',
         'repair', 'requested', 'G32 hydraulic leak', '32100000-0000-4000-8000-000000000001');
 
--- ─────────────────────────────────────────────────────────────────
--- (a) BASELINE — the owning farm sees the whole pack query set, and none of it is zero.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
+-- (a) BASELINE, the owning farm sees the whole pack query set, and none of it is zero.
+-- =================================================================
 set role authenticated;
 do $$
 declare
@@ -13249,14 +13249,14 @@ begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- (b) A CROSS-FARM MACHINE ID CANNOT PRODUCE A PACK.
 --
 -- This is the assertion the whole feature rests on. `authorizeMachinePack` selects the
 -- machine by id through the caller's client and answers 404 on no row; every gather*
 -- function then filters by that id. So the machine AND all nine child tables must be
 -- empty for a user of the other farm.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 set role authenticated;
 do $$
 declare
@@ -13308,9 +13308,9 @@ begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- (c) THE FLEET SET, and (d) THE SALE ASYMMETRY.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 set role authenticated;
 do $$ declare total int; on_hand int; excluded int; sold int; begin
   perform _t_login('32100000-0000-4000-8000-000000000001');
@@ -13344,10 +13344,10 @@ do $$ declare total int; on_hand int; excluded int; sold int; begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- (e) OPERATOR NARROWING (F7). The pack routes refuse `operator` outright; this proves
 -- RLS would narrow anyway, so the app check is defence in depth and not the only fence.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 set role authenticated;
 do $$ declare n int; begin
   perform _t_login('32100000-0000-4000-8000-000000000003');
@@ -13375,14 +13375,14 @@ do $$ declare n int; begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- (f) CONTRACTOR FINANCIAL COLUMNS ARE CLOSED AT THE DATABASE BOUNDARY.
 --
 -- F16 narrows a contractor to the vehicles it works on and withholds costs and people
 -- without the matching grant. Machine purchase / finance columns are now removed from
 -- ordinary authenticated SELECTs too. The sale-pack route still refuses workshops as a
 -- deliberate product rule and defence in depth.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 set role authenticated;
 do $$ declare n int; blocked boolean := false; begin
   perform _t_login('32100000-0000-4000-8000-000000000005');   -- Contractor Z's staff
@@ -13432,9 +13432,9 @@ do $$ declare n int; blocked boolean := false; begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 -- (g) ANON reads nothing a pack is built from.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 set role anon;
 do $$
 declare
@@ -13459,13 +13459,13 @@ begin
 end $$;
 reset role;
 
--- ─────────────────────────────────────────────────────────────────
--- (h) G11 GRANT HYGIENE — and the record that packs ship no SQL.
+-- =================================================================
+-- (h) G11 GRANT HYGIENE, and the record that packs ship no SQL.
 --
 -- An `app` function created without an explicit grant defaults to EXECUTE TO PUBLIC, so
 -- "we added no function" is a claim worth making machine-checkable: if a later change
 -- adds one, this fails and whoever added it has to think about the grant.
--- ─────────────────────────────────────────────────────────────────
+-- =================================================================
 reset role;
 do $$ declare n int; names text; begin
   select count(*), coalesce(string_agg(n2.nspname || '.' || p.proname, ', '), '')
@@ -13507,16 +13507,16 @@ end $$;
 select 'ALL G32 DOCUMENT-PACK TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G33 — THE ACCOUNTING EXPORT RECONCILES, AND AUDIT LOCATION CANNOT BECOME IDENTITY
+-- G33, THE ACCOUNTING EXPORT RECONCILES, AND AUDIT LOCATION CANNOT BECOME IDENTITY
 --        (migration 0510)
 --
 -- Append to supabase/tests/rls_isolation.sql. Fixture ids use the `b3` prefix, which
 -- nothing else in any of the four suite files touches.
 --
--- Two features, one migration, one section — because they share nothing except the file
+-- Two features, one migration, one section, because they share nothing except the file
 -- and it would be dishonest to imply otherwise.
 --
--- ── Part 1: the export must reconcile ───────────────────────────────────────
+-- == Part 1: the export must reconcile =======================================
 --
 -- The export is the THIRD screen a partner reads in the same week, after /money and
 -- /vat. G14 already pins those two against each other, precisely because two figures for
@@ -13529,17 +13529,17 @@ select 'ALL G32 DOCUMENT-PACK TESTS PASSED' as result;
 -- adds up" check passes when two errors cancel, which is exactly the shape a sign error
 -- takes.
 --
--- ── Part 2: a forged location must stay a wrong city ────────────────────────
+-- == Part 2: a forged location must stay a wrong city ========================
 --
 -- 0440 removed `public._f14_probe` because it let a caller rewrite `request.jwt.claims`,
--- and every policy decides through `auth.uid()` — so it moved the caller to the other
+-- and every policy decides through `auth.uid()`, so it moved the caller to the other
 -- side of the fence and RLS then answered correctly for somebody else. The audit-location
 -- feature reads a caller-supplied value on every audited write, so it is the same shape
 -- of thing and has to be held to the same standard.
 --
 -- The properties asserted below are what keep it from being a second one of those:
 -- attribution is untouched, visibility is untouched, and NOTHING outside
--- `app.audit_context` reads the namespace — that last one structurally, the way G11
+-- `app.audit_context` reads the namespace, that last one structurally, the way G11
 -- asserts its own, so the property is refused rather than merely intended.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -13659,7 +13659,7 @@ insert into cost_entries (id, farm_id, machine_id, type, amount_cents, occurred_
   ('b3700000-0000-0000-0000-000000000004', 'b3000000-0000-0000-0000-000000000001',
    'b3600000-0000-0000-0000-000000000002', 'parts',  11000, current_date - 896, 'manual', 'Sold since');
 
--- ── (a) Every entry balances ON ITS OWN ──────────────────────────────────────
+-- == (a) Every entry balances ON ITS OWN ======================================
 -- Not merely in total. A file that balances overall while two entries are wrong in
 -- opposite directions imports cleanly and is still wrong, and that is precisely the
 -- shape a sign error takes.
@@ -13683,7 +13683,7 @@ do $$ declare n bigint; bad text; begin
   end if;
 end $$;
 
--- ── (b) And the file balances in total ───────────────────────────────────────
+-- == (b) And the file balances in total =======================================
 do $$ declare d bigint; c bigint; begin
   select coalesce(sum(debit_cents), 0), coalesce(sum(credit_cents), 0) into d, c
     from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890);
@@ -13692,7 +13692,7 @@ do $$ declare d bigint; c bigint; begin
   end if;
 end $$;
 
--- ── (c) RECONCILIATION: revenue in the journal is revenue on /money ──────────
+-- == (c) RECONCILIATION: revenue in the journal is revenue on /money ==========
 -- THE assertion. The document selection in 0510 is copied from app.partner_vat_return
 -- and app.partner_pl for exactly this reason, and this is what keeps it copied.
 --   200000 (ACI-0001) + 80000 (ACI-0002) + 15000 (debit note) − 30000 (credit note)
@@ -13711,7 +13711,7 @@ do $$ declare j bigint; p bigint; begin
   end if;
 end $$;
 
--- ── (d) A written-off invoice stays revenue AND comes off as bad debt ────────
+-- == (d) A written-off invoice stays revenue AND comes off as bad debt ========
 -- The judgement 0460/G14 recorded, carried into the export rather than re-litigated.
 -- Note what is NOT asserted: any VAT reversal. s22 bad-debt relief is a separate claim
 -- with its own conditions and 0431 decided this product points at it rather than
@@ -13744,7 +13744,7 @@ do $$ declare j bigint; p bigint; v bigint; begin
   end if;
 end $$;
 
--- ── (e) RECONCILIATION: cost in the journal is cost on /money ────────────────
+-- == (e) RECONCILIATION: cost in the journal is cost on /money ================
 -- Including the non-claimable VAT, which is debited to the expense account it sits on
 -- rather than to VAT input. Dropping it would overstate profit by exactly the amount
 -- most likely to be forgotten (0460 judgement 2).
@@ -13770,7 +13770,7 @@ do $$ declare j bigint; p bigint; b bigint; begin
   end if;
 end $$;
 
--- ── (f) RECONCILIATION: output VAT in the journal is output VAT on /vat ──────
+-- == (f) RECONCILIATION: output VAT in the journal is output VAT on /vat ======
 -- 15% of each document's own net, credit note subtracting:
 --   30000 (200000) + 12000 (80000) + 2250 (15000) − 4500 (30000) = 39750
 -- Worth recording that this literal was WRONG when it was first written (42000, from
@@ -13791,7 +13791,7 @@ do $$ declare j bigint; v bigint; begin
   end if;
 end $$;
 
--- ── (g) RECONCILIATION: input VAT in the journal is input VAT on /vat ────────
+-- == (g) RECONCILIATION: input VAT in the journal is input VAT on /vat ========
 -- Only the claimable 9000. The 6000 of entertainment VAT is a cost, checked in (e).
 do $$ declare j bigint; v bigint; begin
   select coalesce(sum(debit_cents - credit_cents), 0) into j
@@ -13807,7 +13807,7 @@ do $$ declare j bigint; v bigint; begin
   end if;
 end $$;
 
--- ── (h) A quote is never journalled, and neither is a draft ──────────────────
+-- == (h) A quote is never journalled, and neither is a draft ==================
 -- Both are in the fixture at conspicuous amounts (999999 / 777777) so a leak is
 -- unmistakable rather than a plausible-looking total.
 do $$ declare n bigint; begin
@@ -13819,7 +13819,7 @@ do $$ declare n bigint; begin
   end if;
 end $$;
 
--- ── (i) The farm journal is the LEDGER, retired machines included ────────────
+-- == (i) The farm journal is the LEDGER, retired machines included ============
 -- Deliberately opposite to every dashboard and report in the product, and asserted
 -- because it is the kind of thing a later reader would "fix".
 do $$ declare d bigint; c bigint; led bigint; r bigint; begin
@@ -13844,7 +13844,7 @@ do $$ declare d bigint; c bigint; led bigint; r bigint; begin
   end if;
 end $$;
 
--- ── (j) Tenancy: RLS answers, not a check in a function body ─────────────────
+-- == (j) Tenancy: RLS answers, not a check in a function body =================
 -- All four readers are SECURITY INVOKER, so the interesting question is what happens
 -- when somebody passes an id that is not theirs. Both contractors are linked to this
 -- farm, so the rival is kept out by the row policies rather than by the absence of a
@@ -13869,7 +13869,7 @@ end $$;
 do $$ declare n bigint; m bigint; begin
   set local role authenticated;
   perform _t_login('b3200000-0000-0000-0000-000000000003');   -- the farm's own owner
-  -- A farm never reads what its contractor BOUGHT — that is the margin behind every
+  -- A farm never reads what its contractor BOUGHT, that is the margin behind every
   -- quote it is given (the rule 0430 and G25 both turn on).
   select count(*) into n
     from app.partner_journal('b3100000-0000-0000-0000-000000000001', current_date - 905, current_date - 890)
@@ -13877,7 +13877,7 @@ do $$ declare n bigint; m bigint; begin
   if n <> 0 then
     raise exception 'G33 FAIL [MARGIN LEAK]: a farm read % lines of its contractor''s purchases', n;
   end if;
-  -- Its OWN cost ledger, however, it certainly reads — every entry, two lines each.
+  -- Its OWN cost ledger, however, it certainly reads, every entry, two lines each.
   --
   -- Derived rather than written as a literal, and that is not laziness. The first draft
   -- asserted 8 (four seeded cost_entries) and FAILED at 16, which turned out to be
@@ -13903,7 +13903,7 @@ do $$ declare n bigint; m bigint; begin
   reset role;
 end $$;
 
--- ── (k) anon executes none of it ─────────────────────────────────────────────
+-- == (k) anon executes none of it =============================================
 do $$ declare ok boolean := false; begin
   set local role anon;
   begin
@@ -13918,7 +13918,7 @@ do $$ declare ok boolean := false; begin
   reset role;
 end $$;
 
--- ── (l) G11: no function ships with the PUBLIC execute default ───────────────
+-- == (l) G11: no function ships with the PUBLIC execute default ===============
 -- An app-schema function with no explicit grant defaults to EXECUTE TO PUBLIC, which
 -- `anon` inherits. Measured with has_function_privilege rather than read off the
 -- migration, because the migration is what would be wrong.
@@ -13941,7 +13941,7 @@ do $$ declare f text; begin
   end loop;
 end $$;
 
--- ── (m) The readers are SECURITY INVOKER, so RLS is what answers ─────────────
+-- == (m) The readers are SECURITY INVOKER, so RLS is what answers =============
 -- app.fleet_downtime (0361) is invoker specifically so audit_log's own RLS scopes it;
 -- the same consideration applies to every reader added here. A definer reader would
 -- silently become a cross-tenant hole the day somebody passed the wrong id.
@@ -13960,10 +13960,10 @@ do $$ declare r record; begin
 end $$;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- Part 2 — audit location
+-- Part 2, audit location
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- ── (n) A forged context is RECORDED, and attribution is untouched ───────────
+-- == (n) A forged context is RECORDED, and attribution is untouched ===========
 -- The whole boundary in one assertion: the caller sets a city they were never in and a
 -- uuid that is not theirs, and what comes back is their own uuid beside a wrong city.
 do $$ declare v_user uuid; v_city text; v_ip text; begin
@@ -13995,7 +13995,7 @@ do $$ declare v_user uuid; v_city text; v_ip text; begin
   reset role;
 end $$;
 
--- ── (o) A forged context changes NOTHING about what the caller can see ───────
+-- == (o) A forged context changes NOTHING about what the caller can see =======
 -- Counted before and against a fresh session with the settings in place. Refuses to
 -- pass on a zero baseline, which is how the G22 visibility blocks were nearly worthless
 -- until they were made to run as the role.
@@ -14019,7 +14019,7 @@ do $$ declare before_n bigint; after_n bigint; begin
   reset role;
 end $$;
 
--- ── (p) STRUCTURAL: nothing but app.audit_context reads the namespace ────────
+-- == (p) STRUCTURAL: nothing but app.audit_context reads the namespace ========
 -- The G11 shape. An assertion that the property HOLDS is worth less than one that
 -- refuses the change which would break it, because the second survives the next author.
 do $$ declare n bigint; who text; begin
@@ -14041,7 +14041,7 @@ do $$ declare n bigint; who text; begin
   end if;
 end $$;
 
--- ── (q) A forged value cannot break a write, and cannot bloat the table ──────
+-- == (q) A forged value cannot break a write, and cannot bloat the table ======
 -- An audit feature that turned a bad `X-Forwarded-For` into a failed INSERT would be a
 -- denial of service delivered by the audit trail. And a 20 000-character user agent on
 -- every row is a different way to make the log unusable.
@@ -14082,7 +14082,7 @@ do $$ declare v_ip inet; v_ua text; v_city text; begin
   reset role;
 end $$;
 
--- ── (r) audit_log is still read-only and still farm-scoped ──────────────────
+-- == (r) audit_log is still read-only and still farm-scoped ==================
 -- Adding columns must not have loosened the table that holds every diff in the product.
 do $$ declare n bigint; ok boolean := false; begin
   set local role authenticated;
@@ -14102,7 +14102,7 @@ do $$ declare n bigint; ok boolean := false; begin
   reset role;
 end $$;
 
--- anon is refused outright — audit_log carries no anon grant at all, so this raises
+-- anon is refused outright, audit_log carries no anon grant at all, so this raises
 -- rather than returning zero. Either answer is a pass; a COUNT is not.
 do $$ declare n bigint; denied boolean := false; begin
   set local role anon;
@@ -14116,7 +14116,7 @@ do $$ declare n bigint; denied boolean := false; begin
   reset role;
 end $$;
 
--- ── (s) Support access records where, and still refuses a non-admin ─────────
+-- == (s) Support access records where, and still refuses a non-admin =========
 -- 0206's guard is the thing that must not have moved while its body was extended.
 do $$ declare ok boolean := false; v_city text; v_user uuid; begin
   set local role authenticated;
@@ -14147,18 +14147,18 @@ end $$;
 select 'ALL G33 ACCOUNTING-EXPORT & AUDIT-LOCATION TESTS PASSED' as result;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- G34 — TWO HARDENINGS: ERASURE CLEARS LOCATION, AND THE PARTNER GUARD IS LOCAL
+-- G34, TWO HARDENINGS: ERASURE CLEARS LOCATION, AND THE PARTNER GUARD IS LOCAL
 --
 -- Both were founder decisions taken after the G30/G33 verification pass, and both are
 -- deliberately low-risk. That is exactly why they need assertions: a change that is
 -- supposed to alter nothing is the easiest kind to get wrong unnoticed.
 --
---   1. 20260829130000 — public.erase_personal_data now nulls ip / geo_* / user_agent on the
+--   1. 20260829130000, public.erase_personal_data now nulls ip / geo_* / user_agent on the
 --      SUBJECT's own audit rows. The rest of audit_log is retained by the documented §4.4
 --      exception, and the point of the change is that the integrity record does not need an
 --      IP address.
 --
---   2. 20260829130100 — the eleven `_perm` SELECT policies now call app.is_farm_side()
+--   2. 20260829130100, the eleven `_perm` SELECT policies now call app.is_farm_side()
 --      directly, as well as through app.has_permission. Two locks instead of one remote
 --      one. This must change NO visibility whatsoever, so the assertions below are mostly
 --      negative: the interesting result is that nothing moved.
@@ -14198,7 +14198,7 @@ insert into audit_log (farm_id, user_id, entity, entity_id, action, diff, ip, ge
    'machines', '8c300000-0000-0000-0000-000000000002', 'update', '{"b":2}'::jsonb,
    '203.0.113.20'::inet, 'ZA', 'Gauteng', 'Pretoria', 'Mozilla/5.0 owner');
 
--- ── (a) The eleven policies carry the guard LOCALLY ──────────────────────────
+-- == (a) The eleven policies carry the guard LOCALLY ==========================
 -- Counted by predicate, not by name: a policy renamed but left without the guard would
 -- still pass a name check.
 do $$ declare n int; begin
@@ -14212,7 +14212,7 @@ do $$ declare n int; begin
   end if;
 end $$;
 
--- ── (b) …and they still gate on the permission, not merely on being farm-side ──
+-- == (b) …and they still gate on the permission, not merely on being farm-side ==
 -- The obvious way to get (a) passing while breaking the feature is to replace the
 -- has_permission call rather than adding to it.
 do $$ declare n int; begin
@@ -14226,7 +14226,7 @@ do $$ declare n int; begin
   end if;
 end $$;
 
--- ── (c) NEGATIVE: an operator with no grant sees exactly what they saw ────────
+-- == (c) NEGATIVE: an operator with no grant sees exactly what they saw ========
 do $$ declare n bigint; begin
   set local role authenticated;
   perform _t_login('8c200000-0000-0000-0000-000000000002');
@@ -14237,7 +14237,7 @@ do $$ declare n bigint; begin
   reset role;
 end $$;
 
--- ── (d) NEGATIVE: a grant still widens a FARM-SIDE person ────────────────────
+-- == (d) NEGATIVE: a grant still widens a FARM-SIDE person ====================
 -- The guard must not have broken the feature it is protecting. This is the positive
 -- control for (e): if this stops working, (e) passes for the wrong reason.
 do $$ declare n bigint; begin
@@ -14254,7 +14254,7 @@ do $$ declare n bigint; begin
   reset role;
 end $$;
 
--- ── (e) A CONTRACTOR holding the same grant is still held at the F16 scope ────
+-- == (e) A CONTRACTOR holding the same grant is still held at the F16 scope ====
 -- The whole reason the guard was made local. A grant row must never lift a linked
 -- contractor out of their access scope, and now two independent locks say so.
 do $$ declare n bigint; begin
@@ -14271,7 +14271,7 @@ do $$ declare n bigint; begin
   reset role;
 end $$;
 
--- ── (f) Erasure clears the subject's own location, and only theirs ────────────
+-- == (f) Erasure clears the subject's own location, and only theirs ============
 do $$
 declare
   v_subject_rows int;
@@ -14293,7 +14293,7 @@ begin
     raise exception 'G34 FAIL [ERASURE]: % of the erased person''s audit rows still carry a location', v_subject_rows;
   end if;
 
-  -- Somebody else's row is untouched — this is not a blanket wipe.
+  -- Somebody else's row is untouched, this is not a blanket wipe.
   select ip into v_other_ip
     from audit_log
    where user_id = '8c200000-0000-0000-0000-000000000001'
@@ -14314,7 +14314,7 @@ begin
   end if;
 end $$;
 
--- ── (g) The erasure is reported, so an operator can prove it happened ─────────
+-- == (g) The erasure is reported, so an operator can prove it happened =========
 do $$ declare n int; begin
   select count(*) into n
     from audit_log

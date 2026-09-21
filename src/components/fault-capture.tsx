@@ -33,7 +33,7 @@ async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<
 /**
  * Shared fault-report form with common-fault buttons, photo and voice-note capture.
  * Posts multipart through the idempotent sync API; used by the public QR page and the
- * in-app faults page. The public path never touches the DB directly — the endpoint is
+ * in-app faults page. The public path never touches the DB directly, the endpoint is
  * a service-role route that validates the token server-side. Captures work offline
  * (queued via IndexedDB) and record an optional geolocation when the browser grants it.
  */
@@ -82,7 +82,7 @@ export function FaultCapture({
   }, []);
 
   // Permission-gated geolocation (FR-7.2). Silent fallback: if unsupported or denied
-  // we simply don't attach a location — the fault still submits normally.
+  // we simply don't attach a location, the fault still submits normally.
   const captureLocation = () => {
     setGeoDenied(false);
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -207,7 +207,7 @@ export function FaultCapture({
     if ((res.status >= 500 || res.status === 429) && canQueueOffline()) {
       await queueOffline(); return;
     }
-    // Server rejected the report (bad input / permission) — surface it, don't queue.
+    // Server rejected the report (bad input / permission), surface it, don't queue.
     setError(t("faults.error", locale));
     setBusy(false);
   };

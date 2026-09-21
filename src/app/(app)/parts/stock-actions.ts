@@ -12,7 +12,7 @@ import { clampLookahead } from "@/lib/reorder";
  * The store (§6 inventory, 0450).
  *
  * Everything goes through the RLS client and the farm comes from the session, never the
- * form — `stock_items`/`stock_movements` are farm-scoped AND farm-side-only, so a
+ * form, `stock_items`/`stock_movements` are farm-scoped AND farm-side-only, so a
  * contractor with an active link to this farm gets zero rows rather than a smaller set.
  *
  * `on_hand` is never written here. Stock changes ONLY by writing a movement and letting
@@ -49,7 +49,7 @@ export async function trackPart(formData: FormData) {
     created_by: profile.id,
   });
 
-  // The unique index is the guard against tracking the same part twice — a second attempt
+  // The unique index is the guard against tracking the same part twice, a second attempt
   // is somebody pressing again, not an error worth a red screen.
   if (error && !/duplicate key/i.test(error.message)) {
     redirect(`/parts?error=${encodeURIComponent(error.message)}`);
@@ -88,7 +88,7 @@ export async function updateStockItem(formData: FormData) {
  * Write a movement. This is the only way stock changes.
  *
  * An ADJUSTMENT is the stocktake case and is the one kind whose quantity may be negative
- * in meaning — "I counted two fewer than the system says". The table stores qty positive
+ * in meaning, "I counted two fewer than the system says". The table stores qty positive
  * and lets the kind carry direction, so a shortfall is recorded as an `issue` with a note
  * rather than a negative adjustment; a surplus is an `adjustment`. That keeps every row
  * readable one way only.
@@ -138,7 +138,7 @@ export async function recordMovement(formData: FormData) {
 }
 
 /**
- * Stop holding this part. Soft delete, like everything else — the movements stay, so the
+ * Stop holding this part. Soft delete, like everything else, the movements stay, so the
  * history of what was fitted to which machine survives the shelf being cleared.
  */
 export async function untrackPart(formData: FormData) {
@@ -163,7 +163,7 @@ export async function untrackPart(formData: FormData) {
  *
  * 0451 declined to guess a lookahead, on the grounds that it is a judgement better made by
  * somebody who has run a farm store. So it is a farm SETTING, and it is written through the
- * existing `update_farm_settings` RPC (0204) — owner/manager guarded inside the function,
+ * existing `update_farm_settings` RPC (0204), owner/manager guarded inside the function,
  * a jsonb merge, no schema change and no new policy. The clamp is applied here as well as
  * on read so a mistyped 3000 is not quietly stored and then silently ignored.
  *

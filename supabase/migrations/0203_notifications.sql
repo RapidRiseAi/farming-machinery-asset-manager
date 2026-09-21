@@ -1,6 +1,6 @@
 -- 0203_notifications.sql
 -- Notification queue enqueue (Scope §4.7). v1 uses the in-app channel; WhatsApp
--- Stage 2 (API) is deferred — Stage 1 is manual. Events enqueue an in-app notification
+-- Stage 2 (API) is deferred, Stage 1 is manual. Events enqueue an in-app notification
 -- to the farm's owner/manager; a cron/worker later maps queued rows to WhatsApp.
 
 create or replace function app.notify_farm(p_farm uuid, p_template text, p_payload jsonb) returns void

@@ -3,7 +3,7 @@
 -- (migrations 20260903160000 / …160100 / …160200).
 --
 -- WHAT THIS FILE IS FOR, AND WHAT IT DELIBERATELY IS NOT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The orchestrator's own smoke test already proves the SHAPE of the ledger: the empty
 -- catalogue, one-active-price, the VAT guard both ways, invoice and price immutability,
 -- exclusive claim, the payment rollup and refund, the dunning ladder, downgrade, restore,
@@ -18,13 +18,13 @@
 -- to read what that farm pays Rapid Rise for its software.
 --
 -- THE ZERO-BASELINE TRAP, WHICH THIS PROJECT HAS FALLEN INTO TWICE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- "Person X sees 0 billing rows" proves nothing if X sees 0 of everything, or if there
 -- are 0 rows to see. Every "must see nothing" assertion below is paired with a POSITIVE
 -- CONTROL in the same session: the same person, in the same login, reading a non-zero
 -- count of something they ARE entitled to. The workshop's control is deliberately the
--- strongest one available — its link carries all four F16 grants, including
--- see_all_vehicles and see_costs — so the result reads "even the widest contractor
+-- strongest one available, its link carries all four F16 grants, including
+-- see_all_vehicles and see_costs, so the result reads "even the widest contractor
 -- access stops at the subscription", not "this contractor could not see anything".
 --
 -- Everything lives in ONE rolled-back transaction on the `b1……` uuid prefix, which is
@@ -34,15 +34,15 @@
 \set ON_ERROR_STOP on
 \timing off
 -- NOT `warning`. The section banners below are raise notice, and a suite whose banners
--- are suppressed is indistinguishable from a suite that did not run — which is the exact
+-- are suppressed is indistinguishable from a suite that did not run, which is the exact
 -- failure mode recorded three times in this project's history.
 set client_min_messages to notice;
 
 begin;
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Helpers
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 
 -- rls_isolation.sql commits its `_t_login`, so when run.sh runs this file after it the
 -- existing one is used unchanged. Run standalone (or by a runner that applies only the
@@ -91,9 +91,9 @@ reset role;
 select pg_catalog.set_config('request.jwt.claims', '', false);
 
 
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Fixtures
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Farm One is the subject: a real subscription, invoice, card, attempt, payment and
 -- snapshot, plus the full cast of farm roles and one linked contractor.
 -- Farm Two is the neighbour, used for cross-tenant work and for the non-reusable card.
@@ -131,7 +131,7 @@ insert into users (id, farm_id, workshop_id, role, name, email, active) values
   ('b1a00000-0000-0000-0000-000000000006', 'b1000000-0000-0000-0000-000000000002', null, 'owner',    'Billing Owner Two',  'billing.owner2@example.invalid',     true);
 
 -- Farm One: five machines, three billable. `out_of_service` is in the fixture on purpose
--- — the contract says a broken tractor is still a tractor we host, and that is the one
+--, the contract says a broken tractor is still a tractor we host, and that is the one
 -- part of the billable rule a later reader is most likely to "tidy up".
 insert into machines (id, farm_id, name, type, meter_type, status, assigned_operator_id) values
   ('b1300000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001', 'One Active',   'tractor',   'hours', 'active',         'b1a00000-0000-0000-0000-000000000004'),
@@ -186,7 +186,7 @@ declare
   );
   k text; v_cents bigint; n integer;
 begin
-  raise notice '── BILLING (0): the confirmed launch price list ─────────────────';
+  raise notice '== BILLING (0): the confirmed launch price list =================';
 
   for k in select jsonb_object_keys(v_expected) loop
     -- Monthly: the headline figure, charged once per month.
@@ -201,14 +201,14 @@ begin
     end if;
 
     -- Annual: the SAME per-vehicle price, charged for ten months. Two months free is
-    -- expressed as months_charged, never as a discounted unit price — a discounted unit
+    -- expressed as months_charged, never as a discounted unit price, a discounted unit
     -- price would make "what do we charge per vehicle" have two answers.
     select per_vehicle_monthly_incl_cents, months_charged into v_cents, n
       from billing_price_versions
      where version_label = 'launch-2026' and plan = k::farm_plan
        and billing_period = 'annual' and status = 'active' and deleted_at is null;
     if v_cents is distinct from (v_expected ->> k)::bigint then
-      raise exception 'BILLING FAIL [0]: % annual unit price is %, expected % — annual must '
+      raise exception 'BILLING FAIL [0]: % annual unit price is %, expected %, annual must '
         'carry the same per-vehicle price as monthly', k, coalesce(v_cents::text, 'MISSING'), v_expected ->> k;
     end if;
     if n is distinct from 10 then
@@ -236,7 +236,7 @@ begin
 end $$;
 
 -- The suite's own fixtures now step over the real catalogue. `billing_price_versions_active_uq`
--- allows exactly ONE active row per (plan, period) — which is the point of it — so the
+-- allows exactly ONE active row per (plan, period), which is the point of it, so the
 -- launch generation is retired inside this rolled-back transaction before synthetic prices
 -- are inserted. Nothing outside this transaction sees it, and section (0) above has already
 -- checked the real figures.
@@ -287,7 +287,7 @@ values ('b1800000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-0000000
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
 values ('b1800000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001', 0,
-  'FleetWise complete — 3 vehicle(s)', 3, 1, 1234, 3702, 3702, 0);
+  'FleetWise complete, 3 vehicle(s)', 3, 1, 1234, 3702, 3702, 0);
 
 update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000001';
 
@@ -327,7 +327,7 @@ declare
     'billing_payment_methods','billing_payment_attempts','billing_payments',
     'billing_webhook_events'];
 begin
-  raise notice '── BILLING (a): anon has no reach into billing ──────────────────';
+  raise notice '== BILLING (a): anon has no reach into billing ==================';
   if array_length(v_tables, 1) <> 10 then
     raise exception 'BILLING FAIL [a]: the billing table list is % long, expected 10',
       array_length(v_tables, 1);
@@ -340,7 +340,7 @@ begin
       end if;
     end loop;
     if has_any_column_privilege('anon', 'public.' || t, 'SELECT') then
-      raise exception 'BILLING FAIL [a]: anon holds a COLUMN select on % — a column grant '
+      raise exception 'BILLING FAIL [a]: anon holds a COLUMN select on %, a column grant '
         'does not show up in has_table_privilege, which is how this would be missed', t;
     end if;
   end loop;
@@ -376,10 +376,10 @@ reset role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- (b) Role restrictions — billing is the owner's business and Rapid Rise's
+-- (b) Role restrictions, billing is the owner's business and Rapid Rise's
 -- ═════════════════════════════════════════════════════════════════════════════
 -- The owner reads everything about their own subscription. The manager, the mechanic,
--- the operator and the linked contractor read NONE of it — each of them proved, in the
+-- the operator and the linked contractor read NONE of it, each of them proved, in the
 -- same login, still to be reading the farm's fleet, so the zero is about billing and not
 -- about access.
 set role authenticated;
@@ -390,7 +390,7 @@ declare
   v_sub bigint; v_inv bigint; v_lin bigint; v_pay bigint; v_att bigint;
   v_pm bigint; v_snap bigint; v_mach bigint; v_settings bigint; v_price bigint;
 begin
-  raise notice '── BILLING (b1): the OWNER sees their own subscription ──────────';
+  raise notice '== BILLING (b1): the OWNER sees their own subscription ==========';
   perform _t_login('b1a00000-0000-0000-0000-000000000001');
 
   if not app.is_farm_billing_admin(v_farm) then
@@ -432,7 +432,7 @@ declare
   v_sub bigint; v_inv bigint; v_lin bigint; v_pay bigint; v_att bigint;
   v_pm bigint; v_snap bigint; v_mach bigint;
 begin
-  raise notice '── BILLING (b2): manager / mechanic / operator / contractor ─────';
+  raise notice '== BILLING (b2): manager / mechanic / operator / contractor =====';
   for r in
     select * from (values
       ('b1a00000-0000-0000-0000-000000000002'::uuid, 'manager',    5::bigint),
@@ -450,14 +450,14 @@ begin
     -- below are meaningless and this suite must say so rather than pass.
     select count(*) into v_mach from machines where farm_id = v_farm;
     if v_mach <> r.machines_expected then
-      raise exception 'BILLING FAIL [b2/%]: positive control failed — sees % machines, '
+      raise exception 'BILLING FAIL [b2/%]: positive control failed, sees % machines, '
         'expected %. Without it, "sees no billing rows" proves nothing.',
         r.who, v_mach, r.machines_expected;
     end if;
 
     if app.is_farm_billing_admin(v_farm) then
       raise exception 'BILLING FAIL [b2/%]: app.is_farm_billing_admin said TRUE. Billing is '
-        'the owner''s business and Rapid Rise''s — nobody else''s.', r.who;
+        'the owner''s business and Rapid Rise''s, nobody else''s.', r.who;
     end if;
 
     select count(*) into v_sub  from billing_subscriptions    where farm_id = v_farm;
@@ -479,9 +479,9 @@ end $$;
 do $$
 declare v_wr bigint; v_cost bigint;
 begin
-  raise notice '── BILLING (b3): the contractor keeps everything it is entitled to ─';
+  raise notice '== BILLING (b3): the contractor keeps everything it is entitled to =';
   perform _t_login('b1a00000-0000-0000-0000-000000000005');
-  -- Its own work request, and — because see_costs is granted on this link — the farm's
+  -- Its own work request, and, because see_costs is granted on this link, the farm's
   -- job costs. Both non-zero. So the contractor is demonstrably NOT locked out of the
   -- farm; it is locked out of exactly one thing: what the farm pays Rapid Rise.
   select count(*) into v_wr from work_requests
@@ -493,7 +493,7 @@ begin
    where farm_id = 'b1000000-0000-0000-0000-000000000001';
   if v_cost < 1 then
     raise exception 'BILLING FAIL [b3]: with see_costs granted the contractor reads % cost entries, '
-      'expected at least 1 — the positive control for "billing is the ONLY thing withheld"', v_cost;
+      'expected at least 1, the positive control for "billing is the ONLY thing withheld"', v_cost;
   end if;
 end $$;
 reset role;
@@ -509,7 +509,7 @@ declare
   v_two uuid := 'b1000000-0000-0000-0000-000000000002';
   n bigint; v text;
 begin
-  raise notice '── BILLING (c): cross-tenant reads and writes ───────────────────';
+  raise notice '== BILLING (c): cross-tenant reads and writes ===================';
   perform _t_login('b1a00000-0000-0000-0000-000000000006');
 
   -- Positive control: owner two is a billing admin of their OWN farm and reads their own
@@ -552,7 +552,7 @@ begin
   end if;
 
   -- The seller's own settings are readable by everyone and writable by RR admin alone.
-  -- No grant is missing here, so a denial shows up as zero rows rather than an error —
+  -- No grant is missing here, so a denial shows up as zero rows rather than an error -
   -- which is why this one is measured with a row count.
   if _b1_rows($q$update billing_settings set support_email = 'forged@example.invalid'
                where singleton$q$) <> 0 then
@@ -563,7 +563,7 @@ reset role;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- (d) No browser writes anywhere in the ledger — proved on BOTH locks
+-- (d) No browser writes anywhere in the ledger, proved on BOTH locks
 -- ═════════════════════════════════════════════════════════════════════════════
 -- The migrations are explicit that this is defended twice: the grant that 0102's ALTER
 -- DEFAULT PRIVILEGES handed out is revoked, AND no permissive policy exists for a write
@@ -573,13 +573,13 @@ do $$
 declare
   t text; c text; n integer;
 begin
-  raise notice '── BILLING (d): browser writes denied, on both locks ────────────';
+  raise notice '== BILLING (d): browser writes denied, on both locks ============';
   foreach t in array array['billing_invoices','billing_payments',
                            'billing_payment_methods','billing_subscriptions'] loop
     -- Lock 1: the privilege is not there.
     foreach c in array array['INSERT','UPDATE','DELETE'] loop
       if has_table_privilege('authenticated', 'public.' || t, c) then
-        raise exception 'BILLING FAIL [d]: authenticated holds % on % — 0102''s ALTER DEFAULT '
+        raise exception 'BILLING FAIL [d]: authenticated holds % on %, 0102''s ALTER DEFAULT '
           'PRIVILEGES grants full CRUD on every new table in public, so a missing revoke '
           'reads as "we never granted it" and is not', c, t;
       end if;
@@ -668,7 +668,7 @@ reset role;
 do $$
 declare c text;
 begin
-  raise notice '── BILLING (e): authorization_code is a credential, not a field ─';
+  raise notice '== BILLING (e): authorization_code is a credential, not a field =';
 
   foreach c in array array['authorization_code','authorization_email'] loop
     if has_column_privilege('authenticated', 'public.billing_payment_methods', c, 'SELECT') then
@@ -683,7 +683,7 @@ begin
   foreach c in array array['id','farm_id','card_brand','last4','exp_month','exp_year',
                            'card_type','bank','bin','reusable','is_default','status'] loop
     if not has_column_privilege('authenticated', 'public.billing_payment_methods', c, 'SELECT') then
-      raise exception 'BILLING FAIL [e]: authenticated cannot read % — the owner''s card panel '
+      raise exception 'BILLING FAIL [e]: authenticated cannot read %, the owner''s card panel '
         'cannot render, and somebody will "fix" it by granting the whole table', c;
     end if;
   end loop;
@@ -692,7 +692,7 @@ begin
   -- answers differ, and asserting only one of them would miss a widened grant.
   if has_table_privilege('authenticated', 'public.billing_payment_methods', 'SELECT') then
     raise exception 'BILLING FAIL [e]: authenticated holds WHOLE-TABLE select on '
-      'billing_payment_methods — every column, including the credential';
+      'billing_payment_methods, every column, including the credential';
   end if;
   if not has_any_column_privilege('authenticated', 'public.billing_payment_methods', 'SELECT') then
     raise exception 'BILLING FAIL [e]: authenticated holds no column select at all on '
@@ -753,7 +753,7 @@ reset role;
 do $$
 declare v_state text;
 begin
-  raise notice '── BILLING (f): invoice/period idempotency ──────────────────────';
+  raise notice '== BILLING (f): invoice/period idempotency ======================';
 
   -- The constraint. A second invoice for the same farm and period is a duplicate key,
   -- not a second bill.
@@ -776,7 +776,7 @@ begin
      where schemaname = 'public' and indexname = 'billing_invoices_farm_period_uq'
        and indexdef like '%status <> ''void''%') then
     raise exception 'BILLING FAIL [f]: billing_invoices_farm_period_uq no longer excludes voided '
-      'invoices — an invoice raised in error would permanently consume its period';
+      'invoices, an invoice raised in error would permanently consume its period';
   end if;
 end $$;
 
@@ -804,7 +804,7 @@ begin
     raise exception 'BILLING FAIL [f]: app.generate_billing_invoices RAISED (%): %. '
       'The generator inserts the invoice with status ''open'' and then inserts its lines, '
       'but app.billing_freeze_invoice_line() refuses any line whose invoice is not a '
-      'draft — so the nightly billing run creates nothing at all. Fix: insert the invoice '
+      'draft, so the nightly billing run creates nothing at all. Fix: insert the invoice '
       'as ''draft'', write the lines, then UPDATE it to ''open'' (the freeze trigger '
       'permits a draft to be issued).', sqlstate, sqlerrm;
   end;
@@ -831,7 +831,7 @@ declare
   v_inv uuid := 'b1800000-0000-0000-0000-000000000001';
   v_a1 uuid; v_a2 uuid; n bigint;
 begin
-  raise notice '── BILLING (g): charge exclusivity and the unknown attempt ──────';
+  raise notice '== BILLING (g): charge exclusivity and the unknown attempt ======';
 
   -- POSITIVE CONTROL. The queue must offer this invoice BEFORE anything is in flight,
   -- otherwise "it is not offered afterwards" is a statement about an empty queue.
@@ -873,13 +873,13 @@ begin
     raise exception 'BILLING FAIL [g]: an invoice with an UNKNOWN attempt was claimed again';
   end if;
 
-  -- Resolve it and the invoice returns to the queue — proving the block was the attempt
+  -- Resolve it and the invoice returns to the queue, proving the block was the attempt
   -- status and not something incidental about the fixture.
   update billing_payment_attempts set status = 'failed', resolved_at = now() where id = v_a1;
   select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
   if n <> 1 then
     raise exception 'BILLING FAIL [g]: after the unknown attempt was reconciled the invoice is '
-      'still not offered (% rows) — the earlier zeros may have had another cause', n;
+      'still not offered (% rows), the earlier zeros may have had another cause', n;
   end if;
 end $$;
 
@@ -915,7 +915,7 @@ begin
   select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
   if n <> 1 then
     raise exception 'BILLING FAIL [g]: the same invoice is still not offered once its card is '
-      'reusable and carries an authorization (% rows) — the previous assertion proved nothing', n;
+      'reusable and carries an authorization (% rows), the previous assertion proved nothing', n;
   end if;
 
   -- Put it back, so nothing downstream inherits a card this suite quietly upgraded.
@@ -930,13 +930,13 @@ end $$;
 -- ═════════════════════════════════════════════════════════════════════════════
 -- The screen, the invoice row and the charge amount are read by the same person in the
 -- same minute. If `app.ex_vat_cents` and `exVatCents` in src/lib/money.ts round
--- differently, all three are useless — so the expected values below are the output of
+-- differently, all three are useless, so the expected values below are the output of
 -- the TypeScript function, transcribed, not a second SQL implementation of the same idea.
 do $$
 declare
   r record; v_ex bigint; v_vat bigint;
 begin
-  raise notice '── BILLING (h): VAT arithmetic matches src/lib/money.ts ─────────';
+  raise notice '== BILLING (h): VAT arithmetic matches src/lib/money.ts =========';
   for r in
     select * from (values
       -- (inclusive cents, rate bps, expected ex-VAT from Math.round(incl*10000/(10000+rate)))
@@ -973,7 +973,7 @@ begin
         'exVatCents gives %', r.incl, r.rate, v_ex, r.expect_ex;
     end if;
     if v_ex + v_vat <> r.incl then
-      raise exception 'BILLING FAIL [h]: % + % <> % at rate % — the split does not reconcile',
+      raise exception 'BILLING FAIL [h]: % + % <> % at rate %, the split does not reconcile',
         v_ex, v_vat, r.incl, r.rate;
     end if;
   end loop;
@@ -984,7 +984,7 @@ declare
   v_inv uuid := 'b1800000-0000-0000-0000-000000000003';
   v_total bigint; v_ex bigint; v_vat bigint; v_months integer; v_rate integer;
 begin
-  raise notice '── BILLING (h2): annual = unit x vehicles x months_charged ──────';
+  raise notice '== BILLING (h2): annual = unit x vehicles x months_charged ======';
 
   -- Farm Two is on an annual price with two months free: months_charged = 10.
   select months_charged into v_months from billing_invoices
@@ -1059,7 +1059,7 @@ end $$;
 -- (h3) The VAT GUARD, not just the VAT arithmetic
 -- ═════════════════════════════════════════════════════════════════════════════
 -- Added because a mutation survived. Sections (h) and (h2) prove `app.ex_vat_cents`
--- computes the right split and that registering does not restate history — but both
+-- computes the right split and that registering does not restate history, but both
 -- feed the function a rate. Neither noticed when `app.billing_force_vat_rate` was
 -- replaced with a body that simply returns NEW, which is to say: neither noticed an
 -- unregistered vendor being able to issue VAT it cannot legally collect and has no
@@ -1075,7 +1075,7 @@ declare
   v_inv   uuid;
   v_rate  integer; v_vat bigint; v_ex bigint; v_total bigint; v_no text;
 begin
-  raise notice '── BILLING (h3): the VAT guard overrules the caller ─────────────';
+  raise notice '== BILLING (h3): the VAT guard overrules the caller =============';
 
   if (select vat_registered from billing_settings where singleton) then
     raise exception 'BILLING FAIL [h3]: the fixture is not in the shipped state '
@@ -1117,9 +1117,9 @@ begin
 
   -- And the ORDER: the split must be computed from the CORRECTED rate. If the guard ran
   -- after the totals trigger, the rate column would read 0 while the money still carried
-  -- a 15% split — which is the bug 0403 had to go back and fix on the partner side.
+  -- a 15% split, which is the bug 0403 had to go back and fix on the partner side.
   if v_total <> 1234 * 3 then
-    raise exception 'BILLING FAIL [h3]: total is %, expected % — the totals were derived '
+    raise exception 'BILLING FAIL [h3]: total is %, expected %, the totals were derived '
       'before the guard corrected the rate', v_total, 1234 * 3;
   end if;
 
@@ -1136,7 +1136,7 @@ declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000003';
   v_before date; v_after date; n integer; c bigint;
 begin
-  raise notice '── BILLING (i): zero vehicles, and a changing fleet ─────────────';
+  raise notice '== BILLING (i): zero vehicles, and a changing fleet =============';
 
   if app.billable_asset_count(v_farm) <> 0 then
     raise exception 'BILLING FAIL [i]: the zero-vehicle farm counts % billable vehicles',
@@ -1173,7 +1173,7 @@ begin
   end if;
   if v_after <= v_before then
     raise exception 'BILLING FAIL [i]: the zero-vehicle subscription''s next_billing_on stayed at % '
-      '— it would be reconsidered every night for ever', v_before;
+      '- it would be reconsidered every night for ever', v_before;
   end if;
 end $$;
 
@@ -1200,7 +1200,7 @@ begin
 
   -- Both period columns move together. `billing_subscriptions_period_ck` requires
   -- end >= start, so advancing only the start is an invalid intermediate state the
-  -- database refuses — correctly: a subscription whose period ends before it begins is
+  -- database refuses, correctly: a subscription whose period ends before it begins is
   -- not a state any real code path produces.
   update billing_subscriptions
      set current_period_start = v_pend + 1,
@@ -1217,7 +1217,7 @@ begin
       'NOTE: app.generate_billing_invoices writes current_period_start back UNCHANGED '
       '(current_period_start = v_pstart), so on its own it recomputes the SAME period next '
       'time, loses to billing_invoices_farm_period_uq and `continue`s WITHOUT advancing '
-      'next_billing_on — a farm is invoiced once and then silently never again.', n;
+      'next_billing_on, a farm is invoiced once and then silently never again.', n;
   end if;
 
   select count(*) into c from billing_invoices where farm_id = v_farm and deleted_at is null;
@@ -1280,15 +1280,15 @@ declare
     'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups',
     'billing_reopen_subscription','billing_record_refund',
     -- Support tickets (20260912160000). `support_ticket_evidence` reads five billing
-    -- tables and builds an object that LEAVES THE BUILDING — it is posted to the support
-    -- dashboard — so it is the most sensitive function in this list. Granted to nobody at
+    -- tables and builds an object that LEAVES THE BUILDING, it is posted to the support
+    -- dashboard, so it is the most sensitive function in this list. Granted to nobody at
     -- all, reached only through open_support_ticket, which is reached only through its
     -- public wrapper. The charging credential is absent from its column list by
     -- construction rather than by the author remembering.
     'support_ticket_evidence','open_support_ticket','due_support_escalations',
     'escalate_support_tickets',
     -- Delivery to the support dashboard (20260912170000). These touch no billing table, so
-    -- the completeness sweep below would not find them — but a function that can mark a
+    -- the completeness sweep below would not find them, but a function that can mark a
     -- dispute "posted" belongs under the same eye, because a browser able to call it could
     -- hide a case from the people who have two days to answer it.
     'support_tickets_to_post','record_support_ticket_post',
@@ -1334,7 +1334,7 @@ declare
   -- The unscoped app.farm_billing_gate helper is service-only; browser sessions
   -- reach the public wrapper, which checks access to the requested farm first.
   -- Reachable by the service role directly. Everything else in `app` is reached ONLY
-  -- through a public.cron_* wrapper — PostgREST exposes `public` alone, so an app schema
+  -- through a public.cron_* wrapper, PostgREST exposes `public` alone, so an app schema
   -- function is not callable over REST regardless of its grants.
   v_svc_ok text[] := array[
     'ex_vat_cents','vat_of_incl_cents','is_farm_billing_admin','billing_active_price',
@@ -1344,7 +1344,7 @@ declare
     'billing_reopen_subscription'];
   -- PUBLIC wrappers a signed-in user may call. Until 20260910230000 this list was empty
   -- and did not exist, because every public.billing_* wrapper raises an invoice, settles a
-  -- payment or reads a charging credential — a blanket refusal was the whole rule.
+  -- payment or reads a charging credential, a blanket refusal was the whole rule.
   --
   -- A member of this list has to pass all four: it only READS; it is scoped to a farm the
   -- caller can already reach (public.farm_vehicle_allowance filters on app.has_farm_access,
@@ -1355,7 +1355,7 @@ declare
   v_pub_auth_ok text[] := array['farm_vehicle_allowance', 'farm_billing_gate'];
   r record; n integer := 0;
 begin
-  raise notice '── BILLING (j): every billing function locked down ──────────────';
+  raise notice '== BILLING (j): every billing function locked down ==============';
 
   for r in
     select p.oid, n2.nspname, p.proname, p.prosecdef, p.proconfig
@@ -1369,7 +1369,7 @@ begin
     -- The trap this project has hit twice: a function with no grant statement at all is
     -- born EXECUTE TO PUBLIC.
     if has_function_privilege('public', r.oid, 'EXECUTE') then
-      raise exception 'BILLING FAIL [j]: %.% is executable by PUBLIC — the PostgreSQL default '
+      raise exception 'BILLING FAIL [j]: %.% is executable by PUBLIC, the PostgreSQL default '
         'that put app.stock_needs_reorder and public._f14_probe on the wrong side of the '
         'fence', r.nspname, r.proname;
     end if;
@@ -1386,13 +1386,13 @@ begin
     end if;
     if r.nspname = 'app' and r.proname = any (v_auth_ok)
        and not has_function_privilege('authenticated', r.oid, 'EXECUTE') then
-      raise exception 'BILLING FAIL [j]: app.% lost its `authenticated` grant — the billing '
+      raise exception 'BILLING FAIL [j]: app.% lost its `authenticated` grant, the billing '
         'screen cannot render its own prices', r.proname;
     end if;
 
     if r.nspname = 'public' and not has_function_privilege('service_role', r.oid, 'EXECUTE') then
       raise exception 'BILLING FAIL [j]: the cron wrapper public.% is not executable by '
-        'service_role — the nightly route cannot run it', r.proname;
+        'service_role, the nightly route cannot run it', r.proname;
     end if;
     if r.nspname = 'app'
        and has_function_privilege('service_role', r.oid, 'EXECUTE')
@@ -1445,7 +1445,7 @@ end $$;
 do $$
 declare r record; v_cost bigint; v_pe bigint; v_pd bigint; v_pp bigint;
 begin
-  raise notice '── BILLING (k): no PayFast / partner-ledger regression ──────────';
+  raise notice '== BILLING (k): no PayFast / partner-ledger regression ==========';
 
   for r in
     select n2.nspname, p.proname, p.prosrc
@@ -1461,7 +1461,7 @@ begin
   loop
     if r.prosrc ~* '(partner_documents|partner_payments|partner_expenses|payfast)' then
       raise exception 'BILLING FAIL [k]: %.% references the partner ledger or PayFast. This is '
-        'farms paying Rapid Rise for software — one direction, one relationship — and it '
+        'farms paying Rapid Rise for software, one direction, one relationship, and it '
         'must never become the money moving between a farm and its contractors.',
         r.nspname, r.proname;
     end if;
@@ -1502,7 +1502,7 @@ declare
   m1 bigint; j1 bigint; c1 bigint; i1 bigint; s1 bigint;
   v_plan farm_plan; v_prev farm_plan; v_status billing_subscription_status; n integer;
 begin
-  raise notice '── BILLING (l): downgrade preserves every record ────────────────';
+  raise notice '== BILLING (l): downgrade preserves every record ================';
 
   select count(*) into m0 from machines     where farm_id = v_farm and deleted_at is null;
   select count(*) into j0 from job_cards    where farm_id = v_farm and deleted_at is null;
@@ -1547,7 +1547,7 @@ begin
   select count(*) into i1 from billing_invoices where farm_id = v_farm and deleted_at is null;
   select count(*) into s1 from billing_asset_snapshots where farm_id = v_farm;
   if m1 <> m0 or j1 <> j0 or c1 <> c0 or i1 <> i0 or s1 <> s0 then
-    raise exception 'BILLING FAIL [l]: a downgrade DELETED data — machines %→%, job cards %→%, '
+    raise exception 'BILLING FAIL [l]: a downgrade DELETED data, machines %→%, job cards %→%, '
       'cost entries %→%, invoices %→%, snapshots %→%. Never delete a customer''s records for '
       'non-payment.', m0, m1, j0, j1, c0, c1, i0, i1, s0, s1;
   end if;
@@ -1572,8 +1572,8 @@ end $$;
 -- (m) The RPC surface the application actually calls.
 --
 -- This section exists because its absence cost the entire feature. Every engine
--- function lives in schema `app` and is revoked from everyone — correct, they move
--- money — but PostgREST exposes `public` and `graphql_public` ONLY. So each
+-- function lives in schema `app` and is revoked from everyone, correct, they move
+-- money, but PostgREST exposes `public` and `graphql_public` ONLY. So each
 -- `supabase.rpc("billing_…")` in src/lib/billing/service.ts resolved to no function
 -- at all, and the charging path failed at its first statement: raising an invoice,
 -- claiming a charge, settling an attempt, listing what was due.
@@ -1587,7 +1587,7 @@ end $$;
 -- sites. Parameter names matter as much as the function name: PostgREST resolves by
 -- the named arguments in the JSON body, so a rename breaks the call as completely as
 -- a deletion. If you change either, change src/lib/billing/service.ts in the same
--- commit — that is the whole point of this section.
+-- commit, that is the whole point of this section.
 -- ═════════════════════════════════════════════════════════════════════════════
 do $$
 declare
@@ -1596,7 +1596,7 @@ declare
   v_missing text := '';
   v_leaked  text := '';
 begin
-  raise notice '── BILLING (m): the rpc surface service.ts calls ─────────────────';
+  raise notice '== BILLING (m): the rpc surface service.ts calls =================';
 
   for r in
     select * from (values
@@ -1673,7 +1673,7 @@ begin
         v_missing := v_missing || ' service_role EXECUTE on public.' || r.fn;
       end if;
       -- `anon` is refused for everything, without exception. `authenticated` is refused
-      -- for everything that moves money — which is all of these but one. See the
+      -- for everything that moves money, which is all of these but one. See the
       -- v_pub_auth_ok note in section (j) for the four tests that one had to pass.
       if has_function_privilege('anon', v_oid, 'EXECUTE')
          or (has_function_privilege('authenticated', v_oid, 'EXECUTE') and not r.browser_ok) then
@@ -1768,11 +1768,11 @@ values ('b1800000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-0000000
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
 values ('b1800000-0000-0000-0000-000000000009', 'b1000000-0000-0000-0000-000000000009', 0,
-  'FleetWise complete — 1 vehicle(s)', 1, 1, 8900, 8900, 8900, 0);
+  'FleetWise complete, 1 vehicle(s)', 1, 1, 8900, 8900, 8900, 0);
 
 update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000009';
 
--- ── The four rungs, each measured against the SETTING that produced it ───────
+-- == The four rungs, each measured against the SETTING that produced it =======
 do $$
 declare
   v_sub   uuid := 'b1600000-0000-0000-0000-000000000009';
@@ -1783,7 +1783,7 @@ declare
   v_gretry integer;
   i       integer;
 begin
-  raise notice '── BILLING (n): the dunning ladder, driven ──────────────────────';
+  raise notice '== BILLING (n): the dunning ladder, driven ======================';
 
   select retry_offsets_days, grace_days, grace_retry_days into v_off, v_grace, v_gretry
     from billing_settings where singleton;
@@ -1792,7 +1792,7 @@ begin
   end if;
 
   -- Each failure inside the ladder must land past_due, count up by exactly one, and set
-  -- the retry date from the SETTING at that rung — not from a constant in the function.
+  -- the retry date from the SETTING at that rung, not from a constant in the function.
   for i in 1 .. array_length(v_off, 1) loop
     perform app.billing_register_failure(v_sub, 'test decline ' || i);
     select * into s from billing_subscriptions where id = v_sub;
@@ -1841,7 +1841,7 @@ begin
   if v_gretry > 0 then
     if s.next_retry_on is distinct from (current_date + v_gretry) then
       raise exception 'BILLING FAIL [n]: grace set next_retry_on to %, expected % '
-        '(grace_retry_days = % from settings) — a card that failed on the 1st very often '
+        '(grace_retry_days = % from settings), a card that failed on the 1st very often '
         'works on the 25th, and nothing would ask', s.next_retry_on,
         current_date + v_gretry, v_gretry;
     end if;
@@ -1863,10 +1863,10 @@ begin
   raise notice '   % rungs + grace, each date from billing_settings', array_length(v_off, 1);
 end $$;
 
--- ── The ladder follows the POLICY, not a constant ────────────────────────────
+-- == The ladder follows the POLICY, not a constant ============================
 -- The offsets and the grace period are configuration (founder decision #9, still
 -- PROPOSED). If the engine had them baked in, every assertion above would still pass
--- while the setting on the screen did nothing — the "captured, stored, then ignored"
+-- while the setting on the screen did nothing, the "captured, stored, then ignored"
 -- failure this project has already found twice on the partner side.
 do $$
 declare
@@ -1907,10 +1907,10 @@ begin
   update billing_settings
      set retry_offsets_days = v_old_off, grace_days = v_old_grace where singleton;
 
-  raise notice '   the ladder reads billing_settings — a shorter policy shortens it';
+  raise notice '   the ladder reads billing_settings, a shorter policy shortens it';
 end $$;
 
--- ── Grace expiring, and the whole way back ───────────────────────────────────
+-- == Grace expiring, and the whole way back ===================================
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000009';
@@ -1965,7 +1965,7 @@ begin
   raise notice '   grace expired → downgraded → paid → restored, nothing forgotten';
 end $$;
 
--- ── Recovering from the MIDDLE of the ladder, not only from the bottom ───────
+-- == Recovering from the MIDDLE of the ladder, not only from the bottom =======
 -- The likely case: a farmer notices the email at rung two and pays. If restore only
 -- worked from `downgraded`, they would keep being chased after settling.
 do $$
@@ -1993,7 +1993,7 @@ begin
   raise notice '   paying mid-ladder clears the chase, not just the downgrade';
 end $$;
 
--- ── A cancelling subscription comes back non_renewing, not active ────────────
+-- == A cancelling subscription comes back non_renewing, not active ============
 -- Someone who cancelled and then paid an outstanding invoice has settled a debt, not
 -- changed their mind. Restoring them to `active` would silently re-subscribe them.
 do $$
@@ -2017,7 +2017,7 @@ begin
   raise notice '   paying while cancelling settles the debt without re-subscribing';
 end $$;
 
--- ── Telling them: the failure notice is claimed exactly once ─────────────────
+-- == Telling them: the failure notice is claimed exactly once =================
 do $$
 declare
   v_att uuid := 'b1a10000-0000-0000-0000-000000000009';
@@ -2041,7 +2041,7 @@ begin
     raise exception 'BILLING FAIL [n]: the first claim on a failure notice was refused';
   end if;
   if v_second then
-    raise exception 'BILLING FAIL [n]: the SAME failure notice was claimed twice — the farm '
+    raise exception 'BILLING FAIL [n]: the SAME failure notice was claimed twice, the farm '
       'would be emailed about one decline more than once';
   end if;
 
@@ -2060,7 +2060,7 @@ end $$;
 -- `exp_month`/`exp_year` had been stored since the table was created and read by
 -- NOTHING. A card lasts about three years; on the day it stops, the stored authorization
 -- fails and the farm is walked down the entire dunning ladder as though they had refused
--- to pay. They did not refuse — nobody told them.
+-- to pay. They did not refuse, nobody told them.
 --
 -- The arithmetic is the part most likely to be quietly wrong, and wrong by exactly one
 -- month: "12/28" on a card means the END of December 2028, not the 1st. A month early and
@@ -2081,7 +2081,7 @@ do $$
 declare
   v_d date;
 begin
-  raise notice '── BILLING (o): card expiry, told before it stops ───────────────';
+  raise notice '== BILLING (o): card expiry, told before it stops ===============';
 
   -- The LAST day of the printed month, in every shape a provider sends.
   v_d := app.billing_card_expiry_on('12', '2028');
@@ -2091,7 +2091,7 @@ begin
 
   v_d := app.billing_card_expiry_on('02', '2028');
   if v_d is distinct from date '2028-02-29' then
-    raise exception 'BILLING FAIL [o]: 02/2028 resolved to % — a leap February is 29 days', v_d;
+    raise exception 'BILLING FAIL [o]: 02/2028 resolved to %, a leap February is 29 days', v_d;
   end if;
 
   v_d := app.billing_card_expiry_on('02', '2027');
@@ -2111,8 +2111,8 @@ begin
     raise exception 'BILLING FAIL [o]: unpadded 3/2029 resolved to %, expected 2029-03-31', v_d;
   end if;
 
-  -- Provider data is text and may be anything. Unreadable is NULL — a card this engine
-  -- says nothing about — never an exception raised inside a 3am cron.
+  -- Provider data is text and may be anything. Unreadable is NULL, a card this engine
+  -- says nothing about, never an exception raised inside a 3am cron.
   if app.billing_card_expiry_on('ab', '2028') is not null then
     raise exception 'BILLING FAIL [o]: a non-numeric month produced a date';
   end if;
@@ -2130,7 +2130,7 @@ begin
   raise notice '   expiry is the last day of the printed month, leap years included';
 end $$;
 
--- ── Who is listed, and who deliberately is not ──────────────────────────────
+-- == Who is listed, and who deliberately is not ==============================
 do $$
 declare
   v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
@@ -2196,7 +2196,7 @@ begin
   raise notice '   expiring and expired listed; cancelled and non-default are not';
 end $$;
 
--- ── Told once, not every night ──────────────────────────────────────────────
+-- == Told once, not every night ==============================================
 do $$
 declare
   v_farm uuid := 'b1000000-0000-0000-0000-000000000009';
@@ -2221,17 +2221,17 @@ begin
    where farm_id = v_farm and template = 'billing_card_expiring';
 
   if n2 <> n1 then
-    raise exception 'BILLING FAIL [o]: three passes produced % alerts, expected % — a farmer '
+    raise exception 'BILLING FAIL [o]: three passes produced % alerts, expected %, a farmer '
       'told nightly for six weeks stops reading them', n2 - n0, n1 - n0;
   end if;
 
   raise notice '   one alert per card, however many nights the cron runs';
 end $$;
 
--- ── The renderer knows every template this database emits ──────────────────
+-- == The renderer knows every template this database emits ==================
 -- Four billing templates were being WRITTEN by the dunning engine and rendered by
 -- nothing: `formatNotification` ends `default: return template`, so a farmer whose card
--- was declined read the literal string "billing_payment_failed" in their alert centre —
+-- was declined read the literal string "billing_payment_failed" in their alert centre -
 -- the same failure wave 4b found on /reports/schedules, on the one message that most has
 -- to be legible.
 --
@@ -2268,7 +2268,7 @@ begin
   for r in select distinct template from notifications where template like 'billing%' loop
     if not (r.template = any (v_known)) then
       raise exception 'BILLING FAIL [o]: this database emits notification template "%" and '
-        'src/lib/notifications/format.ts has no case for it — it renders as its own '
+        'src/lib/notifications/format.ts has no case for it, it renders as its own '
         'template name in the farmer''s alert centre', r.template;
     end if;
   end loop;
@@ -2289,21 +2289,21 @@ end $$;
 -- correct: the function read back the value the TEST had supplied instead of the value
 -- IT had written, and produced the right answer for the wrong reason.
 --
--- What the defect actually did (measured, not reasoned about — three consecutive billing
+-- What the defect actually did (measured, not reasoned about, three consecutive billing
 -- dates, moving only `next_billing_on`):
 --
 --     run 1  ->  1 invoice   10 Sep .. 09 Oct, next_billing_on 10 Oct
 --     run 2  ->  0 invoices  period UNCHANGED, next_billing_on dragged back to today
 --     run 3  ->  0 invoices  identical
 --
--- Every farm was invoiced ONCE, ever. There is no error and no alert — the function
--- returns 0, which the cron reports as `generate_invoices: ok` — so the only symptom is
+-- Every farm was invoiced ONCE, ever. There is no error and no alert, the function
+-- returns 0, which the cron reports as `generate_invoices: ok`, so the only symptom is
 -- money that stops arriving, months later, for a customer who is still using the product.
 --
 -- The clock is advanced here by moving `next_billing_on` and NOTHING else, because that
 -- is the only field that really changes when a month passes. The period the generator
 -- then chooses must follow `current_period_end + 1`, not the date the cron happened to
--- fire — which is also why the third run below is deliberately three days LATE.
+-- fire, which is also why the third run below is deliberately three days LATE.
 -- ═════════════════════════════════════════════════════════════════════════════
 
 insert into farms (id, name, plan, status, billing_period, billing_email) values
@@ -2343,7 +2343,7 @@ declare
   seq1    bigint;
   i       integer;
 begin
-  raise notice '── BILLING (p): consecutive periods, generator only ─────────────';
+  raise notice '== BILLING (p): consecutive periods, generator only =============';
 
   -- POSITIVE CONTROL. Nothing exists yet, so "a second invoice appeared" cannot be an
   -- artifact of a fixture that already had one.
@@ -2389,12 +2389,12 @@ begin
     -- The symptom a human would eventually see: the row stuck on "due today" for ever.
     if s.next_billing_on <= current_date then
       raise exception 'BILLING FAIL [p]: after billing date % the subscription is still due on % '
-        '(today is %) — it will be reconsidered every night and produce nothing',
+        '(today is %), it will be reconsidered every night and produce nothing',
         i, s.next_billing_on, current_date;
     end if;
     if s.next_billing_on is distinct from (inv.period_end + 1) then
       raise exception 'BILLING FAIL [p]: next_billing_on is % but the period just billed ends % '
-        '— the next charge would not line up with the period it pays for',
+        '- the next charge would not line up with the period it pays for',
         s.next_billing_on, inv.period_end;
     end if;
     if s.current_period_start is distinct from inv.period_start
@@ -2404,12 +2404,12 @@ begin
         inv.period_start, inv.period_end;
     end if;
 
-    -- CONTIGUITY. Not merely "a second invoice exists" — the second period must begin the
+    -- CONTIGUITY. Not merely "a second invoice exists", the second period must begin the
     -- day after the first ended. A gap is a month nobody is billed for; an overlap is a
     -- month billed twice, and the customer notices that one.
     if prev.id is not null then
       if inv.period_start <> prev.period_end + 1 then
-        raise exception 'BILLING FAIL [p]: period % starts % but the previous one ended % — '
+        raise exception 'BILLING FAIL [p]: period % starts % but the previous one ended %, '
           'that is a % day %', i, inv.period_start, prev.period_end,
           abs(inv.period_start - (prev.period_end + 1)),
           case when inv.period_start > prev.period_end + 1 then 'gap' else 'overlap' end;
@@ -2434,17 +2434,17 @@ begin
 
   -- Invoice numbering. Every failed insert inside the generator still burns a value off
   -- the sequence, so the broken version left permanent gaps in the numbers a customer and
-  -- an auditor both read — the sequence had reached 3 while exactly one invoice existed.
+  -- an auditor both read, the sequence had reached 3 while exactly one invoice existed.
   select last_value into seq1 from billing_invoice_ref_seq;
   if seq1 - seq0 <> 3 then
-    raise exception 'BILLING FAIL [p]: 3 invoices consumed % invoice numbers — the numbering '
+    raise exception 'BILLING FAIL [p]: 3 invoices consumed % invoice numbers, the numbering '
       'now has permanent gaps in it', seq1 - seq0;
   end if;
 
   raise notice '   3 consecutive monthly periods, no gap, no overlap, 3 numbers used';
 end $$;
 
--- ── The same thing on an ANNUAL term, where a lost period costs a year ───────
+-- == The same thing on an ANNUAL term, where a lost period costs a year =======
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000012';
@@ -2475,7 +2475,7 @@ begin
   -- It has to survive into the SECOND year too, or year two is quietly repriced.
   if b.months_charged <> a.months_charged then
     raise exception 'BILLING FAIL [p]: annual year one charged % months and year two charged % '
-      '— the discount does not survive a renewal', a.months_charged, b.months_charged;
+      '- the discount does not survive a renewal', a.months_charged, b.months_charged;
   end if;
   if b.unit_price_incl_cents <> a.unit_price_incl_cents then
     raise exception 'BILLING FAIL [p]: year two repriced from % to % without anybody deciding to',
@@ -2489,7 +2489,7 @@ end $$;
 -- ═════════════════════════════════════════════════════════════════════════════
 -- (q) The other end of the `unknown` guard: something has to let go
 --
--- Section (g) proves an `unknown` attempt BLOCKS its invoice, which is exactly right —
+-- Section (g) proves an `unknown` attempt BLOCKS its invoice, which is exactly right -
 -- charging again to find out what happened is how a farm gets billed twice. But nothing
 -- in this file proved anything ever UNBLOCKS it, and until this week nothing did: a
 -- charge whose request never reached Paystack sat in `unknown` for ever. The reconciler
@@ -2500,7 +2500,7 @@ end $$;
 --
 -- `src/lib/billing/worker.ts` now settles such an attempt `abandoned`. That is a claim
 -- about SQL as much as about TypeScript, and this section is the SQL half: `abandoned`
--- must free the invoice, and — the part that is easy to get wrong — must NOT dun a farm
+-- must free the invoice, and, the part that is easy to get wrong, must NOT dun a farm
 -- whose card is perfectly good and who has done nothing at all.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -2537,7 +2537,7 @@ values ('b1800000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-0000000
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
 values ('b1800000-0000-0000-0000-000000000013', 'b1000000-0000-0000-0000-000000000013', 0,
-  'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
+  'FleetWise complete, 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
 
 update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000013';
 
@@ -2551,7 +2551,7 @@ declare
   s1     public.billing_subscriptions%rowtype;
   n      bigint;
 begin
-  raise notice '── BILLING (q): a jammed unknown can be let go, without dunning ─';
+  raise notice '== BILLING (q): a jammed unknown can be let go, without dunning =';
 
   select * into s0 from billing_subscriptions where id = v_sub;
 
@@ -2593,7 +2593,7 @@ begin
   -- `app.billing_register_failure` and started them down the ladder towards a downgrade.
   --
   -- Asserted BEFORE the queue check below, deliberately. `billing_register_failure` also
-  -- sets `next_retry_on`, which takes the invoice off the queue as a side effect — so in
+  -- sets `next_retry_on`, which takes the invoice off the queue as a side effect, so in
   -- the other order a mutant that duns on `abandoned` is caught by the queue assertion
   -- and this one, the one that actually states the property, never fires at all.
   select * into s1 from billing_subscriptions where id = v_sub;
@@ -2602,7 +2602,7 @@ begin
      or s1.next_retry_on is distinct from s0.next_retry_on
      or s1.grace_ends_on is distinct from s0.grace_ends_on then
     raise exception 'BILLING FAIL [q]: a request that never reached the provider moved the farm '
-      'from %/% to %/% — their card is fine and they have done nothing',
+      'from %/% to %/%, their card is fine and they have done nothing',
       s0.status, s0.failed_attempt_count, s1.status, s1.failed_attempt_count;
   end if;
 
@@ -2617,7 +2617,7 @@ begin
   select count(*) into n from app.due_billing_charges(50) d where d.invoice_id = v_inv;
   if n <> 1 then
     raise exception 'BILLING FAIL [q]: after the attempt was closed the invoice is still not '
-      'offered for charging (% rows) — it is jammed for ever and the farm silently stops '
+      'offered for charging (% rows), it is jammed for ever and the farm silently stops '
       'being billed', n;
   end if;
 
@@ -2627,7 +2627,7 @@ begin
   perform app.settle_billing_attempt(v_att, 'failed', null, null, null, 'Insufficient funds');
   select * into s1 from billing_subscriptions where id = v_sub;
   if s1.status <> 'past_due' or s1.failed_attempt_count <> s0.failed_attempt_count + 1 then
-    raise exception 'BILLING FAIL [q]: a real decline left the subscription at %/% — the '
+    raise exception 'BILLING FAIL [q]: a real decline left the subscription at %/%, the '
       '"abandoned changes nothing" assertion above therefore proves nothing',
       s1.status, s1.failed_attempt_count;
   end if;
@@ -2637,7 +2637,7 @@ end $$;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- (r) Who may be charged, and when — the three ways this ledger got it wrong
+-- (r) Who may be charged, and when, the three ways this ledger got it wrong
 --
 -- S7  Nothing on the charging path ever looked at the FARM. Every condition in the
 --     generator and in the charging shortlist is about the SUBSCRIPTION row, so a farm
@@ -2648,13 +2648,13 @@ end $$;
 --     timer. So after a decline the owner's "Try again" answered "nothing is due" for
 --     three days, while the invoice was unpaid and the farm was walking towards a
 --     downgrade. And once retries are exhausted the subscription is `grace` and then
---     `downgraded` — neither is in that shortlist, so from that moment the stored card
+--     `downgraded`, neither is in that shortlist, so from that moment the stored card
 --     was never presented again by anything at all.
 --
 -- S5  `app.billing_restore_after_payment` read only `cancel_at_period_end`, so a payment
 --     landing after an IMMEDIATE cancellation set the subscription back to `active` with
 --     `ended_on` sitting in the past. Exactly what happens when somebody cancels while a
---     charge is in flight — which is the entire premise of the `unknown` state.
+--     charge is in flight, which is the entire premise of the `unknown` state.
 --
 -- Its own fixture: four farms in four different conditions, because the whole point is
 -- that the condition of the FARM is what these functions were not reading.
@@ -2674,7 +2674,7 @@ insert into machines (id, farm_id, name, type, meter_type, status) values
   ('b1300000-0000-0000-0000-000000000161', 'b1000000-0000-0000-0000-000000000016', 'Deleted Tractor',   'tractor', 'hours', 'active'),
   ('b1300000-0000-0000-0000-000000000171', 'b1000000-0000-0000-0000-000000000017', 'Ended Tractor',     'tractor', 'hours', 'active');
 
--- All four due today, all four with both period columns NULL — the state
+-- All four due today, all four with both period columns NULL, the state
 -- `app.start_billing_subscription` leaves and the state the generator selects on.
 insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
   current_period_start, current_period_end, next_billing_on) values
@@ -2696,13 +2696,13 @@ update billing_subscriptions s set default_payment_method_id = pm.id
    and s.id in ('b1600000-0000-0000-0000-000000000014','b1600000-0000-0000-0000-000000000015',
                 'b1600000-0000-0000-0000-000000000016','b1600000-0000-0000-0000-000000000017');
 
--- ── S7(a): a farm that has left is not sold another month ───────────────────
+-- == S7(a): a farm that has left is not sold another month ===================
 do $$
 declare
   v_live uuid := 'b1600000-0000-0000-0000-000000000014';
   r record; n bigint;
 begin
-  raise notice '── BILLING (r): who may be charged, and when ────────────────────';
+  raise notice '== BILLING (r): who may be charged, and when ====================';
 
   -- POSITIVE CONTROL FIRST. If the live farm is not invoiced, every zero below is a
   -- statement about a broken fixture rather than about the gate.
@@ -2728,7 +2728,7 @@ begin
   raise notice '   generation: active invoiced, suspended/deleted/cancelled not';
 end $$;
 
--- ── S7(b): and is not charged — with one deliberate exception ───────────────
+-- == S7(b): and is not charged, with one deliberate exception ===============
 -- Invoices raised by hand rather than by the generator, because the generator's own
 -- invoice falls due `payment_terms_days` from now (7 by default) and so is not yet
 -- chargeable. These are dated in the past, which is the state that matters here.
@@ -2743,7 +2743,7 @@ values
 
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
-select i.id, i.farm_id, 0, 'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0
+select i.id, i.farm_id, 0, 'FleetWise complete, 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0
   from billing_invoices i where i.invoice_ref in ('B14-INV-0001','B15-INV-0001','B16-INV-0001','B17-INV-0001');
 
 update billing_invoices set status = 'open'
@@ -2773,7 +2773,7 @@ begin
   raise notice '   charging: active + suspended offered, deleted + cancelled not';
 end $$;
 
--- ── S11: the retry timer paces the MACHINE. It must not refuse a person. ────
+-- == S11: the retry timer paces the MACHINE. It must not refuse a person. ====
 do $$
 declare
   v_sub uuid := 'b1600000-0000-0000-0000-000000000014';
@@ -2804,7 +2804,7 @@ begin
   select count(*) into auto   from app.due_billing_charges(50) d where d.invoice_id = v_inv;
   select count(*) into manual from app.invoice_chargeable_now(v_inv);
   if auto <> 0 then
-    raise exception 'BILLING FAIL [r]: the nightly pass ignored its own retry window (% rows) — '
+    raise exception 'BILLING FAIL [r]: the nightly pass ignored its own retry window (% rows), '
       'a ladder that charges every night is not a ladder', auto;
   end if;
   if manual <> 1 then
@@ -2843,7 +2843,7 @@ begin
   raise notice '   the person can pay at every rung; the machine still waits its turn';
 end $$;
 
--- ── S11: and the manual path relaxes NOTHING else ───────────────────────────
+-- == S11: and the manual path relaxes NOTHING else ===========================
 do $$
 declare
   v_inv uuid := 'b1800000-0000-0000-0000-000000000014';
@@ -2861,7 +2861,7 @@ begin
   select count(*) into n from app.invoice_chargeable_now(v_inv);
   if n <> 0 then
     raise exception 'BILLING FAIL [r]: an invoice with an attempt IN FLIGHT is still offered to '
-      'the manual path (% rows) — pressing the button twice would charge twice', n;
+      'the manual path (% rows), pressing the button twice would charge twice', n;
   end if;
 
   perform app.settle_billing_attempt(v_att, 'unknown', null, null, null, 'connection reset');
@@ -2871,7 +2871,7 @@ begin
       '(% rows). Recovery is verifying that reference, never a fresh charge.', n;
   end if;
 
-  -- A cancelled farm cannot be charged by hand either — the gate is about the farm, not
+  -- A cancelled farm cannot be charged by hand either, the gate is about the farm, not
   -- about which button was pressed.
   select count(*) into n from app.invoice_chargeable_now('b1800000-0000-0000-0000-000000000017');
   if n <> 0 then
@@ -2883,7 +2883,7 @@ begin
   raise notice '   the manual path relaxes the timer and nothing else';
 end $$;
 
--- ── S5: a payment never brings a cancelled subscription back to life ────────
+-- == S5: a payment never brings a cancelled subscription back to life ========
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000017';
@@ -2893,7 +2893,7 @@ declare
   v_end  date;
 begin
   -- The state `setCancellation({immediate:true})` writes, plus a farm mid-ladder and a
-  -- plan already taken down by a downgrade — the worst case, and a realistic one: a
+  -- plan already taken down by a downgrade, the worst case, and a realistic one: a
   -- farm cancels precisely because they have been downgraded.
   update farms set plan = 'essential' where id = v_farm;
   update billing_subscriptions
@@ -2908,7 +2908,7 @@ begin
   select * into s from billing_subscriptions where id = v_sub;
   if s.status <> 'cancelled' then
     raise exception 'BILLING FAIL [r]: a payment resubscribed a farm that had CANCELLED '
-      '(status is now %). They would be billed again next month having done nothing — and '
+      '(status is now %). They would be billed again next month having done nothing, and '
       'this is exactly what happens when somebody cancels while a charge is in flight.',
       s.status;
   end if;
@@ -2937,7 +2937,7 @@ begin
   select * into s from billing_subscriptions where id = v_sub;
   if s.status <> 'active' then
     raise exception 'BILLING FAIL [r]: a live past_due subscription was not restored to active '
-      '(got %) — the cancelled assertion above therefore proves nothing', s.status;
+      '(got %), the cancelled assertion above therefore proves nothing', s.status;
   end if;
   select plan into v_plan from farms where id = v_farm;
   if v_plan <> 'complete' then
@@ -2970,7 +2970,7 @@ end $$;
 --
 -- A PRICE RISE DOES NOT REPRICE EXISTING CUSTOMERS. The generator resolved its price
 -- with `app.billing_active_price`, and `billing_price_versions_active_uq` permits one
--- active row per (plan, period) — so publishing a new price necessarily retired the old
+-- active row per (plan, period), so publishing a new price necessarily retired the old
 -- one and moved EVERY existing farm onto the new figure at their next invoice. Silently:
 -- a farmer's debit order would just go up.
 --
@@ -3012,11 +3012,11 @@ values ('b1800000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-0000000
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
 values ('b1800000-0000-0000-0000-000000000020', 'b1000000-0000-0000-0000-000000000020', 0,
-  'FleetWise complete — 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
+  'FleetWise complete, 1 vehicle(s)', 1, 1, 1234, 1234, 1234, 0);
 
 update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000020';
 
--- ── The card is presented again while the farm is in grace ──────────────────
+-- == The card is presented again while the farm is in grace ==================
 do $$
 declare
   v_sub    uuid := 'b1600000-0000-0000-0000-000000000020';
@@ -3028,7 +3028,7 @@ declare
   i        integer;
   n        bigint;
 begin
-  raise notice '── BILLING (s): grace retries, and a price nobody agreed to ─────';
+  raise notice '== BILLING (s): grace retries, and a price nobody agreed to =====';
 
   select retry_offsets_days, grace_retry_days into v_off, v_gretry
     from billing_settings where singleton;
@@ -3077,13 +3077,13 @@ begin
       'they are downgraded without ever being asked twice.', n;
   end if;
 
-  -- That retry fails too. The date must re-arm, and grace must NOT be extended by it —
+  -- That retry fails too. The date must re-arm, and grace must NOT be extended by it -
   -- three failed retries would otherwise buy three extra weeks of full access.
   --
   -- Grace is AGED five days first, and that is load-bearing. Without it the assertion
   -- cannot fail: a mutant that recomputes `current_date + grace_days` instead of
   -- coalescing produces the identical date, because everything here happens on one day.
-  -- Ageing the row is the same move section (p) uses to simulate a month passing — the
+  -- Ageing the row is the same move section (p) uses to simulate a month passing, the
   -- only way a test can move a clock it does not control.
   update billing_subscriptions set grace_ends_on = grace_ends_on - 5 where id = v_sub;
   v_ends := (select grace_ends_on from billing_subscriptions where id = v_sub);
@@ -3098,18 +3098,18 @@ begin
       s.next_retry_on;
   end if;
   if s.grace_ends_on is distinct from v_ends then
-    raise exception 'BILLING FAIL [s]: a failed grace retry pushed grace from % to % — '
+    raise exception 'BILLING FAIL [s]: a failed grace retry pushed grace from % to %, '
       'failing to pay would then buy more time to not pay', v_ends, s.grace_ends_on;
   end if;
 
   -- Switched OFF, which is what grace_retry_days = 0 means. A null date here must read as
-  -- "do not retry", never as "no reason to wait" — the opposite of what it means on a
+  -- "do not retry", never as "no reason to wait", the opposite of what it means on a
   -- live subscription, and the reason the two arms of that clause are written separately.
   update billing_subscriptions set next_retry_on = null where id = v_sub;
   select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
   if n <> 0 then
     raise exception 'BILLING FAIL [s]: a grace subscription with NO retry date was charged '
-      '(% rows) — with grace_retry_days = 0 that is every night, for the whole grace period', n;
+      '(% rows), with grace_retry_days = 0 that is every night, for the whole grace period', n;
   end if;
 
   -- And a DOWNGRADED farm is still never charged automatically. The ladder has to end
@@ -3118,7 +3118,7 @@ begin
   select count(*) into n from app.due_billing_charges(200) d where d.invoice_id = v_inv;
   if n <> 0 then
     raise exception 'BILLING FAIL [s]: a DOWNGRADED farm is being charged by the nightly pass '
-      '(% rows) — the ladder never ends', n;
+      '(% rows), the ladder never ends', n;
   end if;
   select count(*) into n from app.invoice_chargeable_now(v_inv);
   if n <> 1 then
@@ -3128,7 +3128,7 @@ begin
   raise notice '   grace is retried on its date, not before, and buys no extra time';
 end $$;
 
--- ── A price rise does not reach a farm that already signed up ───────────────
+-- == A price rise does not reach a farm that already signed up ===============
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000021';
@@ -3157,7 +3157,7 @@ begin
   end if;
 
   -- RAPID RISE RAISES ITS PRICES. `billing_price_versions_active_uq` allows one active row
-  -- per (plan, period), so publishing a new price necessarily retires the old one — which
+  -- per (plan, period), so publishing a new price necessarily retires the old one, which
   -- is precisely why the old lookup moved every existing customer without being asked to.
   update billing_price_versions set status = 'retired'
    where id = 'b1500000-0000-0000-0000-000000000001';
@@ -3180,7 +3180,7 @@ begin
   end if;
   if inv.price_version_label <> 'b1-synthetic' then
     raise exception 'BILLING FAIL [s]: the invoice says it was priced at version "%" while '
-      'charging the old figure — one of the two is a lie', inv.price_version_label;
+      'charging the old figure, one of the two is a lie', inv.price_version_label;
   end if;
 
   -- NEGATIVE CONTROL. The new price must genuinely be live, or "unchanged" above is a
@@ -3195,13 +3195,13 @@ begin
   select * into inv from billing_invoices where farm_id = 'b1000000-0000-0000-0000-000000000022';
   if inv.unit_price_incl_cents <> 9999 then
     raise exception 'BILLING FAIL [s]: a NEW customer was charged % rather than the new price '
-      '9999 — the grandfathering assertion above therefore proves nothing',
+      '9999, the grandfathering assertion above therefore proves nothing',
       inv.unit_price_incl_cents;
   end if;
 
   -- CLEARING the pin must NOT reprice them. This is the case that protects every farm
-  -- that existed before pinning did — Rooikoppies on production has a null pin right
-  -- now — because the price they have been paying is already recorded on their own
+  -- that existed before pinning did, Rooikoppies on production has a null pin right
+  -- now, because the price they have been paying is already recorded on their own
   -- invoices. Pinning them at their next invoice instead would grandfather them onto
   -- whatever is active THEN, so a price rise published tomorrow would still reach every
   -- existing customer exactly once, which is the entire thing this is meant to prevent.
@@ -3223,7 +3223,7 @@ begin
   end if;
 
   -- THE DELIBERATE MOVE. A repricing NAMES the version the farm is going onto, because
-  -- an absence is not a decision — clearing a field is a strange way to say "put them on
+  -- an absence is not a decision, clearing a field is a strange way to say "put them on
   -- the new price", and it is the shape most likely to happen by accident.
   update billing_subscriptions set price_version_id = v_new, next_billing_on = current_date
    where id = v_sub;
@@ -3234,14 +3234,14 @@ begin
    where farm_id = v_farm order by period_start desc limit 1;
   if inv.unit_price_incl_cents <> 9999 then
     raise exception 'BILLING FAIL [s]: naming the new version did not move the farm onto '
-      'it (charged %) — so there is no way to reprice anybody at all',
+      'it (charged %), so there is no way to reprice anybody at all',
       inv.unit_price_incl_cents;
   end if;
 
   raise notice '   an existing farm keeps its price; a new one pays the new one';
 end $$;
 
--- ── A pin that no longer fits is not honoured ───────────────────────────────
+-- == A pin that no longer fits is not honoured ===============================
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000021';
@@ -3264,7 +3264,7 @@ begin
 
   if inv.unit_price_incl_cents <> 4444 or inv.months_charged <> 10 then
     raise exception 'BILLING FAIL [s]: after moving to professional/annual the farm was '
-      'charged %c over % months, expected 4444 over 10 — a pin for a plan they are no '
+      'charged %c over % months, expected 4444 over 10, a pin for a plan they are no '
       'longer on was honoured', inv.unit_price_incl_cents, inv.months_charged;
   end if;
 
@@ -3279,7 +3279,7 @@ end $$;
 
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- (t) Changing plan — two half-controls made into one whole one
+-- (t) Changing plan, two half-controls made into one whole one
 --
 -- There are two plans on a farm and that is correct: `farms.plan` is EFFECTIVE (every
 -- entitlement gate resolves from it) and `billing_subscriptions.plan` is COMMERCIAL (what
@@ -3331,7 +3331,7 @@ insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
    'professional', 'monthly', 'active', current_date - 9, current_date + 20, current_date + 21,
    'b1500000-0000-0000-0000-000000000011');
 
--- ── The half that was missing: BOTH plans move, and the money is real ───────
+-- == The half that was missing: BOTH plans move, and the money is real =======
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
@@ -3343,7 +3343,7 @@ declare
   v_plan farm_plan;
   n      bigint;
 begin
-  raise notice '── BILLING (t): a plan change moves the bill AND the features ───';
+  raise notice '== BILLING (t): a plan change moves the bill AND the features ===';
 
   -- The quote, before anything is committed. The screen shows this; the engine must
   -- charge exactly it, or the customer was told one number and billed another.
@@ -3353,7 +3353,7 @@ begin
   end if;
   if q.days_in_period <> 30 or q.days_remaining <> 21 then
     raise exception 'BILLING FAIL [t]: the quote counted % of % days, expected 21 of 30 '
-      '(today counts — somebody upgrading this morning has the whole of today)',
+      '(today counts, somebody upgrading this morning has the whole of today)',
       q.days_remaining, q.days_in_period;
   end if;
   -- (4000 - 2000) x 21/30 = 1400 per vehicle, x 3 vehicles = 4200.
@@ -3372,17 +3372,17 @@ begin
   select * into s from billing_subscriptions where id = v_sub;
   select plan into v_plan from farms where id = v_farm;
   if s.plan <> 'complete' then
-    raise exception 'BILLING FAIL [t]: the COMMERCIAL plan is still % — they are not being '
+    raise exception 'BILLING FAIL [t]: the COMMERCIAL plan is still %, they are not being '
       'billed for what they bought', s.plan;
   end if;
   if v_plan <> 'complete' then
-    raise exception 'BILLING FAIL [t]: the EFFECTIVE plan is still % — they paid more and '
+    raise exception 'BILLING FAIL [t]: the EFFECTIVE plan is still %, they paid more and '
       'got nothing. Every entitlement gate in the product resolves from farms.plan.', v_plan;
   end if;
 
   -- The money, and the invoice saying what it is for.
   if (r->>'charged_cents')::bigint <> q.charge_now_cents then
-    raise exception 'BILLING FAIL [t]: quoted % and charged % — the screen and the engine '
+    raise exception 'BILLING FAIL [t]: quoted % and charged %, the screen and the engine '
       'must not disagree', q.charge_now_cents, (r->>'charged_cents')::bigint;
   end if;
   select * into inv from billing_invoices where id = (r->>'invoice_id')::uuid;
@@ -3391,7 +3391,7 @@ begin
   end if;
   if inv.period_start <> current_date or inv.period_end <> s.current_period_end then
     raise exception 'BILLING FAIL [t]: the pro-rata invoice covers % .. %, expected today .. % '
-      '— they have already paid for the earlier part of this period at the old rate',
+      '- they have already paid for the earlier part of this period at the old rate',
       inv.period_start, inv.period_end, s.current_period_end;
   end if;
   -- The invoice's own arithmetic. `app.billing_derive_invoice_totals` computes
@@ -3421,7 +3421,7 @@ begin
   raise notice '   upgrade: both plans moved, R42,00 charged for 21 of 30 days';
 end $$;
 
--- ── A downgrade takes nothing away from a period they have paid for ─────────
+-- == A downgrade takes nothing away from a period they have paid for =========
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
@@ -3436,7 +3436,7 @@ begin
 
   r := app.change_billing_plan(v_sub, 'professional', 'monthly');
   if r->>'applied' <> 'scheduled' then
-    raise exception 'BILLING FAIL [t]: a downgrade was applied immediately (%) — they paid '
+    raise exception 'BILLING FAIL [t]: a downgrade was applied immediately (%), they paid '
       'for this period at the higher plan', r->>'applied';
   end if;
   if (r->>'effective_on')::date <> s.current_period_end + 1 then
@@ -3473,7 +3473,7 @@ begin
   -- The date arrives.
   update billing_subscriptions set pending_plan_on = current_date where id = v_sub;
   if app.apply_pending_plan_changes() <> 1 then
-    raise exception 'BILLING FAIL [t]: the scheduled change did not land on its date — the '
+    raise exception 'BILLING FAIL [t]: the scheduled change did not land on its date, the '
       'farm goes on being billed for a plan they asked to leave';
   end if;
   select * into s from billing_subscriptions where id = v_sub;
@@ -3496,7 +3496,7 @@ begin
   raise notice '   downgrade: scheduled, nothing taken away, lands on its date';
 end $$;
 
--- ── A term change is scheduled too, in either direction ─────────────────────
+-- == A term change is scheduled too, in either direction =====================
 do $$
 declare
   v_sub uuid := 'b1600000-0000-0000-0000-000000000024';
@@ -3504,7 +3504,7 @@ declare
   s     public.billing_subscriptions%rowtype;
 begin
   -- professional/monthly -> professional/annual: the SAME rank. Not a downgrade, and not
-  -- something to charge for today either — a term is a commitment, and charging ten months
+  -- something to charge for today either, a term is a commitment, and charging ten months
   -- mid-period would bill for time they have not agreed to yet.
   r := app.change_billing_plan(v_sub, 'professional', 'annual');
   if r->>'applied' <> 'scheduled' then
@@ -3533,7 +3533,7 @@ begin
   raise notice '   a term change waits; an upgrade supersedes a queued change';
 end $$;
 
--- ── A farm downgraded for NON-PAYMENT does not buy its features back ────────
+-- == A farm downgraded for NON-PAYMENT does not buy its features back ========
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000025';
@@ -3564,7 +3564,7 @@ begin
   select * into s from billing_subscriptions where id = v_sub;
   if s.plan_before_downgrade <> 'complete' then
     raise exception 'BILLING FAIL [t]: the upgrade was not recorded as what they will be '
-      'restored to (%) — paying would put them back on the plan they just left', s.plan_before_downgrade;
+      'restored to (%), paying would put them back on the plan they just left', s.plan_before_downgrade;
   end if;
 
   -- And paying gives them the plan they actually bought, not the one they had before.
@@ -3578,7 +3578,7 @@ begin
   raise notice '   an upgrade while downgraded is remembered, not granted, until they pay';
 end $$;
 
--- ── The second writer is closed ────────────────────────────────────────────
+-- == The second writer is closed ============================================
 do $$
 declare
   v_farm     uuid := 'b1000000-0000-0000-0000-000000000025';
@@ -3596,7 +3596,7 @@ begin
   if not v_raised then
     select plan into v_plan from farms where id = v_farm;
     raise exception 'BILLING FAIL [t]: a farm with a live subscription had its EFFECTIVE plan '
-      'set to % directly, so the bill and the features are now out of step — which is '
+      'set to % directly, so the bill and the features are now out of step, which is '
       'exactly the defect', v_plan;
   end if;
 
@@ -3611,7 +3611,7 @@ begin
   raise notice '   farms.plan cannot be moved past billing, and unbilled farms are free';
 end $$;
 
--- ── Two changes that deliberately charge nothing, and one that is refused ───
+-- == Two changes that deliberately charge nothing, and one that is refused ===
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000024';
@@ -3650,7 +3650,7 @@ begin
   end if;
   if n1 <> n0 then
     raise exception 'BILLING FAIL [t]: an invoice for % cents was raised. Paystack will not '
-      'process it, so it would sit OPEN for ever — and an open invoice blocks the farm''s '
+      'process it, so it would sit OPEN for ever, and an open invoice blocks the farm''s '
       'next real charge through the in-flight guard. Losing under a rand is cheaper than '
       'jamming somebody''s account.', q.charge_now_cents;
   end if;
@@ -3686,20 +3686,20 @@ end $$;
 --
 -- S4. `app.billing_force_vat_rate` runs BEFORE INSERT OR UPDATE on billing_invoices and
 -- stamps the seller's VAT number onto any row that has none. On an insert that is right.
--- On an UPDATE to an invoice raised BEFORE Rapid Rise registered — every one of which has
--- `seller_vat_number` null by design — it changes a field inside the frozen pricing
+-- On an UPDATE to an invoice raised BEFORE Rapid Rise registered, every one of which has
+-- `seller_vat_number` null by design, it changes a field inside the frozen pricing
 -- snapshot, and `c_billing_invoices_freeze` (which sorts after the `a_` guard) raises.
 --
 -- The cost is not cosmetic. `app.billing_rollup_invoice_payments` updates the invoice when
 -- a payment is recorded, so the first payment against any pre-registration invoice after
--- registering aborted the whole transaction — the one that inserted the payment row and
+-- registering aborted the whole transaction, the one that inserted the payment row and
 -- settled the attempt. Paystack had the money and FleetWise had nothing.
 --
 -- §(h2) already asserted that registering restates no historical invoice. It asserted the
 -- VALUES and never that a later write to such an invoice survives, which is the gap this
 -- section closes.
 --
--- And: `mapStatus` folds Paystack's `reversed` into `failed`, correctly — the money came
+-- And: `mapStatus` folds Paystack's `reversed` into `failed`, correctly, the money came
 -- back, so the invoice is not paid. But `failed` is also what starts the dunning ladder,
 -- and a reversal is our refund or a chargeback: the customer's card worked perfectly.
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -3733,7 +3733,7 @@ update billing_subscriptions set default_payment_method_id = 'b1700000-0000-0000
  where id = 'b1600000-0000-0000-0000-000000000030';
 
 -- Raised while NOT registered: vat_rate_bps 0, seller_vat_number null. That null is the
--- whole problem — it is what the guard reaches for on every later update.
+-- whole problem, it is what the guard reaches for on every later update.
 insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
   period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
   unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
@@ -3745,7 +3745,7 @@ values ('b1800000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-0000000
 insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
   months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
 values ('b1800000-0000-0000-0000-000000000030', 'b1000000-0000-0000-0000-000000000030', 0,
-  'FleetWise complete — 1 vehicle(s)', 1, 1, 5000, 5000, 5000, 0);
+  'FleetWise complete, 1 vehicle(s)', 1, 1, 5000, 5000, 5000, 0);
 
 update billing_invoices set status = 'open' where id = 'b1800000-0000-0000-0000-000000000030';
 
@@ -3759,7 +3759,7 @@ declare
   n      bigint;
   v_raised boolean := false;
 begin
-  raise notice '── BILLING (u): registering for VAT, and a reversal ─────────────';
+  raise notice '== BILLING (u): registering for VAT, and a reversal =============';
 
   select vat_registered, vat_number into v_was_registered, v_was_number
     from billing_settings where singleton;
@@ -3775,7 +3775,7 @@ begin
 
   -- The moment that used to abort: recording a payment against that old invoice. The
   -- rollup updates the invoice, the guard stamps the VAT number onto it, and the freeze
-  -- raises — taking the payment row and the attempt settlement down with it.
+  -- raises, taking the payment row and the attempt settlement down with it.
   begin
     insert into billing_payments (farm_id, invoice_id, amount_incl_cents,
       provider, provider_reference, provider_transaction_id, channel)
@@ -3796,7 +3796,7 @@ begin
   select * into inv from billing_invoices where id = v_inv;
   if inv.seller_vat_number is not null then
     raise exception 'BILLING FAIL [u]: an invoice issued before registration now carries the '
-      'VAT number % — a customer''s copy from last year would restate itself', inv.seller_vat_number;
+      'VAT number %, a customer''s copy from last year would restate itself', inv.seller_vat_number;
   end if;
   if inv.vat_rate_bps <> 0 then
     raise exception 'BILLING FAIL [u]: a pre-registration invoice now charges VAT at %', inv.vat_rate_bps;
@@ -3814,7 +3814,7 @@ begin
     v_raised := true;
   end;
   if not v_raised then
-    raise exception 'BILLING FAIL [u]: the VAT rate on an ISSUED invoice was editable — the '
+    raise exception 'BILLING FAIL [u]: the VAT rate on an ISSUED invoice was editable, the '
       'guard stopped stamping and took the freeze with it';
   end if;
 
@@ -3830,7 +3830,7 @@ begin
   select * into inv from billing_invoices where id = 'b1800000-0000-0000-0000-000000000031';
   if inv.seller_vat_number is distinct from '4991234567' then
     raise exception 'BILLING FAIL [u]: a NEW invoice raised after registering does not carry '
-      'the VAT number (%) — the guard has stopped working entirely', inv.seller_vat_number;
+      'the VAT number (%), the guard has stopped working entirely', inv.seller_vat_number;
   end if;
 
   -- Put the settings back, so nothing after this inherits a registration this section
@@ -3841,7 +3841,7 @@ begin
   raise notice '   a payment lands on a pre-registration invoice, and nothing is restated';
 end $$;
 
--- ── A reversal settles the attempt without dunning the customer ─────────────
+-- == A reversal settles the attempt without dunning the customer =============
 do $$
 declare
   v_inv  uuid := 'b1800000-0000-0000-0000-000000000031';
@@ -3853,8 +3853,8 @@ begin
   update billing_invoices set status = 'open' where id = v_inv;
   select * into s0 from billing_subscriptions where id = v_sub;
 
-  -- The provider says this transaction was REVERSED. The invoice is not paid — that part
-  -- is unchanged — but their card worked, and walking them towards a downgrade for a
+  -- The provider says this transaction was REVERSED. The invoice is not paid, that part
+  -- is unchanged, but their card worked, and walking them towards a downgrade for a
   -- refund we issued is both wrong and the kind of thing that gets talked about.
   v_att := app.claim_billing_charge(v_inv, 'B30-REF-REVERSED', 'charge_authorization', 5000);
   if v_att is null then
@@ -3877,7 +3877,7 @@ begin
   perform app.settle_billing_attempt(v_att, 'failed', null, null, null, 'Insufficient funds');
   select * into s1 from billing_subscriptions where id = v_sub;
   if s1.status <> 'past_due' or s1.failed_attempt_count <> s0.failed_attempt_count + 1 then
-    raise exception 'BILLING FAIL [u]: a real decline left the subscription at %/% — the '
+    raise exception 'BILLING FAIL [u]: a real decline left the subscription at %/%, the '
       'reversal assertion above therefore proves nothing',
       s1.status, s1.failed_attempt_count;
   end if;
@@ -3885,13 +3885,13 @@ begin
   raise notice '   a reversal settles the attempt and leaves the customer alone';
 end $$;
 
--- ── Rapid Rise is told when money goes back, or is being taken back ─────────
+-- == Rapid Rise is told when money goes back, or is being taken back =========
 do $$
 declare
   v_farm uuid := 'b1000000-0000-0000-0000-000000000030';
   n0 bigint; n1 bigint; v_sent integer;
 begin
-  -- A dispute and a refund were `outcome: "ignored"` — recorded in billing_webhook_events,
+  -- A dispute and a refund were `outcome: "ignored"`, recorded in billing_webhook_events,
   -- because every signed delivery is, and then nothing. South Africa gives roughly 48
   -- BUSINESS HOURS to answer a dispute before Paystack accepts it for us and takes the
   -- money out of a payout, so silence is expensive.
@@ -3931,7 +3931,7 @@ end $$;
 -- (v) A quota of vehicle slots, and the ceiling that makes it mean something
 --
 -- Until 20260910230000 billing was purely METERED: count the machines that are not
--- deleted, retired or sold, and charge that many. So the bill moved on its own — add a
+-- deleted, retired or sold, and charge that many. So the bill moved on its own, add a
 -- bakkie in March and March costs R73 more, with nobody having agreed to it and no screen
 -- having offered the choice.
 --
@@ -3954,14 +3954,14 @@ insert into machines (id, farm_id, name, type, meter_type, status) values
   ('b1300000-0000-0000-0000-000000000401', 'b1000000-0000-0000-0000-000000000040', 'Quota Tractor A', 'tractor', 'hours', 'active'),
   ('b1300000-0000-0000-0000-000000000402', 'b1000000-0000-0000-0000-000000000040', 'Quota Tractor B', 'tractor', 'hours', 'active');
 
--- Farm 41 is METERED — the shape every pre-existing subscription has — with four vehicles.
+-- Farm 41 is METERED, the shape every pre-existing subscription has, with four vehicles.
 insert into machines (id, farm_id, name, type, meter_type, status) values
   ('b1300000-0000-0000-0000-000000000411', 'b1000000-0000-0000-0000-000000000041', 'Metered A', 'tractor', 'hours', 'active'),
   ('b1300000-0000-0000-0000-000000000412', 'b1000000-0000-0000-0000-000000000041', 'Metered B', 'tractor', 'hours', 'active'),
   ('b1300000-0000-0000-0000-000000000413', 'b1000000-0000-0000-0000-000000000041', 'Metered C', 'tractor', 'hours', 'active'),
   ('b1300000-0000-0000-0000-000000000414', 'b1000000-0000-0000-0000-000000000041', 'Metered D', 'tractor', 'hours', 'active');
 
--- Farm 42 has NO subscription row at all — a demo farm, or anyone onboarded before billing.
+-- Farm 42 has NO subscription row at all, a demo farm, or anyone onboarded before billing.
 insert into machines (id, farm_id, name, type, meter_type, status) values
   ('b1300000-0000-0000-0000-000000000421', 'b1000000-0000-0000-0000-000000000042', 'No-Sub A', 'tractor', 'hours', 'active');
 
@@ -3972,13 +3972,13 @@ insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
   ('b1600000-0000-0000-0000-000000000041', 'b1000000-0000-0000-0000-000000000041',
    'complete', 'monthly', 'active', null, null, current_date, null);
 
--- ── What is billed: the slots bought, not the vehicles counted ──────────────
+-- == What is billed: the slots bought, not the vehicles counted ==============
 do $$
 declare
   inv   public.billing_invoices%rowtype;
   v_qty integer;
 begin
-  raise notice '── BILLING (v): a quota of slots, and its ceiling ───────────────';
+  raise notice '== BILLING (v): a quota of slots, and its ceiling ===============';
 
   -- Farm 40: three slots bought, two vehicles on file. The invoice is for THREE.
   if app.generate_billing_invoices('b1600000-0000-0000-0000-000000000040') <> 1 then
@@ -3987,12 +3987,12 @@ begin
   select * into inv from billing_invoices where farm_id = 'b1000000-0000-0000-0000-000000000040';
   select app.billable_asset_count('b1000000-0000-0000-0000-000000000040') into v_qty;
   if v_qty <> 2 then
-    raise exception 'BILLING FAIL [v]: the fixture has % vehicles, expected 2 — the point is '
+    raise exception 'BILLING FAIL [v]: the fixture has % vehicles, expected 2, the point is '
       'that the invoice does NOT match this number', v_qty;
   end if;
   if inv.asset_count <> 3 then
     raise exception 'BILLING FAIL [v]: a farm that bought 3 slots and uses 2 was invoiced for % '
-      '— they are paying for what they bought, and the invoice has to say so', inv.asset_count;
+      '- they are paying for what they bought, and the invoice has to say so', inv.asset_count;
   end if;
   if inv.total_incl_cents <> 3 * inv.unit_price_incl_cents then
     raise exception 'BILLING FAIL [v]: the total % does not equal 3 x %',
@@ -4014,14 +4014,14 @@ begin
   raise notice '   the quota farm is billed 3 of 3; the metered farm is billed its 4';
 end $$;
 
--- ── The ceiling, and everything it must NOT refuse ──────────────────────────
+-- == The ceiling, and everything it must NOT refuse ==========================
 do $$
 declare
   v_farm  uuid := 'b1000000-0000-0000-0000-000000000040';
   v_raised boolean;
   n       bigint;
 begin
-  -- One slot left of three. Filling it must work — a ceiling that refuses the last slot
+  -- One slot left of three. Filling it must work, a ceiling that refuses the last slot
   -- somebody paid for is worse than no ceiling, because they can see the number.
   begin
     insert into machines (id, farm_id, name, type, meter_type, status) values
@@ -4071,7 +4071,7 @@ begin
   end;
   if not v_raised then
     raise exception 'BILLING FAIL [v]: a retired machine was returned to service on a farm at '
-      'its ceiling — the fleet grew by one with nobody paying for it';
+      'its ceiling, the fleet grew by one with nobody paying for it';
   end if;
 
   -- And an ordinary edit on a full farm must not fail. A ceiling that stops somebody
@@ -4087,7 +4087,7 @@ begin
   raise notice '   the 4th is refused, a retired one is not, and editing still works';
 end $$;
 
--- ── All-or-nothing, which is what a CSV import needs ────────────────────────
+-- == All-or-nothing, which is what a CSV import needs ========================
 do $$
 declare
   v_farm uuid := 'b1000000-0000-0000-0000-000000000042';
@@ -4095,7 +4095,7 @@ declare
 begin
   -- Give farm 42 a subscription with two slots and one vehicle already on file, then try
   -- to import three at once. A partial import that stopped at the limit would leave a
-  -- farmer believing their fleet was loaded when it was not — worse than a clean refusal.
+  -- farmer believing their fleet was loaded when it was not, worse than a clean refusal.
   insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
     current_period_start, current_period_end, next_billing_on, asset_quota)
   values ('b1600000-0000-0000-0000-000000000042', v_farm, 'complete', 'monthly', 'active',
@@ -4124,7 +4124,7 @@ begin
   raise notice '   an over-quota import writes nothing at all';
 end $$;
 
--- ── Nobody who was here before is locked out ────────────────────────────────
+-- == Nobody who was here before is locked out ================================
 do $$
 declare
   a record;
@@ -4156,7 +4156,7 @@ begin
       'caller could read as a limit', a.remaining;
   end if;
 
-  -- And a farm with NO SUBSCRIPTION ROW AT ALL — a demo farm, and every farm an
+  -- And a farm with NO SUBSCRIPTION ROW AT ALL, a demo farm, and every farm an
   -- administrator creates by hand today.
   insert into farms (id, name, plan, status, billing_period, billing_email) values
     ('b1000000-0000-0000-0000-000000000043', 'Billing Farm Bare', 'complete', 'active', 'monthly', 'bare@billing.invalid');
@@ -4166,7 +4166,7 @@ begin
   select * into a from app.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000043');
   if a.enforced or a.quota is not null then
     raise exception 'BILLING FAIL [v]: a farm with no subscription reports an enforced ceiling '
-      'of % — every farm onboarded before billing existed would stop being able to add a '
+      'of %, every farm onboarded before billing existed would stop being able to add a '
       'vehicle on the day this shipped', a.quota;
   end if;
   if a.used <> 1 then
@@ -4176,7 +4176,7 @@ begin
   raise notice '   no quota means no ceiling, for a metered sub and for no sub at all';
 end $$;
 
--- ── The allowance is not a fleet-size oracle ────────────────────────────────
+-- == The allowance is not a fleet-size oracle ================================
 do $$
 declare n bigint;
 begin
@@ -4189,14 +4189,14 @@ begin
   select count(*) into n from public.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000040');
   if n <> 0 then
     raise exception 'BILLING FAIL [v]: another farm''s owner read the quota farm''s allowance '
-      '(% row(s)) — that is a fleet-size oracle for anybody with a farm id', n;
+      '(% row(s)), that is a fleet-size oracle for anybody with a farm id', n;
   end if;
 
   -- POSITIVE CONTROL, and it has to be the SAME caller so that the only thing that differs
   -- is which farm was asked about. Their own farm answers.
   select count(*) into n from public.farm_vehicle_allowance('b1000000-0000-0000-0000-000000000002');
   if n <> 1 then
-    raise exception 'BILLING FAIL [v]: the same owner reading their OWN farm got % row(s) — so '
+    raise exception 'BILLING FAIL [v]: the same owner reading their OWN farm got % row(s), so '
       'the zero above was the function refusing everybody, not isolation working', n;
   end if;
 
@@ -4210,7 +4210,7 @@ end $$;
 -- ═════════════════════════════════════════════════════════════════════════════
 -- (w) A farm that has not paid gets no access. Everybody else is untouched.
 --
--- The rule is "a subscription EXISTS and it is pending" — never "there is no active
+-- The rule is "a subscription EXISTS and it is pending", never "there is no active
 -- subscription". Weltevrede Boerdery is on production with twelve vehicles and no
 -- subscription row at all, and so is every farm onboarded before billing existed, so the
 -- second reading would lock out the whole customer base on the day it shipped.
@@ -4218,7 +4218,7 @@ end $$;
 -- The other way to get this wrong is subtler and is why `app.farm_billing_gate` is
 -- SECURITY DEFINER. The SELECT policy on every billing table is
 -- `using (app.is_farm_billing_admin(farm_id))`, so a layout reading the subscription
--- through the CALLER'S client gets a row for an owner and nothing for an operator — and
+-- through the CALLER'S client gets a row for an owner and nothing for an operator, and
 -- "nothing" reads as "no subscription, therefore fine". A gate that holds for owners and
 -- fails open for drivers is worse than no gate, because it looks like it works.
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -4244,12 +4244,12 @@ insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
 do $$
 declare v_gate text;
 begin
-  raise notice '── BILLING (w): no access until somebody has paid ───────────────';
+  raise notice '== BILLING (w): no access until somebody has paid ===============';
 
   -- The farm that signed up and has not paid.
   select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
   if v_gate <> 'pending' then
-    raise exception 'BILLING FAIL [w]: a farm whose subscription is PENDING reports "%" — it '
+    raise exception 'BILLING FAIL [w]: a farm whose subscription is PENDING reports "%", it '
       'has paid nothing and would have full access', v_gate;
   end if;
 
@@ -4264,14 +4264,14 @@ begin
   select app.farm_billing_gate('b1000000-0000-0000-0000-000000000043') into v_gate;
   if v_gate <> 'ok' then
     raise exception 'BILLING FAIL [w]: a farm with NO subscription row reports "%". That is '
-      'Weltevrede and every farm onboarded before billing existed — the entire customer '
+      'Weltevrede and every farm onboarded before billing existed, the entire customer '
       'base locked out on the day this shipped.', v_gate;
   end if;
 
   raise notice '   pending blocks; live and no-subscription do not';
 end $$;
 
--- ── It answers the same for a driver as for the owner ───────────────────────
+-- == It answers the same for a driver as for the owner =======================
 do $$
 declare v_owner text; v_driver text; v_sub_rows integer;
 begin
@@ -4302,7 +4302,7 @@ begin
   if v_sub_rows <> 0 then
     raise exception 'BILLING FAIL [w]: an OPERATOR can read the subscription row (% rows). If '
       'that is now allowed, the SECURITY DEFINER argument in 20260911100000 needs revisiting '
-      '— not deleting', v_sub_rows;
+      '- not deleting', v_sub_rows;
   end if;
 
   -- And yet the gate must answer identically for both, because the farm has not paid and
@@ -4316,7 +4316,7 @@ begin
   raise notice '   the driver is gated exactly as the owner is, despite seeing no billing row';
 end $$;
 
--- ── And it is not an oracle about farms you cannot reach ────────────────────
+-- == And it is not an oracle about farms you cannot reach ====================
 do $$
 declare v_gate text;
 begin
@@ -4341,7 +4341,7 @@ begin
   raise notice '   the gate answers about your own farm and no other';
 end $$;
 
--- ── Paying is what opens the door ───────────────────────────────────────────
+-- == Paying is what opens the door ===========================================
 do $$
 declare v_gate text;
 begin
@@ -4353,14 +4353,14 @@ begin
 
   select app.farm_billing_gate('b1000000-0000-0000-0000-000000000050') into v_gate;
   if v_gate <> 'ok' then
-    raise exception 'BILLING FAIL [w]: a farm that has paid still reports "%" — they would be '
+    raise exception 'BILLING FAIL [w]: a farm that has paid still reports "%", they would be '
       'charged and then shut out, which is the worst outcome available', v_gate;
   end if;
 
   raise notice '   activating the subscription opens the farm';
 end $$;
 
--- ── A subscription that was soft-deleted does not gate for ever ─────────────
+-- == A subscription that was soft-deleted does not gate for ever =============
 do $$
 declare v_gate text;
 begin
@@ -4376,7 +4376,7 @@ begin
 
   -- Soft-delete is how everything in this product is removed. A gate that ignored
   -- `deleted_at` would leave a farm locked out by a subscription row that no longer counts
-  -- for anything else — invoicing, charging and dunning all skip it — with no way to
+  -- for anything else, invoicing, charging and dunning all skip it, with no way to
   -- clear it short of hand-written SQL.
   update billing_subscriptions set deleted_at = now()
    where id = 'b1600000-0000-0000-0000-000000000050';
@@ -4423,7 +4423,7 @@ declare
   v_gate  text;
   n       bigint;
 begin
-  raise notice '── BILLING (x): the front door ──────────────────────────────────';
+  raise notice '== BILLING (x): the front door ==================================';
 
   v_sub := app.create_pending_signup(
     'b1a00000-0000-0000-0000-000000000060', 'Signup.Owner@Billing.Invalid ',
@@ -4437,7 +4437,7 @@ begin
   -- The farm, the owner and the subscription all exist, and the whitespace a person
   -- actually types has been dealt with rather than stored.
   if f.name <> 'Kruger Boerdery' then
-    raise exception 'BILLING FAIL [x]: the farm is named "%" — untrimmed input was stored', f.name;
+    raise exception 'BILLING FAIL [x]: the farm is named "%", untrimmed input was stored', f.name;
   end if;
   if u.role <> 'owner' or u.farm_id <> v_farm then
     raise exception 'BILLING FAIL [x]: the signer-up is % on farm %, expected owner on %',
@@ -4450,7 +4450,7 @@ begin
   -- PENDING, and therefore shut. This is the assertion that stops a farm being usable
   -- before anybody has paid for it.
   if s.status <> 'pending' then
-    raise exception 'BILLING FAIL [x]: a brand-new sign-up is "%" — they have paid nothing', s.status;
+    raise exception 'BILLING FAIL [x]: a brand-new sign-up is "%", they have paid nothing', s.status;
   end if;
   select app.farm_billing_gate(v_farm) into v_gate;
   if v_gate <> 'pending' then
@@ -4469,7 +4469,7 @@ begin
   select * into inv from billing_invoices where farm_id = v_farm;
   if inv.asset_count <> 4 then
     raise exception 'BILLING FAIL [x]: the first invoice is for % vehicles, expected the 4 '
-      'they chose — they have no machines yet, so a metered reading would bill them nothing',
+      'they chose, they have no machines yet, so a metered reading would bill them nothing',
       inv.asset_count;
   end if;
   if inv.status <> 'open' or inv.total_incl_cents <= 0 then
@@ -4501,7 +4501,7 @@ begin
   raise notice '   farm + owner + pending subscription + one invoice, all or nothing';
 end $$;
 
--- ── A pending sign-up is invoiced ONCE, however many nights pass ────────────
+-- == A pending sign-up is invoiced ONCE, however many nights pass ============
 do $$
 declare
   v_sub uuid;
@@ -4528,7 +4528,7 @@ begin
   raise notice '   three billing dates, still one invoice';
 end $$;
 
--- ── Paying is what opens it, and then it bills like everybody else ──────────
+-- == Paying is what opens it, and then it bills like everybody else ==========
 do $$
 declare
   v_sub  uuid;
@@ -4575,7 +4575,7 @@ begin
   -- invoice, exactly as section (p) proves for everybody else.
   update billing_subscriptions set next_billing_on = current_date where id = v_sub;
   if app.generate_billing_invoices(v_sub) <> 1 then
-    raise exception 'BILLING FAIL [x]: an activated sign-up did not bill on its next date — '
+    raise exception 'BILLING FAIL [x]: an activated sign-up did not bill on its next date, '
       'the "invoice a pending subscription once" rule has leaked into the paid state';
   end if;
   select count(*) into n from billing_invoices where subscription_id = v_sub;
@@ -4586,7 +4586,7 @@ begin
   raise notice '   paying opens the farm, and then it renews like any other';
 end $$;
 
--- ── What it refuses, and what it leaves behind when it does ─────────────────
+-- == What it refuses, and what it leaves behind when it does =================
 do $$
 declare
   v_farms0 bigint; v_users0 bigint; v_subs0 bigint;
@@ -4597,7 +4597,7 @@ begin
   select count(*) into v_users0 from users;
   select count(*) into v_subs0 from billing_subscriptions;
 
-  -- A plan nobody has priced — either bespoke (price on application) or simply not
+  -- A plan nobody has priced, either bespoke (price on application) or simply not
   -- published yet. Signing somebody up for one produces a farm that can never be invoiced
   -- and therefore never opened: a customer who has paid and cannot get in.
   --
@@ -4620,8 +4620,8 @@ begin
   -- Zero vehicles is not a subscription.
   --
   -- Three independent things refuse this: the guard at the top of create_pending_signup,
-  -- `billing_subscriptions_quota_ck`, and — because a zero-vehicle subscription bills
-  -- nothing — the generator skipping it and the invoice count failing. That is a good
+  -- `billing_subscriptions_quota_ck`, and, because a zero-vehicle subscription bills
+  -- nothing, the generator skipping it and the invoice count failing. That is a good
   -- state to be in, but the three are NOT interchangeable from where the customer sits, so
   -- the message is asserted and not just the refusal: the guard says "choose at least one
   -- vehicle", the fallback says "could not raise the first invoice", and the second is a
@@ -4640,7 +4640,7 @@ begin
       raise exception 'BILLING FAIL [x]: signed somebody up for zero vehicles';
     end if;
     if v_msg not like '%at least one vehicle%' then
-      raise exception 'BILLING FAIL [x]: zero vehicles was refused with "%" — correct, but by '
+      raise exception 'BILLING FAIL [x]: zero vehicles was refused with "%", correct, but by '
         'a later lock. The person picked a number; tell them about the number.', v_msg;
     end if;
   end;
@@ -4708,7 +4708,7 @@ declare
   v_unit bigint;
   v_expected bigint;
 begin
-  raise notice '── BILLING (y): slots bought, slots given back, rows swept ──────';
+  raise notice '== BILLING (y): slots bought, slots given back, rows swept ======';
 
   -- Five bought, three in use. Going to eight is an increase and is charged now.
   select * into q from app.billing_quota_change_quote(v_sub, 8);
@@ -4739,7 +4739,7 @@ begin
   raise notice '   3 more slots, 20 of 30 days, charged %c', q.charge_now_cents;
 end $$;
 
--- ── It actually happens, and it produces a payable invoice ──────────────────
+-- == It actually happens, and it produces a payable invoice ==================
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000070';
@@ -4765,28 +4765,28 @@ begin
    where subscription_id = v_sub and kind = 'slots';
   if inv.asset_count <> 3 then
     raise exception 'BILLING FAIL [y]: the pro-rata invoice is for % vehicles, expected the 3 '
-      'added — billing all 8 would charge twice for the five already paid', inv.asset_count;
+      'added, billing all 8 would charge twice for the five already paid', inv.asset_count;
   end if;
   if inv.status <> 'open' then
-    raise exception 'BILLING FAIL [y]: the pro-rata invoice is "%" — a draft can never be '
+    raise exception 'BILLING FAIL [y]: the pro-rata invoice is "%", a draft can never be '
       'paid, and the customer has already been given the slots', inv.status;
   end if;
   if inv.total_incl_cents <> (r->>'charged_cents')::bigint then
-    raise exception 'BILLING FAIL [y]: quoted %c and invoiced %c — the screen and the bill '
+    raise exception 'BILLING FAIL [y]: quoted %c and invoiced %c, the screen and the bill '
       'must not disagree', (r->>'charged_cents')::bigint, inv.total_incl_cents;
   end if;
 
   -- And the ceiling moved with it: the farm can now actually add the vehicles it paid for.
   select * into a from app.farm_vehicle_allowance(v_farm);
   if a.quota <> 8 or a.remaining <> 5 then
-    raise exception 'BILLING FAIL [y]: after buying 3 slots the allowance says %/% — they '
+    raise exception 'BILLING FAIL [y]: after buying 3 slots the allowance says %/%, they '
       'paid for room they still cannot use', a.remaining, a.quota;
   end if;
 
   raise notice '   the slots are theirs, the invoice matches the quote, the ceiling moved';
 end $$;
 
--- ── Giving slots back waits, and never goes below the fleet ─────────────────
+-- == Giving slots back waits, and never goes below the fleet =================
 do $$
 declare
   v_sub uuid := 'b1600000-0000-0000-0000-000000000070';
@@ -4798,7 +4798,7 @@ begin
   -- Eight bought, three in use. Down to four is allowed, and waits.
   select * into q from app.billing_quota_change_quote(v_sub, 4);
   if q.kind <> 'scheduled' then
-    raise exception 'BILLING FAIL [y]: giving slots back reported "%" — they bought this '
+    raise exception 'BILLING FAIL [y]: giving slots back reported "%", they bought this '
       'period and must keep what they paid for', q.kind;
   end if;
   if q.charge_now_cents <> 0 then
@@ -4808,7 +4808,7 @@ begin
   r := app.change_billing_quota(v_sub, 4);
   select * into s from billing_subscriptions where id = v_sub;
   if s.asset_quota <> 8 then
-    raise exception 'BILLING FAIL [y]: a reduction took effect immediately (quota is now %) — '
+    raise exception 'BILLING FAIL [y]: a reduction took effect immediately (quota is now %), '
       'they paid for 8 slots to the end of this period', s.asset_quota;
   end if;
   if s.pending_quota <> 4 then
@@ -4844,14 +4844,14 @@ begin
   raise notice '   a reduction waits, is refused below the fleet, and is cancelled by an increase';
 end $$;
 
--- ── The scheduled reduction lands, and is re-checked against the fleet ──────
+-- == The scheduled reduction lands, and is re-checked against the fleet ======
 do $$
 declare
   v_sub  uuid := 'b1600000-0000-0000-0000-000000000070';
   v_farm uuid := 'b1000000-0000-0000-0000-000000000070';
   s      public.billing_subscriptions%rowtype;
 begin
-  -- Schedule a drop to 4, then let the farm grow to 6 vehicles before it lands — which is
+  -- Schedule a drop to 4, then let the farm grow to 6 vehicles before it lands, which is
   -- exactly what a month is for. Applying the scheduled number blind would put the
   -- subscription below its own fleet and make the ceiling refuse vehicles that are
   -- already there.
@@ -4878,7 +4878,7 @@ begin
   raise notice '   the reduction lands at the fleet size, not below it';
 end $$;
 
--- ── Sweeping a sign-up nobody finished ──────────────────────────────────────
+-- == Sweeping a sign-up nobody finished ======================================
 insert into auth.users (id, email) values
   ('b1a00000-0000-0000-0000-000000000080', 'dormant@billing.invalid'),
   ('b1a00000-0000-0000-0000-000000000081', 'paid.up@billing.invalid');
@@ -4943,7 +4943,7 @@ begin
     raise exception 'BILLING FAIL [y]: the swept owner can still sign in';
   end if;
   if i.status <> 'void' then
-    raise exception 'BILLING FAIL [y]: the unpaid invoice is "%" rather than void — it would '
+    raise exception 'BILLING FAIL [y]: the unpaid invoice is "%" rather than void, it would '
       'sit in the ledger for ever as money somebody owes', i.status;
   end if;
 
@@ -4972,7 +4972,7 @@ end $$;
 -- sign-up shipped in the same week.
 --
 -- `app.billing_register_failure` moved any subscription to 'past_due'. For a paying farm
--- that is the dunning ladder. For a PENDING sign-up it moved them out of 'pending' — and
+-- that is the dunning ladder. For a PENDING sign-up it moved them out of 'pending', and
 -- `app.farm_billing_gate` reads 'pending' as "keep them out" and everything else as "let
 -- them in". So a customer whose first card was DECLINED was handed the product.
 --
@@ -4992,7 +4992,7 @@ declare
   s      public.billing_subscriptions%rowtype;
   i      integer;
 begin
-  raise notice '── BILLING (z): a declined first payment opens nothing ──────────';
+  raise notice '== BILLING (z): a declined first payment opens nothing ==========';
 
   v_sub := app.create_pending_signup('b1a00000-0000-0000-0000-000000000090',
     'declined@billing.invalid', 'Declined Person', 'Declined Boerdery', 'complete', 'monthly', 3);
@@ -5041,7 +5041,7 @@ begin
   perform app.billing_register_failure('b1600000-0000-0000-0000-000000000009', 'test decline');
   select * into s from billing_subscriptions where id = 'b1600000-0000-0000-0000-000000000009';
   if s.status <> 'past_due' then
-    raise exception 'BILLING FAIL [z]: a live subscription was not dunned (status %) — the '
+    raise exception 'BILLING FAIL [z]: a live subscription was not dunned (status %), the '
       'pending assertion above therefore proves nothing', s.status;
   end if;
 
@@ -5066,7 +5066,7 @@ begin
   raise notice '   declines are recorded and change nothing; paying opens it';
 end $$;
 
--- ── Who an invoice was from and for is part of what is frozen ───────────────
+-- == Who an invoice was from and for is part of what is frozen ===============
 do $$
 declare
   v_inv uuid := 'b1800000-0000-0000-0000-000000000001';
@@ -5123,7 +5123,7 @@ begin
   raise notice '   an issued invoice''s seller and customer are frozen; a draft is not';
 end $$;
 
--- ── A draft is nobody's bill, however much has been paid against it ─────────
+-- == A draft is nobody's bill, however much has been paid against it =========
 do $$
 declare
   v_inv uuid := 'b1800000-0000-0000-0000-0000000000f2';
@@ -5136,7 +5136,7 @@ begin
   --
   -- What IS reachable is the ORDERING. `v_total > 0 and v_paid >= v_total` was tested
   -- before `status = 'draft'`, so a draft carrying a payment flipped to 'paid' while it
-  -- was still being written — and the generator assembles every invoice as a draft.
+  -- was still being written, and the generator assembles every invoice as a draft.
   insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
     period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
     unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
@@ -5174,22 +5174,22 @@ begin
   raise notice '   a draft stays a draft; an issued invoice settles';
 end $$;
 -- ═════════════════════════════════════════════════════════════════════════════
--- (aa) The cron ledger — "did it run last night?"
+-- (aa) The cron ledger, "did it run last night?"
 --
 -- This section exists because the question had no answer for the one route that matters.
 -- Measured on production before the migration was written: the NIGHTLY pass is provably
--- firing on Vercel's schedule (90 `notifications` rows in the 03:00–03:59 UTC window
+-- firing on Vercel's schedule (90 `notifications` rows in the 03:00-03:59 UTC window
 -- across 14 distinct days), but only as a side effect of those engines happening to write
--- something. The BILLING pass writes nothing at all when nothing is due — no invoice, no
--- claim, no receipt, no reminder — and its only output is a JSON body returned to Vercel's
+-- something. The BILLING pass writes nothing at all when nothing is due, no invoice, no
+-- claim, no receipt, no reminder, and its only output is a JSON body returned to Vercel's
 -- scheduler, which is read by nobody. A billing cron that had fired every night for six
 -- weeks and one that had never fired once produced IDENTICAL evidence.
 --
 -- So the assertions below are mostly about the ledger being trustworthy rather than about
 -- it being clever: it must record a start (not only a finish), it must not be writable by
 -- a browser (a forged clean run history for a billing pass that never happened is the one
--- lie this table exists to prevent), it must not grow for ever, and — the (m) lesson,
--- applied to a different caller — the wrapper names and their PARAMETER names must match
+-- lie this table exists to prevent), it must not grow for ever, and, the (m) lesson,
+-- applied to a different caller, the wrapper names and their PARAMETER names must match
 -- what `src/lib/cron/heartbeat.ts` calls, or the rpc resolves to no function and the
 -- heartbeat silently records nothing while reporting success.
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -5205,7 +5205,7 @@ declare
   v_fin   timestamptz;
   v_bad   text := '';
 begin
-  raise notice '── BILLING (aa): the cron ledger ────────────────────────────────';
+  raise notice '== BILLING (aa): the cron ledger ================================';
 
   -- (a) Structure. FORCE RLS, because a table only Rapid Rise may read must not be
   -- readable by the table owner's own session either.
@@ -5230,12 +5230,12 @@ begin
     raise exception 'BILLING FAIL [aa]: anon can read the cron ledger';
   end if;
   if not has_table_privilege('authenticated', 'public.cron_runs', 'select') then
-    raise exception 'BILLING FAIL [aa]: authenticated cannot read it — the admin screen is blank';
+    raise exception 'BILLING FAIL [aa]: authenticated cannot read it, the admin screen is blank';
   end if;
   if has_table_privilege('authenticated', 'public.cron_runs', 'insert')
      or has_table_privilege('authenticated', 'public.cron_runs', 'update')
      or has_table_privilege('authenticated', 'public.cron_runs', 'delete') then
-    raise exception 'BILLING FAIL [aa]: a browser session can WRITE the cron ledger — it could '
+    raise exception 'BILLING FAIL [aa]: a browser session can WRITE the cron ledger, it could '
       'forge a clean run history for a billing pass that never happened';
   end if;
   if not has_table_privilege('service_role', 'public.cron_runs', 'insert')
@@ -5253,7 +5253,7 @@ begin
     n := coalesce(n, 0) + 1;
 
     if has_function_privilege('public', r.oid, 'EXECUTE') then
-      raise exception 'BILLING FAIL [aa]: %.% is executable by PUBLIC — the PostgreSQL default '
+      raise exception 'BILLING FAIL [aa]: %.% is executable by PUBLIC, the PostgreSQL default '
         'that put app.stock_needs_reorder and public._f14_probe on the wrong side of the fence',
         r.nspname, r.proname;
     end if;
@@ -5265,18 +5265,18 @@ begin
     -- decides what it returns. The two WRITERS are service-role only, in both schemas.
     if r.proname in ('cron_run_start','cron_run_finish')
        and has_function_privilege('authenticated', r.oid, 'EXECUTE') then
-      raise exception 'BILLING FAIL [aa]: %.% is executable by `authenticated` — a browser '
+      raise exception 'BILLING FAIL [aa]: %.% is executable by `authenticated`, a browser '
         'could open and close cron runs', r.nspname, r.proname;
     end if;
     if r.nspname = 'app' and r.proname in ('cron_run_start','cron_run_finish')
        and has_function_privilege('service_role', r.oid, 'EXECUTE') then
       raise exception 'BILLING FAIL [aa]: app.% is directly executable by service_role. The '
-        'engine is reached through its public.* wrapper — the rule section (j) enforces for '
+        'engine is reached through its public.* wrapper, the rule section (j) enforces for '
         'every other engine in this product.', r.proname;
     end if;
     if r.nspname = 'public' and r.proname in ('cron_run_start','cron_run_finish')
        and not has_function_privilege('service_role', r.oid, 'EXECUTE') then
-      raise exception 'BILLING FAIL [aa]: public.% is not executable by service_role — the cron '
+      raise exception 'BILLING FAIL [aa]: public.% is not executable by service_role, the cron '
         'route cannot record that it ran', r.proname;
     end if;
     if r.proname = 'cron_health'
@@ -5297,7 +5297,7 @@ begin
   end if;
 
   -- (d) The rpc surface, with PARAMETER names. PostgREST resolves overloads by the named
-  -- arguments in the JSON body, so a rename breaks the call as completely as a deletion —
+  -- arguments in the JSON body, so a rename breaks the call as completely as a deletion -
   -- and the heartbeat swallows its own errors by design, so it would record nothing and
   -- say nothing. Section (m) exists because exactly this cost the charging path.
   for r in
@@ -5359,7 +5359,7 @@ begin
   end if;
 
   -- The FIRST answer stands. A retried or duplicated finish must not rewrite a closed run
-  -- — otherwise a later success could paint over the failure somebody needs to see.
+  --, otherwise a later success could paint over the failure somebody needs to see.
   perform app.cron_run_finish(v_run, true, '{"charges":"ok"}'::jsonb);
   select * into v_row from public.cron_runs where id = v_run;
   if v_row.ok is not false or v_row.steps->>'charges' <> 'error: boom' then
@@ -5419,7 +5419,7 @@ begin
   end if;
   -- The assertion that is worth having: a farm owner reads NOTHING, and reads nothing
   -- because `cron_runs_sel` says so, not because a body forgot to filter. The admin count
-  -- above is the positive control — without it this would pass just as happily against an
+  -- above is the positive control, without it this would pass just as happily against an
   -- empty table.
   if v_owner <> 0 then
     raise exception 'BILLING FAIL [aa]: a farm owner reads % rows of Rapid Rise''s cron health',

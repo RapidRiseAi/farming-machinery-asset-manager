@@ -1,21 +1,21 @@
 /**
  * Supplier statements and remittance advice (G25, migration 0502).
  *
- * The purchase-side mirror of `src/lib/statement.ts`. The arithmetic lives in SQL —
- * `app.supplier_statement`, `app.supplier_ageing`, `app.supplier_remittance` — so the
+ * The purchase-side mirror of `src/lib/statement.ts`. The arithmetic lives in SQL -
+ * `app.supplier_statement`, `app.supplier_ageing`, `app.supplier_remittance`, so the
  * screen, the PDF, the CSV and anything emailed later cannot disagree with each other or
  * with the database. This file is the shape of what comes back, the two derivations a
  * renderer needs (the running balance and the closing figure), and the WORDING.
  *
- * ── Why the wording is here and not in Postgres ──────────────────────────────
+ * == Why the wording is here and not in Postgres ==============================
  *
  * `statement.ts` sets the rule and gives the reason: a statement read by an Afrikaans
  * partner must not have half its lines written in English by a Postgres function. So SQL
- * returns what a row IS (`kind`) plus the row's OWN detail (`description` — the supplier's
+ * returns what a row IS (`kind`) plus the row's OWN detail (`description`, the supplier's
  * note, or null) and never a sentence; `supplierStatementLabel` composes the sentence in
  * the reader's language.
  *
- * ── Why it does not simply reuse statement.ts ────────────────────────────────
+ * == Why it does not simply reuse statement.ts ================================
  *
  * The vocabularies genuinely differ, and collapsing them would hide the difference that
  * matters. A customer statement has invoices, credit notes, debit notes, part-payments,
@@ -25,7 +25,7 @@
  * can never exist, and would quietly imply the purchase side can record a part-payment.
  * The six lines of running-balance arithmetic are duplicated on purpose.
  *
- * ── Money is GROSS ──────────────────────────────────────────────────────────
+ * == Money is GROSS ==========================================================
  *
  * `amount_cents` is ex-VAT and `vat_cents` is the supplier's own VAT line. Every debit,
  * credit and bucket below is the sum, because that is what leaves the bank and what
@@ -41,7 +41,7 @@ export type SupplierStatementKind = "opening" | "bill" | "payment";
 export type SupplierStatementRow = {
   entry_date: string;
   kind: SupplierStatementKind;
-  /** The SUPPLIER's own invoice number — the only thing identifying what a payment settled. */
+  /** The SUPPLIER's own invoice number, the only thing identifying what a payment settled. */
   reference: string | null;
   /** The row's own detail and nothing else; null where there is none. */
   description: string | null;
@@ -51,7 +51,7 @@ export type SupplierStatementRow = {
   credit_cents: number;
   /**
    * DERIVED, not recorded: `expense_date` plus this supplier's filed terms, falling back to
-   * 30 days — the same rule 0491 gave the cash-flow forecast, so the two screens cannot name
+   * 30 days, the same rule 0491 gave the cash-flow forecast, so the two screens cannot name
    * different dates for the same bill. A supplier invoice carries no due date, and the
    * screen says as much rather than implying the supplier told us.
    */
@@ -87,7 +87,7 @@ export type RemittanceRow = {
 /**
  * Run the balance down the page. Rows arrive in date order from SQL with the opening
  * balance first (0502 orders by an explicit rank, not by the kind's spelling), and each
- * line moves the balance by what it is — nothing is re-derived from the bills, which is the
+ * line moves the balance by what it is, nothing is re-derived from the bills, which is the
  * whole point of reading the ledger rather than reconstructing it.
  */
 export function withSupplierRunningBalance(rows: readonly SupplierStatementRow[]): SupplierStatementLine[] {
@@ -153,7 +153,7 @@ export type SupplierPeriod = { key: string; from: string; to: string };
  * supplier invoice on 30- or 60-day terms is exactly what the screen is opened to settle,
  * and a month-to-date window opens on an empty table for the first days of every month.
  * `thisYear` is here because "what did I buy from this business this year" is the question
- * a supplier asks when they ring — and the opening balance carries everything older
+ * a supplier asks when they ring, and the opening balance carries everything older
  * whichever window is chosen, so no window can lie about what is owed.
  */
 export function supplierStatementPeriods(today = new Date()): SupplierPeriod[] {
@@ -189,7 +189,7 @@ export function isoDateOrNull(value: string | null | undefined): string | null {
 /**
  * Is this even a uuid?
  *
- * Not a security check — RLS is that, and a well-formed id belonging to another workshop is
+ * Not a security check, RLS is that, and a well-formed id belonging to another workshop is
  * refused by it. This is so a mistyped URL comes back as "no such supplier" instead of a
  * Postgres cast error surfacing as an empty download.
  */
@@ -201,7 +201,7 @@ export function isUuid(value: string | null | undefined): boolean {
  * The dates on which this supplier's bills were actually settled, newest first.
  *
  * A remittance is keyed on the day the money left, so these are the only dates for which
- * one can exist — offering a free date picker alone would let a partner ask for an advice
+ * one can exist, offering a free date picker alone would let a partner ask for an advice
  * covering nothing and read the empty result as a failure. Derived from the statement's own
  * payment lines so the choices cannot include a date the statement does not show.
  */

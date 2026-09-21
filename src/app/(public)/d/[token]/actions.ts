@@ -10,7 +10,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  * The token is the ONLY credential, exactly as on the public QR page: it is unguessable,
  * it is never exposed to anon SQL, and every read and write here runs through the service
  * client after the token has been resolved to a row. `anon` still has zero database
- * access — that property has held since 0102 and is not weakened by this.
+ * access, that property has held since 0102 and is not weakened by this.
  *
  * Deliberately narrow. A holder of the link may accept a quote, decline it, or say they
  * have paid. They cannot change an amount, see another document, or reach anything else.
@@ -32,7 +32,7 @@ async function docByToken(token: string) {
 /**
  * Accept a quote from the link.
  *
- * Acceptance used to be a status column and a timestamp — thinner evidence than the
+ * Acceptance used to be a status column and a timestamp, thinner evidence than the
  * paper book it replaced, and nothing a partner could produce if the customer later said
  * they never agreed. Now the person types their name, and we record that they did it from
  * the link rather than inside the app.

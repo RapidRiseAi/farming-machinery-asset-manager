@@ -32,7 +32,7 @@ type LineRow = BankLineView & { import_id: string | null };
  *
  * Customers pay by EFT and that happens entirely outside this product, so until now the only
  * way an invoice became "paid" was a partner reading internet banking on one screen and
- * typing into another. The cost of that is not the minutes — it is that it does not get
+ * typing into another. The cost of that is not the minutes, it is that it does not get
  * done, and every number downstream (the ageing, the debtors list, a statement that will be
  * argued about with a customer) is only as true as the typing.
  *
@@ -72,7 +72,7 @@ export default async function BankingPage({
   const supabase = await createClient();
 
   // Everything the page needs, fetched together. RLS scopes all four to this workshop, so
-  // none of them carry a workshop filter — a missing filter here would be a bug in a query,
+  // none of them carry a workshop filter, a missing filter here would be a bug in a query,
   // not a hole, because the policies decide.
   const [linesRes, importsRes, invoiceRes, expenseRes] = await Promise.all([
     supabase
@@ -122,7 +122,7 @@ export default async function BankingPage({
 
   // What a matched line settled, so the reconciled list reads as sentences rather than ids.
   // Fetched from the documents/expenses themselves because a fully paid invoice is no longer
-  // in the candidate list above — and it is the settled ones that end up here.
+  // in the candidate list above, and it is the settled ones that end up here.
   const docIds = matched.map((l) => l.matched_document_id).filter((v): v is string => !!v);
   const expIds = matched.map((l) => l.matched_expense_id).filter((v): v is string => !!v);
   const [matchedDocs, matchedExps] = await Promise.all([
@@ -147,7 +147,7 @@ export default async function BankingPage({
 
   /** Rank the candidates for one line, then dress them in what the partner will recognise.
    *  The ranking itself lives in `lib/banking.ts` so the same code answers on the server and
-   *  in any future preview — a suggestion that differed between the two would be the worst
+   *  in any future preview, a suggestion that differed between the two would be the worst
    *  kind of bug, because it would look like the button did something else than it said. */
   const viewsFor = (line: LineRow): SuggestionView[] => {
     const like: BankLineLike = {

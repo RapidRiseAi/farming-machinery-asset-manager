@@ -7,7 +7,7 @@
 -- exactly both rows.
 --
 -- Section (a) is a reachability check. The TypeScript tests mock the Supabase client, so
--- they assert arguments and never whether the function exists — and PostgREST resolves
+-- they assert arguments and never whether the function exists, and PostgREST resolves
 -- overloads by PARAMETER NAME, so a renamed argument breaks `supabase.rpc()` as completely
 -- as a deletion.
 
@@ -64,7 +64,7 @@ insert into public.fuel_tanks (id, farm_id, name) values
   ('fa300000-0000-4000-9000-000000000002', 'fa000000-0000-4000-9000-000000000002', 'Other tank'),
   ('fa300000-0000-4000-9000-000000000003', 'fa000000-0000-4000-9000-000000000003', 'Essential tank');
 
--- ── (a) Reachable, invoker-rights, and named the way the app calls it ────────
+-- == (a) Reachable, invoker-rights, and named the way the app calls it ========
 do $$
 declare v_args text;
 begin
@@ -110,7 +110,7 @@ set role authenticated;
 create temporary table _fuel_atomic_ids (id uuid);
 grant all on table _fuel_atomic_ids to public;
 
--- ── (b) The accepted draw writes BOTH rows ──────────────────────────────────
+-- == (b) The accepted draw writes BOTH rows ==================================
 do $$
 declare
   v_id uuid;
@@ -143,10 +143,10 @@ begin
   insert into _fuel_atomic_ids(id) values (v_id);
 end $$;
 
--- ── (c) A farm-level draw has no machine, so it writes no usage log ──────────
+-- == (c) A farm-level draw has no machine, so it writes no usage log ==========
 -- As the OWNER: `fuel_issues_ins` lets an operator record a draw only for a machine
 -- assigned to them, so a draw with no machine is the farm office's to record. The command
--- does not decide that — RLS does, and this is the proof it still applies underneath it.
+-- does not decide that, RLS does, and this is the proof it still applies underneath it.
 do $$
 declare v_id uuid; v_usage int;
 begin
@@ -169,7 +169,7 @@ begin
   end if;
 end $$;
 
--- ── (d) Every refusal leaves NOTHING behind ──────────────────────────────────
+-- == (d) Every refusal leaves NOTHING behind ==================================
 do $$
 declare
   v_before int;
@@ -275,8 +275,8 @@ end $$;
 
 reset role;
 
--- ── (e) The money, read by somebody allowed to see it ───────────────────────
--- The operator who recorded the draw may NOT read `cost_cents` — those columns are
+-- == (e) The money, read by somebody allowed to see it =======================
+-- The operator who recorded the draw may NOT read `cost_cents`, those columns are
 -- revoked at column level for cost-masked roles (20260908112728), which is why this
 -- assertion runs after `reset role` rather than inside the capture block above.
 do $$

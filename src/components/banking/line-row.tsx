@@ -42,8 +42,8 @@ const CONFIDENCE_TONE: Record<MatchConfidence, BadgeTone> = {
  * One bank line, and what can be done about it.
  *
  * The design decision worth stating: a suggestion is never pre-selected and never sits
- * behind a bare "Confirm" button. Each one names WHY it was suggested — the amount is
- * exactly what is owed, the reference contains the invoice number — and pressing it opens a
+ * behind a bare "Confirm" button. Each one names WHY it was suggested, the amount is
+ * exactly what is owed, the reference contains the invoice number, and pressing it opens a
  * dialog that puts the bank line and the document's outstanding balance side by side. This
  * writes real money into a real customer's account, and it will be pressed on a phone, in a
  * hurry, by someone who has twenty of them to get through. The friction is the feature.
@@ -89,7 +89,7 @@ export function BankLineRow({
         <div className="flex flex-wrap items-center gap-3 rounded-lg bg-sand-50 px-3 py-2.5">
           <span className="min-w-0 flex-1 text-sm text-sand-700">
             {t("bank.matchedTo", locale)}{" "}
-            <span className="font-medium text-sand-900">{matchedLabel ?? "—"}</span>
+            <span className="font-medium text-sand-900">{matchedLabel ?? "-"}</span>
             {line.matched_at ? (
               <span className="block text-xs text-sand-500">
                 {t("bank.matchedOn", locale)} {shortDate(line.matched_at, locale)}

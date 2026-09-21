@@ -151,7 +151,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
   /*
     Freshly-issued login URL to hand to a contractor. It arrives in a short-lived,
-    httpOnly, SameSite=Strict cookie rather than the query string it used to ride in —
+    httpOnly, SameSite=Strict cookie rather than the query string it used to ride in -
     see lib/partner-link.ts for why a magic `action_link` must never touch a URL.
   */
   const pendingLink = await readPartnerLink();
@@ -159,8 +159,8 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
   /*
     Contractors asking to be connected (F15). A partner who has this farm in their own
-    client book can raise a PENDING workshop_link; pending grants nothing — every access
-    helper counts only 'active' — so this list is the farm deciding, not being told.
+    client book can raise a PENDING workshop_link; pending grants nothing, every access
+    helper counts only 'active', so this list is the farm deciding, not being told.
   */
   /*
     Scoped to the farm being VIEWED, not the primary one. With multi-site (F7) an
@@ -179,7 +179,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     : { data: null };
 
   // Connected contractors and what each may see (F16). Same farm scoping as the
-  // requests above — this is a decision about the site you are looking at.
+  // requests above, this is a decision about the site you are looking at.
   const { data: accessData } = canInvite && viewingFarmId
     ? await supabase
         .from("workshop_links")
@@ -246,7 +246,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
           <CardHeader>
             <CardTitle>
               {t("partners.loginUrlTitle", locale)}
-              {loginPartner ? <span className="text-sand-500"> — {loginPartner.name}</span> : null}
+              {loginPartner ? <span className="text-sand-500">, {loginPartner.name}</span> : null}
             </CardTitle>
           </CardHeader>
           <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-status-due/40 bg-callout-warn-bg p-3">

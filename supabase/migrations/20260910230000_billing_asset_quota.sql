@@ -2,20 +2,20 @@
 -- Farms buy a number of vehicle slots. Until now the product counted them instead.
 --
 -- WHAT CHANGES
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.billable_asset_count` counts machines that are not deleted, retired or sold, and
 -- the invoice is that number times the per-vehicle price. So the bill moved on its own:
 -- add a bakkie in March and March costs R73 more, with nobody having agreed to it and
 -- nothing on any screen having offered the choice.
 --
--- The founder's model is a QUOTA — "how many vehicles?" is answered at sign-up, the price
+-- The founder's model is a QUOTA, "how many vehicles?" is answered at sign-up, the price
 -- is shown against that number, and that number is what is charged. The counted figure
 -- does not disappear; it becomes "you are using 7 of 10" and the thing the ceiling is
 -- measured against.
 --
 -- COMPATIBILITY IS THE WHOLE RISK HERE
--- ─────────────────────────────────────────────────────────────────────────────
--- A NULL `asset_quota` means "no quota — bill what you count", which is exactly today's
+-- =============================================================================
+-- A NULL `asset_quota` means "no quota, bill what you count", which is exactly today's
 -- behaviour. Every subscription that exists when this ships has one, so nothing about
 -- anybody's bill moves on the night it lands. Same discipline as the price pin in
 -- 20260910160000: a change to how money is calculated must not restate anybody silently.
@@ -24,8 +24,8 @@
 -- suddenly cannot add a vehicle.
 --
 -- WHERE THE CEILING IS ENFORCED, AND WHY IT IS A TRIGGER
--- ─────────────────────────────────────────────────────────────────────────────
--- docs/SIGNUP_AND_QUOTA_BILLING.md §4 lists three ways a machine is created today —
+-- =============================================================================
+-- docs/SIGNUP_AND_QUOTA_BILLING.md §4 lists three ways a machine is created today -
 -- `createMachine`, `importMachines` (CSV) and `syncClientVehicles` (a CONTRACTOR copying
 -- their notebook into the farm's fleet). Checking in all three actions has two problems: a
 -- fourth path added later silently has no ceiling, and check-then-insert races itself when
@@ -34,7 +34,7 @@
 -- So the guarantee is a BEFORE trigger on `machines`. It covers every path that exists and
 -- every path anybody adds, it cannot be raced, and it makes the limit a property of the
 -- database rather than of whoever remembered to check. The server actions keep a
--- pre-check on top of it, because a trigger gives a correct refusal and a poor sentence —
+-- pre-check on top of it, because a trigger gives a correct refusal and a poor sentence -
 -- the same two-lock shape this codebase uses for the VAT guard and the freeze.
 --
 -- CSV import gets all-or-nothing for free: the trigger aborts the transaction, so 50 rows
@@ -78,14 +78,14 @@ grant  execute on function app.billing_billable_units(uuid) to service_role;
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- "You are using 7 of 10" — one answer, for the screen and for the ceiling
+-- "You are using 7 of 10", one answer, for the screen and for the ceiling
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Deliberately readable by a signed-in user: it is their own farm's allowance, it carries
 -- no money and no credential, and the alternative is the screen and the guard computing
 -- the same thing separately and eventually disagreeing.
 --
 -- `enforced` is the field that matters to a caller. False means this farm has no quota, so
--- there is nothing to refuse and `remaining` is meaningless — a caller that treated
+-- there is nothing to refuse and `remaining` is meaningless, a caller that treated
 -- `remaining <= 0` as "blocked" without reading it would lock out every grandfathered farm.
 create or replace function app.farm_vehicle_allowance(p_farm uuid)
 returns table (enforced boolean, quota integer, used integer, remaining integer)
@@ -132,7 +132,7 @@ begin
 
   -- Only a row that will actually be BILLED counts. Filing a machine that is already
   -- retired or sold, or arriving soft-deleted, adds nothing to the fleet and must not be
-  -- refused — app.billable_asset_count excludes exactly these.
+  -- refused, app.billable_asset_count excludes exactly these.
   if new.deleted_at is not null or new.status in ('retired', 'sold') then
     return new;
   end if;
@@ -160,7 +160,7 @@ begin
   v_used := app.billable_asset_count(v_farm);
   if v_used >= v_quota then
     raise exception
-      'BILLING: vehicle limit reached — % of % slots are in use', v_used, v_quota
+      'BILLING: vehicle limit reached, % of % slots are in use', v_used, v_quota
       using errcode = 'check_violation',
             hint = 'Add more slots on the billing screen, or retire a vehicle first.';
   end if;
@@ -231,7 +231,7 @@ begin
     end if;
 
     -- S8. Was app.billing_active_price(s.plan, s.billing_period), which resolves the
-    -- CURRENTLY active version — so activating a new price silently moved every existing
+    -- CURRENTLY active version, so activating a new price silently moved every existing
     -- customer onto it at their next invoice, with no notice and no decision. Founder
     -- decision: a farm keeps the price it signed up at until somebody deliberately moves
     -- it. app.billing_price_for_subscription honours the pin and falls back to the active
@@ -284,7 +284,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -326,7 +326,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,

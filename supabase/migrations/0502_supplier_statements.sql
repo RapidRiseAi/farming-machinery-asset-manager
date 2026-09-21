@@ -1,9 +1,9 @@
 -- 0502_supplier_statements.sql
--- G25 — The statement, from the other side of the counter.
+-- G25, The statement, from the other side of the counter.
 --
 -- 0413 answers "what does this customer owe me, and how did it get there". Nothing answers
 -- the mirror. A partner can see their whole payables ageing on /money (0460, 0482) and see
--- one line per supplier — and cannot open that line. "What did I buy from Agri Diesel this
+-- one line per supplier, and cannot open that line. "What did I buy from Agri Diesel this
 -- year, what have I paid them, and what is still outstanding" is a question every account
 -- with a supplier gets asked, usually by the supplier, and the answer lived nowhere.
 --
@@ -16,7 +16,7 @@
 -- No new tables. Every figure below is an aggregation over `partner_expenses` and
 -- `suppliers`, both of which already exist and are already scoped.
 --
--- ── The limitation, stated rather than papered over ───────────────────────────
+-- == The limitation, stated rather than papered over ===========================
 --
 -- The sales side has `partner_payments`: a row per receipt, with an amount, so a customer
 -- who pays half of a R20 000 invoice shows a R10 000 credit and a R10 000 balance. The
@@ -30,16 +30,16 @@
 --     property of the data model, not of this function, and it is what would have to
 --     change first if part-paying a supplier ever needs recording;
 --   * the reference on a payment line is the SUPPLIER's own invoice number, because that
---     is the only thing identifying what was settled — there is no payment reference, and
+--     is the only thing identifying what was settled, there is no payment reference, and
 --     no method either. A remittance advice is what carries that detail instead.
 --
 -- Any of those three could have been hidden behind a cheerful "Payment" row. Written down
 -- here they are a boundary somebody can act on.
 --
--- ── Money is GROSS, deliberately ─────────────────────────────────────────────
+-- == Money is GROSS, deliberately =============================================
 --
 -- `amount_cents` is ex-VAT and `vat_cents` is the supplier's own VAT line (0430). What
--- LEAVES THE BANK is the sum, and a statement of account is about what leaves the bank —
+-- LEAVES THE BANK is the sum, and a statement of account is about what leaves the bank -
 -- so every debit, every credit and every bucket below is `amount_cents + vat_cents`, which
 -- is exactly what `app.partner_creditors` (0460, regrouped by 0482) already does. If this
 -- screen were ex-VAT and /money were gross, a partner would read two different answers to
@@ -47,7 +47,7 @@
 -- halves are still reported separately on the REMITTANCE, where a supplier reconciling to
 -- their own tax invoice needs them.
 --
--- ── Filed suppliers only ─────────────────────────────────────────────────────
+-- == Filed suppliers only =====================================================
 --
 -- A statement is per supplier RECORD (`p_supplier`), so an expense still carrying only a
 -- typed `supplier_name` appears on no statement. That is the honest answer: there is no
@@ -55,16 +55,16 @@
 -- already counts the unfiled invoices and says how to attach them, and the moment one is
 -- filed its history attaches and shows up here.
 --
--- ── Wording is NOT in SQL ────────────────────────────────────────────────────
+-- == Wording is NOT in SQL ====================================================
 --
 -- `src/lib/statement.ts` sets the rule and gives the reason: a statement posted to an
 -- Afrikaans reader must not have half its lines written in English by a Postgres function.
 -- So these functions return what a row IS (`kind`) and the row's OWN detail (`description`
--- — the supplier's note, or null), and never a sentence. This is the one place 0413's SQL
+--, the supplier's note, or null), and never a sentence. This is the one place 0413's SQL
 -- did not quite hold to its own rule (it coalesces a missing subject to the literal
 -- 'Invoice'); `src/lib/supplier-statement.ts` composes every sentence here.
 
--- ── The rows ─────────────────────────────────────────────────────────────────
+-- == The rows =================================================================
 --
 -- SECURITY INVOKER, exactly as 0413 and 0460 argue: `partner_expenses` and `suppliers` are
 -- workshop-scoped (0430/0480 policy sets, no farm path at all), so passing another
@@ -102,7 +102,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
     select e.id, e.reference, e.description, e.category, e.expense_date, e.paid_on,
            (e.amount_cents + e.vat_cents) as gross,
            -- DERIVED, and the screen says so. A supplier invoice carries no due date, so
-           -- this is `expense_date + the supplier's own terms`, falling back to 30 days —
+           -- this is `expense_date + the supplier's own terms`, falling back to 30 days -
            -- the same rule and the same fallback 0491 gave the cash-flow forecast, because
            -- a partner reading "due 14 May" here and a different date on /cashflow would
            -- have no way to tell which one the product actually believes.
@@ -117,7 +117,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
        and e.deleted_at is null
   ),
   -- Everything that happened before the window, as one line. Without this the closing
-  -- balance is not a balance, it is "what I was billed this quarter" — the first and worst
+  -- balance is not a balance, it is "what I was billed this quarter", the first and worst
   -- of the six faults 0413 catalogues.
   --
   -- The payment leg is deliberately NOT filtered by `expense_date`: a bill dated inside the
@@ -173,7 +173,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   )
   -- Ordered by an EXPLICIT rank rather than by the kind's spelling. 0413 orders `by 1, 2`,
   -- which happens to work there only because 'opening' sorts after 'credit_note' and
-  -- 'invoice' — so a document dated on the first day of the window is listed ABOVE the
+  -- 'invoice', so a document dated on the first day of the window is listed ABOVE the
   -- balance brought forward, and the running balance down the page starts from the wrong
   -- number. 'bill' would collide the same way here. The opening line is first, then the
   -- day's charge, then the day's settlement, which is also the order the events happened in.
@@ -185,16 +185,16 @@ language sql stable security invoker set search_path = public, pg_temp as $$
             reference nulls last;
 $$;
 
--- ── The ageing, for one supplier ─────────────────────────────────────────────
+-- == The ageing, for one supplier =============================================
 --
 -- `app.partner_creditors` ages EVERY supplier and groups the answer; there is no way to ask
 -- it about one. Matching its output by the supplier's name would be exactly the string
--- lookup G18 (0480–0482) existed to abolish, so this asks the question directly.
+-- lookup G18 (0480-0482) existed to abolish, so this asks the question directly.
 --
 -- Same buckets, same boundaries, same gross figure as `app.partner_creditors`, on purpose:
 -- /money and this screen are read by the same person in the same week, and G25 asserts they
 -- agree on the total rather than trusting that they were written the same way. Age is
--- measured from the SUPPLIER'S OWN INVOICE DATE, not from a due date — an expense has no
+-- measured from the SUPPLIER'S OWN INVOICE DATE, not from a due date, an expense has no
 -- due date, so this is "how long have I been sitting on this", and the screen says which.
 create or replace function app.supplier_ageing(
   p_workshop uuid,
@@ -227,7 +227,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   from unpaid;
 $$;
 
--- ── The remittance ───────────────────────────────────────────────────────────
+-- == The remittance ===========================================================
 --
 -- What one payment covered. Keyed on the DATE the money left, because that is the only
 -- thing the purchase side records about a payment and because it is also how the payment
@@ -268,7 +268,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by e.expense_date, e.reference nulls last;
 $$;
 
--- ── PostgREST wrappers ───────────────────────────────────────────────────────
+-- == PostgREST wrappers =======================================================
 -- The column lists are restated rather than referenced: a function's RETURNS TABLE is not
 -- a named composite type, so `returns setof app.supplier_statement` does not exist. Same
 -- shape as the 0413 and 0460 wrappers.
@@ -305,7 +305,7 @@ $$;
 comment on function app.supplier_statement(uuid, uuid, date, date) is
   'A supplier statement of account (G25): opening balance, then every bill and every '
   'settlement in the window, GROSS (amount + the supplier''s own VAT) because that is what '
-  'leaves the bank — the same figure app.partner_creditors ages. SECURITY INVOKER, so RLS '
+  'leaves the bank, the same figure app.partner_creditors ages. SECURITY INVOKER, so RLS '
   'decides; workshop-scoped, so no farm ever reads it. The purchase side has no payment '
   'records, only partner_expenses.paid_on, so a settlement is all-or-nothing and carries '
   'the supplier''s own invoice number as its reference.';

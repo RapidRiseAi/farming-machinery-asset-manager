@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 /**
  * Hand the books to an accountant (FR-17.2).
  *
- * One route, two audiences — the same shape as /documents. A partner gets the journal
+ * One route, two audiences, the same shape as /documents. A partner gets the journal
  * over what they invoiced, were paid and bought; a farm gets the journal over its cost
  * ledger. Which one you are is decided by your role, not by a query parameter.
  *
@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
  * laid out before anything is downloaded.
  *
  * It also says, in words, that the file is a GENERIC journal and not a Sage or Xero
- * one — see the finding recorded at the top of src/lib/accounting.ts. Nobody should
+ * one, see the finding recorded at the top of src/lib/accounting.ts. Nobody should
  * discover that at their accountant's desk.
  */
 export default async function AccountingPage({
@@ -153,7 +153,7 @@ export default async function AccountingPage({
           })}
         </div>
         <p className="mt-3 text-sm text-sand-600">
-          {shortDate(from, locale)} – {shortDate(to, locale)}
+          {shortDate(from, locale)} - {shortDate(to, locale)}
         </p>
       </Card>
 
@@ -200,8 +200,8 @@ export default async function AccountingPage({
                     <Tr key={a.key}>
                       <Td className="tabular-nums text-sand-500">{a.code}</Td>
                       <Td>{accountName(a.key, locale)}</Td>
-                      <Td className="text-right tabular-nums">{a.debit ? rands(a.debit) : "—"}</Td>
-                      <Td className="text-right tabular-nums">{a.credit ? rands(a.credit) : "—"}</Td>
+                      <Td className="text-right tabular-nums">{a.debit ? rands(a.debit) : "-"}</Td>
+                      <Td className="text-right tabular-nums">{a.credit ? rands(a.credit) : "-"}</Td>
                     </Tr>
                   ))}
                 </Tbody>

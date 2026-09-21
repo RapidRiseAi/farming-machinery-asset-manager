@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // FleetWise Green (Official Colour Palette). Was #166534, while the manifest
-  // said #16a34a — stock Tailwind green, a colour in no token file anywhere — so
+  // said #16a34a, stock Tailwind green, a colour in no token file anywhere, so
   // the address bar, the PWA splash and the app were three different greens.
   themeColor: "#00572c",
   width: "device-width",
@@ -35,7 +35,7 @@ export const viewport: Viewport = {
   // It is usually added to stop iOS zooming on a focused input; the real cure for
   // that is a >=16px font size on inputs, which the kit's `controlBase` already has.
 
-  // Without this, every `env(safe-area-inset-*)` in globals.css resolves to 0px —
+  // Without this, every `env(safe-area-inset-*)` in globals.css resolves to 0px -
   // so `.pb-safe` did nothing in its three call sites and `.h-safe-tabbar` was
   // written and never used. On a phone with gesture navigation the fixed bottom
   // tab bar was sitting under the system gesture strip.
@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           theme without a single component knowing which theme it is in. */}
       <body className="min-h-dvh bg-surface-raised font-sans text-ink antialiased">
         {/* Acknowledges a tap immediately, on every screen including the public QR
-            pages — every route here is dynamic, so there is always a wait to cover. */}
+            pages, every route here is dynamic, so there is always a wait to cover. */}
         <RouteProgress />
         {children}
         <ServiceWorkerRegister />

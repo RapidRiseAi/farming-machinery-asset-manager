@@ -6,7 +6,7 @@ import type { Role } from "@/lib/auth";
  * Deliberately NOT a spotlight-on-the-DOM tour. Those break the moment a screen
  * changes, they cannot survive a page navigation, and on a phone they cover the thing
  * they are pointing at. This is a short sequence of cards, each one about a real screen
- * and each ending on a link that takes you to it — so the tour is a set of destinations,
+ * and each ending on a link that takes you to it, so the tour is a set of destinations,
  * not a puppet show, and it works the same whether someone finishes it in one sitting or
  * comes back to it a week later.
  *
@@ -84,7 +84,7 @@ export function tourFor(role: Role): TourStep[] {
  * of this person on this device, and it must not cost a write or a migration. The
  * `farmgear:` prefix is kept DELIBERATELY. It is a browser-storage key, not text anybody
  * reads, and renaming it would re-run the walkthrough for every person who has already
- * dismissed it — the product was renamed to FleetWise in F1, which kept every storage
+ * dismissed it, the product was renamed to FleetWise in F1, which kept every storage
  * identifier stable for exactly this reason.
  */
 export const TOUR_SEEN_KEY = "farmgear:tour-done";

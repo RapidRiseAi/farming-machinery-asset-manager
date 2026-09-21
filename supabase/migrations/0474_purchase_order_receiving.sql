@@ -3,34 +3,34 @@
 --
 -- Somebody carries a box in from the bakkie and ticks off what is in it. That is the whole
 -- interaction, and it happens standing up, often with one hand. Asking that person to
--- ALSO remember to move the order from "sent" to "part received" — and then to notice, two
--- deliveries later, that it has quietly become complete — is how a status column becomes
+-- ALSO remember to move the order from "sent" to "part received", and then to notice, two
+-- deliveries later, that it has quietly become complete, is how a status column becomes
 -- decoration: it is right on the day it is set and wrong for the rest of the month.
 --
 -- So the status is derived, not typed. The same reasoning as `stock_items.on_hand` in
 -- 0450: the ledger is what people actually maintain, so anything summarising it must be
 -- computed from it rather than kept in step by hand.
 --
--- ── Which states the engine owns ─────────────────────────────────────────────
+-- == Which states the engine owns =============================================
 --
 -- Only the three that describe a delivery: `sent` -> `part_received` -> `received`.
 --
 --   * `draft` is untouched because a draft is not with the supplier yet. Quantities typed
 --     against a draft are a mistake being corrected, not a delivery arriving.
 --   * `closed` and `cancelled` are untouched because they are DECISIONS. A partner who
---     closes a short-shipped order — the supplier is never sending the last two, the
---     invoice is captured, it is finished — must not find it reopened as `part_received`
+--     closes a short-shipped order, the supplier is never sending the last two, the
+--     invoice is captured, it is finished, must not find it reopened as `part_received`
 --     the next time anyone touches a line. An engine that overrides a human decision gets
 --     switched off; this one cannot, because it never sees those rows.
 --
 -- Nothing in here books cost. Receiving stock is stock arriving, exactly as a fuel
--- delivery is in F4 and a stock receipt is in 0450 — the money still enters only when the
+-- delivery is in F4 and a stock receipt is in 0450, the money still enters only when the
 -- supplier's invoice is captured (0475).
 
--- ── What the lines say has arrived ───────────────────────────────────────────
+-- == What the lines say has arrived ===========================================
 -- SECURITY DEFINER so the triggers can read the lines regardless of which policy path the
 -- caller came in on, and EXECUTE revoked from everyone: this is trigger plumbing, not an
--- entry point. 0440 is the reason the revoke is explicit — a function with no grant
+-- entry point. 0440 is the reason the revoke is explicit, a function with no grant
 -- defaults to EXECUTE TO PUBLIC, which is how a debug helper ended up reachable by anon.
 create or replace function app.purchase_order_derived_status(
   p_order   uuid,
@@ -49,7 +49,7 @@ begin
 
   select coalesce(sum(l.qty_ordered), 0),
          -- Clamped per line. A supplier who sends twelve of one item and none of another
-         -- has NOT completed the order, and an unclamped sum would say they had — the
+         -- has NOT completed the order, and an unclamped sum would say they had, the
          -- surplus on one line would silently cover the shortfall on the other.
          coalesce(sum(least(l.qty_received, l.qty_ordered)), 0)
     into v_ordered, v_received
@@ -67,7 +67,7 @@ end $$;
 revoke all on function app.purchase_order_derived_status(uuid, purchase_order_status)
   from public, anon, authenticated;
 
--- ── On the header: a typed status inside the engine's range is corrected ─────
+-- == On the header: a typed status inside the engine's range is corrected =====
 -- This is what makes "the status follows the lines" true by construction rather than by
 -- the app remembering. When the partner sends an order, the app writes `sent` and this
 -- decides what `sent` actually means given what has already arrived; a stale form posting
@@ -82,7 +82,7 @@ end $$;
 create trigger purchase_orders_status before insert or update on purchase_orders
 for each row execute function app_purchase_order_status();
 
--- ── On the lines: receiving moves the order ──────────────────────────────────
+-- == On the lines: receiving moves the order ==================================
 -- Fires after 0473's rollup (triggers on one table fire in name order, and `_rollup`
 -- sorts before `_status`), so the subtotal is already settled when this runs.
 --
@@ -112,5 +112,5 @@ for each row execute function app_purchase_order_status_from_lines();
 
 comment on function app.purchase_order_derived_status(uuid, purchase_order_status) is
   'What a purchase order''s status should be given what its lines say has arrived. '
-  'Returns draft/closed/cancelled unchanged — those are human decisions, not deliveries. '
+  'Returns draft/closed/cancelled unchanged, those are human decisions, not deliveries. '
   'Per-line clamped so over-delivery on one line cannot mask a shortfall on another.';

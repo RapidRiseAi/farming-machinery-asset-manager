@@ -1,5 +1,5 @@
 /*
- * FleetWise service worker — hand-rolled, no dependencies.
+ * FleetWise service worker, hand-rolled, no dependencies.
  *
  * Strategy:
  *   - Immutable build assets (/_next/static, /icon.svg): cache-first.
@@ -7,7 +7,7 @@
  *     URL, then to the /offline page. This lets the app open and render the last-viewed
  *     data with the network disabled.
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
- *   - Never touches POST or /api/* — mutations flow through the IndexedDB sync queue.
+ *   - Never touches POST or /api/*, mutations flow through the IndexedDB sync queue.
  */
 const VERSION = "fleetwise-v3";
 const SHELL_CACHE = VERSION + "-shell";
@@ -18,7 +18,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(SHELL_CACHE);
-      // Tolerate individual precache misses (e.g. a 404 in an odd build) — never fail install.
+      // Tolerate individual precache misses (e.g. a 404 in an odd build), never fail install.
       await Promise.all(
         SHELL_ASSETS.map((url) =>
           cache.add(new Request(url, { cache: "reload" })).catch(() => undefined),
@@ -47,7 +47,7 @@ self.addEventListener("message", (event) => {
   // The app tells us which routes this person can actually reach, so they are there
   // when the signal is not.
   if (event.data && event.data.type === "clear-data") {
-    // A different person, or a different farm — nothing cached for the last one may be
+    // A different person, or a different farm, nothing cached for the last one may be
     // shown to this one. Warm again afterwards so offline still works for them.
     const paths = Array.isArray(event.data.paths)
       ? event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))
@@ -70,7 +70,7 @@ async function cacheFirst(request, cacheName) {
 }
 
 /*
- * Where a LAUNCH with no signal can land — the installed app opening at `/` or `/home`,
+ * Where a LAUNCH with no signal can land, the installed app opening at `/` or `/home`,
  * which are dispatchers rather than screens, so there is nothing meaningful to show for
  * them. Role order, most-specific first.
  *
@@ -78,7 +78,7 @@ async function cacheFirst(request, cacheName) {
  * behaved the way it did offline: tapping Reports with no signal silently rendered the
  * dashboard while the address bar still said /reports. Showing someone a different page
  * than the one they asked for, with no indication, is worse than saying "not available
- * offline" — they read the dashboard's numbers believing they are looking at reports.
+ * offline", they read the dashboard's numbers believing they are looking at reports.
  * Fallbacks now apply ONLY to a launch.
  */
 const LAUNCH_PATHS = ["/", "/home"];
@@ -87,8 +87,8 @@ const APP_FALLBACKS = ["/dashboard", "/driver", "/contractor", "/machines"];
 /*
  * Pages the app asks us to keep ready for offline use. The page posts its own nav list
  * once it is up (see `warm` in the message handler below), so what is available offline
- * is exactly what that person's role can actually reach — a driver warms the driver's
- * screens, a contractor warms theirs — rather than a hardcoded guess.
+ * is exactly what that person's role can actually reach, a driver warms the driver's
+ * screens, a contractor warms theirs, rather than a hardcoded guess.
  */
 async function warmPaths(paths) {
   const cache = await caches.open(DATA_CACHE);
@@ -102,14 +102,14 @@ async function warmPaths(paths) {
        * on a shared farm-office browser. Replacing it every warm keeps what is stored
        * belonging to whoever is signed in now.
        *
-       * A context change also drops the whole cache outright — see the `clear-data`
+       * A context change also drops the whole cache outright, see the `clear-data`
        * message below, which the app sends when the signed-in user or the current farm
        * changes. This is the second line of defence, not the only one.
        */
       const res = await fetch(path, { credentials: "same-origin" });
       if (res && res.ok && !res.redirected) await cache.put(path, res.clone());
     } catch {
-      /* no signal, or the route declined — try again next time the app opens */
+      /* no signal, or the route declined, try again next time the app opens */
     }
   }
 }
@@ -117,7 +117,7 @@ async function warmPaths(paths) {
 /*
  * Forget everything cached for the previous context.
  *
- * Cached HTML is somebody's data — their vehicles, their costs, their people. Because
+ * Cached HTML is somebody's data, their vehicles, their costs, their people. Because
  * the cache is keyed only by URL, the moment a different person signs in (or the same
  * person switches farm) every stored page is potentially the wrong one to show. The app
  * posts `clear-data` when it notices that change; we drop the data cache and let the
@@ -141,7 +141,7 @@ async function networkFirstNav(request, url) {
     if (res && res.ok && !res.redirected) cache.put(request, res.clone());
     return res;
   } catch (err) {
-    // Exact URL first, then the same path without its query — a filtered list offline is
+    // Exact URL first, then the same path without its query, a filtered list offline is
     // better served by the unfiltered one it was reached from than by nothing.
     const cached = (await cache.match(request)) || (await cache.match(url.pathname));
     if (cached) return cached;
@@ -205,7 +205,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 /*
- * Web Push (F6). Additive — the offline strategy above is untouched. Payloads are the
+ * Web Push (F6). Additive, the offline strategy above is untouched. Payloads are the
  * JSON encrypted by src/lib/push/webpush.ts: { title, body, url, tag }.
  */
 self.addEventListener("push", (event) => {
@@ -240,7 +240,7 @@ self.addEventListener("notificationclick", (event) => {
             try {
               await client.navigate(target);
             } catch {
-              /* cross-origin or not allowed — ignore */
+              /* cross-origin or not allowed, ignore */
             }
           }
           return;

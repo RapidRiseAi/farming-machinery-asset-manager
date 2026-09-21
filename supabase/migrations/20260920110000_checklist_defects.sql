@@ -2,7 +2,7 @@
 -- A failed pre-start check has to reach somebody.
 --
 -- THE GAP
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Checklists (F11, 0290) record answers and nothing more. The field types are
 -- checkbox / text / number / photo / rating / section_break, and none of them carries the
 -- idea of a DEFECT. So a driver can tick "Brakes: no" at six in the morning, the checklist
@@ -11,27 +11,27 @@
 -- exception it catches.
 --
 -- WHAT THIS ADDS
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A template field can now say WHICH answer is a defect (`fail_when`), how bad it is
--- (`fail_urgency`), and — for numbers and ratings — the threshold (`fail_threshold`).
+-- (`fail_urgency`), and, for numbers and ratings, the threshold (`fail_threshold`).
 -- `public.record_checklist_defects(instance)` reads a filled checklist, opens ONE fault per
 -- failing answer, and stamps the instance so it can never open them twice.
 --
 -- WHY A SEPARATE COMMAND RATHER THAN A TRIGGER
--- ─────────────────────────────────────────────────────────────────────────────
--- A checklist is saved in three steps — the instance, then any photos, then the values —
+-- =============================================================================
+-- A checklist is saved in three steps, the instance, then any photos, then the values -
 -- so a trigger on the instance would run before a single answer existed. The action calls
 -- this once the answers are in. It is idempotent (`defects_raised_at`), so the offline
 -- replay and a retried submit cannot raise the same fault twice.
 --
 -- IT DOES NOT TAKE THE MACHINE OUT OF SERVICE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Deliberately. Changing a machine's status is owner/manager work (`machines_upd`), and a
 -- driver filling in a checklist is usually an operator. The fault carries the urgency, the
 -- existing fault → out-of-service action (F3) stays where it is, and nobody is quietly
 -- given a permission by way of a checklist.
 
--- ── What counts as a defect ─────────────────────────────────────────────────
+-- == What counts as a defect =================================================
 alter table public.checklist_template_fields
   add column if not exists fail_when text,
   add column if not exists fail_threshold numeric(12,2),
@@ -51,11 +51,11 @@ comment on column public.checklist_template_fields.fail_when is
   'Which answer is a defect: checked / unchecked for a checkbox, below / above a '
   'fail_threshold for a number or rating. Null means this field never raises anything.';
 
--- ── So the same checklist cannot raise its faults twice ─────────────────────
+-- == So the same checklist cannot raise its faults twice =====================
 alter table public.checklist_instances
   add column if not exists defects_raised_at timestamptz;
 
--- ── Which checklist a fault came from ───────────────────────────────────────
+-- == Which checklist a fault came from =======================================
 alter table public.faults
   add column if not exists checklist_instance_id uuid;
 
@@ -72,7 +72,7 @@ end $$;
 create index if not exists faults_checklist_instance_idx
   on public.faults(checklist_instance_id) where checklist_instance_id is not null;
 
--- ── Open a fault for every failed answer ────────────────────────────────────
+-- == Open a fault for every failed answer ====================================
 --
 -- SECURITY INVOKER: filling in a checklist and reporting a fault are the same person's
 -- work, and `faults_ins` already allows every farm-side role on a machine they can see.
@@ -144,8 +144,8 @@ begin
     ) values (
       v_farm, v_machine, auth.uid(),
       -- The checklist and the answer that failed, so the fault reads like the inspection:
-      -- "Daily pre-start — Brakes" and then whatever the driver wrote.
-      left(format('%s — %s%s', coalesce(v_name, 'Checklist'), r.label,
+      -- "Daily pre-start, Brakes" and then whatever the driver wrote.
+      left(format('%s, %s%s', coalesce(v_name, 'Checklist'), r.label,
              case when coalesce(btrim(r.notes), '') = '' then ''
                   else format(': %s', r.notes) end), 1000),
       'checklist', r.urgency, 'open', p_instance

@@ -123,7 +123,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     }
     const paths = [...new Set(pathById.values())];
     if (paths.length > 0) {
-      // NOTE: the BATCH api (`createSignedUrls`) takes no `transform` — only the
+      // NOTE: the BATCH api (`createSignedUrls`) takes no `transform`, only the
       // single-object `createSignedUrl` does, and the signature covers the
       // transformation, so the parameters cannot be appended afterwards. Signing
       // 15 photos one at a time to get a resize would be 15 round trips to save
@@ -148,7 +148,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     }
   }
 
-  // Worst service status per machine, and which machines have no plan at all — the
+  // Worst service status per machine, and which machines have no plan at all, the
   // second is a real to-do that used to render as an invisible sand-300 dash.
   const { data: splData } = await supabase
     .from("service_plan_lines")
@@ -231,7 +231,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const showReadingActions = canAddReading && machines.some((m) => m.meter_type !== "none");
 
   /**
-   * The service cell — a status, or a "set up a plan" prompt when there is no plan.
+   * The service cell, a status, or a "set up a plan" prompt when there is no plan.
    *
    * `linked` is false inside the mobile card, whose whole surface is already a link to
    * the same machine. An `<a>` inside an `<a>` is invalid HTML: the browser lifts the
@@ -261,7 +261,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     return <ServiceStatus value={s} locale={locale} />;
   };
 
-  /** Meter reading + when it was last read — a stale reading is what breaks service dates. */
+  /** Meter reading + when it was last read, a stale reading is what breaks service dates. */
   const readingCell = (m: MachineRow) => {
     if (m.meter_type === "none") {
       return <span className="text-sand-400">{t("machines.noMeter", locale)}</span>;
@@ -310,7 +310,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header — says how big the fleet is and what is wrong with it, which the page
+      {/* Header, says how big the fleet is and what is wrong with it, which the page
           never did before. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -363,8 +363,8 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       <Flash tone="success" message={sp.imported ? t("machines.importedN", locale).replace("{n}", sp.imported) : undefined} />
 
       {/*
-        Four unlabelled chip rows used to stack here — type, status, cost centre,
-        department — roughly 200px of identical-looking controls before the first
+        Four unlabelled chip rows used to stack here, type, status, cost centre,
+        department, roughly 200px of identical-looking controls before the first
         machine, with the group names present only as `aria-label`. One filter control
         now, with what is actually filtering shown in words above the list.
       */}
@@ -424,7 +424,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       />
 
       {machines.length === 0 && !hasFilter ? (
-        /* Nothing on the farm yet — a warm first run, with a ghost of the filled list. */
+        /* Nothing on the farm yet, a warm first run, with a ghost of the filled list. */
         <GetStarted
           icon={<MachinesIcon />}
           title={t("machines.firstRunTitle", locale)}
@@ -463,7 +463,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
           }
         />
       ) : machines.length === 0 ? (
-        /* The filter is hiding everything — the fix is to clear it, not to add a machine. */
+        /* The filter is hiding everything, the fix is to clear it, not to add a machine. */
         <NoMatches
           title={t("empty.noMatchTitle", locale)}
           hint={t("empty.noMatchHint", locale)}
@@ -539,11 +539,11 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                       <Td><MachineStatus value={m.status} locale={locale} /></Td>
                       {costsVisible ? (
                         <Td className="text-right tabular-nums text-sand-700">
-                          {cpu != null ? rands(cpu) : <span className="text-sand-400">—</span>}
+                          {cpu != null ? rands(cpu) : <span className="text-sand-400">-</span>}
                         </Td>
                       ) : null}
                       {showReadingActions ? <Td className="text-right">
-                        {/* A row you can act on — logging hours used to mean opening the
+                        {/* A row you can act on, logging hours used to mean opening the
                             machine, logging, coming back and losing your place. */}
                         {m.meter_type !== "none" ? (
                           <Link
@@ -553,7 +553,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                             {t("machines.logHours", locale)}
                             <ChevronRightIcon className="text-base" />
                           </Link>
-                        ) : <span className="text-sand-400">—</span>}
+                        ) : <span className="text-sand-400">-</span>}
                       </Td> : null}
                     </Tr>
                   );

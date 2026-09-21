@@ -6,7 +6,7 @@
 --     duplicate key value violates unique constraint "partner_documents_number_uq"
 --
 -- and created nothing. The counter on `workshops` and the numbers actually present in
--- `partner_documents` had drifted apart — in that instance because demo rows were
+-- `partner_documents` had drifted apart, in that instance because demo rows were
 -- inserted directly, but the same drift arrives by ordinary means: a restore from
 -- backup, an import of a partner's historical paperwork, a row inserted by support, or
 -- a counter reset by someone tidying up. 0380 assumed the counter was the only writer.
@@ -35,7 +35,7 @@ begin
   loop
     v_guard := v_guard + 1;
     if v_guard > 10000 then
-      raise exception 'could not allocate a % number for workshop % — the sequence looks corrupt', p_kind, p_workshop;
+      raise exception 'could not allocate a % number for workshop %, the sequence looks corrupt', p_kind, p_workshop;
     end if;
 
     if p_kind = 'quote' then

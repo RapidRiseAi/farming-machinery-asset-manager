@@ -1,8 +1,8 @@
 // Client-only image helpers shared by the machine-photo uploaders (detail gallery +
-// add-vehicle form). Downscale + JPEG re-encode keeps uploads ~200–400 KB on a
-// mid-range Android (Scope §7). No server imports — safe in client components.
+// add-vehicle form). Downscale + JPEG re-encode keeps uploads ~200-400 KB on a
+// mid-range Android (Scope §7). No server imports, safe in client components.
 
-/** Downscale + re-encode an image File to a JPEG Blob (~200–400 KB). */
+/** Downscale + re-encode an image File to a JPEG Blob (~200-400 KB). */
 export async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
@@ -24,7 +24,7 @@ export async function compressImage(file: File, maxDim = 1600, quality = 0.7): P
 }
 
 /** Read a Blob as a base64 `data:` URL (used to ferry a compressed photo through a
- *  server-action form field before the machine — and its storage path — exists). */
+ *  server-action form field before the machine, and its storage path, exists). */
 export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

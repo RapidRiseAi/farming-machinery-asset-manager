@@ -2,20 +2,20 @@
 -- The same invoice, every month, without anybody remembering to raise it.
 --
 -- A workshop on a monthly service contract, a supplier billing a standing retainer, a
--- storage or standby fee — the amount does not change and the date does not move, and
+-- storage or standby fee, the amount does not change and the date does not move, and
 -- the failure mode is not getting it wrong, it is FORGETTING. Money that is never
 -- invoiced is never collected, and nobody notices for months because there is nothing on
 -- any screen to notice.
 --
--- ── The shape ────────────────────────────────────────────────────────────────
+-- == The shape ================================================================
 --
 -- A schedule holds everything an invoice needs (recipient, lines, terms) plus a cadence
 -- and the date of the next one. The nightly cron walks the schedules that are due and
--- raises real documents through the same tables everything else uses — so a generated
+-- raises real documents through the same tables everything else uses, so a generated
 -- invoice is an ordinary invoice in every respect: it has a number from the partner's own
 -- sequence, its own lines, its own cost entry, its own place on a statement.
 --
--- ── Two decisions worth stating ──────────────────────────────────────────────
+-- == Two decisions worth stating ==============================================
 --
 -- 1. It generates a DRAFT by default. An invoice raised while nobody is looking, emailed
 --    to a customer automatically, is how a business ends up billing a client it parted
@@ -23,7 +23,7 @@
 --    default, and the screen says plainly which mode a schedule is in.
 --
 -- 2. It CANNOT run twice for the same period. `last_period_start` records the period a
---    run covered, and the generator skips a schedule whose next period is not past it —
+--    run covered, and the generator skips a schedule whose next period is not past it -
 --    so a cron that fires twice, a manual "run it now", or a retry after a half-finished
 --    night cannot produce two invoices for October.
 
@@ -77,7 +77,7 @@ create table recurring_invoices (
   ),
   -- Only meaningful while the schedule is LIVE. When it reaches its end date the
   -- generator moves next_issue_date past ends_on and switches active off in the same
-  -- update — that is the correct terminal state, and an unconditional check would refuse
+  -- update, that is the correct terminal state, and an unconditional check would refuse
   -- the very write that stops the schedule.
   constraint recurring_invoices_ends_ck check (
     ends_on is null or not active or ends_on >= next_issue_date
@@ -111,7 +111,7 @@ comment on table recurring_invoices is
   '`auto_send`; `last_period_start` makes a run idempotent, so a double-fired cron cannot '
   'bill a customer twice for the same month.';
 
--- ── RLS: workshop-scoped, like the client book ───────────────────────────────
+-- == RLS: workshop-scoped, like the client book ===============================
 do $do$
 declare t text;
 begin
@@ -134,12 +134,12 @@ begin
   end loop;
 end $do$;
 
--- ── Moving a date on by one cadence ──────────────────────────────────────────
+-- == Moving a date on by one cadence ==========================================
 -- Its own function because month arithmetic is where this kind of feature goes wrong: the
 -- 31st of January plus one month is the 28th of February, and a schedule that silently
 -- drifts to the 1st of March bills on a different day every quarter. `+ interval '1 month'`
 -- in Postgres already clamps to the end of a short month, which is the behaviour a
--- business expects — this wraps it so the rule lives in one place and is testable.
+-- business expects, this wraps it so the rule lives in one place and is testable.
 create or replace function app.advance_by_cadence(p_from date, p_cadence recurrence_cadence)
 returns date
 language sql immutable set search_path = public, pg_temp as $$
@@ -151,7 +151,7 @@ language sql immutable set search_path = public, pg_temp as $$
   end::date;
 $$;
 
--- ── The generator ────────────────────────────────────────────────────────────
+-- == The generator ============================================================
 -- SECURITY DEFINER because the nightly cron runs with no session, exactly like the other
 -- 0205-pattern engines. It is never called from the client: execute is revoked from
 -- authenticated and anon, and the partner-facing "run it now" goes through
@@ -207,7 +207,7 @@ begin
       bill_to_name, created_by
     ) values (
       -- ALWAYS created as a draft, then flipped below if the schedule sends itself. The
-      -- freeze triggers (0417) refuse lines on an issued document — correctly — so an
+      -- freeze triggers (0417) refuse lines on an issued document, correctly, so an
       -- invoice has to be assembled before it is issued, exactly like one built by hand.
       r.farm_id, r.partner_client_id, r.workshop_id, r.machine_id, 'invoice',
       'draft'::partner_doc_status,
@@ -262,7 +262,7 @@ end $$;
 revoke execute on function public.cron_generate_recurring_invoices() from public, anon, authenticated;
 grant  execute on function public.cron_generate_recurring_invoices() to service_role;
 
--- ── "Raise it now" ───────────────────────────────────────────────────────────
+-- == "Raise it now" ===========================================================
 -- The partner's own button, for the schedule they just set up and do not want to wait a
 -- month to see work. Ownership is checked HERE rather than relying on the generator,
 -- because the generator is SECURITY DEFINER and would otherwise honour any id passed to it.

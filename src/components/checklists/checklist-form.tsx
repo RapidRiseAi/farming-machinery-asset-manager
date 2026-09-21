@@ -127,7 +127,7 @@ export function ChecklistForm({
       values,
     };
 
-    // ── No signal: keep the inspection ────────────────────────────────────
+    // == No signal: keep the inspection ====================================
     // A pre-start check is filled in beside the machine at first light, which is exactly
     // where there is no signal. The answers queue and replay through the same envelope as
     // every other capture (20260920120000), and a failed answer still raises its fault when
@@ -293,7 +293,7 @@ export function ChecklistForm({
                 <div className="flex items-center gap-3">
                   {photos[field.id] ? (
                     <span className="relative">
-                      {/* A local object URL, but it still needs a reserved box —
+                      {/* A local object URL, but it still needs a reserved box -
                           without one the form jumps as the preview appears. */}
                       <Photo src={photos[field.id].preview} alt={field.label} size="thumb" priority className="h-20 w-20 rounded-lg ring-1 ring-sand-200" />
                       {/* Was a 24px icon-only "✕". Both halves of the house rule were

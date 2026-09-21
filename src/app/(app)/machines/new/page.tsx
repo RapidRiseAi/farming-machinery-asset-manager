@@ -40,7 +40,7 @@ export default async function NewMachinePage({
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       {/* The ceiling message told the farmer to "add more slots on the billing screen" and
           then left them to go and find it. The one person who can act on this is the owner
-          — a manager sees the same wall and cannot buy anything — so the button is theirs
+         , a manager sees the same wall and cannot buy anything, so the button is theirs
           alone and everyone else keeps the sentence without a dead end attached. */}
       {sp.error === "vehicle-limit-reached" && profile.role === "owner" ? (
         // `manage` opens the disclosure the slots form lives behind on /billing; the

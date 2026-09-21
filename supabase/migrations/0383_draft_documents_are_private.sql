@@ -4,7 +4,7 @@
 -- Found by driving the built app against the live demo project: signed in as the farm's
 -- owner, TJ's unsent draft invoice (TJI-0002) appeared in the farmer's list alongside the
 -- documents actually sent to them. 0381's SELECT policy scoped documents by FARM and by
--- ISSUING PARTNER, which is the tenancy question — but it never asked whether the
+-- ISSUING PARTNER, which is the tenancy question, but it never asked whether the
 -- document had been sent, so a partner pricing a job could be watched doing it.
 --
 -- That is a product defect, not a cosmetic one: a partner who cannot draft privately will
@@ -31,7 +31,7 @@ create policy partner_documents_sel on partner_documents for select to authentic
   );
 
 -- The child tables reach the same rule through app.partner_doc_visible_by_id, which
--- consults the parent row directly rather than through the policy — so restate the draft
+-- consults the parent row directly rather than through the policy, so restate the draft
 -- rule there too, or a farmer would be denied the document but shown its line items.
 create or replace function app.partner_doc_visible_by_id(p_doc uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$

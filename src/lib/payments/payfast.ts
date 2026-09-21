@@ -2,14 +2,14 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 /**
- * PayFast — letting a customer pay an invoice with a card or an instant EFT (G10).
+ * PayFast, letting a customer pay an invoice with a card or an instant EFT (G10).
  *
  * PayFast rather than Stripe because the customers are South African farms: PayFast
  * carries Ozow/instant EFT and the local card acquirers, which is how most of this money
  * actually moves. The rest of the product treats it as one implementation of a small
  * interface, so a partner on a different provider is a new file, not a rewrite.
  *
- * ── The signature ────────────────────────────────────────────────────────────
+ * == The signature ============================================================
  *
  * PayFast signs by concatenating the fields IN THE ORDER THEY APPEAR, urlencoded, and
  * taking an MD5. Three details in that sentence are where implementations go wrong, and
@@ -21,13 +21,13 @@ import { createHash } from "node:crypto";
  *      digits are UPPERCASE. `encodeURIComponent` gives neither.
  *   3. Empty fields are omitted entirely. Sending `cell_number=` breaks the signature.
  *
- * ── Why the callback is verified three ways ──────────────────────────────────
+ * == Why the callback is verified three ways ==================================
  *
  * The ITN is an unauthenticated POST from the internet to a public URL. Anyone can send
  * one claiming an invoice was paid. So it is only believed when all of the following
  * hold: the signature recomputes, the amount matches what we asked for, and PayFast
  * itself confirms it when we hand the payload back to them. The last one is the important
- * one — it is the only step an attacker cannot forge, because it is a request WE make to
+ * one, it is the only step an attacker cannot forge, because it is a request WE make to
  * a host WE choose.
  */
 
@@ -68,7 +68,7 @@ function phpUrlEncode(value: string): string {
 /**
  * The signature over an ordered field list.
  *
- * `fields` must already be in PayFast's expected order — an array of pairs rather than an
+ * `fields` must already be in PayFast's expected order, an array of pairs rather than an
  * object, precisely so that nothing downstream can reorder them by accident.
  */
 export function signFields(fields: [string, string][], passphrase: string | null): string {
@@ -80,7 +80,7 @@ export function signFields(fields: [string, string][], passphrase: string | null
 }
 
 export type PayFastCheckout = {
-  /** Our own reference — the document id, so the ITN can find its way back. */
+  /** Our own reference, the document id, so the ITN can find its way back. */
   paymentId: string;
   amountCents: number;
   itemName: string;
@@ -94,7 +94,7 @@ export type PayFastCheckout = {
 /**
  * The fields for a checkout, in PayFast's order, with the signature appended.
  *
- * The amount is sent in RANDS with two decimals — PayFast's API is not in cents, which is
+ * The amount is sent in RANDS with two decimals, PayFast's API is not in cents, which is
  * the one place in this codebase money leaves integer arithmetic. It happens exactly here,
  * at the boundary, and comes back to cents in `parseAmount` below.
  */
@@ -132,7 +132,7 @@ export type ItnResult =
  * Decide whether an ITN is real.
  *
  * `expectedAmountCents` is looked up from OUR record of what was owed, and compared here
- * rather than trusted from the callback — otherwise a forged ITN could mark a R40 000
+ * rather than trusted from the callback, otherwise a forged ITN could mark a R40 000
  * invoice paid with a R1 payment.
  */
 export async function verifyItn(

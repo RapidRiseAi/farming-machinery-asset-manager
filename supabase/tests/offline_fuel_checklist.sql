@@ -1,13 +1,13 @@
 -- Diesel draws and pre-start checks replay from the offline queue.
 --
--- These two are the captures people make where the signal is worst — at the bowser and
--- beside the machine at first light — and until 20260920120000 the queue carried neither.
+-- These two are the captures people make where the signal is worst, at the bowser and
+-- beside the machine at first light, and until 20260920120000 the queue carried neither.
 -- The assertions are about the replay: the same row it would have written online, the same
 -- idempotency (a flush that runs twice must not draw the diesel twice), the same
 -- authorisation re-checked from live rows, and a failed check still raising its fault a day
 -- late.
 --
--- App scope only. The public-QR branches of this function cannot run on PGlite — the token
+-- App scope only. The public-QR branches of this function cannot run on PGlite, the token
 -- lookup fails there for reasons that predate this work, and `atomic_offline_capture.sql`
 -- fails identically on a clean checkout.
 
@@ -58,7 +58,7 @@ values
 
 -- Only the trusted sync route may replay a capture: proved by the grants, not by running
 -- as service_role. PGlite does not honour BYPASSRLS, so a capture replayed under that role
--- there sees no rows at all — which is why atomic_offline_capture.sql fails on PGlite and
+-- there sees no rows at all, which is why atomic_offline_capture.sql fails on PGlite and
 -- passes in CI. The calls below therefore run as the suite's own role; every check inside
 -- the function reads the actor and the machine from live rows, so the logic under test is
 -- identical.
@@ -76,7 +76,7 @@ begin
   end if;
 end $$;
 
--- ── (a) A diesel draw replays as the row it would have written online ───────
+-- == (a) A diesel draw replays as the row it would have written online =======
 do $$
 declare
   v_res jsonb;
@@ -100,7 +100,7 @@ begin
 
   select * into v_issue from public.fuel_issues where id = (v_res->>'entity_id')::uuid;
   if v_issue.litres <> 120 then raise exception 'OFFLINE FUEL FAIL: litres %', v_issue.litres; end if;
-  -- R115,00 inclusive at 15% is R100,00 ex-VAT — the same arithmetic as the online command,
+  -- R115,00 inclusive at 15% is R100,00 ex-VAT, the same arithmetic as the online command,
   -- now through app.ex_vat_cents rather than a third copy of the expression.
   if v_issue.cost_cents <> 10000 then
     raise exception 'OFFLINE FUEL FAIL: ex-VAT cost % not 10000', v_issue.cost_cents;
@@ -127,7 +127,7 @@ begin
   end if;
 end $$;
 
--- ── (b) A second flush of the same capture draws no more diesel ─────────────
+-- == (b) A second flush of the same capture draws no more diesel =============
 do $$
 declare v_res jsonb; v_count int;
 begin
@@ -151,7 +151,7 @@ begin
   end if;
 end $$;
 
--- ── (c) A pre-start check replays, and a failed answer still raises a fault ─
+-- == (c) A pre-start check replays, and a failed answer still raises a fault =
 do $$
 declare v_res jsonb; v_values int; v_faults int;
 begin
@@ -197,7 +197,7 @@ begin
   end if;
 end $$;
 
--- ── (d) The replay re-checks who may do what, from live rows ────────────────
+-- == (d) The replay re-checks who may do what, from live rows ================
 do $$
 declare v_refused int := 0; v_case text; v_before int; v_after int;
 begin

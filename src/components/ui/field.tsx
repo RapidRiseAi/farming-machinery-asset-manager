@@ -11,6 +11,13 @@ export type FieldProps = {
   htmlFor?: string;
   /** Helper text shown below the control. */
   hint?: ReactNode;
+  /**
+   * A control that belongs beside the label rather than under it: "Forgot?" next to
+   * Password is the one everybody looks for there. Rendered as a SIBLING of the `<label>`,
+   * never inside it, because a button nested in a label swallows the click that was meant
+   * to focus the input.
+   */
+  labelAction?: ReactNode;
   /** Error message; when set, styles the label and shows the message (role=alert). */
   error?: ReactNode;
   required?: boolean;
@@ -27,6 +34,7 @@ export function Field({
   label,
   htmlFor,
   hint,
+  labelAction,
   error,
   required,
   className,
@@ -34,15 +42,22 @@ export function Field({
 }: FieldProps) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      {label ? (
-        <label htmlFor={htmlFor} className="text-sm font-medium text-sand-800">
-          {label}
-          {required ? (
-            <span className="ml-0.5 text-status-overdue" aria-hidden>
-              *
-            </span>
-          ) : null}
-        </label>
+      {label || labelAction ? (
+        <div className="flex items-baseline justify-between gap-3">
+          {label ? (
+            <label htmlFor={htmlFor} className="text-sm font-medium text-sand-800">
+              {label}
+              {required ? (
+                <span className="ml-0.5 text-status-overdue" aria-hidden>
+                  *
+                </span>
+              ) : null}
+            </label>
+          ) : (
+            <span />
+          )}
+          {labelAction}
+        </div>
       ) : null}
       {children}
       {error ? (
@@ -56,11 +71,11 @@ export function Field({
   );
 }
 
-// ── Labelled controls ────────────────────────────────────────────────────────
+// == Labelled controls ========================================================
 //
 // The audit's fourth pattern: placeholder-as-label, ten times on the public QR page
 // alone, plus both login email boxes, the contractor money fields and the parts inline
-// editor. A placeholder disappears the moment you type — so the person least able to
+// editor. A placeholder disappears the moment you type, so the person least able to
 // remember what the box was for is the one it fails.
 //
 // These three wrap Field + control so a labelled field is a one-liner and there is no
@@ -77,7 +92,7 @@ export type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> &
   id?: string;
   hint?: ReactNode;
   error?: ReactNode;
-  /** Wrapper class — the control itself takes `className`. */
+  /** Wrapper class, the control itself takes `className`. */
   fieldClassName?: string;
 };
 

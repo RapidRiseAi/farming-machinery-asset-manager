@@ -17,7 +17,7 @@ import { uploadReceipt } from "@/lib/receipt-media";
  * guessing an id. The `workshop_id` is taken from the session, never from the form.
  *
  * The one judgement in here is how money is captured. A receipt says R1 150,00 including
- * VAT — that is the number a partner reads off the paper, so that is the number the form
+ * VAT, that is the number a partner reads off the paper, so that is the number the form
  * asks for, and the split into R1 000 + R150 happens here. The VAT is then EDITABLE,
  * because the supplier's own VAT line is what may legally be claimed and a mixed-rate or
  * oddly-rounded invoice would otherwise be silently restated.
@@ -39,13 +39,13 @@ type Db = Awaited<ReturnType<typeof createClient>>;
  * later deactivated or removed.
  *
  * When an id is picked the name is read back from the record rather than trusted from the
- * form — the two are posted from the same page and could otherwise disagree, at which point
+ * form, the two are posted from the same page and could otherwise disagree, at which point
  * the row would print one business and age under another. The lookup goes through the
  * caller's RLS client, so an id belonging to another workshop simply comes back empty and
  * is refused here; the composite foreign key would refuse it again at the insert.
  *
  * Typed text is deliberately left as text. The 0481 trigger attaches it to a record if one
- * of that name already exists, and files nothing if not — a typo must not mint a supplier.
+ * of that name already exists, and files nothing if not, a typo must not mint a supplier.
  */
 async function resolveSupplier(
   supabase: Db,
@@ -75,7 +75,7 @@ function money(fd: FormData): { amount_cents: number; vat_cents: number; vat_rat
   const inclusive = fd.get("amount_incl_vat") != null;
   const split = inclusive ? splitInclusive(typed, rateBps) : { exCents: typed, vatCents: Math.round((typed * rateBps) / 10000) };
 
-  // An explicitly typed VAT amount wins over the computed one — that is the whole reason
+  // An explicitly typed VAT amount wins over the computed one, that is the whole reason
   // the field is offered.
   const typedVat = parseRandsToCents(String(fd.get("vat_amount") ?? ""));
   return {
@@ -116,7 +116,7 @@ export async function createExpense(formData: FormData) {
       amount_cents: m.amount_cents,
       vat_cents: m.vat_cents,
       vat_rate_bps: m.vat_rate_bps,
-      // Unticked means "I cannot claim this back" — entertainment, a passenger car,
+      // Unticked means "I cannot claim this back", entertainment, a passenger car,
       // club fees (VAT Act s17(2)).
       vat_claimable: formData.get("vat_claimable") != null,
       created_by: profile.id,
@@ -127,7 +127,7 @@ export async function createExpense(formData: FormData) {
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
 
   // A receipt at capture time is optional. If one was chosen and the upload fails, the
-  // EXPENSE still stands — losing a captured supplier invoice because a photo did not
+  // EXPENSE still stands, losing a captured supplier invoice because a photo did not
   // stick would be the worse outcome, and the row will simply show as unsupported until
   // someone attaches it.
   const file = formData.get("receipt");
@@ -152,12 +152,12 @@ export async function createExpense(formData: FormData) {
  *
  * Separate from create/update on purpose: capture happens on a phone in a yard and the
  * paper turns up afterwards, so attaching later is the NORMAL case rather than a repair.
- * Nothing here blocks a claim without proof — the row and the VAT return say so instead
+ * Nothing here blocks a claim without proof, the row and the VAT return say so instead
  * (see `claimNeedsProof`).
  *
  * The upload uses the RLS client, so the 0430 storage policies decide whether this
  * partner may write to this folder; and the row update is `.eq("id", …)` with no
- * workshop filter because RLS already scopes `partner_expenses` — a guessed id from
+ * workshop filter because RLS already scopes `partner_expenses`, a guessed id from
  * another workshop matches zero rows rather than someone else's receipt.
  */
 export async function attachReceipt(formData: FormData) {
@@ -185,7 +185,7 @@ export async function attachReceipt(formData: FormData) {
 }
 
 /**
- * Detach a receipt — the wrong photo, or one belonging to another invoice.
+ * Detach a receipt, the wrong photo, or one belonging to another invoice.
  *
  * The stored object is deliberately left behind for the storage sweep rather than deleted
  * here: a failed delete must not stop the row being corrected, and an orphaned private
@@ -218,9 +218,9 @@ export async function updateExpense(formData: FormData) {
   if (!m) redirect(`/expenses?error=need-amount`);
 
   const supabase = await createClient();
-  // A correction must still name somebody. The old fallback wrote "—" when the field came
-  // back empty, which put a nameless creditor onto the payables ageing for ever — the exact
-  // phantom this feature exists to end — so an empty supplier is now refused instead.
+  // A correction must still name somebody. The old fallback wrote "-" when the field came
+  // back empty, which put a nameless creditor onto the payables ageing for ever, the exact
+  // phantom this feature exists to end, so an empty supplier is now refused instead.
   const supplier = await resolveSupplier(supabase, formData);
   if (!supplier) redirect("/expenses?error=need-supplier");
 
@@ -271,7 +271,7 @@ export async function markExpensePaid(formData: FormData) {
 }
 
 /**
- * Soft delete, like everything else in this schema — the audit trigger keeps the row and
+ * Soft delete, like everything else in this schema, the audit trigger keeps the row and
  * the VAT return simply stops seeing it. A deleted expense in a period that has already
  * been FILED will change that period's figures, which is why the screen says so.
  */

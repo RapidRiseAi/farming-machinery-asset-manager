@@ -8,7 +8,7 @@ import { cn } from "./cn";
 const LABELS: Record<Locale, string> = { en: "English", af: "Afrikaans" };
 
 /**
- * EN / AF switch for the screens that run before sign-in — the login page and the
+ * EN / AF switch for the screens that run before sign-in, the login page and the
  * public QR pages (audit bug 2). Writes the device-language cookie and returns to the
  * same URL. The signed-in switcher (`LanguageSwitcher`) still writes `users.language`.
  *
@@ -56,7 +56,7 @@ export function DeviceLanguageSwitcher({
           {/* The accessible name must CONTAIN the visible text (WCAG 2.5.3): an
               aria-label of "Afrikaans" on a button that reads "AF" leaves a
               speech-input user unable to activate what they can see. */}
-          <span className="sr-only"> — {LABELS[lng]}</span>
+          <span className="sr-only">, {LABELS[lng]}</span>
         </button>
       ))}
     </form>

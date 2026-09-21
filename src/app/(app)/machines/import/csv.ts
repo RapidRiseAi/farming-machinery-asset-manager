@@ -105,7 +105,7 @@ export function validateCsv(text: string): ParseResult {
     return { headerError: "empty", headerFound: [], rows: [], validCount: 0, invalidCount: 0 };
   }
   const header = grid[0].map(norm);
-  // Report the header back in the user's own spelling — the normalised form is ours.
+  // Report the header back in the user's own spelling, the normalised form is ours.
   const headerFound = grid[0].map((h) => h.trim()).filter((h) => h !== "");
   if (!header.includes("name")) {
     return {
@@ -212,10 +212,10 @@ export function templateCsv(): string {
   return `${header}\n${example}\n`;
 }
 
-// ── Column mapping ───────────────────────────────────────────────────────────
+// == Column mapping ===========================================================
 //
-// Headers used to be validated against a fixed set, so a real farm's spreadsheet —
-// Afrikaans headings, columns in a different order, an extra column the office added —
+// Headers used to be validated against a fixed set, so a real farm's spreadsheet -
+// Afrikaans headings, columns in a different order, an extra column the office added -
 // failed wholesale. Every farm already has a machine list; making them retype it into
 // our template is why import did not get used.
 //
@@ -223,7 +223,7 @@ export function templateCsv(): string {
 // canonical column order before it is posted, so `importMachines` and `validateCsv`
 // still receive exactly the sheet they always did. Nothing server-side changes.
 
-/** "Leave this column out" — a real choice, not an absent one. */
+/** "Leave this column out", a real choice, not an absent one. */
 export const SKIP_COLUMN = "";
 
 /**
@@ -250,7 +250,7 @@ const key = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
 /**
  * Guess which canonical column each of the user's headings means. Returns one entry per
  * header in the file, in file order; `SKIP_COLUMN` means "leave it out". A canonical
- * column is never guessed twice — the first, best match wins and later look-alikes fall
+ * column is never guessed twice, the first, best match wins and later look-alikes fall
  * through to skip, so the user resolves the ambiguity rather than us silently picking.
  */
 export function guessMapping(headers: string[]): string[] {
@@ -316,7 +316,7 @@ export function applyMapping(text: string, mapping: string[]): string {
   return out.join("\n") + "\n";
 }
 
-/** The header row as the file spells it — what the mapping UI shows on the left. */
+/** The header row as the file spells it, what the mapping UI shows on the left. */
 export function readHeaders(text: string): string[] {
   const grid = parseCsv(text);
   return grid.length === 0 ? [] : grid[0].map((h) => h.trim());

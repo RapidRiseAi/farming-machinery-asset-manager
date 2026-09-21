@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Generate a self-hosted VAPID keypair for Web Push (F6). No dependencies — Node crypto.
+ * Generate a self-hosted VAPID keypair for Web Push (F6). No dependencies, Node crypto.
  *
  *   node scripts/gen-vapid-keys.mjs
  *

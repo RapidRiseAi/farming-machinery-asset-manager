@@ -53,8 +53,8 @@ export async function addReading(formData: FormData) {
  *
  * Until this existed, one typo was permanent: `record_meter_reading` refuses anything below
  * the machine's reading, so every true reading afterwards was rejected and every service
- * due date stayed wrong. The reading is voided rather than deleted — the row, the reason
- * and the person survive in the audit trail — and the machine falls back to what the
+ * due date stayed wrong. The reading is voided rather than deleted, the row, the reason
+ * and the person survive in the audit trail, and the machine falls back to what the
  * remaining history says.
  */
 export async function correctReading(formData: FormData) {

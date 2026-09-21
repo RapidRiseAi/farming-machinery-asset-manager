@@ -19,13 +19,13 @@ import { applyDocumentTemplate } from "@/app/(app)/contractor/settings/actions";
  * Pick one of four documents (0505).
  *
  * The preview is the whole point, and it is the SAME preview the 0434 switches render
- * below — four of them, each showing this partner's own name, colour, logo, VAT number and
+ * below, four of them, each showing this partner's own name, colour, logo, VAT number and
  * wording in that template's shape. A partner should not have to read "no accent, roomy
  * rows, signature line" and imagine the result; they should look at four documents and
  * point at one.
  *
  * No client JavaScript. Each card is its own `<form>` posting one hidden field, so the
- * whole picker is server-rendered and works before hydration — which also keeps this
+ * whole picker is server-rendered and works before hydration, which also keeps this
  * screen's bundle where it was. `SubmitButton` is the one client piece, and this route
  * already loads it for the rest of the settings page.
  *
@@ -46,7 +46,7 @@ export function DocumentTemplatePicker({
   locale: Lang;
   /** `workshops.doc_template` as stored. */
   chosen: unknown;
-  /** `workshops.doc_layout` as stored — the partner's live wording rides into each preview. */
+  /** `workshops.doc_layout` as stored, the partner's live wording rides into each preview. */
   currentLayout: unknown;
   brandPrimary: string;
   businessName: string;

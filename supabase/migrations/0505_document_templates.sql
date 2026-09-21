@@ -1,7 +1,7 @@
 -- 0505_document_templates.sql
 -- Which of the four document TEMPLATES this partner picked.
 --
--- ── Why a template on top of 0434 ────────────────────────────────────────────
+-- == Why a template on top of 0434 ============================================
 --
 -- 0434 gave a partner sixteen switches over how their documents look, and settled why it
 -- is a closed set rather than a designer. It was right, and almost nobody will open it:
@@ -15,15 +15,15 @@
 -- the PDF. Nothing new can be expressed, which is exactly the property that keeps the two
 -- renderers in step.
 --
--- ── Nothing existing may change appearance ───────────────────────────────────
+-- == Nothing existing may change appearance ===================================
 --
 -- The default is `classic`, and `classic` is DEFINED as the layout every partner already
 -- had: `{density: comfortable, accent_style: band, vehicle/VAT/banking on, signature and
--- line numbers off, unit price on}` — key for key what `resolveLayout({})` returns. So
+-- line numbers off, unit price on}`, key for key what `resolveLayout({})` returns. So
 -- this column lands on every existing workshop naming a template that changes nothing,
--- and no document — sent, drafted or yet to be raised — looks different tomorrow.
+-- and no document, sent, drafted or yet to be raised, looks different tomorrow.
 --
--- ── What the database knows, and what it does not ────────────────────────────
+-- == What the database knows, and what it does not ============================
 --
 -- It knows the closed set of NAMES, guarded exactly as 0434 guards layout keys: a typo
 -- fails at the point it is made rather than silently storing a template nobody will ever
@@ -42,9 +42,9 @@ comment on column workshops.doc_template is
   'update_document_layout. Defaults to ''classic'', the preset defined as the layout '
   'every partner already had, so adding this column changes no document''s appearance.';
 
--- ── The guard ────────────────────────────────────────────────────────────────
+-- == The guard ================================================================
 -- The 0434 pattern: a closed set, refused loudly. A partner who somehow posts
--- 'moderne-luxe' has not chosen a template — they have stored a word that no renderer will
+-- 'moderne-luxe' has not chosen a template, they have stored a word that no renderer will
 -- ever recognise, and would go on believing their documents had changed.
 create or replace function app_workshops_check_template() returns trigger
 language plpgsql set search_path = public, pg_temp as $$
@@ -71,8 +71,8 @@ create trigger workshops_check_template
 -- 0380 revokes `app_workshop_guard_plan`.
 revoke execute on function app_workshops_check_template() from anon, authenticated, public;
 
--- ── Applying one ─────────────────────────────────────────────────────────────
--- ONE write path for the layout. This does not repeat 0434's `||` merge — it CALLS
+-- == Applying one =============================================================
+-- ONE write path for the layout. This does not repeat 0434's `||` merge, it CALLS
 -- `update_document_layout`, so there is still exactly one statement in the schema that
 -- writes `doc_layout`, and a setting added to that function later is inherited here for
 -- free.

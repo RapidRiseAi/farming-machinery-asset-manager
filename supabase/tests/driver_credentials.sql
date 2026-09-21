@@ -78,7 +78,7 @@ insert into public.driver_credentials
    'dc100000-0000-4000-8000-000000000006', null, 'drivers_licence', 'B', 'L-3',
    current_date + 100, 'dc100000-0000-4000-8000-000000000006');
 
--- ── (a) One of a user OR a name, never both and never neither ───────────────
+-- == (a) One of a user OR a name, never both and never neither ===============
 do $$
 declare v_failed boolean;
 begin
@@ -117,7 +117,7 @@ begin
   end if;
 end $$;
 
--- ── (b) The owner and the manager see the farm's files ──────────────────────
+-- == (b) The owner and the manager see the farm's files ======================
 set role authenticated;
 select _dc_login('dc100000-0000-4000-8000-000000000001');
 do $$
@@ -145,7 +145,7 @@ begin
 end $$;
 reset role;
 
--- ── (c) A driver sees their own file and nobody else's ──────────────────────
+-- == (c) A driver sees their own file and nobody else's ======================
 set role authenticated;
 select _dc_login('dc100000-0000-4000-8000-000000000003');
 do $$
@@ -153,7 +153,7 @@ declare n integer;
 begin
   select count(*) into n from public.driver_credentials;
   if n <> 2 then
-    raise exception 'DRIVER FAIL [c]: a driver sees % rows — their own file is 2', n;
+    raise exception 'DRIVER FAIL [c]: a driver sees % rows, their own file is 2', n;
   end if;
   if exists (select 1 from public.driver_credentials
               where user_id = 'dc100000-0000-4000-8000-000000000004') then
@@ -190,7 +190,7 @@ begin
 end $$;
 reset role;
 
--- ── (d) A linked workshop gets machines, not medicals ───────────────────────
+-- == (d) A linked workshop gets machines, not medicals =======================
 set role authenticated;
 select _dc_login('dc100000-0000-4000-8000-000000000005');
 do $$
@@ -207,7 +207,7 @@ begin
 end $$;
 reset role;
 
--- ── (e) Were they licensed on the day of the offence? ───────────────────────
+-- == (e) Were they licensed on the day of the offence? =======================
 --
 -- The question AARTO makes a farm answer. Asked about a day in the past, because
 -- "their licence is fine now" is not an answer to "were they licensed on the 14th".
@@ -239,7 +239,7 @@ begin
     raise exception 'DRIVER FAIL [e]: % lapses reported for a day the PrDP was valid', n;
   end if;
 
-  -- The casual driver, matched by name — trimmed and case-folded, because a name typed
+  -- The casual driver, matched by name, trimmed and case-folded, because a name typed
   -- twice is typed twice.
   select count(*) into n from public.driver_credential_lapses(
     'dc000000-0000-4000-8000-000000000001', null, 'koos casual', current_date);
@@ -281,7 +281,7 @@ begin
 end $$;
 reset role;
 
--- ── (f) The farm is told, once per transition, and weekly while expired ─────
+-- == (f) The farm is told, once per transition, and weekly while expired =====
 select pg_catalog.set_config('request.jwt.claims', '', false);
 -- `app.notify_farm` writes one row per owner/manager, so the count that means anything
 -- here is how many CREDENTIALS spoke, not how many rows landed.
@@ -313,7 +313,7 @@ begin
   -- It goes to the people who can do something about it, and to nobody else. A driver
   -- receiving "Thabo Driver's medical expires on the 30th" in their inbox is a POPIA
   -- problem arriving through the back door of a feature that reads correctly everywhere
-  -- else — the table's policy does not govern what notify_farm fans out to.
+  -- else, the table's policy does not govern what notify_farm fans out to.
   if exists (
     select 1 from public.notifications n
      join public.users u on u.id = n.user_id
@@ -360,7 +360,7 @@ begin
    where farm_id = 'dc000000-0000-4000-8000-000000000001'
      and template like 'driver_credential%';
   if n_after - n_before <> 2 then
-    raise exception 'DRIVER FAIL [f]: the weekly re-fire produced % rows — expected the expired PrDP to both recipients',
+    raise exception 'DRIVER FAIL [f]: the weekly re-fire produced % rows, expected the expired PrDP to both recipients',
       n_after - n_before;
   end if;
 
@@ -387,7 +387,7 @@ begin
    where id = 'dc100000-0000-4000-8000-000000000003';
 end $$;
 
--- ── (g) The engine is not reachable from a browser ──────────────────────────
+-- == (g) The engine is not reachable from a browser ==========================
 do $$
 begin
   if has_function_privilege('authenticated',
@@ -402,7 +402,7 @@ begin
        'public.cron_enqueue_driver_credentials()', 'EXECUTE') then
     raise exception 'DRIVER FAIL [g]: a browser session may run the nightly route';
   end if;
-  -- The lapse check IS for the browser — it is what the AARTO screen asks — but not for
+  -- The lapse check IS for the browser, it is what the AARTO screen asks, but not for
   -- a stranger.
   if not has_function_privilege('authenticated',
        'public.driver_credential_lapses(uuid,uuid,text,date)', 'EXECUTE') then

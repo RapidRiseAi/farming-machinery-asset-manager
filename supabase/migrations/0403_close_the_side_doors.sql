@@ -1,5 +1,5 @@
 -- 0403_close_the_side_doors.sql
--- Five ways round the F16 access scope, found by review of 0400–0402. All real.
+-- Five ways round the F16 access scope, found by review of 0400-0402. All real.
 --
 -- The lesson in all of them is the same: narrowing the tables a contractor can read is
 -- not the same as narrowing what they can REACH. Storage has its own policies. A
@@ -7,10 +7,10 @@
 -- column does not fire on the update that matters. Each of these was a door left open
 -- beside the one that was just locked.
 
--- ── 1. NOTIFICATIONS CARRIED THE PAYLOAD PAST EVERY GATE ─────────────────────
+-- == 1. NOTIFICATIONS CARRIED THE PAYLOAD PAST EVERY GATE =====================
 --
 -- `notifications_sel` (0101) is `app.has_farm_access(farm_id)`, so a linked contractor
--- could read every notification row on the farm — and the payloads carry exactly what
+-- could read every notification row on the farm, and the payloads carry exactly what
 -- 0400 had just gated: quote and invoice totals, fault descriptions, fuel anomalies,
 -- whole-farm weekly digests. Gating the source tables while leaving the notifications
 -- that quote them is not a gate.
@@ -23,7 +23,7 @@ drop policy notifications_sel on notifications;
 create policy notifications_sel on notifications for select to authenticated
   using (deleted_at is null and (app.is_rr_admin() or user_id = auth.uid()));
 
--- ── 2. STORAGE WAS NOT NARROWED AT ALL ───────────────────────────────────────
+-- == 2. STORAGE WAS NOT NARROWED AT ALL =======================================
 --
 -- 0382's object policies are farm-scoped only, so a linked contractor could list and
 -- download every file under that farm: other contractors' invoice PDFs out of
@@ -114,12 +114,12 @@ begin
   $p$;
 end $do$;
 
--- ── 3 + 4. THE VAT GUARD FIRED TOO LATE AND DID TOO LITTLE ───────────────────
+-- == 3 + 4. THE VAT GUARD FIRED TOO LATE AND DID TOO LITTLE ===================
 --
 -- Two faults in 0401, both real:
 --
 --   * It fired only when `vat_rate_bps` or `workshop_id` was in the UPDATE. Sending a
---     draft touches `status`, `sent_at` and the snapshots — so a draft priced at 15%
+--     draft touches `status`, `sent_at` and the snapshots, so a draft priced at 15%
 --     while the partner was registered went out at 15% after they deregistered.
 --
 --   * Trigger order is alphabetical within the same timing, and
@@ -129,7 +129,7 @@ end $do$;
 --     totals are authoritative and typed, so a nonzero `vat_cents` simply survived.
 --
 -- Fixed by firing on every insert/update and normalising the money as well as the rate.
--- The name is chosen to sort AFTER the totals trigger deliberately — it is the last word
+-- The name is chosen to sort AFTER the totals trigger deliberately, it is the last word
 -- on this row, and it needs the totals to already be there so it can correct them.
 drop trigger partner_documents_vat_guard on partner_documents;
 drop function app_partner_document_vat_guard();
@@ -158,13 +158,13 @@ create trigger partner_documents_zz_vat_guard
 
 revoke execute on function app_partner_document_zz_vat_guard() from anon, authenticated, public;
 
--- ── 5. A SECOND SITE'S OWNER COULD NOT ACTUALLY CHANGE ANYTHING ──────────────
+-- == 5. A SECOND SITE'S OWNER COULD NOT ACTUALLY CHANGE ANYTHING ==============
 --
--- `wl_upd` (0101) allows an update only when `app.user_farm_id() = farm_id` — the
+-- `wl_upd` (0101) allows an update only when `app.user_farm_id() = farm_id`, the
 -- PRIMARY farm. Since F7 an owner can be looking at a second site through
 -- `user_farm_memberships`, and the F16 access card and the disconnect button both write
 -- against the farm being viewed. On a secondary farm that update matched zero rows,
--- returned no error, and redirected saying it had worked — so an owner could be told a
+-- returned no error, and redirected saying it had worked, so an owner could be told a
 -- contractor was disconnected while their access carried on.
 --
 -- Widened to the farms the user actually reaches, restricted to the roles that may make

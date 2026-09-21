@@ -5,10 +5,10 @@ import { captureError } from "@/lib/observability";
  * Where the browser reports an error it hit (NFR-6).
  *
  * The error boundaries are already client components, so this costs the shared bundle
- * nothing — it is a `fetch` inside a chunk that only loads when something has already gone
+ * nothing, it is a `fetch` inside a chunk that only loads when something has already gone
  * wrong.
  *
- * ── This endpoint is unauthenticated, and that is a decision ──────────────────
+ * == This endpoint is unauthenticated, and that is a decision ==================
  *
  * The errors most worth seeing are the ones on the SIGNED-OUT paths: the login screen, the
  * public QR page a driver scans, the `/d/[token]` document a customer opens. Requiring a
@@ -18,11 +18,11 @@ import { captureError } from "@/lib/observability";
  *   * every field is clamped in length, so it cannot be used to write a large object;
  *   * nothing is stored in Postgres, so it cannot be used to fill a table (the report goes
  *     straight out to the ingest endpoint, or to the log if none is configured);
- *   * the reported identity is never trusted — the payload carries no user id at all, and
+ *   * the reported identity is never trusted, the payload carries no user id at all, and
  *     what lands in the report is what the SERVER knows, not what the caller claimed.
  *
  * The residual risk is noise in an error feed, which is visible and reversible. The
- * alternative — a blind spot on every pre-auth screen — is neither.
+ * alternative, a blind spot on every pre-auth screen, is neither.
  */
 
 export const runtime = "nodejs";

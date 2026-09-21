@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * service plan was actually adhered to.
  *
  * UNGATED CORE. A warranty claim is refused on a skipped service, so the pack states the
- * standing of EVERY task — including the ones that were never done — rather than
+ * standing of EVERY task, including the ones that were never done, rather than
  * printing only the services that were performed, which is the shape that flatters. No
  * money is analysed here, so nothing inside it touches the `tco` gate.
  */

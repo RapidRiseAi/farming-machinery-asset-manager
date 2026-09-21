@@ -6,7 +6,7 @@
  * their own copy of "words that mean service timing", and the copies had drifted
  * in OPPOSITE directions: the local reader knew `verskuldig` but not `volgende`,
  * the parser knew `soon` but not `binnekort`. So the same question took a
- * different route depending on the language it was asked in — and before
+ * different route depending on the language it was asked in, and before
  * `serviceDueAnswer` was shared, one route answered it precisely while the other
  * replied with the fleet sentence.
  *

@@ -15,21 +15,21 @@ export const dynamic = "force-dynamic";
 /**
  * Email a document to the customer, with the PDF attached (G2).
  *
- * Before this, "send" set a status and wrote an in-app alert — the customer had to log
+ * Before this, "send" set a status and wrote an in-app alert, the customer had to log
  * into FleetWise to discover they had been invoiced. Now they get it where they read
  * their post, with a link that opens the document without an account.
  *
- * ── WHY THE ATTEMPT IS LOGGED EVEN WHEN IT FAILS ─────────────────────────────
+ * == WHY THE ATTEMPT IS LOGGED EVEN WHEN IT FAILS =============================
  *
  * The question a partner asks the day after sending an invoice is "did it go, and
  * where". Without a record the only answer is a provider dashboard they have no login
  * for. So every attempt writes a `document_emails` row, and a failure writes one too
- * with the provider's message on it — a bounce is the most useful thing on that table
+ * with the provider's message on it, a bounce is the most useful thing on that table
  * and the easiest to lose.
  *
  * The document is read through the RLS client (so a partner cannot email another
  * partner's invoice), and the log row is written with the service client because
- * `document_emails` grants no insert to a user — the record of what we sent is ours to
+ * `document_emails` grants no insert to a user, the record of what we sent is ours to
  * write, not something a caller can fabricate.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -77,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         to,
         cc: body.cc?.trim() || null,
         from: fromAddress(brand.name),
-        // A reply goes to the partner, not to us — they are the ones doing business here.
+        // A reply goes to the partner, not to us, they are the ones doing business here.
         replyTo: brand.email ?? null,
         subject,
         html: documentEmailHtml(emailInput),

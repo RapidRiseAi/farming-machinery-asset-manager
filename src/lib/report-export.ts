@@ -6,7 +6,7 @@ import { buildXlsx, heading, text, num, moneyCell, type XlsxCell, type XlsxSheet
 import { Pdf } from "@/lib/pdf/doc";
 
 /**
- * Every shape a report leaves the product in — CSV grid, Excel sheet, PDF table — in ONE
+ * Every shape a report leaves the product in, CSV grid, Excel sheet, PDF table, in ONE
  * place (FR-11.5).
  *
  * Extracted from the eight download routes rather than rewritten. Before this, each
@@ -17,7 +17,7 @@ import { Pdf } from "@/lib/pdf/doc";
  * emailed file, and nobody would find out until an accountant reconciled a year.
  *
  * So the routes and the scheduler now call the same builders, and the FIGURES were
- * already shared — everything here reads `ReportData` from `getReportData`, the same call
+ * already shared, everything here reads `ReportData` from `getReportData`, the same call
  * the screen makes. The screen, the download and the emailed copy are one code path.
  *
  * Header labels stay in English on purpose. They were English before, they are column
@@ -50,7 +50,7 @@ export type ReportGrid = {
   /** Download filename, unchanged from the route that used to own it. */
   filename: string;
   rows: (string | number)[][];
-  /** How many data rows the family actually found — what "empty period" is decided on. */
+  /** How many data rows the family actually found, what "empty period" is decided on. */
   count: number;
 };
 
@@ -59,7 +59,7 @@ const meterUnitOf = (t: string) => (t === "km" ? "km" : t === "hours" ? "h" : ""
 const meterDp = (t: string) => (t === "km" ? 0 : 1);
 const withUnit = (v: number, t: string) => `${v.toFixed(meterDp(t))} ${meterUnitOf(t)}`.trim();
 
-// ── CSV grids, one per family (moved verbatim from the routes) ────────────────
+// == CSV grids, one per family (moved verbatim from the routes) ================
 
 function costGrid(d: ReportData): ReportGrid {
   const rows: (string | number)[][] = [
@@ -174,7 +174,7 @@ function budgetsGrid(d: ReportData): ReportGrid {
 function utilisationGrid(d: ReportData): ReportGrid {
   const w = d.utilisation.window;
   const rows: (string | number)[][] = [
-    [`Utilisation & downtime — ${w.from} to ${w.to}`],
+    [`Utilisation & downtime, ${w.from} to ${w.to}`],
     ["Machine", "Meter", "Used", "Utilisation %", "Idle", "Downtime (days)"],
   ];
   for (const r of d.utilisation.perMachine) {
@@ -215,7 +215,7 @@ export function reportGrids(data: ReportData, key: ReportKey): ReportGrid[] {
 }
 
 /** Did the period actually contain anything? See 0506, judgement 3: an empty report is
- *  still sent — this only decides what the covering email says. */
+ *  still sent, this only decides what the covering email says. */
 export function gridsAreEmpty(grids: readonly ReportGrid[]): boolean {
   return grids.every((g) => g.count === 0);
 }
@@ -225,10 +225,10 @@ export function csvBytes(grid: ReportGrid): Uint8Array {
   return new TextEncoder().encode("﻿" + toCsv(grid.rows));
 }
 
-// ── The Excel workbook (moved verbatim from workbook.xlsx/route.ts) ───────────
+// == The Excel workbook (moved verbatim from workbook.xlsx/route.ts) ===========
 //
 // Same header labels and the same row data as the CSVs above, with money as REAL NUMBERS
-// in Rands rather than text — which is the whole reason the workbook exists.
+// in Rands rather than text, which is the whole reason the workbook exists.
 
 export function reportSheets(data: ReportData, key: ReportKey = "all"): XlsxSheet[] {
   const want = (f: ReportFamily) => key === "all" || key === f;
@@ -340,7 +340,7 @@ export function reportSheets(data: ReportData, key: ReportKey = "all"): XlsxShee
   if (want("utilisation")) {
     const w = data.utilisation.window;
     const rows: XlsxCell[][] = [
-      [heading(`Utilisation & downtime — ${w.from} to ${w.to}`)],
+      [heading(`Utilisation & downtime, ${w.from} to ${w.to}`)],
       ["Machine", "Meter", "Used", "Utilisation %", "Idle", "Downtime (days)"].map(heading),
     ];
     for (const r of data.utilisation.perMachine) {
@@ -363,12 +363,12 @@ export function buildReportWorkbook(data: ReportData, key: ReportKey = "all"): U
   return buildXlsx(reportSheets(data, key));
 }
 
-// ── PDF ──────────────────────────────────────────────────────────────────────
+// == PDF ======================================================================
 //
 // The reports SCREEN prints through CSS, which a cron job cannot drive, so a scheduled
 // PDF is drawn server-side on the shared engine (the same one the job card, machine file
-// and audit pack use). It renders the SAME grids as the CSV — first row as the table
-// head, the rest as body — so a farm choosing PDF over CSV gets a different sheet of
+// and audit pack use). It renders the SAME grids as the CSV, first row as the table
+// head, the rest as body, so a farm choosing PDF over CSV gets a different sheet of
 // paper, never a different number.
 
 /** A4 content width in points (595.28 − 2×48). Columns must sum to no more than this. */
@@ -409,7 +409,7 @@ export async function buildReportPdf(
   meta: ReportPdfMeta,
 ): Promise<Uint8Array> {
   const grids = reportGrids(data, key);
-  const pdf = await Pdf.create(`FleetWise report${meta.farmName ? ` — ${meta.farmName}` : ""}`);
+  const pdf = await Pdf.create(`FleetWise report${meta.farmName ? `, ${meta.farmName}` : ""}`);
   pdf.header(meta.scheduleName || "Fleet report");
 
   pdf.kv("Period", meta.periodFrom && meta.periodTo ? `${meta.periodFrom} to ${meta.periodTo}` : "All time");

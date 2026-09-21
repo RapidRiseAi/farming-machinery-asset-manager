@@ -3,7 +3,7 @@
 -- link, and job-card completion side-effects (reset service lines, capture the meter
 -- reading, raise a watch item, resolve the originating fault).
 
--- ── Which service-plan lines a scheduled-service job card covers (Scope §4.4) ──
+-- == Which service-plan lines a scheduled-service job card covers (Scope §4.4) ==
 create table job_card_service_lines (
   job_card_id          uuid not null,
   service_plan_line_id uuid not null,
@@ -28,7 +28,7 @@ create trigger job_card_service_lines_audit
   after insert or update or delete on job_card_service_lines
   for each row execute function app_audit();
 
--- ── Due engine: recompute status + next-due for one machine's service lines ──
+-- == Due engine: recompute status + next-due for one machine's service lines ==
 -- Handles both triggers (hours/km and calendar), whichever comes first (Scope §4.3).
 create or replace function app.recalc_machine_service(p_machine uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -89,7 +89,7 @@ revoke execute on function app.recalc_machine_service(uuid) from public, anon, a
 revoke execute on function app.recalc_all_due() from public, anon, authenticated;
 grant execute on function app.recalc_all_due() to service_role;
 
--- ── Meter readings feed the schedule: advance current reading + recalc ──
+-- == Meter readings feed the schedule: advance current reading + recalc ==
 create or replace function app_meter_reading_after() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -105,7 +105,7 @@ create trigger meter_readings_after
   after insert on meter_readings
   for each row execute function app_meter_reading_after();
 
--- ── Job-card completion side-effects (Scope §4.4) ──
+-- == Job-card completion side-effects (Scope §4.4) ==
 create or replace function app_jobcard_completed() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_date date;

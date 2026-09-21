@@ -3,10 +3,10 @@
 -- opposite of both.
 --
 -- 1. GRACE IS RETRIED, WEEKLY
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.billing_register_failure` set next_retry_on = null when the retry ladder ran out,
 -- and `app.due_billing_charges` only ever looked at 'active' and 'past_due'. So from the
--- moment a farm entered grace, nothing presented the card again — not that night, not the
+-- moment a farm entered grace, nothing presented the card again, not that night, not the
 -- next week, not ever. The farm sat out its grace days in silence and was downgraded.
 --
 -- The commonest reason a card fails on a South African farm is that the money arrives
@@ -24,8 +24,8 @@
 -- set when grace began, so the downgrade lands on the day it always would have.
 --
 -- 2. A PRICE RISE DOES NOT REPRICE EXISTING CUSTOMERS
--- ─────────────────────────────────────────────────────────────────────────────
--- The generator resolved its price with `app.billing_active_price(plan, period)` — the
+-- =============================================================================
+-- The generator resolved its price with `app.billing_active_price(plan, period)`, the
 -- version that is active TODAY. `billing_price_versions_active_uq` permits exactly one
 -- active row per (plan, period), so activating a new price necessarily retires the old
 -- one, and every existing farm's next invoice would have been raised at the new figure.
@@ -39,14 +39,14 @@
 -- moves it. So:
 --
 --   * the first invoice PINS the version onto the subscription, and a farm that predates
---     this migration is read from its own most recent invoice instead — so nobody is
+--     this migration is read from its own most recent invoice instead, so nobody is
 --     grandfathered onto a price they were never charged, and no backfill can go stale;
---   * every later invoice uses the pinned version, active or retired — a retired price
+--   * every later invoice uses the pinned version, active or retired, a retired price
 --     is exactly what a grandfathered customer is still paying, so status is not
 --     consulted for a pin;
 --   * the pin is ignored when it no longer fits, which is only when the farm has changed
 --     plan or billing period, and the current active version is used and re-pinned;
---   * a farm is deliberately moved by SETTING `price_version_id` to the new version —
+--   * a farm is deliberately moved by SETTING `price_version_id` to the new version -
 --     naming it, so the change is a decision with a value attached rather than an
 --     absence. CLEARING it does not reprice anybody: their own invoices still say what
 --     they have been paying, which is the point of fallback 2.
@@ -74,7 +74,7 @@ alter table public.billing_subscriptions
 
 comment on column public.billing_subscriptions.price_version_id is
   'The price version this farm is GRANDFATHERED onto. Pinned by the first invoice and '
-  'honoured by every later one even after that version is retired — a retired price is '
+  'honoured by every later one even after that version is retired, a retired price is '
   'what a grandfathered customer is still paying. Ignored when it no longer matches the '
   'subscription plan/period (i.e. after a plan change). Clear it to move the farm onto '
   'current pricing deliberately.';
@@ -107,7 +107,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     ) pinned on true
     -- 2. What they have ACTUALLY been paying. Every farm that existed before this
     --    migration has a null pin, and pinning them at their next invoice would grandfather
-    --    them onto whatever is active THEN — so a price rise published tomorrow would still
+    --    them onto whatever is active THEN, so a price rise published tomorrow would still
     --    reach every existing customer exactly once, which is the whole thing this is meant
     --    to prevent. Their real price is already recorded, on their own last invoice.
     --
@@ -190,7 +190,7 @@ begin
     end if;
 
     -- S8. Was app.billing_active_price(s.plan, s.billing_period), which resolves the
-    -- CURRENTLY active version — so activating a new price silently moved every existing
+    -- CURRENTLY active version, so activating a new price silently moved every existing
     -- customer onto it at their next invoice, with no notice and no decision. Founder
     -- decision: a farm keeps the price it signed up at until somebody deliberately moves
     -- it. app.billing_price_for_subscription honours the pin and falls back to the active
@@ -233,7 +233,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -275,7 +275,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,
@@ -342,7 +342,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     join public.billing_subscriptions s on s.id = i.subscription_id and s.deleted_at is null
     -- S7. A deleted farm is never charged, full stop. A CANCELLED one is not charged
     -- either: cancelling is our own act, and taking money afterwards reads as a mistake
-    -- however correct the underlying debt is. A SUSPENDED farm still is — suspension
+    -- however correct the underlying debt is. A SUSPENDED farm still is, suspension
     -- withholds the service, it does not forgive what is already invoiced.
     join public.farms fm on fm.id = i.farm_id
      and fm.deleted_at is null and fm.status <> 'cancelled'
@@ -356,7 +356,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
      and coalesce(i.due_on, i.issued_on, current_date) <= current_date
      -- GRACE IS NOW RETRIED (founder decision, 2026-09-10). Until this, exhausting the
      -- retry ladder set status='grace' with next_retry_on = null, and 'grace' was not in
-     -- this list at all — so the stored card was never presented again by anything, and a
+     -- this list at all, so the stored card was never presented again by anything, and a
      -- farm whose money simply arrived late was downgraded without ever being asked twice.
      --
      -- The two arms are not the same test. For a live subscription a NULL retry date means
@@ -409,7 +409,7 @@ begin
            updated_at = now()
      where id = p_sub;
   else
-    -- Retries exhausted. Access continues for the grace period — and, since 20260910160000,
+    -- Retries exhausted. Access continues for the grace period, and, since 20260910160000,
     -- so does asking. The card is presented again every `grace_retry_days`, because the
     -- commonest reason one fails here is that the money arrives next week.
     --

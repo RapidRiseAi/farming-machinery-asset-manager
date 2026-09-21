@@ -8,7 +8,7 @@ import { bearerMatches } from "./bearer";
  * so the thing guarding them is worth asserting rather than assuming.
  *
  * These test BEHAVIOUR, not timing. Measuring constant-time-ness in a unit test is a
- * well-known way to produce a flaky suite — a GC pause dwarfs the difference — so the
+ * well-known way to produce a flaky suite, a GC pause dwarfs the difference, so the
  * guarantee here comes from `timingSafeEqual` and from hashing both sides to a fixed
  * width. What is tested is that it says yes and no in the right places, including the
  * cases where a naive implementation says yes by accident.
@@ -51,7 +51,7 @@ test("no secret configured refuses everything, including an empty header", () =>
 
 test("it does not throw on inputs of wildly different lengths", () => {
   // `timingSafeEqual` throws when the buffers differ in length, which is why both sides
-  // are hashed first. A throw here would be a 500 rather than a 401 — and a 500 on a
+  // are hashed first. A throw here would be a 500 rather than a 401, and a 500 on a
   // guard is its own kind of information.
   assert.equal(bearerMatches("Bearer " + "x".repeat(10_000), "s"), false);
   assert.equal(bearerMatches("B", "s".repeat(10_000)), false);

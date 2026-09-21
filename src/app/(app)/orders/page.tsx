@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
  * Ordered newest first, because the question being asked is almost always about something
  * recent. The three figures at the top are the ones a workshop actually worries about: how
  * much is committed but not yet delivered, what is late, and what has arrived and not been
- * invoiced yet — the last one being where money goes missing, because an invoice nobody is
+ * invoiced yet, the last one being where money goes missing, because an invoice nobody is
  * expecting is an invoice nobody checks.
  */
 export default async function OrdersPage({

@@ -13,19 +13,19 @@
 -- `partner_payments`, `recurring_invoices`, `partner_expenses` and `purchase_orders`,
 -- all of which already exist and are already workshop-scoped.
 --
--- ── Why SQL rather than the page ────────────────────────────────────────────
+-- == Why SQL rather than the page ============================================
 --
 -- The same reason `partner_statement`, `partner_ageing`, `partner_vat_return` and the
 -- 0460 money answers are SQL: a screen, a CSV, a PDF and an emailed copy must not be able
 -- to disagree. A forecast computed in a React component is a forecast that exists in one
 -- place only until somebody adds an export, and then there are two forecasts.
 --
--- ── EX-VAT or GROSS: gross, everywhere, and here is why ─────────────────────
+-- == EX-VAT or GROSS: gross, everywhere, and here is why =====================
 --
 -- The ledger is ex-VAT because that is what a P&L and a VAT return are made of. A cash
 -- forecast is not made of that. When a farmer settles an invoice the bank receives the
 -- VAT-inclusive total, and when the workshop pays Bearing Co the bank loses the
--- VAT-inclusive total — the fact that R1 500 of it will come back from SARS in six weeks
+-- VAT-inclusive total, the fact that R1 500 of it will come back from SARS in six weeks
 -- does not help on Friday. So every figure in this migration is GROSS:
 --
 --   * outstanding invoices use `partner_documents.total_cents` (VAT-inclusive) less what
@@ -36,20 +36,20 @@
 --     `app.partner_creditors` and `app.partner_cash` already use for money that leaves;
 --   * a purchase order uses its own maintained `total_cents`, which is gross.
 --
--- The one place ex-VAT would be right — profitability — is the screen next door.
+-- The one place ex-VAT would be right, profitability, is the screen next door.
 --
--- ── Four judgements worth stating, because each is a place to be plausibly wrong ──
+-- == Four judgements worth stating, because each is a place to be plausibly wrong ==
 --
 -- 1. AN OVERDUE INVOICE IS EXPECTED NOW, NOT IN THE PAST. Bucketing by raw date would put
 --    a 90-day-old debt in a bucket that has already gone by, where it silently disappears
---    from the forecast — or, worse, quietly into "this week", which reads as a promise
+--    from the forecast, or, worse, quietly into "this week", which reads as a promise
 --    nobody made. It gets its own bucket at the front, ahead of everything, and the screen
 --    says how late each one is. It is money you are owed today and have not got.
 --
 -- 2. CASH ARRIVES ON THE TERMS DATE, NOT THE ISSUE DATE. A standing invoice raised on the
 --    1st with 30-day terms is not cash on the 1st. So a schedule is SELECTED by
 --    `next_issue_date` inside the horizon and BUCKETED at `next_issue_date +
---    workshops.invoice_terms_days` — the same terms the generator (0433) will stamp on the
+--    workshops.invoice_terms_days`, the same terms the generator (0433) will stamp on the
 --    document it raises, so the forecast and the invoice agree. The same reasoning moves a
 --    purchase order's date: `expected_date` is when the parts arrive, and the supplier's
 --    invoice is paid a further term after that.
@@ -62,7 +62,7 @@
 --    a forecast instead of a ledger.
 --
 -- 4. THE SUPPLIER TERM IS AN ASSUMPTION, AND IT IS NAMED. `partner_expenses` carries no
---    due date — only the supplier's own invoice date — which 0460 already called out when
+--    due date, only the supplier's own invoice date, which 0460 already called out when
 --    it aged creditors from that date rather than implying lateness. A forecast cannot
 --    dodge the question the way an ageing table can, so it assumes 30 DAYS from the
 --    supplier's invoice date, which is the ordinary trade term in South Africa and the one
@@ -70,21 +70,21 @@
 --    place here, restated on the screen in words, and the honest fix is a real due date on
 --    the expense (or per-supplier terms) rather than a better guess.
 --
--- ── What is NOT in here yet ────────────────────────────────────────────────
+-- == What is NOT in here yet ================================================
 --
--- `recurring_expenses` — a standing outflow (rent, insurance, medical aid, a debit order
--- for the workshop's own finance) — is the obvious next input to the outflow side and the
+-- `recurring_expenses`, a standing outflow (rent, insurance, medical aid, a debit order
+-- for the workshop's own finance), is the obvious next input to the outflow side and the
 -- one that will change the shape of a month most. It is being built separately; when it
 -- lands it belongs in `outflow` below alongside the unpaid expenses, dated from its own
 -- next-due date with no terms offset, because a debit order leaves on the day it says.
 --
 -- Also deliberately absent: the bank balance. `bank_statement_lines` (0470) is an import
 -- queue, not an authoritative balance, and a forecast that invented one would be believed.
--- The running total below is a CUMULATIVE MOVEMENT from zero — the change against whatever
--- is in the account today — and the screen lets the reader type today's balance to see the
+-- The running total below is a CUMULATIVE MOVEMENT from zero, the change against whatever
+-- is in the account today, and the screen lets the reader type today's balance to see the
 -- week it runs out.
 
--- ── Every expected movement, one row each ────────────────────────────────────
+-- == Every expected movement, one row each ====================================
 --
 -- The aggregate below is built FROM this function rather than repeating its four queries,
 -- so a bucket total can never disagree with the items shown underneath it. 0460 made the
@@ -116,17 +116,17 @@ language sql stable security invoker set search_path = public, pg_temp as $$
       30                                                                      as supplier_terms_days
   ),
 
-  -- ── IN: invoices already out there and not yet settled ────────────────────
+  -- == IN: invoices already out there and not yet settled ====================
   -- The settlement arithmetic is copied deliberately from `app.partner_debtors` (0460):
   -- payments received plus credit notes issued against the invoice. If the two ever
   -- diverge, a partner reads one figure on the money screen and a different one here and
-  -- believes neither. Kind is `invoice` only, matching debtors — a debit note raises what
+  -- believes neither. Kind is `invoice` only, matching debtors, a debit note raises what
   -- is owed on the invoice it corrects rather than standing as its own collectable.
   inv as (
     select
       d.id,
-      coalesce(nullif(btrim(d.number), ''), '—')                              as ref,
-      coalesce(nullif(btrim(d.bill_to_name), ''), '—')                        as party,
+      coalesce(nullif(btrim(d.number), ''), '-')                              as ref,
+      coalesce(nullif(btrim(d.bill_to_name), ''), '-')                        as party,
       coalesce(d.due_date, d.issue_date)                                      as due,
       d.total_cents
         - coalesce((select sum(p.amount_cents) from partner_payments p
@@ -144,7 +144,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
        and d.deleted_at is null
        -- A draft has not been sent, so nobody owes it. A void or cancelled document does
        -- not exist. A written-off one was given up on (G5) and is deliberately no longer
-       -- chased — forecasting it would be forecasting money the partner has already
+       -- chased, forecasting it would be forecasting money the partner has already
        -- decided is not coming.
        and d.status not in ('draft', 'void', 'cancelled', 'written_off')
        -- The horizon is a question about the FUTURE ("what does the next six weeks look
@@ -154,7 +154,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
             or coalesce(d.due_date, d.issue_date) <= e.horizon)
   ),
 
-  -- ── IN: standing invoices not raised yet ──────────────────────────────────
+  -- == IN: standing invoices not raised yet ==================================
   -- Money that has not been billed but will be. Rolled up exactly as 0381's document
   -- triggers will roll up the invoice this schedule produces: line total is
   -- qty × price − line discount, floored at zero; the document discount comes off the
@@ -162,12 +162,12 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   rec as (
     select
       ri.id,
-      coalesce(nullif(btrim(ri.name), ''), '—')                               as ref,
+      coalesce(nullif(btrim(ri.name), ''), '-')                               as ref,
       -- `bill_to_name` is null when the recipient is a linked farm or a client from the
       -- partner's own book, and reading those names back out is a different tenancy
       -- question. The schedule's own name is always present and is what the partner calls
       -- this money anyway.
-      coalesce(nullif(btrim(ri.bill_to_name), ''), nullif(btrim(ri.name), ''), '—') as party,
+      coalesce(nullif(btrim(ri.bill_to_name), ''), nullif(btrim(ri.name), ''), '-') as party,
       (ri.next_issue_date + w.invoice_terms_days)                             as due,
       (l.net + round(l.net * ri.vat_rate_bps / 10000.0)::bigint)              as gross
       from recurring_invoices ri
@@ -189,19 +189,19 @@ language sql stable security invoker set search_path = public, pg_temp as $$
        -- already been billed will be skipped and rolled forward, so forecasting it would
        -- be forecasting an invoice that is never raised.
        and (ri.last_period_start is null or ri.next_issue_date > ri.last_period_start)
-       -- No lines means no invoice — the generator refuses to raise a zero-rand document,
+       -- No lines means no invoice, the generator refuses to raise a zero-rand document,
        -- and a forecast should not promise one either.
        and l.net > 0
   ),
 
-  -- ── OUT: supplier invoices sitting unpaid ─────────────────────────────────
+  -- == OUT: supplier invoices sitting unpaid =================================
   -- GROSS, because the VAT goes out of the bank with the rest of it. Same expression as
   -- `app.partner_creditors` and `app.partner_cash`.
   exp as (
     select
       x.id,
-      coalesce(nullif(btrim(x.reference), ''), '—')                           as ref,
-      coalesce(nullif(btrim(x.supplier_name), ''), '—')                       as party,
+      coalesce(nullif(btrim(x.reference), ''), '-')                           as ref,
+      coalesce(nullif(btrim(x.supplier_name), ''), '-')                       as party,
       (x.expense_date + e.supplier_terms_days)                                as due,
       (x.amount_cents + x.vat_cents)                                          as gross
       from partner_expenses x
@@ -214,21 +214,21 @@ language sql stable security invoker set search_path = public, pg_temp as $$
             or x.expense_date + e.supplier_terms_days <= e.horizon)
   ),
 
-  -- ── OUT: money committed on an order and not yet invoiced ─────────────────
-  -- A purchase order is a commitment, never a cost (0473) — but a commitment is precisely
+  -- == OUT: money committed on an order and not yet invoiced =================
+  -- A purchase order is a commitment, never a cost (0473), but a commitment is precisely
   -- what a forecast is about, and it is the outflow a partner is most likely to have
   -- forgotten because no paper has arrived yet. `sent` and `part_received` only: a draft
   -- has not left the building, and `received`/`closed`/`cancelled` are either already
   -- invoiced or never happening.
   --
   -- The whole order value is forecast, including any part already delivered, because none
-  -- of it has been invoiced yet — the moment any of it is, 0475's link fires and the order
+  -- of it has been invoiced yet, the moment any of it is, 0475's link fires and the order
   -- drops out of the forecast entirely in favour of the real expense.
   po as (
     select
       o.id,
       coalesce(nullif(btrim(o.reference), ''), o.supplier_name)               as ref,
-      coalesce(nullif(btrim(o.supplier_name), ''), '—')                       as party,
+      coalesce(nullif(btrim(o.supplier_name), ''), '-')                       as party,
       (o.expected_date + e.supplier_terms_days)                               as due,
       o.total_cents                                                           as gross
       from purchase_orders o
@@ -281,7 +281,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 2, 7, 9 desc;
 $$;
 
--- ── The forecast itself ──────────────────────────────────────────────────────
+-- == The forecast itself ======================================================
 -- Always five rows, empty ones included. A bucket that disappears when nothing falls in it
 -- makes the running balance unreadable, and "nothing goes out next week" is itself an
 -- answer worth showing.
@@ -346,7 +346,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by b.ordinal;
 $$;
 
--- ── PostgREST wrappers + least privilege (0205/0413/0460 pattern) ────────────
+-- == PostgREST wrappers + least privilege (0205/0413/0460 pattern) ============
 -- The column lists are restated rather than referenced: a function's RETURNS TABLE is not
 -- a named composite type, so `returns setof app.partner_cashflow` does not exist.
 create or replace function public.partner_cashflow(p_workshop uuid, p_horizon_days int default 90)
@@ -366,8 +366,8 @@ returns table (
 $$;
 
 -- app.* is helper-only; the public wrappers are the API. Both are SECURITY INVOKER, so a
--- rival workshop passing somebody else's id is answered by RLS on the underlying tables —
--- returning zeros — rather than by a workshop check written in the body, which would be a
+-- rival workshop passing somebody else's id is answered by RLS on the underlying tables -
+-- returning zeros, rather than by a workshop check written in the body, which would be a
 -- second and weaker copy of a rule the database already enforces.
 --
 -- The revokes are not optional tidying: a function created with no explicit grant defaults

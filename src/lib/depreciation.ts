@@ -5,16 +5,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * What the fleet is worth now.
  *
- * ── This is a BOOK value, not a tax calculation ──────────────────────────────
+ * == This is a BOOK value, not a tax calculation ==============================
  * Said here as well as in the migration and on the screen, because the two are easy to
  * confuse and expensive to confuse. SARS capital allowances for farming assets follow
  * their own rules and apportionments and are the accountant's work. What this reads is the
  * ordinary book value under a policy the farm sets for itself.
  *
- * ── Why there is no arithmetic in this file ──────────────────────────────────
+ * == Why there is no arithmetic in this file ==================================
  * Every other money rule in this product is mirrored in TypeScript and pinned to the SQL
  * by a test, because a screen and an engine disagreeing about a figure is this project's
- * most expensive recurring bug. Here the inputs — purchase price, rate, residual — are
+ * most expensive recurring bug. Here the inputs, purchase price, rate, residual, are
  * withheld from `authenticated` at the COLUMN level on purpose, so the browser side cannot
  * hold them and there is nothing to mirror. `public.farm_book_values` does the sum where
  * the inputs live and hands back the answer; duplicating it here would mean shipping the
@@ -60,7 +60,7 @@ export async function readBookValues(
   return error ? [] : ((data as BookValueRow[] | null) ?? []);
 }
 
-// `registerTotals` and `policyLabel` live in `./depreciation-view` — they are pure and
+// `registerTotals` and `policyLabel` live in `./depreciation-view`, they are pure and
 // this module is `server-only`, which a test process cannot import. Re-exported here so
 // the page has one import and the rules have a test.
 export { registerTotals, policyLabel } from "./depreciation-view";

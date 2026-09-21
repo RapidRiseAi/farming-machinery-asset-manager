@@ -1,5 +1,5 @@
 -- 0390_partner_clients.sql
--- F15 — A partner's OWN client book, and the road from it to a real FleetWise farm.
+-- F15, A partner's OWN client book, and the road from it to a real FleetWise farm.
 --
 -- Until now a partner could only see farms that had already found them and connected
 -- (F12a `workshop_links`). That is backwards for the business we are asking them to run
@@ -8,7 +8,7 @@
 -- a management system. AutoVault solved this with `workshop_prospect_customers`; this is
 -- the same idea, sized for our tenancy.
 --
--- ── THE TENANCY QUESTION, ANSWERED FIRST ─────────────────────────────────────
+-- == THE TENANCY QUESTION, ANSWERED FIRST =====================================
 --
 -- These are the first tables in the product owned by a WORKSHOP rather than a farm, so
 -- be explicit about what they are and are not:
@@ -16,15 +16,15 @@
 --   * A `partner_client` is the PARTNER'S OWN NOTE about a customer. It is their data,
 --     scoped to their workshop, and it carries no authority whatsoever.
 --   * Setting `farm_id` on one does NOT grant the partner access to that farm. Access
---     comes from an ACTIVE `workshop_link` and nothing else — `app.has_farm_access` is
+--     comes from an ACTIVE `workshop_link` and nothing else, `app.has_farm_access` is
 --     unchanged by this migration and still ignores these tables entirely.
 --   * So the worst a forged or mistaken `partner_client` row can do is put a wrong name
 --     in the partner's own list. It cannot widen what they can read.
 --
--- ── HOW A CLIENT BECOMES A LINKED FARM ───────────────────────────────────────
+-- == HOW A CLIENT BECOMES A LINKED FARM =======================================
 --
 -- `workshop_link_status` already has 'pending', and `has_farm_access` only counts
--- 'active' — so a request needs no new table: it is a pending link. This migration adds
+-- 'active', so a request needs no new table: it is a pending link. This migration adds
 -- the one policy that lets a partner RAISE such a request (and only a pending one, and
 -- only for its own workshop). Approving it stays exactly where it was: with the farm's
 -- own owner/manager, through the existing update policy that a workshop is not covered
@@ -32,10 +32,10 @@
 --
 -- The partner never learns whether the customer they asked for is on FleetWise. The
 -- server action resolves the email with the service role and either raises the request
--- or hands back a sign-up link, and says the same thing either way — because "does this
+-- or hands back a sign-up link, and says the same thing either way, because "does this
 -- address have an account" is not a partner's question to ask of the whole customer base.
 
--- ── The partner's client book ─────────────────────────────────────────────────
+-- == The partner's client book =================================================
 create type partner_client_link as enum ('unlinked', 'requested', 'linked', 'declined');
 
 create table partner_clients (
@@ -67,10 +67,10 @@ create table partner_clients (
 create index partner_clients_workshop_idx on partner_clients(workshop_id, link_status);
 create index partner_clients_farm_idx     on partner_clients(farm_id);
 
--- ── Vehicles the partner tracks before there is a farm to hold them ──────────
+-- == Vehicles the partner tracks before there is a farm to hold them ==========
 -- Free text on purpose. These are not `machines`: a machine belongs to a farm, is
 -- governed by farm RLS and carries the whole service/cost model. This is a mechanic's
--- notebook — "Danie's blue Hilux, ADT 441 FS" — and its only job is to be useful before
+-- notebook, "Danie's blue Hilux, ADT 441 FS", and its only job is to be useful before
 -- the customer is on FleetWise, and to be copyable into the real fleet afterwards.
 create table partner_client_vehicles (
   id           uuid primary key default gen_random_uuid(),
@@ -92,10 +92,10 @@ create table partner_client_vehicles (
 );
 create index partner_client_vehicles_client_idx on partner_client_vehicles(client_id);
 
--- ── RLS: a partner's book is the partner's ───────────────────────────────────
+-- == RLS: a partner's book is the partner's ===================================
 -- A new scoping axis (workshop, not farm), so it is spelled out rather than reusing a
 -- farm helper: your own workshop's rows, or rr_admin. No farm user can read a partner's
--- private notes about them, which is correct — these are the partner's working records,
+-- private notes about them, which is correct, these are the partner's working records,
 -- not a shared document.
 do $do$
 declare t text;
@@ -120,11 +120,11 @@ begin
 end $do$;
 -- anon gets ZERO access (0102 default privileges revoke it; no anon policy exists).
 
--- ── A partner may ASK to be connected — nothing more ─────────────────────────
+-- == A partner may ASK to be connected, nothing more =========================
 -- 0101's wl_ins allows only rr_admin or a member of the farm. This adds the partner's
 -- side of the handshake, deliberately narrow:
 --   * only for its OWN workshop, and
---   * only as 'pending', which `app.has_farm_access` does not count — so raising one
+--   * only as 'pending', which `app.has_farm_access` does not count, so raising one
 --     grants exactly nothing until the farm approves it.
 -- Approval remains the farm's alone: wl_upd still covers only rr_admin and the farm, so
 -- a workshop cannot promote its own request.

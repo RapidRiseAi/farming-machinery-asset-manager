@@ -8,7 +8,7 @@ import { MACHINE_TYPES } from "@/lib/machine-options";
 
 type TemplateLine = { task: string; interval_hours: number | null; interval_months: number | null };
 
-/** Parse the textarea "lines" format: one per row — `Task | hours | months`. */
+/** Parse the textarea "lines" format: one per row, `Task | hours | months`. */
 function parseLines(raw: string): TemplateLine[] {
   return raw
     .split(/\r?\n/)

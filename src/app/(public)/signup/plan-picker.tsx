@@ -20,7 +20,7 @@ type PlanOption = {
 /**
  * The only client component on the sign-up page, and it is client-side for exactly one
  * reason: the price has to move as somebody chooses a plan and a number of vehicles.
- * Everything else — the form fields, the submit, the validation — is server-rendered and
+ * Everything else, the form fields, the submit, the validation, is server-rendered and
  * server-checked.
  *
  * The prices are passed IN rather than fetched. An anonymous visitor has no database
@@ -29,8 +29,8 @@ type PlanOption = {
  * asserts the two agree, and suite section (0) asserts them again in SQL. The INVOICE is
  * always priced from the catalogue, never from anything this component sends.
  *
- * ── Why the comparison is DERIVED and not written out ────────────────────────
- * Every tick is `planAllows(plan, feature)` over the keys of `FEATURE_MIN_PLAN` — the very
+ * == Why the comparison is DERIVED and not written out ========================
+ * Every tick is `planAllows(plan, feature)` over the keys of `FEATURE_MIN_PLAN`, the very
  * function the layout, the assistant, the machine page and the report schedules call to
  * refuse a feature. A feature that moves between plans moves on this page in the same
  * commit and cannot be advertised on a plan that will not actually unlock it. Only the
@@ -98,7 +98,7 @@ export function PlanPicker({
   /**
    * The comparison's rows: what every plan includes, then each gated feature in the order
    * the map declares them. A core capability is ticked on every plan because it is, by
-   * definition, not in `FEATURE_MIN_PLAN` — no gate anywhere refuses it. A gated one is
+   * definition, not in `FEATURE_MIN_PLAN`, no gate anywhere refuses it. A gated one is
    * ticked exactly where `planAllows` says yes, and nowhere else.
    */
   const matrix: { key: string; label: string; has: (p: string) => boolean }[] = [
@@ -151,7 +151,7 @@ export function PlanPicker({
       </div>
 
       <fieldset className="space-y-2">
-        {/* Was `labels.total` — the group of plans is not the total, and an invisible
+        {/* Was `labels.total`, the group of plans is not the total, and an invisible
             legend is the one label only assistive technology ever reads. */}
         <legend className="sr-only">{labels.choosePlan}</legend>
         {options.map((o) => {
@@ -199,7 +199,7 @@ export function PlanPicker({
         })}
       </fieldset>
 
-      {/* ── What you actually get ────────────────────────────────────────────
+      {/* == What you actually get ============================================
           A one-line blurb was the whole argument for spending R89 a vehicle instead of
           R44, which left the most expensive question on the page unanswered. Collapsed by
           default so the form stays short for somebody who has already decided. */}
@@ -274,7 +274,7 @@ export function PlanPicker({
                           ) : (
                             <>
                               <span aria-hidden className="text-sand-400">
-                                —
+                                -
                               </span>
                               <span className="sr-only">{labels.compareNo}</span>
                             </>

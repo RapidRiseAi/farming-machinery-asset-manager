@@ -10,20 +10,20 @@ import { createServiceClient } from "@/lib/supabase/service";
 /**
  * Start a hosted Paystack checkout for a farm's open invoice.
  *
- * ── What this route is careful about ─────────────────────────────────────────
+ * == What this route is careful about =========================================
  *
  *  - POST only. A GET that starts a payment is a payment anything can trigger with an
  *    `<img>` tag.
  *  - The role is re-checked HERE, server-side, against the farm being paid for. Owner or
- *    Rapid Rise admin, and nobody else: managers, mechanics, operators and — emphatically
- *    — linked contractors have no business in a farm's subscription. Hiding the button is
+ *    Rapid Rise admin, and nobody else: managers, mechanics, operators and, emphatically
+ *   , linked contractors have no business in a farm's subscription. Hiding the button is
  *    not a control.
  *  - The origin is checked, because this endpoint authenticates with a cookie and would
  *    otherwise be replayable from any other site the owner has open.
  *  - The callback URL is built from `NEXT_PUBLIC_SITE_URL` (`billingSiteUrl`), never from
  *    the `Host` header. A `Host` value is attacker-controlled, and a payment flow is the
  *    single most credible place to send somebody through an open redirect.
- *  - The reference is minted and PERSISTED before Paystack is contacted — that happens
+ *  - The reference is minted and PERSISTED before Paystack is contacted, that happens
  *    inside `beginCheckout`, which is shared with the owner's server action so there is
  *    one sequence and not two that can drift.
  *

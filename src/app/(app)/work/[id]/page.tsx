@@ -229,7 +229,7 @@ export default async function WorkRequestDetailPage({
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("work.quote", locale)}</p>
                   <p className="mt-0.5 text-lg font-bold tabular-nums text-sand-900">
-                    {wr.quote_amount_cents != null ? rands(wr.quote_amount_cents) : "—"}
+                    {wr.quote_amount_cents != null ? rands(wr.quote_amount_cents) : "-"}
                   </p>
                   <form action={setWorkRequestQuote} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="id" value={wr.id} />
@@ -245,7 +245,7 @@ export default async function WorkRequestDetailPage({
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("work.invoice", locale)}</p>
                   <p className="mt-0.5 text-lg font-bold tabular-nums text-sand-900">
-                    {wr.invoice_amount_cents != null ? rands(wr.invoice_amount_cents) : "—"}
+                    {wr.invoice_amount_cents != null ? rands(wr.invoice_amount_cents) : "-"}
                   </p>
                   <p className="text-xs text-sand-400">{t("work.invoiceToTco", locale)}</p>
                   <form action={setWorkRequestInvoice} className="mt-2 flex flex-wrap items-end gap-2">

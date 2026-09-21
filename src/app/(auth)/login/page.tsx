@@ -8,16 +8,16 @@ import { PublicShell } from "@/components/public-shell";
 /**
  * Sign in.
  *
- * ── What it looked like before ───────────────────────────────────────────────
+ * == What it looked like before ===============================================
  * Two stacked forms each asking for an email address, a card with no background (it used
  * `bg-surface`, a token defined in no committed config, so Tailwind emitted nothing for
- * it), no route back to the landing page, and nothing at all rendered for `?signedup=1` —
+ * it), no route back to the landing page, and nothing at all rendered for `?signedup=1` -
  * which is where the sign-up form sends somebody when the automatic sign-in after creating
  * their farm fails. That last one is the reported bug: you fill in the sign-up form, press
  * "Continue to payment", and land on a bare sign-in screen that says nothing, having in
  * fact just had a farm and an invoice created for you.
  *
- * ── The three messages, and why they are separate ────────────────────────────
+ * == The three messages, and why they are separate ============================
  * `signedup` is a SUCCESS: everything the person cares about worked and only the session is
  * missing. `resume` is somebody coming back to an address that already has an account.
  * `error` is a genuine failure. Folding them together would tell two out of three people
@@ -35,7 +35,7 @@ export default async function LoginPage({
     signedup?: string;
     /** Carried by `resume` and `signedup` so the address does not have to be retyped. */
     email?: string;
-    /** A password-reset email has been sent — or would have been, if the address exists. */
+    /** A password-reset email has been sent, or would have been, if the address exists. */
     reset?: string;
   }>;
 }) {
@@ -45,7 +45,7 @@ export default async function LoginPage({
   const locale = await deviceLocale();
 
   /*
-    Supabase's own wording used to reach the screen — and the address bar — verbatim:
+    Supabase's own wording used to reach the screen, and the address bar, verbatim:
     "?error=Invalid+login+credentials". The redirect still carries the raw message
     (the server action is unchanged); this translates the ones we recognise into a sentence
     a person can act on, and falls back to something plain for the rest.
@@ -54,7 +54,7 @@ export default async function LoginPage({
   const errorMessage = !sp.error
     ? undefined
     : // `no-profile` is what the guards append when nobody is signed in yet. That is not an
-      // error the visitor made — showing them "that didn't work" on the login screen they
+      // error the visitor made, showing them "that didn't work" on the login screen they
       // were simply sent to is the same leak in a different costume.
       raw === "no-profile"
       ? undefined
@@ -81,7 +81,7 @@ export default async function LoginPage({
         <p className="mt-1.5 text-sand-600">{t("auth.welcomeSub", locale)}</p>
       </div>
 
-      {/* Everything they care about DID work — the farm, the owner, the subscription and
+      {/* Everything they care about DID work, the farm, the owner, the subscription and
           the invoice are all committed; only the session is missing. So this is a success
           message, and it is the one thing that was missing when somebody hit this path. */}
       {sp.signedup ? (
@@ -113,7 +113,7 @@ export default async function LoginPage({
         />
       </div>
 
-      {/* Much of the workforce this is built for has no work email — they use the QR
+      {/* Much of the workforce this is built for has no work email, they use the QR
           stickers, which need no login at all. The login screen never said so, so drivers
           got stuck at the door. */}
       <div className="mt-4 rounded-2xl border border-sand-200 bg-sand-100 p-4">

@@ -7,7 +7,7 @@ import { parseStatementParty } from "@/lib/statement-party";
 export const dynamic = "force-dynamic";
 
 /**
- * The statement as a spreadsheet — for the partner's bookkeeper, who will want to sort it.
+ * The statement as a spreadsheet, for the partner's bookkeeper, who will want to sort it.
  *
  * Same `app.partner_statement` call as the screen and the PDF, so the three cannot
  * disagree. Money is written in rands with the sign convention a ledger uses: charges

@@ -167,7 +167,7 @@ export default async function FaultsPage({
                 <Card className={resolved ? "opacity-70" : undefined}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-sand-900">{nameById[f.machine_id] ?? "—"}</p>
+                      <p className="font-semibold text-sand-900">{nameById[f.machine_id] ?? "-"}</p>
                       <p className="mt-0.5 text-sm text-sand-700">{f.description}</p>
                       <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sand-500">
                         <FaultStatus value={f.status} locale={locale} />
@@ -180,7 +180,7 @@ export default async function FaultsPage({
                         </span>
                         <span className={f.assigned_to ? "" : "font-medium text-status-due"}>
                           {f.assigned_to
-                            ? `${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "—"}`
+                            ? `${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "-"}`
                             : t("faults.nobodyLooking", locale)}
                         </span>
                       </p>
@@ -227,7 +227,7 @@ export default async function FaultsPage({
 
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {/* One green action per row — every one of these used to be a
+                      {/* One green action per row, every one of these used to be a
                           `variant="ghost" size="sm"`, so when everything is quiet
                           nothing is obvious. */}
                       {canJob && !f.job_card_id ? (

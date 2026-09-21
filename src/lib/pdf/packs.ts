@@ -1,5 +1,5 @@
 /**
- * Audit / sale / warranty document packs (FR-13.4) — the RENDERING half.
+ * Audit / sale / warranty document packs (FR-13.4), the RENDERING half.
  *
  * A South African farm is audited against GLOBALG.A.P. and SIZA. When the auditor
  * arrives, the farmer has to PRODUCE evidence: that the machinery is maintained, that
@@ -14,13 +14,13 @@
  *    unpack on a laptop they did not bring. A ZIP is also a build decision, not only a
  *    product one: this repo has kept its shared first-load JS at 102 kB for the whole
  *    project and has never added an archive writer. A single PDF reuses `Pdf`
- *    (src/lib/pdf/doc.ts) — the same engine, the same pagination, the same footer — and
+ *    (src/lib/pdf/doc.ts), the same engine, the same pagination, the same footer, and
  *    adds no dependency at all.
  *
  * 2. A PACK SAYS WHAT IS MISSING.
  *    This is the whole reason the file is shaped the way it is. A document whose value
  *    is "proof" must never omit silently. If a machine has no licence on file, the
- *    licence table gets a row for that machine SAYING SO — because an auditor reading a
+ *    licence table gets a row for that machine SAYING SO, because an auditor reading a
  *    table of five in-date licences on a fifteen-machine fleet reads it as compliance,
  *    not as ten missing documents. Every pack therefore ends with "What is not on file",
  *    and the gaps are computed (`complianceGaps` / `saleGaps` / `warrantyGaps`) rather
@@ -38,7 +38,7 @@
  *    `Pdf.table()` cuts an over-wide cell with an ellipsis (the 0505 `fit()` fix). That is
  *    right for a free-text fault description and wrong for two things: a column HEADING,
  *    where the reader loses the name of what they are looking at and cannot recover it
- *    from context; and a fixed-format value that IS the evidence — "Resolved 09 May 2026"
+ *    from context; and a fixed-format value that IS the evidence, "Resolved 09 May 2026"
  *    printed as "Resolved 09…" removes the date an auditor came to see, and
  *    "250 hours / 12 months" printed as "250 hours / 12 m…" is not an interval. Every
  *    width below was set by measuring the header and the worst-case enum value at 9pt in
@@ -46,7 +46,7 @@
  *    ("Binnekort verskuldig" is 94pt against "Due soon" at 41pt), so a table sized by eye
  *    on an English screen truncates for exactly the farms that need the translation.
  *
- * Money is integer cents ex-VAT throughout and is rendered with `rands()` — never
+ * Money is integer cents ex-VAT throughout and is rendered with `rands()`, never
  * `toLocaleString`, for the reason set out in src/lib/money.ts.
  *
  * This module is deliberately free of Supabase and of `server-only`: it takes plain
@@ -67,7 +67,7 @@ import {
   type ExpiryStatus,
 } from "@/lib/compliance";
 
-// ── The shapes a pack is built from ──────────────────────────────────────────
+// == The shapes a pack is built from ==========================================
 // Plain rows, exactly as the tables hold them, so the gathering half can hand over what
 // it selected without a translation layer in between.
 
@@ -171,7 +171,7 @@ export type PackPhoto = {
 
 export type PackCost = { type: string; amount_cents: number | null };
 
-/** Who generated it and for whom — printed on the face of every pack. */
+/** Who generated it and for whom, printed on the face of every pack. */
 export type PackIssuer = {
   farmName: string;
   personName: string;
@@ -197,9 +197,9 @@ export function defaultIssuer(partial: Partial<PackIssuer> = {}): PackIssuer {
   };
 }
 
-// ── Small shared helpers ─────────────────────────────────────────────────────
+// == Small shared helpers =====================================================
 
-const NONE = "—";
+const NONE = "-";
 const dash = (v: unknown) => (v == null || v === "" ? NONE : String(v));
 
 /** Machines that count towards a FLEET compliance figure (Scope §4.1 / C8). */
@@ -239,7 +239,7 @@ function machineTitle(m: PackMachine): string {
   return make ? `${m.name} (${make})` : m.name;
 }
 
-/** Group rows by machine id — every pack section needs this and nothing else. */
+/** Group rows by machine id, every pack section needs this and nothing else. */
 function byMachine<T extends { machine_id: string }>(rows: T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const r of rows) {
@@ -253,8 +253,8 @@ function byMachine<T extends { machine_id: string }>(rows: T[]): Map<string, T[]
 /**
  * The block every pack opens with.
  *
- * It states what the document is, where the figures come from, and — the part that
- * matters — that it lists what is NOT on file. An auditor who does not know that will
+ * It states what the document is, where the figures come from, and, the part that
+ * matters, that it lists what is NOT on file. An auditor who does not know that will
  * read an absent row as a satisfied requirement.
  */
 function frontMatter(pdf: Pdf, issuer: PackIssuer, locale: Lang, scopeLine: string) {
@@ -296,7 +296,7 @@ function brandFor(issuer: PackIssuer, locale: Lang) {
   };
 }
 
-// ── Gap detection ────────────────────────────────────────────────────────────
+// == Gap detection ============================================================
 // Kept apart from rendering so a section cannot be added without the gap it implies,
 // and so the isolation of "what counts as missing" is testable on its own.
 
@@ -330,7 +330,7 @@ export type ComplianceInput = {
 
 /**
  * What an auditor would find absent. One sentence per machine per missing record,
- * named — "no licence on file" against a list of fifteen tractors is not actionable.
+ * named, "no licence on file" against a list of fifteen tractors is not actionable.
  */
 export function complianceGaps(input: ComplianceInput, locale: Lang): string[] {
   const { machines, issuer } = input;
@@ -443,7 +443,7 @@ export function warrantyGaps(input: WarrantyInput, locale: Lang): string[] {
   return gaps;
 }
 
-// ── Identity block, shared by all three per-machine packs ────────────────────
+// == Identity block, shared by all three per-machine packs ====================
 
 function identity(pdf: Pdf, m: PackMachine, issuer: PackIssuer, locale: Lang, withPurchase: boolean) {
   pdf.kv(t("machines.type", locale), enumLabel("machineType", m.type, locale));
@@ -494,8 +494,8 @@ function warrantyBlock(pdf: Pdf, m: PackMachine, issuer: PackIssuer, locale: Lan
   pdf.kv(t("machines.status", locale), expiryWord(ws, locale));
 }
 
-// ── Fault section, shared: raised AND how it was resolved ────────────────────
-// An auditor is not asking "are there faults" — every farm has faults. They are asking
+// == Fault section, shared: raised AND how it was resolved ====================
+// An auditor is not asking "are there faults", every farm has faults. They are asking
 // whether a reported fault reaches a conclusion. So resolved faults belong here too,
 // with the date they closed.
 
@@ -532,7 +532,7 @@ function faultTable(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// COMPLIANCE PACK — GLOBALG.A.P. / SIZA
+// COMPLIANCE PACK, GLOBALG.A.P. / SIZA
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -563,7 +563,7 @@ export async function buildCompliancePack(
         .replace("{excluded}", num(input.excludedCount ?? 0, 0));
   frontMatter(pdf, issuer, locale, scope);
 
-  // ── 1. The assets the pack covers ──────────────────────────────────────────
+  // == 1. The assets the pack covers ==========================================
   pdf.heading(t("packs.assetsTitle", locale));
   if (machines.length === 0) {
     pdf.text(t("packs.noAssets", locale));
@@ -593,7 +593,7 @@ export async function buildCompliancePack(
     );
   }
 
-  // ── 2. Licences and renewals ───────────────────────────────────────────────
+  // == 2. Licences and renewals ===============================================
   // A machine with NO licence gets its own row. This is the single most important
   // line in the file: without it the table reads as "here are the documents" and an
   // absent machine reads as one that needed none.
@@ -641,7 +641,7 @@ export async function buildCompliancePack(
     );
   }
 
-  // ── 3. Warranty ────────────────────────────────────────────────────────────
+  // == 3. Warranty ============================================================
   pdf.heading(t("compliance.warranty", locale));
   const warrantyRows = machines
     .map((m) => {
@@ -669,7 +669,7 @@ export async function buildCompliancePack(
     );
   }
 
-  // ── 4. Service adherence — was the plan followed? ──────────────────────────
+  // == 4. Service adherence, was the plan followed? ==========================
   pdf.heading(t("packs.serviceTitle", locale));
   const planByMachine = byMachine(input.plan);
   const svcRows = machines.map((m) => {
@@ -708,7 +708,7 @@ export async function buildCompliancePack(
       [120, 120, 64, 98, 97],
     );
     pdf.gap(4);
-    // The tasks themselves, for the machines that are behind — a count is a finding,
+    // The tasks themselves, for the machines that are behind, a count is a finding,
     // a task name is something the farm can act on before the auditor leaves.
     const overdueTasks = input.plan.filter((l) => l.status === "overdue");
     if (overdueTasks.length > 0) {
@@ -726,7 +726,7 @@ export async function buildCompliancePack(
     }
   }
 
-  // ── 5. Inspections / checklists ────────────────────────────────────────────
+  // == 5. Inspections / checklists ============================================
   pdf.heading(t("packs.checklistsTitle", locale));
   const chkByMachine = byMachine(input.checklists.filter((c) => c.status === "completed"));
   const chkRows = machines.map((m) => {
@@ -756,13 +756,13 @@ export async function buildCompliancePack(
     );
   }
 
-  // ── 6. Faults raised, and how they ended ───────────────────────────────────
+  // == 6. Faults raised, and how they ended ===================================
   pdf.heading(t("packs.faultsTitle", locale));
   pdf.text(t("packs.faultsIntro", locale), { size: 9 });
   pdf.gap(2);
   faultTable(pdf, input.faults, nameById, locale, !single);
 
-  // ── 7. Who operates what ───────────────────────────────────────────────────
+  // == 7. Who operates what ===================================================
   pdf.heading(t("packs.operatorsTitle", locale));
   pdf.text(t("packs.operatorsIntro", locale), { size: 9 });
   pdf.gap(2);
@@ -793,7 +793,7 @@ export async function buildCompliancePack(
     [120, 120, 170, 89],
   );
 
-  // ── 8. What is not on file ─────────────────────────────────────────────────
+  // == 8. What is not on file =================================================
   gapsSection(pdf, complianceGaps(input, locale), locale);
 
   return pdf.save();
@@ -811,7 +811,7 @@ export async function buildCompliancePack(
  * selling". A machine already marked `sold` is exactly the one whose pack somebody
  * needs. The status is printed on the face of the document either way.
  *
- * Open faults are DECLARED — a section that prints whether or not there are any,
+ * Open faults are DECLARED, a section that prints whether or not there are any,
  * because "no faults section" and "no faults" must not look the same to a buyer.
  */
 export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uint8Array> {
@@ -827,7 +827,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
   pdf.heading(t("packs.identityTitle", locale));
   identity(pdf, m, issuer, locale, true);
 
-  // ── Compliance at handover ─────────────────────────────────────────────────
+  // == Compliance at handover =================================================
   pdf.heading(t("compliance.title", locale));
   warrantyBlock(pdf, m, issuer, locale);
   pdf.gap(4);
@@ -846,7 +846,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
     );
   }
 
-  // ── Service record ─────────────────────────────────────────────────────────
+  // == Service record =========================================================
   pdf.heading(t("packs.serviceRecordTitle", locale));
   if (input.plan.length === 0) {
     pdf.text(t("packs.noPlanOnFileOne", locale));
@@ -885,7 +885,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
     );
   }
 
-  // ── Meter history ──────────────────────────────────────────────────────────
+  // == Meter history ==========================================================
   pdf.heading(t("packs.meterHistoryTitle", locale));
   if (input.readings.length === 0) {
     pdf.text(t("packs.noReadings", locale));
@@ -903,7 +903,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
     );
   }
 
-  // ── Lifetime cost & TCO — gated, and SAID when denied ──────────────────────
+  // == Lifetime cost & TCO, gated, and SAID when denied ======================
   pdf.heading(t("packs.costTitle", locale));
   if (!input.costsAllowed) {
     // The gate never becomes a silent omission. A buyer reading a pack with no cost
@@ -927,7 +927,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
     else pdf.table([t("packs.costType", locale), t("packs.amountExVat", locale)], rows, [340, 159], [false, true]);
   }
 
-  // ── Declared faults — printed whether or not there are any ─────────────────
+  // == Declared faults, printed whether or not there are any =================
   pdf.heading(t("packs.declaredFaultsTitle", locale));
   const open = input.faults.filter((f) => f.status !== "resolved");
   const resolved = input.faults.filter((f) => f.status === "resolved");
@@ -944,8 +944,8 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
     { size: 9 },
   );
 
-  // ── Photographs on file ────────────────────────────────────────────────────
-  // The images themselves are not reproduced here — see the note in the pack. Listing
+  // == Photographs on file ====================================================
+  // The images themselves are not reproduced here, see the note in the pack. Listing
   // them is not decoration: a buyer told there are eleven photographs on the record can
   // ask for them, whereas a pack that says nothing implies there are none.
   pdf.heading(t("packs.photosTitle", locale));
@@ -983,7 +983,7 @@ export async function buildSalePack(input: SaleInput, locale: Lang): Promise<Uin
 /**
  * What a warranty claim actually turns on: the terms on file, and whether the service
  * plan was followed. A claim is refused on a skipped service, so the pack states the
- * standing of every task and names the ones that were never done — rather than
+ * standing of every task and names the ones that were never done, rather than
  * printing only the services that WERE performed, which is the shape that flatters.
  */
 export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Promise<Uint8Array> {
@@ -1002,7 +1002,7 @@ export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Pro
   pdf.heading(t("packs.warrantyTermsTitle", locale));
   warrantyBlock(pdf, m, issuer, locale);
 
-  // ── Adherence ──────────────────────────────────────────────────────────────
+  // == Adherence ==============================================================
   pdf.heading(t("packs.adherenceTitle", locale));
   const overdue = input.plan.filter((l) => l.status === "overdue");
   const never = input.plan.filter((l) => l.last_done_date == null && l.last_done_reading == null);
@@ -1040,7 +1040,7 @@ export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Pro
     );
   }
 
-  // ── Services performed ─────────────────────────────────────────────────────
+  // == Services performed =====================================================
   pdf.heading(t("packs.servicesPerformedTitle", locale));
   if (input.jobCards.length === 0) {
     pdf.text(t("packs.noJobCards", locale));
@@ -1058,11 +1058,11 @@ export async function buildWarrantyPack(input: WarrantyInput, locale: Lang): Pro
     );
   }
 
-  // ── Fault history ──────────────────────────────────────────────────────────
+  // == Fault history ==========================================================
   pdf.heading(t("packs.faultsTitle", locale));
   faultTable(pdf, input.faults, new Map(), locale, false);
 
-  // ── Meter readings — the evidence the hours are recorded, not asserted ─────
+  // == Meter readings, the evidence the hours are recorded, not asserted =====
   pdf.heading(t("packs.meterHistoryTitle", locale));
   if (input.readings.length === 0) {
     pdf.text(t("packs.noReadings", locale));

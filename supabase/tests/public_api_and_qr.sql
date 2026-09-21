@@ -1,5 +1,5 @@
 -- ═════════════════════════════════════════════════════════════════════════════
--- G31 — THE PUBLIC API (0508), AND RE-ISSUING A QR STICKER
+-- G31, THE PUBLIC API (0508), AND RE-ISSUING A QR STICKER
 --
 -- Two things are being proved here, and they are not the same kind of thing.
 --
@@ -8,14 +8,14 @@
 --
 -- The API half is not ordinary, and the section is written to say so. An API token is
 -- not a session, so `auth.uid()` is null and NO POLICY CAN JUDGE AN API REQUEST. The
--- easy fix — resolve the token to a user and `set_config('request.jwt.claims', …)` —
+-- easy fix, resolve the token to a user and `set_config('request.jwt.claims', …)` -
 -- is the `_f14_probe` shape that migration 0440 removed from production, and G11 above
 -- already fails the suite for any function that does it. 0508 therefore does something
 -- else, and what these assertions can and cannot reach follows from that:
 --
 --   IN SQL, and asserted here:
 --     * the farm is DERIVED from the credential. `app.api_token_resolve` has no farm
---       parameter — asserted against pg_proc, not by reading — so there is no argument
+--       parameter, asserted against pg_proc, not by reading, so there is no argument
 --       a caller could supply to ask for somebody else's farm.
 --     * the write path is tenant-safe in the DATABASE. The composite FK
 --       `(machine_id, farm_id) → machines(id, farm_id)` refuses a reading whose farm and
@@ -28,7 +28,7 @@
 --
 --   NOT IN SQL, and deliberately not pretended otherwise: that no /api/v1 ROUTE can
 --   return another farm's row. That is app-enforced, it holds because `apiSelect()` is
---   correct, and it is proved by driving the running API with five kinds of token —
+--   correct, and it is proved by driving the running API with five kinds of token -
 --   valid, revoked, expired, malformed and another farm's. See the mission report.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -42,7 +42,7 @@ grant execute on function _t_login(uuid) to public;
 
 reset role;
 
--- ── Fixtures ─────────────────────────────────────────────────────────────────
+-- == Fixtures =================================================================
 -- Three farms, because the API decision has three different answers:
 --   P  done_for_you + active  → the API works
 --   Q  professional + active  → a real token, a real farm, and no entitlement (403, not 401)
@@ -101,8 +101,8 @@ insert into api_tokens (id, farm_id, name, token_hash, prefix, scopes, created_b
    encode(sha256('fwk_TESTliveS_0000000000000000000000000000'::bytea), 'hex'), 'fwk_TESTlivS',
    array['read']::text[], null, null, null);
 
--- ── (a) The credential is not in the table ───────────────────────────────────
--- Not "token_hash looks like a digest" — the stronger claim, that the raw value appears
+-- == (a) The credential is not in the table ===================================
+-- Not "token_hash looks like a digest", the stronger claim, that the raw value appears
 -- in NO column of the row. A future column that helpfully caches the token would fail
 -- here rather than in a breach report.
 do $$ declare hit int; begin
@@ -120,7 +120,7 @@ do $$ declare hit int; begin
   end if;
 end $$;
 
--- ── (b) The farm is DERIVED. There is no argument that could ask for another one ──
+-- == (b) The farm is DERIVED. There is no argument that could ask for another one ==
 -- This is the assertion that distinguishes 0508 from the shape 0440 removed. A function
 -- that took (p_token_hash, p_farm) would be a request to trust every caller; one that
 -- takes only the credential cannot be asked the wrong question.
@@ -138,7 +138,7 @@ do $$ declare v_args text; v_n int; begin
   end if;
 end $$;
 
--- ── (c) …and it does not relocate the caller ─────────────────────────────────
+-- == (c) …and it does not relocate the caller =================================
 -- G11 (a) already sweeps every function in public/app for this. Named here as well,
 -- because "we did not build an impersonation primitive" is the single claim the API
 -- design rests on, and a claim that lives only in a global sweep is easy to lose.
@@ -153,7 +153,7 @@ do $$ declare bad text; begin
   end if;
 end $$;
 
--- ── (d) A live token resolves to its own farm, and to nothing else ───────────
+-- == (d) A live token resolves to its own farm, and to nothing else ===========
 do $$ declare r record; n int; begin
   select count(*) into n from app.api_token_resolve(encode(sha256('fwk_TESTliveP_0000000000000000000000000000'::bytea), 'hex'));
   if n <> 1 then raise exception 'G31 FAIL: a live token resolved to % rows, not 1', n; end if;
@@ -173,7 +173,7 @@ do $$ declare r record; n int; begin
   end if;
 end $$;
 
--- ── (e) Revoked, expired, unknown and suspended all resolve to NOTHING ───────
+-- == (e) Revoked, expired, unknown and suspended all resolve to NOTHING =======
 -- Four separate reasons, one answer, because the route must not be able to tell them
 -- apart either: "revoked" and "never existed" are the same 401 to a caller, which is
 -- what stops an API being used to confirm that a stolen token was once real.
@@ -196,7 +196,7 @@ do $$ declare n int; begin
   end if;
 end $$;
 
--- ── (f) A real token on a farm that did not buy the API ──────────────────────
+-- == (f) A real token on a farm that did not buy the API ======================
 -- It RESOLVES (the credential is genuine) and reports that the plan does not allow it, so
 -- the route can answer 403 upgrade rather than 401 bad credential. Telling a paying
 -- customer their key is wrong when their PLAN is wrong sends them looking in the wrong
@@ -215,7 +215,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
--- ── (g) last_used_at records authentications and only authentications ────────
+-- == (g) last_used_at records authentications and only authentications ========
 do $$ declare v_used timestamptz; v_before int; v_after int; begin
   select last_used_at into v_used from api_tokens where id = '8b400000-0000-0000-0000-000000000001';
   if v_used is null then
@@ -239,7 +239,7 @@ do $$ declare v_used timestamptz; v_before int; v_after int; begin
   end if;
 end $$;
 
--- ── (h) The audit trail exists, and does not carry the credential ────────────
+-- == (h) The audit trail exists, and does not carry the credential ============
 do $$ declare v_diff jsonb; n int; begin
   select count(*) into n from audit_log
    where entity = 'api_tokens' and entity_id = '8b400000-0000-0000-0000-000000000001' and action = 'insert';
@@ -257,11 +257,11 @@ do $$ declare v_diff jsonb; n int; begin
   end if;
 end $$;
 
--- ── (i) The chokepoint's precondition, in the schema rather than in a comment ──
+-- == (i) The chokepoint's precondition, in the schema rather than in a comment ==
 -- `apiSelect()` scopes a query with a single `farm_id` filter, and that is only
 -- sufficient because every table it may address carries a NOT NULL farm_id. The union in
 -- TypeScript is closed; this is what closes it here. Widen it to a table without farm_id
--- and the API stops being tenant-safe silently — unless this fires.
+-- and the API stops being tenant-safe silently, unless this fires.
 do $$
 declare t text; v_notnull boolean;
 begin
@@ -283,10 +283,10 @@ begin
   end loop;
 end $$;
 
--- ── (j) The WRITE path is tenant-safe in the DATABASE, not in the route ──────
+-- == (j) The WRITE path is tenant-safe in the DATABASE, not in the route ======
 -- The one write endpoint inserts a meter reading. Point the farm at P and the machine at
 -- Q's and the composite FK refuses it. This is the assertion that says a wholly broken
--- route still cannot cross a tenant boundary — the direction that matters, because the
+-- route still cannot cross a tenant boundary, the direction that matters, because the
 -- route is the part that is app-enforced.
 do $$ declare ok boolean := false; begin
   begin
@@ -311,7 +311,7 @@ do $$ declare v_cur numeric; begin
   end if;
 end $$;
 
--- ── (k) The scope and shape constraints refuse a row that skipped the minter ──
+-- == (k) The scope and shape constraints refuse a row that skipped the minter ==
 do $$ declare ok boolean := false; begin
   begin
     insert into api_tokens (farm_id, name, token_hash, prefix, scopes)
@@ -328,7 +328,7 @@ do $$ declare ok boolean := false; begin
   if not ok then raise exception 'G31 FAIL [HASH SHAPE]: token_hash accepted something that is not a SHA-256 digest - which is what storing the token itself would look like'; end if;
 end $$;
 
--- ── (l) Who may see and manage a farm's credentials ──────────────────────────
+-- == (l) Who may see and manage a farm's credentials ==========================
 set role authenticated;
 
 do $$ declare n int; begin
@@ -407,7 +407,7 @@ end $$;
 
 reset role;
 
--- ── (m) anon reads nothing and executes nothing ──────────────────────────────
+-- == (m) anon reads nothing and executes nothing ==============================
 set role anon;
 do $$ declare ok boolean := false; begin
   begin perform 1 from api_tokens; exception when insufficient_privilege then ok := true; end;
@@ -438,9 +438,9 @@ do $$ declare f text; begin
   end if;
 end $$;
 
--- ── (n) Privilege flags, measured ────────────────────────────────────────────
+-- == (n) Privilege flags, measured ============================================
 -- House rule: SECURITY INVOKER for readers, DEFINER only where it is needed. The
--- resolver needs nothing — service_role already bypasses RLS — so it must not be DEFINER,
+-- resolver needs nothing, service_role already bypasses RLS, so it must not be DEFINER,
 -- which would make it a standing privilege escalation if a grant were ever widened.
 do $$ declare r record; begin
   for r in
@@ -481,7 +481,7 @@ end $$;
 
 set role authenticated;
 
--- ── (o) An owner rotates it, and the old sticker dies the same instant ───────
+-- == (o) An owner rotates it, and the old sticker dies the same instant =======
 -- Resolved before and after, because "the column changed" is not the claim. The claim is
 -- that the thing printed on a sticker in a shed no longer finds a machine.
 do $$ declare v_old uuid; v_new uuid; n int; begin
@@ -502,7 +502,7 @@ do $$ declare v_old uuid; v_new uuid; n int; begin
   end if;
 end $$;
 
--- ── (p) …and it is attributable, as a re-issue ───────────────────────────────
+-- == (p) …and it is attributable, as a re-issue ===============================
 do $$ declare r record; n int; begin
   select count(*) into n from audit_log
    where entity = 'machines' and entity_id = '8b300000-0000-0000-0000-000000000001' and action = 'qr_reissue';
@@ -523,7 +523,7 @@ do $$ declare r record; n int; begin
   end if;
 end $$;
 
--- ── (q) Nobody else may do it — and this is the half that was app-only ───────
+-- == (q) Nobody else may do it, and this is the half that was app-only =======
 do $$ declare ok boolean; v_tok uuid; v_now uuid; v_rows integer; begin
   select public_token into v_tok from machines where id = '8b300000-0000-0000-0000-000000000001';
 
@@ -567,7 +567,7 @@ do $$ declare v_rows int; begin
   if v_rows <> 0 then raise exception 'G31 FAIL [QR CROSS-TENANT]: the neighbour rotated % of Farm P''s stickers', v_rows; end if;
 end $$;
 
--- ── (r) The policy was NOT tightened — a mechanic still edits machines ───────
+-- == (r) The policy was NOT tightened, a mechanic still edits machines =======
 -- The failure mode of a fix like this is collateral: lock the sticker, lock the mechanic
 -- out of the vehicle record. `machines_upd` is untouched and must stay untouched.
 do $$ declare v_rows int := 0; v_denied boolean := false; v_reading uuid; begin
@@ -589,9 +589,9 @@ do $$ declare v_rows int := 0; v_denied boolean := false; v_reading uuid; begin
   end if;
 end $$;
 
--- ── (s) A retired or sold machine can still be re-stickered ──────────────────
+-- == (s) A retired or sold machine can still be re-stickered ==================
 -- Deliberately not excluded. Retired/sold machines are out of counts, reports and alerts
--- (Scope §4.1) — but a sold bakkie still on the yard, or a retired one being disposed of,
+-- (Scope §4.1), but a sold bakkie still on the yard, or a retired one being disposed of,
 -- can still have a damaged label, and refusing here would be a rule applied to the wrong
 -- question.
 do $$ declare v_rows int; begin

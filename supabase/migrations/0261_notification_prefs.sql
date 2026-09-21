@@ -6,14 +6,14 @@
 -- in-app toggle and per-user quiet hours; the push delivery path (app-layer, 0262/route)
 -- honours the push toggle. Preferences default to "on" so existing behaviour is unchanged.
 
--- ── Per-user preference columns ───────────────────────────────────
+-- == Per-user preference columns ===================================
 alter table users
   add column if not exists notify_inapp      boolean not null default true,
   add column if not exists notify_push       boolean not null default true,
   add column if not exists quiet_hours_start int,   -- null → inherit the farm's window
   add column if not exists quiet_hours_end   int;
 
--- ── Push delivery marker on notifications ─────────────────────────
+-- == Push delivery marker on notifications =========================
 -- The push worker sets this when a queued row has been pushed to the user's devices, so a
 -- row is pushed at most once (dedupe), independent of the in-app read state.
 alter table notifications
@@ -24,7 +24,7 @@ create index if not exists notifications_push_pending_idx
   on notifications(user_id)
   where push_sent_at is null and deleted_at is null;
 
--- ── Per-user quiet-hours resolver ─────────────────────────────────
+-- == Per-user quiet-hours resolver =================================
 -- If the user set their own window, compute the hold-until against it; otherwise fall back
 -- to the farm-level gate already computed by the caller (p_farm_deliver_after).
 create or replace function app.user_deliver_after(
@@ -39,7 +39,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
   end;
 $$;
 
--- ── Prefs-aware notify_farm (both overloads) ──────────────────────
+-- == Prefs-aware notify_farm (both overloads) ======================
 -- 3-arg (0203; fault/job triggers): now skips users who turned off in-app.
 create or replace function app.notify_farm(p_farm uuid, p_template text, p_payload jsonb) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -66,7 +66,7 @@ begin
     and coalesce(u.notify_inapp, true);
 end $$;
 
--- ── Self-service preference RPC ───────────────────────────────────
+-- == Self-service preference RPC ===================================
 -- Any signed-in user updates ONLY their own preference columns (never role/farm). Nulls
 -- for the quiet-hour fields clear a custom window (inherit the farm's).
 create or replace function public.set_notification_prefs(
@@ -82,7 +82,7 @@ begin
   where id = auth.uid();
 end $$;
 
--- ── Lock down (0205 pattern) ──────────────────────────────────────
+-- == Lock down (0205 pattern) ======================================
 revoke execute on function app.notify_farm(uuid, text, jsonb)                 from public, anon, authenticated;
 revoke execute on function app.notify_farm(uuid, text, jsonb, timestamptz)    from public, anon, authenticated;
 revoke execute on function app.user_deliver_after(int, int, timestamptz)      from public, anon, authenticated;

@@ -11,13 +11,13 @@ import { NewDocumentForm, type Recipient } from "./new-document-form";
  *
  *   a FleetWise farm       from `workshop_links`, so a partner can only raise a document
  *                          against a farm that has actually connected to them
- *   a client in their book from `partner_clients` — a customer who is not on FleetWise
+ *   a client in their book from `partner_clients`, a customer who is not on FleetWise
  *                          at all
  *   a one-time customer    typed straight onto the document, with no record created
  *
  * Before this, `farm_id` was `not null`: a partner could only ever invoice a FleetWise
  * tenant, so "run your business on FleetWise" meant "run the FleetWise slice of it and
- * keep your old system for everyone else" — which means keeping the old system.
+ * keep your old system for everyone else", which means keeping the old system.
  *
  * The lists are fetched here (server component, no client JS for the data); the form
  * itself is a client component because which fields you need depends on which kind of

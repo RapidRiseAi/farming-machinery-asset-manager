@@ -13,7 +13,7 @@ import type { Lang, Locale } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
 
 /**
- * Scheduled & emailed reports — the worker (FR-11.5, migration 0506).
+ * Scheduled & emailed reports, the worker (FR-11.5, migration 0506).
  *
  * Postgres decides WHICH schedules are due and claims a period; it cannot build a
  * workbook or reach a mail provider. This is the other half: take a claimed run, build
@@ -22,7 +22,7 @@ import { shortDate } from "@/lib/format";
  *
  * The client is passed in on purpose. "Send it now" hands it the caller's RLS-bound
  * client, so the report is assembled under the owner's own permissions and RLS answers
- * every query. The nightly cron has no session at all and hands it the service client —
+ * every query. The nightly cron has no session at all and hands it the service client -
  * the unavoidable privileged path, and the reason every farm-keyed query in
  * `getReportData` is additionally scoped to the `farm_id` the ENGINE returned, which is a
  * value RLS guaranteed at the moment the schedule was written.
@@ -89,7 +89,7 @@ export type RecipientRow = {
   email: string | null;
 };
 
-// ── The period a run covers ──────────────────────────────────────────────────
+// == The period a run covers ==================================================
 //
 // Mirrors `app.report_period` exactly, so a screen saying "the next one covers August"
 // cannot disagree with the month the engine actually reports on. The rule is: the last
@@ -98,7 +98,7 @@ export type RecipientRow = {
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const utc = (v: string) => new Date(`${v}T00:00:00Z`);
 
-/** Monday of the week containing `d` — what Postgres `date_trunc('week', …)` returns. */
+/** Monday of the week containing `d`, what Postgres `date_trunc('week', …)` returns. */
 function startOfWeek(d: Date): Date {
   const out = new Date(d);
   out.setUTCDate(out.getUTCDate() - ((out.getUTCDay() + 6) % 7));
@@ -129,7 +129,7 @@ export function reportPeriod(cadence: Cadence, runDate: string): { from: string;
   return { from: iso(truncate(end)), to: iso(end) };
 }
 
-/** The period the NEXT run will report on — what the schedules screen promises. */
+/** The period the NEXT run will report on, what the schedules screen promises. */
 export function nextPeriod(s: Pick<ReportSchedule, "cadence" | "next_run_date">) {
   return reportPeriod(s.cadence, s.next_run_date);
 }
@@ -148,7 +148,7 @@ export function advanceRun(s: Pick<ReportSchedule, "cadence" | "next_run_date">)
   return advanceByCadence(s.next_run_date, s.cadence);
 }
 
-// ── What goes in the envelope ────────────────────────────────────────────────
+// == What goes in the envelope ================================================
 
 function stamp(filename: string, periodStart: string): string {
   const dot = filename.lastIndexOf(".");
@@ -158,7 +158,7 @@ function stamp(filename: string, periodStart: string): string {
 }
 
 export function periodLabel(from: string, to: string, lang: Lang): string {
-  return `${shortDate(from, lang)} – ${shortDate(to, lang)}`;
+  return `${shortDate(from, lang)} - ${shortDate(to, lang)}`;
 }
 
 function esc(v: string): string {
@@ -170,7 +170,7 @@ type Body = { subject: string; html: string; text: string };
 export function reportEmailBody(run: ClaimedRun, opts: { empty: boolean; files: string[] }): Body {
   const lang = run.lang;
   const period = periodLabel(run.period_start, run.period_end, lang);
-  const subject = `${run.schedule_name} — ${period}`;
+  const subject = `${run.schedule_name}, ${period}`;
   const reportName = t(`reportSchedules.family.${run.report_key}`, lang);
   const inactive = run.include_inactive
     ? t("reportEmail.includesInactive", lang)
@@ -232,7 +232,7 @@ export function reportEmailBody(run: ClaimedRun, opts: { empty: boolean; files: 
   return { subject, html, text };
 }
 
-// ── The worker ───────────────────────────────────────────────────────────────
+// == The worker ===============================================================
 
 export type DeliveryResult = {
   runId: string;
@@ -248,7 +248,7 @@ export type DeliveryResult = {
  * Outcome rule, stated because it is a judgement: a run counts as SENT if at least one
  * address took it, and the addresses that bounced are recorded on the run row for the
  * owner to see. Marking a part-delivered period FAILED would make it eligible for a
- * retry, and a retry re-sends to everyone who already has it — a duplicate report in an
+ * retry, and a retry re-sends to everyone who already has it, a duplicate report in an
  * accountant's inbox is worse than one recorded bounce somebody can act on. Only a run
  * where NOTHING went out is failed, and that one genuinely should be tried again.
  */
@@ -350,8 +350,8 @@ export async function deliverReportRun(
 /**
  * The nightly step (spliced into /api/cron/nightly).
  *
- * The SQL claims every due period in ONE transaction — so a second cron firing at the
- * same moment finds nothing left to claim — and this then builds and sends them one at a
+ * The SQL claims every due period in ONE transaction, so a second cron firing at the
+ * same moment finds nothing left to claim, and this then builds and sends them one at a
  * time. A build or a bounce on one farm's report cannot stop another farm's: each run
  * carries its own outcome row.
  */

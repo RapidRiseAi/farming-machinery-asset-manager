@@ -2,12 +2,12 @@
 -- What the fleet is worth now, for the insurance schedule and the management accounts.
 --
 -- The purchase price has been on `machines` since 0003 and nothing has ever amortised it.
--- Once a year every farm is asked the same two questions by two different people — the
+-- Once a year every farm is asked the same two questions by two different people, the
 -- broker wants a schedule of values to insure, the accountant wants book values for the
--- financials — and both answers are assembled by hand off an invoice folder.
+-- financials, and both answers are assembled by hand off an invoice folder.
 --
 -- THIS IS A BOOK VALUE, NOT A TAX CALCULATION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Said plainly because the two are easy to confuse and expensive to confuse. SARS capital
 -- allowances for farming assets (s12B and the wear-and-tear schedules) follow their own
 -- rules, rates and apportionments and are the accountant's work, not this product's. What
@@ -15,7 +15,7 @@
 -- and every screen that shows it says so.
 --
 -- WHO MAY SEE IT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Exactly whoever may see the purchase price, because it IS the purchase price with the
 -- years taken off. 20260903074350 withheld `purchase_price_cents` from `authenticated` at
 -- the COLUMN level and put it behind `public.machine_financials`, gated on
@@ -33,7 +33,7 @@ alter table machines
   add column if not exists depreciation_rate_bps   integer,
   -- Straight line only: how long it is written off over.
   add column if not exists useful_life_months      integer,
-  -- What it is still worth when fully written down. Both methods floor here — a tractor
+  -- What it is still worth when fully written down. Both methods floor here, a tractor
   -- that has been on the farm for twenty years is not worth nothing, and an insurer asked
   -- to cover R0 will cover R0.
   add column if not exists residual_value_cents    bigint,
@@ -57,7 +57,7 @@ do $$ begin
 end $$;
 
 comment on column machines.depreciation_method is
-  'Book value policy for this machine. NOT a SARS capital-allowance calculation — that is '
+  'Book value policy for this machine. NOT a SARS capital-allowance calculation, that is '
   'the accountant''s work and follows different rules.';
 
 -- Whole months between two dates, never negative. Its own function because both branches
@@ -77,7 +77,7 @@ $$;
 
 grant execute on function app.months_between(date, date) to authenticated, service_role;
 
--- ── The sum, in one place ───────────────────────────────────────────────────
+-- == The sum, in one place ===================================================
 --
 -- Whole elapsed months, because a book value that changes on a Tuesday is not one anybody
 -- can reconcile. `numeric` throughout and rounded once at the end: cents computed through
@@ -130,16 +130,16 @@ as $$
 $$;
 
 -- The book-value sum itself is not granted: it takes a COST as an argument, and a function
--- a browser may call with any cost it likes is a calculator, not a leak — but there is no
+-- a browser may call with any cost it likes is a calculator, not a leak, but there is no
 -- reason for one, and the register below is the supported way in.
 revoke execute on function app.book_value_cents(bigint, depreciation_method, integer, integer, bigint, date, date)
   from public, anon, authenticated;
 
--- ── The asset register ──────────────────────────────────────────────────────
+-- == The asset register ======================================================
 --
 -- One row per machine the caller may see the cost of, which is what both the broker and
 -- the accountant actually ask for. SECURITY DEFINER because it reads the withheld columns,
--- and gated exactly as `public.machine_financials` is — the same three clauses, so a farm
+-- and gated exactly as `public.machine_financials` is, the same three clauses, so a farm
 -- cannot learn through this what it could not learn through that.
 create or replace function public.farm_book_values(p_farm uuid, p_on date default null)
 returns table (
@@ -205,16 +205,16 @@ $$;
 comment on function public.farm_book_values(uuid, date) is
   'Asset register: what each machine is worth on a date, under the farm''s own book-value '
   'policy. Caller-scoped exactly as machine_financials is. NOT a SARS capital-allowance '
-  'schedule — that is the accountant''s work.';
+  'schedule, that is the accountant''s work.';
 
 revoke execute on function public.farm_book_values(uuid, date) from public, anon;
 grant  execute on function public.farm_book_values(uuid, date) to authenticated, service_role;
 
--- ── Setting the policy ──────────────────────────────────────────────────────
+-- == Setting the policy ======================================================
 -- A wrapper rather than a column grant, because granting UPDATE on these columns to
 -- `authenticated` would also hand every driver a way to write to the same row that holds
 -- the purchase price. Owner and manager only, checked inside, and the caller's own
--- identity decides — this one is SECURITY INVOKER over a definer-style check so that RLS
+-- identity decides, this one is SECURITY INVOKER over a definer-style check so that RLS
 -- on `machines` still has the final say about which machine is being written to.
 create or replace function public.set_machine_depreciation(
   p_machine  uuid,

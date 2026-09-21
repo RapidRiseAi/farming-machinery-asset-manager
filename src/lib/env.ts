@@ -1,6 +1,6 @@
 /**
  * Environment access. Getters throw only when *called* (at request time), never at
- * import/build time — so `next build` succeeds without a configured .env, and a
+ * import/build time, so `next build` succeeds without a configured .env, and a
  * missing variable fails loudly where it is actually needed.
  */
 
@@ -27,7 +27,7 @@ export function getServiceRoleKey(): string {
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
 
 /**
- * Our own origin, from CONFIGURATION ONLY — never from a request header.
+ * Our own origin, from CONFIGURATION ONLY, never from a request header.
  *
  * Several places in the app build a redirect from `headers().get("origin")` with
  * `NEXT_PUBLIC_SITE_URL` as a fallback, and for a redirect back to the page you came from

@@ -41,7 +41,7 @@ type SupplierRow = {
 };
 
 /**
- * One supplier's account: what they invoiced, what has been paid, what is still owed — and
+ * One supplier's account: what they invoiced, what has been paid, what is still owed, and
  * the remittance advice to send with the next payment (G25, migration 0502).
  *
  * /money has been able to say "you owe Bolt & Bearing R80 500" since 0460, and there was no
@@ -68,7 +68,7 @@ export default async function SupplierAccountPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const profile = await requireProfile();
-  // Suppliers belong to a workshop, not a farm — a farm reading who its contractor buys
+  // Suppliers belong to a workshop, not a farm, a farm reading who its contractor buys
   // from, what it pays and on what terms is reading the margin behind every quote it is
   // given (F16). RLS refuses it too; this is the door, not the lock.
   if (profile.role !== "workshop") redirect("/documents");
@@ -103,7 +103,7 @@ export default async function SupplierAccountPage({
     .is("deleted_at", null)
     .maybeSingle();
 
-  // A guessed id, another workshop's supplier and a retracted one all land here — RLS
+  // A guessed id, another workshop's supplier and a retracted one all land here, RLS
   // returns no row, so there is nothing to distinguish and nothing that should be.
   const supplier = supplierData as SupplierRow | null;
   if (!supplier) redirect("/suppliers?error=not-found");
@@ -128,7 +128,7 @@ export default async function SupplierAccountPage({
 
   // A remittance is keyed on the day the money left, so the days on which this supplier was
   // actually paid are the only ones for which one can exist. Offered as choices, with the
-  // most recent one selected — a partner opening this after a Friday payment run wants the
+  // most recent one selected, a partner opening this after a Friday payment run wants the
   // advice for that run, not an empty form.
   const paidDates = supplierPaymentDates(rows);
   const chosenPaid = isoDateOrNull(sp.paid) ?? paidDates[0] ?? null;
@@ -257,7 +257,7 @@ export default async function SupplierAccountPage({
           <CardTitle>
             {t("supplierStatement.ledgerTitle", locale)}
             <Badge tone="neutral" className="ml-2 align-middle">
-              {shortDate(from, locale)} – {shortDate(to, locale)}
+              {shortDate(from, locale)} - {shortDate(to, locale)}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -390,7 +390,7 @@ export default async function SupplierAccountPage({
                     {remittance.map((r) => (
                       <Tr key={r.expense_id}>
                         <Td>
-                          <span className="font-mono text-sand-900">{r.reference ?? "—"}</span>
+                          <span className="font-mono text-sand-900">{r.reference ?? "-"}</span>
                           {r.description ? (
                             <span className="block text-xs text-sand-500">{r.description}</span>
                           ) : null}

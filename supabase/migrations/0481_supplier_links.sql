@@ -3,16 +3,16 @@
 -- them.
 --
 -- 0480 created the record. This migration is the harder half: `partner_expenses` and
--- `purchase_orders` are written from several places — the capture form, the purchase-order
--- conversion (0475), the demo seed, an import — and a change that required every one of
+-- `purchase_orders` are written from several places, the capture form, the purchase-order
+-- conversion (0475), the demo seed, an import, and a change that required every one of
 -- them to be updated in the same commit would have left whichever one was missed silently
 -- creating unlinked rows again. So the link is added in a way that does not depend on the
 -- caller knowing about it.
 --
--- ── The resolution trigger is the load-bearing piece ─────────────────────────
+-- == The resolution trigger is the load-bearing piece =========================
 --
 -- A row arrives carrying a supplier NAME and no supplier id. Before it is stored, the name
--- is matched — trimmed and case-insensitively — against this workshop's suppliers, and the
+-- is matched, trimmed and case-insensitively, against this workshop's suppliers, and the
 -- id is filled in if there is one. That means:
 --
 --   * every existing writer keeps working unchanged and still ends up linked;
@@ -21,18 +21,18 @@
 --     somebody choosing Agri Diesel from a list.
 --
 -- What it deliberately does NOT do is CREATE a supplier. Auto-creating on an unknown name
--- would put the typo back — every misspelling would mint a real record instead of a
+-- would put the typo back, every misspelling would mint a real record instead of a
 -- phantom string, which is the same problem wearing a better coat, and it would do it
 -- silently at the moment somebody is least likely to notice. An unmatched name simply
 -- stays free text, exactly as it is today, and the creditors report (0482) falls back to
 -- grouping it by the trimmed name. Filing the supplier is a decision a person makes.
 --
--- ── Why the composite foreign key ───────────────────────────────────────────
+-- == Why the composite foreign key ===========================================
 --
 -- `(supplier_id, workshop_id)` references `suppliers(id, workshop_id)`, so an expense can
 -- only ever point at a supplier of its OWN workshop. RLS already stops one partner READING
 -- another's suppliers; the foreign key makes the cross-workshop write structurally
--- impossible rather than merely unreachable through the screens — the same argument 0475
+-- impossible rather than merely unreachable through the screens, the same argument 0475
 -- makes for the purchase-order link. MATCH SIMPLE (the default) means the constraint
 -- stands down while `supplier_id` is null, which is the ordinary case for a supplier
 -- nobody has filed.
@@ -62,11 +62,11 @@ comment on column purchase_orders.supplier_id is
   'The supplier record this order went to (G18, 0480). Same automatic resolution from '
   'supplier_name as partner_expenses.';
 
--- ── Resolution ───────────────────────────────────────────────────────────────
+-- == Resolution ===============================================================
 --
 -- SECURITY INVOKER (the default) rather than definer, on purpose. The lookup is confined
 -- to `new.workshop_id` and the row itself cannot be written unless RLS already agrees the
--- caller owns that workshop, so a definer would buy nothing — while an invoker guarantees
+-- caller owns that workshop, so a definer would buy nothing, while an invoker guarantees
 -- the trigger can never surface a name from a workshop the writer is not allowed to read.
 -- `search_path` is pinned regardless, because a trigger runs with whatever the caller's
 -- path happened to be.
@@ -77,7 +77,7 @@ begin
   -- writer was editing free text and knows nothing about supplier ids; keeping the old id
   -- would leave the row filed under a supplier it no longer names, and the ageing would
   -- quietly report money owed to the wrong business. Clearing it here means the lookup
-  -- below either finds the new supplier or leaves the row unlinked — both honest.
+  -- below either finds the new supplier or leaves the row unlinked, both honest.
   if tg_op = 'UPDATE'
      and new.supplier_id is not distinct from old.supplier_id
      and lower(btrim(coalesce(new.supplier_name, '')))
@@ -111,7 +111,7 @@ end $$;
 
 comment on function app_resolve_supplier() is
   'Links partner_expenses/purchase_orders to a suppliers row by trimmed, case-insensitive '
-  'name (G18, 0481). Never CREATES a supplier — a typo must not mint a record — and drops '
+  'name (G18, 0481). Never CREATES a supplier, a typo must not mint a record, and drops '
   'the link when the name is edited away from it.';
 
 create trigger partner_expenses_supplier before insert or update on partner_expenses
@@ -119,10 +119,10 @@ create trigger partner_expenses_supplier before insert or update on partner_expe
 create trigger purchase_orders_supplier before insert or update on purchase_orders
   for each row execute function app_resolve_supplier();
 
--- ── Backfill ─────────────────────────────────────────────────────────────────
+-- == Backfill =================================================================
 --
 -- Everything captured before today is free text, and leaving it that way would mean the
--- feature only works for invoices captured from now on — which is precisely the history a
+-- feature only works for invoices captured from now on, which is precisely the history a
 -- payables report is read for.
 --
 -- Written as a re-runnable FUNCTION rather than as bare statements for two reasons: it is
@@ -143,7 +143,7 @@ declare
 begin
   -- One supplier per distinct name per workshop, from both sides at once, so a supplier
   -- known only to the order book is filed too. Names differing only in case or padding
-  -- collapse to one record — that collapse IS the feature — and `min(btrim(name))` picks
+  -- collapse to one record, that collapse IS the feature, and `min(btrim(name))` picks
   -- the spelling deterministically rather than by whichever row the planner reached first.
   with wanted as (
     select workshop_id, lower(btrim(supplier_name)) as key, min(btrim(supplier_name)) as name
@@ -209,7 +209,7 @@ comment on function app.link_suppliers() is
 select app.link_suppliers();
 
 -- app.* is helper-only and never anon (G11: a function with no explicit grant defaults to
--- EXECUTE TO PUBLIC). No public wrapper is created — this is maintenance, not an API, so
+-- EXECUTE TO PUBLIC). No public wrapper is created, this is maintenance, not an API, so
 -- PostgREST never sees it at all.
 do $do$
 declare f text;

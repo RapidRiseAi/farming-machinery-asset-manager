@@ -1,9 +1,9 @@
 /**
  * The configuration guard, and the placeholder that defeated it.
  *
- * ── Why this file exists ─────────────────────────────────────────────────────
+ * == Why this file exists =====================================================
  * `emailConfigured()` was `Boolean(process.env.RESEND_API_KEY)`. `vercel pull` CANNOT
- * decrypt secrets — it writes the literal string `[SENSITIVE]` — and `"[SENSITIVE]"` is
+ * decrypt secrets, it writes the literal string `[SENSITIVE]`, and `"[SENSITIVE]"` is
  * truthy. So the product reported that email was configured, Resend rejected every call,
  * and the nightly billing pass stamped `receipt_sent_at` on six invoices whose receipts
  * had never left the building. It stayed that way for weeks.
@@ -13,7 +13,7 @@
  * response, which nobody was reading.
  *
  * So the first test here is the literal value `vercel pull` writes, and the last is the
- * positive control — a key and address shaped like the real ones must still be accepted,
+ * positive control, a key and address shaped like the real ones must still be accepted,
  * or a guard this strict would simply switch email off.
  */
 
@@ -107,7 +107,7 @@ test("sendEmail refuses on its own, and says why", async () => {
   });
 });
 
-test("the real shape is still accepted — the control", () => {
+test("the real shape is still accepted, the control", () => {
   // Without this, a guard that refused everything would look like a pass.
   withEnv({ RESEND_API_KEY: GOOD_KEY, EMAIL_FROM: GOOD_FROM }, () => {
     assert.equal(emailConfigProblem(), null);

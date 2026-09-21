@@ -2,8 +2,8 @@
 /**
  * Design-system lint.
  *
- * The gap this closes: this project verifies its database ferociously — 64
- * assertion banners, mutation-tested suites, a schema fingerprint — and every
+ * The gap this closes: this project verifies its database ferociously, 64
+ * assertion banners, mutation-tested suites, a schema fingerprint, and every
  * one of those runs against Postgres. Nothing could see the interface.
  * `tsc` reads "text-sand-500" as a valid string, `lint` has no opinion on a
  * 3.65:1 contrast ratio, and `next build` succeeds with pinch-zoom disabled.
@@ -23,7 +23,7 @@ const ROOT = process.cwd();
 const SRC = join(ROOT, "src");
 const QUIET = process.argv.includes("--quiet");
 
-// ── The palette ─────────────────────────────────────────────────────────────
+// == The palette =============================================================
 const BRAND = {
   green: "#00572c",
   gold: "#eaa50c",
@@ -34,7 +34,7 @@ const BRAND = {
   warmGrey: "#e6e2d7",
 };
 
-// ── Contrast maths (WCAG 2.1) ───────────────────────────────────────────────
+// == Contrast maths (WCAG 2.1) ===============================================
 const rgb = (h) => {
   h = h.replace("#", "");
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -51,7 +51,7 @@ export const ratio = (a, b) => {
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 };
 
-// ── Walk ────────────────────────────────────────────────────────────────────
+// == Walk ====================================================================
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
     if (e === "node_modules" || e === ".next" || e.startsWith(".")) continue;
@@ -65,7 +65,7 @@ function walk(dir, out = []) {
 
 
 /**
- * The DARK token values, read from globals.css rather than copied here — the
+ * The DARK token values, read from globals.css rather than copied here, the
  * same reason `DEFINED` parses the config: a hand-kept copy drifts, and
  * catching drift is this file's whole job. Returns `{ ink: "#f7f3e8", ... }`.
  */
@@ -86,7 +86,7 @@ const DARK = (() => {
 const dk = (name) => DARK[name] ?? "#MISSING";
 
 /**
- * The dark theme is declared twice — under `@media (prefers-color-scheme: dark)`
+ * The dark theme is declared twice, under `@media (prefers-color-scheme: dark)`
  * for the system default, and under `[data-theme="dark"]` for an explicit
  * choice. A token written into one and not the other gives a user whose OS is
  * dark a different product from one who pressed the button. Parses the media
@@ -139,7 +139,7 @@ const exempt = (rule, file) =>
 
 /**
  * The tokens that actually exist, read from the config itself rather than
- * duplicated here — a hand-kept copy would drift and this rule's whole job is to
+ * duplicated here, a hand-kept copy would drift and this rule's whole job is to
  * catch drift. Parses the scale keys out of `tailwind.config.ts`.
  */
 const DEFINED = (() => {
@@ -179,12 +179,12 @@ for (const f of files) {
   lines.forEach((ln, i) => {
     const n = i + 1;
 
-    // 1 — no stock Tailwind colours: the palette above is the whole palette.
+    // 1, no stock Tailwind colours: the palette above is the whole palette.
     if (!exempt("no-stock-colour", f)) {
       for (const m of ln.matchAll(STOCK_RE)) add("no-stock-colour", f, n, m[0]);
     }
 
-    // 2 — no arbitrary type sizes: there were 32 distinct sizes in use, 24 of
+    // 2, no arbitrary type sizes: there were 32 distinct sizes in use, 24 of
     //     them one-offs, four within 0.15rem of each other.
     //     `em` is exempt and deliberately so: it sizes relative to the parent,
     //     which is the correct way to scale an icon inside a button whose own
@@ -192,26 +192,26 @@ for (const f of files) {
     for (const m of ln.matchAll(/\btext-\[[0-9.]+(?:rem|px)\]/g))
       add("no-arbitrary-type", f, n, m[0]);
 
-    // 3 — gold may not carry text above gold-600. #EAA50C is 1.92:1 on cream.
+    // 3, gold may not carry text above gold-600. #EAA50C is 1.92:1 on cream.
     for (const m of ln.matchAll(/\btext-gold-(50|100|200|300|400|500)\b/g))
-      add("gold-not-text", f, n, `${m[0]} — gold-500 is 1.92:1 on cream; use text-gold-600+`);
+      add("gold-not-text", f, n, `${m[0]}, gold-500 is 1.92:1 on cream; use text-gold-600+`);
 
-    // 4 — white on gold is 2.12:1. The fill recipe is bg-gold-500 text-sand-950.
+    // 4, white on gold is 2.12:1. The fill recipe is bg-gold-500 text-sand-950.
     //     Both halves must be UNPREFIXED: `active:bg-gold-600 active:text-white`
     //     is a different pair (5.12:1) and legitimate, so a bare substring test
     //     would flag the one correct use of gold in the kit.
     if (/(?<![:\w-])bg-gold-(400|500)\b/.test(ln) && /(?<![:\w-])text-white\b/.test(ln))
-      add("gold-fill-recipe", f, n, "white on gold = 2.12:1 — use text-sand-950");
+      add("gold-fill-recipe", f, n, "white on gold = 2.12:1, use text-sand-950");
 
-    // 5 — sand-300 and lighter are never text (300 is the control-border step).
+    // 5, sand-300 and lighter are never text (300 is the control-border step).
     for (const m of ln.matchAll(/\btext-sand-(50|100|200|300)\b/g))
-      add("neutral-too-light", f, n, `${m[0]} — not a text colour`);
+      add("neutral-too-light", f, n, `${m[0]}, not a text colour`);
 
-    // 6 — every image goes through <Photo>: dimensions + lazy + real alt.
+    // 6, every image goes through <Photo>: dimensions + lazy + real alt.
     if (/<img\s/.test(ln) && !/src\/components\/ui\/photo\.tsx$/.test(rel(f)))
-      add("use-Photo", f, n, "raw <img> — use <Photo> (sized, lazy, alt)");
+      add("use-Photo", f, n, "raw <img>, use <Photo> (sized, lazy, alt)");
 
-    // 7 — hand-rolled tables lose scope="col" and aria-sort.
+    // 7, hand-rolled tables lose scope="col" and aria-sort.
     //     Exemptions, all real: table.tsx IS the wrapper this rule points at;
     //     `role="presentation"` declares a LAYOUT table, which is the only
     //     reliable way to lay out an HTML email and carries no data semantics
@@ -222,17 +222,17 @@ for (const f of files) {
       !/src\/components\/ui\/table\.tsx$/.test(rel(f)) &&
       !exempt("use-kit-Table", f)
     )
-      add("use-kit-Table", f, n, "raw <table> — use the kit's Table/Th");
+      add("use-kit-Table", f, n, "raw <table>, use the kit's Table/Th");
 
-    // 8 — pinch-zoom must stay available (WCAG 1.4.4).
+    // 8, pinch-zoom must stay available (WCAG 1.4.4).
     if (/maximumScale\s*:/.test(ln) || /maximum-scale/.test(ln))
-      add("no-maximum-scale", f, n, "disables pinch-zoom — WCAG 1.4.4 failure");
+      add("no-maximum-scale", f, n, "disables pinch-zoom, WCAG 1.4.4 failure");
 
-    // 10 — ONE page title. Sixty-two (app) pages rendered their h1 in nine
+    // 10, ONE page title. Sixty-two (app) pages rendered their h1 in nine
     //      spellings: two sizes (text-xl, text-2xl) and two inks (sand-900 and
     //      sand-950, which are Warm Cream and pure white in the dark theme).
-    //      The split ran by WHICH SPRINT built the page — the finance tranche
-    //      used text-xl, the core used text-2xl — so somebody moving from
+    //      The split ran by WHICH SPRINT built the page, the finance tranche
+    //      used text-xl, the core used text-2xl, so somebody moving from
     //      Machines to Money watched the title shrink. Scoped to (app) route
     //      pages: the marketing hero, the legal document, the error boundary
     //      and the public QR page are different roles with their own sizes.
@@ -243,24 +243,24 @@ for (const f of files) {
     ) {
       const h = ln.match(/<h1\s[^>]*className="([^"]*)"/);
       if (h && !h[1].includes(PAGE_TITLE))
-        add("page-title", f, n, `${h[1]} — page titles are "${PAGE_TITLE}"`);
+        add("page-title", f, n, `${h[1]}, page titles are "${PAGE_TITLE}"`);
     }
 
-    // 9 — a token that is not defined renders as NOTHING, silently. This was
+    // 9, a token that is not defined renders as NOTHING, silently. This was
     //     real: `status-warn` and `status-bad` were used 19 times across 13
     //     files and defined in no version of the config, so the cells meant to
     //     read as a caution rendered as ordinary body text.
     for (const m of ln.matchAll(/\b(?:text|bg|border|ring|fill|stroke|divide)-(status|brand|gold|sand|danger|callout|surface|ink|edge|accent)-([a-z0-9-]+)/g)) {
-      if (!DEFINED[m[1]]?.has(m[2])) add("unknown-token", f, n, `${m[0]} — no such token`);
+      if (!DEFINED[m[1]]?.has(m[2])) add("unknown-token", f, n, `${m[0]}, no such token`);
     }
   });
 
-  // 9 — theme colours must be tokens, checked across config files below too.
+  // 9, theme colours must be tokens, checked across config files below too.
   if (/globals\.css$/.test(rel(f)) && !/--surface/.test(src))
     add("semantic-tokens", f, 0, "semantic surface tokens missing");
 }
 
-// ── Config-level checks ─────────────────────────────────────────────────────
+// == Config-level checks =====================================================
 const manifestPath = join(ROOT, "public", "manifest.webmanifest");
 if (existsSync(manifestPath)) {
   const m = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -270,7 +270,7 @@ if (existsSync(manifestPath)) {
     add("manifest-brand", manifestPath, 0, `background_color ${m.background_color} should be ${BRAND.cream}`);
 }
 
-// ── Contrast self-test: the token scale must keep its promises ──────────────
+// == Contrast self-test: the token scale must keep its promises ==============
 const CONTRACT = [
   ["sand-500 secondary text on cream", "#5d5a52", BRAND.cream, 4.5],
   ["sand-500 secondary text on white", "#5d5a52", BRAND.white, 4.5],
@@ -285,7 +285,7 @@ const CONTRACT = [
   ["status-overdue on cream", "#b3201f", BRAND.cream, 4.5],
   ["status-ok on cream", BRAND.green, BRAND.cream, 4.5],
 
-  // ── The dark theme ────────────────────────────────────────────────────────
+  // == The dark theme ========================================================
   //
   // Everything above is LIGHT: every pair is "on cream", "on white", or a brand
   // fill. Nothing validated the dark theme, and that single gap is how all of
@@ -312,7 +312,7 @@ const CONTRACT = [
   ["dark: accent-on-fill on the gold fill", dk("accent-on-fill"), dk("accent"), 4.5],
   ["dark: edge as control border on surface", dk("edge"), dk("surface"), 3.0],
   // Dividers and hovers are not text: they must be SEEN, not read. The
-  // thresholds are deliberately low, and deliberately not zero — the values
+  // thresholds are deliberately low, and deliberately not zero, the values
   // these replaced sat at 1.03:1 and 1.11:1, which is invisible.
   ["dark: edge-soft divider visible on surface", dk("edge-soft"), dk("surface"), 1.5],
   ["dark: row hover distinct from surface", dk("row-hover"), dk("surface"), 1.2],
@@ -340,35 +340,35 @@ if (existsSync(twPath)) {
   }
 }
 
-// ── Report ──────────────────────────────────────────────────────────────────
+// == Report ==================================================================
 const byRule = violations.reduce((a, v) => ((a[v.rule] ||= []).push(v), a), {});
 const RULE_TEXT = {
   "no-stock-colour": "Stock Tailwind colour outside the FleetWise palette",
-  "no-arbitrary-type": "Arbitrary text size — use the scale",
+  "no-arbitrary-type": "Arbitrary text size, use the scale",
   "gold-not-text": "Gold lighter than 600 used as text (1.92:1)",
-  "gold-fill-recipe": "White on gold (2.12:1) — use text-sand-950",
+  "gold-fill-recipe": "White on gold (2.12:1), use text-sand-950",
   "neutral-too-light": "Neutral too light to be text",
-  "use-Photo": "Raw <img> — no dimensions, no lazy loading",
-  "use-kit-Table": "Raw <table> — loses scope=col and aria-sort",
-  "no-maximum-scale": "Pinch-zoom disabled — WCAG 1.4.4",
+  "use-Photo": "Raw <img>, no dimensions, no lazy loading",
+  "use-kit-Table": "Raw <table>, loses scope=col and aria-sort",
+  "no-maximum-scale": "Pinch-zoom disabled, WCAG 1.4.4",
   "manifest-brand": "PWA manifest colour is not a brand token",
-  "unknown-token": "Token is not defined — renders as nothing",
+  "unknown-token": "Token is not defined, renders as nothing",
   "brand-anchor-missing": "A brand anchor colour is missing from the tokens",
   "semantic-tokens": "Semantic surface tokens missing",
 };
 
 if (!QUIET) {
-  console.log(`\nFleetWise design lint — ${files.length} files\n${"─".repeat(64)}`);
+  console.log(`\nFleetWise design lint, ${files.length} files\n${"=".repeat(64)}`);
   if (!violations.length) console.log("  No violations.");
   for (const [rule, vs] of Object.entries(byRule).sort((a, b) => b[1].length - a[1].length)) {
-    console.log(`\n  ${rule}  (${vs.length})  — ${RULE_TEXT[rule] || ""}`);
+    console.log(`\n  ${rule}  (${vs.length}) , ${RULE_TEXT[rule] || ""}`);
     const shown = vs.slice(0, 12);
     for (const v of shown) console.log(`    ${v.file}${v.line ? ":" + v.line : ""}  ${v.detail}`);
     if (vs.length > shown.length) console.log(`    … and ${vs.length - shown.length} more`);
   }
-  console.log(`\n${"─".repeat(64)}\n  Contrast contract: ${CONTRACT.length - contrastFails.length}/${CONTRACT.length} pass`);
+  console.log(`\n${"=".repeat(64)}\n  Contrast contract: ${CONTRACT.length - contrastFails.length}/${CONTRACT.length} pass`);
   for (const [name, a, b, need] of contrastFails)
-    console.log(`    FAIL ${name} — ${ratio(a, b).toFixed(2)}:1, need ${need}`);
+    console.log(`    FAIL ${name}, ${ratio(a, b).toFixed(2)}:1, need ${need}`);
   if (darkBlockDrift.length) {
     console.log(`  Dark-theme blocks disagree on ${darkBlockDrift.length} token(s):`);
     for (const d of darkBlockDrift) console.log(`    ${d}`);

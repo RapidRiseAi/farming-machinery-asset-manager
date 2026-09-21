@@ -1,5 +1,5 @@
 -- 0361_downtime.sql
--- Downtime per asset — feature G1 (Scope §23 "downtime per asset").
+-- Downtime per asset, feature G1 (Scope §23 "downtime per asset").
 --
 -- "Downtime" = the number of days a machine spent DOWN (status in_workshop or
 -- out_of_service) inside a chosen window. There is no dedicated status-history table:
@@ -75,7 +75,7 @@ as $$
   )::numeric;
 $$;
 
--- ── PostgREST-callable wrappers (public schema; SECURITY INVOKER so RLS still applies) ──
+-- == PostgREST-callable wrappers (public schema; SECURITY INVOKER so RLS still applies) ==
 create or replace function public.fleet_downtime(p_from date, p_to date)
 returns table (machine_id uuid, down_days numeric)
 language sql stable

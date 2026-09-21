@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * the opposite of what they asked for.
  *
  * The statement is loaded through the RLS-bound client, so a partner cannot pull a
- * customer they do not serve — `app.partner_statement` is SECURITY INVOKER and a guessed
+ * customer they do not serve, `app.partner_statement` is SECURITY INVOKER and a guessed
  * id returns an empty statement rather than someone else's. Every attempt is logged,
  * failures included, for the same reason document sends are: a bounce nobody sees leaves
  * the partner believing the customer was told.

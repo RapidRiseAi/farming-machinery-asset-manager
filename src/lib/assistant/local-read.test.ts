@@ -441,7 +441,7 @@ test("a service question is answered about the machine it names, in both languag
   assert.ok(afrikaans.message.includes("Groen John Deere se diens is op datum"), afrikaans.message);
   assert.equal(afrikaans.machineId, GROEN.id);
 
-  // Naming no machine, the fleet answer is the right one — never a dead end.
+  // Naming no machine, the fleet answer is the right one, never a dead end.
   const fleet = await answerLocalRead(
     { kind: "service_attention", machineQuery: "When is the next service?" },
     serviceScope(),

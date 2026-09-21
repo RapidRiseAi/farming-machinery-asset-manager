@@ -16,7 +16,7 @@ type Kind = "farm" | "client" | "oneoff";
  * The recipient choice drives the form: pick a farm or a saved client and there is
  * nothing else to type, because the billing details are seeded from their record by the
  * 0410 trigger. Pick a one-time customer and the details appear, because there is no
- * record to seed from — that is the whole difference and it is why the fields are not all
+ * record to seed from, that is the whole difference and it is why the fields are not all
  * on screen at once.
  *
  * The billing block is available on the saved kinds too, behind a disclosure, because

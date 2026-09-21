@@ -1,7 +1,7 @@
-# FleetWise — Manual Setup & Operations Guide
+# FleetWise, Manual Setup & Operations Guide
 
 Everything you need to do **by hand** to stand up FleetWise and test it end-to-end,
-**except** provider activation/runtime verification for Voice AI, and the still-deferred WhatsApp and subscription-charging features —
+**except** provider activation/runtime verification for Voice AI, and the still-deferred WhatsApp and subscription-charging features -
 those live in [`FLEETWISE_PROVIDER_SETUP_GUIDE.md`](FLEETWISE_PROVIDER_SETUP_GUIDE.md) and
 are intentionally out of scope here. The entire base product works manually without them.
 
@@ -11,7 +11,7 @@ are intentionally out of scope here. The entire base product works manually with
 
 ---
 
-## What you'll need (all have free tiers — none are the "3 providers")
+## What you'll need (all have free tiers, none are the "3 providers")
 
 | Account | Why | Cost |
 |---|---|---|
@@ -44,7 +44,7 @@ You do **not** need Azure, Meta/WhatsApp, or Paystack for anything in this guide
 
 > **Already have an older FleetWise/FarmGear project?** It may be several migrations behind
 > (early versions had no contractors, fuel, budgets, etc.). Bring it up to date by applying
-> **only the migrations it's missing**, in order — or, if it holds nothing but demo data,
+> **only the migrations it's missing**, in order, or, if it holds nothing but demo data,
 > the cleanest path is to **reset and re-apply all migrations** (`supabase db reset` on a
 > local copy, or drop the `public` schema and re-run) then re-seed with §2. Do **not**
 > re-run migrations that already applied; `create table` will error on ones that exist.
@@ -56,15 +56,15 @@ You do **not** need Azure, Meta/WhatsApp, or Paystack for anything in this guide
 Run these **in order** in the Supabase **SQL editor** (they use the privileged `postgres`
 role, so they can create `auth.users` and bypass RLS):
 
-1. **`supabase/seed/demo_farm.sql`** — creates the *Weltevrede Boerdery* demo farm: 12
+1. **`supabase/seed/demo_farm.sql`**, creates the *Weltevrede Boerdery* demo farm: 12
    machines with real histories, fuel, service plans, faults, job cards, checklists,
    partners and two work requests. Idempotent (skips if already seeded).
-2. **`supabase/seed/demo_accounts.sql`** — turns every demo user into a **real,
+2. **`supabase/seed/demo_accounts.sql`**, turns every demo user into a **real,
    password-loginable account**, adds **one contractor account per contractor type**, a
    **second farm** (Rooikoppies Plaas) for cross-farm testing, and extra work requests.
    Idempotent. **Every account's password is `FleetWise!demo1`.**
 
-> `demo_accounts.sql` is **hosted-Supabase only** — it sets encrypted passwords and email
+> `demo_accounts.sql` is **hosted-Supabase only**, it sets encrypted passwords and email
 > identities that the local RLS test shim doesn't have. For local RLS testing use
 > `pnpm db:test` / `pnpm db:seed` instead (those don't create loginable accounts).
 
@@ -78,10 +78,10 @@ pnpm install
 cp .env.example .env.local     # then fill in the values from §5
 pnpm dev                       # http://localhost:3000
 ```
-Point `.env.local` at the **same Supabase project** you seeded — login is handled by
+Point `.env.local` at the **same Supabase project** you seeded, login is handled by
 Supabase Auth in the cloud, so local dev logs into the real demo accounts.
 
-### Or deploy to Vercel — see §6.
+### Or deploy to Vercel, see §6.
 
 ---
 
@@ -99,21 +99,21 @@ All passwords: **`FleetWise!demo1`**. (Change or delete these before any real us
 > Supabase does not normalise plus-addressing, so each is a distinct `auth.users` row.
 > All 14 were verified to sign in after the change.
 
-### Farmer-side — *Weltevrede Boerdery* (Complete plan → every feature unlocked)
+### Farmer-side, *Weltevrede Boerdery* (Complete plan → every feature unlocked)
 | Role | Email | What to test |
 |---|---|---|
 | **Owner** | `therandomneon+owner@gmail.com` | Everything: dashboard, reports, inbox, settings, team, partners, admin-of-own-farm. Also has a 2nd farm → **site switcher**. |
 | **Manager** | `therandomneon+manager@gmail.com` | Same as owner minus a few owner-only settings. |
 | **Mechanic** | `therandomneon+mechanic@gmail.com` | Job cards, faults, service kits, parts, checklists. |
-| **Operator** | `therandomneon+driver2@gmail.com` | **Per-role visibility** — sees only the *Groen John Deere* (the machine assigned to them). |
+| **Operator** | `therandomneon+driver2@gmail.com` | **Per-role visibility**, sees only the *Groen John Deere* (the machine assigned to them). |
 | **Operator** | `therandomneon+driver@gmail.com` | Operator with no assigned machine (contrast). |
 
 ### Platform admin
 | Role | Email | What to test |
 |---|---|---|
-| **RR admin** | `therandomneon+admin@gmail.com` | `/admin/farms` — create farms, set plans/billing, usage stats, logged impersonation, global template/parts/partner libraries. |
+| **RR admin** | `therandomneon+admin@gmail.com` | `/admin/farms`, create farms, set plans/billing, usage stats, logged impersonation, global template/parts/partner libraries. |
 
-### Contractors — one per type (each logs into the **aggregated contractor dashboard** `/contractor`)
+### Contractors, one per type (each logs into the **aggregated contractor dashboard** `/contractor`)
 | Type | Email | Notes |
 |---|---|---|
 | **Mechanic** | `therandomneon+tj@gmail.com` | Linked to **both** farms → dashboard aggregates across Weltevrede + Rooikoppies. Plan: **pro** (client-analytics unlocked). |
@@ -124,7 +124,7 @@ All passwords: **`FleetWise!demo1`**. (Change or delete these before any real us
 | **Towing** | `therandomneon+towing@gmail.com` | Recovery contractor. Plan: pro. |
 | **Other / handyman** | `therandomneon+handyman@gmail.com` | Generic contractor view. |
 
-### Second farm — *Rooikoppies Plaas* (Professional plan)
+### Second farm, *Rooikoppies Plaas* (Professional plan)
 | Role | Email | Notes |
 |---|---|---|
 | **Owner** | `therandomneon+owner2@gmail.com` | 3 vehicles; one request out to the TJ mechanic (cross-farm). |
@@ -147,7 +147,7 @@ Variables** (production). Full annotated list is in `.env.example`.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | **Server-only secret.** Never expose to the browser. Powers public-QR routes + admin ops. |
 | `NEXT_PUBLIC_APP_NAME` | You | `FleetWise` |
-| `NEXT_PUBLIC_SITE_URL` | You | `http://localhost:3000` locally; your Vercel URL in prod. **QR codes encode this** — must be the public URL in prod. |
+| `NEXT_PUBLIC_SITE_URL` | You | `http://localhost:3000` locally; your Vercel URL in prod. **QR codes encode this**, must be the public URL in prod. |
 | `CRON_SECRET` | You (`openssl rand -hex 32`) | Guards the nightly cron route. |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `node scripts/gen-vapid-keys.mjs` (§7) | Web push. If unset, push just no-ops (in-app alerts still work). |
 
@@ -163,7 +163,7 @@ Variables** (production). Full annotated list is in `.env.example`.
 
 ---
 
-## 7. Web Push keys (VAPID) — no provider needed
+## 7. Web Push keys (VAPID), no provider needed
 
 ```bash
 node scripts/gen-vapid-keys.mjs
@@ -229,7 +229,7 @@ Everything below is done **in the app**, no code:
   share via the WhatsApp/email buttons). They log straight into their contractor dashboard.
 - **Print QR stickers:** each machine → **QR** → print → stick on the vehicle. Re-print via
   **Re-issue QR** if a sticker is lost/damaged (invalidates the old one).
-- **Service plans, job cards, faults, fuel, checklists, work requests, budgets, fines** —
+- **Service plans, job cards, faults, fuel, checklists, work requests, budgets, fines** -
   all captured in-app; see the in-product flows and `SCOPE.md`.
 - **Reports & exports:** `/reports` → filter by period/site → **CSV** (per family), **Excel**
   (one workbook, all families) or **print to PDF**.
@@ -258,8 +258,8 @@ These are activated or tracked through [`FLEETWISE_PROVIDER_SETUP_GUIDE.md`](FLE
 
 | Feature | Provider | Status |
 |---|---|---|
-| **Voice AI** (Afrikaans/English speech capture/readback) | Azure AI Speech + optional Vercel AI Gateway | Implemented — migrations, deployment and real-device E2E/POPIA sign-off remain |
-| **WhatsApp alerts & inbound** | Meta WhatsApp Cloud API | Deferred — in-app + push channels work now; `deliver_after` queue ready |
-| **Card billing / charging** | Paystack (ZA) | Deferred — plans, tiers, asset-count & price display work; no charging |
+| **Voice AI** (Afrikaans/English speech capture/readback) | Azure AI Speech + optional Vercel AI Gateway | Implemented, migrations, deployment and real-device E2E/POPIA sign-off remain |
+| **WhatsApp alerts & inbound** | Meta WhatsApp Cloud API | Deferred, in-app + push channels work now; `deliver_after` queue ready |
+| **Card billing / charging** | Paystack (ZA) | Deferred, plans, tiers, asset-count & price display work; no charging |
 
 Everything else in FleetWise works **fully, manually, today**.

@@ -5,7 +5,7 @@ import { CopyIcon, CheckIcon } from "@/components/ui/icons";
 
 /**
  * Read-only value (a generated login URL) with a copy-to-clipboard button. Client
- * component — clipboard access needs the browser. Falls back to selecting the text
+ * component, clipboard access needs the browser. Falls back to selecting the text
  * if the Clipboard API is unavailable.
  */
 export function CopyField({
@@ -25,7 +25,7 @@ export function CopyField({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Ignore — the value stays visible/selectable for a manual copy.
+      // Ignore, the value stays visible/selectable for a manual copy.
     }
   }
 

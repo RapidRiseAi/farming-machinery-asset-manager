@@ -1,23 +1,23 @@
 -- 0271_service_kits.sql
--- Service kits — feature F9 (FR-5.1, P0).
+-- Service kits, feature F9 (FR-5.1, P0).
 --
 -- A service kit is the exact bill-of-materials a machine needs at a service: the
 -- engine-oil / gearbox-oil / hydraulic-oil / filter PART NUMBERS + quantities. Unlike
 -- `service_plan_lines` (0004), which are tasks + intervals (WHEN to service), a kit is
 -- the parts (WHAT to fit). A kit is scoped either to one machine (machine_id) or to a
--- whole machine_type (a reusable template, machine_id null) — the scope check enforces
+-- whole machine_type (a reusable template, machine_id null), the scope check enforces
 -- exactly one is set.
 --
 -- `service_kit_items` are the kit's parts. An item may reference a catalogue part
 -- (0270) OR carry a free part_no, plus a quantity and an ex-VAT unit cost. Applying a
 -- kit to a scheduled-service job card inserts one job_card_line per item; those lines
--- flow to cost_entries/TCO + history via the EXISTING 0211 job_card_lines trigger — no
+-- flow to cost_entries/TCO + history via the EXISTING 0211 job_card_lines trigger, no
 -- separate kit→cost path exists, so there is no double-count.
 --
 -- House rules: farm_id + composite FK (machine-scoped), soft-delete, RLS, audit; money
 -- integer cents ex-VAT (Scope §6).
 
--- ── Service kits (per machine, or a machine_type template) ────────
+-- == Service kits (per machine, or a machine_type template) ========
 create table service_kits (
   id           uuid primary key default gen_random_uuid(),
   farm_id      uuid not null,
@@ -38,7 +38,7 @@ create table service_kits (
 create index service_kits_farm_idx    on service_kits(farm_id);
 create index service_kits_machine_idx on service_kits(machine_id);
 
--- ── Kit items (a catalogue part or a free part_no + qty) ──────────
+-- == Kit items (a catalogue part or a free part_no + qty) ==========
 create table service_kit_items (
   id                uuid primary key default gen_random_uuid(),
   farm_id           uuid not null,
@@ -61,7 +61,7 @@ create table service_kit_items (
 create index service_kit_items_kit_idx  on service_kit_items(service_kit_id);
 create index service_kit_items_farm_idx on service_kit_items(farm_id);
 
--- ── RLS + grants (standard farm-scoped pattern, 0101/0102) ────────
+-- == RLS + grants (standard farm-scoped pattern, 0101/0102) ========
 do $do$
 declare t text;
 begin

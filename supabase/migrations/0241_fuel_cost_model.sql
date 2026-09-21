@@ -21,7 +21,7 @@
 -- │                                                                                 │
 -- │ NO-DOUBLE-COUNT INVARIANT: fuel is booked into cost_entries on exactly ONE path  │
 -- │ (fuel_issues). Deliveries book zero. Therefore a farm's fuel appears in TCO      │
--- │ exactly once — asserted in supabase/tests/rls_isolation.sql (F4 section).        │
+-- │ exactly once, asserted in supabase/tests/rls_isolation.sql (F4 section).        │
 -- │                                                                                 │
 -- │ Fuel PURCHASED (deliveries) vs fuel ISSUED/attributed (issues = the TCO figure)  │
 -- │ differ by tank-stock movement; the dashboard/report widgets show both so the two │
@@ -31,9 +31,9 @@
 --
 -- All sync functions are SECURITY DEFINER (owned by a BYPASSRLS role) so they maintain
 -- the ledger regardless of the caller's RLS, writing only farm-scoped rows derived from
--- the source row's own farm_id — the exact pattern 0211 established.
+-- the source row's own farm_id, the exact pattern 0211 established.
 
--- ── Deliveries → NO cost entry (replace the 0211 booking) ─────────
+-- == Deliveries → NO cost entry (replace the 0211 booking) =========
 -- Keep the fuel_deliveries_cost trigger (attached in 0211) but neutralise its body:
 -- a delivery is tank stock, not an asset cost. If a prior delivery-sourced `fuel` entry
 -- exists (from 0211 or its backfill), soft-delete it so history is preserved and the
@@ -51,7 +51,7 @@ begin
   if tg_op = 'DELETE' then return old; else return new; end if;
 end $$;
 
--- ── Issues → per-machine `fuel` cost entry (the authoritative path) ─
+-- == Issues → per-machine `fuel` cost entry (the authoritative path) =
 -- Mirrors app_cost_from_job_card_line (0211): upsert keyed by (source_type='fuel_issue',
 -- source_id); soft-deleting / zero-costing the issue soft-deletes its cost entry (history
 -- preserved). machine_id flows through as-is (null → farm-level fuel cost).
@@ -96,7 +96,7 @@ create trigger fuel_issues_cost
 revoke execute on function app_cost_from_fuel_delivery() from anon, authenticated, public;
 revoke execute on function app_cost_from_fuel_issue()    from anon, authenticated, public;
 
--- ── Idempotent backfill (production; no-op on the empty test DB) ──
+-- == Idempotent backfill (production; no-op on the empty test DB) ==
 -- 1) Retire any delivery-sourced fuel cost entries (Model B: deliveries book zero).
 update cost_entries set deleted_at = coalesce(deleted_at, now())
   where source_type = 'fuel_delivery' and deleted_at is null;

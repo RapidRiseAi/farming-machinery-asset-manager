@@ -9,7 +9,7 @@ import { attachReceipt } from "@/app/(app)/expenses/actions";
  *
  * This is a client component for one reason: choosing the file submits it. In a table of
  * twenty supplier invoices, a "choose a file" followed by a separate "upload" is two taps
- * per row and a half-finished state in between — someone picks the photo, is called away,
+ * per row and a half-finished state in between, someone picks the photo, is called away,
  * and the row still reads as unsupported. Selecting a file IS the intent, so `onChange`
  * submits the form and the button is only there for anyone navigating by keyboard who
  * lands on it before the change event fires.

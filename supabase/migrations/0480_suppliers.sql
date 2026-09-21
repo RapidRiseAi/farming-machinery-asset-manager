@@ -14,21 +14,21 @@
 --     nothing will ever be captured against that spelling again.
 --   * nothing about a supplier can be reused. The account number, the payment terms, the
 --     VAT number needed on a claim over R5 000 (VAT Act s20(4)), the phone number of the
---     person who actually answers — all of it gets retyped per invoice or, more often,
+--     person who actually answers, all of it gets retyped per invoice or, more often,
 --     not captured at all.
 --
--- ── Why a record and not just a tidier string ────────────────────────────────
+-- == Why a record and not just a tidier string ================================
 --
 -- The cheap fix is to normalise the text and group case-insensitively, and it fixes
 -- precisely one of those three problems. A supplier is a business the workshop has a
 -- relationship with: terms were agreed with it, an account number belongs to it, and next
 -- month's order goes to it. Those facts have nowhere to live on a `text` column.
 --
--- ── Scope: WORKSHOP, exactly like partner_expenses (0430) ────────────────────
+-- == Scope: WORKSHOP, exactly like partner_expenses (0430) ====================
 --
 -- Same reasoning as 0473 gives for purchase orders: who a workshop buys from, and what it
 -- pays them, is the margin behind every quote it gives a farm. So this is the 0430 policy
--- set verbatim — own workshop or rr_admin, no farm path at all, anon nothing — rather
+-- set verbatim, own workshop or rr_admin, no farm path at all, anon nothing, rather
 -- than anything reaching for a farm helper.
 
 create table suppliers (
@@ -42,7 +42,7 @@ create table suppliers (
   address        text,
   vat_number     text,                    -- theirs; needed on a claim over R5 000 (s20(4))
 
-  -- The workshop's account number WITH this supplier — the number quoted on the phone to
+  -- The workshop's account number WITH this supplier, the number quoted on the phone to
   -- be told what is owed. Not an identifier of anything in this database.
   account_number text,
 
@@ -73,11 +73,11 @@ create table suppliers (
   constraint suppliers_id_workshop_uq unique (id, workshop_id)
 );
 
--- ── One record per supplier, per workshop ────────────────────────────────────
+-- == One record per supplier, per workshop ====================================
 -- Case- and whitespace-insensitive, because "Agri Diesel", "agri diesel " and "AGRI
 -- DIESEL" are one business and the whole point of the feature is that they stop being
--- three. This index is also what makes the 0481 name resolution deterministic — it can
--- match at most one live supplier — and what makes the backfill idempotent.
+-- three. This index is also what makes the 0481 name resolution deterministic, it can
+-- match at most one live supplier, and what makes the backfill idempotent.
 --
 -- Partial on `deleted_at` for the reason 0475 gives about its own uniqueness: a record
 -- created by mistake and retracted must not block the correct one from ever being
@@ -90,7 +90,7 @@ create index suppliers_workshop_idx on suppliers (workshop_id, name)
 
 comment on table suppliers is
   'Who the workshop buys from (G18). Workshop-scoped, like partner_expenses and '
-  'purchase_orders — a farm reading its contractor''s supplier list and terms would be '
+  'purchase_orders, a farm reading its contractor''s supplier list and terms would be '
   'reading the margin behind every quote it is given. partner_expenses.supplier_id and '
   'purchase_orders.supplier_id point here; the free-text supplier_name is kept alongside '
   'so a row is still readable when nobody has filed the supplier yet.';
@@ -98,7 +98,7 @@ comment on column suppliers.active is
   'False takes the supplier out of the pickers and leaves every historical expense, order '
   'and ageing row exactly as it was. Use soft delete for a record that was a mistake.';
 
--- ── RLS: the partner's own supplier book, and nobody else's ──────────────────
+-- == RLS: the partner's own supplier book, and nobody else's ==================
 -- The 0430 shape verbatim.
 alter table suppliers enable row level security;
 alter table suppliers force  row level security;

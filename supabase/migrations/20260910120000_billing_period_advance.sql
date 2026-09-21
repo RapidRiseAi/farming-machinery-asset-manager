@@ -2,7 +2,7 @@
 -- Every farm was invoiced ONCE, ever, and the cron reported it as healthy.
 --
 -- THE DEFECT
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.generate_billing_invoices` computed the period it was about to bill as
 --
 --     v_pstart := coalesce(s.current_period_start, s.next_billing_on);
@@ -10,7 +10,7 @@
 -- and then, a few statements later, wrote `current_period_start = v_pstart` back onto the
 -- subscription. So the SECOND time a farm came due, `coalesce` found the value the
 -- function itself had written on the FIRST run, recomputed the identical period, lost to
--- `billing_invoices_farm_period_uq`, and hit the `continue` — which skips the block that
+-- `billing_invoices_farm_period_uq`, and hit the `continue`, which skips the block that
 -- advances `next_billing_on`. The row is then permanently stuck: due today, forever,
 -- producing nothing.
 --
@@ -24,19 +24,19 @@
 -- Revenue stops after one period. There is no error and no alert: the function returns
 -- 0, which the cron reports as `generate_invoices: ok`. It also burns a value off
 -- `billing_invoice_ref_seq` on every failed attempt, so the invoice numbering acquires
--- permanent gaps — the sequence had reached 3 while exactly one invoice existed.
+-- permanent gaps, the sequence had reached 3 while exactly one invoice existed.
 --
 -- WHY NOTHING CAUGHT IT
--- ─────────────────────────────────────────────────────────────────────────────
--- Every test of this generator hand-advanced `current_period_start` before calling it —
+-- =============================================================================
+-- Every test of this generator hand-advanced `current_period_start` before calling it -
 -- the isolation suite at section (i2), and every staging script used to drive production
 -- this week. That is exactly the column the bug fails to advance, so priming it made the
 -- generator look correct while hiding the only thing worth testing. Section (f) runs the
 -- generator twice on the same day, when the row is no longer selected at all.
 --
 -- THE FIX
--- ─────────────────────────────────────────────────────────────────────────────
--- The next period begins the day after the last one ENDED — a value the function reads
+-- =============================================================================
+-- The next period begins the day after the last one ENDED, a value the function reads
 -- but never rewrites in a way that can feed back into itself:
 --
 --     v_pstart := coalesce(s.current_period_end + 1, s.next_billing_on);
@@ -121,7 +121,7 @@ begin
       ) values (
         -- DRAFT, deliberately, and not 'open'.
         --
-        -- An invoice is a draft while it is being assembled — that is what the word
+        -- An invoice is a draft while it is being assembled, that is what the word
         -- means, and `app.billing_freeze_invoice_line` enforces it: no line may be
         -- written to an invoice that has already been issued. Creating this row as
         -- 'open' and then adding its own lines made the generator raise
@@ -163,7 +163,7 @@ begin
     )
     select
       v_invoice, s.farm_id, 0,
-      'FleetWise ' || s.plan::text || ' — ' || v_count::text || ' vehicle(s)',
+      'FleetWise ' || s.plan::text || ', ' || v_count::text || ' vehicle(s)',
       v_count, v_price.months_charged,
       v_price.per_vehicle_monthly_incl_cents,
       i.total,

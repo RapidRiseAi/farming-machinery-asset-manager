@@ -6,10 +6,10 @@
 -- period. So they export to a spreadsheet, and once the numbers live in the spreadsheet
 -- the spreadsheet becomes the books.
 --
--- ── What it is, precisely ────────────────────────────────────────────────────
+-- == What it is, precisely ====================================================
 --
--- OUTPUT VAT — VAT charged to customers. Taken from the documents, at the TIME OF SUPPLY,
--- which for an invoice is its issue date (VAT Act s9(1)) — NOT when it was paid. A
+-- OUTPUT VAT, VAT charged to customers. Taken from the documents, at the TIME OF SUPPLY,
+-- which for an invoice is its issue date (VAT Act s9(1)), NOT when it was paid. A
 -- partner on the invoice basis (which nearly all are; the payments basis is limited to
 -- small non-corporate vendors) owes the VAT on an invoice in the period it was issued,
 -- even if the customer has not paid. Getting this wrong is the classic small-business
@@ -17,7 +17,7 @@
 --
 --   invoice     adds
 --   debit note  adds       (it increased the charge)
---   credit note SUBTRACTS  (s21 — the adjustment belongs in the period the note is issued)
+--   credit note SUBTRACTS  (s21, the adjustment belongs in the period the note is issued)
 --   quote       never, and neither does a draft or a voided document
 --
 -- A WRITTEN-OFF invoice still counts. The supply happened and the VAT was declared; bad
@@ -25,10 +25,10 @@
 -- never happened would be wrong. The screen shows written-off invoices separately so the
 -- partner can raise that claim knowingly rather than have this quietly do it for them.
 --
--- INPUT VAT — VAT paid to suppliers, from `partner_expenses` (0430), excluding anything
+-- INPUT VAT, VAT paid to suppliers, from `partner_expenses` (0430), excluding anything
 -- flagged not claimable (s17(2): entertainment, passenger vehicles, club fees).
 --
--- NET — output minus input. Positive is payable to SARS; negative is refundable.
+-- NET, output minus input. Positive is payable to SARS; negative is refundable.
 --
 -- SECURITY INVOKER, so RLS decides whose numbers these are: `partner_documents` is scoped
 -- by `app.partner_doc_visible` and `partner_expenses` to the owning workshop. A partner
@@ -110,7 +110,7 @@ $$;
 
 comment on function app.partner_vat_return(uuid, date, date) is
   'Output VAT less input VAT for a period, on the INVOICE basis (time of supply = issue '
-  'date, VAT Act s9(1)) — not when the money moved. SECURITY INVOKER: RLS decides whose '
+  'date, VAT Act s9(1)), not when the money moved. SECURITY INVOKER: RLS decides whose '
   'numbers these are.';
 
 create or replace function public.partner_vat_return(p_workshop uuid, p_from date, p_to date)

@@ -1,8 +1,8 @@
 -- 0206_admin_impersonation.sql
 -- RR-admin "act into a farm" (support access) audit trail (Scope §4.9: impersonate
--- for support — logged). A guarded RPC writes one append-only audit_log row every
+-- for support, logged). A guarded RPC writes one append-only audit_log row every
 -- time an admin enters a farm's workspace. Service-template LIBRARY management needs
--- no new policy — the existing st_ins/st_upd/st_del policies (0101) already let an
+-- no new policy, the existing st_ins/st_upd/st_del policies (0101) already let an
 -- rr_admin CRUD global templates (farm_id null).
 
 create or replace function public.log_admin_farm_access(p_farm uuid, p_action text)

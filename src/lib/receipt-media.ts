@@ -15,7 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * enforced rule with an application-enforced one. It also means this works anywhere the
  * app can sign in, with no extra secret.
  *
- * Path is `{workshop_id}/{expense_id}/{filename}` — the first segment is what the policy
+ * Path is `{workshop_id}/{expense_id}/{filename}`, the first segment is what the policy
  * reads, so a partner cannot write into another partner's folder even by crafting the rest.
  */
 
@@ -27,7 +27,7 @@ const ALLOWED = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf)$/i;
 
 export type ReceiptUpload = { path: string } | { error: "too_big" | "wrong_type" | "no_file" | "failed" };
 
-/** Store a receipt and return its object path. Never throws — the caller shows the reason. */
+/** Store a receipt and return its object path. Never throws, the caller shows the reason. */
 export async function uploadReceipt(
   supabase: SupabaseClient,
   file: unknown,
@@ -84,7 +84,7 @@ export async function signedReceiptUrls(
  * The founder's call was to WARN, never block: capture happens in a yard on a phone and
  * the paper arrives later, so refusing the save would just push the record back into a
  * shoebox. But an input-VAT claim with no tax invoice behind it is the thing an auditor
- * disallows, so it has to be visible — on the row, and totalled on the VAT return.
+ * disallows, so it has to be visible, on the row, and totalled on the VAT return.
  */
 export function claimNeedsProof(e: {
   vat_cents: number;

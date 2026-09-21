@@ -5,7 +5,7 @@
 -- is still owed. A business has two sides, and without the second one two things a
 -- partner genuinely needs are impossible:
 --
---   * a VAT return. Output VAT alone is not a return — SARS wants what you charged MINUS
+--   * a VAT return. Output VAT alone is not a return, SARS wants what you charged MINUS
 --     what you were charged, and a partner who can only see the first half has to
 --     assemble the second in a spreadsheet at filing time. That is the single thing most
 --     likely to send them back to the tool they were using before.
@@ -16,7 +16,7 @@
 -- no farm has any business reading them, and the policy set says so directly rather than
 -- reaching for a farm helper.
 
--- ── What kind of spend it is ─────────────────────────────────────────────────
+-- == What kind of spend it is =================================================
 -- Deliberately short, and in a workshop's own words. A long chart of accounts is how a
 -- capture screen stops being used; these are the buckets a small trade business actually
 -- sorts receipts into, and `other` carries the tail.
@@ -50,7 +50,7 @@ create table partner_expenses (
   expense_date        date not null default current_date,
   paid_on             date,                       -- null = still owed to the supplier
 
-  -- Money, integer cents, ex-VAT — the same rule as everywhere else in this schema.
+  -- Money, integer cents, ex-VAT, the same rule as everywhere else in this schema.
   amount_cents        bigint not null,
   vat_rate_bps        int    not null default 1500,
   -- VAT is CAPTURED, not derived. A supplier invoice is the source document and its VAT
@@ -61,7 +61,7 @@ create table partner_expenses (
 
   -- VAT Act s17(2): entertainment, most passenger vehicles and club fees carry VAT that
   -- cannot be claimed back. Recording the flag on the row is what keeps the return honest
-  -- — the alternative is a partner remembering to leave those out by hand every quarter.
+  --, the alternative is a partner remembering to leave those out by hand every quarter.
   vat_claimable       boolean not null default true,
 
   receipt_path        text,                       -- object in `partner-receipts`
@@ -75,7 +75,7 @@ create table partner_expenses (
   constraint partner_expenses_amount_ck check (amount_cents > 0),
   constraint partner_expenses_vat_ck    check (vat_cents >= 0),
   constraint partner_expenses_rate_ck   check (vat_rate_bps between 0 and 10000),
-  -- A zero-rated purchase cannot carry VAT, and VAT that is not claimable is not zero —
+  -- A zero-rated purchase cannot carry VAT, and VAT that is not claimable is not zero -
   -- it is simply not claimed. Both stay expressible; only the contradiction is refused.
   constraint partner_expenses_zero_ck   check (vat_rate_bps > 0 or vat_cents = 0)
 );
@@ -89,9 +89,9 @@ comment on table partner_expenses is
   'purchases. Feeds input VAT on the VAT return and the profit view; money is ex-VAT '
   'integer cents with the supplier''s own VAT amount captured alongside it.';
 
--- ── RLS: the partner's own books, and nobody else's ──────────────────────────
+-- == RLS: the partner's own books, and nobody else's ==========================
 -- Same shape as `partner_clients` (0390): own workshop or rr_admin, no farm path at all.
--- Anon gets nothing — 0102 revokes the default privileges and no anon policy exists.
+-- Anon gets nothing, 0102 revokes the default privileges and no anon policy exists.
 alter table partner_expenses enable row level security;
 alter table partner_expenses force  row level security;
 
@@ -111,8 +111,8 @@ grant all on partner_expenses to service_role;
 create trigger partner_expenses_audit after insert or update or delete on partner_expenses
   for each row execute function app_audit();
 
--- ── Receipts ─────────────────────────────────────────────────────────────────
--- `attachments.farm_id` is NOT NULL, so an expense cannot live there — it belongs to a
+-- == Receipts =================================================================
+-- `attachments.farm_id` is NOT NULL, so an expense cannot live there, it belongs to a
 -- workshop, not a farm. It gets its own workshop-scoped bucket instead, on the same
 -- pattern as the letterhead (0382): the first path segment is the workshop id, and that
 -- is what the policy checks.

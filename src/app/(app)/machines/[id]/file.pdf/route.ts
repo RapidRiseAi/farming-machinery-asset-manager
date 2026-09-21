@@ -15,7 +15,7 @@ type JC = { id: string; type: string; status: string; total_cents: number; date_
 type Plan = { task: string; interval_hours: number | null; interval_months: number | null; last_done_reading: number | null; last_done_date: string | null; next_due_reading: number | null; next_due_date: string | null; status: string };
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "machine";
-const dash = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+const dash = (v: unknown) => (v == null || v === "" ? "-" : String(v));
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile();
@@ -47,7 +47,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const totalSpend = jobCards.reduce((a, j) => a + (j.total_cents || 0), 0);
   const perHour = m.meter_type === "hours" && m.current_reading && m.current_reading > 0 ? Math.round(totalSpend / m.current_reading) : null;
 
-  const pdf = await Pdf.create(`Machine file — ${m.name}`);
+  const pdf = await Pdf.create(`Machine file, ${m.name}`);
   pdf.header("Service book & history");
 
   pdf.kv("Type", m.type.replace(/_/g, " "));
@@ -55,12 +55,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   pdf.kv("Serial / VIN", dash(m.serial_no));
   pdf.kv("Registration", dash(m.reg_no));
   pdf.kv("Status", m.status.replace(/_/g, " "));
-  pdf.kv("Current meter", m.current_reading != null ? `${m.current_reading} ${m.meter_type} (${dash(m.current_reading_date)})` : "—");
+  pdf.kv("Current meter", m.current_reading != null ? `${m.current_reading} ${m.meter_type} (${dash(m.current_reading_date)})` : "-");
 
   pdf.heading("Lifetime stats");
   if (costsVisible) pdf.kv("Total spend (ex-VAT)", rands(totalSpend));
   pdf.kv("Job cards", String(jobCards.length));
-  if (costsVisible) pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "—");
+  if (costsVisible) pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "-");
 
   pdf.heading("Service plan");
   if (plan.length === 0) pdf.text("No service plan.");
@@ -94,7 +94,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (faults.length === 0) pdf.text("No faults.");
   else pdf.table(
     ["Date", "Problem", "Urgency", "Status"],
-    faults.map((f) => [f.created_at.slice(0, 10), f.description ?? "—", f.urgency ?? "—", f.status]),
+    faults.map((f) => [f.created_at.slice(0, 10), f.description ?? "-", f.urgency ?? "-", f.status]),
     [80, 250, 90, 79],
   );
 

@@ -12,7 +12,7 @@ type Photo = { id: string; url: string | null };
  * Machine photo gallery + uploader. Photos live in `attachments` (kind=photo) and the
  * private `machine-photos` bucket; one can be marked the machine's PRIMARY image
  * (machines.primary_attachment_id, 0280) which then shows on list cards + the detail
- * header. Uploads are compressed client-side (~200–400 KB) to suit low bandwidth.
+ * header. Uploads are compressed client-side (~200-400 KB) to suit low bandwidth.
  */
 export function MachinePhotos({
   farmId,

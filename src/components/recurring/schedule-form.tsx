@@ -16,7 +16,7 @@ type Party = { key: string; label: string; farm_id: string | null; client_id: st
  * Two things are shown live because both are easy to get wrong and impossible to see in a
  * static form: WHO it will bill (the recipient control switches between a farm you are
  * linked to, a customer from your own book, and a name typed here), and WHEN the one
- * after next falls. That second one matters more than it looks — a schedule started on
+ * after next falls. That second one matters more than it looks, a schedule started on
  * the 31st bills on the 28th in February and 31st again in March, and seeing the next two
  * dates before saving is what stops a partner assuming it drifted.
  */

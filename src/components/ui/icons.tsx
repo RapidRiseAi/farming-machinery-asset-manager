@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
 /**
- * Hand-rolled inline SVG icons — no icon pack dependency (Scope §7, keep the
+ * Hand-rolled inline SVG icons, no icon pack dependency (Scope §7, keep the
  * bundle lean). All icons share a 24x24 viewBox, use `currentColor`, and are a
  * consistent 1.75-weight line style. They are decorative by default
  * (`aria-hidden`); give an interactive parent an accessible label instead.
@@ -191,7 +191,7 @@ export const FuelIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** Parts catalogue / service kit — a nut-and-bolt style cog. */
+/** Parts catalogue / service kit, a nut-and-bolt style cog. */
 export const PartsIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="3" />
@@ -206,7 +206,7 @@ export const InboxIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** Partners / contractors — a handshake. */
+/** Partners / contractors, a handshake. */
 export const PartnersIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M8 13.5 5 10.5a2 2 0 0 1 0-2.8l2-2a2 2 0 0 1 2.6-.2L12 7l2.4-1.7a2 2 0 0 1 2.6.2l2 2a2 2 0 0 1 0 2.8L18 13" />
@@ -214,7 +214,7 @@ export const PartnersIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** Work requests — a clipboard with a check (jobs sent to contractors). */
+/** Work requests, a clipboard with a check (jobs sent to contractors). */
 export const WorkIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="6" y="4" width="12" height="16" rx="2" />
@@ -223,7 +223,7 @@ export const WorkIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** Quotes & invoices — a document with money lines on it. */
+/** Quotes & invoices, a document with money lines on it. */
 export const DocumentsIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
@@ -233,7 +233,7 @@ export const DocumentsIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** AARTO fines — an infringement notice (a document with an exclamation). */
+/** AARTO fines, an infringement notice (a document with an exclamation). */
 export const FinesIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
@@ -280,7 +280,7 @@ export const CopyIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** Vehicle checklist / inspection — a clipboard with a tick. */
+/** Vehicle checklist / inspection, a clipboard with a tick. */
 export const ChecklistIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M9 4h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
@@ -300,7 +300,7 @@ export const TrashIcon = (p: IconProps) => (
 );
 
 /**
- * The fault form and the job card used emoji for these — 📷 🎤 ⏹ 📍 🔒 ☑ — which render
+ * The fault form and the job card used emoji for these, 📷 🎤 ⏹ 📍 🔒 ☑, which render
  * differently on every Android skin, ignore `currentColor`, and read aloud as their
  * unicode name. Same line weight as the rest of the set, so they inherit tone and size.
  */
@@ -374,9 +374,9 @@ export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** String-keyed icon lookup — lets server components pass a serializable
+/** String-keyed icon lookup, lets server components pass a serializable
  *  `name` across the client boundary (nav config) instead of a component. */
-/* ── Finance and account glyphs ──────────────────────────────────────────────
+/* == Finance and account glyphs ==============================================
    Added because the nav had five rows sharing the `reports` glyph, four sharing
    `dashboard` and three each sharing `parts`, `documents` and `download`.
    Adjacent rows with one icon read as repeated entries, which is what "duplicate
@@ -538,7 +538,7 @@ export function Icon({ name, ...props }: { name: IconName } & IconProps) {
   return <Cmp {...props} />;
 }
 
-// ── Appearance (ThemeToggle) ─────────────────────────────────────────────────
+// == Appearance (ThemeToggle) =================================================
 // Same 24x24 box and 1.75 line weight as the rest of the set, so the three
 // states of the toggle read as one control rather than three borrowed glyphs.
 
@@ -555,7 +555,7 @@ export const MoonIcon = (p: IconProps) => (
   </Svg>
 );
 
-/** "Follow the device" — a phone, because that is what most of them are on. */
+/** "Follow the device", a phone, because that is what most of them are on. */
 export const DeviceIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="6" y="2.5" width="12" height="19" rx="2.5" />

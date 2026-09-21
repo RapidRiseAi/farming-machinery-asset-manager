@@ -1,31 +1,31 @@
 -- 0411_corrections_credit_notes_and_void.sql
--- G2b — A real way to fix a mistake, which is the thing AutoVault never had.
+-- G2b, A real way to fix a mistake, which is the thing AutoVault never had.
 --
--- ── WHAT GOES WRONG WITHOUT ONE ──────────────────────────────────────────────
+-- == WHAT GOES WRONG WITHOUT ONE ==============================================
 --
 -- AutoVault has no correction path, so it grew two workarounds and both corrupt the
 -- statement:
 --
 --   * `app/api/workshop/financial-documents/route.ts` HARD DELETES an invoice with the
---     service-role client — `admin.from('invoices').delete().eq('id', …)`. The row is
+--     service-role client, `admin.from('invoices').delete().eq('id', …)`. The row is
 --     gone. A statement printed last month and one printed today for the same period
 --     disagree, and nothing on either page explains why. That is not an audit trail with
 --     a gap in it; it is an audit trail that lies.
 --
---   * Where a credit WAS issued, the statement route finds it by REGEX over free text —
+--   * Where a credit WAS issued, the statement route finds it by REGEX over free text -
 --     `/\b(CN-[A-Z0-9-]{4,})\b/i` against a description, and
 --     `/credit\s+note\s+.*applied/i` to decide whether a line is a credit at all. The
 --     accuracy of a customer's statement of account depends on how somebody worded a
 --     description field.
 --
 -- FleetWise had the opposite half of the same problem: a sent document is correctly
--- immutable (`isEditable` is draft-only), but the only escape was `cancelDocument` —
+-- immutable (`isEditable` is draft-only), but the only escape was `cancelDocument` -
 -- available even on a PAID invoice, recording no reason, silently soft-deleting the
 -- farm's cost entry. A partner who typed R12 000 instead of R1 200 could erase the
 -- invoice from the farmer's costs with no explanation of why the number moved, or phone
 -- them and ask them to ignore it.
 --
--- ── THE MODEL — THREE WAYS TO BE WRONG, THREE ANSWERS ────────────────────────
+-- == THE MODEL, THREE WAYS TO BE WRONG, THREE ANSWERS ========================
 --
 --   Never issued        DELETE the draft. Nothing left our hands; there is no record to
 --                       preserve. Unchanged.
@@ -43,13 +43,13 @@
 --                       comparison set does.
 --
 -- A credit note books the NEGATIVE of its value into the farm's cost ledger, so a
--- correction nets out of TCO instead of being erased from it — the farmer's spend history
+-- correction nets out of TCO instead of being erased from it, the farmer's spend history
 -- shows what was billed and what was credited back, which is what actually happened.
 
 -- The two enum values this migration needs are added by 0411, alone, because a new enum
 -- value cannot be used in the transaction that created it.
 
--- ── The link back to what is being corrected ─────────────────────────────────
+-- == The link back to what is being corrected =================================
 alter table partner_documents
   add column corrects_document_id uuid,
   add column void_reason          text,
@@ -60,7 +60,7 @@ alter table partner_documents
 
 comment on column partner_documents.corrects_document_id is
   'The invoice this credit note corrects. Printed on the credit note and read by the '
-  'statement — never parsed out of a description, which is how AutoVault does it and how '
+  'statement, never parsed out of a description, which is how AutoVault does it and how '
   'a statement ends up depending on somebody''s wording.';
 
 create index partner_documents_corrects_idx on partner_documents(corrects_document_id)
@@ -76,9 +76,9 @@ alter table partner_documents
     status <> 'void' or (void_reason is not null and length(btrim(void_reason)) >= 3)
   );
 
--- ── Nothing issued may be deleted ────────────────────────────────────────────
+-- == Nothing issued may be deleted ============================================
 -- The `deleteDraft` action already checks the status, but a check in one server action is
--- not a rule — the table is reachable through PostgREST by anyone the policy admits. This
+-- not a rule, the table is reachable through PostgREST by anyone the policy admits. This
 -- is the guard that makes "a sent document is a record" true of the DATABASE, which is
 -- what AutoVault is missing.
 create or replace function app_partner_document_no_erase() returns trigger
@@ -104,7 +104,7 @@ begin
   -- legitimately changes, so they stay open.
   --
   -- This trigger sorts FIRST among the BEFORE triggers on this table, so NEW still holds
-  -- what the caller actually asked for — the totals and VAT triggers have not yet had
+  -- what the caller actually asked for, the totals and VAT triggers have not yet had
   -- their say. A caller who changes nothing here passes even though those later triggers
   -- will rewrite the same columns.
   if old.status <> 'draft' then
@@ -158,7 +158,7 @@ create trigger partner_document_lines_frozen
 
 revoke execute on function app_partner_line_frozen() from anon, authenticated, public;
 
--- ── The ledger nets, rather than forgetting ──────────────────────────────────
+-- == The ledger nets, rather than forgetting ==================================
 -- A credit note books the negative of its value against the same farm and machine, so the
 -- farmer's cost history reads "billed R12 000, credited R10 800" instead of quietly
 -- becoming R1 200 with no trace of the correction. A VOID document books nothing, which
@@ -207,7 +207,7 @@ begin
   return null;
 end $$;
 
--- ── A credit note cannot exceed what it corrects ─────────────────────────────
+-- == A credit note cannot exceed what it corrects =============================
 -- Otherwise a partner can credit R20 000 against a R12 000 invoice and hand the customer
 -- a negative balance that no invoice explains. Checked across ALL live credit notes
 -- against the invoice, so three small ones cannot do what one large one is refused.

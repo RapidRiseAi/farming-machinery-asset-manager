@@ -2,7 +2,7 @@
 -- The cap watched the wrong side of the pair.
 --
 -- 0412 refuses a credit note that would take total credits past the invoice they correct
--- — otherwise the customer ends up with a negative balance nothing on the statement
+--, otherwise the customer ends up with a negative balance nothing on the statement
 -- explains. But that check only ever ran when a NOTE was written, and 0417 made the
 -- INVOICE editable. So the same hole reopened from the other direction:
 --
@@ -11,11 +11,11 @@
 --
 -- Measured, not reasoned about: the local suite reproduced exactly that. It did not show
 -- up on the demo project only because that invoice happened to have a payment against it
--- and the "below what has been paid" guard caught it first — luck, not cover.
+-- and the "below what has been paid" guard caught it first, luck, not cover.
 --
--- ── WHERE THE CHECK GOES, AND WHY NOT IN THE TRIGGER ─────────────────────────
+-- == WHERE THE CHECK GOES, AND WHY NOT IN THE TRIGGER =========================
 --
--- The obvious fix — ask the question in the row trigger when an invoice total drops —
+-- The obvious fix, ask the question in the row trigger when an invoice total drops -
 -- was written first and immediately failed the suite: `revise_document` REPLACES the
 -- lines, so it deletes them and re-inserts, and the document's total passes through ZERO
 -- on the way. A row trigger sees that intermediate state and refuses a correction that is
@@ -44,7 +44,7 @@ declare
   i          int := 0;
 begin
   if p_reason is null or length(btrim(p_reason)) < 3 then
-    raise exception 'Say what you are correcting — it is what makes the change readable later.'
+    raise exception 'Say what you are correcting, it is what makes the change readable later.'
       using errcode = '23514';
   end if;
 
@@ -111,7 +111,7 @@ begin
         d.farm_id, p_document, i,
         coalesce(nullif(ln->>'kind', ''), 'part')::job_line_kind,
         nullif(ln->>'part_no', ''),
-        coalesce(nullif(ln->>'description', ''), '—'),
+        coalesce(nullif(ln->>'description', ''), '-'),
         coalesce((ln->>'qty')::numeric, 1),
         coalesce((ln->>'unit_price_cents')::bigint, 0),
         coalesce((ln->>'discount_cents')::bigint, 0)
@@ -125,12 +125,12 @@ begin
   select total_cents, amount_paid_cents into v_after, v_paid
     from partner_documents where id = p_document;
 
-  -- ── The two things a correction is not allowed to do ───────────────────────
+  -- == The two things a correction is not allowed to do =======================
   -- Both are checked HERE rather than in a row trigger, because the line replacement
   -- above takes the total through zero on its way and a row trigger would refuse a
   -- correction that is fine by the time it lands.
 
-  -- You cannot correct an invoice down below what has already been paid — that is a
+  -- You cannot correct an invoice down below what has already been paid, that is a
   -- refund, and a refund has to be visible as its own event.
   if d.kind = 'invoice' and v_after < v_paid then
     raise exception 'That would put the total (%) below what has already been paid (%). Issue a credit note instead, so the refund shows.',

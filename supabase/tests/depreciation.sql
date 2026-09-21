@@ -73,7 +73,7 @@ insert into public.machines
    'Sold harvester', 'harvester', 'hours', 'sold', null,
    date '2019-01-01', 80000000, 'straight_line', null, 120, null, date '2019-01-01');
 
--- ── (a) The sums ────────────────────────────────────────────────────────────
+-- == (a) The sums ============================================================
 do $$
 declare v bigint;
 begin
@@ -132,7 +132,7 @@ begin
   end if;
 end $$;
 
--- ── (b) A method without its input is refused at the row ────────────────────
+-- == (b) A method without its input is refused at the row ====================
 do $$
 declare v_failed boolean;
 begin
@@ -157,7 +157,7 @@ begin
   end if;
 end $$;
 
--- ── (c) The register, and who gets one ──────────────────────────────────────
+-- == (c) The register, and who gets one ======================================
 set role authenticated;
 select _dep_login('de100000-0000-4000-8000-000000000001');
 do $$
@@ -196,7 +196,7 @@ end $$;
 reset role;
 
 -- An operator on a farm that has NOT opted operators in gets nothing, exactly as
--- `machine_financials` gives them nothing — including for the machine assigned to them.
+-- `machine_financials` gives them nothing, including for the machine assigned to them.
 set role authenticated;
 select _dep_login('de100000-0000-4000-8000-000000000002');
 do $$
@@ -228,7 +228,7 @@ begin
 end $$;
 reset role;
 
--- ── (d) Only the farm's own owner or manager may set the policy ─────────────
+-- == (d) Only the farm's own owner or manager may set the policy =============
 set role authenticated;
 select _dep_login('de100000-0000-4000-8000-000000000002');
 do $$
@@ -271,7 +271,7 @@ begin
 
   -- Read back through the REGISTER, not off the table. `select *` on `machines` is a
   -- permission error for `authenticated` by design (20260903074350 withheld the cost
-  -- columns), and the register is the supported way in — so this asserts what the screen
+  -- columns), and the register is the supported way in, so this asserts what the screen
   -- will actually be able to see.
   select * into r from public.farm_book_values('de000000-0000-4000-8000-000000000001', null)
    where machine_id = 'de200000-0000-4000-8000-000000000002';
@@ -304,7 +304,7 @@ begin
 end $$;
 reset role;
 
--- ── (e) Grants ──────────────────────────────────────────────────────────────
+-- == (e) Grants ==============================================================
 do $$
 begin
   if has_function_privilege('anon', 'public.farm_book_values(uuid,date)', 'EXECUTE')

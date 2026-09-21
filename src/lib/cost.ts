@@ -38,7 +38,7 @@ export function summariseCosts(
 /**
  * Cost per meter unit on a consistent lifetime basis: lifetime TCO ÷ lifetime meter
  * reading (Scope §23). This is the single definition used by BOTH machine detail and
- * reports — a lifetime numerator over a lifetime denominator — so cost-per-hour and
+ * reports, a lifetime numerator over a lifetime denominator, so cost-per-hour and
  * cost-per-km never disagree between the two surfaces (D-2). Returns integer cents, or
  * null when the reading is missing / zero.
  */

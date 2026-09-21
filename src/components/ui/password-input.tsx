@@ -12,8 +12,8 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
 
 /**
  * Password input with a HOLD-TO-REVEAL button (deliberately NOT a toggle): the
- * characters are shown only while the eye button is actively pressed — via pointer
- * or keyboard — and hidden again the instant it is released, so a field is never
+ * characters are shown only while the eye button is actively pressed, via pointer
+ * or keyboard, and hidden again the instant it is released, so a field is never
  * left readable to someone glancing at the screen.
  */
 export function PasswordInput({

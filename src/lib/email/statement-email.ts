@@ -8,7 +8,7 @@ import { statementTotals, AGEING_BUCKETS } from "@/lib/statement";
 /**
  * The email a customer gets with their monthly statement.
  *
- * It leads with the one number they need — the balance — and then the ageing, because a
+ * It leads with the one number they need, the balance, and then the ageing, because a
  * customer who pays off a statement is deciding how much to transfer, not reading a
  * ledger. The ledger is in the attached PDF for whoever wants it.
  *
@@ -18,8 +18,8 @@ import { statementTotals, AGEING_BUCKETS } from "@/lib/statement";
 
 const AGE_LABEL: Record<string, string> = {
   current: "Not yet due",
-  d30: "1–30 days late",
-  d60: "31–60 days late",
+  d30: "1-30 days late",
+  d60: "31-60 days late",
   d90: "60+ days late",
 };
 
@@ -28,7 +28,7 @@ function esc(v: string): string {
 }
 
 export function statementSubject(data: StatementData): string {
-  return `Statement from ${data.brand.name} — ${data.to}`;
+  return `Statement from ${data.brand.name}, ${data.to}`;
 }
 
 export function statementEmailText(data: StatementData, message?: string | null): string {
@@ -51,7 +51,7 @@ export function statementEmailText(data: StatementData, message?: string | null)
     data.brand.bank_account_number ? `Account: ${data.brand.bank_account_number}` : null,
     "",
     data.brand.phone ? `Questions: ${data.brand.phone}` : null,
-    `— ${data.brand.name}`,
+    `- ${data.brand.name}`,
   ];
   return lines.filter((l) => l !== null).join("\n");
 }

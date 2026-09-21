@@ -8,7 +8,7 @@ import { MachinesIcon } from "@/components/ui/icons";
  *
  * There was no not-found page anywhere in the product, so a deleted document, a
  * revoked link or a mistyped id dropped the user onto Next's default: unstyled,
- * outside the app shell, English only, and with no way back — in an app that
+ * outside the app shell, English only, and with no way back, in an app that
  * otherwise keeps 3,626 translation keys at parity.
  *
  * This is the ROOT not-found, so it renders inside the root layout only and has
@@ -16,7 +16,7 @@ import { MachinesIcon } from "@/components/ui/icons";
  * rather than guessing a destination, and why it stays self-contained rather
  * than importing app-shell chrome that would need a profile to render.
  *
- * Language comes from `deviceLocale()` — the cookie, then Accept-Language —
+ * Language comes from `deviceLocale()`, the cookie, then Accept-Language -
  * which is the same signal the root layout uses for `<html lang>`, so the two
  * always agree.
  */

@@ -7,28 +7,28 @@
 -- do I owe" adds them up by eye. Now that 0480 gives the supplier an identity and 0481
 -- attaches the history to it, the ageing can group by the record.
 --
--- ── Same shape, deliberately ─────────────────────────────────────────────────
+-- == Same shape, deliberately =================================================
 --
--- The returned columns and the bucket boundaries are UNCHANGED — `supplier`, four buckets,
--- a total; current is 0–30 days from the supplier's own invoice date, then 31–60, 61–90,
+-- The returned columns and the bucket boundaries are UNCHANGED, `supplier`, four buckets,
+-- a total; current is 0-30 days from the supplier's own invoice date, then 31-60, 61-90,
 -- over 90. /money renders this and its CSV reads it, and a report that quietly changes
 -- shape underneath a screen is how a figure stops being believed. Only the grouping moves.
 --
--- ── Falling back to the name is not a temporary state ────────────────────────
+-- == Falling back to the name is not a temporary state ========================
 --
 -- 0481 refuses to invent a supplier for an unknown name, so unlinked expenses are normal
 -- and permanent for any workshop that never files its suppliers. Those still have to age,
--- and they still have to merge across case and padding — so the fallback key is the
+-- and they still have to merge across case and padding, so the fallback key is the
 -- lower-trimmed name, which fixes the original complaint even where nothing was filed.
 -- Prefixing it (`name:`) keeps a free-text group from ever colliding with a uuid group.
 --
--- ── Why the label comes from the record ─────────────────────────────────────
+-- == Why the label comes from the record =====================================
 --
 -- When a supplier is linked, the row is titled with the RECORD's name, not with whatever
 -- was typed on the newest invoice. That is what makes the merge visible: three spellings
 -- become one line under the name the partner chose for the business. The join is a LEFT
 -- one and RLS applies to it (SECURITY INVOKER, as 0460 set out), so a supplier the caller
--- cannot see — soft-deleted, or another workshop's — yields no name and the row falls back
+-- cannot see, soft-deleted, or another workshop's, yields no name and the row falls back
 -- to its free text rather than disappearing. Money owed must never vanish from a payables
 -- report because a lookup came back empty.
 
@@ -44,7 +44,7 @@ returns table (
 language sql stable security invoker set search_path = public, pg_temp as $$
   with unpaid as (
     select coalesce(s.id::text, 'name:' || lower(btrim(coalesce(e.supplier_name, '')))) as grp,
-           coalesce(nullif(btrim(s.name), ''), nullif(btrim(e.supplier_name), ''), '—')  as label,
+           coalesce(nullif(btrim(s.name), ''), nullif(btrim(e.supplier_name), ''), '-')  as label,
            (e.amount_cents + e.vat_cents) as owed,     -- what actually leaves the bank
            p_as_at - e.expense_date as age
       from partner_expenses e
@@ -57,7 +57,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
   )
   -- `min(label)` only ever has a choice to make inside a fallback group, where the same
   -- unfiled business was typed several ways; a linked group has one record and therefore
-  -- one name. Choosing deterministically matters anyway — a heading that changes between
+  -- one name. Choosing deterministically matters anyway, a heading that changes between
   -- two page loads reads as a bug in the numbers underneath it.
   select min(label),
          coalesce(sum(owed) filter (where age <= 30), 0)::bigint,
@@ -73,8 +73,8 @@ $$;
 
 comment on function app.partner_creditors(uuid, date) is
   'Payables ageing (0460), grouped by the SUPPLIER RECORD where one is linked (G18, 0480) '
-  'and by the trimmed lower-cased name where none is. Same columns and buckets as before — '
-  '/money renders this — so only the grouping changed.';
+  'and by the trimmed lower-cased name where none is. Same columns and buckets as before, '
+  '/money renders this, so only the grouping changed.';
 
 -- The wrapper is unchanged in shape and simply re-stated, so the API surface is visibly
 -- the same file-to-file. `create or replace` keeps existing privileges, but the grants are

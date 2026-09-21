@@ -3,7 +3,7 @@
  *
  * The shared model both the capture screen and the VAT screen read, so a figure typed in
  * one place cannot be interpreted differently in the other. Money is integer cents,
- * ex-VAT, exactly as everywhere else — the one departure is that an expense carries the
+ * ex-VAT, exactly as everywhere else, the one departure is that an expense carries the
  * supplier's OWN VAT amount rather than a derived one, because a supplier invoice is a
  * source document and its VAT line is what may legally be claimed.
  */
@@ -40,7 +40,7 @@ export function expenseTotalCents(e: Pick<Expense, "amount_cents" | "vat_cents">
  * Split a VAT-INCLUSIVE amount the way the receipt does.
  *
  * A partner reads "R1 150,00" off a till slip; the books need R1 000 and R150. Integer
- * arithmetic throughout — `exVatCents` rounds to the nearest cent and the VAT is the
+ * arithmetic throughout, `exVatCents` rounds to the nearest cent and the VAT is the
  * remainder, so the two always add back to exactly what was typed.
  */
 export function splitInclusive(inclCents: number, rateBps: number): { exCents: number; vatCents: number } {
@@ -49,7 +49,7 @@ export function splitInclusive(inclCents: number, rateBps: number): { exCents: n
   return { exCents, vatCents: inclCents - exCents };
 }
 
-// ── The VAT return ─────────────────────────────────────────────────
+// == The VAT return =================================================
 
 export type VatReturn = {
   standard_ex_cents: number;
@@ -75,7 +75,7 @@ export const EMPTY_VAT_RETURN: VatReturn = {
  * SARS runs most vendors on a TWO-MONTH cycle, and which two months depends on the
  * category the vendor was registered under: category A ends on odd months (Jan, Mar, …),
  * category B on even ones (Feb, Apr, …). Getting the window right matters more than it
- * looks — a return built over the wrong two months is not slightly wrong, it double-counts
+ * looks, a return built over the wrong two months is not slightly wrong, it double-counts
  * one month and omits another.
  *
  * So the screen offers the real periods rather than a free date range, and defaults to
@@ -113,20 +113,20 @@ export function vatPeriods(category: VatCategory, today = new Date(), count = 8)
     if (isOdd !== wantsOddMonth) continue;
     const start = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1));
     const end = monthEnd(cursor.getUTCFullYear(), cursor.getUTCMonth());
-    out.push({ from: iso(start), to: iso(end), label: `${iso(start).slice(0, 7)} – ${iso(end).slice(0, 7)}` });
+    out.push({ from: iso(start), to: iso(end), label: `${iso(start).slice(0, 7)} - ${iso(end).slice(0, 7)}` });
   }
   return out;
 }
 
 /**
- * The period we are CURRENTLY inside — the one that has not closed yet.
+ * The period we are CURRENTLY inside, the one that has not closed yet.
  *
  * `vatPeriods` deliberately returns only closed periods, because a return is filed after
  * its period ends. That is right for filing and wrong for everything else: a partner who
  * captures a supplier invoice today then opens this screen finds that the only period the
  * invoice could fall into is not on offer, and reads "you have not captured anything you
  * bought in this period" as "the capture failed". Watching VAT accumulate is also the
- * ordinary cash-flow question — "what am I going to owe?" — which is asked during the
+ * ordinary cash-flow question, "what am I going to owe?", which is asked during the
  * period, not after it.
  *
  * So this is offered alongside the closed ones and clearly marked as still open. It is
@@ -143,14 +143,14 @@ export function currentVatPeriod(category: VatCategory, today = new Date()): Vat
 
   // Walk forward to this period's closing month. Date.UTC normalises an overflowing month
   // index into the next year on its own, so December + category A (which closes in
-  // January) needs no special case — month index 12 IS the following January.
+  // January) needs no special case, month index 12 IS the following January.
   const wantsOddMonth = category === "A";
   let closing = month;
   while ((closing % 2 === 0) !== wantsOddMonth) closing++;
 
   const start = new Date(Date.UTC(year, closing - 1, 1));
   const end = monthEnd(year, closing);
-  return { from: iso(start), to: iso(end), label: `${iso(start).slice(0, 7)} – ${iso(end).slice(0, 7)}` };
+  return { from: iso(start), to: iso(end), label: `${iso(start).slice(0, 7)} - ${iso(end).slice(0, 7)}` };
 }
 
 /** Positive means money owed to SARS; negative means a refund is due. */

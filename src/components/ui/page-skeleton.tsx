@@ -6,8 +6,8 @@ export type SkeletonShape = "list" | "detail" | "form" | "board" | "table";
 /**
  * The placeholder a route shows while its data is still being fetched.
  *
- * Every page in this app is dynamic — it authenticates, resolves the current farm and
- * queries under RLS before it can render anything — so without a `loading.tsx` the
+ * Every page in this app is dynamic, it authenticates, resolves the current farm and
+ * queries under RLS before it can render anything, so without a `loading.tsx` the
  * previous screen simply sits there after a tap, looking like the app has hung. These
  * shapes are deliberately coarse: they hold the layout so it does not jump when the
  * real content lands, without pretending to know what is in it.

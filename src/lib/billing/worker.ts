@@ -1,7 +1,7 @@
 /**
- * SaaS billing — the charging worker and the reconciler.
+ * SaaS billing, the charging worker and the reconciler.
  *
- * ── The one sequence this file exists to hold ─────────────────────────────────
+ * == The one sequence this file exists to hold =================================
  *
  *     1. claim    app.claim_billing_charge(invoice, ref, kind, amount) → attempt id | NULL
  *     2. charge   POST to Paystack                                     ← NO transaction open
@@ -15,14 +15,14 @@
  *    exists in our database.
  *  - `billing_payment_attempts_inflight_uq` permits at most ONE `pending`/`unknown`
  *    attempt per invoice. Claiming IS inserting that row, so a second worker loses on a
- *    duplicate key. That — not a "check whether anything is in flight" read — is what
+ *    duplicate key. That, not a "check whether anything is in flight" read, is what
  *    prevents a double charge, because a check-then-act has a window and a unique index
  *    does not.
  *  - A NULL claim is therefore a NORMAL outcome, not an error: somebody else has it, or
  *    the invoice carries an `unknown` attempt that must be reconciled first. It is
  *    skipped silently and reported as `skipped`, never as a failure.
  *
- * ── Timeout is not failure ────────────────────────────────────────────────────
+ * == Timeout is not failure ====================================================
  * A charge whose HTTP response is lost settles `unknown`, never `failed`. The difference
  * matters twice over: `failed` runs the dunning machinery (a retry date, then grace, then
  * a downgrade) against a farm that may well have paid; and `unknown` deliberately BLOCKS
@@ -30,10 +30,10 @@
  * what actually happened. Recovery is `transaction/verify` on THAT EXACT REFERENCE.
  * Nothing in this file ever charges again to resolve an unknown.
  *
- * ── The kill switch ───────────────────────────────────────────────────────────
+ * == The kill switch ===========================================================
  * `chargingEnabled` gates new charges only. With charging off the worker still
- * RECONCILES — verifying a payment that has already been taken is not a new charge, and
- * turning the switch off must never strand money that was already in flight — and it says
+ * RECONCILES, verifying a payment that has already been taken is not a new charge, and
+ * turning the switch off must never strand money that was already in flight, and it says
  * so in its structured result rather than reporting a quiet zero.
  */
 
@@ -84,10 +84,10 @@ export const CHARGE_CONCURRENCY = 6;
  * `settleBillingAttempt` returns `{ error }` and all sixteen call sites in this codebase
  * ignored it (S6). That matters most in the success branch: settling `succeeded` is the
  * ONLY thing that inserts a `billing_payments` row, so a failure there means Paystack has
- * charged the customer's card and FleetWise has recorded nothing — while the worker
+ * charged the customer's card and FleetWise has recorded nothing, while the worker
  * returns `succeeded` and the nightly summary calls the pass healthy.
  *
- * ── Why the non-success callers deliberately do not act on the return ─────────
+ * == Why the non-success callers deliberately do not act on the return =========
  * A settle that fails leaves the attempt `pending`, and `pending` is precisely what
  * `reconcileStuckAttempts` collects and resolves by verifying the reference against the
  * provider. So for `failed`, `abandoned` and `unknown` the recovery is already correct
@@ -95,7 +95,7 @@ export const CHARGE_CONCURRENCY = 6;
  *
  * The success branch is the one where the OUTCOME would otherwise be a lie, so that is
  * the branch that reads this. Its reason goes into `summary.errors`, which the cron route
- * already drains into `captureError` — so the case that matters reports itself through
+ * already drains into `captureError`, so the case that matters reports itself through
  * the seam that exists rather than through a new import. This module deliberately pulls
  * in nothing from Next: `@/lib/observability` requires `server-only`, and importing it
  * here killed the entire worker test file on load.
@@ -146,8 +146,8 @@ export type ChargeSummary = {
   /**
    * The shortlist came back full, so there is very likely more waiting.
    *
-   * Without this a capped pass and a complete one produced identical evidence —
-   * "considered 50" reads like a finished night — and every farm past the limit silently
+   * Without this a capped pass and a complete one produced identical evidence -
+   * "considered 50" reads like a finished night, and every farm past the limit silently
    * waited another day for a renewal that was already due.
    */
   moreDue: boolean;
@@ -232,13 +232,13 @@ export async function chargeOneInvoice(
   }
 
   // The ONE read of the charging credential in this file. It goes straight into the
-  // adapter call below and nowhere else — not into a log line, an error, a Sentry extra
+  // adapter call below and nowhere else, not into a log line, an error, a Sentry extra
   // or anything returned to a caller.
   //
   // The email that comes back with it is `billing_payment_methods.authorization_email`,
   // and it MUST be the one used to charge. Paystack: "only the email used to create an
   // authorization can be used to charge it." So this is deliberately not `users.email`,
-  // not the farm's billing contact, and not a fresh lookup — a farmer who changes their
+  // not the farm's billing contact, and not a fresh lookup, a farmer who changes their
   // address must not thereby break a card that was captured successfully.
   const credential = await paymentMethodCredential(
     supabase,
@@ -261,13 +261,13 @@ export async function chargeOneInvoice(
   }
   // Null is the unique index doing its job. Another worker holds this invoice, or an
   // `unknown` attempt is standing in the way. Neither is a failure and neither is retried
-  // here — reconciliation is the only thing that clears an unknown.
+  // here, reconciliation is the only thing that clears an unknown.
   if (!attemptId) {
     return { result: "skipped", invoiceId: due.invoice_id, reason: "claimed-elsewhere" };
   }
 
-  // ── No transaction is open across this call, by construction: `claim` above committed
-  // and `settle` below is its own statement. ──
+  // == No transaction is open across this call, by construction: `claim` above committed
+  // and `settle` below is its own statement. ==
   const charged = await provider.chargeAuthorization(
     chargeRequestFor(
       {
@@ -304,7 +304,7 @@ export async function chargeOneInvoice(
  *  - nothing could have been sent (kill switch, bad arguments)   → `abandoned` (does not block)
  *
  * A success whose amount, currency, reference or metadata does not match is NOT paid. It
- * settles `unknown`, which blocks the invoice and forces somebody to look — the one
+ * settles `unknown`, which blocks the invoice and forces somebody to look, the one
  * outcome that is safe in both directions when the provider is telling us about a
  * transaction we cannot recognise.
  */
@@ -336,7 +336,7 @@ async function settleChargeResult(
     }
     if (input.result.retryable) {
       // We do not know whether Paystack received it. `unknown` is the honest answer and
-      // the reconciler resolves it by verifying this exact reference — never by charging.
+      // the reconciler resolves it by verifying this exact reference, never by charging.
       await settleOrReport(supabase, {
         attemptId,
         status: "unknown",
@@ -438,7 +438,7 @@ async function settleChargeResult(
  * Charge everything currently due.
  *
  * `app.due_billing_charges` already excludes an invoice with anything in flight, so the
- * claim below is a second lock rather than the only one — the read is a shortlist and the
+ * claim below is a second lock rather than the only one, the read is a shortlist and the
  * unique index is the decision.
  */
 export async function runBillingCharges(
@@ -483,7 +483,7 @@ export async function runBillingCharges(
   // renewal it had already been promised. The caller drains it.
   summary.moreDue = rows.length >= (opts.limit ?? CHARGE_BATCH_LIMIT);
 
-  // ── Concurrency, and why it is small ────────────────────────────────────────
+  // == Concurrency, and why it is small ========================================
   //
   // These were run strictly one after another, each waiting on a Paystack round trip of
   // roughly a second. Fifty renewals on the first of the month is therefore the better
@@ -491,8 +491,8 @@ export async function runBillingCharges(
   // has a wall clock on it.
   //
   // The window is deliberately NARROW. Every safety property here is held by the database
-  // — `billing_payment_attempts_inflight_uq` permits one live attempt per invoice however
-  // many workers ask — so correctness does not depend on this number. What does depend on
+  //, `billing_payment_attempts_inflight_uq` permits one live attempt per invoice however
+  // many workers ask, so correctness does not depend on this number. What does depend on
   // it is being a well-behaved client of somebody else's API: a burst of parallel charges
   // against one merchant account is how a provider starts rate-limiting, and a 429 in the
   // middle of a charging run is indistinguishable from a decline at the moment it arrives.
@@ -500,14 +500,14 @@ export async function runBillingCharges(
   // would object to.
   //
   // DISTINCT INVOICES ONLY, in flight together. `due_billing_charges` already returns one
-  // row per invoice, so this is an invariant being relied on rather than enforced — and if
+  // row per invoice, so this is an invariant being relied on rather than enforced, and if
   // it were ever violated, the unique index is what would catch it, not this loop.
   const runOne = async (due: DueCharge): Promise<ChargeOutcome> => {
     try {
       return await chargeOneInvoice(supabase, provider, due);
     } catch (err) {
       // A throw here has already claimed, or has not. Either way the attempt row (if it
-      // exists) is `pending` and the reconciler will verify it — which is exactly why the
+      // exists) is `pending` and the reconciler will verify it, which is exactly why the
       // reference is minted first.
       return { result: "error", invoiceId: due.invoice_id, reason: redactMessage(err, 300) };
     }
@@ -537,7 +537,7 @@ export async function runBillingCharges(
         summary.unknown += 1;
         // An `unknown` is the one outcome that means "we do not know whether the customer
         // was charged", and it BLOCKS the invoice until somebody or the reconciler settles
-        // it. It belongs in `errors`, which is what the cron route drains into Sentry —
+        // it. It belongs in `errors`, which is what the cron route drains into Sentry -
         // until now it incremented a counter in a JSON body that only Vercel reads.
         if (outcome.reason) summary.errors.push(outcome.reason);
         break;
@@ -561,13 +561,13 @@ export async function runBillingCharges(
  * Charge one specific invoice now, because a person asked.
  *
  * Used by the owner's "Try again" and by Rapid Rise's admin retry, and it goes through
- * `app.invoice_chargeable_now` — NOT the nightly shortlist.
+ * `app.invoice_chargeable_now`, NOT the nightly shortlist.
  *
  * It used to rebuild the automatic shortlist and look for the invoice in it. That
  * shortlist carries `coalesce(next_retry_on, current_date) <= current_date`, so after a
  * decline this answered "nothing is due" for the whole retry interval while the invoice
  * was plainly unpaid; and it carries `status in ('active','past_due')`, so from the
- * moment a farm entered grace the stored card was never presented again by anything —
+ * moment a farm entered grace the stored card was never presented again by anything -
  * not the cron, and not the customer pressing the button.
  *
  * The retry timer exists to stop the MACHINE hammering a card, which issuers penalise.
@@ -575,7 +575,7 @@ export async function runBillingCharges(
  *
  * What is NOT relaxed: the in-flight block. `claimBillingCharge` is still the only way to
  * take a charge and `billing_payment_attempts_inflight_uq` still permits exactly one
- * attempt per invoice — "just try it again" is the perfect way to charge somebody twice.
+ * attempt per invoice, "just try it again" is the perfect way to charge somebody twice.
  * The farm is re-checked here too, because the function is keyed on the invoice alone.
  */
 export async function retryInvoiceCharge(
@@ -613,7 +613,7 @@ export async function retryInvoiceCharge(
 /**
  * Ask the provider what happened to ONE attempt, by its own reference.
  *
- * The reference is the point. We are not asking "did this farm pay?" — we are asking
+ * The reference is the point. We are not asking "did this farm pay?", we are asking
  * about the single transaction we minted a handle for before we made the call, which is
  * the only question whose answer cannot accidentally be about somebody else's money.
  *
@@ -639,10 +639,10 @@ export async function reconcileAttempt(
     }
     // Two conditions, and BOTH are load-bearing.
     //
-    //   retryable === false  — this is not a 5xx, a 429, a timeout or an unreadable body,
+    //   retryable === false , this is not a 5xx, a 429, a timeout or an unreadable body,
     //                          so it is not the "ask again in a minute" case.
     //
-    //   answered === true    — and Paystack PROCESSED the query, returning its own
+    //   answered === true   , and Paystack PROCESSED the query, returning its own
     //                          `status:false` envelope. For `transaction/verify` that is
     //                          "no such transaction": not ambiguity, a fact. No money
     //                          moved under this reference.
@@ -650,7 +650,7 @@ export async function reconcileAttempt(
     // `!retryable` alone would be wrong, and dangerously so: a missing API key, a
     // malformed 200 and a reference we never managed to send are all non-retryable, and
     // each of them would then close an attempt we know nothing about and hand its invoice
-    // back to the charging queue — which is how the same farm gets charged twice.
+    // back to the charging queue, which is how the same farm gets charged twice.
     //
     // Without the terminal case an `unknown` could never be resolved by this path: a
     // charge whose request never reached Paystack jammed its invoice permanently. The
@@ -667,7 +667,7 @@ export async function reconcileAttempt(
       await noteReconciliation(
         supabase,
         attempt.id,
-        `provider does not know this reference — no money moved: ${reason}`,
+        `provider does not know this reference, no money moved: ${reason}`,
         attempt.reconcile_note,
       );
       return { result: "abandoned", attemptId: attempt.id, reason };
@@ -737,7 +737,7 @@ export async function reconcileAttempt(
     providerRef: txn.reference,
     gatewayResponse: txn.gatewayResponse,
     failureReason: redactMessage(txn.gatewayResponse ?? status, 240),
-    // A REVERSAL settles as `failed` — the money came back, so the invoice is not paid —
+    // A REVERSAL settles as `failed`, the money came back, so the invoice is not paid -
     // but must not dun the farm. Their card worked; we or their bank sent it back.
     dun: !txn.reversed,
   }, "billing:settle-unknown");
@@ -755,7 +755,7 @@ export async function reconcileAttempt(
  *
  * Only ever reached from a VERIFIED, matched success. A non-reusable authorization is
  * refused (`storeAuthorization` says so and the table's own check constraint would
- * refuse it anyway) — a one-shot authorization stored as a subscription card produces a
+ * refuse it anyway), a one-shot authorization stored as a subscription card produces a
  * farm that looks set up and then fails every renewal.
  */
 async function captureCardIfOffered(
@@ -825,7 +825,7 @@ export async function reconcileStuckAttempts(
   return summary;
 }
 
-/** Reconcile one attempt by id — what Rapid Rise's "check this with Paystack" does. */
+/** Reconcile one attempt by id, what Rapid Rise's "check this with Paystack" does. */
 export async function reconcileAttemptById(
   supabase: SupabaseClient,
   attemptId: string,

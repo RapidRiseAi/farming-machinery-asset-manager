@@ -1,8 +1,8 @@
 /**
  * The SARS logbooks are the records a rebate claim is audited against, so the two things
  * that matter here are that the balance actually follows the movements, and that nothing
- * is quietly left out. A logbook whose totals disagree with the tank — or with our own
- * other logbook — is worse than no logbook.
+ * is quietly left out. A logbook whose totals disagree with the tank, or with our own
+ * other logbook, is worse than no logbook.
  */
 
 import assert from "node:assert/strict";

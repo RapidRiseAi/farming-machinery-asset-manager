@@ -92,7 +92,7 @@ export async function getReportData(
   const operational = (table: string) => options.serviceRole ? table : `${table}_visible`;
   // Multi-site (F7): when acting in a specific farm, scope every farm-keyed query to it.
   // Single-farm users are unaffected (RLS already scopes to their one farm). `workshops`
-  // has no farm_id — it stays RLS-scoped; contractor rollups key off farm-scoped requests.
+  // has no farm_id, it stays RLS-scoped; contractor rollups key off farm-scoped requests.
   const byFarm = <Q,>(q: Q): Q =>
     farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
   // Analysis window for utilisation/downtime (bounded; a trailing window for "all time").
@@ -110,7 +110,7 @@ export async function getReportData(
     byFarm(supabase.from("work_request_events").select("work_request_id, to_status, created_at").is("deleted_at", null)),
     supabase.from("workshops").select("id, name"),
     byFarm(supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").is("deleted_at", null).order("period_start", { ascending: false })),
-    // Meter readings inside the analysis window — utilisation (net metered delta ÷ capacity).
+    // Meter readings inside the analysis window, utilisation (net metered delta ÷ capacity).
     byFarm(supabase.from("meter_readings").select("machine_id, reading, reading_date").gte("reading_date", win.from).lte("reading_date", win.to).is("deleted_at", null)),
     // Downtime days per machine, reconstructed from the audit-log status trail (0361 rpc).
     supabase.rpc("fleet_downtime", { p_from: win.from, p_to: win.to }),
@@ -125,14 +125,14 @@ export async function getReportData(
   const jcs = ((jcData as JC[] | null) ?? []).filter((j) => allowed.has(j.machine_id) && inRange(j.date_out, f));
   const jcById = Object.fromEntries(jcs.map((j) => [j.id, j]));
 
-  // Lifetime TCO per machine (all cost types; not period-filtered — TCO is a lifetime metric).
+  // Lifetime TCO per machine (all cost types; not period-filtered, TCO is a lifetime metric).
   const tcoByMachine = new Map<string, number>();
   for (const c of (costData as Cost[] | null) ?? []) {
     if (c.machine_id == null || !allowed.has(c.machine_id)) continue;
     tcoByMachine.set(c.machine_id, (tcoByMachine.get(c.machine_id) ?? 0) + (c.amount_cents ?? 0));
   }
 
-  // 1) Cost per machine — period maintenance spend columns + lifetime TCO + per-hour/km.
+  // 1) Cost per machine, period maintenance spend columns + lifetime TCO + per-hour/km.
   const agg = new Map<string, { parts: number; labour: number; other: number; total: number }>();
   for (const j of jcs) {
     const a = agg.get(j.machine_id) ?? { parts: 0, labour: 0, other: 0, total: 0 };
@@ -147,7 +147,7 @@ export async function getReportData(
       const reading = m?.current_reading ?? null;
       const perHour = m?.meter_type === "hours" ? costPerMeter(tco, reading) : null;
       const perKm = m?.meter_type === "km" ? costPerMeter(tco, reading) : null;
-      return { machineId: id, name: m?.name ?? "—", ...a, tco, perHour, perKm, meterType: m?.meter_type ?? "none" };
+      return { machineId: id, name: m?.name ?? "-", ...a, tco, perHour, perKm, meterType: m?.meter_type ?? "none" };
     })
     .filter((r) => r.tco > 0 || r.total > 0)
     .sort((x, y) => y.tco - x.tco || y.total - x.total);
@@ -161,17 +161,17 @@ export async function getReportData(
   const compliance = { ok: 0, dueSoon: 0, overdue: 0, overdueList: [] as { name: string; task: string }[] };
   for (const l of (splData as { machine_id: string; task: string; status: string }[] | null) ?? []) {
     if (!allowed.has(l.machine_id)) continue;
-    if (l.status === "overdue") { compliance.overdue++; compliance.overdueList.push({ name: mById[l.machine_id]?.name ?? "—", task: l.task }); }
+    if (l.status === "overdue") { compliance.overdue++; compliance.overdueList.push({ name: mById[l.machine_id]?.name ?? "-", task: l.task }); }
     else if (l.status === "due_soon") compliance.dueSoon++;
     else compliance.ok++;
   }
 
   // 4) Recurring problems: top replaced parts + top fault categories + per-machine
-  //    "breaks most often" (repeat repair job cards + faults per machine — FR-11.2).
+  //    "breaks most often" (repeat repair job cards + faults per machine, FR-11.2).
   const partMap = new Map<string, number>();
   for (const p of (partData as { description: string | null; job_card_id: string }[] | null) ?? []) {
     if (!jcById[p.job_card_id]) continue;
-    const key = (p.description ?? "—").trim() || "—";
+    const key = (p.description ?? "-").trim() || "-";
     partMap.set(key, (partMap.get(key) ?? 0) + 1);
   }
   const breakMap = new Map<string, number>();
@@ -185,11 +185,11 @@ export async function getReportData(
   }
   const top = (m: Map<string, number>) => [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
   const breaksMostOften = [...breakMap.entries()]
-    .map(([id, count]) => ({ name: mById[id]?.name ?? "—", count }))
+    .map(([id, count]) => ({ name: mById[id]?.name ?? "-", count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // 5) Fuel — period litres/spend per machine (draws) + lifetime consumption; plus the
+  // 5) Fuel, period litres/spend per machine (draws) + lifetime consumption; plus the
   //    farm-level purchased totals (deliveries). Farm-level draws (machine_id null) are
   //    counted in totals but not in the per-machine table.
   type FI = { id: string; machine_id: string | null; date: string; litres: number | null; meter_reading: number | null; cost_cents: number | null };
@@ -216,7 +216,7 @@ export async function getReportData(
       const m = mById[id];
       const p = periodByMachine.get(id) ?? { litres: 0, spend: 0 };
       const c = computeConsumption(rows, m?.meter_type ?? "none");
-      return { machineId: id, name: m?.name ?? "—", meterType: m?.meter_type ?? "none", litres: p.litres, spend: p.spend, consumption: c.display };
+      return { machineId: id, name: m?.name ?? "-", meterType: m?.meter_type ?? "none", litres: p.litres, spend: p.spend, consumption: c.display };
     })
     .filter((r) => r.litres > 0 || r.spend > 0)
     .sort((a, b) => b.spend - a.spend || b.litres - a.litres);
@@ -229,7 +229,7 @@ export async function getReportData(
     purchasedSpend += Math.round((d.litres ?? 0) * (d.price_per_l_cents ?? 0));
   }
 
-  // 6) Contractor analytics (F13) — outstanding quote/invoice value, work-request
+  // 6) Contractor analytics (F13), outstanding quote/invoice value, work-request
   //    throughput, contractor responsiveness (requested→viewed→quoted from the event
   //    log), and spend via contractors (cost_entries type=invoice, period-filtered).
   //    Farm-scoped by RLS; retired/sold machines excluded via `allowed`.
@@ -280,7 +280,7 @@ export async function getReportData(
   }
   const round1 = (n: number) => Math.round(n * 10) / 10;
 
-  // Spend via contractors — the invoice cost entries (the F1 invoice→cost path), in range.
+  // Spend via contractors, the invoice cost entries (the F1 invoice→cost path), in range.
   let spendViaContractors = 0;
   for (const c of (costData as Cost[] | null) ?? []) {
     if (c.type !== "invoice" || c.machine_id == null || !allowed.has(c.machine_id)) continue;
@@ -295,10 +295,10 @@ export async function getReportData(
     }
   }
   const perContractor = [...perContractorMap.entries()]
-    .map(([workshopId, v]) => ({ workshopId, name: wsName[workshopId] ?? "—", ...v }))
+    .map(([workshopId, v]) => ({ workshopId, name: wsName[workshopId] ?? "-", ...v }))
     .sort((a, b) => b.spend - a.spend || b.requests - a.requests);
 
-  // 7) Budgets (G1 · FR-10.4) — budget-vs-actual per budget. Actual is summed from the
+  // 7) Budgets (G1 · FR-10.4), budget-vs-actual per budget. Actual is summed from the
   //    cost ledger over each budget's OWN scope + period (not the report filter). A
   //    machine-scoped budget on an excluded (retired/sold/other-group) machine is hidden.
   const budgetCostRows = ((costData as Cost[] | null) ?? []) as BudgetCostRow[];
@@ -307,7 +307,7 @@ export async function getReportData(
     .map((b) => {
       const p = budgetProgress(budgetCostRows, b);
       return {
-        id: b.id, machineId: b.machine_id, scope: b.machine_id ? (mById[b.machine_id]?.name ?? "—") : "",
+        id: b.id, machineId: b.machine_id, scope: b.machine_id ? (mById[b.machine_id]?.name ?? "-") : "",
         category: b.category, periodType: b.period_type, periodStart: b.period_start, periodEnd: b.period_end,
         amount: b.amount_cents, actual: p.actual, variance: p.variance, pct: p.pct, status: p.status,
       };
@@ -340,7 +340,7 @@ export async function getReportData(
     .map((id) => {
       const m = mById[id];
       const u = computeUtilisation(readingsByMachine.get(id) ?? [], m?.meter_type ?? "none", win.from, win.to, hoursPerDay, kmPerDay);
-      return { machineId: id, name: m?.name ?? "—", meterType: m?.meter_type ?? "none", used: u.used, pct: u.pct, idle: u.idle, downtimeDays: downtimeByMachine.get(id) ?? 0 };
+      return { machineId: id, name: m?.name ?? "-", meterType: m?.meter_type ?? "none", used: u.used, pct: u.pct, idle: u.idle, downtimeDays: downtimeByMachine.get(id) ?? 0 };
     })
     .filter((r) => r.meterType !== "none" || r.downtimeDays > 0)
     .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.downtimeDays - a.downtimeDays);

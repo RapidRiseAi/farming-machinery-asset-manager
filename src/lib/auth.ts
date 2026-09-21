@@ -43,15 +43,15 @@ export type Profile = {
   role: Role;
   name: string;
   email: string | null;
-  /** The person's language choice on its own — what the EN/AF switch shows as current. */
+  /** The person's language choice on its own, what the EN/AF switch shows as current. */
   language: Locale;
-  /** Their wording register on its own — what the tone switch shows as current. */
+  /** Their wording register on its own, what the tone switch shows as current. */
   tone: Tone;
   /**
    * What to render in: language and tone composed into the single value `t()` takes.
    *
    * Pages read THIS, never `language`, so a page cannot accidentally render one of the
-   * two choices and ignore the other — which is exactly how the old bug worked, with
+   * two choices and ignore the other, which is exactly how the old bug worked, with
    * `<html lang>` reading the cookie while the body read the profile.
    */
   lang: Lang;
@@ -106,7 +106,7 @@ export async function requireUser(): Promise<User> {
 
 /**
  * Require an active app profile. A logged-in auth user with no profile row (or a
- * deactivated one) is sent back to /login — profiles are created via invites.
+ * deactivated one) is sent back to /login, profiles are created via invites.
  */
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
@@ -118,8 +118,8 @@ export async function requireProfile(): Promise<Profile> {
  * Where a role belongs when it has nowhere more specific to be.
  *
  * `requireRole` used to send EVERY denied user to `/dashboard?error=forbidden`. For an
- * operator that is the owner's money page — the one surface a farm can explicitly switch
- * off for operators via `cost_visible_to_operators` — and `error=forbidden` was never
+ * operator that is the owner's money page, the one surface a farm can explicitly switch
+ * off for operators via `cost_visible_to_operators`, and `error=forbidden` was never
  * rendered as anything a person could read, so the screen simply changed with no
  * explanation. Each role now has a home, and this is the only place that decides it.
  */
@@ -161,9 +161,9 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
   return { ...profile, farm_id: farmId, role };
 }
 
-// ── Multi-site "current farm" (F7) ───────────────────────────────────────────
+// == Multi-site "current farm" (F7) ===========================================
 // One account can now reach MULTIPLE farms (user_farm_memberships, 0340). The app keeps
-// a "current farm" the user is acting in — a cookie choice, validated against the farms
+// a "current farm" the user is acting in, a cookie choice, validated against the farms
 // they may actually access, defaulting to their PRIMARY farm (users.farm_id). Per-site
 // surfaces (dashboard/reports/machines) filter by this id; single-farm users are
 // unaffected (it is always their one farm). rr_admin/workshop have no single acting farm.
@@ -187,14 +187,14 @@ export async function accessibleFarms(profile?: Profile): Promise<FarmOption[]> 
   return (data as FarmOption[] | null) ?? [];
 }
 
-// ── RR support mode (S10) ────────────────────────────────────────────────────
+// == RR support mode (S10) ====================================================
 // "Act into farm" used to write an audit row and nothing else: no farm context was set
 // and no session state changed, so staff believed they were inside a customer account
 // when they were not, and there was no banner or exit because there was no mode to exit.
 //
 // Support mode is a NARROWING, never a grant. rr_admin already reads every farm through
 // `app.is_rr_admin()` in RLS; pinning a farm only scopes what the UI queries, so the
-// cookie cannot widen access even if forged — the worst a tampered value can do is show
+// cookie cannot widen access even if forged, the worst a tampered value can do is show
 // an admin an empty screen. The value is validated against a real farm row regardless.
 
 export const SUPPORT_FARM_COOKIE = "fw_support_farm";
@@ -226,7 +226,7 @@ export async function currentFarmId(profile?: Profile): Promise<string | null> {
   const store = await cookies();
   const chosen = store.get(CURRENT_FARM_COOKIE)?.value;
   if (chosen && chosen !== p.farm_id) {
-    // Only honour a cookie that names a farm this user can genuinely access — never a
+    // Only honour a cookie that names a farm this user can genuinely access, never a
     // guessable bypass (RLS would deny the data regardless, but keep the UI honest).
     const farms = await accessibleFarms(p);
     if (farms.some((f) => f.id === chosen)) return chosen;
@@ -325,11 +325,11 @@ export async function requireCurrentFarmRole(
   return requireFarmRole(farmId, roles, deniedPath, profile);
 }
 
-// ── Entitlement gating (F5) ──────────────────────────────────────────────────
+// == Entitlement gating (F5) ==================================================
 // Feature access is governed by the FARM's subscription plan (src/lib/entitlements.ts,
 // mirrored by app.has_entitlement in SQL). Two roles BYPASS plan gates entirely:
-//   * rr_admin — FleetWise platform staff (cross-tenant; not the billing subject);
-//   * workshop — external contractors who only ever reach a linked farm's data through
+//   * rr_admin, FleetWise platform staff (cross-tenant; not the billing subject);
+//   * workshop, external contractors who only ever reach a linked farm's data through
 //     RLS, and whose entitlement is that farm's concern, not their own.
 // Everyone else is gated by their own farm's plan.
 
@@ -362,7 +362,7 @@ export async function currentPlan(
   return { profile: p, plan: farmId ? await getFarmPlan(farmId) : null };
 }
 
-/** Evaluate an entitlement without redirecting — for pages/nav/inline sections. */
+/** Evaluate an entitlement without redirecting, for pages/nav/inline sections. */
 export async function checkEntitlement(
   feature: Feature,
   profile?: Profile
@@ -375,7 +375,7 @@ export async function checkEntitlement(
 /**
  * Enforce an entitlement server-side in a route/action. If the farm's plan does not
  * unlock `feature`, redirect to `redirectTo` (the relevant surface, which renders the
- * upgrade prompt) — a real server-side denial, not merely hidden UI. Returns the profile
+ * upgrade prompt), a real server-side denial, not merely hidden UI. Returns the profile
  * when allowed.
  */
 export async function requireEntitlement(
@@ -387,9 +387,9 @@ export async function requireEntitlement(
   return profile;
 }
 
-// ── Partner-plan gating (F12c, reshaped in F14e) ─────────────────────────────
+// == Partner-plan gating (F12c, reshaped in F14e) =============================
 // The two-sided twin of the farm entitlement above: this governs the PARTNER's portal
-// by the product they bought (`workshops.plan`, 0382 — portal | managed), NOT tenancy —
+// by the product they bought (`workshops.plan`, 0382, portal | managed), NOT tenancy -
 // isolation stays with RLS + workshop_links. Map lives in src/lib/contractor-plan.ts.
 
 export type WorkshopEntitlementCheck = {
@@ -403,7 +403,7 @@ export type WorkshopEntitlementCheck = {
 
 /**
  * The current partner user's product, or null when the user is not a workshop.
- * Falls back to `portal` if the row is somehow unreadable — the safe direction, since
+ * Falls back to `portal` if the row is somehow unreadable, the safe direction, since
  * `portal` is the one every partner is entitled to. Reads the real `workshops.plan`
  * column; the map in contractor-plan.ts is the entitlement authority.
  */
@@ -423,8 +423,8 @@ export async function workshopPlan(
 }
 
 /**
- * The current partner's full account row — letterhead, business details, document
- * defaults and product — in one read. Returns null for anyone who is not a workshop
+ * The current partner's full account row, letterhead, business details, document
+ * defaults and product, in one read. Returns null for anyone who is not a workshop
  * user. Used by the partner's settings screen, the document builder and the PDF route,
  * all of which need the same row and must not each invent their own column list.
  */
@@ -458,7 +458,7 @@ export async function checkWorkshopEntitlement(
 /**
  * Enforce a partner entitlement in a SERVER ACTION. The twin of `requireEntitlement` for
  * the farm side, and the reason it exists is the same one F5 recorded: a page that renders
- * an upgrade notice has hidden the screen, not closed the door — the action behind it is
+ * an upgrade notice has hidden the screen, not closed the door, the action behind it is
  * still a POST endpoint anybody with the form can reach. `redirectTo` is the surface
  * itself, which renders the notice, so a denied submit lands somewhere that explains
  * itself rather than on a blank error.
@@ -475,7 +475,7 @@ export async function requireWorkshopEntitlement(
 
 /**
  * The same rule for an API route, which must answer with a status rather than a
- * redirect — a CSV or PDF endpoint that 302s to an HTML page hands the caller a file
+ * redirect, a CSV or PDF endpoint that 302s to an HTML page hands the caller a file
  * full of markup. 403 matches how F5 denied the farm-side report exports.
  */
 export async function workshopEntitlementOr403(

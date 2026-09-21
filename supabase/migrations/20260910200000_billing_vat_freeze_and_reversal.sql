@@ -1,8 +1,8 @@
 -- 20260910200000_billing_vat_freeze_and_reversal.sql
 -- Two ways this ledger mishandles money that has already moved.
 --
--- S4 — REGISTERING FOR VAT BREAKS EVERY INVOICE RAISED BEFORE IT
--- ─────────────────────────────────────────────────────────────────────────────
+-- S4, REGISTERING FOR VAT BREAKS EVERY INVOICE RAISED BEFORE IT
+-- =============================================================================
 -- `app.billing_force_vat_rate` runs BEFORE INSERT OR UPDATE on billing_invoices. Its
 -- second branch stamps the seller's VAT number onto any row that does not have one:
 --
@@ -10,7 +10,7 @@
 --       new.seller_vat_number := v_number;
 --
 -- On an INSERT that is right. On an UPDATE to an invoice raised BEFORE Rapid Rise
--- registered — every one of which has `seller_vat_number` null by design — it stamps a
+-- registered, every one of which has `seller_vat_number` null by design, it stamps a
 -- field that the invoice's frozen pricing snapshot includes. `c_billing_invoices_freeze`
 -- then sees `new.seller_vat_number is distinct from old.seller_vat_number` and raises.
 --
@@ -19,7 +19,7 @@
 --
 -- What that costs, concretely: `app.billing_rollup_invoice_payments` updates the invoice
 -- when a payment is recorded. So the FIRST payment against any pre-registration invoice
--- after registering aborts — and it aborts the whole transaction, which is the one that
+-- after registering aborts, and it aborts the whole transaction, which is the one that
 -- inserted the payment row and settled the attempt. Paystack has the money. FleetWise has
 -- nothing, the attempt is still in flight, and (until the S6 fix landing alongside this)
 -- nobody sees the error.
@@ -29,33 +29,33 @@
 --
 -- The fix says what was always meant: an issued invoice's VAT position is part of its
 -- frozen snapshot, so the guard has nothing to do on an update to one. It deliberately
--- does NOT copy old values over new ones — an actual attempt to change the VAT fields on
+-- does NOT copy old values over new ones, an actual attempt to change the VAT fields on
 -- an issued invoice must still reach the freeze and raise, because making tampering loud
 -- is that trigger's whole job.
 --
--- S — A REVERSAL IS NOT A DECLINE, AND MUST NOT DUN THE CUSTOMER
--- ─────────────────────────────────────────────────────────────────────────────
+-- S, A REVERSAL IS NOT A DECLINE, AND MUST NOT DUN THE CUSTOMER
+-- =============================================================================
 -- `mapStatus` in the Paystack adapter maps `reversed` to `failed`, deliberately: the money
 -- came back, so the safe direction is "do not treat this invoice as paid". That part is
 -- right and stays.
 --
 -- But `app.settle_billing_attempt` reads `failed` as "their card did not work" and calls
 -- `app.billing_register_failure`, which starts the farm down the retry ladder towards a
--- downgrade. A reversal is usually OUR refund or a chargeback — the customer's card worked
+-- downgrade. A reversal is usually OUR refund or a chargeback, the customer's card worked
 -- perfectly. Dunning somebody because we sent their money back is both wrong and the kind
 -- of thing that gets talked about.
 --
 -- So `settle_billing_attempt` gains `p_dun`. The invoice treatment is unchanged (unpaid is
 -- unpaid); only the dunning ladder is suppressed. The old signature is DROPPED rather than
 -- left beside the new one: `create or replace` will not replace a function with a
--- different argument list, and two overloads reachable over PostgREST — which resolves by
--- named arguments — is an ambiguity waiting to pick the wrong one.
+-- different argument list, and two overloads reachable over PostgREST, which resolves by
+-- named arguments, is an ambiguity waiting to pick the wrong one.
 --
 -- Suite section (u) covers both, mutation-tested.
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- S4 — an issued invoice's VAT position is frozen, so the guard leaves it alone
+-- S4, an issued invoice's VAT position is frozen, so the guard leaves it alone
 -- ══════════════════════════════════════════════════════════════════════════════
 create or replace function app.billing_force_vat_rate() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -89,7 +89,7 @@ revoke execute on function app.billing_force_vat_rate() from public, anon, authe
 -- A reversal settles the attempt without starting the dunning ladder
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Dropped, not replaced: `create or replace` cannot change an argument list, and leaving
--- both overloads reachable over PostgREST — which resolves by NAMED arguments — is an
+-- both overloads reachable over PostgREST, which resolves by NAMED arguments, is an
 -- ambiguity that would eventually pick the wrong one.
 drop function if exists public.billing_settle_attempt(
   uuid, billing_attempt_status, bigint, text, text, text, bigint, text);
@@ -192,10 +192,10 @@ grant  execute on function public.billing_settle_attempt(
 -- respond before Paystack accepts it on our behalf and takes the money out of a payout.
 -- A clock nobody can see is a clock that always runs out.
 --
--- This does not decide what a refund does to the ledger or to the farm's plan — that is a
+-- This does not decide what a refund does to the ledger or to the farm's plan, that is a
 -- founder decision and it is not made here. It makes the event visible to the only people
 -- who can act on it.
--- Shaped exactly like app.notify_farm (0261) — same columns, same channel, same queue —
+-- Shaped exactly like app.notify_farm (0261), same columns, same channel, same queue -
 -- because the same renderer and the same alert centre read both. The audience is the only
 -- difference, and it is the point: a dispute or a refund is Rapid Rise's problem, not the
 -- farmer's, so the row is farm-SCOPED (RLS, and the deep link) and rr_admin-ADDRESSED.

@@ -61,7 +61,7 @@ export default async function ExpenseSchedulePage({
 
   // What this schedule has actually produced. The proof that it is working, and the first
   // place to look when a partner thinks it is not. Only the most recent one is recorded
-  // (`last_expense_id`) — the generated rows are ordinary expenses with no back-pointer,
+  // (`last_expense_id`), the generated rows are ordinary expenses with no back-pointer,
   // deliberately, so nothing downstream has to know this feature exists.
   const { data: lastData } = schedule.last_expense_id
     ? await supabase

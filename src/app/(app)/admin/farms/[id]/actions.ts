@@ -22,7 +22,7 @@ export async function updateFarm(formData: FormData) {
   }
 
   const supabase = await createClient();
-  // Sets plan/billing_period/status only — asset_count is trigger-maintained (0251),
+  // Sets plan/billing_period/status only, asset_count is trigger-maintained (0251),
   // never client-set. Pricing is display-only; no charge is made (payments deferred).
   const { error } = await supabase
     .from("farms")
@@ -31,7 +31,7 @@ export async function updateFarm(formData: FormData) {
   if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
 
   // Payment seam (deferred): reconcile the subscription with the billing provider. The
-  // no-op adapter returns { deferred: true } and moves no money — this is the exact
+  // no-op adapter returns { deferred: true } and moves no money, this is the exact
   // lifecycle point where a real provider will plug in after research.
   const { data: after } = await supabase.from("farms").select("asset_count").eq("id", id).maybeSingle();
   await getBillingAdapter().syncSubscription({
@@ -46,9 +46,9 @@ export async function updateFarm(formData: FormData) {
 }
 
 /**
- * Enter support mode for a farm (Scope §4.9 — impersonate for support, logged).
+ * Enter support mode for a farm (Scope §4.9, impersonate for support, logged).
  *
- * This used to write an audit row and nothing else — no farm context, no session state —
+ * This used to write an audit row and nothing else, no farm context, no session state -
  * while the button read "Act into farm", so staff believed they were inside a customer
  * account when they were not, and there was no banner or exit because there was no mode
  * to exit.
@@ -60,7 +60,7 @@ export async function updateFarm(formData: FormData) {
  *
  * This is a NARROWING, not a grant: rr_admin already reads every farm through
  * `app.is_rr_admin()` in RLS. The cookie only scopes what the UI asks for, so it cannot
- * widen access — see `supportFarmId` in lib/auth.ts.
+ * widen access, see `supportFarmId` in lib/auth.ts.
  */
 export async function impersonateFarm(formData: FormData) {
   await requireRole(["rr_admin"]);
@@ -68,7 +68,7 @@ export async function impersonateFarm(formData: FormData) {
   if (!id) redirect("/admin/farms?error=Missing+farm");
   const supabase = await createClient();
 
-  // Only ever pin a farm that exists — a forged cookie is harmless but a real id keeps
+  // Only ever pin a farm that exists, a forged cookie is harmless but a real id keeps
   // the banner and the audit trail honest.
   const { data: farm } = await supabase.from("farms").select("id").eq("id", id).maybeSingle();
   if (!farm) redirect("/admin/farms?error=Farm+not+found");

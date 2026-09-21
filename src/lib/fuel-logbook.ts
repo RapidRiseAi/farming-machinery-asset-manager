@@ -3,20 +3,20 @@
  *
  * `SCOPE.md` §9 sells this module on one promise: the rebate "stands or fall on logbooks",
  * and FleetWise produces the records. What existed was a per-machine CSV whose own comment
- * calls it the logbook *basis* — litres, spend and consumption, which is a management
+ * calls it the logbook *basis*, litres, spend and consumption, which is a management
  * report, not a logbook. A claim is audited against two trails:
  *
- *   * STORAGE — what came into the tank and what went out of it, with a running balance,
+ *   * STORAGE, what came into the tank and what went out of it, with a running balance,
  *     so the diesel can be followed from the supplier's invoice to the machine;
- *   * USAGE — every draw, with the machine, the activity it was doing, the meter reading
+ *   * USAGE, every draw, with the machine, the activity it was doing, the meter reading
  *     and who drew it, so eligible use can be told from ineligible use.
  *
  * DRAFT, AND IT SAYS SO
- * ─────────────────────────────────────────────────────────────────────────────
+ * =============================================================================
  * These columns are modelled on the published SARS layout; nobody at SARS has confirmed
  * THIS file. Every export therefore carries a first line saying it must be checked by the
  * farmer's accountant before a claim, and the screen says the same before the download.
- * `SCOPE.md` §9 already requires that disclaimer in the product — the records are ours, the
+ * `SCOPE.md` §9 already requires that disclaimer in the product, the records are ours, the
  * claim is theirs.
  *
  * Pure. No I/O, no Supabase client: the routes hand it rows and it hands back a grid, so

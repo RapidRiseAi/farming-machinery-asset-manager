@@ -39,17 +39,17 @@ export const dynamic = "force-dynamic";
 /**
  * What each person on the farm is licensed to do, and until when.
  *
- * ── WHY IT IS A SEPARATE PAGE FROM /team ─────────────────────────────────────
- * `/team` is about access to this product — who may sign in and what they may press. This
+ * == WHY IT IS A SEPARATE PAGE FROM /team =====================================
+ * `/team` is about access to this product, who may sign in and what they may press. This
  * is about somebody's documents, and the two answer different questions on different days.
  * A farm opens this one when a truck is being loaded or an AARTO notice has arrived.
  *
- * ── WHY THE LIST IS SORTED BY TROUBLE ────────────────────────────────────────
- * Expired first, then expiring, then the rest — not alphabetically by name. The whole
+ * == WHY THE LIST IS SORTED BY TROUBLE ========================================
+ * Expired first, then expiring, then the rest, not alphabetically by name. The whole
  * value of this screen is the two rows at the top, and a list sorted by name buries them
  * among the fifteen people whose papers are fine.
  *
- * ── WHAT IS NOT HERE ─────────────────────────────────────────────────────────
+ * == WHAT IS NOT HERE =========================================================
  * A scanned copy of the card. Storing images of identity documents raises a POPIA
  * retention and access question this feature does not need to answer to be useful: the
  * dates are what expire, and the dates are what nobody is watching. Photographs can come
@@ -68,8 +68,8 @@ export default async function DriverLicencesPage({
   const permissionState = await farmPermissionState(profile);
   const farmId = permissionState.farmId;
   const canManage = permissionState.role === "owner" || permissionState.role === "manager";
-  // The same gate `/team` uses. RLS refuses the rows as well — a driver who types this URL
-  // gets their own file and nothing else — so this is about landing somebody on a screen
+  // The same gate `/team` uses. RLS refuses the rows as well, a driver who types this URL
+  // gets their own file and nothing else, so this is about landing somebody on a screen
   // they can use rather than about the data.
   if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
 

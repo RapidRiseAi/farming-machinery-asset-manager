@@ -1,13 +1,13 @@
 /**
- * Warranty + licence expiry status — the client/server mirror of the SQL helpers in
+ * Warranty + licence expiry status, the client/server mirror of the SQL helpers in
  * `0263_expiry_notifications.sql` (app.expiry_status_of / app.worse_expiry), so the UI
  * badges and the notification engine always agree.
  *
  * Status:
- *   - "expired"  — the date is in the past (or the hours meter has passed the limit)
- *   - "expiring" — within `leadDays` of expiry (or within `leadHours` of the hours limit)
- *   - "ok"       — comfortably in date
- *   - null       — no expiry recorded on this basis
+ *   - "expired" , the date is in the past (or the hours meter has passed the limit)
+ *   - "expiring", within `leadDays` of expiry (or within `leadHours` of the hours limit)
+ *   - "ok"      , comfortably in date
+ *   - null      , no expiry recorded on this basis
  */
 import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
@@ -20,7 +20,7 @@ export const DEFAULT_LICENCE_LEAD_DAYS = 30;
 
 const todayYmd = (): string => new Date().toISOString().slice(0, 10);
 
-/** Add `days` to today, returned as a YYYY-MM-DD string (UTC — dates are date-only). */
+/** Add `days` to today, returned as a YYYY-MM-DD string (UTC, dates are date-only). */
 function addDaysYmd(days: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);

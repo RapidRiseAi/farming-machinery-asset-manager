@@ -16,7 +16,7 @@ import { farmBillingGate, reopenFarmSubscription } from "@/lib/billing/service";
  * else on every `billing_*` table.
  *
  * What it does NOT do is take money. It puts the subscription back to PENDING with an
- * invoice against it — the exact state a fresh sign-up is in — and then sends them to
+ * invoice against it, the exact state a fresh sign-up is in, and then sends them to
  * `/activate`, which is the payment path that has actually been driven end to end on
  * production. Writing a second payment route for this case would double the number of
  * things that have to stay correct, for no gain.
@@ -30,7 +30,7 @@ export async function reopenFarm(): Promise<void> {
   if (!profile.farm_id) redirect("/home");
 
   // Only somebody who can commit the farm to a subscription may restart one. An operator
-  // on a closed farm sees this screen — they are gated to it like everyone else — and must
+  // on a closed farm sees this screen, they are gated to it like everyone else, and must
   // not be able to put their employer back on a paid plan. `/activate` draws exactly this
   // line for exactly this reason.
   if (profile.role !== "owner" && profile.role !== "manager") {

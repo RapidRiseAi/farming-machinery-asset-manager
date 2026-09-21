@@ -47,7 +47,7 @@ export default async function FinesPage({
   searchParams: Promise<{ error?: string; saved?: string; sm?: string; sd?: string }>;
 }) {
   // AARTO fine workflow is a Complete+ feature (FR-19.2). Deny server-side for under-plan
-  // farms — fine data is never fetched; an upgrade prompt shows instead.
+  // farms, fine data is never fetched; an upgrade prompt shows instead.
   const gate = await checkEntitlement("aarto");
   const profile = gate.profile;
   const locale = profile.lang;
@@ -84,7 +84,7 @@ export default async function FinesPage({
 
   // Every driver document on the farm, once, rather than a round trip per fine. RLS is what
   // decides how much of it comes back: owner and manager get the farm, anybody else gets
-  // their own file, and a linked workshop gets nothing — so the warning below reaches
+  // their own file, and a linked workshop gets nothing, so the warning below reaches
   // exactly the people already entitled to the dates behind it.
   let credentialsQ = supabase
     .from("driver_credentials")
@@ -119,7 +119,7 @@ export default async function FinesPage({
   const driverText = (f: { driver_user_id: string | null; driver_name: string | null }) =>
     (f.driver_user_id ? operatorName.get(f.driver_user_id) : null) ?? f.driver_name ?? t("fines.driverUnknown", locale);
 
-  // ── Driver auto-suggestion (FR-13.1 → FR-13.2): usage_logs for the chosen vehicle on the
+  // == Driver auto-suggestion (FR-13.1 → FR-13.2): usage_logs for the chosen vehicle on the
   // chosen offence date. This is the heart of "who was driving vehicle X on date D?".
   const sm = sp.sm && machineById.has(sp.sm) ? sp.sm : null;
   const sd = sp.sd && /^\d{4}-\d{2}-\d{2}$/.test(sp.sd) ? sp.sd : null;
@@ -258,8 +258,8 @@ export default async function FinesPage({
                 triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                 title={t("confirm.deleteFineTitle", locale)}
                 intro={t("confirm.deleteFineIntro", locale)
-                  .replace("{notice}", f.notice_number ?? "—")
-                  .replace("{machine}", machineById.get(f.machine_id)?.name ?? "—")}
+                  .replace("{notice}", f.notice_number ?? "-")
+                  .replace("{machine}", machineById.get(f.machine_id)?.name ?? "-")}
                 consequencesTitle={t("confirm.whatHappens", locale)}
                 consequences={[
                   t("confirm.deleteFineEffect1", locale),
@@ -297,13 +297,13 @@ export default async function FinesPage({
       <Flash tone="error" message={errMsg} />
       <Flash tone="success" message={savedMsg} />
 
-      {/* ── Capture: pick a vehicle + offence date → auto-suggest the driver ── */}
+      {/* == Capture: pick a vehicle + offence date → auto-suggest the driver == */}
       {canManage ? (
         <Card>
           <CardHeader><CardTitle>{t("fines.captureTitle", locale)}</CardTitle></CardHeader>
           <p className="mb-3 text-sm text-sand-500">{t("fines.captureHint", locale)}</p>
 
-          {/* Step 1 — which vehicle & when (drives the usage-log lookup). */}
+          {/* Step 1, which vehicle & when (drives the usage-log lookup). */}
           <form method="get" className="flex flex-wrap items-end gap-2 border-b border-sand-100 pb-3">
             <Field label={t("fines.vehicle", locale)} htmlFor="sm" className="min-w-[12rem] flex-1">
               <Select id="sm" name="sm" defaultValue={sm ?? ""} required>
@@ -332,7 +332,7 @@ export default async function FinesPage({
                 <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-600">{t("fines.noSuggestion", locale)}</p>
               )}
 
-              {/* Step 2 — full capture, driver pre-filled from the usage log. */}
+              {/* Step 2, full capture, driver pre-filled from the usage log. */}
               <form action={createFine} className="flex flex-col gap-3">
                 <input type="hidden" name="machine_id" value={sm} />
                 <input type="hidden" name="farm_id" value={captureMachine.farm_id} />
@@ -386,7 +386,7 @@ export default async function FinesPage({
         </Card>
       ) : null}
 
-      {/* ── Pending nominations & deadlines (§23) ── */}
+      {/* == Pending nominations & deadlines (§23) == */}
       <Card>
         <CardHeader><CardTitle>{t("fines.pendingTitle", locale)}</CardTitle></CardHeader>
         {pending.length === 0 ? (
@@ -396,7 +396,7 @@ export default async function FinesPage({
         )}
       </Card>
 
-      {/* ── Resolved / historical fines ── */}
+      {/* == Resolved / historical fines == */}
       {resolved.length > 0 ? (
         <Card>
           <CardHeader><CardTitle>{t("fines.otherTitle", locale)}</CardTitle></CardHeader>

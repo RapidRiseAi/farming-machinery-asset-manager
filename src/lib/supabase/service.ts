@@ -2,7 +2,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseEnv, getServiceRoleKey } from "@/lib/env";
 
 /**
- * Service-role Supabase client. BYPASSES RLS — use ONLY in trusted server code:
+ * Service-role Supabase client. BYPASSES RLS, use ONLY in trusted server code:
  * the public QR routes (which validate an unguessable per-machine token before
  * doing anything), the closed public API chokepoint, and admin operations. NEVER
  * import this into a client component.

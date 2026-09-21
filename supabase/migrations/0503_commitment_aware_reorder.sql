@@ -1,8 +1,8 @@
 -- 0503_commitment_aware_reorder.sql
 -- "You have 2 filters and the 250-hour service due next week needs 6."
 --
--- 0451 shipped the plain rule — `app.stock_needs_reorder(on_hand, reorder_point)`, at or
--- below the minimum you set — and said in its own header that the next version was
+-- 0451 shipped the plain rule, `app.stock_needs_reorder(on_hand, reorder_point)`, at or
+-- below the minimum you set, and said in its own header that the next version was
 -- commitment-aware and needed no new tables. It does not: `service_kit_items` (0271)
 -- already says what a service consumes, `app.recalc_machine_service` (0202) already knows
 -- what falls due, and `stock_items` (0450) already knows what is on the shelf. This joins
@@ -10,43 +10,43 @@
 --
 -- The difference is not cosmetic. "You have 2 and your minimum is 3" names a threshold
 -- somebody typed; "the next 30 days need 6 and you have 2" names a CONSEQUENCE, and it
--- fires for a part that has no reorder point at all — which is most of them, because
+-- fires for a part that has no reorder point at all, which is most of them, because
 -- setting a minimum for every part in a store is work nobody does.
 --
--- ── The lookahead is a judgement, so it is a SETTING ────────────────────────────
+-- == The lookahead is a judgement, so it is a SETTING ============================
 --
 -- 0451 declined to guess how far ahead to look. Guessing it in a function body would be
 -- worse than guessing it badly: nobody could see the number, and nobody could change it.
 -- So it is `farms.settings.reorder_lookahead_days`, written through the existing
--- owner/manager-guarded `update_farm_settings` RPC (0204, jsonb `||` merge — no schema
+-- owner/manager-guarded `update_farm_settings` RPC (0204, jsonb `||` merge, no schema
 -- change, no new policy), default **30 days**, and the screen states the window in words.
 -- Clamped to 1..365 on READ, so a typo of 100000 cannot produce a nonsense projection and
 -- a farm that has already stored one is not stuck with it.
 --
--- ── When does a service "fall due inside the window"? ───────────────────────────
+-- == When does a service "fall due inside the window"? ===========================
 --
 -- Three ways, and it is worth being explicit because each covers a case the others miss:
 --
---   1. `status in ('due_soon','overdue')` — the 0202 due engine has already ruled. This is
+--   1. `status in ('due_soon','overdue')`, the 0202 due engine has already ruled. This is
 --      the authority, not a second opinion; anything it flags is in the window whatever the
 --      arithmetic below says.
 --   2. Calendar basis: `next_due_date <= current_date + days`. Exact arithmetic, no model.
 --   3. Meter basis: the machine's OBSERVED daily rate, projected over the window.
 --
 -- (3) needs a rate, and the choice of where it comes from matters. The farm already has
--- `utilisation_hours_per_day` / `_km_per_day` (G1) — but those are CAPACITY, an upper
+-- `utilisation_hours_per_day` / `_km_per_day` (G1), but those are CAPACITY, an upper
 -- bound. At the 10 h/day default every 250-hour service on every machine is "due within 30
 -- days" for ever, which is a screen where everything is red and therefore a screen nobody
 -- reads. So the rate is OBSERVED: the meter movement over the trailing 90 days divided by
 -- the days between the first and last reading in it. A machine parked all winter projects
 -- nothing, which is correct.
 --
--- Where there is not enough history to observe a rate — fewer than two readings, or less
--- than a week between them — NOTHING is invented. Such a line reaches the window only via
+-- Where there is not enough history to observe a rate, fewer than two readings, or less
+-- than a week between them, NOTHING is invented. Such a line reaches the window only via
 -- (1) or (2). That is the honest answer: we do not know how fast this machine is used, and
 -- a made-up rate would put a number on the screen that no farmer could account for.
 --
--- ── A machine's kit counts ONCE, and all of its kits count ──────────────────────
+-- == A machine's kit counts ONCE, and all of its kits count ======================
 --
 -- Nothing in the schema links a `service_kit` to a `service_plan_line`. A kit is scoped to
 -- a machine or to a machine_type; a plan line is a task with an interval. So two questions
@@ -57,34 +57,34 @@
 --     number.
 --   * Several kits on one machine (a 250 h kit and a 500 h kit) → ALL of them count. There
 --     is no data that says which service a kit belongs to, so the alternative is to pick one
---     arbitrarily. Over-warning on a reorder screen fails safe — you buy a filter you will
---     need next quarter — and `stock_commitment` returns the contributing machines and kits
+--     arbitrarily. Over-warning on a reorder screen fails safe, you buy a filter you will
+--     need next quarter, and `stock_commitment` returns the contributing machines and kits
 --     so the number is auditable rather than mysterious. The screen says this in words.
 --
 -- A machine with no kit of its own falls back to a kit template for its TYPE. A machine
 -- with its own kit ignores the type template, so the two never stack.
 --
--- ── Matching a kit item to the shelf ───────────────────────────────────────────
+-- == Matching a kit item to the shelf ===========================================
 --
 -- By catalogue part where the kit item links one; otherwise by the part NUMBER, compared
 -- trimmed and case-insensitively, exactly the way 0482 resolves a supplier from free text.
 -- A kit item that carries both is matched by its catalogue id only, so it cannot count
--- twice. A committed part the farm does not track in the store yields no row — there is no
+-- twice. A committed part the farm does not track in the store yields no row, there is no
 -- shelf to be short of. That is a known limit, recorded rather than hidden.
 --
--- ── Warn, never block ──────────────────────────────────────────────────────────
+-- == Warn, never block ==========================================================
 --
 -- Nothing here refuses anything. There is no trigger, no constraint and no check on
 -- `stock_movements` or `job_card_lines` in this file: a mechanic at six in the morning must
 -- be able to issue the last filter and record reality. Same call 0430 made for missing
--- receipts and 0500 for a credit limit — the product says so, loudly, and gets out of the
+-- receipts and 0500 for a credit limit, the product says so, loudly, and gets out of the
 -- way.
 --
 -- Reading stays open to the whole farm side and writing stays owner/manager/mechanic:
 -- these are read-only functions over tables whose policies 0452 already settled, and
 -- nothing below re-opens that.
 
--- ── The window ───────────────────────────────────────────────────────────────
+-- == The window ===============================================================
 -- Its own function for the same reason `stock_needs_reorder` is: this is the part most
 -- likely to want changing once a real farm has used it for a season.
 create or replace function app.reorder_lookahead_days(p_farm uuid) returns int
@@ -99,7 +99,7 @@ comment on function app.reorder_lookahead_days(uuid) is
   'How far ahead the store looks for committed parts: farms.settings.reorder_lookahead_days, '
   'default 30, clamped to 1..365 on read. Set through update_farm_settings (0204).';
 
--- ── What the next N days have already spoken for ─────────────────────────────
+-- == What the next N days have already spoken for =============================
 -- SECURITY INVOKER on purpose (the 0460 rule): passing another farm's id is answered by RLS
 -- on stock_items / service_plan_lines / machines / service_kits, not by a check somebody
 -- could forget to write. Every `deleted_at is null` is stated anyway, because the nightly
@@ -219,9 +219,9 @@ comment on function app.stock_commitment(uuid, int) is
   'machine''s kit counts once; a machine with several kits counts all of them, and the '
   'contributing machines/kits are returned so the number can be audited.';
 
--- ── On hand, committed, and what is missing ──────────────────────────────────
+-- == On hand, committed, and what is missing ==================================
 -- Built FROM stock_commitment rather than repeating its joins, so the two can never
--- disagree — the same reason `app.partner_cashflow` is built from its own item list (0486).
+-- disagree, the same reason `app.partner_cashflow` is built from its own item list (0486).
 create or replace function app.stock_shortfall(p_farm uuid, p_days int default null)
 returns table (
   stock_item_id  uuid,
@@ -280,7 +280,7 @@ comment on function app.stock_shortfall(uuid, int) is
   'On hand vs committed vs short, per stock item (0503). Built from app.stock_commitment so '
   'the screen and the nightly nudge cannot disagree. Warns; never blocks anything.';
 
--- ── PostgREST-callable wrappers ──────────────────────────────────────────────
+-- == PostgREST-callable wrappers ==============================================
 -- PostgREST exposes only `public`, and the app needs both of these to render the store.
 -- SECURITY INVOKER all the way down, so RLS is what answers a cross-tenant id.
 create or replace function public.reorder_lookahead_days(p_farm uuid) returns int
@@ -305,7 +305,7 @@ returns table (
   select * from app.stock_shortfall(p_farm, p_days);
 $$;
 
--- A function with no explicit grant defaults to EXECUTE TO PUBLIC — how the F14 debug probe
+-- A function with no explicit grant defaults to EXECUTE TO PUBLIC, how the F14 debug probe
 -- stayed reachable (0440), and what G11 fails the suite for.
 do $do$
 declare f text;
@@ -323,11 +323,11 @@ begin
   end loop;
 end $do$;
 
--- ── The nudge ────────────────────────────────────────────────────────────────
+-- == The nudge ================================================================
 -- 0205 pattern, exactly as 0451: SECURITY DEFINER in `app`, execute revoked from everyone
 -- but the service role, a `public.cron_*` wrapper for the nightly route, quiet hours
 -- honoured, and a weekly dedupe read from the notification QUEUE rather than from a new
--- column (F13's approach — a dedupe column is a second thing to keep in step).
+-- column (F13's approach, a dedupe column is a second thing to keep in step).
 create or replace function app.enqueue_stock_shortfall_nudges() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -380,16 +380,16 @@ $$;
 revoke execute on function public.cron_enqueue_stock_shortfall() from public, anon, authenticated;
 grant  execute on function public.cron_enqueue_stock_shortfall() to service_role;
 
--- ── One shelf, one sentence a week ───────────────────────────────────────────
+-- == One shelf, one sentence a week ===========================================
 -- 0451's engine is REPLACED rather than left alongside, because an item that is both below
 -- its minimum AND short would otherwise raise two notifications about the same shelf on the
--- same night — and two lines that say nearly the same thing is how an alert centre becomes
+-- same night, and two lines that say nearly the same thing is how an alert centre becomes
 -- wallpaper, which is the exact failure 0451's own header warned about.
 --
 -- Where both apply the shortfall wins: it names the consequence and the low-stock line only
 -- names the threshold. Where only one applies, that one fires. The suppression is computed
 -- once up front rather than per row, and it makes the two engines order-independent in the
--- nightly route — whichever runs first, an item gets at most one message.
+-- nightly route, whichever runs first, an item gets at most one message.
 --
 -- Everything else about this function is 0451 unchanged.
 create or replace function app.enqueue_low_stock_nudges() returns void

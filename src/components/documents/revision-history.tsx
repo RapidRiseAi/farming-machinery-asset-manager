@@ -18,7 +18,7 @@ export type Revision = {
  * Every version this document has had.
  *
  * The point of allowing an issued document to be edited is that the edit is never
- * invisible, so this panel is not an extra — it is the other half of the feature, and it
+ * invisible, so this panel is not an extra, it is the other half of the feature, and it
  * shows to the CUSTOMER as well as to the partner. Somebody who was sent an invoice for
  * R4 105 and later sees R3 800 can read here what changed, when, who did it and why.
  *

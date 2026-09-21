@@ -3,14 +3,14 @@
  *
  * A partner's letterhead in one shape, resolved once and used by three renderers that
  * must not disagree: the on-screen document, the print stylesheet, and the PDF. Anything
- * the partner has not filled in falls back to something presentable rather than a blank —
+ * the partner has not filled in falls back to something presentable rather than a blank -
  * a partner who signs up and immediately sends a quote should get a document that looks
  * deliberate, not half-configured.
  */
 
 import type { IssuerSnapshot } from "@/lib/partner-docs";
 
-/** FleetWise's own green — the fallback letterhead colour, and the PDF wordmark colour. */
+/** FleetWise's own green, the fallback letterhead colour, and the PDF wordmark colour. */
 export const DEFAULT_BRAND_PRIMARY = "#166534";
 export const DEFAULT_BRAND_SECONDARY = "#1f2937";
 
@@ -33,7 +33,7 @@ export type WorkshopBrandingRow = {
   whatsapp?: string | null;
   email?: string | null;
   website?: string | null;
-  /** Service area — not part of the letterhead, but read alongside it. */
+  /** Service area, not part of the letterhead, but read alongside it. */
   area?: string | null;
   bank_name?: string | null;
   bank_account_name?: string | null;
@@ -92,7 +92,7 @@ export function brandingFrom(w: WorkshopBrandingRow | null | undefined): Brandin
     quoteValidityDays: w?.quote_validity_days ?? 14,
     invoiceTermsDays: w?.invoice_terms_days ?? 30,
     // A partner below the registration threshold issues at zero, whatever the
-    // stored rate says — the rate is kept so turning registration on restores it.
+    // stored rate says, the rate is kept so turning registration on restores it.
     defaultVatRateBps: w?.vat_registered === false ? 0 : (w?.default_vat_rate_bps ?? 1500),
     vatRegistered: w?.vat_registered !== false,
   };
@@ -113,7 +113,7 @@ export function brandingOf(snapshot: IssuerSnapshot | null | undefined, current:
   return { ...current, ...snapshot, name: snapshot.name || current.name };
 }
 
-/** `#RRGGBB`, lowercased — or null if it isn't one. Mirrors the 0380 check constraint. */
+/** `#RRGGBB`, lowercased, or null if it isn't one. Mirrors the 0380 check constraint. */
 export function normaliseHex(value: string | null | undefined): string | null {
   if (!value) return null;
   const v = value.trim();
@@ -131,7 +131,7 @@ export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
 }
 
 /**
- * Is this colour dark enough to carry white text? Relative luminance per WCAG — the
+ * Is this colour dark enough to carry white text? Relative luminance per WCAG, the
  * partner picks their brand colour, and their header must stay readable whether they
  * chose navy or a pale yellow.
  */

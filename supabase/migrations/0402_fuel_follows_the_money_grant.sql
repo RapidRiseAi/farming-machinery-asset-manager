@@ -2,7 +2,7 @@
 -- Fuel draws carry a price, so they belong with the money grant.
 --
 -- 0400 gated `fuel_tanks` and `fuel_deliveries` on `see_costs` but left `fuel_issues` on
--- the vehicle rule alone — so a contractor working on one tractor could still read every
+-- the vehicle rule alone, so a contractor working on one tractor could still read every
 -- diesel draw against it, and `fuel_issues` carries `cost_cents` and `price_per_l_cents`.
 -- Measured against the live demo farm that was 6 rows a contractor had no reason to see.
 --

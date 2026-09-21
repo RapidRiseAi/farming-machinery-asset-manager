@@ -7,7 +7,7 @@ import { reportClientError } from "@/lib/client-report";
  * The last boundary: an error in the ROOT layout itself.
  *
  * `(app)/error.tsx` covers a signed-in page that throws, but it renders *inside* the root
- * layout — so if the root layout is what failed, nothing catches it and Next shows its own
+ * layout, so if the root layout is what failed, nothing catches it and Next shows its own
  * blank default. That is also the failure a farmer is least able to describe, because there
  * is nothing on screen to describe.
  *
@@ -63,7 +63,7 @@ export default function GlobalError({
           </h1>
           <p style={{ margin: ".75rem 0 0", color: "#6b6356", fontSize: ".95rem", lineHeight: 1.6 }}>
             Something went wrong on our side, not yours, and nothing you entered has been lost.
-            Try again — if it keeps happening, the farm office can send us the code below.
+            Try again, if it keeps happening, the farm office can send us the code below.
           </p>
           <div style={{ marginTop: "1.25rem", display: "flex", gap: ".6rem", flexWrap: "wrap" }}>
             <button

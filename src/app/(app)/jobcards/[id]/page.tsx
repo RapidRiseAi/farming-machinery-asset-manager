@@ -160,7 +160,7 @@ export default async function JobCardDetail({
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
-      {/* This job so far — the number the owner will ask about, above the lines it is
+      {/* This job so far, the number the owner will ask about, above the lines it is
           made of rather than a page away on the list. */}
       {costsVisible ? <Card>
         <p className="text-sm font-medium text-sand-600">{t("jobcards.thisJobSoFar", locale)}</p>
@@ -219,7 +219,7 @@ export default async function JobCardDetail({
                       triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                       title={t("confirm.removeLineTitle", locale).replace(
                         "{line}",
-                        l.description ?? l.part_no ?? "—",
+                        l.description ?? l.part_no ?? "-",
                       )}
                       intro={t("confirm.removeLineIntro", locale).replace("{amount}", rands(l.total_cents))}
                       confirmLabel={t("confirm.removeLineYes", locale)}
@@ -351,13 +351,13 @@ export default async function JobCardDetail({
         <Card>
           <CardHeader><CardTitle>{t("jobcards.details", locale)}</CardTitle></CardHeader>
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-sand-500">{t("jobcards.dateIn", locale)}</dt><dd>{jc.date_in ?? "—"}</dd></div>
-            <div><dt className="text-sand-500">{t("jobcards.dateOut", locale)}</dt><dd>{jc.date_out ?? "—"}</dd></div>
-            <div><dt className="text-sand-500">{t("jobcards.meterReading", locale)}</dt><dd>{jc.meter_reading ?? "—"}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.reportedProblem", locale)}</dt><dd className="whitespace-pre-wrap">{jc.reported_problem ?? "—"}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.diagnosis", locale)}</dt><dd className="whitespace-pre-wrap">{jc.diagnosis ?? "—"}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.workPerformed", locale)}</dt><dd className="whitespace-pre-wrap">{jc.work_performed ?? "—"}</dd></div>
-            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.recommendations", locale)}</dt><dd className="whitespace-pre-wrap">{jc.recommendations ?? "—"}</dd></div>
+            <div><dt className="text-sand-500">{t("jobcards.dateIn", locale)}</dt><dd>{jc.date_in ?? "-"}</dd></div>
+            <div><dt className="text-sand-500">{t("jobcards.dateOut", locale)}</dt><dd>{jc.date_out ?? "-"}</dd></div>
+            <div><dt className="text-sand-500">{t("jobcards.meterReading", locale)}</dt><dd>{jc.meter_reading ?? "-"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.reportedProblem", locale)}</dt><dd className="whitespace-pre-wrap">{jc.reported_problem ?? "-"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.diagnosis", locale)}</dt><dd className="whitespace-pre-wrap">{jc.diagnosis ?? "-"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.workPerformed", locale)}</dt><dd className="whitespace-pre-wrap">{jc.work_performed ?? "-"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-sand-500">{t("jobcards.recommendations", locale)}</dt><dd className="whitespace-pre-wrap">{jc.recommendations ?? "-"}</dd></div>
           </dl>
         </Card>
       )}

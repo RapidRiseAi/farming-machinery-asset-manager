@@ -20,7 +20,7 @@ import { TOUR_SEEN_KEY, TOUR_STEP_KEY, type TourStep } from "@/lib/tour";
  *    "Show me" can send you to the real screen and the tour picks up where it left off
  *    the next time you land on your home screen.
  *  - It shows up once, on its own, and then only when asked. After it is finished or
- *    skipped it is reachable from the page-info panel — it does not reappear.
+ *    skipped it is reachable from the page-info panel, it does not reappear.
  */
 export function Tour({
   steps,
@@ -30,7 +30,7 @@ export function Tour({
   steps: TourStep[];
   locale: Lang;
   /**
-   * The role's own home. The tour may open itself HERE and nowhere else — landing
+   * The role's own home. The tour may open itself HERE and nowhere else, landing
    * mid-task and being interrupted by a tutorial is the thing people hate about them.
    */
   homePath: string;
@@ -48,7 +48,7 @@ export function Tour({
       done = window.localStorage.getItem(TOUR_SEEN_KEY) === "1";
       saved = Number(window.localStorage.getItem(TOUR_STEP_KEY) ?? "0");
     } catch {
-      // Private mode or storage disabled — treat as "never seen", never crash.
+      // Private mode or storage disabled, treat as "never seen", never crash.
     }
     if (Number.isFinite(saved) && saved > 0 && saved < steps.length) setI(saved);
     if (atHome && !done) setOpen(true);
@@ -67,7 +67,7 @@ export function Tour({
       window.localStorage.setItem(TOUR_STEP_KEY, String(step));
       if (finished) window.localStorage.setItem(TOUR_SEEN_KEY, "1");
     } catch {
-      /* storage unavailable — the tour still works for this session */
+      /* storage unavailable, the tour still works for this session */
     }
   }
 
@@ -176,7 +176,7 @@ export function Tour({
   );
 }
 
-/** Re-opens the tour from anywhere — used by the help card on the info panel. */
+/** Re-opens the tour from anywhere, used by the help card on the info panel. */
 export function StartTourButton({ label }: { label: string }) {
   return (
     <Button

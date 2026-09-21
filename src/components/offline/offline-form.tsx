@@ -10,7 +10,7 @@ import { CheckIcon } from "@/components/ui/icons";
  * Wraps a server-action form so that, when offline, the submit is intercepted and queued
  * to IndexedDB (idempotency UUID + client timestamp) with an optimistic confirm instead of
  * failing. Online, the native server action runs unchanged. Used for readings (app + QR),
- * job-card lines and job completion — captures without media.
+ * job-card lines and job completion, captures without media.
  */
 export function OfflineForm({
   action,

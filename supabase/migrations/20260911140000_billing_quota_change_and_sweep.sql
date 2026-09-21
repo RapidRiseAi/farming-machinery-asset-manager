@@ -3,7 +3,7 @@
 -- started a sign-up and never paid.
 --
 -- BUYING MORE SLOTS IS AN UPGRADE, AND IS PRICED LIKE ONE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- 20260910230000 made the quota the thing that is billed, and 20260910230000's ceiling
 -- makes it the thing that stops you adding a vehicle. What neither did was let anybody
 -- change it. A farm that buys a bakkie in March has exactly two options today: be refused,
@@ -11,13 +11,13 @@
 --
 -- The founder's rule for a mid-cycle PLAN upgrade was "charge the pro-rata difference
 -- immediately", and buying slots is the same act with a different noun, so it gets the same
--- answer and — deliberately — the same arithmetic. `app.billing_quota_change_quote` is
+-- answer and, deliberately, the same arithmetic. `app.billing_quota_change_quote` is
 -- `app.billing_plan_change_quote` with the delta on the COUNT instead of the RATE:
 -- inclusive of today, per slot, rounded before it is multiplied so the invoice's own
 -- `unit_price × asset_count × months` agrees to the cent.
 --
 -- GIVING SLOTS BACK WAITS FOR THE PERIOD THEY PAID FOR
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Same rule as a plan downgrade, same reason: they bought the period. It is scheduled onto
 -- `pending_quota` and applied by the pass that already applies pending plans, so there is
 -- one place where "a change that was waiting happens" lives.
@@ -28,15 +28,15 @@
 -- what to retire first.
 --
 -- THE SWEEP
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Self-serve sign-up creates the farm before the money moves, which means an abandoned
--- checkout leaves a farm nobody can log into. That was the right trade — the alternative
--- loses payments — but the rows should not sit there for ever.
+-- checkout leaves a farm nobody can log into. That was the right trade, the alternative
+-- loses payments, but the rows should not sit there for ever.
 --
 -- What the sweep does NOT do is delete the `auth.users` row, and that is deliberate. This
 -- schema does not own Supabase's auth tables, a hard delete there cascades into
 -- `public.users`, and a half-deleted person is a worse outcome than a dormant one. It
--- soft-deletes the farm, the profile and the subscription and VOIDS the invoice — nothing
+-- soft-deletes the farm, the profile and the subscription and VOIDS the invoice, nothing
 -- is destroyed, which is the same promise the non-payment downgrade makes.
 --
 -- The consequence is that the address stays taken, so `signUp` checks for a LIVE profile
@@ -56,7 +56,7 @@
 --
 -- A quota increase does not move the plan. So buying three slots in the morning and one
 -- more in the afternoon produces the identical key, and the second purchase aborted on a
--- duplicate key with a raw Postgres error — found by suite section (y) on its first run,
+-- duplicate key with a raw Postgres error, found by suite section (y) on its first run,
 -- exactly as (t) found the plan version of this a day earlier.
 --
 -- Slot purchases get their own kind. The plan index is untouched and still does its job,
@@ -65,7 +65,7 @@
 --
 -- The double-click guard is unchanged and does not need an index: `change_billing_quota`
 -- takes `for update` on the subscription, and the target quota is ABSOLUTE rather than a
--- delta — a second press asking for the same 8 slots sees 8 and answers 'no_change'. A
+-- delta, a second press asking for the same 8 slots sees 8 and answers 'no_change'. A
 -- second press asking for 9 is a different purchase, and allowing it is the whole point.
 alter table public.billing_invoices
   drop constraint if exists billing_invoices_kind_ck;
@@ -176,7 +176,7 @@ begin
   end if;
 
   -- BUYING MORE. Priced against what this farm is ACTUALLY paying, which is not
-  -- necessarily the active version — see 20260910160000.
+  -- necessarily the active version, see 20260910160000.
   select * into v_price from app.billing_price_for_subscription(p_sub);
   if v_price.id is null or v_price.per_vehicle_monthly_incl_cents is null then
     return query select 'unavailable', null::date, v_now, p_quota, v_used, 0, 0, 0::bigint,
@@ -208,7 +208,7 @@ begin
     v_charge,
     case
       when v_unit <= 0 then 'no charge for the rest of this period'
-      when v_charge < 100 then 'less than R1,00 — below what the provider will process'
+      when v_charge < 100 then 'less than R1,00, below what the provider will process'
       else null
     end;
 end $$;
@@ -246,7 +246,7 @@ begin
     raise exception 'BILLING: %', q.reason using errcode = 'check_violation';
   end if;
 
-  -- ── SCHEDULED: fewer vehicles, at period end ─────────────────────────────
+  -- == SCHEDULED: fewer vehicles, at period end =============================
   if q.kind = 'scheduled' then
     update public.billing_subscriptions
        set pending_quota        = p_quota,
@@ -258,7 +258,7 @@ begin
                               'quota', p_quota, 'reason', q.reason);
   end if;
 
-  -- ── MORE SLOTS, NOW ──────────────────────────────────────────────────────
+  -- == MORE SLOTS, NOW ======================================================
   update public.billing_subscriptions
      set asset_quota = p_quota,
          -- Asking for more cancels a reduction they had scheduled. Wanting more than the

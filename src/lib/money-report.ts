@@ -3,8 +3,8 @@
  *
  * Deliberately NOT the VAT periods. Those are SARS's two-month cycle and belong on the
  * VAT screen; "did last month make money?" is a calendar question, and offering a partner
- * "01 Jun – 31 Jul" when they asked about June would be answering something else.
- * `/money` and `/vat` therefore use different period sets on purpose — the revenue figure
+ * "01 Jun - 31 Jul" when they asked about June would be answering something else.
+ * `/money` and `/vat` therefore use different period sets on purpose, the revenue figure
  * agrees between them over any identical window, which is asserted in G14.
  */
 
@@ -17,7 +17,7 @@ const monthEnd = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0));
 /**
  * Newest first: this month, last month, this quarter, this year, last year.
  *
- * "This month" is deliberately included even though it is incomplete — watching the month
+ * "This month" is deliberately included even though it is incomplete, watching the month
  * build is most of what this screen is for, and the alternative (only closed months) is
  * the dead end the VAT screen had before `currentVatPeriod`.
  */
@@ -63,7 +63,7 @@ export type Cash = { in_cents: number; out_cents: number; net_cents: number };
 
 /**
  * The quote pipeline for a period (0476). Counts and ex-VAT values for each outcome, plus
- * two rates in basis points — see the migration header for why there are two and why
+ * two rates in basis points, see the migration header for why there are two and why
  * "converted" is not simply `status = 'accepted'`.
  */
 export type QuoteConversion = {
@@ -87,7 +87,7 @@ export const EMPTY_CONVERSION: QuoteConversion = {
  * Basis points as a percentage people read: 4000 -> "40%", 4050 -> "40,5%".
  *
  * Written out rather than delegated to toLocaleString for the reason recorded in
- * lib/money.ts — a runtime with trimmed ICU data answers in en-US and the decimal comma
+ * lib/money.ts, a runtime with trimmed ICU data answers in en-US and the decimal comma
  * this product uses everywhere else silently becomes a point.
  */
 export function ratePercent(bps: number): string {

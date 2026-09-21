@@ -6,16 +6,16 @@
 -- SECURITY DEFINER function in `app`, execute revoked from everyone but the service role,
 -- a `public.cron_*` wrapper for the nightly route, quiet hours honoured, and a weekly
 -- dedupe read from the notification queue itself rather than a new column on the row
--- (the F13 approach — a dedupe column is a second thing to keep in step).
+-- (the F13 approach, a dedupe column is a second thing to keep in step).
 
--- ── What counts as "low" ─────────────────────────────────────────────────────
+-- == What counts as "low" =====================================================
 -- Deliberately its own function rather than a predicate buried in the engine's WHERE
 -- clause, because this is the part most likely to want changing once a real farm has used
 -- it for a season, and it should be changeable in one place without touching the machinery
 -- around it.
 --
 -- The rule today is the plain one: at or below the minimum you set, and only where you set
--- one. A part with no reorder_point is not "low at zero" — it is untracked, and inventing
+-- one. A part with no reorder_point is not "low at zero", it is untracked, and inventing
 -- a threshold for it would produce a nightly nudge nobody asked for, which is how people
 -- learn to ignore notifications.
 --
@@ -42,7 +42,7 @@ comment on function app.stock_needs_reorder(numeric, numeric) is
   'Whether a stock item should be reordered. Single point of change for the rule; see '
   '0451 header for the commitment-aware version that service kits would allow.';
 
--- ── The engine ───────────────────────────────────────────────────────────────
+-- == The engine ===============================================================
 create or replace function app.enqueue_low_stock_nudges() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -89,11 +89,11 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the engine (0205 pattern) ──────────────────────────────────────
+-- == Lock down the engine (0205 pattern) ======================================
 revoke execute on function app.enqueue_low_stock_nudges() from public, anon, authenticated;
 grant  execute on function app.enqueue_low_stock_nudges() to service_role;
 
--- ── PostgREST-callable cron wrapper ──────────────────────────────────────────
+-- == PostgREST-callable cron wrapper ==========================================
 create or replace function public.cron_enqueue_low_stock() returns void
 language sql security definer set search_path = public, pg_temp as $$
   select app.enqueue_low_stock_nudges();

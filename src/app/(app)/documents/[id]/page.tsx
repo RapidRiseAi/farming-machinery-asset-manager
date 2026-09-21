@@ -37,8 +37,8 @@ import { BillInStages, type QuoteBilling } from "@/components/documents/bill-in-
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
  *
- * The document itself renders identically for the partner and the farmer — same
- * letterhead, same lines, same totals — because a disagreement about what was sent is
+ * The document itself renders identically for the partner and the farmer, same
+ * letterhead, same lines, same totals, because a disagreement about what was sent is
  * the one thing a system like this must never cause. What differs is the row of actions
  * beneath it: the partner edits a draft, sends, converts and cancels; the farmer accepts,
  * declines and pays.
@@ -68,8 +68,8 @@ type Payment = {
 };
 
 /**
- * The codes the server actions redirect with, said as sentences. Anything else — a raw
- * Postgres message from a trigger — still comes through, because a partner seeing the
+ * The codes the server actions redirect with, said as sentences. Anything else, a raw
+ * Postgres message from a trigger, still comes through, because a partner seeing the
  * database's own words beats a screen that says nothing happened when something did.
  */
 const DOC_ERRORS: Record<string, string> = {
@@ -149,7 +149,7 @@ export default async function DocumentPage({
         .order("created_at", { ascending: false })
         .limit(10),
       // Every earlier version. Read through RLS, so the customer sees how an invoice they
-      // were sent has changed — which is the other half of allowing it to change at all.
+      // were sent has changed, which is the other half of allowing it to change at all.
       supabase
         .from("partner_document_revisions")
         .select("id, version, reason, total_cents_before, total_cents_after, edited_at, snapshot, edited_by")
@@ -180,7 +180,7 @@ export default async function DocumentPage({
 
   // How much of this job has been billed. Asked for a QUOTE (so the partner can bill the
   // next stage) and for an invoice that is part of one (so both sides can see where this
-  // invoice sits in the job) — `app.quote_billing` is SECURITY INVOKER, so each side gets
+  // invoice sits in the job), `app.quote_billing` is SECURITY INVOKER, so each side gets
   // the answer built from the documents they are allowed to see.
   const billingOf = doc.kind === "quote" ? doc.id : doc.quote_id;
   const { data: billingData } = billingOf
@@ -208,7 +208,7 @@ export default async function DocumentPage({
 
   const editable = isPartner && isEditable(doc) && canBuild;
   const balance = balanceDueCents(doc);
-  /** Paid MORE than the invoice — usually because a credit note landed after payment. */
+  /** Paid MORE than the invoice, usually because a credit note landed after payment. */
   const inCreditCents = Math.max(0, (doc.amount_paid_cents || 0) - doc.total_cents);
   // Credit notes that actually count: a draft has not been issued and a void one stood down.
   const creditedCents = creditNotes
@@ -238,7 +238,7 @@ export default async function DocumentPage({
       <Flash tone="success" message={sp.refunded ? t("doc.refundedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.written_off ? t("doc.writtenOffFlash", locale) : undefined} />
 
-      {/* ── The document ─────────────────────────────────────────── */}
+      {/* == The document =========================================== */}
       <article className="overflow-hidden rounded-xl border border-sand-200 bg-surface shadow-soft print:border-0 print:shadow-none">
         <header
           className={
@@ -313,7 +313,7 @@ export default async function DocumentPage({
           </dl>
         </div>
 
-        {/* Lines — or, for an uploaded document, the file itself. */}
+        {/* Lines, or, for an uploaded document, the file itself. */}
         {doc.source === "uploaded" ? (
           <div className="border-t border-sand-100 px-4 py-4">
             <p className="text-sm text-sand-600">{t("doc.uploadedBody", locale)}</p>
@@ -381,7 +381,7 @@ export default async function DocumentPage({
           <p className="border-t border-sand-100 px-4 py-4 text-sm text-sand-500">{t("doc.noLines", locale)}</p>
         )}
 
-        {/* Totals — ex-VAT, VAT, then the number the farmer actually pays. */}
+        {/* Totals, ex-VAT, VAT, then the number the farmer actually pays. */}
         <div className="border-t border-sand-100 px-4 py-4">
           <dl className="ml-auto grid max-w-xs grid-cols-2 gap-y-1 text-sm">
             <dt className="text-sand-500">{doc.vat_rate_bps > 0 ? t("doc.subtotal", locale) : t("doc.subtotalNoVat", locale)}</dt>
@@ -392,7 +392,7 @@ export default async function DocumentPage({
                 <dd className="text-right tabular-nums text-sand-800">−{rands(doc.discount_cents)}</dd>
               </>
             ) : null}
-            {/* A partner who is not VAT registered issues no VAT line at all — showing
+            {/* A partner who is not VAT registered issues no VAT line at all, showing
                 "VAT 0%" would still be a claim about tax they do not charge. */}
             {doc.vat_rate_bps > 0 ? (
               <>
@@ -467,7 +467,7 @@ export default async function DocumentPage({
         ) : null}
       </div>
 
-      {/* ── The partner's workspace ───────────────────────────────── */}
+      {/* == The partner's workspace ================================= */}
       {editable ? (
         <>
           <Card>
@@ -549,7 +549,7 @@ export default async function DocumentPage({
         </div>
       ) : null}
 
-      {/* Emailing it is the point of sending it — before this, "send" set a status and
+      {/* Emailing it is the point of sending it, before this, "send" set a status and
           the customer had to log in to find out they had been invoiced. */}
       {doc.status !== "draft" ? (
         <EmailDocument
@@ -583,7 +583,7 @@ export default async function DocumentPage({
         />
       ) : null}
 
-      {/* Billing a job in stages. Offered on a quote the customer has agreed to — a
+      {/* Billing a job in stages. Offered on a quote the customer has agreed to, a
           deposit before work starts is the commonest case, and the reason a workshop
           asks for one is that they are about to buy parts. */}
       {isPartner && canBuild && doc.kind === "quote" && billing
@@ -631,7 +631,7 @@ export default async function DocumentPage({
         />
       ) : null}
 
-      {/* ── The farmer's decision ─────────────────────────────────── */}
+      {/* == The farmer's decision =================================== */}
       {isFarmDecider && doc.kind === "quote" && doc.status === "sent" ? (
         <Card>
           <CardHeader><CardTitle>{t("doc.decideTitle", locale)}</CardTitle></CardHeader>
@@ -668,7 +668,7 @@ export default async function DocumentPage({
         </Card>
       ) : null}
 
-      {/* ── Payments ─────────────────────────────────────────────── */}
+      {/* == Payments =============================================== */}
       {doc.kind === "invoice" && doc.status !== "draft" ? (
         <Card>
           <CardHeader><CardTitle>{t("doc.payments", locale)}</CardTitle></CardHeader>
@@ -735,7 +735,7 @@ export default async function DocumentPage({
           ) : null}
 
           {/* Money going back. A credit note lowers what they owe; if they had already
-              paid, the cash still has to leave — and until this existed the statement
+              paid, the cash still has to leave, and until this existed the statement
               showed a customer refunded in full a year ago sitting in credit for ever. */}
           {isPartner && canPay && doc.amount_paid_cents > 0 ? (
             <div className="mt-3 border-t border-sand-100 pt-3">

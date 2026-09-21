@@ -15,7 +15,7 @@ import type { Lang } from "@/lib/i18n";
  * A statement of account as a PDF, on the partner's letterhead.
  *
  * Pulled out of the download route so the EMAILED statement and the downloaded one are
- * the same bytes — the same reason `buildDocumentPdf` exists. A customer who queries a
+ * the same bytes, the same reason `buildDocumentPdf` exists. A customer who queries a
  * figure will be holding the emailed copy, and the partner will be looking at the
  * downloaded one; those disagreeing is the kind of thing nobody reports and everybody
  * stops trusting.
@@ -23,8 +23,8 @@ import type { Lang } from "@/lib/i18n";
 
 const AGE_LABEL: Record<string, string> = {
   current: "Not yet due",
-  d30: "1–30 days",
-  d60: "31–60 days",
+  d30: "1-30 days",
+  d60: "31-60 days",
   d90: "60+ days",
 };
 
@@ -49,7 +49,7 @@ export type StatementData = {
 /**
  * Everything the statement needs, fetched once through whichever client the caller
  * passes. Both `app.partner_statement` and `app.partner_ageing` are SECURITY INVOKER, so
- * an RLS-bound client is scoped by RLS and a service client is not — which is what lets
+ * an RLS-bound client is scoped by RLS and a service client is not, which is what lets
  * the nightly send run without a session.
  */
 export async function loadStatement(
@@ -98,7 +98,7 @@ export async function buildStatementPdf(data: StatementData): Promise<Uint8Array
   const lang: Lang = data.lang ?? "en";
   const logo = await brandingLogoBytes(brand.logo_path ?? null);
 
-  const pdf = await Pdf.create(`Statement — ${party.name}`, {
+  const pdf = await Pdf.create(`Statement, ${party.name}`, {
     name: brand.name,
     primary: brand.brand_primary,
     logo,

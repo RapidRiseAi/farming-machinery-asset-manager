@@ -7,7 +7,7 @@ import { PageInfo } from "./page-info";
  *
  * Bullet lines live as ONE newline-separated string in the dictionaries: the `t()`
  * helper only returns strings, and keeping them in a single key means the EN/AF parity
- * check still covers them — an array or a numbered set would let one language quietly
+ * check still covers them, an array or a numbered set would let one language quietly
  * carry a different number of points.
  */
 export function PageInfoButton({ infoKey, locale }: { infoKey: string; locale: Lang }) {

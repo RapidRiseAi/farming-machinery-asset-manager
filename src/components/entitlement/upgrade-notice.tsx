@@ -9,7 +9,7 @@ import { InfoIcon } from "@/components/ui/icons";
 
 /**
  * Server-rendered upgrade prompt shown IN PLACE of a gated surface. The gated content is
- * never rendered when the plan is insufficient — this is a server-side denial, not a
+ * never rendered when the plan is insufficient, this is a server-side denial, not a
  * CSS hide. Fully translated (EN/AF).
  */
 export function UpgradeNotice({
@@ -21,7 +21,7 @@ export function UpgradeNotice({
 }: {
   /** i18n key stem under `upgrade.feature.*` describing the locked capability. */
   feature: string;
-  /** A farm plan or a partner product — the two label sets never overlap. */
+  /** A farm plan or a partner product, the two label sets never overlap. */
   requiredPlan: Plan | WorkshopPlan;
   currentPlan: Plan | WorkshopPlan | null;
   locale: Lang;
@@ -30,7 +30,7 @@ export function UpgradeNotice({
 }) {
   const featureName = t(`upgrade.feature.${feature}`, locale);
   // Farm plans and partner products name themselves under different i18n stems, and the
-  // two sets of values are disjoint — so which stem applies is decided by the value
+  // two sets of values are disjoint, so which stem applies is decided by the value
   // itself rather than by an extra prop every call site would have to remember.
   const nameOf = (plan: Plan | WorkshopPlan) =>
     t(isWorkshopPlan(plan) ? workshopPlanNameKey(plan) : planNameKey(plan as Plan), locale);
@@ -40,7 +40,7 @@ export function UpgradeNotice({
   const hint = t("upgrade.body", locale)
     .replace("{feature}", featureName)
     .replace("{plan}", planName)
-    .replace("{current}", currentPlan ? nameOf(currentPlan) : "—");
+    .replace("{current}", currentPlan ? nameOf(currentPlan) : "-");
 
   if (compact) {
     return (

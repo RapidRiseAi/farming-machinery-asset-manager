@@ -21,14 +21,14 @@ export type EmailAttempt = {
 /**
  * Email this document to the customer.
  *
- * A client component because the send is a fetch with a JSON reply, not a navigation —
+ * A client component because the send is a fetch with a JSON reply, not a navigation -
  * the partner stays on the document and sees what happened. A server action would work
  * too, but the useful outcome here is "it went to this address" or "it bounced, and this
  * is why", and that reads better in place than as a flash after a redirect.
  *
  * The history underneath answers the question a partner actually asks the next day: did
  * it go, and where. Failures are shown with the provider's message, because a bounce that
- * nobody sees is worse than no send at all — the partner would go on believing the
+ * nobody sees is worse than no send at all, the partner would go on believing the
  * customer had been told.
  */
 export function EmailDocument({

@@ -1,12 +1,12 @@
 /**
  * The Paystack webhook, exercised without a network and without a database.
  *
- * ── Two things about how this is set up ──────────────────────────────────────
+ * == Two things about how this is set up ======================================
  *
  * 1. The SIGNATURE CHECK IS THE REAL ONE. `PaystackBillingAdapter.verifyWebhookSignature`
  *    is used as written, against a synthetic secret key set in `process.env` for the
- *    duration of this file. That method makes no HTTP call — it is an HMAC and a
- *    comparison — so using the genuine implementation costs nothing and tests something,
+ *    duration of this file. That method makes no HTTP call, it is an HMAC and a
+ *    comparison, so using the genuine implementation costs nothing and tests something,
  *    whereas a fake `() => true` would test the shape of the code and none of its
  *    security. The signatures below are computed the way Paystack computes them.
  *
@@ -28,12 +28,12 @@ import { MAX_WEBHOOK_BODY_BYTES } from "./config";
 import { PaystackBillingAdapter } from "./paystack";
 import { dedupeKeyFor, handlePaystackWebhook } from "./webhook";
 
-// ── Environment: a synthetic key, so the real HMAC has something to key on ───
+// == Environment: a synthetic key, so the real HMAC has something to key on ===
 const SECRET = "sk_test_fleetwise_unit_test_key_not_a_credential";
 process.env.BILLING_PROVIDER = "paystack";
 process.env.PAYSTACK_SECRET_KEY = SECRET;
-// Charging stays OFF for the whole file. The webhook must work regardless — reconciling a
-// payment that has already been taken is not a new charge — and leaving it off means no
+// Charging stays OFF for the whole file. The webhook must work regardless, reconciling a
+// payment that has already been taken is not a new charge, and leaving it off means no
 // test in this file could create one even if something reached the real adapter.
 delete process.env.BILLING_CHARGING_ENABLED;
 
@@ -50,7 +50,7 @@ function sign(rawBody: string, key = SECRET): string {
   return createHmac("sha512", key).update(rawBody, "utf8").digest("hex");
 }
 
-// ── Fakes ────────────────────────────────────────────────────────────────────
+// == Fakes ====================================================================
 
 type Result = { data: unknown; error: { message: string; code?: string } | null };
 
@@ -77,7 +77,7 @@ type WebhookEventRow = {
  * An in-memory stand-in with ONE real behaviour: `billing_webhook_events` enforces
  * uniqueness on `(provider, dedupe_key)` and answers a second insert with Postgres error
  * 23505, exactly as `billing_webhook_events_dedupe_uq` does. That is what makes the replay
- * test mean something — take the constraint out of the fake and the test proves nothing.
+ * test mean something, take the constraint out of the fake and the test proves nothing.
  */
 function fakeSupabase(opts: {
   attempt?: Record<string, unknown> | null;
@@ -187,7 +187,7 @@ const FARM = "11111111-1111-4111-8111-111111111111";
 const INVOICE = "22222222-2222-4222-8222-222222222222";
 const ATTEMPT = "44444444-4444-4444-8444-444444444444";
 const REFERENCE = "FWB-TEST-REFERENCE";
-/** Obviously synthetic. Real prices are deliberately unseeded — see the contract §1. */
+/** Obviously synthetic. Real prices are deliberately unseeded, see the contract §1. */
 const AMOUNT = 1234;
 
 function attemptRow(over: Record<string, unknown> = {}) {
@@ -628,7 +628,7 @@ test("a failure event is verified too, and then settles failed", async () => {
   });
 
   assert.equal(result.outcome, "processed");
-  assert.equal(count.n, 1, "even a failure is confirmed — a false failure starts dunning");
+  assert.equal(count.n, 1, "even a failure is confirmed, a false failure starts dunning");
   const settled = settleCalls(db.rpcCalls);
   assert.equal(settled.length, 1);
   assert.equal(settled[0].args.p_status, "failed");

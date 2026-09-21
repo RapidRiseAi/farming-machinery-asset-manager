@@ -6,7 +6,7 @@ import { EMPTY_VAT_RETURN, type VatReturn } from "@/lib/expenses";
 export const dynamic = "force-dynamic";
 
 /**
- * The VAT return as a spreadsheet — the summary, then every document and expense behind
+ * The VAT return as a spreadsheet, the summary, then every document and expense behind
  * it, so the partner (or their accountant) can tie each figure back to a source document.
  *
  * A summary alone is not enough at filing time: SARS queries land months later and the
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   const v = (((vatData ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);
   const rows: (string | number)[][] = [
     ["VAT return", `${from} to ${to}`],
-    ["Basis", "Invoice basis — VAT is declared when the invoice was issued, not when it was paid"],
+    ["Basis", "Invoice basis, VAT is declared when the invoice was issued, not when it was paid"],
     [],
     ["Summary", "Amount (R)"],
     ["Standard-rated sales (ex VAT)", centsToR(v.standard_ex_cents)],

@@ -3,10 +3,10 @@
 -- that brings a subscription into existence.
 --
 -- WHY THIS EXISTS, AND HOW IT WAS MISSED
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- 20260903160200 put every engine function in schema `app` and revoked it from
 -- everyone but the owner. That is right: these move money. But PostgREST exposes
--- `public` and `graphql_public` ONLY — it answers PGRST106 for anything else — so
+-- `public` and `graphql_public` ONLY, it answers PGRST106 for anything else, so
 -- `supabase.rpc("billing_due_charges", …)` in src/lib/billing/service.ts resolved to
 -- no function at all. Every call on the charging path failed at its first statement:
 -- raising an invoice, claiming a charge, settling an attempt, listing what is due.
@@ -15,15 +15,15 @@
 -- ARGUMENTS are right and never that the function exists. `db:test` builds a database
 -- from the migrations and never calls it the way the app does. The build compiles a
 -- string. It was found by inventorying every `.rpc("…")` name in the app against
--- `pg_proc` on the live database — the same "count objects, not migrations" technique
+-- `pg_proc` on the live database, the same "count objects, not migrations" technique
 -- docs/SCHEMA_DRIFT.md records, pointed at the calling side instead of the schema.
 --
 -- These are thin pass-throughs on purpose. No logic lives here: the rules stay in the
 -- `app` functions, which are already asserted by supabase/tests/billing_subscription.sql.
--- The wrapper exists only to be reachable, and is granted to service_role ALONE — a
+-- The wrapper exists only to be reachable, and is granted to service_role ALONE, a
 -- farmer's browser must never be able to raise an invoice or settle a payment.
 
--- ── The charging path ────────────────────────────────────────────────────────
+-- == The charging path ========================================================
 
 create or replace function public.billing_due_charges(p_limit integer default 50)
 returns table (
@@ -65,7 +65,7 @@ language sql security definer set search_path = public, pg_temp as $$
   select app.generate_billing_invoices(p_only);
 $$;
 
--- ── Bringing a subscription into existence ───────────────────────────────────
+-- == Bringing a subscription into existence ===================================
 --
 -- Nothing in the product created one. `beginCheckout` refuses with
 -- `billing-no-subscription`, so a farm could never start paying: the whole feature was
@@ -76,7 +76,7 @@ $$;
 --
 -- `current_period_start` is deliberately left NULL. The generator computes the first
 -- period as `coalesce(current_period_start, next_billing_on)`, so a null makes the
--- first BILLED period begin when billing begins — not on the day somebody happened to
+-- first BILLED period begin when billing begins, not on the day somebody happened to
 -- press the button, which would bill a customer for their own trial.
 
 create or replace function app.start_billing_subscription(
@@ -138,7 +138,7 @@ language sql security definer set search_path = public, pg_temp as $$
   select app.start_billing_subscription(p_farm, p_plan, p_period, p_trial_days);
 $$;
 
--- ── Grants: service_role and nothing else ────────────────────────────────────
+-- == Grants: service_role and nothing else ====================================
 
 do $do$
 declare f text;
@@ -157,6 +157,6 @@ end $do$;
 
 -- The engine function itself is reached ONLY through its wrapper, like every other
 -- `app` function here. Granting it to service_role as well would make a second, direct
--- entry point that nothing else uses — which the suite's (j) lockdown rejects by design.
+-- entry point that nothing else uses, which the suite's (j) lockdown rejects by design.
 revoke execute on function app.start_billing_subscription(uuid, farm_plan, billing_period, integer)
   from public, anon, authenticated, service_role;

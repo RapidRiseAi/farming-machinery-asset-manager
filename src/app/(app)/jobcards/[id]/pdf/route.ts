@@ -15,7 +15,7 @@ type JC = {
 };
 type Line = { kind: string; description: string | null; part_no: string | null; qty: number | null; unit_cost_cents: number | null; hours: number | null; rate_cents: number | null; total_cents: number };
 
-const dash = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+const dash = (v: unknown) => (v == null || v === "" ? "-" : String(v));
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile();
@@ -37,14 +37,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const lines = (lData as Line[] | null) ?? [];
   const farmName = (farmData as { name: string } | null)?.name ?? "";
 
-  const pdf = await Pdf.create(`Job card — ${machine?.name ?? "Machine"}`);
+  const pdf = await Pdf.create(`Job card, ${machine?.name ?? "Machine"}`);
   pdf.header(`${farmName} · Job card ${jc.id.slice(0, 8)}${jc.locked ? " · APPROVED & LOCKED" : ""}`);
 
-  pdf.kv("Machine", `${machine?.name ?? "—"}${machine?.make ? ` (${machine.make} ${machine.model ?? ""})` : ""}`);
+  pdf.kv("Machine", `${machine?.name ?? "-"}${machine?.make ? ` (${machine.make} ${machine.model ?? ""})` : ""}`);
   if (machine?.reg_no) pdf.kv("Registration", machine.reg_no);
   pdf.kv("Type / status", `${jc.type.replace(/_/g, " ")} · ${jc.status.replace(/_/g, " ")}`);
   pdf.kv("Date in / out", `${dash(jc.date_in)}  →  ${dash(jc.date_out)}`);
-  pdf.kv("Meter reading", jc.meter_reading != null ? `${jc.meter_reading} ${machine?.meter_type ?? ""}` : "—");
+  pdf.kv("Meter reading", jc.meter_reading != null ? `${jc.meter_reading} ${machine?.meter_type ?? ""}` : "-");
   if (jc.approved_at) pdf.kv("Approved", jc.approved_at.slice(0, 10));
 
   pdf.heading("Problem & work");

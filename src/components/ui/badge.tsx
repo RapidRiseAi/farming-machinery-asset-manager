@@ -3,7 +3,7 @@ import { cn } from "./cn";
 
 export type BadgeTone = "neutral" | "brand" | "ok" | "warning" | "danger" | "info";
 
-// Tint bg + dark text — every pairing clears WCAG-AA on the tint.
+// Tint bg + dark text, every pairing clears WCAG-AA on the tint.
 const TONES: Record<BadgeTone, string> = {
   // bg-sand-100 is 26 30 26 in dark - 1.03:1 against the card, so the chip had
   // no visible ground. --row-hover is a deliberate step in both themes.
@@ -19,7 +19,7 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: BadgeTone;
 };
 
-/** Small pill label for categories/counts. Not for status — use `StatusBadge`. */
+/** Small pill label for categories/counts. Not for status, use `StatusBadge`. */
 export function Badge({ tone = "neutral", className, children, ...props }: BadgeProps) {
   return (
     <span
@@ -35,7 +35,7 @@ export function Badge({ tone = "neutral", className, children, ...props }: Badge
   );
 }
 
-// ── Status: shape + word + colour ────────────────────────────────────────────
+// == Status: shape + word + colour ============================================
 //
 // The audit's sixth pattern. The machines list rendered all six machine statuses as
 // `tone="neutral"`, so a broken machine and a working one were identical rows; the
@@ -56,7 +56,7 @@ export type StatusShape =
   | "square" // ■ stopped / overdue
   | "check" // ✓ done
   | "clock" // ◔ waiting on someone else
-  | "dash"; // — not in play (retired, sold)
+  | "dash"; //, not in play (retired, sold)
 
 function ShapeGlyph({ shape, className }: { shape: StatusShape; className?: string }) {
   const common = { className: cn("h-2.5 w-2.5 shrink-0", className), "aria-hidden": true };
@@ -121,7 +121,7 @@ function ShapeGlyph({ shape, className }: { shape: StatusShape; className?: stri
   }
 }
 
-/** Colour of the shape itself — stronger than the label, so it reads at a glance. */
+/** Colour of the shape itself, stronger than the label, so it reads at a glance. */
 const SHAPE_INK: Record<BadgeTone, string> = {
   neutral: "text-ink-muted",
   brand: "text-brand-ink",
@@ -172,7 +172,7 @@ export type StatusLook = { tone: BadgeTone; shape: StatusShape };
 
 const NEUTRAL: StatusLook = { tone: "neutral", shape: "ring" };
 
-/** Service due state (Scope §4.3) — the traffic light the whole product turns on. */
+/** Service due state (Scope §4.3), the traffic light the whole product turns on. */
 export const SERVICE_LOOK: Record<string, StatusLook> = {
   ok: { tone: "ok", shape: "dot" },
   due_soon: { tone: "warning", shape: "triangle" },
@@ -189,7 +189,7 @@ export const MACHINE_LOOK: Record<string, StatusLook> = {
   sold: { tone: "neutral", shape: "dash" },
 };
 
-/** Job-card lifecycle — the three states a mechanic moves between stay distinct. */
+/** Job-card lifecycle, the three states a mechanic moves between stay distinct. */
 export const JOB_LOOK: Record<string, StatusLook> = {
   reported: { tone: "info", shape: "ring" },
   open: { tone: "info", shape: "ring" },
@@ -216,7 +216,7 @@ export const URGENCY_LOOK: Record<string, StatusLook> = {
   stopped: { tone: "danger", shape: "square" },
 };
 
-/** Work-request lifecycle — all eight states, each distinguishable. */
+/** Work-request lifecycle, all eight states, each distinguishable. */
 export const WORK_LOOK: Record<string, StatusLook> = {
   requested: { tone: "info", shape: "ring" },
   viewed: { tone: "info", shape: "half" },
@@ -289,7 +289,7 @@ export const PO_LOOK: Record<string, StatusLook> = {
   part_received: { tone: "warning", shape: "half" }, // ◐ some of it is here
   received: { tone: "ok", shape: "check" }, // ✓ it all arrived
   closed: { tone: "neutral", shape: "check" }, // ✓ dealt with, no longer live
-  cancelled: { tone: "neutral", shape: "dash" }, // — never happened
+  cancelled: { tone: "neutral", shape: "dash" }, //, never happened
 };
 
 /** Look up a state's look in a map, falling back to a neutral ring. */
@@ -297,7 +297,7 @@ export function look(map: Record<string, StatusLook>, value: string | null | und
   return (value && map[value]) || NEUTRAL;
 }
 
-// ── Back-compat ──────────────────────────────────────────────────────────────
+// == Back-compat ==============================================================
 
 export type ServiceStatus = "ok" | "due_soon" | "overdue";
 

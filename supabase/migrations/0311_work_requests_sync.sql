@@ -7,11 +7,11 @@
 --    unique per request and the trigger UPSERTS (insert once, update thereafter,
 --    soft-delete when the amount is cleared or the request is deleted), a request's
 --    invoice appears in the ledger EXACTLY ONCE regardless of how many times it is
---    edited or re-fired — mirroring the 0211 machine/job_card_line sync idiom and
+--    edited or re-fired, mirroring the 0211 machine/job_card_line sync idiom and
 --    proven in rls_isolation.sql (F12b section). This is the ONLY path from a work
 --    request to cost_entries: a QUOTE is recorded but never costed, and converting a
---    request to a job card (0310 job_card_id) books nothing here — the job card's own
---    lines cost through the 0211 job_card_line path — so the two never double-count.
+--    request to a job card (0310 job_card_id) books nothing here, the job card's own
+--    lines cost through the 0211 job_card_line path, so the two never double-count.
 --
 -- 2) NOTIFY. Owner/manager are notified (in-app via app.notify_farm; push via F6's
 --    delivery path) on every status change and whenever a quote or invoice amount is
@@ -21,7 +21,7 @@
 -- ledger / queue regardless of the caller's RLS, writing only farm-scoped rows derived
 -- from the source request's own farm_id.
 
--- ── Invoice amount → single `invoice` cost entry ──────────────────
+-- == Invoice amount → single `invoice` cost entry ==================
 create or replace function app_cost_from_work_request() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -55,7 +55,7 @@ create trigger work_requests_cost
   after insert or update on work_requests
   for each row execute function app_cost_from_work_request();
 
--- ── Notify owner/manager on status / quote / invoice changes ──────
+-- == Notify owner/manager on status / quote / invoice changes ======
 create or replace function app_work_request_notify() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin

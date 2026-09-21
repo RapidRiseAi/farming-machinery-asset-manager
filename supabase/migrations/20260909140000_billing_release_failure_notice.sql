@@ -2,9 +2,9 @@
 -- A failure notice that did not send must be tried again.
 --
 -- WHY THIS REVERSES A DECISION MADE TWO DAYS AGO
--- ─────────────────────────────────────────────────────────────────────────────
--- `20260907120000` gave receipts a `release` — a failed send hands the claim back so the
--- nightly pass retries — and deliberately did NOT give one to failure notices. The
+-- =============================================================================
+-- `20260907120000` gave receipts a `release`, a failed send hands the claim back so the
+-- nightly pass retries, and deliberately did NOT give one to failure notices. The
 -- reasoning was that re-sending "your payment failed" every night over a full mailbox
 -- would harass a customer about our problem.
 --
@@ -36,7 +36,7 @@ $$;
 
 comment on function app.release_billing_failure_notice(uuid) is
   'Hands a failure notice back when the send failed, so tonight''s pass tries again. A '
-  'notice nobody received must not look sent — the same rule receipts follow, and for a '
+  'notice nobody received must not look sent, the same rule receipts follow, and for a '
   'stronger reason: this is the message that says access is about to narrow.';
 
 create or replace function public.billing_release_failure_notice(p_attempt uuid)

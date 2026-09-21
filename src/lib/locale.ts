@@ -5,7 +5,7 @@ import { locales, defaultLocale, type Locale } from "./i18n";
  * Device-level language, for the screens that run before we know who the user is.
  *
  * The app is at EN/AF parity and invites default to Afrikaans, but the login screen and
- * the public QR pages called `t()` with no locale — because language lives on
+ * the public QR pages called `t()` with no locale, because language lives on
  * `users.language` and there is no profile before sign-in. So a bilingual product opened
  * in English for every Afrikaans farm, with no way to change it (audit bug 2).
  *
@@ -16,7 +16,7 @@ import { locales, defaultLocale, type Locale } from "./i18n";
  */
 export const LOCALE_COOKIE = "fw_lang";
 
-/** One year — this is a preference, not a session. */
+/** One year, this is a preference, not a session. */
 export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export function isLocale(value: string | null | undefined): value is Locale {

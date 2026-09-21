@@ -1,16 +1,16 @@
 -- 0340_user_farm_memberships.sql
--- F7 — Multi-site under one account (FR-1.5).
+-- F7, Multi-site under one account (FR-1.5).
 --
 -- One account (auth user / public.users row) can now reach MULTIPLE farms/sites while
 -- per-site isolation is preserved. The many-to-many spine is `user_farm_memberships`.
 --
 -- Design rules that keep every existing isolation guarantee intact:
 --   * `public.users.farm_id` stays the user's DEFAULT / PRIMARY farm and remains a valid
---     access path on its own — nothing that relied on it changes. Memberships are PURELY
+--     access path on its own, nothing that relied on it changes. Memberships are PURELY
 --     ADDITIVE: they widen a user's reachable-farm set, they never narrow it.
 --   * `app.accessible_farm_ids()` and `app.has_farm_access()` are rewritten to UNION the
 --     user's active memberships on top of the primary-farm + workshop-link paths. The
---     workshop path (workshop_links) is untouched — contractors still reach farms only via
+--     workshop path (workshop_links) is untouched, contractors still reach farms only via
 --     an active link.
 --   * Every current user gets a backfilled membership row for their primary farm, so the
 --     union is a strict superset of the old behaviour (== old for anyone with no extra
@@ -19,7 +19,7 @@
 -- Standard house rules: farm-scoped, force-RLS, audit trigger, soft-delete, explicit
 -- grants, anon zero-DB.
 
--- ── Table ─────────────────────────────────────────────────────────
+-- == Table =========================================================
 create table user_farm_memberships (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references users(id) on delete cascade,
@@ -37,7 +37,7 @@ create table user_farm_memberships (
 create index user_farm_memberships_user_idx on user_farm_memberships(user_id);
 create index user_farm_memberships_farm_idx on user_farm_memberships(farm_id);
 
--- ── RLS ───────────────────────────────────────────────────────────
+-- == RLS ===========================================================
 -- You always see your OWN membership rows. A farm's owner/manager (and rr_admin) see and
 -- manage the memberships of farms they administer. Mutation is owner/manager/rr_admin only.
 alter table user_farm_memberships enable row level security;
@@ -71,16 +71,16 @@ create policy ufm_del on user_farm_memberships for delete to authenticated
     or (app.has_farm_access(farm_id) and app.current_app_role() in ('owner','manager'))
   );
 
--- ── Grants (0102 pattern; anon gets nothing) ──────────────────────
+-- == Grants (0102 pattern; anon gets nothing) ======================
 grant select, insert, update, delete on public.user_farm_memberships to authenticated;
 grant all on public.user_farm_memberships to service_role;
 
--- ── Audit (append-only history, 0008 pattern) ─────────────────────
+-- == Audit (append-only history, 0008 pattern) =====================
 create trigger user_farm_memberships_audit
   after insert or update or delete on user_farm_memberships
   for each row execute function app_audit();
 
--- ── Backfill: a primary-farm membership for every current farm user ──
+-- == Backfill: a primary-farm membership for every current farm user ==
 -- Idempotent. Runs against whatever users exist at migration time (none in the fresh
 -- test DB; the real farm users in production). Makes the new union == the old behaviour.
 insert into user_farm_memberships (user_id, farm_id, role, active)
@@ -91,7 +91,7 @@ select u.id, u.farm_id, u.role, u.active
    and u.deleted_at is null
 on conflict (user_id, farm_id) do nothing;
 
--- ── Rewrite the two access helpers to UNION memberships ────────────
+-- == Rewrite the two access helpers to UNION memberships ============
 -- has_farm_access gains a membership branch (active membership + active user). Order of
 -- OR branches is irrelevant to correctness; primary-farm + workshop paths are preserved
 -- verbatim so nothing that worked before can break.

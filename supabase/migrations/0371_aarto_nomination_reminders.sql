@@ -1,5 +1,5 @@
 -- 0371_aarto_nomination_reminders.sql
--- AARTO nomination-deadline reminders (FR-13.2; §23) — the 0205 / 0263 engine, extended.
+-- AARTO nomination-deadline reminders (FR-13.2; §23), the 0205 / 0263 engine, extended.
 --
 -- Reminds owner/manager as a fine's nomination_deadline approaches WHILE the driver has not
 -- yet been nominated (status received | driver_identified). Once the fine is nominated / paid /
@@ -9,7 +9,7 @@
 -- re-fire weekly while expired). SECURITY DEFINER; EXECUTE revoked from public/anon/authenticated
 -- and granted only to service_role; fronted by a public.cron_* wrapper the nightly route calls.
 --
--- Per-farm threshold (settings): aarto_nomination_lead_days (default 14) — start reminding this
+-- Per-farm threshold (settings): aarto_nomination_lead_days (default 14), start reminding this
 -- many days before the deadline. One template: `aarto_nomination_due` (payload carries the
 -- expiring/expired status so the formatter can phrase it).
 
@@ -69,11 +69,11 @@ begin
   end loop;
 end $$;
 
--- ── Lock down the app.* engine (0205 / 0263 pattern) ──────────────
+-- == Lock down the app.* engine (0205 / 0263 pattern) ==============
 revoke execute on function app.enqueue_aarto_nomination_reminders() from public, anon, authenticated;
 grant  execute on function app.enqueue_aarto_nomination_reminders() to service_role;
 
--- ── PostgREST-callable cron wrapper (the nightly route's identity) ─
+-- == PostgREST-callable cron wrapper (the nightly route's identity) =
 create or replace function public.cron_enqueue_aarto_nominations() returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin perform app.enqueue_aarto_nomination_reminders(); end $$;

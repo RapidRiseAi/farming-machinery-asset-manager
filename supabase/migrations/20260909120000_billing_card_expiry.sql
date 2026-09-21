@@ -2,21 +2,21 @@
 -- The card expires, and until now nothing noticed.
 --
 -- WHY
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `billing_payment_methods` has stored `exp_month` and `exp_year` since the day it was
 -- created, and NOTHING has ever read them. A card lasts about three years. On the day it
 -- expires the stored authorization simply stops working, so the next renewal is declined
--- and the farm is walked down the whole dunning ladder — past_due, three retries, seven
--- days of grace, then a reduced plan — as though they had refused to pay.
+-- and the farm is walked down the whole dunning ladder, past_due, three retries, seven
+-- days of grace, then a reduced plan, as though they had refused to pay.
 --
 -- They did not refuse. Nobody told them. Expired cards are the largest single cause of
 -- involuntary churn in every subscription business, and the fix is a sentence sent before
 -- the card stops rather than a ladder after it.
 --
 -- WHAT THIS DOES NOT DO
--- ─────────────────────────────────────────────────────────────────────────────
--- It does NOT stop the charge. A card past its printed expiry often still works — issuers
--- reissue on the same PAN and networks run account-updater services — so refusing to try
+-- =============================================================================
+-- It does NOT stop the charge. A card past its printed expiry often still works, issuers
+-- reissue on the same PAN and networks run account-updater services, so refusing to try
 -- would turn a probable success into a certain failure. Warn, never block: the same rule
 -- the stock shortfall engine (0451/0503) and the receipt-missing warning (§4.6) follow.
 --
@@ -47,11 +47,11 @@ exception when others then
 end $$;
 
 comment on function app.billing_card_expiry_on(text, text) is
-  'The last day of the month printed on the card — what "12/28" means to a network. '
+  'The last day of the month printed on the card, what "12/28" means to a network. '
   'Null for anything unparseable, because a card whose date we cannot read is a card this '
   'engine stays quiet about rather than one it raises an error over.';
 
--- ── What is about to stop working ───────────────────────────────────────────
+-- == What is about to stop working ===========================================
 
 create or replace function app.billing_cards_expiring(p_within_days integer default 45)
 returns table (
@@ -81,10 +81,10 @@ language sql stable security definer set search_path = public, pg_temp as $$
    order by 5;
 $$;
 
--- ── Telling them, once a month rather than every night ──────────────────────
+-- == Telling them, once a month rather than every night ======================
 --
 -- Dedupe reads the notification QUEUE itself, exactly as `app.enqueue_billing_reminders`
--- and the F13 work reminders do — no new column, and a re-run of the nightly pass cannot
+-- and the F13 work reminders do, no new column, and a re-run of the nightly pass cannot
 -- produce a second alert. Thirty days rather than the reminders' seven: a card expiry is a
 -- monthly-scale fact, and a farmer told weekly for six weeks stops reading them.
 
@@ -124,7 +124,7 @@ grant  execute on function app.billing_card_expiry_on(text, text) to authenticat
 revoke execute on function app.billing_cards_expiring(integer) from public, anon, authenticated, service_role;
 revoke execute on function app.enqueue_billing_card_expiry(integer) from public, anon, authenticated, service_role;
 
--- ── The wrappers PostgREST can reach ────────────────────────────────────────
+-- == The wrappers PostgREST can reach ========================================
 
 create or replace function public.cron_enqueue_billing_card_expiry() returns integer
 language sql security definer set search_path = public, pg_temp as $$

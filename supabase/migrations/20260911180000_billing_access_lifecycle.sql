@@ -2,9 +2,9 @@
 -- Not paying has to end somewhere. Until now it did not.
 --
 -- WHAT WAS ACTUALLY HAPPENING
--- ─────────────────────────────────────────────────────────────────────────────
--- `app.farm_billing_gate` blocked exactly one state — a subscription that exists and is
--- 'pending' — and answered 'ok' to everything else. The lifecycle engines around it are
+-- =============================================================================
+-- `app.farm_billing_gate` blocked exactly one state, a subscription that exists and is
+-- 'pending', and answered 'ok' to everything else. The lifecycle engines around it are
 -- complete and correct: `app.billing_close_cancellations` moves 'non_renewing' to
 -- 'cancelled' at period end, and `app.billing_apply_downgrades` moves 'grace' to
 -- 'downgraded' and drops `farms.plan` to the downgrade target. Both terminal states then
@@ -15,10 +15,10 @@
 --
 -- So the only customer the product ever refused was one who had never paid at all. Every
 -- other outcome was permanent free use, and `farms.status` ('suspended'/'cancelled') was
--- read by no policy, no helper and no layout — it gated nothing anywhere.
+-- read by no policy, no helper and no layout, it gated nothing anywhere.
 --
 -- THE SHAPE OF THE FIX, AND WHY IT IS NOT A READ-ONLY MODE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The obvious answer is "let them look but not write". That means every one of the
 -- product's ~200 server actions has to check, and a single missed one is a write path into
 -- an account that is not being paid for. F7 exists in this codebase precisely because
@@ -28,26 +28,26 @@
 -- So a lapsed farm gets ONE more gate state instead: 'closed'. Every app route bounces to a
 -- single screen that says what happened, offers to reopen, and hands over their data. One
 -- screen is provable; two hundred guards are not. Nothing is deleted, which is the promise
--- the downgrade design has made since it shipped — this keeps it and stops it meaning
+-- the downgrade design has made since it shipped, this keeps it and stops it meaning
 -- "free for ever".
 --
 -- THE WINDOW IS A SETTING, NOT A NUMBER IN A FUNCTION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `lapsed_grace_days` (default 30) is how long a farm keeps working after it lapses, on
 -- whatever plan it has been left on. It is on `billing_settings` beside the retry offsets
--- and the grace days, so the commercial policy can be changed without a migration —
+-- and the grace days, so the commercial policy can be changed without a migration -
 -- including setting it very high, which restores exactly today's behaviour if this turns
 -- out to be too sharp.
 --
 -- WHAT 'CLOSED' IS MEASURED FROM
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 --     cancelled   -> ended_on          (set by app.billing_close_cancellations)
 --     downgraded  -> downgraded_at     (set by app.billing_apply_downgrades)
 -- with `updated_at` as a last resort, so a row written by hand before these engines
 -- existed cannot produce a null date and fall through to 'ok' for ever.
 --
 -- THE TRAP THIS MIGRATION HAD TO AVOID, AGAIN
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- The same one the original gate documents: a farm with NO subscription row is still 'ok'.
 -- Weltevrede Boerdery is on production with twelve vehicles and no subscription, as is
 -- every farm onboarded before billing existed. Both farms on production are `status =
@@ -56,7 +56,7 @@
 
 begin;
 
--- ── How long a lapsed farm keeps working ─────────────────────────────────────
+-- == How long a lapsed farm keeps working =====================================
 alter table public.billing_settings
   add column if not exists lapsed_grace_days integer not null default 30;
 
@@ -77,7 +77,7 @@ comment on column public.billing_settings.lapsed_grace_days is
   'downgraded) before app.farm_billing_gate answers ''closed''. 0 closes the next day; a '
   'very large value restores the pre-2026-09-11 behaviour of never closing.';
 
--- ── The gate ─────────────────────────────────────────────────────────────────
+-- == The gate =================================================================
 -- Still SECURITY DEFINER, and still for the reason the original gate spells out: the SELECT
 -- policy on every billing table is `app.is_farm_billing_admin(farm_id)`, so an OPERATOR
 -- reading the subscription through their own client sees nothing, and "nothing" would be
@@ -110,7 +110,7 @@ begin
    order by created_at desc
    limit 1;
 
-  -- Grandfathered: no subscription row at all. See the header — this is the branch that
+  -- Grandfathered: no subscription row at all. See the header, this is the branch that
   -- keeps the existing customer base in the product.
   if not found then return 'ok'; end if;
 
@@ -151,7 +151,7 @@ $$;
 revoke execute on function public.farm_billing_gate(uuid) from public, anon;
 grant  execute on function public.farm_billing_gate(uuid) to authenticated, service_role;
 
--- ── Coming back ──────────────────────────────────────────────────────────────
+-- == Coming back ==============================================================
 -- Reopening deliberately produces a PENDING subscription and an open invoice, which is the
 -- exact state a fresh sign-up is in. That is the whole point: the payment is then taken by
 -- `/activate` and `app.settle_billing_attempt`, the path that has been driven end to end on
@@ -160,7 +160,7 @@ grant  execute on function public.farm_billing_gate(uuid) to authenticated, serv
 --
 -- `ended_on` and the cancellation fields MUST be cleared here. `app.billing_restore_after_
 -- payment` refuses to revive a subscription with `status = 'cancelled' or ended_on is not
--- null` — that is S5, and it is right: an in-flight charge completing after somebody
+-- null`, that is S5, and it is right: an in-flight charge completing after somebody
 -- cancelled must not resubscribe them. But it means a reopen that left those fields set
 -- would take the money and leave the farm shut, which is the one outcome worse than not
 -- offering a reopen at all. An explicit reopen by the farm's billing admin is a different
@@ -199,7 +199,7 @@ begin
          cancellation_reason   = null,
          -- Cleared so the generator computes a fresh period rather than reusing the one
          -- the farm lapsed in. It writes both back immediately, because reopening raises
-         -- the bill there and then — the same shape a sign-up has, and deliberately not
+         -- the bill there and then, the same shape a sign-up has, and deliberately not
          -- `app.start_billing_subscription`'s "leave it null until billing begins", which
          -- suits a subscription created ahead of any invoice.
          current_period_start  = null,

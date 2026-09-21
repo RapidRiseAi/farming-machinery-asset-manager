@@ -7,13 +7,13 @@ import { requireRole } from "@/lib/auth";
 
 /**
  * Onboarding step 3 ("put a QR sticker on each machine") used to share step 1's
- * `machines > 0` condition, so adding one machine ticked both — farms were told the
+ * `machines > 0` condition, so adding one machine ticked both, farms were told the
  * stickers were up when nobody had printed them, and the whole no-login driver flow
  * never started (audit bug 1).
  *
  * The step now needs its own explicit acknowledgement. It rides on the existing
  * `farms.settings` jsonb via the existing owner/manager-guarded `update_farm_settings`
- * RPC (0204), which merges with `||` — no schema change, no new policy, and every
+ * RPC (0204), which merges with `||`, no schema change, no new policy, and every
  * other settings key is left alone.
  */
 export async function acknowledgeQrLabels(formData: FormData) {

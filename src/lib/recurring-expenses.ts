@@ -1,7 +1,7 @@
 /**
  * Standing costs (G19, migration 0483).
  *
- * The shared model the list, the detail screen, the form and the actions all read — the
+ * The shared model the list, the detail screen, the form and the actions all read, the
  * cost-side mirror of `recurring.ts`. Everything about WHEN a schedule fires is imported
  * from that file rather than restated here: one cadence arithmetic, used by both sides
  * and by `app.advance_by_cadence`, is the only way a screen showing "next on 28 February"
@@ -58,7 +58,7 @@ export function isLive(s: Timing): boolean {
   return invoiceIsLive(asInvoiceTiming(s));
 }
 
-/** Due now — tonight's run would capture it. */
+/** Due now, tonight's run would capture it. */
 export function isDue(s: Timing, today = new Date()): boolean {
   return invoiceIsDue(asInvoiceTiming(s), today);
 }
@@ -69,7 +69,7 @@ export function isDue(s: Timing, today = new Date()): boolean {
  *
  * Deliberately `amount + vat` rather than `amount × rate`, matching `expenseTotalCents`:
  * a standing bill has a printed VAT line, and 0430's whole reason for storing the VAT
- * figure separately is that the printed one — not a recomputed one — is what may be
+ * figure separately is that the printed one, not a recomputed one, is what may be
  * claimed.
  */
 export function scheduleTotalCents(s: Pick<ExpenseSchedule, "amount_cents" | "vat_cents">): number {

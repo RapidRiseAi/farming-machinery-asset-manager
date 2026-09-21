@@ -1,8 +1,8 @@
 /**
  * What the sign-up comparison may claim.
  *
- * `/signup` ticks every plan × feature from `planAllows` — the same function every gate
- * calls — and labels each row with `signup.feat.<feature>`, a key built at RUNTIME. The
+ * `/signup` ticks every plan × feature from `planAllows`, the same function every gate
+ * calls, and labels each row with `signup.feat.<feature>`, a key built at RUNTIME. The
  * `i18n:keys` gate can only confirm that the `signup.feat` group exists, not that it holds
  * a label for every feature, so a feature added to `FEATURE_MIN_PLAN` without one would put
  * a raw key into the pricing table. These tests are the check that gate cannot make.

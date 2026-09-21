@@ -137,7 +137,7 @@
     "savedChanges": "Veranderinge gestoor.",
     "noOpenFaults": "Geen oop foute nie.",
     "noStaleReadings": "Alle meterlesings is bygewerk.",
-    "qrLabelsMarked": "Bevestig — QR-etikette is aangebring.",
+    "qrLabelsMarked": "Bevestig. QR-etikette is aangebring.",
     "deniedTitle": "Toegang beperk",
     "deniedBody": "Hierdie bladsy is beperk tot plaaskantoorrolle. Die volgende opsies is vir u beskikbaar."
   },
@@ -147,7 +147,7 @@
     "allDone": "Konfigurasie voltooi.",
     "step1Desc": "Registreer elke trekker, bakkie, stroper en werktuig, of voer die vloot vanaf 'n sigblad in.",
     "step3Desc": "Druk en bring 'n QR-etiket op elke masjien aan. Dit stel enige personeellid in staat om 'n fout te rapporteer of 'n meterlesing vanaf 'n foon aan te teken sonder om aan te meld.",
-    "step3Hint": "Druk op gewone papier en bring in 'n droë plek aan — binne die kajuitdeur word aanbeveel.",
+    "step3Hint": "Druk op gewone papier en bring in 'n droë plek aan, binne die kajuitdeur word aanbeveel.",
     "step3Ack": "Bevestig etikette is aangebring",
     "step3Undo": "Merk as nie gedoen nie",
     "step3Done": "QR-etikette aangebring"
@@ -175,7 +175,7 @@
     "emptyPartnerBody": "Skep een teen ’n kliëntrekening, of heg ’n dokument aan wat in u eie stelsel geproduseer is.",
     "emptyFarmBody": "Kwotasies en fakture van u kontrakteurs sal hier verskyn.",
     "lineDescription": "Beskrywing",
-    "sendExplains": "Sodra dit uitgereik is, is die bewoording en totale vas — die dokument word ’n formele rekord.",
+    "sendExplains": "Sodra dit uitgereik is, is die bewoording en totale vas. Die dokument word ’n formele rekord.",
     "sentFlash": "Uitgereik. Die kliënt kan dit nou besigtig.",
     "deleteDraftBody": "Die konsep is nooit uitgereik nie, dus gaan geen rekord verlore nie. Die reëlitems word saam verwyder.",
     "convertToInvoice": "Skakel om na faktuur",
@@ -186,11 +186,11 @@
     "acceptedFlash": "Goedgekeur. Die kontrakteur is verwittig.",
     "decline": "Wys af",
     "declineReason": "Rede vir afwysing",
-    "declineReasonHint": "Die rede bepaal die kontrakteur se volgende stap — wees asseblief spesifiek.",
+    "declineReasonHint": "Die rede bepaal die kontrakteur se volgende stap, wees asseblief spesifiek.",
     "uploadTitle": "In ’n ander stelsel geproduseer?",
     "uploadBody": "Heg die kwotasie of faktuur aan wat u rekeningkundige stelsel geproduseer het. U kliënt kan dit besigtig en dit word in hul kostes weerspieël; u bestaande faktureringsproses bly onveranderd.",
     "upgradeBody": "Die Bestuur-plan voeg geïtemiseerde kwotasies en fakture by, kwotasie-na-faktuur omskakeling, en betalingsaantekening.",
-    "upgradeKeep": "Bestaande funksionaliteit word behou — u eie dokumente aanheg bly deel van u plan.",
+    "upgradeKeep": "Bestaande funksionaliteit word behou. U eie dokumente aanheg bly deel van u plan.",
     "whoOneOff": "Eenmalige klant",
     "oneOffHint": "Geen klanterekord word geskep nie. Voer die rekeningbesonderhede op die dokument self in.",
     "billToVatHint": "Vereis sodat die klant insetBTW kan eis.",
@@ -215,30 +215,30 @@
   },
   "pageInfo": {
     "documentsWhat": "Alle kwotasies en fakture ontvang van u kontrakteurs.",
-    "documentsNote": "Goedkeuring van ’n kwotasie inisieer nie betaling nie — die kontrakteur moet steeds faktureer.",
+    "documentsNote": "Goedkeuring van ’n kwotasie inisieer nie betaling nie. Die kontrakteur moet steeds faktureer.",
     "documentsPartnerWhat": "Alle kwotasies en fakture uitgereik, oor alle kliëntrekeninge.",
     "documentsPartnerNote": "Ekstern geproduseerde dokumente aanheg is op alle planne beskikbaar. Om hulle hier te skep vereis Bestuur.",
     "partnerSettingsNote": "Veranderinge geld vir nuwe dokumente. Voorheen uitgereikte dokumente behou hul oorspronklike voorstelling.",
-    "clientsWhat": "U volledige klanteregister — nie net die rekeninge wat u op FleetWise gevind het nie.",
+    "clientsWhat": "U volledige klanteregister, nie net die rekeninge wat u op FleetWise gevind het nie.",
     "clientsNote": "Om ’n rekening hier by te voeg gee geen toegang tot hul data nie. Toegang volg slegs uit ’n goedgekeurde koppeling."
   },
   "tour": {
-    "contractorDocumentsBody": "Skep geïtemiseerde kwotasies en fakture, skakel ’n goedgekeurde kwotasie na ’n faktuur om, en teken betalings aan soos dit ontvang word. As u elders faktureer, heg eerder daardie dokument aan — op alle planne beskikbaar.",
+    "contractorDocumentsBody": "Skep geïtemiseerde kwotasies en fakture, skakel ’n goedgekeurde kwotasie na ’n faktuur om, en teken betalings aan soos dit ontvang word. As u elders faktureer, heg eerder daardie dokument aan, op alle planne beskikbaar.",
     "contractorBrandBody": "U besigheidsnaam, registrasie- en BTW-nommers, bankbesonderhede, logo en kleure. Elke dokument word op u briefhoof uitgereik."
   },
   "notifications": {
-    "tplPartnerQuote": "Kwotasie {number} ontvang — {amount}",
-    "tplPartnerInvoice": "Faktuur {number} ontvang — {amount}"
+    "tplPartnerQuote": "Kwotasie {number} ontvang, {amount}",
+    "tplPartnerInvoice": "Faktuur {number} ontvang, {amount}"
   },
   "clients": {
-    "lead": "U volledige klanteregister — rekeninge wat reeds op FleetWise gekoppel is, en dié wat nie is nie.",
+    "lead": "U volledige klanteregister, rekeninge wat reeds op FleetWise gekoppel is, en dié wat nie is nie.",
     "addHint": "Enige klant wat u diens. As hulle FleetWise gebruik, kan u daarna ’n koppeling versoek.",
     "notConnectedBody": "Hierdie rekening is nie op FleetWise aan u gekoppel nie, dus word hul besonderhede hier onderhou.",
     "askedBody": "’n Koppelingsversoek is gestuur. Net die klant kan dit aanvaar.",
     "syncConfirmBody": "{n} voertuie word by {farm} se vloot gevoeg.",
     "syncConsequence": "Hulle word bates op die klant se vloot, sigbaar vir almal by daardie rekening.",
     "vehiclesHint": "U eie rekords van wat hulle bedryf, hier onderhou tot die rekening gekoppel is.",
-    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende — probeer weer."
+    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende, probeer weer."
   },
   "partners": {
     "requestsHint": "Hulle het u rekening in hul kliënteregister. Goedkeuring gee hulle toegang tot u voertuie.",

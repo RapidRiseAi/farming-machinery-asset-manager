@@ -3,7 +3,7 @@ import { t, type Lang } from "@/lib/i18n";
 /**
  * One place that turns an error code into a sentence a person can read.
  *
- * ── The problem this solves ────────────────────────────────────────────────
+ * == The problem this solves ================================================
  * Server actions in this app reject by redirecting to `?error=<something>`, and
  * there are 259 such paths. 232 of them put RAW ENGLISH or a raw Postgres
  * message straight into the URL:
@@ -22,9 +22,9 @@ import { t, type Lang } from "@/lib/i18n";
  * in English. And because every page invented its own mapping, coverage was
  * patchy by construction.
  *
- * ── The rule ───────────────────────────────────────────────────────────────
+ * == The rule ===============================================================
  * `errorMessage()` ALWAYS returns a translated sentence. An unrecognised code
- * yields the generic apology, never the raw code — a person seeing
+ * yields the generic apology, never the raw code, a person seeing
  * "Something didn't work" learns as much as they would from `wrong_direction`,
  * and at least it is in their language.
  *
@@ -46,10 +46,10 @@ const FALLBACK = "errors.generic";
  * action is converted to emit a slug.
  */
 const CODE_KEYS: Record<string, string> = {
-  // ── Permission, session, existence ────────────────────────────────────────
+  // == Permission, session, existence ========================================
   forbidden: "errors.forbidden",
   "not-allowed": "errors.forbidden",
-  // Emitted as "You+can+invite+manager/mechanic/operator+only" — the slashes are
+  // Emitted as "You+can+invite+manager/mechanic/operator+only", the slashes are
   // stripped by `normalise`, which is why the key looks run-together.
   "you-can-invite-managermechanicoperator-only": "errors.inviteRole",
   auth: "errors.session",
@@ -75,7 +75,7 @@ const CODE_KEYS: Record<string, string> = {
   missing: "errors.missing",
   empty: "errors.missing",
 
-  // ── Things the person needs to fill in ────────────────────────────────────
+  // == Things the person needs to fill in ====================================
   name: "errors.needName",
   "need-name": "errors.needName",
   "missing-name": "errors.needName",
@@ -114,7 +114,7 @@ const CODE_KEYS: Record<string, string> = {
   "writeoff-reason": "errors.needReason",
   "revise-empty": "errors.needLine",
 
-  // ── Values that don't make sense ──────────────────────────────────────────
+  // == Values that don't make sense ==========================================
   "invalid-values": "errors.badValues",
   "invalid-status": "errors.badValues",
   "bad-status": "errors.badValues",
@@ -123,7 +123,7 @@ const CODE_KEYS: Record<string, string> = {
   "wrong-direction": "errors.wrongDirection",
   "save-failed": "errors.saveFailed",
 
-  // ── Meter corrections and replacements (20260920100000) ───────────────────
+  // == Meter corrections and replacements (20260920100000) ===================
   // The commands refuse in English prose from a migration, so the action turns each
   // refusal into a code rather than putting a Postgres sentence on a farmer's screen.
   "meter-correct-missing": "errors.meterCorrectMissing",
@@ -131,9 +131,9 @@ const CODE_KEYS: Record<string, string> = {
   "meter-replace-invalid": "errors.meterReplaceInvalid",
   "meter-replace-failed": "errors.meterReplaceFailed",
 
-  // ── Subscription billing ──────────────────────────────────────────────────
+  // == Subscription billing ==================================================
   // None of these were mapped, so every refusal on /billing and /admin/billing
-  // rendered as the generic apology — including the ones a person can act on
+  // rendered as the generic apology, including the ones a person can act on
   // ("there is no saved card", "a payment is already in progress"). Several of
   // them are about MONEY, where "Something didn't work" is the least useful
   // sentence available: the first question is always whether they were charged,
@@ -156,7 +156,7 @@ const CODE_KEYS: Record<string, string> = {
   // accusation: the overwhelming majority of people who ever see it are sharing an office
   // connection with somebody else who just signed up, not abusing anything.
   "signup-busy": "errors.signupBusy",
-  // One sentence for every reason a promo code did not work — unknown, switched off,
+  // One sentence for every reason a promo code did not work, unknown, switched off,
   // expired, or all taken. Saying which would tell a stranger trying codes that a
   // particular one exists, and the visitor's next move is the same either way.
   "signup-promo": "errors.signupPromo",
@@ -169,7 +169,7 @@ const CODE_KEYS: Record<string, string> = {
   "terms-stale": "errors.termsStale",
   "billing-not-paid": "errors.billingNotPaid",
   "signup-plan-unavailable": "errors.signupPlanUnavailable",
-  // fuel/actions.ts bounces with raw English sentences — `bounce("Enter a tank name")` —
+  // fuel/actions.ts bounces with raw English sentences, `bounce("Enter a tank name")` -
   // which `norm()` turns into these. Unmapped, they fell through to the fallback, so the
   // sentence the author wrote was the one thing nobody read. Mapped here rather than by
   // editing that file, which also makes them translated.
@@ -210,7 +210,7 @@ const CODE_KEYS: Record<string, string> = {
   "billing-discount-both": "errors.billingDiscountBoth",
   "billing-discount-bad": "errors.billingDiscountBad",
   // Driver and operator documents (20260921090000). The database refuses the impossible
-  // combinations too — one person or one name, never both — and these turn each refusal
+  // combinations too, one person or one name, never both, and these turn each refusal
   // into a sentence a farmer can act on instead of a check-constraint name.
   "credential-bad-type": "errors.credentialBadType",
   "credential-two-people": "errors.credentialTwoPeople",
@@ -245,7 +245,7 @@ const CODE_KEYS: Record<string, string> = {
   "depreciation-save-failed": "errors.depreciationSaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
-  // ── Somebody's own account (20260911190000) ───────────────────────────────
+  // == Somebody's own account (20260911190000) ===============================
   // Until these shipped there was no way for anyone to change their own password or email
   // at all, so there were no codes for it either.
   "name-required": "errors.nameRequired",
@@ -255,7 +255,7 @@ const CODE_KEYS: Record<string, string> = {
   "password-failed": "errors.passwordFailed",
   "email-unchanged": "errors.emailUnchanged",
   "email-failed": "errors.emailFailed",
-  // An operator problem, and the sentence says so — a farmer reading "we could not send"
+  // An operator problem, and the sentence says so, a farmer reading "we could not send"
   // will check their own spelling for something that is entirely ours.
   "email-not-configured": "errors.emailNotConfigured",
   "no-email": "errors.noEmail",
@@ -263,7 +263,7 @@ const CODE_KEYS: Record<string, string> = {
   "refund-too-big": "errors.refundTooBig",
   "not-an-invoice": "errors.notAnInvoice",
 
-  // ── State that blocks the action ──────────────────────────────────────────
+  // == State that blocks the action ==========================================
   locked: "errors.locked",
   closed: "errors.closed",
   "not-issued": "errors.notIssued",
@@ -276,11 +276,11 @@ const CODE_KEYS: Record<string, string> = {
   "this-partner-is-not-connected-yet": "errors.notLinked",
   "revoke-failed": "errors.revokeFailed",
 
-  // ── Entitlement ───────────────────────────────────────────────────────────
+  // == Entitlement ===========================================================
   upgrade: "errors.upgrade",
   "upgrade-required": "errors.upgrade",
 
-  // ── Files and import ──────────────────────────────────────────────────────
+  // == Files and import ======================================================
   "logo-format": "errors.logoFormat",
   "logo-too-big": "errors.logoTooBig",
   "receipt": "errors.receipt",
@@ -291,9 +291,9 @@ const CODE_KEYS: Record<string, string> = {
   "too-many-rows": "errors.tooManyRows",
   "too-many": "errors.tooManyRows",
 
-  // ── Purchase orders ───────────────────────────────────────────────────────
+  // == Purchase orders =======================================================
   // These are emitted in camelCase (`po-needSupplier`), which `normalise`
-  // lower-cases WITHOUT inserting a separator — so the lookup key has no hyphen
+  // lower-cases WITHOUT inserting a separator, so the lookup key has no hyphen
   // in the second half. Verified against what the code actually emits rather
   // than guessed; `scripts/` has a check that every emitted code is covered.
   "po-badstatus": "errors.badValues",
@@ -305,15 +305,15 @@ const CODE_KEYS: Record<string, string> = {
   "po-needsupplier": "errors.needSupplier",
   "po-notfound": "errors.notFound",
 
-  // ── Cross-farm attempts (these are RLS doing its job) ─────────────────────
+  // == Cross-farm attempts (these are RLS doing its job) =====================
   "you-cannot-record-a-reading-for-that-farm": "errors.wrongFarm",
   "you-cannot-report-a-fault-for-that-farm": "errors.wrongFarm",
   "wrong-farm": "errors.wrongFarm",
 
-  // ── Team invites ──────────────────────────────────────────────────────────
+  // == Team invites ==========================================================
   "email-name-and-role-required": "errors.needInvite",
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // == Auth ==================================================================
   "need-password": "errors.needPassword",
 
   // The public QR actions use a bare `?error=1` as a generic sentinel. Mapped so
@@ -363,7 +363,7 @@ export function errorMessage(
   // An unmapped code is a gap in this file, not something to show a farmer.
   // Surface it to the developer without ever putting it on screen.
   if (process.env.NODE_ENV !== "production") {
-    console.warn(`[errors] unmapped error code: ${JSON.stringify(raw)} — add it to CODE_KEYS`);
+    console.warn(`[errors] unmapped error code: ${JSON.stringify(raw)}, add it to CODE_KEYS`);
   }
   return t(FALLBACK, locale);
 }

@@ -13,7 +13,7 @@ import { THREAD_COLUMNS, THREAD_LIMIT, toThreadEntry, type ThreadEntry, type Thr
  * WRITES; reusing that here would bypass the one rule that makes history safe,
  * and nothing at the call site would show it.
  *
- * The `farm_id` and `user_id` filters are not the security boundary — RLS is —
+ * The `farm_id` and `user_id` filters are not the security boundary, RLS is -
  * but they scope the thread to the farm the shell is showing (RLS alone would
  * return every accessible farm) and keep an rr_admin's own history their own.
  *

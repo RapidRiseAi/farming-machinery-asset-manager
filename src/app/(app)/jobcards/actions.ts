@@ -177,7 +177,7 @@ export async function removeLine(formData: FormData) {
   const jobCardId = String(formData.get("job_card_id") ?? "");
   if (!id || !jobCardId) redirect(`/jobcards/${jobCardId}?error=missing-ids`);
   const { farmId, supabase } = await jobCardContext(jobCardId);
-  // soft delete — the totals trigger re-sums non-deleted lines
+  // soft delete, the totals trigger re-sums non-deleted lines
   await supabase
     .from("job_card_lines")
     .update({ deleted_at: new Date().toISOString() })
@@ -193,7 +193,7 @@ export async function completeJobCard(formData: FormData) {
   if (!id) redirect("/jobcards?error=missing-id");
   const meterReading = num(formData, "meter_reading");
   const { farmId, supabase } = await jobCardContext(id);
-  // meter_reading is mandatory at service (Scope §4.4) — keep whatever's set/entered
+  // meter_reading is mandatory at service (Scope §4.4), keep whatever's set/entered
   const { error } = await supabase
     .from("job_cards")
     .update({
@@ -208,7 +208,7 @@ export async function completeJobCard(formData: FormData) {
   redirect(`/jobcards/${id}?saved=completed`);
 }
 
-/** Owner/manager approval — locks the card (money/history tamper-evident). */
+/** Owner/manager approval, locks the card (money/history tamper-evident). */
 export async function approveJobCard(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/jobcards?error=missing-id");
@@ -232,7 +232,7 @@ export async function approveJobCard(formData: FormData) {
  * Apply a machine's service kit (F9) to a job card: append one part line per kit item.
  * The kit items store ex-VAT unit costs, so the lines are inserted ex-VAT directly (no
  * VAT conversion). Each new line flows to cost_entries/TCO + history via the existing
- * 0211 job_card_lines trigger — the ONLY kit→cost path, so there is no double-count.
+ * 0211 job_card_lines trigger, the ONLY kit→cost path, so there is no double-count.
  */
 export async function applyServiceKit(formData: FormData) {
   const jobCardId = String(formData.get("job_card_id") ?? "");

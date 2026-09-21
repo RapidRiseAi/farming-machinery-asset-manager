@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  *
  * Same zero-anon-DB rule as the rest of the public surface: the unguessable token is
  * resolved by this SERVICE-role route and nothing else is reachable with it. A draft
- * 404s even with a valid token — it was never sent, so there is nothing to fetch.
+ * 404s even with a valid token, it was never sent, so there is nothing to fetch.
  *
  * Renders through the same `buildDocumentPdf` the authenticated route uses, so the
  * customer's copy and the partner's copy are byte-for-byte the same document.

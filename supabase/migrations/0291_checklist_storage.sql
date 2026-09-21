@@ -6,7 +6,7 @@
 -- so the same farm-scoped policy governs reads; they are served via server-generated
 -- signed URLs.
 --
--- Guarded so this is a no-op on a local test Postgres that has no `storage` schema —
+-- Guarded so this is a no-op on a local test Postgres that has no `storage` schema -
 -- there is no new business table/column/policy here (checklist photo rows live in
 -- `attachments`, already covered), so the RLS isolation suite has nothing new to assert.
 

@@ -1,4 +1,4 @@
-# FleetWise — POPIA compliance posture
+# FleetWise, POPIA compliance posture
 
 **Status:** F8 (NFR-3). This document is the authoritative record of how FleetWise
 handles personal information under South Africa's **Protection of Personal Information
@@ -24,19 +24,19 @@ Everything in the product is tenant-isolated by `farm_id` and Row-Level Security
 | Where | Fields | Data subject | Special/sensitive? |
 |---|---|---|---|
 | `public.users` | `name`, `email`, `phone`, `language`, `whatsapp_opt_in`, `role`, `farm_id`/`workshop_id` | Team members, contractors, RR admins | No (contact data) |
-| `auth.users` (Supabase Auth) | email, hashed password, magic-link tokens, last-sign-in | Same accounts | No (credential data — hashed) |
-| `usage_logs` (AARTO) | `driver_user_id` **or** free-text `driver_name`, `machine_id`, `occurred_on`, `meter_reading` | **Drivers** (incl. non-account operators named at capture) | No — but legally retained (see §4) |
+| `auth.users` (Supabase Auth) | email, hashed password, magic-link tokens, last-sign-in | Same accounts | No (credential data, hashed) |
+| `usage_logs` (AARTO) | `driver_user_id` **or** free-text `driver_name`, `machine_id`, `occurred_on`, `meter_reading` | **Drivers** (incl. non-account operators named at capture) | No, but legally retained (see §4) |
 | `faults` | `reported_by` / free-text `reporter_name`, optional `lat`/`lng` at report time | Reporter | Location is low-sensitivity, permission-gated |
 | `meter_readings`, `job_cards`, `cost_entries`, `attachments`, `notifications` | `by_user` / `mechanic_user_id` / `approved_by` / `created_by` / `user_id` (who did what) | The acting user | No |
 | `attachments` (photos/voice/docs in private Storage) | May **incidentally** contain faces, number plates, or a voice note | Whoever appears/speaks | Treat as possibly identifying |
 | `audit_log` | `user_id`, `entity`, before/after `diff` | The acting user | Internal integrity record (see §4.4) |
-| `audit_log` **(location)** | `ip`, `geo_country`, `geo_region`, `geo_city`, `user_agent` | The acting user | Attributing a change to a place and a device, for dispute resolution and detecting account misuse — see §5.2 |
+| `audit_log` **(location)** | `ip`, `geo_country`, `geo_region`, `geo_city`, `user_agent` | The acting user | Attributing a change to a place and a device, for dispute resolution and detecting account misuse, see §5.2 |
 | `partners`, `workshops` | Contractor `phone`/`whatsapp`/`email`/`area`/`contact` | Contractors | No (business contact data) |
-| **Error reports** (NFR-6) — *transmitted, never stored by us* | Stack trace, route path, and the acting user's and farm's **opaque uuids**. Deliberately never: name, email, phone, row content, or query strings. | The acting user | No — see §5.1 |
+| **Error reports** (NFR-6), *transmitted, never stored by us* | Stack trace, route path, and the acting user's and farm's **opaque uuids**. Deliberately never: name, email, phone, row content, or query strings. | The acting user | No, see §5.1 |
 
-**Not collected (Scope §13 — hard out of scope):** GPS/telemetry tracking, biometric
+**Not collected (Scope §13, hard out of scope):** GPS/telemetry tracking, biometric
 identifiers, ID/passport numbers, banking/card data (billing is deferred; when it lands
-it runs through Paystack — card data never touches our servers), and any
+it runs through Paystack, card data never touches our servers), and any
 crop/livestock/labour records.
 
 ---
@@ -81,7 +81,7 @@ by adding new records, preserving the trail.
 **Team → per-person → Erase personal data** anonymises a person on request. Backed by
 `public.erase_personal_data(uuid, text)` (migration `0350`):
 
-- clears the directly-identifying fields in `users` — `name` → `[erased]`, `email` →
+- clears the directly-identifying fields in `users`, `name` → `[erased]`, `email` →
   null, `phone` → null, `whatsapp_opt_in` → false;
 - **deactivates** the account (`active = false`) and **soft-deletes** it
   (`deleted_at`/`deleted_by`), so it can never sign in again;
@@ -122,7 +122,7 @@ requires**, then de-identify.
 | Notifications | Rolling operational window | User's queue de-identified with the account |
 | Voice transcripts / assistant proposals | Operational support and dispute window; private to the subject | Text and tool payloads scrubbed, records soft-deleted |
 | Offline raw voice audio (device IndexedDB only) | Until explicit transcription/discard, sign-out, or seven days at the latest | Cleared from that browser; never stored in FleetWise Postgres/Storage |
-| **`audit_log`** | Retained for integrity/legal-obligation | **Kept** — see §4.4 |
+| **`audit_log`** | Retained for integrity/legal-obligation | **Kept**, see §4.4 |
 | Backups (Supabase PITR) | Rolling window (see [`BACKUP.md`](BACKUP.md)) | Anonymisation propagates as the window rolls forward; documented exception below |
 
 ### 4.4 The audit-log exception (documented choice)
@@ -131,8 +131,8 @@ including the erasure itself (which by definition captures the old identifying v
 its `diff`). We **retain** the audit log because:
 - it is our integrity and dispute-resolution record (a legitimate-interest / legal
   basis), and POPIA §14 allows retention for such purposes;
-- it is strictly access-controlled — farm-scoped RLS, **zero `anon` access**, no client
-  write path — so the residual identifiers are not exposed.
+- it is strictly access-controlled, farm-scoped RLS, **zero `anon` access**, no client
+  write path, so the residual identifiers are not exposed.
 
 This is the deliberate, documented boundary of "erasure": the *operational* surfaces are
 fully de-identified; the *tamper-evident audit trail* is preserved. If a regulator or a
@@ -174,7 +174,7 @@ model provider and include them in the processor register.
 
 ## 5.1 Error reporting (NFR-6)
 
-**Off unless configured.** With `SENTRY_DSN` unset — the default — nothing leaves the server
+**Off unless configured.** With `SENTRY_DSN` unset, the default, nothing leaves the server
 and errors go to the application log, which is a sub-processor question already covered by
 the hosting arrangement rather than a new one.
 
@@ -183,7 +183,7 @@ minimal, and the reasoning is worth stating because the temptation runs the othe
 
 - **Opaque identifiers only.** The acting user's uuid and their farm's uuid, which is what
   answers "is this one farm's outage or everybody's". No name, email, phone or row content.
-- **Query strings are dropped.** Not merely unused — removed before the report is built.
+- **Query strings are dropped.** Not merely unused, removed before the report is built.
   This codebase has put a login credential in a query string before (the contractor
   `action_link`, since fixed), and an error reporter must not become the thing that
   exfiltrates the next one.
@@ -202,12 +202,12 @@ made at that point.
 `audit_log` records who and when. It now also records, on authenticated writes, the request
 IP, a coarse country/region/city derived from it by the hosting edge, and the user agent.
 
-### Minimisation — what is collected, and what deliberately is not
+### Minimisation, what is collected, and what deliberately is not
 
 POPIA §10 is the reason this is a short list.
 
 **Collected:** request IP (`x-forwarded-for`, first hop); coarse geo derived from it by the
-edge — country, region, city; user agent, capped at 300 characters.
+edge, country, region, city; user agent, capped at 300 characters.
 
 **Deliberately not collected:**
 
@@ -215,18 +215,18 @@ edge — country, region, city; user agent, capped at 300 characters.
   phone for coordinates to record that they saved a meter reading fails minimisation before
   it fails anything else, and would need a consent this product has no reason to ask for.
 - **Latitude and longitude**, though the edge offers them. City is the coarsest granularity
-  that still answers the question a human is actually asking — *was that from the farm office
+  that still answers the question a human is actually asking, *was that from the farm office
   or from somewhere nobody recognises?* Coordinates answer a different question.
 - **Anything on the public QR flow.** That path is anonymous and writes through service-role
   routes; it is not an authenticated action and has no `auth.uid()` to attribute anything to.
 
-### Accuracy — this is a signal, not evidence
+### Accuracy, this is a signal, not evidence
 
 This governs how the data may be used, so it is stated rather than assumed.
 
 > Every one of these values is **supplied by the requesting client and can be forged**. The
 > product stores them beside a correctly-attributed action and never acts on them: no access
-> decision, no visibility rule and no notification reads them — asserted structurally in
+> decision, no visibility rule and no notification reads them, asserted structurally in
 > `supabase/tests/rls_isolation.sql`, section G33, against both `pg_policies` and function
 > bodies. The identity itself still comes from `auth.uid()`. A wrong city beside a correct
 > name is the worst a forged value can produce.
@@ -237,7 +237,7 @@ This governs how the data may be used, so it is stated rather than assumed.
 
 ### Retention, access and erasure
 
-Retention is `audit_log`'s, unchanged — the documented audit-log exception in §4.4. No
+Retention is `audit_log`'s, unchanged, the documented audit-log exception in §4.4. No
 separate rule and no separate deletion path.
 
 A DSAR bundle discloses these fields automatically, because `public.export_personal_data`
@@ -250,14 +250,14 @@ migration `20260829130000`. `public.erase_personal_data` nulls `ip`, `geo_countr
 `geo_region`, `geo_city` and `user_agent` on the **subject's own** audit rows.
 
 The reasoning, because the §4.4 exception pulls the other way and someone will ask: that
-exception exists to protect the **integrity record** — the diff, the entity, the timestamp,
-the actor link — and a legal-retention argument rests on those. None of them needs an IP
+exception exists to protect the **integrity record**, the diff, the entity, the timestamp,
+the actor link, and a legal-retention argument rests on those. None of them needs an IP
 address. An IP is simultaneously the most identifying field in the row and the least
 load-bearing, so on an explicit erasure request it is exactly the field that should go. The
 action itself stays correctly attributed, to a now-anonymised actor.
 
-Only the subject's own rows. An audit entry recording somebody *else* acting — against this
-person or otherwise — carries that other person's location, which is not the subject's to
+Only the subject's own rows. An audit entry recording somebody *else* acting, against this
+person or otherwise, carries that other person's location, which is not the subject's to
 erase. The count is reported in the `data_subject_erasure` compliance entry and in the RPC's
 return value, so an operator can show what was cleared. Proven in `rls_isolation.sql` §G34,
 including that erasing one person leaves another person's location intact and that the audit
@@ -287,12 +287,12 @@ Supabase logs support scoping the incident.
 - [ ] Decide the erasure question in §5.2 (scrub `ip`/`user_agent` on erasure, or keep
       the §4.4 audit-log exception as it stands).
 
-- [ ] Supabase Auth: enable **leaked-password protection** (HaveIBeenPwned) — see `SECURITY.md`.
+- [ ] Supabase Auth: enable **leaked-password protection** (HaveIBeenPwned), see `SECURITY.md`.
 - [ ] Confirm all Storage buckets are **private** (they are, by migration `0200`) and only served via signed URLs.
 - [ ] Keep a signed **DPA with Supabase** on file; before production Voice AI, add Azure,
       Vercel AI Gateway and the selected model provider to the processor/DPA register.
 - [ ] Confirm the Voice AI consent wording/version (`voice-ai-v1`), withdrawal path,
       seven-day offline-audio expiry and data-subject export/erasure flow on real devices.
-- [ ] Publish a customer-facing **privacy notice** (purposes, rights, contact) derived from §1–§5.
+- [ ] Publish a customer-facing **privacy notice** (purposes, rights, contact) derived from §1-§5.
 - [ ] Nominate an **Information Officer** (POPIA §55) and register with the Regulator.
 - [ ] Run a periodic **erasure/restore drill** and re-apply outstanding erasures after any restore (`BACKUP.md`).

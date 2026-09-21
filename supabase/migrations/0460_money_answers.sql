@@ -3,18 +3,18 @@
 --
 -- The commercial layer records transactions well and reports on them barely at all. A
 -- partner can raise an invoice, correct it, chase it on a statement and file the VAT on
--- it — and still cannot answer the three questions any business actually runs on. This
+-- it, and still cannot answer the three questions any business actually runs on. This
 -- adds no tables: every figure below is an aggregation over `partner_documents`,
 -- `partner_payments` and `partner_expenses`, which already exist and are already scoped.
 --
--- ── Why SQL rather than the page ────────────────────────────────────────────
+-- == Why SQL rather than the page ============================================
 --
 -- Same reason `partner_statement`, `partner_ageing` and `partner_vat_return` are SQL: the
 -- screen, the CSV, the PDF and an emailed copy must not be able to disagree. A figure
 -- computed in a React component is a figure that exists in one place only until somebody
 -- adds an export.
 --
--- ── Why these numbers agree with the VAT return ─────────────────────────────
+-- == Why these numbers agree with the VAT return =============================
 --
 -- The document selection below is copied deliberately from `app.partner_vat_return`:
 -- kinds invoice/credit_note/debit_note, statuses sent/part_paid/paid/written_off, by
@@ -22,29 +22,29 @@
 -- screen and a different one on the money screen and trusts neither. Invoice basis
 -- throughout, and the screens say so in words.
 --
--- ── Three judgements worth stating ──────────────────────────────────────────
+-- == Three judgements worth stating ==========================================
 --
 -- 1. A WRITTEN-OFF invoice is still revenue, and the write-off is a cost. It was earned
 --    and declared (G5/G6 keep it in the ledger and on the VAT return); pretending it was
 --    never revenue would quietly restate a filed period. So it is counted in revenue and
 --    subtracted again as bad debt, which nets correctly and shows the loss instead of
 --    hiding it.
--- 2. NON-CLAIMABLE VAT IS A COST. The VAT return excludes it from input VAT, correctly —
+-- 2. NON-CLAIMABLE VAT IS A COST. The VAT return excludes it from input VAT, correctly -
 --    but the money left the bank. Entertainment and passenger-car VAT belong in the cost
 --    of running the business even though SARS will not refund them, and a P&L that
 --    dropped them would overstate profit by exactly the amount most likely to be
 --    forgotten.
 -- 3. Ageing buckets a supplier invoice from ITS OWN DATE, because an expense carries no
---    due date. That is "how long have I been sitting on this", not "how overdue am I" —
+--    due date. That is "how long have I been sitting on this", not "how overdue am I" -
 --    the screen says which.
 
--- ── Did this month make money ────────────────────────────────────────────────
+-- == Did this month make money ================================================
 create or replace function app.partner_pl(p_workshop uuid, p_from date, p_to date)
 returns table (
   revenue_ex_cents    bigint,   -- invoices + debit notes − credit notes, ex-VAT
   bad_debt_ex_cents   bigint,   -- of that revenue, what was written off
   expenses_ex_cents   bigint,   -- everything bought, ex-VAT
-  blocked_vat_cents   bigint,   -- VAT paid that cannot be reclaimed — also a cost
+  blocked_vat_cents   bigint,   -- VAT paid that cannot be reclaimed, also a cost
   cost_cents          bigint,   -- expenses + blocked VAT
   profit_cents        bigint    -- revenue − bad debt − cost
 )
@@ -80,9 +80,9 @@ language sql stable security invoker set search_path = public, pg_temp as $$
     from n;
 $$;
 
--- ── Where the money went ─────────────────────────────────────────────────────
+-- == Where the money went =====================================================
 -- Split out rather than folded into the P&L because a total nobody can decompose is a
--- total nobody believes. Sums to `cost_cents` above — asserted in G14.
+-- total nobody believes. Sums to `cost_cents` above, asserted in G14.
 create or replace function app.partner_expense_breakdown(p_workshop uuid, p_from date, p_to date)
 returns table (category partner_expense_category, ex_cents bigint, blocked_vat_cents bigint, cost_cents bigint)
 language sql stable security invoker set search_path = public, pg_temp as $$
@@ -99,9 +99,9 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 4 desc;
 $$;
 
--- ── Who owes me ──────────────────────────────────────────────────────────────
+-- == Who owes me ==============================================================
 -- `app.partner_ageing` answers this for ONE customer and matches nothing when given
--- neither — so "who owes me, across everyone" was unanswerable, which is the first
+-- neither, so "who owes me, across everyone" was unanswerable, which is the first
 -- question of the week. Same arithmetic, grouped by customer instead of filtered to one.
 create or replace function app.partner_debtors(p_workshop uuid, p_as_at date default current_date)
 returns table (
@@ -119,7 +119,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
     select d.id,
            d.farm_id,
            d.partner_client_id,
-           coalesce(nullif(btrim(d.bill_to_name), ''), '—') as label,
+           coalesce(nullif(btrim(d.bill_to_name), ''), '-') as label,
            d.total_cents,
            coalesce(d.due_date, d.issue_date) as due,
            coalesce((select sum(p.amount_cents) from partner_payments p
@@ -156,7 +156,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 8 desc;
 $$;
 
--- ── Who I owe ────────────────────────────────────────────────────────────────
+-- == Who I owe ================================================================
 -- The mirror, over the purchase side. An expense with no `paid_on` is outstanding; there
 -- is no due date on a supplier invoice, so the buckets measure age from the supplier's
 -- own invoice date and the screen says so rather than implying lateness.
@@ -171,7 +171,7 @@ returns table (
 )
 language sql stable security invoker set search_path = public, pg_temp as $$
   with unpaid as (
-    select coalesce(nullif(btrim(e.supplier_name), ''), '—') as supplier,
+    select coalesce(nullif(btrim(e.supplier_name), ''), '-') as supplier,
            (e.amount_cents + e.vat_cents) as owed,     -- what actually leaves the bank
            p_as_at - e.expense_date as age
       from partner_expenses e
@@ -192,7 +192,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
    order by 6 desc;
 $$;
 
--- ── What actually moved ──────────────────────────────────────────────────────
+-- == What actually moved ======================================================
 -- Profit is not cash. This is the other half: money that arrived and money that left in
 -- the period, on a CASH basis, which is why a profitable month can still be a tight one.
 create or replace function app.partner_cash(p_workshop uuid, p_from date, p_to date)
@@ -219,7 +219,7 @@ language sql stable security invoker set search_path = public, pg_temp as $$
          ((select c from received) - (select c from spent))::bigint;
 $$;
 
--- ── PostgREST wrappers + least privilege (0205/0413 pattern) ─────────────────
+-- == PostgREST wrappers + least privilege (0205/0413 pattern) =================
 -- The column lists are restated rather than referenced: a function's RETURNS TABLE is not
 -- a named composite type, so `returns setof app.partner_pl` does not exist. Same shape as
 -- the 0413 wrappers.
@@ -261,7 +261,7 @@ $$;
 
 -- app.* is helper-only; the public wrappers are the API. Every one of these is
 -- SECURITY INVOKER, so passing another workshop's id returns nothing rather than
--- somebody else's books — RLS on the underlying tables is what decides, exactly as it
+-- somebody else's books, RLS on the underlying tables is what decides, exactly as it
 -- does for partner_statement and partner_ageing.
 do $do$
 declare f text;

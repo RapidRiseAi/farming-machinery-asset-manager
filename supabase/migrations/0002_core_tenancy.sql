@@ -2,7 +2,7 @@
 -- Tenants (farms), external workshops, user profiles, and workshop→farm grants.
 -- Every business table below carries soft-delete columns; audit + RLS come later.
 
--- ── Farms (tenants) ───────────────────────────────────────────────
+-- == Farms (tenants) ===============================================
 create table farms (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
@@ -19,7 +19,7 @@ comment on column farms.settings is
   'due_soon_days (int, 14), stale_reading_days (int, 30), approval_required (bool), '
   'cost_visible_to_operators (bool), quiet_hours_start (int, 20), quiet_hours_end (int, 5).';
 
--- ── Workshops (external mechanic businesses; NOT farm-scoped) ──────
+-- == Workshops (external mechanic businesses; NOT farm-scoped) ======
 create table workshops (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
@@ -29,7 +29,7 @@ create table workshops (
   deleted_by  uuid
 );
 
--- ── Users (profile rows; PK == auth.users.id) ─────────────────────
+-- == Users (profile rows; PK == auth.users.id) =====================
 create table users (
   id              uuid primary key references auth.users(id) on delete cascade,
   farm_id         uuid references farms(id),
@@ -54,7 +54,7 @@ create table users (
 create index users_farm_idx     on users(farm_id);
 create index users_workshop_idx on users(workshop_id);
 
--- ── Workshop links (grant a workshop scoped access to a farm) ─────
+-- == Workshop links (grant a workshop scoped access to a farm) =====
 create table workshop_links (
   id          uuid primary key default gen_random_uuid(),
   workshop_id uuid not null references workshops(id),

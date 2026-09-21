@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 /**
  * Does this `Authorization` header carry exactly this bearer token?
  *
- * `authHeader !== \`Bearer ${secret}\`` — which is what both cron routes did — compares byte
+ * `authHeader !== \`Bearer ${secret}\``, which is what both cron routes did, compares byte
  * by byte and stops at the first difference, so how long it takes to say no depends on how
  * much of the token was right. That is a timing oracle, and these routes are reachable from
  * the public internet and run the entire billing pass.
@@ -13,7 +13,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
  * than a comparison that does not leak, and this costs nothing.
  *
  * Both sides are hashed first because `timingSafeEqual` throws when the buffers differ in
- * LENGTH — which is the same leak in miniature, answered instantly and telling the caller
+ * LENGTH, which is the same leak in miniature, answered instantly and telling the caller
  * how long the secret is. Comparing digests makes every comparison exactly 32 bytes
  * whatever was sent.
  */

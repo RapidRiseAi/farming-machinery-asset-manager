@@ -1,31 +1,31 @@
 -- 0434_document_layout.sql
 -- How a partner's documents are LAID OUT, not just what colour they are.
 --
--- ── What this is, and deliberately is not ────────────────────────────────────
+-- == What this is, and deliberately is not ====================================
 --
 -- It is not a drag-and-drop designer. A partner does not want to design a document; they
 -- want theirs to look like the one they have been sending for fifteen years, and the
 -- handful of differences that actually matter are the same handful every time:
 --
 --   * which blocks appear at all (their VAT number, the vehicle, banking, a signature
---     line, a "thank you" — a workshop that never quotes on vehicles should not have an
+--     line, a "thank you", a workshop that never quotes on vehicles should not have an
 --     empty vehicle row on every document);
 --   * what the blocks are CALLED. "Quote" or "Estimate" or "Quotation"; "Invoice" or "Tax
---     Invoice" — and that last one is not cosmetic, because a VAT-registered vendor's
+--     Invoice", and that last one is not cosmetic, because a VAT-registered vendor's
 --     document must be headed "tax invoice" to be one (VAT Act s20(4));
 --   * how dense it is, and whether the accent colour is a band or a hairline.
 --
 -- So: a small, closed set of choices, stored as jsonb on the workshop and applied
 -- identically by the screen and the PDF. Closed rather than free-form because every value
--- here has to be understood by two renderers — anything they cannot both honour would be
+-- here has to be understood by two renderers, anything they cannot both honour would be
 -- a promise the PDF quietly breaks.
 --
--- ── Why it goes on the workshop, and gets frozen ─────────────────────────────
+-- == Why it goes on the workshop, and gets frozen =============================
 --
 -- `workshops` already IS the partner account, so the layout inherits its RLS, its audit
 -- trigger and the `workshops_upd_self` policy (0380) that lets a partner maintain their
 -- own letterhead. And like the letterhead, the chosen layout is snapshotted onto a
--- document when it is issued — `issuer_snapshot` already carries the branding, and this
+-- document when it is issued, `issuer_snapshot` already carries the branding, and this
 -- rides in the same object. A partner who redesigns their documents next year must not
 -- restate last year's invoice.
 
@@ -84,9 +84,9 @@ create trigger workshops_check_layout
   before insert or update of doc_layout on workshops
   for each row execute function app_workshops_check_layout();
 
--- ── Setting it ───────────────────────────────────────────────────────────────
+-- == Setting it ===============================================================
 -- A merge rather than a replace, so a screen that offers three settings cannot wipe the
--- other twelve — the same jsonb `||` discipline `update_farm_settings` (0204) uses.
+-- other twelve, the same jsonb `||` discipline `update_farm_settings` (0204) uses.
 create or replace function public.update_document_layout(p_patch jsonb)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$

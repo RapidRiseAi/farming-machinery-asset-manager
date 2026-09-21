@@ -2,17 +2,17 @@
 -- A credit limit that the product actually uses.
 --
 -- `partner_clients.credit_limit_cents` has existed since 0410. It is asked for on the client
--- form, stored, and read back into that form — and then nothing has ever compared a
+-- form, stored, and read back into that form, and then nothing has ever compared a
 -- customer's outstanding balance against it. Only a sanity constraint (>= 0) touched it.
 --
 -- That is the third time this audit has found the same shape: a setting the product asks
 -- for and then disregards (0490 was VAT-claimable on the purchase side, 0491 was supplier
--- payment terms). It is the worst of the three possible states — an absent setting is
+-- payment terms). It is the worst of the three possible states, an absent setting is
 -- obvious and a wrong one is visible, but a setting that is captured and ignored buys trust
 -- the output has not earned. Somebody types "R50 000" against a customer, believes the
 -- system is watching it, and it never was.
 --
--- ── Warn, never block ────────────────────────────────────────────────────────
+-- == Warn, never block ========================================================
 --
 -- Deliberate, and the same call 0430 made for missing receipts. Refusing to raise an
 -- invoice because a customer is over their limit stops legitimate work: the limit is a
@@ -22,9 +22,9 @@
 -- nothing is refused. A DB guard would also be the wrong place: it would fire on the
 -- document totals trigger, long after the person chose to do the work.
 --
--- ── Why outstanding must be defined ONCE ─────────────────────────────────────
+-- == Why outstanding must be defined ONCE =====================================
 --
--- This reuses `app.partner_debtors`' definition of "owed" exactly — issued invoices only
+-- This reuses `app.partner_debtors`' definition of "owed" exactly, issued invoices only
 -- (never a draft, void, cancelled or written-off one), less payments received and credit
 -- notes raised, floored at zero. If this function invented its own arithmetic, the client
 -- page and the debtors list on /money would disagree about the same customer in the same
@@ -34,7 +34,7 @@
 -- SECURITY INVOKER on purpose: passing another workshop's id is answered by RLS on
 -- partner_documents and partner_clients, not by a check somebody has to remember to write.
 
--- ── Exposure for one client ──────────────────────────────────────────────────
+-- == Exposure for one client ==================================================
 -- Attribution covers both recipient kinds: a document addressed directly to this client
 -- record, and one addressed to the FleetWise farm that this client record is linked to
 -- (F15 sets `partner_clients.farm_id` when a customer is also a farm on the platform).
@@ -105,7 +105,7 @@ comment on function app.partner_client_exposure(uuid, uuid, date) is
   'client page and /money cannot disagree. Attributes documents addressed to the client AND '
   'to its linked farm. ADVISORY: nothing is blocked - see the migration header.';
 
--- ── Every client at or over their limit, for the money screens ───────────────
+-- == Every client at or over their limit, for the money screens ===============
 -- Built FROM the per-client function rather than repeating its query, so a figure on the
 -- list can never disagree with the same figure on the client's own page.
 create or replace function app.partner_over_limit(
@@ -122,7 +122,7 @@ returns table (
 )
 language sql stable security invoker set search_path = public, pg_temp as $$
   select c.id,
-         coalesce(nullif(btrim(c.name), ''), '—'),
+         coalesce(nullif(btrim(c.name), ''), '-'),
          e.limit_cents,
          e.outstanding_cents,
          e.over_cents,
@@ -140,7 +140,7 @@ comment on function app.partner_over_limit(uuid, date) is
   'Clients with a filed credit limit and something outstanding, worst overrun first. Built '
   'from app.partner_client_exposure so a total here cannot differ from the client page.';
 
--- ── PostgREST wrappers (the app calls these) ─────────────────────────────────
+-- == PostgREST wrappers (the app calls these) =================================
 create or replace function public.partner_client_exposure(
   p_workshop uuid, p_client uuid, p_as_at date default current_date
 ) returns table (

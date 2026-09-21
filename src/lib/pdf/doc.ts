@@ -10,7 +10,7 @@ const INK = rgb(0.15, 0.13, 0.11);
 const MUTED = rgb(0.42, 0.39, 0.34);
 const RULE = rgb(0.9, 0.88, 0.84);
 // FleetWise green, #00572C, from FleetWise_Official_Colour_Palette.pdf and docs/DESIGN.md
-// §1 — the same value `brand-500` resolves to on screen. It used to be rgb(0.08, 0.5,
+// §1, the same value `brand-500` resolves to on screen. It used to be rgb(0.08, 0.5,
 // 0.24), roughly #14803D, which is a green that appears in no token file and nowhere in
 // the app: every FleetWise-branded PDF was printing off-brand. Only the FALLBACK moves; a
 // partner who has chosen their own colour is untouched.
@@ -42,12 +42,12 @@ type TextOpts = { size?: number; bold?: boolean; color?: RGB; gap?: number };
 /**
  * Whose document this is (F14a).
  *
- * A partner's quote or invoice must leave here on THEIR letterhead — their name, their
- * colour, their logo, their footer — not ours. Passing no brand keeps the FleetWise
+ * A partner's quote or invoice must leave here on THEIR letterhead, their name, their
+ * colour, their logo, their footer, not ours. Passing no brand keeps the FleetWise
  * wordmark and green, which is what the job-card and machine-file PDFs still want.
  */
 export type PdfBrand = {
-  /** Wordmark text — the partner's trading name, or "FleetWise". */
+  /** Wordmark text, the partner's trading name, or "FleetWise". */
   name: string;
   /** Header colour as `#RRGGBB`. */
   primary?: string | null;
@@ -60,11 +60,11 @@ export type PdfBrand = {
   /**
    * How the partner's colour appears (0434 `accent_style`, chosen through a 0505 template).
    *
-   * `band` is the DEFAULT and is exactly what this engine has always drawn — the wordmark
+   * `band` is the DEFAULT and is exactly what this engine has always drawn, the wordmark
    * set in the brand colour. It is deliberately not changed to paint a filled rectangle:
    * every existing partner is on `band`, so that would restyle documents nobody asked to
    * restyle. `line` adds a rule in the brand colour above the wordmark; `plain` removes
-   * every trace of colour from the page, which is the point of it — a solid band comes out
+   * every trace of colour from the page, which is the point of it, a solid band comes out
    * of a mono photocopier as a grey smear.
    */
   accent?: "band" | "line" | "plain";
@@ -122,7 +122,7 @@ export class Pdf {
           : await p.doc.embedJpg(p.brand.logo.bytes);
       } catch {
         // A logo that pdf-lib will not embed must never stop a partner sending an
-        // invoice — fall back to the wordmark alone.
+        // invoice, fall back to the wordmark alone.
         p.logo = null;
       }
     }
@@ -160,7 +160,7 @@ export class Pdf {
 
   /** Document title block with the issuer's wordmark (and logo, when they have one). */
   header(subtitle?: string) {
-    // `plain` means no colour on the page at all — including the wordmark, which is the
+    // `plain` means no colour on the page at all, including the wordmark, which is the
     // only coloured thing this engine draws.
     const wordmark = this.accentStyle === "plain" ? INK : this.accent;
     if (this.accentStyle === "line") {
@@ -288,7 +288,7 @@ export class Pdf {
    *
    * `table()` used to draw a cell at its column's x and then step x by the column width,
    * with nothing in between measuring anything. A description wider than its column
-   * therefore ran straight over the neighbour — and because the neighbour is usually a
+   * therefore ran straight over the neighbour, and because the neighbour is usually a
    * money column, an ordinary parts line like "Front wheel bearing kit + oil seal set"
    * (143pt in a 130pt column) printed on top of a rand amount. Silently: no warning, no
    * clipping, just two strings sharing the same ink.

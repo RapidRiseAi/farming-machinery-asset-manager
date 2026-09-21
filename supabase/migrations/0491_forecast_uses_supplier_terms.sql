@@ -8,7 +8,7 @@
 -- 30, and plan around a number the product already knew was wrong. Captured-but-unused
 -- settings are worse than absent ones: they buy trust the output has not earned.
 --
--- The sales side already does this properly — `partner_clients.payment_terms_days` sets a
+-- The sales side already does this properly, `partner_clients.payment_terms_days` sets a
 -- document's due date when an invoice is raised. This is the purchase-side half of the
 -- same idea, and it closes the asymmetry.
 --

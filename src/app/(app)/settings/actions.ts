@@ -36,7 +36,7 @@ export async function updateSettings(formData: FormData) {
   };
 
   const supabase = await createClient();
-  // The farm's billing identity lives in real columns, not the settings blob — it goes on
+  // The farm's billing identity lives in real columns, not the settings blob, it goes on
   // a tax invoice, and a jsonb key is the wrong home for something a partner's PDF reads.
   // `farms_upd` is rr_admin only by design (the row carries the plan), so the owner writes
   // these through a narrow SECURITY DEFINER RPC (0410) that can touch nothing else.

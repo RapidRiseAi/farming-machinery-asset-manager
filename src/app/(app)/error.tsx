@@ -11,7 +11,7 @@ import { reportClientError } from "@/lib/client-report";
  * What a signed-in page shows when it throws.
  *
  * There was no error boundary anywhere in the app, so a failed query rendered Next's
- * default — a blank screen with a technical string on it. On a farm that is
+ * default, a blank screen with a technical string on it. On a farm that is
  * indistinguishable from "the app is broken", and the only recovery anyone would find
  * is closing the tab.
  *
@@ -43,7 +43,7 @@ export default function AppError({
             <h1 className="text-lg font-bold text-sand-950">This screen did not load</h1>
             <p className="mt-1 text-sm text-sand-600">
               Something went wrong on our side, not yours. Nothing you entered has been lost.
-              Try again — if it keeps happening, the farm office can send us the code below.
+              Try again, if it keeps happening, the farm office can send us the code below.
             </p>
           </div>
         </div>

@@ -1,5 +1,5 @@
 /**
- * No-op billing adapter — the default while payments are DEFERRED.
+ * No-op billing adapter, the default while payments are DEFERRED.
  *
  * It implements the full `BillingAdapter` contract but never contacts any provider and
  * never moves money. Every method returns `{ ok: false, deferred: true }` so callers can

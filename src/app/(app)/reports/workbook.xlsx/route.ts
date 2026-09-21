@@ -11,7 +11,7 @@ import { canViewFarmCosts } from "@/lib/cost-visibility";
  * client). Farm-scoped by RLS; gated on "advanced_reports" exactly like the CSV routes.
  *
  * The sheets are built in src/lib/report-export.ts, which is also what a scheduled report
- * emails (FR-11.5) — so the workbook a person downloads and the one that arrives by post
+ * emails (FR-11.5), so the workbook a person downloads and the one that arrives by post
  * on the 1st are the same file, not two implementations that agree today.
  */
 export async function GET(request: Request) {

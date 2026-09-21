@@ -17,7 +17,7 @@ import { t } from "@/lib/i18n";
 import { signOut } from "./actions";
 import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 // Direct module imports keep every (app) route's client bundle to just the nav
-// interactivity — the barrel would pull the kit's full client chunk (see
+// interactivity, the barrel would pull the kit's full client chunk (see
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
@@ -51,13 +51,13 @@ export default async function AppLayout({
 }) {
   const { profile, plan } = await currentPlan();
 
-  // A farm that signed up and has not paid gets no app at all — just the screen that takes
+  // A farm that signed up and has not paid gets no app at all, just the screen that takes
   // the payment. This is the only place the check lives, because this layout wraps every
   // authenticated farm screen and nothing else: /login, the public QR page, the API routes
   // and /activate itself all sit outside it, so /activate cannot bounce to itself.
   //
   // `farmBillingGate` answers "pending" ONLY when a subscription row exists and has not
-  // been paid. No subscription row at all is "ok" — that is Weltevrede and every farm
+  // been paid. No subscription row at all is "ok", that is Weltevrede and every farm
   // onboarded before billing existed, and the inverse reading would lock out the whole
   // customer base. It is role-independent by construction too: an operator cannot read the
   // subscription row itself, so a layout that queried the table directly would fail OPEN
@@ -66,7 +66,7 @@ export default async function AppLayout({
   // 'closed' is the other end of the same story (20260911180000): a farm that cancelled,
   // or that walked the whole dunning ladder and then sat past the lapsed window, or that
   // Rapid Rise suspended. Until that migration the gate had no such state and NOTHING ever
-  // took access away — a farm that stopped paying kept the product on the downgrade plan
+  // took access away, a farm that stopped paying kept the product on the downgrade plan
   // for ever, and a farm that cancelled kept all of it.
   if (profile.farm_id && profile.role !== "rr_admin" && profile.role !== "workshop") {
     const gateClient = await createClient();
@@ -76,7 +76,7 @@ export default async function AppLayout({
   }
 
   const locale = profile.lang;
-  // The EN/AF control shows the LANGUAGE choice, which is independent of tone — a
+  // The EN/AF control shows the LANGUAGE choice, which is independent of tone, a
   // professional-tone Afrikaans user must still see AF selected, not "af-pro".
   const languageChoice = profile.language;
   const isManagerPlus = profile.role === "owner" || profile.role === "manager";
@@ -86,8 +86,8 @@ export default async function AppLayout({
   // aggregated dashboard is home, and farm-only surfaces are dropped.
   const isWorkshop = profile.role === "workshop";
   const isOperator = profile.role === "operator";
-  // Parts catalogue & service kits (F9) — maintained by farm crew + RR admin (global lib).
-  // Partners directory (F12a) — farmer-facing (browse/add/connect contractors) + RR admin
+  // Parts catalogue & service kits (F9), maintained by farm crew + RR admin (global lib).
+  // Partners directory (F12a), farmer-facing (browse/add/connect contractors) + RR admin
   // (curates the global suggested catalogue). Workshop users have their own views (F12c).
   const canPartners = profile.role !== "workshop";
 
@@ -97,14 +97,14 @@ export default async function AppLayout({
   const dashAllowed = has("dashboard");
   const reportsAllowed = has("advanced_reports");
   const fuelAllowed = has("fuel");
-  // AARTO fine workflow (G2) — Complete+ (aarto), farm roles only (not the contractor shell).
+  // AARTO fine workflow (G2), Complete+ (aarto), farm roles only (not the contractor shell).
   const finesAllowed = !isWorkshop && has("aarto");
   // Logo/home link must point somewhere the role/plan can actually open. A contractor's
   // home is their aggregated dashboard (F12c).
   const homeHref = isWorkshop ? "/contractor" : isOperator ? "/driver" : dashAllowed ? "/dashboard" : "/machines";
 
   // The partner's own product ladder (0492), which is a different axis from the farm plan
-  // above: `books` unlocks running the business here — the purchase and accounting half
+  // above: `books` unlocks running the business here, the purchase and accounting half
   // (P&L, cash flow, VAT, expenses, suppliers, orders, bank reconciliation). The SALES
   // half (documents, statements, standing invoices, corrections) stays where 0382 put it,
   // so no partner loses a screen they already use. Hiding here is courtesy; the refusal
@@ -177,16 +177,16 @@ export default async function AppLayout({
   const checklists: NavItemData = { href: "/checklists", label: t("nav.checklists", locale), icon: "checklists" };
   const work: NavItemData = { href: "/work", label: t("nav.work", locale), icon: "work" };
   // Quotes & invoices (F14). Both sides of the same route: what a partner has issued,
-  // what a farm has been sent. Never shown to operators — the RLS policy excludes them.
+  // what a farm has been sent. Never shown to operators, the RLS policy excludes them.
   const documents: NavItemData = { href: "/documents", label: t("nav.documents", locale), icon: "documents" };
-  // A customer's account: what they owe and how it got there (G2). Partner-only — a farm
+  // A customer's account: what they owe and how it got there (G2). Partner-only, a farm
   // reads the same ledger from the other side, on the documents they were sent.
   const statements: NavItemData = { href: "/statements", label: t("nav.statements", locale), icon: "reports" };
   // Every change made to a document after it went out. Its own section, because "has
   // anyone been quietly moving numbers" is a question you ask without a document in mind.
   const corrections: NavItemData = { href: "/documents/corrections", label: t("nav.corrections", locale), icon: "correction" };
   // The books' other half (G6): what the partner BOUGHT, and what that means at filing
-  // time. Partner-only — a farm never sees its contractor's purchases.
+  // time. Partner-only, a farm never sees its contractor's purchases.
   // What the partner has ON ORDER but not yet been invoiced for. Sits immediately before
   // expenses because an order becomes one, and that is the order the two are used in.
   const orders: NavItemData = { href: "/orders", label: t("po.nav", locale), icon: "inbox" };
@@ -205,7 +205,7 @@ export default async function AppLayout({
   const expenses: NavItemData = { href: "/expenses", label: t("nav.expenses", locale), icon: "receipt" };
   const vat: NavItemData = { href: "/vat", label: t("nav.vat", locale), icon: "percent" };
   // Hand the books over (FR-17.2). Last among the money screens on both sides, because it
-  // is the end of the month rather than part of running it — and the only one of them a
+  // is the end of the month rather than part of running it, and the only one of them a
   // FARM ever sees, which is why it is declared outside `booksItems`. `download` is the
   // banking glyph, which no farm-side nav shows, so the two never appear side by side.
   const accounting: NavItemData = { href: "/accounting", label: t("nav.accounting", locale), icon: "calculator" };
@@ -216,7 +216,7 @@ export default async function AppLayout({
   // sits with the other money screens rather than in a settings corner.
   const recurring: NavItemData = { href: "/recurring", label: t("nav.recurring", locale), icon: "repeat" };
   const partnerSettings: NavItemData = { href: "/contractor/settings", label: t("nav.partnerSettings", locale), icon: "settings" };
-  // A partner's own client book (F15) — their whole customer list, not only the farms
+  // A partner's own client book (F15), their whole customer list, not only the farms
   // that happened to find them.
   const clients: NavItemData = { href: "/contractor/clients", label: t("nav.clients", locale), icon: "team" };
   const fines: NavItemData = { href: "/fines", label: t("nav.fines", locale), icon: "fines" };
@@ -234,7 +234,7 @@ export default async function AppLayout({
   // point of an offline-first product, and it was reachable from nowhere.
   const install: NavItemData = { href: "/install", label: t("nav.install", locale), icon: "download" };
   // What the farm pays Rapid Rise for the software. The OWNER's business and nobody
-  // else's on the farm side — a manager runs the fleet, they do not hold the card — so
+  // else's on the farm side, a manager runs the fleet, they do not hold the card, so
   // this is gated on the role rather than on a plan entitlement. The route re-checks it
   // server-side; hiding a nav item is not access control.
   const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "card" };
@@ -312,7 +312,7 @@ export default async function AppLayout({
   /*
     The long tail. It used to sit behind an "Everything else" disclosure in the sidebar,
     which meant parts, partners, checklists, fines, settings, admin and install were
-    invisible until you found and opened a summary — a person who never did had no way
+    invisible until you found and opened a summary, a person who never did had no way
     to know those screens existed.
 
     They are now a named group like any other, and the whole panel scrolls with a visible
@@ -337,7 +337,7 @@ export default async function AppLayout({
       ];
 
   /*
-    The "More" sheet used to be a FLAT, ungrouped list built by hand — for a
+    The "More" sheet used to be a FLAT, ungrouped list built by hand, for a
     books-tier partner that was 21 undifferentiated rows, while the SAME person's
     desktop sidebar was organised into three named groups. The phone and the
     desktop disagreed about what the product is.
@@ -358,7 +358,7 @@ export default async function AppLayout({
   /**
    * What Ctrl/⌘+K can reach. Built from the same server-computed `groups` and
    * `tailItems` as the sidebar, so the palette cannot offer a destination this
-   * role may not open — but WITHOUT `moreGroups`' tab filter, because a tab
+   * role may not open, but WITHOUT `moreGroups`' tab filter, because a tab
    * being on screen is no reason you should not be able to type its name.
    */
   const paletteGroups = [
@@ -429,7 +429,7 @@ export default async function AppLayout({
     </div>
   );
 
-  // Everything this role can reach, deduped — handed to the service worker so those
+  // Everything this role can reach, deduped, handed to the service worker so those
   // screens are there when the signal is not (see WarmRoutes / sw.js).
   const warmPaths = [
     ...new Set(
@@ -442,7 +442,7 @@ export default async function AppLayout({
       {/*
         Skip link. There was none, so a keyboard or switch user landed at the top
         of a sidebar carrying up to 24 links and had to traverse every one of them
-        before reaching the content — on every single navigation. Off-screen until
+        before reaching the content, on every single navigation. Off-screen until
         focused (see `.skip-link` in globals.css), then a real, visible control.
         It is first in the DOM so it is the first thing Tab reaches.
       */}
@@ -534,7 +534,7 @@ export default async function AppLayout({
           </div>
         </header>
 
-        {/* Mobile site switcher (F7) — only when the account can reach >1 farm */}
+        {/* Mobile site switcher (F7), only when the account can reach >1 farm */}
         {showSwitcher && (
           <div className="sticky top-[57px] z-10 border-b border-sand-200 bg-surface/95 px-4 py-2 backdrop-blur lg:hidden">
             <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
@@ -586,7 +586,7 @@ export default async function AppLayout({
           {tabItems.map((item) => (
             <NavLink key={item.href} item={item} variant="tab" />
           ))}
-          {/* The daily action — report a problem — was nowhere in the chrome. It is
+          {/* The daily action, report a problem, was nowhere in the chrome. It is
               now a permanent green target, not an item buried in "More". */}
           {!isWorkshop ? (
             <Link

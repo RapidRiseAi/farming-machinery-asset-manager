@@ -1,10 +1,10 @@
 import { t, type Lang } from "@/lib/i18n";
 
 /**
- * The accounting export (FR-17.2) — turning the books here into something an accounting
+ * The accounting export (FR-17.2), turning the books here into something an accounting
  * package will take.
  *
- * ── The decision that shaped this file, and the evidence for it ─────────────
+ * == The decision that shaped this file, and the evidence for it =============
  *
  * The obvious feature is "export to Sage" and "export to Xero" buttons. This does not
  * ship those, and that is a finding rather than a shortcut.
@@ -15,7 +15,7 @@ import { t, type Lang } from "@/lib/i18n";
  *   * Xero Central renders its help through JavaScript; a fetch of the manual-journal
  *     import article returns a Salesforce shell and no column list at all.
  *   * Sage's own journal-import help pages 404 on the en-us, en-za and en-ca paths. Its
- *     documentation says only "download the CSV template from inside the product" — the
+ *     documentation says only "download the CSV template from inside the product", the
  *     template is the specification, and it is behind a login.
  *   * Every remaining "documented" header set found belongs to a THIRD-PARTY importer,
  *     whose field names are its own and not the vendor's. They disagree with each other,
@@ -28,18 +28,18 @@ import { t, type Lang } from "@/lib/i18n";
  * package's own import wizard, does not.
  *
  * So this ships the generic double-entry journal in the two shapes every package's
- * wizard understands — separate Debit and Credit columns, or one signed Amount column —
+ * wizard understands, separate Debit and Credit columns, or one signed Amount column -
  * and the screen says plainly that it is generic and why. Adding a named vendor variant
  * later is a formatting change here and touches none of the arithmetic in 0510.
  *
- * ── Where the numbers come from ─────────────────────────────────────────────
+ * == Where the numbers come from =============================================
  *
  * Not from this file. `app.partner_journal` / `app.farm_journal` (0510) are the source,
  * for the reason 0413/0431/0460 give: the screen, the CSV and any later PDF must not be
  * able to disagree. This file names the accounts and lays out the columns.
  */
 
-// ── The chart of accounts ────────────────────────────────────────────────────
+// == The chart of accounts ====================================================
 //
 // FleetWise has no chart of accounts and should not invent one it then has to maintain.
 // These are a documented DEFAULT in a conventional SA small-business range, emitted by
@@ -94,13 +94,13 @@ export function chartFor(scope: JournalScope): Account[] {
 
 /**
  * The account's name in the reader's language. Falls back to the key, which is what
- * `t()` does anyway — an untranslated account is a visible bug, not a silent blank.
+ * `t()` does anyway, an untranslated account is a visible bug, not a silent blank.
  */
 export function accountName(key: string, locale: Lang): string {
   return t(`accounting.acct.${key}`, locale);
 }
 
-// ── The journal ──────────────────────────────────────────────────────────────
+// == The journal ==============================================================
 
 export type JournalScope = "partner" | "farm";
 
@@ -126,7 +126,7 @@ export function isJournalScope(v: string | null | undefined): v is JournalScope 
 }
 
 /**
- * Two layouts, named by SHAPE rather than by vendor — because the shape is what is
+ * Two layouts, named by SHAPE rather than by vendor, because the shape is what is
  * actually known, and a vendor name on a file we could not verify is the failure this
  * whole design is avoiding. Every package's import wizard reads one of the two.
  */
@@ -154,7 +154,7 @@ export function bpsToPercent(bps: number): string {
 /**
  * The journal as a grid: ONE header row, then data rows and nothing else.
  *
- * No title block, no summary, no blank separator lines — unlike the VAT CSV, which is
+ * No title block, no summary, no blank separator lines, unlike the VAT CSV, which is
  * read by a human. An import wizard reads row 1 as the header and everything after it as
  * data, so a friendly preamble is what makes a file fail on line 1. Anything a human
  * needs to know is on the screen and in the chart-of-accounts download beside it.
@@ -189,7 +189,7 @@ export function journalGrid(
     l.party ?? "",
     ...(layout === "dc"
       ? [centsToAmount(l.debit_cents), centsToAmount(l.credit_cents)]
-      : // Debit positive, credit negative — the convention of every single-column
+      : // Debit positive, credit negative, the convention of every single-column
         // importer, and the reason both layouts exist rather than one guess.
         [centsToAmount(l.debit_cents - l.credit_cents)]),
     l.vat_code,
@@ -211,7 +211,7 @@ export function chartGrid(scope: JournalScope, locale: Lang): (string | number)[
   ];
 }
 
-// ── What the screen shows before anyone downloads ────────────────────────────
+// == What the screen shows before anyone downloads ============================
 
 export type JournalTotals = {
   debit: number;
@@ -226,7 +226,7 @@ export type JournalTotals = {
  * Totals, and the one check worth running in front of the user.
  *
  * A file that balances OVERALL while two entries are wrong in opposite directions
- * imports cleanly and is still wrong, so this checks per entry — the same property G33
+ * imports cleanly and is still wrong, so this checks per entry, the same property G33
  * asserts in SQL. It should never fire; it is here because the moment it does, the
  * person about to hand this to an accountant is the person who needs to know.
  */
@@ -271,7 +271,7 @@ export function accountSummary(lines: JournalLine[]): {
     .sort((a, b) => a.code.localeCompare(b.code) || a.key.localeCompare(b.key));
 }
 
-/** `journal-partner-2026-07-01-to-2026-07-31.csv` — the period is in the filename. */
+/** `journal-partner-2026-07-01-to-2026-07-31.csv`, the period is in the filename. */
 export function journalFilename(scope: JournalScope, from: string, to: string): string {
   return `journal-${scope}-${from}-to-${to}.csv`;
 }

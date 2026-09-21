@@ -1,7 +1,7 @@
 /**
  * Driver and operator documents, as the screens read them.
  *
- * Pure functions only — no Supabase, no React — so the rules can be tested directly and so
+ * Pure functions only, no Supabase, no React, so the rules can be tested directly and so
  * the page stays a layout. The status rule here MIRRORS `app.expiry_status_of` (0263),
  * which is what the nightly pass uses to decide whether to warn a farm. The two
  * disagreeing means the screen says a PrDP is fine on the morning the engine emails to say
@@ -64,7 +64,7 @@ function addDays(day: string, n: number): string {
 /**
  * The TypeScript mirror of `app.expiry_status_of(expiry, lead)`.
  *
- * Expired is `expiry < today` — the last day is INCLUSIVE, as it is on the card itself and
+ * Expired is `expiry < today`, the last day is INCLUSIVE, as it is on the card itself and
  * as the SQL has it. Off by one here is a farm told its driver may not drive on the day
  * they still may, which is the direction that gets the warning ignored.
  */
@@ -116,8 +116,8 @@ export function countTone(n: number, state: "expired" | "expiring"): StatTone {
 /**
  * Whose document this is.
  *
- * A row belongs to a signed-in user OR carries a typed name — the database enforces
- * exactly one — so this resolves the first through the farm's own people and falls back to
+ * A row belongs to a signed-in user OR carries a typed name, the database enforces
+ * exactly one, so this resolves the first through the farm's own people and falls back to
  * the second. A user whose name cannot be resolved still gets something printable rather
  * than an empty cell on a compliance screen.
  */
@@ -141,7 +141,7 @@ export function credentialPerson(
  * is the SQL's rule, matched clause for clause, and `driver-credentials.test.ts` walks the
  * same cases the SQL suite does:
  *
- *   * a DATE, never "today" — a nomination is a statement about a day in the past, and a
+ *   * a DATE, never "today", a nomination is a statement about a day in the past, and a
  *     licence that is fine now says nothing about the 14th of June;
  *   * expired is `expiry < on`, the last day inclusive, as it is on the card;
  *   * a user matches by id; a typed name matches only rows that belong to NO user, folded

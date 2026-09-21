@@ -4,12 +4,12 @@
 -- `faults` covers breakdowns: something stopped working and somebody must fix it. An
 -- accident is a different object with a different clock. It has a SAPS case number, a
 -- third party with their own insurer, an excess, a claim reference, and a settlement that
--- arrives months later — and until now a farm had nowhere to put any of it except the
+-- arrives months later, and until now a farm had nowhere to put any of it except the
 -- notes field on a fault, where nothing reminds anybody that a claim lodged in March has
 -- still not been paid in July.
 --
 -- WHAT THIS DELIBERATELY DOES NOT DO
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- Post money. A settlement is money coming IN against a repair whose cost is already on a
 -- job card, and the negative-amount model for that is an open founder decision
 -- (`docs/BILLING.md` §11b, the partner side at 0422). Recording a claim that has been paid
@@ -17,16 +17,16 @@
 -- rather than guessing at the second and leaving a ledger nobody can reconcile.
 --
 -- THE REPAIR IS A JOB CARD, NOT A FIELD HERE
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `job_card_id` points at the existing repair rather than duplicating its parts, labour
 -- and VAT. What the accident cost is what the job card cost; this row records what came
 -- back and what the farm carried.
 --
 -- THE THIRD PARTY IS SOMEBODY ELSE'S PERSONAL INFORMATION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- A name, a phone number and a registration belonging to a person who is not a customer
 -- of this product. Recorded because a claim cannot be made without it, kept minimal on
--- purpose (no ID numbers, no addresses), and visible only inside the farm — a linked
+-- purpose (no ID numbers, no addresses), and visible only inside the farm, a linked
 -- workshop can see the machine and the job card and has no business with the other
 -- driver's details, which is why SELECT is role-aware rather than `has_farm_access`.
 
@@ -65,8 +65,8 @@ create table incidents (
   location              text,
   description           text,
 
-  -- Who was driving. The same either/or the rest of this schema uses — a signed-in
-  -- operator, or a name — and here BOTH may be null: a machine burns down in a shed with
+  -- Who was driving. The same either/or the rest of this schema uses, a signed-in
+  -- operator, or a name, and here BOTH may be null: a machine burns down in a shed with
   -- nobody near it, and inventing a driver for that would be a false record.
   driver_user_id        uuid references users(id),
   driver_name           text,
@@ -140,13 +140,13 @@ create index incidents_claim_idx   on incidents(claim_lodged_on) where deleted_a
 
 comment on table incidents is
   'Accidents, thefts and injuries, and the insurance claim that follows. Records the '
-  'claim; posts no money — a settlement against a repair is an open decision '
+  'claim; posts no money, a settlement against a repair is an open decision '
   '(docs/BILLING.md §11b). The repair itself is the linked job card.';
 comment on column incidents.excess_incl_cents is
   'VAT-INCLUSIVE, unlike the rest of this schema. These are figures copied off an '
   'insurer''s letter and must match it.';
 
--- ── RLS ─────────────────────────────────────────────────────────────────────
+-- == RLS =====================================================================
 alter table incidents enable row level security;
 alter table incidents force  row level security;
 
@@ -169,7 +169,7 @@ create trigger incidents_audit
   after insert or update or delete on incidents
   for each row execute function app_audit();
 
--- ── The claim nobody chased ─────────────────────────────────────────────────
+-- == The claim nobody chased =================================================
 --
 -- An insurance claim is money the farm is owed, and the only thing that makes it arrive is
 -- somebody asking. A claim lodged in March and still open in July is the single most

@@ -2,7 +2,7 @@
 -- The "deterministic pick" was decided by the database's collation.
 --
 -- WHAT WAS WRONG
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `app.link_suppliers()` (0481) collapses every spelling of one business into a single
 -- supplier record and chooses the canonical name with `min(btrim(supplier_name))`. 0481's
 -- own comment calls that a deterministic pick. It is not deterministic at all: `min()` on
@@ -16,18 +16,18 @@
 -- where the backfill happened to run.
 --
 -- HOW IT WAS FOUND
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- CI's "RLS isolation tests" job had been failing on EVERY commit for over a week with
 --
 --     G18 FAIL: the filed record is named agri diesel, not the deterministic pick
 --
 -- and nobody could see it, because the job logs need repository admin rights. It was
 -- reproduced locally by building the test database with an ICU `en-US` locale instead of
--- the default, which is the only difference that matters here — under the default `C`
+-- the default, which is the only difference that matters here, under the default `C`
 -- collation every suite passes and the bug is invisible.
 --
 -- THE FIX, AND WHY THIS DIRECTION
--- ─────────────────────────────────────────────────────────────────────────────
+-- =============================================================================
 -- `collate "C"` makes the tie-break byte order, which is the same on every database
 -- anywhere. It also picks the better record: given 'Agri Diesel' and 'agri diesel' it keeps
 -- the properly capitalised spelling, and that is the one that gets printed on a remittance
@@ -52,7 +52,7 @@ declare
 begin
   -- One supplier per distinct name per workshop, from both sides at once, so a supplier
   -- known only to the order book is filed too. Names differing only in case or padding
-  -- collapse to one record — that collapse IS the feature — and `min(btrim(name))` picks
+  -- collapse to one record, that collapse IS the feature, and `min(btrim(name))` picks
   -- the spelling deterministically rather than by whichever row the planner reached first.
   with wanted as (
     select workshop_id, lower(btrim(supplier_name)) as key, min(btrim(supplier_name) collate "C") as name

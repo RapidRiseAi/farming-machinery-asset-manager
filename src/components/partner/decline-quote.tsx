@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 /**
  * Saying no to a quote, with a reason.
  *
- * The "no" path is deliberately as visible as the "yes" — a farmer who cannot find how to
+ * The "no" path is deliberately as visible as the "yes", a farmer who cannot find how to
  * decline simply ignores the quote, and the partner is left guessing. Declining asks for
  * one line of reason because "too expensive" and "we fixed it ourselves" lead the partner
  * to completely different next moves, and neither is guessable from silence.

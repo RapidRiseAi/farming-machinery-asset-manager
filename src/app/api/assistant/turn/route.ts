@@ -260,7 +260,7 @@ export async function POST(request: Request) {
           machineQuery: selected.name,
           localReadRequest: localRequest,
         };
-        // The person chose this machine by id. Read about THAT machine — see
+        // The person chose this machine by id. Read about THAT machine, see
         // scopeForChosenMachine for why re-matching its name can ask again.
         const answer = await answerLocalRead(
           localRequest,
@@ -268,7 +268,7 @@ export async function POST(request: Request) {
           body.locale,
         );
         // Never record a "which machine?" reply as an answer. It produced a dead
-        // end — the same question returned as the final answer, with no picker —
+        // end, the same question returned as the final answer, with no picker -
         // and wrote that question into the person's history as answered.
         if (answer.machineOptions?.length) {
           await releaseClarification(interactionId, context.farmId, context.profile.id);

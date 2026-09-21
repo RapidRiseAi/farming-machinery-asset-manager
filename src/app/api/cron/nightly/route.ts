@@ -11,30 +11,30 @@ import { runDueReportSchedules } from "@/lib/scheduled-reports";
  * Nightly maintenance cron (Scope §4.3 nightly recompute, §4.7 alerts).
  *
  * Runs, in order, as the service role (bypasses RLS via trusted server code):
- *   1. cron_recalc_all_due            — recompute calendar/hour dues (calendar drifts nightly)
- *   2. cron_enqueue_service_notifications — due-soon/overdue in-app notifications (deduped)
- *   3. cron_enqueue_stale_meter_nudges    — one "reading outdated" nudge per farm
- *   4. cron_enqueue_fuel_anomalies        — fuel leak/theft anomalies (deduped, F4)
- *   5. cron_enqueue_expiry_notifications  — warranty/licence expiry reminders (deduped, F6)
- *   6. cron_enqueue_work_request_reminders — outstanding quote/invoice chasers (deduped, F13)
- *   7. cron_enqueue_aarto_nominations     — AARTO nomination-deadline reminders (deduped, G2)
- *   7b. cron_enqueue_driver_credentials  — driver licence / PrDP / medical expiry (2.3)
- *   7c. cron_enqueue_claim_chases        — insurance claims lodged and still unpaid (2.4)
- *   8. cron_enqueue_document_reminders   — expire stale quotes, chase overdue invoices (G2)
- *   9. cron_generate_recurring_invoices   — standing invoices due today (idempotent, G8)
- *  10. cron_generate_recurring_expenses    — costs that repeat (idempotent, G19)
- *  11. cron_enqueue_low_stock             — parts at or below their reorder point (0451)
- *  12. cron_enqueue_stock_shortfall       — parts the next N days of services need (0503)
- *  13. cron_enqueue_weekly_digest         — Mondays only (Africa/Johannesburg)
- *  14. scheduled report delivery          — emailed report schedules now due (0506)
- *  15. push delivery                      — Web Push for the freshly-queued rows (F6)
- *  16. email delivery                     — the same alerts by email, for whoever asked
+ *   1. cron_recalc_all_due           , recompute calendar/hour dues (calendar drifts nightly)
+ *   2. cron_enqueue_service_notifications, due-soon/overdue in-app notifications (deduped)
+ *   3. cron_enqueue_stale_meter_nudges   , one "reading outdated" nudge per farm
+ *   4. cron_enqueue_fuel_anomalies       , fuel leak/theft anomalies (deduped, F4)
+ *   5. cron_enqueue_expiry_notifications , warranty/licence expiry reminders (deduped, F6)
+ *   6. cron_enqueue_work_request_reminders, outstanding quote/invoice chasers (deduped, F13)
+ *   7. cron_enqueue_aarto_nominations    , AARTO nomination-deadline reminders (deduped, G2)
+ *   7b. cron_enqueue_driver_credentials , driver licence / PrDP / medical expiry (2.3)
+ *   7c. cron_enqueue_claim_chases       , insurance claims lodged and still unpaid (2.4)
+ *   8. cron_enqueue_document_reminders  , expire stale quotes, chase overdue invoices (G2)
+ *   9. cron_generate_recurring_invoices  , standing invoices due today (idempotent, G8)
+ *  10. cron_generate_recurring_expenses   , costs that repeat (idempotent, G19)
+ *  11. cron_enqueue_low_stock            , parts at or below their reorder point (0451)
+ *  12. cron_enqueue_stock_shortfall      , parts the next N days of services need (0503)
+ *  13. cron_enqueue_weekly_digest        , Mondays only (Africa/Johannesburg)
+ *  14. scheduled report delivery         , emailed report schedules now due (0506)
+ *  15. push delivery                     , Web Push for the freshly-queued rows (F6)
+ *  16. email delivery                    , the same alerts by email, for whoever asked
  *
  * Step 14 is a TypeScript call rather than an RPC because it renders a report and sends
  * mail; it runs after the database steps so every attachment reflects the same final state
  * a person would see on /reports.
  *
- * A failed step is reported to the observability layer and the pass CONTINUES — step 7
+ * A failed step is reported to the observability layer and the pass CONTINUES, step 7
  * failing must not stop steps 8 through 15. Until that was added the failure went only into
  * this route's JSON response, which Vercel's scheduler reads and nobody else does.
  *
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
   // Constant-time. A plain `!==` stops at the first wrong byte, so how long the refusal
-  // takes says how much of the token was right — and this route runs the whole billing
+  // takes says how much of the token was right, and this route runs the whole billing
   // pass and is reachable from the public internet.
   if (!bearerMatches(authHeader, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
   const supabase = createServiceClient();
   const steps: Record<string, string> = {};
 
-  // This pass IS currently observable — its engines write notifications, which is how it
+  // This pass IS currently observable, its engines write notifications, which is how it
   // was proved to be firing on Vercel's schedule. But that is a side effect, not a record:
   // on a quiet night every engine correctly writes nothing and the evidence vanishes. Both
   // routes keep the same ledger so the two can be compared.
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       // goes back to Vercel's scheduler and nobody ever reads it, so a broken engine could
       // stay broken for weeks while the other twelve kept working.
       //
-      // Reported, and deliberately NOT rethrown — step 7 failing must not stop steps 8
+      // Reported, and deliberately NOT rethrown, step 7 failing must not stop steps 8
       // through 13. A partial night is worth much more than no night.
       captureError(new Error(error.message), { where: `cron:${name}`, extra: { rpc: fn } });
     }
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
   // What the schedule has already spoken for (0503). Weekly per item, quiet hours honoured.
   await run("stock_shortfall", "cron_enqueue_stock_shortfall");
 
-  // Weekly digest fires only on Mondays in SAST (the caller decides — the SQL just enqueues).
+  // Weekly digest fires only on Mondays in SAST (the caller decides, the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {
     timeZone: "Africa/Johannesburg",
     weekday: "short",
@@ -148,7 +148,7 @@ export async function GET(request: Request) {
     if (!push.ok) {
       // Reported rather than recorded as "ok": a failed delivery means the whole night's
       // alerts reached nobody's phone. Only fields declared on `DeliverResult` are read
-      // here — an earlier version read `push.error`/`push.deferred`, which exist on a
+      // here, an earlier version read `push.error`/`push.deferred`, which exist on a
       // reworked copy of deliver.ts that is not in the repo, so it compiled in this
       // working tree and nowhere else.
       steps["push_delivery"] = `error: delivery-failed (${push.failed} failed, ${push.pruned} pruned)`;

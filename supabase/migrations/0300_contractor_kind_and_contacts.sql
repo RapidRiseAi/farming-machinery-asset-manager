@@ -10,13 +10,13 @@
 -- nullable. RLS/audit on `workshops` are unchanged (0101 workshops_* policies still
 -- apply; the 0008 workshops_audit trigger already covers the new columns).
 
--- ── Contractor / supplier type ────────────────────────────────────
+-- == Contractor / supplier type ====================================
 create type contractor_kind as enum (
   'mechanic', 'auto_electrician', 'parts_supplier',
   'panel_beater', 'tyre', 'towing', 'other'
 );
 
--- ── Classify + structured contacts on workshops ───────────────────
+-- == Classify + structured contacts on workshops ===================
 alter table workshops
   add column kind     contractor_kind not null default 'other',
   add column phone    text,
@@ -25,6 +25,6 @@ alter table workshops
   add column area     text;   -- free-text service area / town
 
 comment on column workshops.kind is
-  'Contractor/supplier type — drives tailored per-kind views (F12c).';
+  'Contractor/supplier type, drives tailored per-kind views (F12c).';
 comment on column workshops.whatsapp is
   'WhatsApp number, E.164 preferred (e.g. +27821234567) for wa.me deep links.';

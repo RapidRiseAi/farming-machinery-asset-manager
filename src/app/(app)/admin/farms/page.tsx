@@ -85,7 +85,7 @@ export default async function AdminFarmsPage({
 
       <Card flush>
         {farms.length === 0 ? (
-          <p className="p-4 text-sm text-sand-500">No farms yet — create the first one above.</p>
+          <p className="p-4 text-sm text-sand-500">No farms yet, create the first one above.</p>
         ) : (
           <Table>
             <Thead>
@@ -112,7 +112,7 @@ export default async function AdminFarmsPage({
                     <Td className="text-right tabular-nums">{activeUsersBy.get(f.id) ?? 0}</Td>
                     <Td className="text-right tabular-nums">{jobsThisMonthBy.get(f.id) ?? 0}</Td>
                     <Td className={`text-right tabular-nums ${stale ? "text-status-overdue" : "text-sand-600"}`}>
-                      {d == null ? "—" : d === 0 ? "today" : `${d}d ago`}
+                      {d == null ? "-" : d === 0 ? "today" : `${d}d ago`}
                     </Td>
                   </Tr>
                 );

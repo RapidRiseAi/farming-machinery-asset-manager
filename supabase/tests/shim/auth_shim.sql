@@ -1,4 +1,4 @@
--- auth_shim.sql — LOCAL TEST ONLY. Do NOT apply against Supabase.
+-- auth_shim.sql, LOCAL TEST ONLY. Do NOT apply against Supabase.
 --
 -- Recreates the minimal pieces of a Supabase database that our migrations depend on:
 --   * the anon / authenticated / service_role / authenticator roles

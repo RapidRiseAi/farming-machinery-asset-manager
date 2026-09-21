@@ -7,7 +7,7 @@
 -- the migration. Either way they can write audit_log / recompute totals regardless
 -- of the caller's RLS.
 
--- ── Append-only audit log ─────────────────────────────────────────
+-- == Append-only audit log =========================================
 create table audit_log (
   id        bigint generated always as identity primary key,
   farm_id   uuid,
@@ -21,7 +21,7 @@ create table audit_log (
 create index audit_log_farm_idx   on audit_log(farm_id);
 create index audit_log_entity_idx on audit_log(entity, entity_id);
 
--- ── Generic audit trigger ─────────────────────────────────────────
+-- == Generic audit trigger =========================================
 create or replace function app_audit() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -67,7 +67,7 @@ begin
   end loop;
 end $do$;
 
--- ── Job-card line total computation (money in integer cents) ──────
+-- == Job-card line total computation (money in integer cents) ======
 create or replace function app_compute_line_total() returns trigger
 language plpgsql set search_path = public, pg_temp as $$
 begin
@@ -85,7 +85,7 @@ create trigger job_card_lines_compute
   before insert or update on job_card_lines
   for each row execute function app_compute_line_total();
 
--- ── Recompute job-card totals from its lines ─────────────────────
+-- == Recompute job-card totals from its lines =====================
 create or replace function app_recompute_jobcard_totals() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_jc uuid;
@@ -113,7 +113,7 @@ create trigger job_card_lines_totals
   after insert or update or delete on job_card_lines
   for each row execute function app_recompute_jobcard_totals();
 
--- ── Job-card lock enforcement ────────────────────────────────────
+-- == Job-card lock enforcement ====================================
 -- Once a card is locked (approved), it and its lines may not be modified.
 -- The approving UPDATE itself is allowed because OLD.locked is still false.
 create or replace function app_enforce_jobcard_lock() returns trigger

@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
  *
  * Separate from the journal on purpose: an import wizard reads row 1 of a CSV as the
  * header and everything after it as data, so a chart pasted into the top of the journal
- * is what makes the journal fail on line 1. The accountant needs both — one to set the
- * accounts up, one to post — and they are two files because they are two jobs.
+ * is what makes the journal fail on line 1. The accountant needs both, one to set the
+ * accounts up, one to post, and they are two files because they are two jobs.
  *
  * Gated identically to the journal itself. A denial is a 403, never a redirect.
  */

@@ -23,7 +23,7 @@ import { createClientRecord } from "./actions";
  *
  * A mechanic's customer list exists before FleetWise does, and most of it is not on
  * FleetWise at all. Until now a partner could only see farms that had already found them
- * and connected — which is fine as a growth loop and useless as a management system. This
+ * and connected, which is fine as a growth loop and useless as a management system. This
  * is the whole book: the farms they are connected to, and everybody else, in one list.
  *
  * A client here is the partner's own record and grants them nothing. Access to a farm

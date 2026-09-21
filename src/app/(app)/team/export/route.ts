@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * POPIA Data-Subject Access Request: download everything we hold on a person as
  * JSON. Guarded server-side by the `export_personal_data` RPC (owner/manager of the
- * subject's farm, or rr_admin cross-tenant — logged). RLS never lets anon here; a
+ * subject's farm, or rr_admin cross-tenant, logged). RLS never lets anon here; a
  * non-owner/manager caller trips the RPC's guard → 403.
  */
 export async function GET(request: Request) {

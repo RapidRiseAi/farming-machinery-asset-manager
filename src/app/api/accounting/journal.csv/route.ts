@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  *   farm side    → `advanced_reports` (Professional+, 0251)
  *
  * The rows come from `app.partner_journal` / `app.farm_journal` (0510), which are
- * SECURITY INVOKER — so RLS, not this route, decides whose books are summed. The
+ * SECURITY INVOKER, so RLS, not this route, decides whose books are summed. The
  * entitlement check is about who may ASK, and it runs before any query.
  */
 export async function GET(request: Request) {
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       return new Response("Upgrade required", { status: 403 });
     }
     // Multi-site (F7): the journal is for the farm the user is currently in, not a
-    // union of everything they can reach — a set of books belongs to one entity.
+    // union of everything they can reach, a set of books belongs to one entity.
     const farmId = await currentFarmId(profile);
     if (!farmId) return new Response("Forbidden", { status: 403 });
     const { data } = await supabase.rpc("farm_journal", {

@@ -1,6 +1,6 @@
 -- 0301_partners.sql
 -- Partners directory (F12a). A `partner` is a contractor/supplier a farm can find,
--- add, quick-contact (tel/wa.me/mailto) and — once they accept — connect to as a
+-- add, quick-contact (tel/wa.me/mailto) and, once they accept, connect to as a
 -- proper `workshop` (via the invite flow: workshop + active workshop_link + a
 -- workshop-role user; the partner then carries `workshop_id`).
 --
@@ -13,7 +13,7 @@
 -- The (farm_id IS NULL) = is_suggested invariant is enforced by a check constraint so
 -- the two flavours can never be confused. `workshop_id` is a nullable link to the
 -- workshop created once the partner joins (workshops are NOT farm-scoped, so a plain
--- FK is correct — a farm reaches that workshop's data only through workshop_links/RLS,
+-- FK is correct, a farm reaches that workshop's data only through workshop_links/RLS,
 -- never through this pointer). Soft-delete + audit + anon-zero-DB per house rules.
 
 create table partners (
@@ -39,8 +39,8 @@ create index partners_farm_idx     on partners(farm_id);
 create index partners_kind_idx     on partners(kind);
 create index partners_workshop_idx on partners(workshop_id);
 
--- ── RLS + grants (global rows readable by all; farm rows via has_farm_access;
---    mutation restricted to the owning farm's owner/manager, or RR admin) ──
+-- == RLS + grants (global rows readable by all; farm rows via has_farm_access;
+--    mutation restricted to the owning farm's owner/manager, or RR admin) ==
 alter table partners enable row level security;
 alter table partners force  row level security;
 
@@ -81,7 +81,7 @@ grant select, insert, update, delete on partners to authenticated;
 grant all on partners to service_role;
 -- anon gets ZERO access (0102 default privileges revoke it; no anon policy exists).
 
--- ── Audit (append-only history, per 0008) ────────────────────────
+-- == Audit (append-only history, per 0008) ========================
 create trigger partners_audit
   after insert or update or delete on partners
   for each row execute function app_audit();

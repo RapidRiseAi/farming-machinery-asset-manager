@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import type { ButtonVariant, ButtonSize } from "@/components/ui/button";
 
 /**
- * A form whose submit is gated by a native confirm() dialog — for destructive,
+ * A form whose submit is gated by a native confirm() dialog, for destructive,
  * irreversible actions (e.g. POPIA erasure). `children` holds the hidden inputs
  * carrying the action's payload. The server action is passed in as `action`.
  */

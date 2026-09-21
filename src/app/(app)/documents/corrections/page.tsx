@@ -25,12 +25,12 @@ type Row = {
 };
 
 /**
- * Every correction ever made, across every document — its own section, as asked for.
+ * Every correction ever made, across every document, its own section, as asked for.
  *
  * The per-document history answers "what happened to THIS invoice". This answers the
  * other question, the one an owner asks when they are not looking at anything in
  * particular: has anyone been quietly changing numbers? So it is ordered by when, not by
- * document, and it leads with the movement rather than the reason — a run of corrections
+ * document, and it leads with the movement rather than the reason, a run of corrections
  * that all reduce a total is a pattern you want to see at a glance.
  *
  * It reads `partner_document_revisions`, which is append-only (0420): UPDATE and DELETE
@@ -38,7 +38,7 @@ type Row = {
  * afterwards by the person who did it.
  *
  * Visible to the partner for their own documents, and to a farm for documents raised
- * against them — the same rule the documents themselves follow, because a customer being
+ * against them, the same rule the documents themselves follow, because a customer being
  * able to see how their invoice changed is the point.
  */
 export default async function CorrectionsPage() {

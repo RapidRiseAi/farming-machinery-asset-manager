@@ -11,8 +11,8 @@ export type QrTask = "fault" | "reading" | "fuel" | "service";
  * The no-login screen. A driver holds a cracked phone next to a broken tractor, in the
  * sun, maybe in Afrikaans, maybe not confident reading either language.
  *
- * The page used to open with FOUR forms expanded at once — report a problem, log a
- * reading, log a service, log fuel — so someone who scanned to report smoke had to
+ * The page used to open with FOUR forms expanded at once, report a problem, log a
+ * reading, log a service, log fuel, so someone who scanned to report smoke had to
  * scroll past three other forms to reach it. Now: one question, big tiles, and only the
  * chosen form opens.
  *

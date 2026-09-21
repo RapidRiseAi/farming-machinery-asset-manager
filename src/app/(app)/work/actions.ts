@@ -34,7 +34,7 @@ async function farmVatBps(supabase: Awaited<ReturnType<typeof createClient>>, fa
   return typeof settings.vat_rate_bps === "number" ? (settings.vat_rate_bps as number) : 1500;
 }
 
-// ── Create (farmer initiates from a vehicle) ─────────────────────────────────
+// == Create (farmer initiates from a vehicle) =================================
 export async function createWorkRequest(formData: FormData) {
   const profile = await requireRole(INITIATORS);
   const machineId = String(formData.get("machine_id") ?? "");
@@ -75,7 +75,7 @@ export async function createWorkRequest(formData: FormData) {
   redirect(`/work/${data.id}`);
 }
 
-// ── Advance status (+ an event, + optional note) ─────────────────────────────
+// == Advance status (+ an event, + optional note) =============================
 export async function updateWorkRequestStatus(formData: FormData) {
   const profile = await requireRole(CREW);
   const id = String(formData.get("id") ?? "");
@@ -102,7 +102,7 @@ export async function updateWorkRequestStatus(formData: FormData) {
   redirect(`/work/${id}?saved=1`);
 }
 
-// ── Progress note (no status change) ─────────────────────────────────────────
+// == Progress note (no status change) =========================================
 export async function addWorkRequestNote(formData: FormData) {
   const profile = await requireRole(CREW);
   const id = String(formData.get("id") ?? "");
@@ -123,7 +123,7 @@ export async function addWorkRequestNote(formData: FormData) {
   redirect(`/work/${id}?saved=note`);
 }
 
-// ── Record a quote amount (recorded, NOT costed until invoiced) ──────────────
+// == Record a quote amount (recorded, NOT costed until invoiced) ==============
 export async function setWorkRequestQuote(formData: FormData) {
   const profile = await requireRole(CREW);
   const id = String(formData.get("id") ?? "");
@@ -156,7 +156,7 @@ export async function setWorkRequestQuote(formData: FormData) {
   redirect(`/work/${id}?saved=quote`);
 }
 
-// ── Record an invoice amount → an `invoice` cost_entry (0311 trigger; no double-count) ──
+// == Record an invoice amount → an `invoice` cost_entry (0311 trigger; no double-count) ==
 export async function setWorkRequestInvoice(formData: FormData) {
   const profile = await requireRole(CREW);
   const id = String(formData.get("id") ?? "");
@@ -188,9 +188,9 @@ export async function setWorkRequestInvoice(formData: FormData) {
   redirect(`/work/${id}?saved=invoice`);
 }
 
-// ── Convert a work request into a job card (keeps maintenance history unified) ──
+// == Convert a work request into a job card (keeps maintenance history unified) ==
 // The job card is created empty (no lines) and back-linked, so the request's invoice
-// cost (0311) is NOT duplicated by job-card lines — the operator adds lines only for
+// cost (0311) is NOT duplicated by job-card lines, the operator adds lines only for
 // work they actually itemise.
 export async function convertToJobCard(formData: FormData) {
   const profile = await requireRole(CREW);

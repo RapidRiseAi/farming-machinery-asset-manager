@@ -44,17 +44,17 @@ type JobCardRow = { id: string; machine_id: string; type: string; date_in: strin
 /**
  * Accidents, and the insurance claim that follows one.
  *
- * ── WHY IT IS NOT A FAULT ────────────────────────────────────────────────────
+ * == WHY IT IS NOT A FAULT ====================================================
  * A fault is "something stopped working and somebody must fix it". An accident has a SAPS
  * case number, another driver with their own insurer, an excess, and a settlement that
  * arrives months later. Kept in the notes field of a fault, none of that is ever chased.
  *
- * ── THE NUMBER AT THE TOP ────────────────────────────────────────────────────
- * What the insurer still owes. Only claims that are LODGED count towards it — not
- * rejected, not settled, not the ones a farm decided were below the excess — so that the
+ * == THE NUMBER AT THE TOP ====================================================
+ * What the insurer still owes. Only claims that are LODGED count towards it, not
+ * rejected, not settled, not the ones a farm decided were below the excess, so that the
  * figure is one a person can hold up against a single letter from their broker.
  *
- * ── THE MONEY IS VAT-INCLUSIVE ───────────────────────────────────────────────
+ * == THE MONEY IS VAT-INCLUSIVE ===============================================
  * Unlike everything else in this product. These are figures copied off an insurer's
  * letter, and a screen that re-based them would disagree with the document on every line.
  * Said in words under the form rather than assumed.
@@ -167,7 +167,7 @@ export default async function IncidentsPage({
           <option value="">{t("incidents.fieldJobCardNone", locale)}</option>
           {jobCards.map((j) => (
             <option key={j.id} value={j.id}>
-              {machineLabel(j.machine_id)} · {j.date_in ? shortDate(j.date_in, locale) : "—"}
+              {machineLabel(j.machine_id)} · {j.date_in ? shortDate(j.date_in, locale) : "-"}
             </option>
           ))}
         </Select>
@@ -283,12 +283,12 @@ export default async function IncidentsPage({
                   {r.injuries ? (
                     <p className="mt-1.5 rounded-lg border border-callout-danger-edge bg-callout-danger-bg px-3 py-1.5 text-sm font-medium text-callout-danger-ink">
                       {t("incidents.injuriesYes", locale)}
-                      {r.injury_notes ? <span className="font-normal"> — {r.injury_notes}</span> : null}
+                      {r.injury_notes ? <span className="font-normal">, {r.injury_notes}</span> : null}
                     </p>
                   ) : null}
 
                   {/* The claim line. A lodged claim says how many days it has been waiting,
-                      because that is the sentence that gets somebody to ring the broker —
+                      because that is the sentence that gets somebody to ring the broker -
                       and it is the same figure the nightly reminder puts in its message. */}
                   {claimOpen(r.status) || r.status === "claim_settled" ? (
                     <p className="mt-1.5 text-sm text-sand-700">
@@ -426,7 +426,7 @@ export default async function IncidentsPage({
             <Field label={t("incidents.fieldMachine", locale)} htmlFor="in-machine" required>
               <Select id="in-machine" name="machine_id" required defaultValue="">
                 <option value="" disabled>
-                  —
+                  -
                 </option>
                 {machines.map((m) => (
                   <option key={m.id} value={m.id}>

@@ -1,11 +1,11 @@
-# FarmGear — Farm Machinery & Vehicle Manager
+# FarmGear, Farm Machinery & Vehicle Manager
 
 Multi-tenant PWA for South African farms to manage machinery: registry, QR codes,
 service scheduling, job cards, faults, costs, dashboards, WhatsApp alerts.
-**Read [`docs/SCOPE.md`](docs/SCOPE.md) in full before planning any feature** — it is the source of truth.
+**Read [`docs/SCOPE.md`](docs/SCOPE.md) in full before planning any feature**, it is the source of truth.
 
 ## Stack
-- **Next.js (App Router) PWA** + TypeScript + Tailwind — mobile-first (mid-range Android).
+- **Next.js (App Router) PWA** + TypeScript + Tailwind, mobile-first (mid-range Android).
 - **Supabase** (Postgres + Auth + Storage) with **row-level security** for multi-tenancy.
 - Migrations = plain SQL files in `supabase/migrations/` (Supabase-compatible; also run against a local Postgres for tests).
 - Deploy target: Vercel (app) + Supabase cloud. (Not wired in Week 1.)
@@ -13,7 +13,7 @@ service scheduling, job cards, faults, costs, dashboards, WhatsApp alerts.
 ## Commands
 ```bash
 pnpm install            # install deps
-pnpm dev                # run app (needs .env.local — see .env.example)
+pnpm dev                # run app (needs .env.local, see .env.example)
 pnpm build              # production build
 pnpm typecheck          # tsc --noEmit
 pnpm lint               # next lint
@@ -38,7 +38,7 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 - **Auth (v1):** email (password + magic-link) + email invites; workers use the no-login QR page.
   Phone/WhatsApp/SMS auth deferred (WhatsApp Stage 2).
 - **i18n from day one:** all UI strings in `src/lib/i18n/en.json` (filled) + `af.json` (keys ready for
-  the Week 3 Afrikaans pass). Minimal `t()` helper — no heavy i18n lib (bundle size).
+  the Week 3 Afrikaans pass). Minimal `t()` helper, no heavy i18n lib (bundle size).
 - **Out of scope for v1** (Scope §13) is a hard NO: GPS/telemetry, anomaly ML, parts inventory,
   invoicing/accounting, crop/livestock/labour, store apps, full offline sync, >2 languages.
 
@@ -51,17 +51,17 @@ four gap-review features on 21/09/2026 (`b5f0941`). It is **not pushed, so CI ha
 on any of it**; every gate passed locally. Billing is live and has taken a real payment.
 Email sends and is confirmed `delivered` by Resend.
 
-The full build history — ~55 session entries, oldest first — is in
+The full build history, ~55 session entries, oldest first, is in
 [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md). **Read it on demand, not by default**; grep it by
 migration number (`0481`), commit (`bcbd39c`) or feature code (`F14`). Per-feature status
 lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.md).
 
-### Open — founder only
+### Open, founder only
 - **`lapsed_grace_days` is live at 30 and it will close accounts.** Needs a decision, not a default.
 - **`src/lib/legal.ts` needs a lawyer's read**, then bump `TERMS_VERSION`.
 - **Confirm `NEXT_PUBLIC_SITE_URL` is set in Vercel Production.** Every checkout callback is
   built from it and it cannot be read from outside. (`RESEND_API_KEY`/`EMAIL_FROM` are
-  confirmed set — email has sent.)
+  confirmed set, email has sent.)
 - **Decide what a part-refund means for a period already supplied.** This blocks the SaaS
   negative-payment model; the partner side already has one at `0422`.
 - **`SCOPE.md` §13 no longer matches the product.** Parts and accounting shipped, and store
@@ -69,32 +69,32 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   `docs/NATIVE_APP_AND_OFFLINE_PLAN.md` or the gaps in
   `docs/FEATURE_GAP_REVIEW_2026-09-19.md`.
 
-### Open — needs a browser or a throwaway farm
+### Open, needs a browser or a throwaway farm
 - A real Paystack **decline** has never happened (test mode accepts every valid stored authorization).
 - `changeOwnPlan` / `changeVehicleSlots` are rendered and verified wired but **never
-  pressed** — they write to the demo farm's ledger, and an upgrade raises a proration
+  pressed**, they write to the demo farm's ledger, and an upgrade raises a proration
   invoice that cannot then be cleanly removed. Their arithmetic is proven in SQL inside
   rolled-back transactions. Both now go through a priced review step first, so the number
   is on screen before anything commits.
 - **Eight migrations are in the repo and not applied to production.** The three from
-  18/09/2026 (`20260918120000`, `130000`, `140000` — sign-up email lookup, sign-up rate
-  limit, renewal notice) and five since (`20260920150000`, `20260920160000` — discounts and
-  the sign-up promo code; `20260921090000` — driver credentials; `20260921100000` —
-  incidents and claims; `20260921110000` — depreciation). The 20/09 diesel and offline
+  18/09/2026 (`20260918120000`, `130000`, `140000`, sign-up email lookup, sign-up rate
+  limit, renewal notice) and five since (`20260920150000`, `20260920160000`, discounts and
+  the sign-up promo code; `20260921090000`, driver credentials; `20260921100000` -
+  incidents and claims; `20260921110000`, depreciation). The 20/09 diesel and offline
   migrations are also unapplied; count them against `pg_proc` rather than trusting this
   line (`docs/SCHEMA_DRIFT.md`).
 - **`billing_promo_codes` ships empty and no Founding Farmer code exists.** The engine can
   give the rate `SCOPE.md` §12 promises; how many places and at what rate is a decision
   nobody has made. Inventing one would be inventing a price.
 
-### By design — not gaps
+### By design, not gaps
 - A refund or dispute **opens a support case and moves nothing in the ledger.** Money goes
   back only when a person decides, case by case (`docs/BILLING.md` §11b). A mid-cycle
   downgrade and a cancellation are not refunds and already work unaided.
 - **RapidRise OS is not in this workspace**, so the support-case receiver is not built. The
   contract is in `.env.example`: one POST per case, upsert on `id`.
 - **Paystack has no collections cap for this account.** Rapid Rise AI is a Registered
-  Business — approved, live, ZAR payouts to a Capitec Business account. Every cap figure in
+  Business, approved, live, ZAR payouts to a Capitec Business account. Every cap figure in
   the build log (R80 000, ZAR 1 000 000) is wrong for this account.
 
 ## Hard-won rules
@@ -103,7 +103,7 @@ Each of these cost a debugging session. They are here rather than in the log bec
 will bite again.
 
 **Verification**
-- **Count objects, not migrations** (`docs/SCHEMA_DRIFT.md`) — and inventory the *calling*
+- **Count objects, not migrations** (`docs/SCHEMA_DRIFT.md`), and inventory the *calling*
   side too. Check every `.rpc("…")` name in the app against `pg_proc` on the live database.
 - **A screen and the engine can disagree about the same number.** `/billing` estimated from
   the COUNTED fleet while the generator billed `coalesce(asset_quota, counted)`, and quoted
@@ -114,12 +114,12 @@ will bite again.
   the sign-up duplicate check would have begun turning real customers away at the 51st user
   and never failed a test. Any list call without an explicit page size is a latent ceiling.
 - **`pnpm db:check`** applies every migration and suite to PGlite (fresh database per suite)
-  when there is no psql. Four non-billing suites fail there on a stubbed `digest()` — run it
+  when there is no psql. Four non-billing suites fail there on a stubbed `digest()`, run it
   on a clean checkout before blaming your change for a failure.
 - **Three test layers all miss reachability.** The TS tests mock the Supabase client, so they
   assert *arguments* and never whether a function exists; `db:test` does not call the
   database the way the app does; the build only compiles a string.
-- **The mutation harness reports false survivors** — it reads migrations from the repo, not
+- **The mutation harness reports false survivors**, it reads migrations from the repo, not
   the copy you just edited. This has happened three times. Confirm a mutation changed what
   actually ran.
 - **Prove it by running it**, against production inside a rolled-back transaction, rather
@@ -127,17 +127,27 @@ will bite again.
 - **Headless Chrome on Windows will not lay a window out narrower than ~500px.** A "360px"
   measurement taken with `--window-size=360,…` is really 504px. Render inside a fixed-width
   `srcdoc` iframe and read the frame's own `innerWidth`.
+- **Render the component and measure it; do not reason about it.** The appearance switch
+  changed width by 54px in English and 56px in Afrikaans every time it was pressed, and the
+  fix was only provable by rendering old and new markup side by side in a 360px iframe with
+  the BUILT css. Rebuild first: a stale `.next/static/css` bundle lacks any Tailwind class
+  your change just introduced, and the measurement silently reports the unstyled layout.
+- **React strips `name` from a submit button that has a function `formAction`.** It encodes
+  the action into that attribute itself and warns "It will get overridden". Any scheme that
+  identifies a button by its posted name therefore fails on exactly those buttons, silently.
+  Use `useFormStatus().action` for them instead. Found by reading the rendered DOM, not the
+  source.
 - **CI job logs need repository admin rights.** `git credential fill` supplies the token git
-  already uses for pushes — that is how a week of red CI was finally read.
+  already uses for pushes, that is how a week of red CI was finally read.
 
 **Postgres and Supabase**
 - **PostgREST exposes `public` ONLY.** Every function in schema `app` is unreachable via
   `supabase.rpc()` and resolves to nothing. Public wrappers are required, and suite section
-  **(m)** asserts function names *and parameter names* — PostgREST resolves overloads by
+  **(m)** asserts function names *and parameter names*, PostgREST resolves overloads by
   named arguments, so a renamed parameter breaks the call as completely as a deletion.
 - **A policy governs what you ask BACK, not only what you write.** `select *` on `machines`
-  is `permission denied` for `authenticated` — the cost columns are withheld at the COLUMN
-  level (`20260903074350`) — so a test or a page that reads `*` fails even where a targeted
+  is `permission denied` for `authenticated`, the cost columns are withheld at the COLUMN
+  level (`20260903074350`), so a test or a page that reads `*` fails even where a targeted
   read succeeds. Same family: `.update({deleted_at}).select()` on a soft delete asks
   PostgREST to return the one row the SELECT policy has just been told to hide, so it
   reports zero rows and the action says "not found" about a write that worked. Check
@@ -150,7 +160,7 @@ will bite again.
   under both; "deterministic pick" in a comment is not one.
 
 **Environment and deploys**
-- **`vercel pull` cannot decrypt secrets** — it writes the literal string `[SENSITIVE]`,
+- **`vercel pull` cannot decrypt secrets**, it writes the literal string `[SENSITIVE]`,
   which is perfectly truthy. Never presence-check a secret from a pulled env file. That bug
   reported email as configured for weeks while Resend rejected every call.
 - **The branch must build on a CLEAN CHECKOUT**, which is what Vercel builds. `pnpm
@@ -158,7 +168,7 @@ will bite again.
   proves nothing.
 - **Windows checks files out CRLF**, and that changes migration hashes. Strip CRs before
   comparing against production.
-- **Never commit a credential-shaped literal**, even a deliberately fake one in a test —
+- **Never commit a credential-shaped literal**, even a deliberately fake one in a test -
   GitHub push protection blocks the push. Assemble it by concatenation; same runtime value,
   no secret-shaped string in the source.
 
@@ -167,7 +177,7 @@ will bite again.
   records what was true when it was written; a published pricing page describes the default
   tier, not this account. This was wrong twice about the Paystack cap.
 - **Never present a fallback as an identification.** The dispute path reports `source` as
-  `charged` only when that attempt genuinely used the card, `farm_default` otherwise —
+  `charged` only when that attempt genuinely used the card, `farm_default` otherwise -
   because the case may end with a person being told their card was used without permission.
 - **A checker that cries wolf stops being read.** The first `i18n:keys` gate flagged nine
   legitimate call sites; that gets fixed before the gate ships.
@@ -179,7 +189,7 @@ will bite again.
   new group needs a test that walks its values in both languages (`view.test.ts`).
 - **Do not patch another session's in-flight files.** Adding a key for someone else's
   unfinished feature is how fragments collide.
-- **Do not rewrite a superseded log entry.** Add a line that supersedes it — editing hides
+- **Do not rewrite a superseded log entry.** Add a line that supersedes it, editing hides
   that it was ever wrong.
 
 ## Where things are written down
@@ -202,7 +212,7 @@ will bite again.
 ## Session-end protocol
 
 At the end of a working session, **append one entry to
-[`docs/BUILD_LOG.md`](docs/BUILD_LOG.md)** — not to this file. Keep the existing entry
+[`docs/BUILD_LOG.md`](docs/BUILD_LOG.md)**, not to this file. Keep the existing entry
 shape: what was *measured*, migrations applied, gates run, and explicitly what was left
 undone and why.
 

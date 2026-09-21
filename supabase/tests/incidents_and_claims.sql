@@ -3,7 +3,7 @@
 --
 -- The money assertions are about SHAPE, not about a ledger: this table records a claim and
 -- posts nothing (docs/BILLING.md §11b), so what is tested is that a settled claim cannot
--- exist without its figure and its date — the omission that would silently shrink the
+-- exist without its figure and its date, the omission that would silently shrink the
 -- "still owed by the insurer" total the whole feature exists to produce.
 
 \set ON_ERROR_STOP on
@@ -59,7 +59,7 @@ insert into public.job_cards (id, farm_id, machine_id, type, status) values
   ('1c300000-0000-4000-8000-000000000002', '1c000000-0000-4000-8000-000000000002',
    '1c200000-0000-4000-8000-000000000003', 'repair', 'open');
 
--- ── (a) A settled claim cannot be half a record ─────────────────────────────
+-- == (a) A settled claim cannot be half a record =============================
 do $$
 declare v_failed boolean;
 begin
@@ -112,7 +112,7 @@ begin
           'fire', 'reported', 'Burnt out overnight in the implement shed.');
 end $$;
 
--- ── (b) A job card from another farm cannot be attached ─────────────────────
+-- == (b) A job card from another farm cannot be attached =====================
 do $$
 declare v_failed boolean := false;
 begin
@@ -132,7 +132,7 @@ begin
           '1c300000-0000-4000-8000-000000000001', 'Repaired under job card.');
 end $$;
 
--- ── (c) The other driver's details stay inside the farm ─────────────────────
+-- == (c) The other driver's details stay inside the farm =====================
 insert into public.incidents
   (id, farm_id, machine_id, kind, status, occurred_at, description,
    driver_user_id, saps_case_number, third_party_name, third_party_contact,
@@ -209,7 +209,7 @@ begin
 end $$;
 reset role;
 
--- ── (d) A claim nobody chased speaks up, once, then weekly ──────────────────
+-- == (d) A claim nobody chased speaks up, once, then weekly ==================
 select pg_catalog.set_config('request.jwt.claims', '', false);
 
 create or replace function _inc_chases() returns bigint
@@ -293,7 +293,7 @@ begin
   end if;
 end $$;
 
--- ── (e) The engine is not reachable from a browser ──────────────────────────
+-- == (e) The engine is not reachable from a browser ==========================
 do $$
 begin
   if has_function_privilege('authenticated', 'app.enqueue_incident_claim_chases()', 'EXECUTE')

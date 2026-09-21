@@ -82,7 +82,7 @@ export default async function WorkListPage({
 
       {/*
         Same `status` / `machine` params. Two unlabelled scrollers became one named
-        control — the machine row in particular was a horizontal list of 15 names with
+        control, the machine row in particular was a horizontal list of 15 names with
         nothing saying it was a filter.
       */}
       <FilterBar
@@ -139,7 +139,7 @@ export default async function WorkListPage({
                           <Card className="transition-shadow hover:shadow-soft">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="truncate font-semibold text-sand-900">{nameById[r.machine_id] ?? "—"}</p>
+                                <p className="truncate font-semibold text-sand-900">{nameById[r.machine_id] ?? "-"}</p>
                                 <p className="mt-0.5 text-sm text-sand-500">
                                   {workKindLabel(r.kind, locale)}
                                   {r.title ? ` · ${r.title}` : ""}

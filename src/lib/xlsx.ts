@@ -1,5 +1,5 @@
 /**
- * Minimal, dependency-free OOXML (.xlsx) writer — SERVER ONLY.
+ * Minimal, dependency-free OOXML (.xlsx) writer, SERVER ONLY.
  *
  * Hand-rolled so the Excel export adds no npm dependency and never ships to the
  * client (imported only from a route handler). Produces a valid multi-sheet
@@ -29,7 +29,7 @@ export const num = (value: number | null | undefined): XlsxCell =>
 export const moneyCell = (cents: number | null | undefined): XlsxCell =>
   cents == null || !Number.isFinite(cents) ? null : { kind: "number", value: cents / 100, money: true };
 
-// ── XML helpers ──────────────────────────────────────────────────────────────
+// == XML helpers ==============================================================
 const escXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escAttr = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -100,7 +100,7 @@ const STYLES_XML =
   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
   `</styleSheet>`;
 
-// ── ZIP (stored / no compression) ────────────────────────────────────────────
+// == ZIP (stored / no compression) ============================================
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -120,7 +120,7 @@ function crc32(buf: Buffer): number {
 type ZipEntry = { name: string; data: Buffer };
 
 function zipStore(entries: ZipEntry[]): Buffer {
-  // Fixed, valid DOS date/time (2020-01-01 00:00) — some parsers reject a zero date.
+  // Fixed, valid DOS date/time (2020-01-01 00:00), some parsers reject a zero date.
   const dosTime = 0;
   const dosDate = ((2020 - 1980) << 9) | (1 << 5) | 1;
   const locals: Buffer[] = [];
