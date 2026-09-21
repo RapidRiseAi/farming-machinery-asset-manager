@@ -61,6 +61,9 @@ const PROBES = {
   "20260921110000": "select to_regprocedure('public.farm_book_values(uuid,date)') is not null",
   "20260921120000": "select to_regclass('public.warranty_claims') is not null",
   "20260921130000": "select to_regprocedure('public.farm_calendar(uuid,date,date)') is not null",
+  "20260921140000":
+    "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'support_ticket_kind' and e.enumlabel = 'help_request')",
+  "20260921141000": "select to_regprocedure('public.open_help_request(text,text,jsonb)') is not null",
 };
 
 const url = readEnv("DATABASE_URL");

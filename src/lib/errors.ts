@@ -255,6 +255,14 @@ const CODE_KEYS: Record<string, string> = {
   "warranty-duplicate": "errors.warrantyDuplicate",
   "warranty-missing": "errors.warrantyMissing",
   "warranty-save-failed": "errors.warrantySaveFailed",
+  // Asking for help (20260921141000). "too-many" is the per-farm ceiling and the only one
+  // of these with a next step, so it does not fall through to the generic apology.
+  "help-need-subject": "errors.helpNeedSubject",
+  "help-need-message": "errors.helpNeedMessage",
+  "help-subject-long": "errors.helpSubjectLong",
+  "help-message-long": "errors.helpMessageLong",
+  "help-too-many": "errors.helpTooMany",
+  "help-failed": "errors.helpFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // == Somebody's own account (20260911190000) ===============================

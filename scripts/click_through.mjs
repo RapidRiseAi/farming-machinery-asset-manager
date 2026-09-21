@@ -35,6 +35,24 @@ function readEnv(name) {
 
 const SUPABASE_URL = readEnv("NEXT_PUBLIC_SUPABASE_URL");
 const ANON = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+const SERVICE = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+/** Close out the previous run's questions. Service-role, because a farm cannot. */
+async function resolveOpenHelpRequests() {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/support_tickets?kind=eq.help_request&status=in.(open,waiting)`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: SERVICE,
+        authorization: `Bearer ${SERVICE}`,
+        "content-type": "application/json",
+        prefer: "return=minimal",
+      },
+      body: JSON.stringify({ status: "resolved", resolved_at: new Date().toISOString() }),
+    },
+  );
+}
 
 // ── Sign in the way the app does ────────────────────────────────────────────
 const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -96,6 +114,7 @@ const PAGES = [
   ["/account", []],
   ["/jobcards/f0000000-0000-4000-8000-00000000bc01", ["Test Tractor"]],
   ["/calendar", []],
+  ["/help", []],
 ];
 
 let failures = 0;
@@ -175,6 +194,10 @@ for (const table of ["warranty_claims", "driver_credentials", "incidents"]) {
     headers: { prefer: "return=minimal" },
   });
 }
+// Help requests are capped at five open PER FARM, so a run that left them open would make
+// the sixth run fail on the ceiling rather than on anything real. Resolved through the
+// service side, because a farm deliberately cannot write to support_tickets at all.
+await resolveOpenHelpRequests();
 
 console.log("\nWrites, as this owner, through RLS:");
 
@@ -322,6 +345,21 @@ await step("a settled claim with no amount is refused", async () => {
   });
   return { ok: r.status >= 400 && r.status < 500, status: r.status, text: () => r.text() };
 });
+
+await step(
+  "a question asked from inside the product",
+  () =>
+    rest("rpc/open_help_request", {
+      method: "POST",
+      body: JSON.stringify({
+        p_subject: "The QR sticker will not scan",
+        p_message: "It worked last week on the Massey and now nothing happens.",
+        p_context: { path: "/machines/abc", locale: "en", secret: "must not be kept" },
+      }),
+    }),
+  "/help",
+  ["The QR sticker will not scan", "With us"],
+);
 
 // And the tenancy fence, from the inside: this owner must not be able to file a document
 // against somebody else's farm, however the form is posted.

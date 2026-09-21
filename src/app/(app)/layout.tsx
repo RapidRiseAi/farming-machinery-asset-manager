@@ -227,6 +227,9 @@ export default async function AppLayout({
   // Everything with a date on it, in one month. Beside the work screens rather than the
   // reports, because it is a planning tool and not a look back.
   const calendar: NavItemData = { href: "/calendar", label: t("nav.calendar", locale), icon: "calendar" };
+  // A question straight to us, with the context already attached. Beside settings, which
+  // is where somebody goes when they are looking for a way out of a problem.
+  const help: NavItemData = { href: "/help", label: t("nav.help", locale), icon: "info" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
@@ -278,6 +281,7 @@ export default async function AppLayout({
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
         ...(isAdmin ? [admin] : []),
+        help,
         install,
       ];
 
@@ -338,6 +342,7 @@ export default async function AppLayout({
         ...(isOwner ? [billing] : []),
         ...(isManagerPlus ? [settings] : []),
         ...(isAdmin ? [admin, adminBilling, billing] : []),
+        help,
         install,
       ];
 
