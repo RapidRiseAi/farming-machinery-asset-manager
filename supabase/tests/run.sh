@@ -126,4 +126,7 @@ pg "$DB" < "$ROOT/supabase/tests/driver_credentials.sql"
 echo "==> running incident + insurance claim tests"
 pg "$DB" < "$ROOT/supabase/tests/incidents_and_claims.sql"
 
+echo "==> running depreciation + book value tests"
+pg "$DB" < "$ROOT/supabase/tests/depreciation.sql"
+
 echo "==> OK"

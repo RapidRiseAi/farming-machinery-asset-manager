@@ -233,6 +233,16 @@ const CODE_KEYS: Record<string, string> = {
   "incident-need-settlement": "errors.incidentNeedSettlement",
   "incident-missing": "errors.incidentMissing",
   "incident-save-failed": "errors.incidentSaveFailed",
+  // Book-value policy (20260921110000). "forbidden" is deliberately NOT one of these: the
+  // RPC raises 42501 for a role that may not set a policy, and the action maps that to the
+  // existing permission sentence rather than inventing a second way to say the same thing.
+  "depreciation-missing": "errors.depreciationMissing",
+  "depreciation-bad-method": "errors.depreciationBadMethod",
+  "depreciation-bad-rate": "errors.depreciationBadRate",
+  "depreciation-bad-life": "errors.depreciationBadLife",
+  "depreciation-bad-residual": "errors.depreciationBadResidual",
+  "depreciation-bad-date": "errors.depreciationBadDate",
+  "depreciation-save-failed": "errors.depreciationSaveFailed",
   "billing-save-failed": "errors.saveFailed",
 
   // ── Somebody's own account (20260911190000) ───────────────────────────────

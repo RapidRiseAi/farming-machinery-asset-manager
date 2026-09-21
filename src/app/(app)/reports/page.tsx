@@ -106,6 +106,13 @@ export default async function ReportsPage({
               {t("reportSchedules.title", locale)}
             </Link>
           ) : null}
+          {/* The once-a-year question, gated on the same cost visibility as the workbook:
+              a register built from purchase prices belongs behind the same door they do. */}
+          {costsVisible ? (
+            <Link href="/reports/assets" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              {t("depreciation.reportsLink", locale)}
+            </Link>
+          ) : null}
           {/* Single multi-sheet Excel workbook covering every report family (FR-11.4). */}
           {costsVisible ? <a href={`/reports/workbook.xlsx?${qs({})}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("reports.downloadExcel", locale)} ↓
