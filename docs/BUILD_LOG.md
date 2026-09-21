@@ -3369,3 +3369,114 @@ label on `/team/licences` that would have rendered as dotted paths.
   inventing one would be inventing a price.
 - **The discount admin form has never been pressed.** Same caveat the build log already
   carries for `changeOwnPlan`: it writes to a real subscription's ledger inputs.
+
+## 2026-09-21 (later) - Four more gap items, the login screen, the dashes, and the first click-through
+
+Seven more commits (`522dfb0` through `3f844ce`). Everything in this entry is APPLIED to
+the live database and walked through as a signed-in user, which is new: until today
+nothing built in this repo had been clicked.
+
+### The login screen, measured rather than guessed
+
+- **Two spinners.** `useFormStatus()` reports the FORM's state, so every SubmitButton in
+  one form animated. Each button now posts its own id. The first fix was WRONG and the
+  browser caught it: React strips `name` from a button with a function `formAction` and
+  warns "It will get overridden", so the secondary button would silently never have spun.
+  Those compare `useFormStatus().action` instead. Now a hard-won rule.
+- **The appearance switch.** Measured before: pressing it moved the button 54.53px in
+  English and 56.34px in Afrikaans. After: 0.00px, height unchanged at 48px. All three
+  labels sit in one grid cell with the inactive two `invisible`, so it is as wide as the
+  longest word in whatever language is loaded.
+- **The screen.** Heading and button both said "Sign in"; "Forgot password" was a sentence
+  plus an underlined button stacked below the form; the email box had a hardcoded Afrikaans
+  placeholder on the English page. Now "Welcome back", a "Forgot?" on the password label
+  row at a 46px target, no horizontal overflow at 360px, link centre within 3px of the
+  label's in both languages.
+
+### The dash sweep
+
+`scripts/dash_sweep.mjs`. 517 user-facing strings across ALL FOUR dictionaries, including
+`en.professional.json` and `af.professional.json` which a sweep of en/af alone would have
+missed entirely and which is what a farm on the formal wording actually reads. 5,285 prose
+dashes across 575 source files, plus the box-drawing banners. It rewrites rather than
+deletes: clauses become sentences, lists become colons, asides become commas, in both
+languages. Three defects caught while tuning: `docs/POPIA.md` became `docs/POPIA. md`,
+`- None -` became `, None,`, and imperative tails produced splices.
+
+### A migration that would have broken the live site
+
+`20260920130000` dropped the four-argument `set_notification_prefs` the DEPLOYED build
+calls and replaced it with a five-argument version whose new parameter had no default.
+PostgREST resolves by name, so from the moment it ran until the next deploy every
+customer's notification-preferences save would have answered PGRST202. `p_email` now
+defaults. `supabase/tests/deploy_compatibility.sql` pins every call shape the deployed
+build makes and refuses a second overload of any of those names.
+
+**Eleven migrations were pending, not eight.** The three from 18/09 were already applied;
+the whole 20/09 diesel, offline and email batch was not.
+
+### The click-through
+
+`scripts/click_through.mjs` signs in as a throwaway owner through the ordinary password
+endpoint, carries the session cookies the middleware sets, and walks twenty-two screens. A
+page that 500s, redirects, renders a raw i18n key, shows an em dash or trips the error
+boundary fails it. Then it writes through PostgREST as that user, so RLS and every
+constraint decide the outcome, and reloads the page to ask whether it shows the row.
+
+It found a real gap on its first run: `/incidents` captured the insurer and the claim
+reference, put them in the nightly chase, and rendered neither. Somebody opening that
+screen to ring their broker had the days and the amount but not the number the broker asks
+for.
+
+The throwaway farm is `f0000000-...-fa01`. `node scripts/seed_test_farm.mjs --remove`
+clears it. Creating an auth user by hand also needs the token columns set to empty strings
+rather than NULL, or GoTrue answers "Database error querying schema" on sign-in.
+
+### The four features
+
+- **`acba0aa` - warranty claims (2.8).** `app.job_card_warranty_cover` judges the machine
+  against the JOB CARD's date and meter reading, not against today: six weeks later "is it
+  under warranty" can be no while "was it, in January" is still yes. Both bases answered
+  separately, because a date and an hours limit expire independently and a farm arguing
+  with a dealer needs to know which ran out. "Warranty not recorded" is amber, not "out of
+  warranty". Money is EX-VAT, matching the job card. A claim cannot exceed its own repair,
+  and one repair carries one live claim.
+- **`7ece1a9` - maintenance calendar (2.5).** Five sources, one list,
+  `security invoker` so every source keeps its own RLS. Flipping it to DEFINER makes the
+  suite report an operator seeing six items instead of three: the calendar would have been
+  the one screen where a driver could read a colleague's medical date. Carries no money.
+  Dates are STRINGS throughout, including Zeller's congruence for weekdays, because a
+  calendar built on `Date` picks up the server's timezone and nobody would ever report it.
+- **`2bc8c2e` - in-app support (3.4).** Reuses the case machinery and deliberately NOT
+  `app.support_ticket_evidence`, which assembles a billing dossier that leaves the
+  building. The form's context is allow-listed to three keys inside the database. Five open
+  per farm. `my_help_requests()` returns four columns and help requests only, rather than
+  widening a policy on a table that also holds disputes.
+- **`3f844ce` - tyres (2.6).** A tyre is a thing; a fitment is where it is. A rotation
+  keeps ONE life: counting only the current fitment reports 3 200 hours instead of 4 000
+  and would have printed 187,5c an hour instead of 150c, invisibly. Hours are never added
+  to kilometres; a tyre run on both gets no rate at all.
+
+**Measured, not asserted:** eleven more mutations across the four migrations, each run
+through `pnpm db:check` against the edited file. All eleven were caught.
+
+**Gates on the final commit:** typecheck, lint, 390 tests (312 at the start of the day),
+build, i18n parity (4860 keys, from 4347), i18n keys, error coverage, design lint 34/34.
+`db:check` applies 182 migrations cleanly. `notification_push_delivery.sql` fails on PGlite
+identically with changes stashed, so it remains one of the four pre-existing failures.
+
+**Left undone, deliberately:**
+- **Still nothing in a browser but the login form and the appearance switch.** The
+  click-through is HTTP: it proves what the server renders and what the database accepts,
+  not what React does after hydration.
+- **Nothing is pushed.** `main` is nineteen commits ahead of `origin/main` and CI has not
+  run on any of them.
+- **The test farm is still on the live database**, with two machines, a job card and
+  whatever the last click-through wrote.
+- **Gap items still open:** 2.9 custom fields, 2.10 machine transfer between farms, 3.5
+  ownership transfer, 3.7 "what's new" and sign out other devices.
+- **`billing_promo_codes` is still empty.** How many Founding Farmer places and at what
+  rate is a founder decision.
+- **Two `alter type ... add value` migrations now exist in the same series**
+  (`20260921140000` and `141000`). Postgres refuses to use a new enum value in the
+  transaction that created it, so any future enum addition needs the same split.

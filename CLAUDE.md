@@ -44,12 +44,22 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is **twelve
-commits** ahead of `origin/main` (`7d46870`): the billing and sign-up UI work of
-19/09/2026, the diesel/offline/email work of 20/09/2026, and Founding Farmer pricing plus
-four gap-review features on 21/09/2026 (`b5f0941`). It is **not pushed, so CI has not run
-on any of it**; every gate passed locally. Billing is live and has taken a real payment.
-Email sends and is confirmed `delivered` by Resend.
+**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is
+**nineteen commits** ahead of `origin/main` (`7d46870`): the billing and sign-up UI work of
+19/09/2026, the diesel/offline/email work of 20/09/2026, and on 21/09/2026 Founding Farmer
+pricing, eight gap-review features, the login-screen fixes and the em-dash sweep
+(`3f844ce`). It is **not pushed, so CI has not run on any of it**; every gate passed
+locally. Billing is live and has taken a real payment. Email sends and is confirmed
+`delivered` by Resend.
+
+**The schema is now AHEAD of the deployed app.** Every migration in this repo is applied to
+the live database (`node scripts/apply_pending.mjs --dry` says so), but Vercel still serves
+`origin/main`. `supabase/tests/deploy_compatibility.sql` pins the call shapes that older
+build makes; run it before applying anything that drops a function signature.
+
+**The product has been clicked through.** `node scripts/click_through.mjs` signs in as a
+throwaway owner, walks twenty-two screens and writes through RLS. It needs the app running
+(`npx next start -p 3111`) and a `.env.local`.
 
 The full build history, ~55 session entries, oldest first, is in
 [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md). **Read it on demand, not by default**; grep it by
@@ -76,13 +86,10 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   invoice that cannot then be cleanly removed. Their arithmetic is proven in SQL inside
   rolled-back transactions. Both now go through a priced review step first, so the number
   is on screen before anything commits.
-- **Eight migrations are in the repo and not applied to production.** The three from
-  18/09/2026 (`20260918120000`, `130000`, `140000`, sign-up email lookup, sign-up rate
-  limit, renewal notice) and five since (`20260920150000`, `20260920160000`, discounts and
-  the sign-up promo code; `20260921090000`, driver credentials; `20260921100000` -
-  incidents and claims; `20260921110000`, depreciation). The 20/09 diesel and offline
-  migrations are also unapplied; count them against `pg_proc` rather than trusting this
-  line (`docs/SCHEMA_DRIFT.md`).
+- **A throwaway farm sits on the live database.** `f0000000-...-fa01`, "Click-through Test
+  Farm", with an owner, two machines and a job card, created by `scripts/seed_test_farm.mjs`
+  so the screens could be walked. `node scripts/seed_test_farm.mjs --remove` deletes exactly
+  what it made, by id.
 - **`billing_promo_codes` ships empty and no Founding Farmer code exists.** The engine can
   give the rate `SCOPE.md` §12 promises; how many places and at what rate is a decision
   nobody has made. Inventing one would be inventing a price.
@@ -152,6 +159,15 @@ will bite again.
   PostgREST to return the one row the SELECT policy has just been told to hide, so it
   reports zero rows and the action says "not found" about a write that worked. Check
   existence before the write, or do not ask for the row back.
+- **An enum value cannot be added and used in one transaction.** Postgres answers "unsafe
+  use of new value", and the migration runner applies one file per transaction. The value
+  goes in a file of its own and the code that uses it in the next one (`20260921140000` and
+  `141000`).
+- **Check the DEPLOYED app before applying a migration that drops a function signature.**
+  Vercel serves `origin/main`, which is behind this repo, and PostgREST resolves by
+  argument NAME: dropping a signature the live build calls breaks that call for every
+  customer until the next deploy. `supabase/tests/deploy_compatibility.sql` pins those call
+  shapes, and a defaulted new parameter is what keeps an older call working.
 - **A `language sql` function is parsed at CREATE**, so a helper must appear before its
   caller in the same migration file. `check_function_bodies` is on; the failure is at
   `db:check` time and reads like a typo.
