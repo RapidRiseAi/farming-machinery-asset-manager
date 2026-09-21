@@ -65,6 +65,9 @@ const PROBES = {
     "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'support_ticket_kind' and e.enumlabel = 'help_request')",
   "20260921141000": "select to_regprocedure('public.open_help_request(text,text,jsonb)') is not null",
   "20260921150000": "select to_regclass('public.tyre_fitments') is not null",
+  // Not an object this one creates: it REVOKES. The probe is the invariant itself.
+  "20260921160000":
+    "select not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'app' and has_function_privilege('anon', p.oid, 'EXECUTE'))",
 };
 
 const url = readEnv("DATABASE_URL");

@@ -44,18 +44,22 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** Local `main` is
-**nineteen commits** ahead of `origin/main` (`7d46870`): the billing and sign-up UI work of
-19/09/2026, the diesel/offline/email work of 20/09/2026, and on 21/09/2026 Founding Farmer
-pricing, eight gap-review features, the login-screen fixes and the em-dash sweep
-(`3f844ce`). It is **not pushed, so CI has not run on any of it**; every gate passed
-locally. Billing is live and has taken a real payment. Email sends and is confirmed
-`delivered` by Resend.
+**Phase: v1 complete and live in production on Vercel (`main`).** `main` is **pushed and
+level with `origin/main`** at `0ec5ec7`, which carried thirty commits: the billing and
+sign-up UI work of 19/09/2026, the diesel, offline and email work of 20/09/2026, and on
+21/09/2026 Founding Farmer pricing, eight gap-review features, the login-screen fixes and
+the em-dash sweep. Verified before pushing on a PRISTINE worktree installed from the
+lockfile, which is what Vercel builds: typecheck, lint, 390 tests, build, i18n parity,
+key sweep, error coverage, design lint. Billing is live and has taken a real payment.
+Email sends and is confirmed `delivered` by Resend.
 
-**The schema is now AHEAD of the deployed app.** Every migration in this repo is applied to
-the live database (`node scripts/apply_pending.mjs --dry` says so), but Vercel still serves
-`origin/main`. `supabase/tests/deploy_compatibility.sql` pins the call shapes that older
-build makes; run it before applying anything that drops a function signature.
+**Schema and app are level again.** Every migration in this repo is applied to the live
+database (`node scripts/apply_pending.mjs --dry` says so), and the code that uses them is
+deployed. They came apart for a few hours on 21/09/2026 while the migrations were applied
+ahead of the push, which is the window `supabase/tests/deploy_compatibility.sql` exists
+for: it pins every call shape the DEPLOYED build makes, so a migration that drops a
+function signature is caught before it breaks the live site. Run it before applying
+anything ahead of a deploy again.
 
 **The product has been clicked through.** `node scripts/click_through.mjs` signs in as a
 throwaway owner, walks twenty-two screens and writes through RLS. It needs the app running
@@ -159,6 +163,12 @@ will bite again.
   PostgREST to return the one row the SELECT policy has just been told to hide, so it
   reports zero rows and the action says "not found" about a write that worked. Check
   existence before the write, or do not ask for the row back.
+- **`create function` grants EXECUTE to PUBLIC, and `anon` inherits it.** A `grant ... to
+  authenticated` does not replace that; every `app.*` helper needs an explicit
+  `revoke execute ... from public, anon`. Eight shipped without one on 21/09/2026 and only
+  CI caught them: the G11 sweep lives in `rls_isolation.sql`, which runs on real Postgres
+  only, so every local gate was green. The same assertion is now in
+  `deploy_compatibility.sql`, which `pnpm db:check` runs.
 - **An enum value cannot be added and used in one transaction.** Postgres answers "unsafe
   use of new value", and the migration runner applies one file per transaction. The value
   goes in a file of its own and the code that uses it in the next one (`20260921140000` and

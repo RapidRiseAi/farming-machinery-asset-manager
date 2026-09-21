@@ -115,4 +115,43 @@ begin
   end loop;
 end $$;
 
+-- == (d) No app-schema helper is executable by anon ==========================
+--
+-- `create function` grants EXECUTE to PUBLIC, and `anon` inherits through PUBLIC. Eight
+-- helpers shipped on 21/09/2026 with that default because each one said `grant execute
+-- ... to authenticated` and none said `revoke ... from public`.
+--
+-- `rls_isolation.sql` has asserted this since G11, but that suite runs only on real
+-- Postgres in CI, so every local gate was green while the grants were wrong. This is the
+-- same assertion in a suite `pnpm db:check` runs, which is the difference between finding
+-- it in thirty seconds and finding it after a push to production.
+--
+-- `anon` also has no USAGE on schema `app`, so a leaked EXECUTE is not reachable today.
+-- That is exactly why it is worth asserting: the product must not depend on the second
+-- lock being right for ever.
+do $$
+declare v_leaked text;
+begin
+  select string_agg(format('app.%s', p.proname), ', ' order by p.proname)
+    into v_leaked
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'app'
+     and has_function_privilege('anon', p.oid, 'EXECUTE');
+
+  if v_leaked is not null then
+    raise exception 'DEPLOY COMPAT FAIL: anon can execute app-schema helpers: %', v_leaked;
+  end if;
+end $$;
+
+-- == (e) Nor is any app-schema helper reachable through PostgREST ============
+-- PostgREST exposes `public` only, so a function in `app` is unreachable by design. This
+-- asserts the other half: that nobody has quietly granted `anon` its way into the schema.
+do $$
+begin
+  if has_schema_privilege('anon', 'app', 'USAGE') then
+    raise exception 'DEPLOY COMPAT FAIL: anon has USAGE on schema app';
+  end if;
+end $$;
+
 rollback;
