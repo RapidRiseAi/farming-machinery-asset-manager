@@ -224,6 +224,9 @@ export default async function AppLayout({
   // collision and a speeding ticket are both paperwork with a deadline on them, and a
   // breakdown is not.
   const incidents: NavItemData = { href: "/incidents", label: t("nav.incidents", locale), icon: "warning" };
+  // Everything with a date on it, in one month. Beside the work screens rather than the
+  // reports, because it is a planning tool and not a look back.
+  const calendar: NavItemData = { href: "/calendar", label: t("nav.calendar", locale), icon: "calendar" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
@@ -268,6 +271,7 @@ export default async function AppLayout({
         checklists,
         ...(finesAllowed ? [fines] : []),
         incidents,
+        calendar,
         ...(reportsAllowed ? [reports] : []),
         ...(reportsAllowed && isManagerPlus ? [accounting] : []),
         alerts,
@@ -329,6 +333,7 @@ export default async function AppLayout({
         checklists,
         ...(finesAllowed ? [fines] : []),
         incidents,
+        calendar,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isOwner ? [billing] : []),
         ...(isManagerPlus ? [settings] : []),

@@ -132,6 +132,9 @@ pg "$DB" < "$ROOT/supabase/tests/depreciation.sql"
 echo "==> running warranty claim tests"
 pg "$DB" < "$ROOT/supabase/tests/warranty_claims.sql"
 
+echo "==> running maintenance calendar tests"
+pg "$DB" < "$ROOT/supabase/tests/maintenance_calendar.sql"
+
 echo "==> running deploy-compatibility tests"
 pg "$DB" < "$ROOT/supabase/tests/deploy_compatibility.sql"
 

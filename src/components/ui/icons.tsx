@@ -422,6 +422,14 @@ export const ReceiptIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const CalendarIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 6.5h16v14H4V6.5Z" />
+    <path d="M4 11h16" />
+    <path d="M8.5 3.5v4M15.5 3.5v4" />
+  </Svg>
+);
+
 export const RepeatIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3.5 12a8.5 8.5 0 0 1 14.2-6.3" />
@@ -520,6 +528,7 @@ export const iconByName = {
   trending: TrendingIcon,
   receipt: ReceiptIcon,
   repeat: RepeatIcon,
+  calendar: CalendarIcon,
   cart: CartIcon,
   correction: CorrectionIcon,
   card: CardIcon,

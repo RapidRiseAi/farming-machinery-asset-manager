@@ -95,6 +95,7 @@ const PAGES = [
   ["/work", []],
   ["/account", []],
   ["/jobcards/f0000000-0000-4000-8000-00000000bc01", ["Test Tractor"]],
+  ["/calendar", []],
 ];
 
 let failures = 0;
@@ -159,6 +160,21 @@ const FARM = "f0000000-0000-4000-8000-00000000fa01";
 const MACHINE = "f0000000-0000-4000-8000-00000000aa01";
 const today = new Date().toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+
+/**
+ * Clear what a previous run wrote, so this one can be run again.
+ *
+ * Not a convenience: without it the second run fails on the uniqueness guard that only
+ * allows one live warranty claim per repair, and a check that passes only the first time
+ * is a check nobody will keep running. Deleted as the signed-in owner, so RLS confirms
+ * these rows really do belong to this farm.
+ */
+for (const table of ["warranty_claims", "driver_credentials", "incidents"]) {
+  await rest(`${table}?farm_id=eq.${FARM}`, {
+    method: "DELETE",
+    headers: { prefer: "return=minimal" },
+  });
+}
 
 console.log("\nWrites, as this owner, through RLS:");
 
