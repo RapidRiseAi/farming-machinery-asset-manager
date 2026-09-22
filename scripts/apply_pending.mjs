@@ -69,7 +69,8 @@ const PROBES = {
   // The four restored checks live inside a function body, so the probe asks the function
   // itself rather than looking for an object.
   "20260921170000":
-    "select pg_get_functiondef(('public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)')::regprocedure) like '%isfinite(v_date)%'",
+    "select pg_get_functiondef(('public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)')::regprocedure) like '%isfinite(v_date)%' " +
+    "   and pg_get_functiondef(('public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)')::regprocedure) like '%v_date > v_today%'",
   "20260921160000":
     "select not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'app' and has_function_privilege('anon', p.oid, 'EXECUTE'))",
 };

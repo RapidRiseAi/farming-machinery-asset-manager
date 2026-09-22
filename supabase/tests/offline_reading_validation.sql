@@ -91,6 +91,47 @@ begin
     raise exception 'OFFLINE READING FAIL: a good reading did not land (% rows)', n;
   end if;
 
+  -- ONE IN THE MORNING ON A FARM.
+  --
+  -- The reading's date is decided in SAST. The "not in the future" bound used to be
+  -- `current_date`, which is the SERVER's date, and Supabase runs UTC. Between 00:00 and
+  -- 02:00 SAST those are different days, so a reading captured at one in the morning was
+  -- refused as being in the future.
+  --
+  -- Today in the farm's own timezone must always be allowed, whatever the server thinks
+  -- the date is. This expectation is right at every hour; it only CATCHES the bug during
+  -- the two-hour window, which is precisely how it survived until CI happened to run at
+  -- 23:59 UTC. Section (c) is the part that catches it at any hour.
+  r := public.apply_offline_capture(
+    gen_random_uuid(), now(), 'log_reading', 'app',
+    '0f100000-0000-4000-8000-000000000001',
+    jsonb_build_object(
+      'machine_id', '0f200000-0000-4000-8000-000000000001', 'reading', '270',
+      'reading_date', to_char((now() at time zone 'Africa/Johannesburg')::date, 'YYYY-MM-DD')));
+  if coalesce(r->>'status', '') not in ('applied', 'conflict') then
+    raise exception
+      'OFFLINE READING FAIL: today in SAST was refused as being in the future (%)', r;
+  end if;
+
+  -- And tomorrow in SAST is still refused, so the fix widened the bound by exactly the
+  -- timezone offset and not by a day.
+  declare denied boolean := false;
+  begin
+    begin
+      perform public.apply_offline_capture(
+        gen_random_uuid(), now(), 'log_reading', 'app',
+        '0f100000-0000-4000-8000-000000000001',
+        jsonb_build_object(
+          'machine_id', '0f200000-0000-4000-8000-000000000001', 'reading', '280',
+          'reading_date',
+          to_char(((now() at time zone 'Africa/Johannesburg')::date + 1), 'YYYY-MM-DD')));
+    exception when invalid_parameter_value then denied := true;
+    end;
+    if not denied then
+      raise exception 'OFFLINE READING FAIL: a reading dated tomorrow was accepted';
+    end if;
+  end;
+
   -- The boundary the 1970 check draws: the epoch itself is a real date and is allowed.
   r := public.apply_offline_capture(
     gen_random_uuid(), now(), 'log_reading', 'app',
@@ -99,6 +140,38 @@ begin
                        'reading', '260', 'reading_date', '1970-01-01'));
   if coalesce(r->>'status', '') not in ('applied', 'conflict') then
     raise exception 'OFFLINE READING FAIL: 1970-01-01 was refused, the bound is off by one (%)', r;
+  end if;
+end $$;
+
+-- == (c) The bound is in the farm's timezone, at any hour =====================
+--
+-- Section (b) states the right expectation but can only FAIL during the two hours a day
+-- when the server's date and the farm's disagree. That is how the bug survived: every
+-- green CI run happened in the morning.
+--
+-- So this reads the function itself. `v_date` is derived with an explicit
+-- `at time zone 'Africa/Johannesburg'`, and the future bound has to be a value in that
+-- same timezone. Comparing a date decided in one timezone against `current_date`, decided
+-- in another, is the defect, whatever the offset happens to be.
+--
+-- White-box on purpose, and narrow: it asserts one thing about one function, and it is the
+-- only assertion here that is true at three in the afternoon.
+do $$
+declare v_src text;
+begin
+  v_src := pg_get_functiondef(
+    'public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)'::regprocedure);
+
+  if v_src ~ 'v_date\s*>\s*current_date' then
+    raise exception
+      'OFFLINE READING FAIL: the future bound compares a SAST date against current_date, which is the SERVER timezone. Between 00:00 and 02:00 SAST that refuses a reading taken today.';
+  end if;
+
+  -- And the replacement really is in the farm's timezone rather than a renamed variable
+  -- holding the same server date.
+  if v_src !~ 'v_today\s+date\s*:=\s*\(now\(\) at time zone ''Africa/Johannesburg''\)::date' then
+    raise exception
+      'OFFLINE READING FAIL: v_today is not derived in the farm timezone, so the bound is back where it started.';
   end if;
 end $$;
 

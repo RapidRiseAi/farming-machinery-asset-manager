@@ -24,6 +24,20 @@
 -- one hid behind it. CI runs the suite on real Postgres and caught it the first time those
 -- migrations reached CI.
 --
+-- AND ONE MORE THING THE SAME SUITE FOUND
+-- =============================================================================
+-- `v_date` is derived in SAST, `(p_client_ts at time zone 'Africa/Johannesburg')::date`,
+-- and was then compared against `current_date`, which is the SERVER's date. Supabase runs
+-- UTC. Between 00:00 and 02:00 SAST those are different days, so a reading captured at one
+-- in the morning on a farm was refused as being in the future.
+--
+-- Real, and pre-existing: the line survived the rewrite and is in the 20260908 version
+-- too. It surfaced now because CI happened to run at 23:59 UTC, which is 01:59 SAST, and
+-- because the 1969 fix let the suite get far enough to reach it.
+--
+-- Both branches now compare against `v_today`, the same timezone the date was decided in.
+-- A bound in one timezone on a value from another is the bug, not the specific offset.
+
 -- WHAT THIS FILE IS
 -- =============================================================================
 -- The function as 20260920120000 left it, with that one condition restored. Extracted
@@ -61,6 +75,8 @@ declare
   v_vat integer;
   v_values jsonb;
   v_value jsonb;
+  -- Today in the farm's own timezone. See the note in the header.
+  v_today date := (now() at time zone 'Africa/Johannesburg')::date;
 begin
   if p_client is null or p_client_ts is null or not isfinite(p_client_ts)
     or p_client_ts < timestamptz '1970-01-01 00:00:00+00'
@@ -157,7 +173,7 @@ begin
       -- when this function was rewritten to add fuel and checklists.
       or not isfinite(v_date)
       or v_date < date '1970-01-01'
-      or v_date > current_date
+      or v_date > v_today
       or v_machine.meter_type = 'none'
       or length(coalesce(p_fields->>'name','')) > 200 then
       raise exception 'bad_reading' using errcode = '22023';
@@ -217,7 +233,7 @@ begin
     v_activity := nullif(btrim(coalesce(p_fields->>'activity','')),'');
     v_cost := nullif(btrim(p_fields->>'cost_incl_cents'),'')::bigint;
     if v_litres is null or v_litres <= 0 or v_litres > 99999999999.9
-      or v_date > current_date
+      or v_date > v_today
       or (v_reading is not null and (v_reading < 0 or v_reading > 99999999999.9))
       or (v_cost is not null and (v_cost < 0 or v_cost > 900000000000000000))
       or (v_activity is not null and v_activity not in (

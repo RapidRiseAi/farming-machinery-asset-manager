@@ -186,6 +186,12 @@ will bite again.
 - **A `language sql` function is parsed at CREATE**, so a helper must appear before its
   caller in the same migration file. `check_function_bodies` is on; the failure is at
   `db:check` time and reads like a typo.
+- **A date decided in SAST cannot be bounded by `current_date`.** `current_date` is the
+  SERVER’s date and Supabase runs UTC, so between 00:00 and 02:00 SAST the two are
+  different days. `apply_offline_capture` refused a reading taken at one in the morning as
+  being in the future for exactly that reason. Bound a value against today in the SAME
+  timezone it was decided in. A behavioural test for it passes at every hour and FAILS only
+  during those two, so pair it with one that reads the rule rather than the clock.
 - **`min()`/`max()` on text sort by the database's collation.** `C` yields `Agri Diesel`,
   `en_US.UTF-8` yields `agri diesel`. Production and CI are `en_US.UTF-8`. Run the suites
   under both; "deterministic pick" in a comment is not one.
