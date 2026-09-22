@@ -3480,3 +3480,73 @@ identically with changes stashed, so it remains one of the four pre-existing fai
 - **Two `alter type ... add value` migrations now exist in the same series**
   (`20260921140000` and `141000`). Postgres refuses to use a new enum value in the
   transaction that created it, so any future enum addition needs the same split.
+
+## 2026-09-22 - Pushed to production, and CI found three real defects
+
+`main` pushed to `origin/main`, Vercel deployed, CI green at `e0e0775`. Thirty-four
+commits went out. Verified before the first push on a pristine worktree installed from the
+lockfile, which is what Vercel builds.
+
+### What CI found that nothing local could
+
+The push was the first time the 20/09 and 21/09 migrations reached CI, and the RLS
+isolation job runs `run.sh` against REAL Postgres. `pnpm db:check` uses PGlite. Three
+rounds, each revealing the next because the suite stops at the first failure.
+
+1. **`anon` could execute eight `app.*` helpers** (`20260921160000`). `create function`
+   grants EXECUTE to PUBLIC and `anon` inherits it; every helper added on 21/09 said
+   `grant ... to authenticated` and none said `revoke ... from public`. Not reachable,
+   `anon` has no USAGE on schema `app`, checked rather than assumed. Fixed, and the same
+   assertion is now in `deploy_compatibility.sql`, which `db:check` runs.
+
+2. **Four validations lost from the offline reading path** (`20260921170000`). The 20/09
+   rewrite of `apply_offline_capture` retyped a three-hundred-line function to add fuel and
+   checklists, and the `log_reading` branch came back missing `isfinite(v_date)`, the
+   1970 floor, the `meter_type = 'none'` guard and the name length cap. Live since those
+   migrations were applied. The function in the fix was extracted from 20260920120000
+   programmatically and patched in one place, because retyping is what caused it.
+
+3. **A farm could not log a reading between 00:00 and 02:00.** The reading's date is
+   decided in SAST and was bounded by `current_date`, the SERVER's date, and Supabase runs
+   UTC. In that window they are different days, so a reading taken at one in the morning
+   was refused as being in the future. Pre-existing: the line is in the 20260908 original.
+   Both branches now compare against `v_today`, derived in the same timezone.
+
+### The lesson worth keeping
+
+`atomic_offline_capture.sql` had asserted (2) since it was written, and it fails on PGlite
+early on the stubbed `digest()`. So `db:check` reported that one failure and every
+assertion behind it was uncovered. **A suite that fails early hides everything after it.**
+
+And (3) only FAILS during two hours a day. CI caught it because it happened to run at
+23:59 UTC, which is 01:59 SAST; every green run before that was in the morning. The new
+suite therefore asserts the behaviour AND reads the function, refusing to let `v_date` be
+compared to `current_date` at all. That second assertion is true at three in the afternoon.
+
+`supabase/tests/offline_reading_validation.sql` exists to be runnable where
+`atomic_offline_capture.sql` is not. Removing either fix reproduces CI's exact message
+locally.
+
+### Verified in production
+
+`https://farming-machinery-asset-manager.vercel.app`, signed in as the throwaway owner:
+22 pages rendered, 9 writes landed through RLS and appeared on their pages, 2 refusals
+behaved. The login screen checks out on the live site: "Welcome back", "Forgot?" on the
+password label row, one spinner marker, no em or en dashes, the hardcoded Afrikaans
+placeholder gone.
+
+`node scripts/apply_pending.mjs --dry` reports nothing pending: all 184 migrations are on
+the live database.
+
+**Left undone, deliberately:**
+- **The throwaway farm is still on the live database** (`f0000000-...-fa01`), with whatever
+  the last click-through wrote. `node scripts/seed_test_farm.mjs --remove` clears it.
+- **Only the login form and the appearance switch have been in a browser.** The
+  click-through is HTTP: it proves what the server renders and what the database accepts,
+  not what React does after hydration.
+- **Gap items still open:** 2.9 custom fields, 2.10 machine transfer between farms, 3.5
+  ownership transfer, 3.7 "what's new" and sign out other devices.
+- **`billing_promo_codes` is still empty.**
+- **The other suites added on 21/09 have now run on real Postgres once and passed**, but
+  only once, and `atomic_offline_capture.sql` still fails on PGlite for its original
+  `digest()` reason.

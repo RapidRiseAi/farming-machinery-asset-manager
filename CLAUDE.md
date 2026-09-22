@@ -44,22 +44,20 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: v1 complete and live in production on Vercel (`main`).** `main` is **pushed and
-level with `origin/main`** at `0ec5ec7`, which carried thirty commits: the billing and
-sign-up UI work of 19/09/2026, the diesel, offline and email work of 20/09/2026, and on
-21/09/2026 Founding Farmer pricing, eight gap-review features, the login-screen fixes and
-the em-dash sweep. Verified before pushing on a PRISTINE worktree installed from the
-lockfile, which is what Vercel builds: typecheck, lint, 390 tests, build, i18n parity,
-key sweep, error coverage, design lint. Billing is live and has taken a real payment.
+**Phase: v1 complete and live in production on Vercel (`main`).** Pushed, deployed and
+GREEN: `origin/main` is at `e0e0775`, both CI jobs pass, and the Vercel production
+deployment reports success. Verified on the live site at
+`https://farming-machinery-asset-manager.vercel.app`: 22 pages and 9 RLS writes as a
+signed-in owner. Every one of the 184 migrations is applied to the live database
+(`node scripts/apply_pending.mjs --dry`). Billing is live and has taken a real payment.
 Email sends and is confirmed `delivered` by Resend.
 
-**Schema and app are level again.** Every migration in this repo is applied to the live
-database (`node scripts/apply_pending.mjs --dry` says so), and the code that uses them is
-deployed. They came apart for a few hours on 21/09/2026 while the migrations were applied
-ahead of the push, which is the window `supabase/tests/deploy_compatibility.sql` exists
-for: it pins every call shape the DEPLOYED build makes, so a migration that drops a
-function signature is caught before it breaks the live site. Run it before applying
-anything ahead of a deploy again.
+**Schema and app are level.** Every migration is applied to the live database and the code
+that uses them is deployed. They came apart for a few hours on 21/09/2026 while the
+migrations were applied ahead of the push, which is the window
+`supabase/tests/deploy_compatibility.sql` exists for: it pins every call shape the DEPLOYED
+build makes, so a migration that drops a function signature is caught before it breaks the
+live site. Run it before applying anything ahead of a deploy again.
 
 **The product has been clicked through.** `node scripts/click_through.mjs` signs in as a
 throwaway owner, walks twenty-two screens and writes through RLS. It needs the app running
