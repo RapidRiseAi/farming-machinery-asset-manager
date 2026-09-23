@@ -45,7 +45,7 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 ## Current state
 
 **Phase: v1 complete and live in production on Vercel (`main`).** Pushed, deployed and
-GREEN: `origin/main` is at `e0e0775`, both CI jobs pass, and the Vercel production
+GREEN: `origin/main` is at `661ccca`, both CI jobs pass, and the Vercel production
 deployment reports success. Verified on the live site at
 `https://farming-machinery-asset-manager.vercel.app`: 22 pages and 9 RLS writes as a
 signed-in owner. Every one of the 184 migrations is applied to the live database
