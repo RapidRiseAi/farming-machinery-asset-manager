@@ -145,11 +145,22 @@ export function MoreMenu({
         <span>{label}</span>
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title={title} closeLabel={closeLabel}>
+      {/*
+        `rememberKey`: the sheet mounts fresh on every open, so a person who scrolled
+        past nine books screens to reach "Settings" was put back at the top the next
+        time they opened it. Measured before the fix: scrollTop 943 -> 0, every open.
+      */}
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={title}
+        closeLabel={closeLabel}
+        rememberKey="nav-more"
+      >
         <nav className="flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.key} className="flex flex-col">
-              <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+              <p className="sticky top-0 z-10 -mx-4 bg-surface px-7 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 {group.label}
               </p>
               {group.items.map((item) => {

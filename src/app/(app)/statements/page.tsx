@@ -237,7 +237,7 @@ export default async function StatementsPage({
               <AllClear title={t("statement.emptyTitle", locale)} hint={t("statement.emptyBody", locale)} />
             ) : (
               <>
-                  <Table className="min-w-[36rem]">
+                  <Table stacked className="lg:min-w-[36rem]">
                     <Thead>
                       <Tr className="text-left text-sand-500">
                         <Th className="font-medium">{t("statement.date", locale)}</Th>
@@ -250,8 +250,8 @@ export default async function StatementsPage({
                     <Tbody>
                       {lines.map((l, i) => (
                         <Tr key={`${l.kind}-${l.document_id ?? i}`}>
-                          <Td className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
-                          <Td>
+                          <Td label={t("statement.date", locale)} className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
+                          <Td label={t("statement.what", locale)}>
                             <span className="text-sand-900">{statementLabel(l, locale)}</span>
                             {l.reference ? (
                               l.document_id ? (
@@ -266,13 +266,13 @@ export default async function StatementsPage({
                               )
                             ) : null}
                           </Td>
-                          <Td className="text-right tabular-nums text-sand-900">
+                          <Td label={t("statement.charged", locale)} className="text-right tabular-nums text-sand-900">
                             {l.debit_cents ? rands(l.debit_cents) : ""}
                           </Td>
-                          <Td className="text-right tabular-nums text-sand-900">
+                          <Td label={t("statement.paidOff", locale)} className="text-right tabular-nums text-sand-900">
                             {l.credit_cents ? rands(l.credit_cents) : ""}
                           </Td>
-                          <Td className="text-right font-medium tabular-nums text-sand-900">
+                          <Td label={t("statement.balance", locale)} className="text-right font-medium tabular-nums text-sand-900">
                             {rands(l.balance_cents)}
                           </Td>
                         </Tr>

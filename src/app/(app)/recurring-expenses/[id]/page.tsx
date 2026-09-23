@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { TextField, SelectField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { Fact, FactList } from "@/components/ui/facts";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 import {
@@ -127,121 +129,151 @@ export default async function ExpenseSchedulePage({
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader
+          action={
+            /* The schedule's own settings were fourteen controls open on a card whose
+               heading is a sentence about when the next expense lands. That sentence is
+               what somebody came to read; changing the cadence is the rare act. Same
+               treatment as /recurring/[id], its sibling. */
+            <DialogForm
+              trigger={t("common.edit", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("recexp.whenTitle", locale)}
+              description={schedule.name}
+              closeLabel={t("ui.close", locale)}
+            >
+              <form action={updateExpenseSchedule}>
+                <DialogFields columns={1}>
+                  <input type="hidden" name="schedule_id" value={schedule.id} />
+
+                  <TextField name="name" label={t("recexp.name", locale)} defaultValue={schedule.name} required />
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextField
+                      name="supplier_name"
+                      label={t("recexp.supplier", locale)}
+                      hint={t("recexp.supplierHint", locale)}
+                      defaultValue={schedule.supplier_name}
+                      required
+                    />
+                    <TextField name="reference" label={t("recexp.reference", locale)} defaultValue={schedule.reference ?? ""} />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <SelectField name="category" label={t("recexp.category", locale)} defaultValue={schedule.category}>
+                      {EXPENSE_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {t(`expenseCategory.${c}`, locale)}
+                        </option>
+                      ))}
+                    </SelectField>
+                    {/* Ex-VAT here, not inclusive: the amount already stored IS ex-VAT, and
+                        pre-filling an inclusive field from it would either restate the figure or
+                        need the box to change meaning between add and edit. The VAT amount stays
+                        editable beside it. */}
+                    <TextField
+                      name="amount"
+                      inputMode="decimal"
+                      label={t("recexp.amountExVat", locale)}
+                      defaultValue={String(schedule.amount_cents / 100)}
+                      required
+                    />
+                    <TextField
+                      name="vat_amount"
+                      inputMode="decimal"
+                      label={t("recexp.vatAmount", locale)}
+                      hint={t("recexp.vatAmountHint", locale)}
+                      defaultValue={String(schedule.vat_cents / 100)}
+                    />
+                  </div>
+                  <input type="hidden" name="vat_percent" value={String(schedule.vat_rate_bps / 100)} />
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <SelectField name="cadence" label={t("recexp.howOften", locale)} defaultValue={schedule.cadence}>
+                      {CADENCES.map((c) => (
+                        <option key={c} value={c}>
+                          {t(`cadence.${c}`, locale)}
+                        </option>
+                      ))}
+                    </SelectField>
+                    <TextField
+                      name="next_due_date"
+                      type="date"
+                      label={t("recexp.nextDue", locale)}
+                      defaultValue={schedule.next_due_date}
+                    />
+                    <TextField
+                      name="ends_on"
+                      type="date"
+                      label={t("recexp.endsOn", locale)}
+                      hint={t("recexp.endsOnHint", locale)}
+                      defaultValue={schedule.ends_on ?? ""}
+                    />
+                  </div>
+
+                  <TextField name="description" label={t("recexp.description", locale)} defaultValue={schedule.description ?? ""} />
+                  <TextField
+                    name="supplier_vat_number"
+                    label={t("recexp.supplierVat", locale)}
+                    hint={t("recexp.supplierVatHint", locale)}
+                    defaultValue={schedule.supplier_vat_number ?? ""}
+                  />
+
+                  <label className="flex items-start gap-3 text-sm text-sand-700">
+                    <input
+                      type="checkbox"
+                      name="vat_claimable"
+                      defaultChecked={schedule.vat_claimable}
+                      className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
+                    />
+                    <span>
+                      {t("recexp.claimable", locale)}
+                      <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 text-sm text-sand-700">
+                    <input
+                      type="checkbox"
+                      name="auto_paid"
+                      defaultChecked={schedule.auto_paid}
+                      className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
+                    />
+                    <span>
+                      {t("recexp.autoPaid", locale)}
+                      <span className="block text-xs text-sand-500">{t("recexp.autoPaidHint", locale)}</span>
+                    </span>
+                  </label>
+
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
           <CardTitle>{t("recexp.whenTitle", locale)}</CardTitle>
         </CardHeader>
-        <p className="mb-3 text-sm text-sand-600">
+        <p className="text-sm text-sand-600">
           {live
             ? `${t("recexp.nextOn", locale)} ${shortDate(schedule.next_due_date, locale)} · ${t("recexp.thenPreview", locale)} ${advanceByCadence(schedule.next_due_date, schedule.cadence)}`
             : t("recexp.stopped", locale)}
         </p>
-
-        <form action={updateExpenseSchedule} className="flex flex-col gap-3">
-          <input type="hidden" name="schedule_id" value={schedule.id} />
-
-          <TextField name="name" label={t("recexp.name", locale)} defaultValue={schedule.name} required />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField
-              name="supplier_name"
-              label={t("recexp.supplier", locale)}
-              hint={t("recexp.supplierHint", locale)}
-              defaultValue={schedule.supplier_name}
-              required
-            />
-            <TextField name="reference" label={t("recexp.reference", locale)} defaultValue={schedule.reference ?? ""} />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SelectField name="category" label={t("recexp.category", locale)} defaultValue={schedule.category}>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {t(`expenseCategory.${c}`, locale)}
-                </option>
-              ))}
-            </SelectField>
-            {/* Ex-VAT here, not inclusive: the amount already stored IS ex-VAT, and
-                pre-filling an inclusive field from it would either restate the figure or
-                need the box to change meaning between add and edit. The VAT amount stays
-                editable beside it. */}
-            <TextField
-              name="amount"
-              inputMode="decimal"
-              label={t("recexp.amountExVat", locale)}
-              defaultValue={String(schedule.amount_cents / 100)}
-              required
-            />
-            <TextField
-              name="vat_amount"
-              inputMode="decimal"
-              label={t("recexp.vatAmount", locale)}
-              hint={t("recexp.vatAmountHint", locale)}
-              defaultValue={String(schedule.vat_cents / 100)}
-            />
-          </div>
-          <input type="hidden" name="vat_percent" value={String(schedule.vat_rate_bps / 100)} />
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SelectField name="cadence" label={t("recexp.howOften", locale)} defaultValue={schedule.cadence}>
-              {CADENCES.map((c) => (
-                <option key={c} value={c}>
-                  {t(`cadence.${c}`, locale)}
-                </option>
-              ))}
-            </SelectField>
-            <TextField
-              name="next_due_date"
-              type="date"
-              label={t("recexp.nextDue", locale)}
-              defaultValue={schedule.next_due_date}
-            />
-            <TextField
-              name="ends_on"
-              type="date"
-              label={t("recexp.endsOn", locale)}
-              hint={t("recexp.endsOnHint", locale)}
-              defaultValue={schedule.ends_on ?? ""}
-            />
-          </div>
-
-          <TextField name="description" label={t("recexp.description", locale)} defaultValue={schedule.description ?? ""} />
-          <TextField
-            name="supplier_vat_number"
-            label={t("recexp.supplierVat", locale)}
-            hint={t("recexp.supplierVatHint", locale)}
-            defaultValue={schedule.supplier_vat_number ?? ""}
+        {/* Only the WHEN facts. The supplier, the category and the amounts are already
+            stated by the card above and by the badges under the title; repeating them
+            here would undo the point of moving the form out. */}
+        <FactList className="mt-3">
+          <Fact label={t("recexp.howOften", locale)} value={t(`cadence.${schedule.cadence}`, locale)} />
+          <Fact label={t("recexp.nextDue", locale)} value={shortDate(schedule.next_due_date, locale)} />
+          <Fact
+            label={t("recexp.endsOn", locale)}
+            value={schedule.ends_on ? shortDate(schedule.ends_on, locale) : t("settings.notSet", locale)}
+            muted={!schedule.ends_on}
           />
-
-          <label className="flex items-start gap-3 text-sm text-sand-700">
-            <input
-              type="checkbox"
-              name="vat_claimable"
-              defaultChecked={schedule.vat_claimable}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
-            />
-            <span>
-              {t("recexp.claimable", locale)}
-              <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
-            </span>
-          </label>
-
-          <label className="flex items-start gap-3 text-sm text-sand-700">
-            <input
-              type="checkbox"
-              name="auto_paid"
-              defaultChecked={schedule.auto_paid}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
-            />
-            <span>
-              {t("recexp.autoPaid", locale)}
-              <span className="block text-xs text-sand-500">{t("recexp.autoPaidHint", locale)}</span>
-            </span>
-          </label>
-
-          <SubmitButton variant="secondary" className="self-start">
-            {t("common.save", locale)}
-          </SubmitButton>
-        </form>
+          <Fact label={t("recexp.autoPaid", locale)} value={t(schedule.auto_paid ? "common.yes" : "common.no", locale)} />
+        </FactList>
       </Card>
 
       <Card>

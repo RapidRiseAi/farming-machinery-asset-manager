@@ -26,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, PlusIcon } from "@/components/ui/icons";
+import { Fact, FactList } from "@/components/ui/facts";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { dateTime, roleLabel } from "@/lib/format";
 
 type Farm = {
@@ -106,42 +108,66 @@ export default async function FarmDetailPage({
         <Card>
           <CardHeader
             action={
-              <form action={impersonateFarm}>
-                <input type="hidden" name="id" value={farm.id} />
-                <SubmitButton variant="secondary" size="sm">Look inside this farm</SubmitButton>
-              </form>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Three selects were sitting open on a screen whose job is to tell an
+                    admin what plan a farm is ON. Stated, with the change behind a
+                    button, so reading and changing are different acts. */}
+                <DialogForm
+                  trigger="Change"
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title="Change subscription"
+                  description={farm.name}
+                  closeLabel="Close"
+                  size="md"
+                >
+                  <form action={updateFarm}>
+                    <input type="hidden" name="id" value={farm.id} />
+                    <DialogFields>
+                      <Field label="Plan" htmlFor="plan">
+                        <Select id="plan" name="plan" defaultValue={farm.plan}>
+                          {PLANS.map((p) => (
+                            <option key={p} value={p}>{t(planNameKey(p), "en")}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label="Billing period" htmlFor="billing_period">
+                        <Select id="billing_period" name="billing_period" defaultValue={farm.billing_period}>
+                          {BILLING_PERIODS.map((bp) => (
+                            <option key={bp} value={bp}>{t(`billingPeriod.${bp}`, "en")}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <div className="sm:col-span-2">
+                        <Field label="Status" htmlFor="status">
+                          <Select id="status" name="status" defaultValue={farm.status}>
+                            <option value="trial">Trial</option>
+                            <option value="active">Active</option>
+                            <option value="suspended">Suspended</option>
+                            <option value="cancelled">Cancelled</option>
+                          </Select>
+                        </Field>
+                      </div>
+                    </DialogFields>
+                    <DialogActions cancelLabel="Cancel">
+                      <SubmitButton variant="primary">Save</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+                <form action={impersonateFarm}>
+                  <input type="hidden" name="id" value={farm.id} />
+                  <SubmitButton variant="secondary" size="sm">Look inside this farm</SubmitButton>
+                </form>
+              </div>
             }
           >
             <CardTitle>Subscription</CardTitle>
           </CardHeader>
-          <form action={updateFarm} className="flex flex-col gap-3">
-            <input type="hidden" name="id" value={farm.id} />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Plan" htmlFor="plan">
-                <Select id="plan" name="plan" defaultValue={farm.plan}>
-                  {PLANS.map((p) => (
-                    <option key={p} value={p}>{t(planNameKey(p), "en")}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Billing period" htmlFor="billing_period">
-                <Select id="billing_period" name="billing_period" defaultValue={farm.billing_period}>
-                  {BILLING_PERIODS.map((bp) => (
-                    <option key={bp} value={bp}>{t(`billingPeriod.${bp}`, "en")}</option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <Field label="Status" htmlFor="status">
-              <Select id="status" name="status" defaultValue={farm.status}>
-                <option value="trial">Trial</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="cancelled">Cancelled</option>
-              </Select>
-            </Field>
-            <SubmitButton variant="primary" className="self-start">Save</SubmitButton>
-          </form>
+          <FactList>
+            <Fact label="Plan" value={t(planNameKey(farmPlan), "en")} />
+            <Fact label="Billing period" value={t(`billingPeriod.${farm.billing_period}`, "en")} />
+            <Fact label="Status" value={farm.status} />
+          </FactList>
 
           {/* Asset count + per-vehicle price, DISPLAY ONLY (VAT-inclusive; no charging). */}
           <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-sand-100 pt-4 text-sm">
@@ -198,37 +224,52 @@ export default async function FarmDetailPage({
         </Card>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Invite user</CardTitle></CardHeader>
-        <form action={inviteUser} className="flex flex-col gap-3">
-          <input type="hidden" name="farm_id" value={farm.id} />
-          <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Name" htmlFor="inv-name" required><Input id="inv-name" name="name" required /></Field>
-            <Field label="Email" htmlFor="inv-email" required><Input id="inv-email" name="email" type="email" required /></Field>
-            <Field label="Role" htmlFor="inv-role">
-              <Select id="inv-role" name="role" defaultValue="owner">
-                <option value="owner">Owner</option>
-                <option value="manager">Manager</option>
-                <option value="mechanic">Mechanic</option>
-                <option value="operator">Operator</option>
-              </Select>
-            </Field>
-            <Field label="Language" htmlFor="inv-lang">
-              <Select id="inv-lang" name="language" defaultValue="af">
-                <option value="af">Afrikaans</option>
-                <option value="en">English</option>
-              </Select>
-            </Field>
-          </div>
-          <SubmitButton variant="primary" className="self-start">Invite</SubmitButton>
-        </form>
-      </Card>
-
       <Card flush>
-        <CardHeader className="px-4 pt-4"><CardTitle>Users</CardTitle></CardHeader>
+        <CardHeader
+          className="px-4 pt-4"
+          action={
+            /* The invite form was its own card of four fields above the user list. It is
+               now the list's own action, which also puts it next to the people it adds to. */
+            <DialogForm
+              trigger="Invite user"
+              triggerIcon={<PlusIcon />}
+              triggerSize="sm"
+              title="Invite user"
+              description={farm.name}
+              closeLabel="Close"
+            >
+              <form action={inviteUser}>
+                <input type="hidden" name="farm_id" value={farm.id} />
+                <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
+                <DialogFields>
+                  <Field label="Name" htmlFor="inv-name" required><Input id="inv-name" name="name" required /></Field>
+                  <Field label="Email" htmlFor="inv-email" required><Input id="inv-email" name="email" type="email" required /></Field>
+                  <Field label="Role" htmlFor="inv-role">
+                    <Select id="inv-role" name="role" defaultValue="owner">
+                      <option value="owner">Owner</option>
+                      <option value="manager">Manager</option>
+                      <option value="mechanic">Mechanic</option>
+                      <option value="operator">Operator</option>
+                    </Select>
+                  </Field>
+                  <Field label="Language" htmlFor="inv-lang">
+                    <Select id="inv-lang" name="language" defaultValue="af">
+                      <option value="af">Afrikaans</option>
+                      <option value="en">English</option>
+                    </Select>
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel="Cancel">
+                  <SubmitButton variant="primary">Invite</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
+          <CardTitle>Users</CardTitle>
+        </CardHeader>
         {users.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-sand-500">No users yet, invite the owner above.</p>
+          <p className="px-4 pb-4 text-sm text-sand-500">No users yet. Invite the owner with the button above.</p>
         ) : (
           <Table>
             <Thead><Tr><Th>Name</Th><Th>Role</Th><Th>Email</Th><Th>Active</Th><Th /></Tr></Thead>

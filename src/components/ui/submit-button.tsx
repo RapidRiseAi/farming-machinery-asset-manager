@@ -3,6 +3,7 @@
 import { useFormStatus } from "react-dom";
 import { useId, type ReactNode } from "react";
 import { buttonVariants, type ButtonVariant, type ButtonSize } from "./button";
+import { menuItemClass } from "./menu-item";
 import { Spinner } from "./icons";
 
 /**
@@ -55,6 +56,18 @@ export type SubmitButtonProps = {
   formNoValidate?: boolean;
   name?: string;
   value?: string;
+  /**
+   * `menuItem` styles this as a row in an `ActionMenu` rather than as a button.
+   *
+   * A lifecycle action inside a row menu is a one-field `<form>` posting a server
+   * action, so the thing that submits it has to look like the menu rows around it.
+   * `className` cannot do that job: `buttonVariants` already supplies `justify-center`
+   * and its own padding, and `cn` does not de-duplicate, so both would land and the
+   * row would be centred and doubly padded. Third component to need this, after
+   * `DialogForm` and `ConfirmDialog`, which is why the look lives in one function.
+   */
+  look?: "button" | "menuItem";
+  tone?: "default" | "danger";
 };
 
 /**
@@ -93,6 +106,8 @@ export function SubmitButton({
   formNoValidate,
   name,
   value,
+  look = "button",
+  tone = "default",
 }: SubmitButtonProps) {
   const uid = useId();
   const status = useFormStatus();
@@ -131,7 +146,11 @@ export function SubmitButton({
       // it anyway is a console warning on every render for an attribute that never lands.
       name={formAction ? name : fieldName}
       value={formAction ? value : fieldValue}
-      className={buttonVariants({ variant, size, fullWidth, className })}
+      className={
+        look === "menuItem"
+          ? menuItemClass(tone, className)
+          : buttonVariants({ variant, size, fullWidth, className })
+      }
     >
       {busy ? <Spinner className="text-[1.1em]" /> : leftIcon}
       {busy && pendingText ? pendingText : children}

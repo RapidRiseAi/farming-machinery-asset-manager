@@ -186,7 +186,7 @@ export default async function AccountingPage({
           <Card>
             <CardHeader><CardTitle>{t("accounting.byAccountTitle", locale)}</CardTitle></CardHeader>
             <div className="overflow-x-auto">
-              <Table>
+              <Table stacked>
                 <Thead>
                   <Tr>
                     <Th>{t("accounting.colAccountCode", locale)}</Th>
@@ -198,10 +198,10 @@ export default async function AccountingPage({
                 <Tbody>
                   {summary.map((a) => (
                     <Tr key={a.key}>
-                      <Td className="tabular-nums text-sand-500">{a.code}</Td>
-                      <Td>{accountName(a.key, locale)}</Td>
-                      <Td className="text-right tabular-nums">{a.debit ? rands(a.debit) : "-"}</Td>
-                      <Td className="text-right tabular-nums">{a.credit ? rands(a.credit) : "-"}</Td>
+                      <Td label={t("accounting.colAccountCode", locale)} className="tabular-nums text-sand-500">{a.code}</Td>
+                      <Td label={t("accounting.colAccount", locale)}>{accountName(a.key, locale)}</Td>
+                      <Td label={t("accounting.colDebit", locale)} className="text-right tabular-nums">{a.debit ? rands(a.debit) : "-"}</Td>
+                      <Td label={t("accounting.colCredit", locale)} className="text-right tabular-nums">{a.credit ? rands(a.credit) : "-"}</Td>
                     </Tr>
                   ))}
                 </Tbody>
@@ -242,7 +242,7 @@ export default async function AccountingPage({
         </CardHeader>
         <p className="mb-3 text-sm text-sand-600">{t("accounting.chartBody", locale)}</p>
         <div className="overflow-x-auto">
-          <Table>
+          <Table stacked>
             <Thead>
               <Tr>
                 <Th>{t("accounting.colAccountCode", locale)}</Th>
@@ -253,9 +253,9 @@ export default async function AccountingPage({
             <Tbody>
               {chart.map((a) => (
                 <Tr key={a.key}>
-                  <Td className="tabular-nums text-sand-500">{a.code}</Td>
-                  <Td>{accountName(a.key, locale)}</Td>
-                  <Td>
+                  <Td label={t("accounting.colAccountCode", locale)} className="tabular-nums text-sand-500">{a.code}</Td>
+                  <Td label={t("accounting.colAccount", locale)}>{accountName(a.key, locale)}</Td>
+                  <Td label={t("accounting.colAccountType", locale)}>
                     <Badge tone="neutral">{t(`accounting.kind.${a.kind}`, locale)}</Badge>
                   </Td>
                 </Tr>

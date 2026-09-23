@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { TrashIcon } from "@/components/ui/icons";
 
 type Line = { task: string; interval_hours: number | null; interval_months: number | null };
@@ -76,29 +78,45 @@ export default async function TemplatesPage({
                   <h2 className="font-semibold text-sand-900">{tpl.name}</h2>
                   <Badge tone="neutral">{tpl.machine_type ? TYPE_LABELS[tpl.machine_type] ?? tpl.machine_type : "Any type"}</Badge>
                 </div>
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-brand-ink">Edit ({tpl.lines?.length ?? 0} lines)</summary>
-                  <form action={updateTemplate} className="mt-3 flex flex-col gap-3">
-                    <input type="hidden" name="id" value={tpl.id} />
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Field label="Name" htmlFor={`n-${tpl.id}`}><Input id={`n-${tpl.id}`} name="name" defaultValue={tpl.name} /></Field>
-                      <Field label="Machine type" htmlFor={`t-${tpl.id}`}>{typeSelect("machine_type", tpl.machine_type ?? "")}</Field>
-                    </div>
-                    <Field label="Lines" htmlFor={`l-${tpl.id}`}>
-                      <Textarea id={`l-${tpl.id}`} name="lines" rows={4} defaultValue={linesToText(tpl.lines ?? [])} />
-                    </Field>
-                    <div className="flex gap-2">
-                      <SubmitButton variant="primary" size="sm">Save</SubmitButton>
-                    </div>
-                  </form>
-                  <div className="mt-2">
+                {/* Edit and delete, behind one button, like every other row in the
+                    product. It was a `<details>` holding a three-field form plus the
+                    delete, so each template shipped its editor to keep it hidden. */}
+                <div className="flex">
+                  <ActionMenu
+                    title={tpl.name}
+                    label="Actions"
+                    closeLabel="Close"
+                    trigger={`Edit (${tpl.lines?.length ?? 0} lines)`}
+                  >
+                    <DialogForm
+                      triggerLook="menuItem"
+                      trigger="Edit"
+                      title="Edit template"
+                      description={tpl.name}
+                      closeLabel="Close"
+                    >
+                      <form action={updateTemplate}>
+                        <input type="hidden" name="id" value={tpl.id} />
+                        <DialogFields>
+                          <Field label="Name" htmlFor={`n-${tpl.id}`}><Input id={`n-${tpl.id}`} name="name" defaultValue={tpl.name} /></Field>
+                          <Field label="Machine type" htmlFor={`t-${tpl.id}`}>{typeSelect("machine_type", tpl.machine_type ?? "")}</Field>
+                          <div className="sm:col-span-2">
+                            <Field label="Lines" htmlFor={`l-${tpl.id}`}>
+                              <Textarea id={`l-${tpl.id}`} name="lines" rows={4} defaultValue={linesToText(tpl.lines ?? [])} />
+                            </Field>
+                          </div>
+                        </DialogFields>
+                        <DialogActions cancelLabel="Cancel">
+                          <SubmitButton variant="primary">Save</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+
                     <ConfirmDialog
                       action={deleteTemplate}
-                      triggerVariant="ghost"
-                      triggerSize="sm"
+                      triggerLook="menuItem"
                       triggerIcon={<TrashIcon />}
                       triggerLabel="Delete template"
-                      triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                       title={`Delete the “${tpl.name}” service template?`}
                       intro="This is a Rapid Rise template every farm can apply."
                       consequencesTitle="What happens when you press it"
@@ -109,11 +127,12 @@ export default async function TemplatesPage({
                       footnote="Nothing is really erased, it stops showing in the library and stays in the history."
                       confirmLabel="Yes, delete the template"
                       cancelLabel="Never mind"
+                      closeLabel="Close"
                     >
                       <input type="hidden" name="id" value={tpl.id} />
                     </ConfirmDialog>
-                  </div>
-                </details>
+                  </ActionMenu>
+                </div>
               </Card>
             </li>
           ))}

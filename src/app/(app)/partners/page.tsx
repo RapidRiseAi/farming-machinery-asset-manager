@@ -16,8 +16,10 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { buttonVariants } from "@/components/ui/button";
-import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, TrashIcon, WarningIcon } from "@/components/ui/icons";
+import { PhoneIcon, ChatIcon, MailIcon, LinkIcon, PlusIcon, TrashIcon, WarningIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { CopyField } from "./copy-field";
 import { PartnerAccessCard, type PartnerAccess } from "@/components/partners/access-card";
 import { readPartnerLink } from "@/lib/partner-link";
@@ -121,6 +123,8 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
 
   const permissionState = await farmPermissionState(profile);
   const viewingFarmId = permissionState.farmId;
@@ -348,42 +352,46 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
 
       {/* Add a partner (owner/manager for their farm; RR admin for the global catalogue) */}
       {canManageDirectory || isAdmin ? (
-        <Card>
-          <details>
-            <summary className="cursor-pointer font-semibold text-sand-900">{t("partners.add", locale)}</summary>
-            <p className="mt-1 text-sm text-sand-500">
-              {isAdmin ? t("partners.addHintAdmin", locale) : t("partners.addHint", locale)}
-            </p>
-            <form action={createPartner} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label={t("partners.name", locale)} htmlFor="new_name">
-                <Input id="new_name" name="name" required placeholder={t("partners.namePlaceholder", locale)} />
-              </Field>
-              <Field label={t("partners.kind", locale)} htmlFor="new_kind">
-                <KindSelect locale={locale} />
-              </Field>
-              <Field label={t("partners.area", locale)} htmlFor="new_area">
-                <Input id="new_area" name="area" placeholder={t("partners.areaPlaceholder", locale)} />
-              </Field>
-              <Field label={t("partners.phone", locale)} htmlFor="new_phone">
-                <Input id="new_phone" name="phone" inputMode="tel" placeholder="082 555 0134" />
-              </Field>
-              <Field label={t("partners.whatsapp", locale)} htmlFor="new_wa">
-                <Input id="new_wa" name="whatsapp" inputMode="tel" placeholder="+27 82 555 0134" />
-              </Field>
-              <Field label={t("partners.email", locale)} htmlFor="new_email">
-                <Input id="new_email" name="email" type="email" inputMode="email" />
-              </Field>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <Field label={t("partners.notes", locale)} htmlFor="new_notes">
-                  <Textarea id="new_notes" name="notes" rows={2} />
+        <div className="flex">
+          <DialogForm
+            trigger={t("partners.add", locale)}
+            triggerIcon={<PlusIcon />}
+            title={t("partners.add", locale)}
+            description={isAdmin ? t("partners.addHintAdmin", locale) : t("partners.addHint", locale)}
+            closeLabel={closeLabel}
+          >
+            <form action={createPartner}>
+              <DialogFields>
+                <Field label={t("partners.name", locale)} htmlFor="new_name">
+                  <Input id="new_name" name="name" required placeholder={t("partners.namePlaceholder", locale)} />
                 </Field>
-              </div>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <SubmitButton variant="primary" size="sm">{t("partners.add", locale)}</SubmitButton>
-              </div>
+                <Field label={t("partners.kind", locale)} htmlFor="new_kind">
+                  <KindSelect locale={locale} />
+                </Field>
+                <Field label={t("partners.area", locale)} htmlFor="new_area">
+                  <Input id="new_area" name="area" placeholder={t("partners.areaPlaceholder", locale)} />
+                </Field>
+                <Field label={t("partners.phone", locale)} htmlFor="new_phone">
+                  <Input id="new_phone" name="phone" inputMode="tel" placeholder="082 555 0134" />
+                </Field>
+                <Field label={t("partners.whatsapp", locale)} htmlFor="new_wa">
+                  <Input id="new_wa" name="whatsapp" inputMode="tel" placeholder="+27 82 555 0134" />
+                </Field>
+                <Field label={t("partners.email", locale)} htmlFor="new_email">
+                  <Input id="new_email" name="email" type="email" inputMode="email" />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label={t("partners.notes", locale)} htmlFor="new_notes">
+                    <Textarea id="new_notes" name="notes" rows={2} />
+                  </Field>
+                </div>
+              </DialogFields>
+              <DialogActions cancelLabel={cancelLabel}>
+                <SubmitButton variant="primary">{t("partners.add", locale)}</SubmitButton>
+              </DialogActions>
             </form>
-          </details>
-        </Card>
+          </DialogForm>
+        </div>
       ) : null}
 
       {/* Your partners */}
@@ -418,97 +426,115 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                   <ContactButtons p={p} locale={locale} />
                 </div>
 
-                {/* Invite / connect + send login (owner/manager) */}
-                {canInvite ? (
-                  <div className="mt-3 border-t border-sand-100 pt-3">
-                    {p.workshop_id ? (
-                      <form action={sendLoginUrl} className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="id" value={p.id} />
-                        <Field label={t("partners.inviteEmail", locale)} htmlFor={`si_${p.id}`}>
-                          <Input id={`si_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} className="w-56" required />
-                        </Field>
-                        <SubmitButton variant="secondary" size="sm" leftIcon={<LinkIcon className="text-base" />}>
-                          {t("partners.sendLogin", locale)}
-                        </SubmitButton>
-                      </form>
-                    ) : (
-                      <details>
-                        <summary className="cursor-pointer text-sm font-medium text-brand-ink">
-                          {t("partners.invite", locale)}
-                        </summary>
-                        <p className="mt-1 text-xs text-sand-500">{t("partners.inviteHint", locale)}</p>
-                        <form action={inviteContractor} className="mt-2 flex flex-wrap items-end gap-2">
-                          <input type="hidden" name="id" value={p.id} />
-                          <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>
-                            <Input id={`iv_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} className="w-56" required />
-                          </Field>
-                          <SubmitButton variant="primary" size="sm" leftIcon={<LinkIcon className="text-base" />}>
-                            {t("partners.invite", locale)}
-                          </SubmitButton>
-                        </form>
-                      </details>
-                    )}
-                  </div>
-                ) : null}
+                {/*
+                  Invite, edit and remove, behind one button, titled with the partner.
 
-                {/* Edit / remove (owner/manager) */}
-                {canEditRow(p) ? (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-medium text-sand-500">{t("common.edit", locale)}</summary>
-                    <form action={updatePartner} className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      <input type="hidden" name="id" value={p.id} />
-                      <Field label={t("partners.name", locale)} htmlFor={`e_name_${p.id}`}>
-                        <Input id={`e_name_${p.id}`} name="name" defaultValue={p.name} required />
-                      </Field>
-                      <Field label={t("partners.kind", locale)} htmlFor={`e_kind_${p.id}`}>
-                        <KindSelect locale={locale} value={p.kind} />
-                      </Field>
-                      <Field label={t("partners.area", locale)} htmlFor={`e_area_${p.id}`}>
-                        <Input id={`e_area_${p.id}`} name="area" defaultValue={p.area ?? ""} />
-                      </Field>
-                      <Field label={t("partners.phone", locale)} htmlFor={`e_phone_${p.id}`}>
-                        <Input id={`e_phone_${p.id}`} name="phone" inputMode="tel" defaultValue={p.phone ?? ""} />
-                      </Field>
-                      <Field label={t("partners.whatsapp", locale)} htmlFor={`e_wa_${p.id}`}>
-                        <Input id={`e_wa_${p.id}`} name="whatsapp" inputMode="tel" defaultValue={p.whatsapp ?? ""} />
-                      </Field>
-                      <Field label={t("partners.email", locale)} htmlFor={`e_email_${p.id}`}>
-                        <Input id={`e_email_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} />
-                      </Field>
-                      <div className="sm:col-span-2 lg:col-span-3">
-                        <Field label={t("partners.notes", locale)} htmlFor={`e_notes_${p.id}`}>
-                          <Textarea id={`e_notes_${p.id}`} name="notes" rows={2} defaultValue={p.notes ?? ""} />
-                        </Field>
-                      </div>
-                      <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
-                        <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                        <span className="flex-1" />
-                      </div>
-                    </form>
-                    <div className="mt-1">
-                      <ConfirmDialog
-                        action={deletePartner}
-                        triggerVariant="ghost"
-                        triggerSize="sm"
-                        triggerIcon={<TrashIcon />}
-                        triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
-                        title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
-                        intro={t("confirm.deletePartnerIntro", locale)}
-                        consequencesTitle={t("confirm.whatHappens", locale)}
-                        consequences={[
-                          t("confirm.deletePartnerEffect1", locale),
-                          t("confirm.deletePartnerEffect2", locale),
-                        ]}
-                        footnote={t("confirm.softDeleteNote", locale)}
-                        confirmLabel={t("confirm.deletePartnerYes", locale)}
-                        cancelLabel={t("confirm.keepIt", locale)}
-                        closeLabel={t("ui.close", locale)}
-                      >
-                        <input type="hidden" name="id" value={p.id} />
-                      </ConfirmDialog>
-                    </div>
-                  </details>
+                  Every row used to carry an email box and a submit for the invite, plus a
+                  `<details>` holding a seven-field edit form, so a directory of a dozen
+                  contractors rendered a dozen hidden edit forms and a dozen email inputs
+                  above the phone numbers somebody opened the screen to read.
+                */}
+                {canInvite || canEditRow(p) ? (
+                  <div className="mt-3 flex border-t border-sand-100 pt-3">
+                    <ActionMenu
+                      title={p.name}
+                      label={t("common.actions", locale)}
+                      closeLabel={closeLabel}
+                      trigger={t("common.actions", locale)}
+                    >
+                      {canInvite ? (
+                        <DialogForm
+                          triggerLook="menuItem"
+                          trigger={p.workshop_id ? t("partners.sendLogin", locale) : t("partners.invite", locale)}
+                          triggerIcon={<LinkIcon className="text-base" />}
+                          title={p.workshop_id ? t("partners.sendLogin", locale) : t("partners.invite", locale)}
+                          description={p.workshop_id ? p.name : t("partners.inviteHint", locale)}
+                          closeLabel={closeLabel}
+                          size="md"
+                        >
+                          {/* Two different actions behind one row: a connected partner gets
+                              a login link, an unconnected one gets an invitation. */}
+                          <form action={p.workshop_id ? sendLoginUrl : inviteContractor}>
+                            <input type="hidden" name="id" value={p.id} />
+                            <DialogFields columns={1}>
+                              <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>
+                                <Input id={`iv_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} required />
+                              </Field>
+                            </DialogFields>
+                            <DialogActions cancelLabel={cancelLabel}>
+                              <SubmitButton variant="primary" leftIcon={<LinkIcon className="text-base" />}>
+                                {p.workshop_id ? t("partners.sendLogin", locale) : t("partners.invite", locale)}
+                              </SubmitButton>
+                            </DialogActions>
+                          </form>
+                        </DialogForm>
+                      ) : null}
+
+                      {canEditRow(p) ? (
+                        <DialogForm
+                          triggerLook="menuItem"
+                          trigger={t("common.edit", locale)}
+                          title={t("common.edit", locale)}
+                          description={p.name}
+                          closeLabel={closeLabel}
+                        >
+                          <form action={updatePartner}>
+                            <input type="hidden" name="id" value={p.id} />
+                            <DialogFields>
+                              <Field label={t("partners.name", locale)} htmlFor={`e_name_${p.id}`}>
+                                <Input id={`e_name_${p.id}`} name="name" defaultValue={p.name} required />
+                              </Field>
+                              <Field label={t("partners.kind", locale)} htmlFor={`e_kind_${p.id}`}>
+                                <KindSelect locale={locale} value={p.kind} />
+                              </Field>
+                              <Field label={t("partners.area", locale)} htmlFor={`e_area_${p.id}`}>
+                                <Input id={`e_area_${p.id}`} name="area" defaultValue={p.area ?? ""} />
+                              </Field>
+                              <Field label={t("partners.phone", locale)} htmlFor={`e_phone_${p.id}`}>
+                                <Input id={`e_phone_${p.id}`} name="phone" inputMode="tel" defaultValue={p.phone ?? ""} />
+                              </Field>
+                              <Field label={t("partners.whatsapp", locale)} htmlFor={`e_wa_${p.id}`}>
+                                <Input id={`e_wa_${p.id}`} name="whatsapp" inputMode="tel" defaultValue={p.whatsapp ?? ""} />
+                              </Field>
+                              <Field label={t("partners.email", locale)} htmlFor={`e_email_${p.id}`}>
+                                <Input id={`e_email_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} />
+                              </Field>
+                              <div className="sm:col-span-2">
+                                <Field label={t("partners.notes", locale)} htmlFor={`e_notes_${p.id}`}>
+                                  <Textarea id={`e_notes_${p.id}`} name="notes" rows={2} defaultValue={p.notes ?? ""} />
+                                </Field>
+                              </div>
+                            </DialogFields>
+                            <DialogActions cancelLabel={cancelLabel}>
+                              <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                            </DialogActions>
+                          </form>
+                        </DialogForm>
+                      ) : null}
+
+                      {canEditRow(p) ? (
+                        <ConfirmDialog
+                          action={deletePartner}
+                          triggerLook="menuItem"
+                          triggerIcon={<TrashIcon />}
+                          triggerLabel={t("common.delete", locale)}
+                          title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
+                          intro={t("confirm.deletePartnerIntro", locale)}
+                          consequencesTitle={t("confirm.whatHappens", locale)}
+                          consequences={[
+                            t("confirm.deletePartnerEffect1", locale),
+                            t("confirm.deletePartnerEffect2", locale),
+                          ]}
+                          footnote={t("confirm.softDeleteNote", locale)}
+                          confirmLabel={t("confirm.deletePartnerYes", locale)}
+                          cancelLabel={t("confirm.keepIt", locale)}
+                          closeLabel={closeLabel}
+                        >
+                          <input type="hidden" name="id" value={p.id} />
+                        </ConfirmDialog>
+                      ) : null}
+                    </ActionMenu>
+                  </div>
                 ) : null}
               </li>
             ))}
@@ -539,41 +565,56 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                     <SubmitButton variant="secondary" size="sm">{t("partners.adopt", locale)}</SubmitButton>
                   </form>
                 ) : null}
+                {/* The RR-curated global catalogue, editable by rr_admin only. Same
+                    treatment as a farm's own row, so both look like one product. */}
                 {isAdmin && canEditRow(p) ? (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-medium text-sand-500">{t("common.edit", locale)}</summary>
-                    <form action={updatePartner} className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <input type="hidden" name="id" value={p.id} />
-                      <Field label={t("partners.name", locale)} htmlFor={`g_name_${p.id}`}>
-                        <Input id={`g_name_${p.id}`} name="name" defaultValue={p.name} required />
-                      </Field>
-                      <Field label={t("partners.kind", locale)} htmlFor={`g_kind_${p.id}`}>
-                        <KindSelect locale={locale} value={p.kind} />
-                      </Field>
-                      <Field label={t("partners.area", locale)} htmlFor={`g_area_${p.id}`}>
-                        <Input id={`g_area_${p.id}`} name="area" defaultValue={p.area ?? ""} />
-                      </Field>
-                      <Field label={t("partners.phone", locale)} htmlFor={`g_phone_${p.id}`}>
-                        <Input id={`g_phone_${p.id}`} name="phone" inputMode="tel" defaultValue={p.phone ?? ""} />
-                      </Field>
-                      <Field label={t("partners.whatsapp", locale)} htmlFor={`g_wa_${p.id}`}>
-                        <Input id={`g_wa_${p.id}`} name="whatsapp" inputMode="tel" defaultValue={p.whatsapp ?? ""} />
-                      </Field>
-                      <Field label={t("partners.email", locale)} htmlFor={`g_email_${p.id}`}>
-                        <Input id={`g_email_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} />
-                      </Field>
-                      <div className="sm:col-span-2">
-                        <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                      </div>
-                    </form>
-                    <div className="mt-1">
+                  <div className="mt-2 flex">
+                    <ActionMenu
+                      title={p.name}
+                      label={t("common.actions", locale)}
+                      closeLabel={closeLabel}
+                      trigger={t("common.edit", locale)}
+                    >
+                      <DialogForm
+                        triggerLook="menuItem"
+                        trigger={t("common.edit", locale)}
+                        title={t("common.edit", locale)}
+                        description={p.name}
+                        closeLabel={closeLabel}
+                      >
+                        <form action={updatePartner}>
+                          <input type="hidden" name="id" value={p.id} />
+                          <DialogFields>
+                            <Field label={t("partners.name", locale)} htmlFor={`g_name_${p.id}`}>
+                              <Input id={`g_name_${p.id}`} name="name" defaultValue={p.name} required />
+                            </Field>
+                            <Field label={t("partners.kind", locale)} htmlFor={`g_kind_${p.id}`}>
+                              <KindSelect locale={locale} value={p.kind} />
+                            </Field>
+                            <Field label={t("partners.area", locale)} htmlFor={`g_area_${p.id}`}>
+                              <Input id={`g_area_${p.id}`} name="area" defaultValue={p.area ?? ""} />
+                            </Field>
+                            <Field label={t("partners.phone", locale)} htmlFor={`g_phone_${p.id}`}>
+                              <Input id={`g_phone_${p.id}`} name="phone" inputMode="tel" defaultValue={p.phone ?? ""} />
+                            </Field>
+                            <Field label={t("partners.whatsapp", locale)} htmlFor={`g_wa_${p.id}`}>
+                              <Input id={`g_wa_${p.id}`} name="whatsapp" inputMode="tel" defaultValue={p.whatsapp ?? ""} />
+                            </Field>
+                            <Field label={t("partners.email", locale)} htmlFor={`g_email_${p.id}`}>
+                              <Input id={`g_email_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} />
+                            </Field>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                          </DialogActions>
+                        </form>
+                      </DialogForm>
+
                       <ConfirmDialog
                         action={deletePartner}
-                        triggerVariant="ghost"
-                        triggerSize="sm"
+                        triggerLook="menuItem"
                         triggerIcon={<TrashIcon />}
                         triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("confirm.deletePartnerTitle", locale).replace("{partner}", p.name)}
                         intro={t("confirm.deletePartnerIntro", locale)}
                         consequencesTitle={t("confirm.whatHappens", locale)}
@@ -584,12 +625,12 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                         footnote={t("confirm.softDeleteNote", locale)}
                         confirmLabel={t("confirm.deletePartnerYes", locale)}
                         cancelLabel={t("confirm.keepIt", locale)}
-                        closeLabel={t("ui.close", locale)}
+                        closeLabel={closeLabel}
                       >
                         <input type="hidden" name="id" value={p.id} />
                       </ConfirmDialog>
-                    </div>
-                  </details>
+                    </ActionMenu>
+                  </div>
                 ) : null}
               </li>
             ))}

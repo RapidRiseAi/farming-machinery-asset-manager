@@ -15,7 +15,9 @@ import { Field, TextField, TextareaField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { TrashIcon } from "@/components/ui/icons";
+import { PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { createSupplier, updateSupplier, setSupplierActive, deleteSupplier } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,8 @@ export default async function SuppliersPage({
   // list and terms would be reading the margin behind every quote it is given (F16).
   if (profile.role !== "workshop") redirect("/documents");
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   const sp = await searchParams;
 
   const { workshop } = await currentWorkshop(profile);
@@ -100,9 +104,44 @@ export default async function SuppliersPage({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("supplier.title", locale)}</h1>
-        <p className="text-sm text-sand-600">{t("supplier.lead", locale)}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("supplier.title", locale)}</h1>
+          <p className="text-sm text-sand-600">{t("supplier.lead", locale)}</p>
+        </div>
+        {/* Add one. Name is the only thing insisted on; everything else is what the
+            workshop happens to know today, and demanding a VAT number to file a supplier
+            is how a screen stops being used.
+
+            It was a card of nine fields sitting permanently between the totals and the
+            list, so the page opened on a blank form rather than on the suppliers. */}
+        <DialogForm
+          trigger={t("supplier.addTitle", locale)}
+          triggerIcon={<PlusIcon />}
+          title={t("supplier.addTitle", locale)}
+          closeLabel={closeLabel}
+        >
+          <form action={createSupplier}>
+            <DialogFields>
+              <TextField name="name" label={t("supplier.name", locale)} required />
+              <TextField name="contact_person" label={t("supplier.contact", locale)} hint={t("supplier.contactHint", locale)} />
+              <TextField name="phone" type="tel" label={t("supplier.phone", locale)} />
+              <TextField name="email" type="email" label={t("supplier.email", locale)} />
+              <TextField name="vat_number" label={t("supplier.vatNumber", locale)} hint={t("supplier.vatNumberHint", locale)} />
+              <TextField name="account_number" label={t("supplier.accountNumber", locale)} hint={t("supplier.accountNumberHint", locale)} />
+              <Field label={t("supplier.terms", locale)} htmlFor="new_terms" hint={t("supplier.termsHint", locale)}>
+                <Input id="new_terms" name="payment_terms_days" inputMode="numeric" />
+              </Field>
+              <TextField name="address" label={t("supplier.address", locale)} />
+              <div className="sm:col-span-2">
+                <TextareaField name="notes" label={t("supplier.notes", locale)} rows={2} />
+              </div>
+            </DialogFields>
+            <DialogActions cancelLabel={cancelLabel}>
+              <SubmitButton>{t("supplier.save", locale)}</SubmitButton>
+            </DialogActions>
+          </form>
+        </DialogForm>
       </div>
 
       <Flash
@@ -135,35 +174,6 @@ export default async function SuppliersPage({
           />
         </div>
       ) : null}
-
-      {/* Add one. Name is the only thing insisted on; everything else is what the workshop
-          happens to know today, and demanding a VAT number to file a supplier is how a
-          screen stops being used. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("supplier.addTitle", locale)}</CardTitle>
-        </CardHeader>
-        <form action={createSupplier} className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField name="name" label={t("supplier.name", locale)} required />
-            <TextField name="contact_person" label={t("supplier.contact", locale)} hint={t("supplier.contactHint", locale)} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField name="phone" type="tel" label={t("supplier.phone", locale)} />
-            <TextField name="email" type="email" label={t("supplier.email", locale)} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <TextField name="vat_number" label={t("supplier.vatNumber", locale)} hint={t("supplier.vatNumberHint", locale)} />
-            <TextField name="account_number" label={t("supplier.accountNumber", locale)} hint={t("supplier.accountNumberHint", locale)} />
-            <Field label={t("supplier.terms", locale)} htmlFor="new_terms" hint={t("supplier.termsHint", locale)}>
-              <Input id="new_terms" name="payment_terms_days" inputMode="numeric" />
-            </Field>
-          </div>
-          <TextField name="address" label={t("supplier.address", locale)} />
-          <TextareaField name="notes" label={t("supplier.notes", locale)} rows={2} />
-          <SubmitButton className="self-start">{t("supplier.save", locale)}</SubmitButton>
-        </form>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -228,67 +238,82 @@ export default async function SuppliersPage({
                     </div>
                   </div>
 
-                  <details className="text-sm">
-                    <summary className="focus-ring inline-flex min-h-[2.75rem] cursor-pointer items-center font-medium text-brand-ink sm:min-h-0">
-                      {t("supplier.editOpen", locale)}
-                    </summary>
+                  {/*
+                    Edit, deactivate and delete, behind one button.
 
-                    <form action={updateSupplier} className="mt-2 flex flex-col gap-3">
-                      <input type="hidden" name="supplier_id" value={row.id} />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <TextField
-                          id={`name_${row.id}`}
-                          name="name"
-                          label={t("supplier.name", locale)}
-                          defaultValue={row.name}
-                          required
-                        />
-                        <TextField
-                          id={`contact_${row.id}`}
-                          name="contact_person"
-                          label={t("supplier.contact", locale)}
-                          defaultValue={row.contact_person ?? ""}
-                        />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <TextField id={`phone_${row.id}`} name="phone" type="tel" label={t("supplier.phone", locale)} defaultValue={row.phone ?? ""} />
-                        <TextField id={`email_${row.id}`} name="email" type="email" label={t("supplier.email", locale)} defaultValue={row.email ?? ""} />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <TextField id={`vat_${row.id}`} name="vat_number" label={t("supplier.vatNumber", locale)} defaultValue={row.vat_number ?? ""} />
-                        <TextField id={`acc_${row.id}`} name="account_number" label={t("supplier.accountNumber", locale)} defaultValue={row.account_number ?? ""} />
-                        <Field label={t("supplier.terms", locale)} htmlFor={`terms_${row.id}`}>
-                          <Input
-                            id={`terms_${row.id}`}
-                            name="payment_terms_days"
-                            inputMode="numeric"
-                            defaultValue={row.payment_terms_days != null ? String(row.payment_terms_days) : ""}
-                          />
-                        </Field>
-                      </div>
-                      <TextField id={`addr_${row.id}`} name="address" label={t("supplier.address", locale)} defaultValue={row.address ?? ""} />
-                      <TextareaField id={`notes_${row.id}`} name="notes" label={t("supplier.notes", locale)} rows={2} defaultValue={row.notes ?? ""} />
-                      <SubmitButton variant="secondary" className="self-start">{t("common.save", locale)}</SubmitButton>
-                    </form>
+                    This was a `<details>` per row, which hid the eight-field edit form
+                    visually but still rendered it: every supplier shipped a complete
+                    form to the browser in order to keep it collapsed. A dialog renders
+                    nothing until it is opened.
+                  */}
+                  <div className="flex">
+                    <ActionMenu
+                      title={row.name}
+                      label={t("common.actions", locale)}
+                      closeLabel={closeLabel}
+                      trigger={t("common.actions", locale)}
+                    >
+                      <DialogForm
+                        triggerLook="menuItem"
+                        trigger={t("supplier.editOpen", locale)}
+                        title={t("supplier.editOpen", locale)}
+                        description={row.name}
+                        closeLabel={closeLabel}
+                      >
+                        <form action={updateSupplier}>
+                          <input type="hidden" name="supplier_id" value={row.id} />
+                          <DialogFields>
+                            <TextField
+                              id={`name_${row.id}`}
+                              name="name"
+                              label={t("supplier.name", locale)}
+                              defaultValue={row.name}
+                              required
+                            />
+                            <TextField
+                              id={`contact_${row.id}`}
+                              name="contact_person"
+                              label={t("supplier.contact", locale)}
+                              defaultValue={row.contact_person ?? ""}
+                            />
+                            <TextField id={`phone_${row.id}`} name="phone" type="tel" label={t("supplier.phone", locale)} defaultValue={row.phone ?? ""} />
+                            <TextField id={`email_${row.id}`} name="email" type="email" label={t("supplier.email", locale)} defaultValue={row.email ?? ""} />
+                            <TextField id={`vat_${row.id}`} name="vat_number" label={t("supplier.vatNumber", locale)} defaultValue={row.vat_number ?? ""} />
+                            <TextField id={`acc_${row.id}`} name="account_number" label={t("supplier.accountNumber", locale)} defaultValue={row.account_number ?? ""} />
+                            <Field label={t("supplier.terms", locale)} htmlFor={`terms_${row.id}`}>
+                              <Input
+                                id={`terms_${row.id}`}
+                                name="payment_terms_days"
+                                inputMode="numeric"
+                                defaultValue={row.payment_terms_days != null ? String(row.payment_terms_days) : ""}
+                              />
+                            </Field>
+                            <TextField id={`addr_${row.id}`} name="address" label={t("supplier.address", locale)} defaultValue={row.address ?? ""} />
+                            <div className="sm:col-span-2">
+                              <TextareaField id={`notes_${row.id}`} name="notes" label={t("supplier.notes", locale)} rows={2} defaultValue={row.notes ?? ""} />
+                            </div>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                          </DialogActions>
+                        </form>
+                      </DialogForm>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       {/* Deactivating is reversible and touches no history, so it is a plain
                           submit; deleting is neither, so it is not. */}
                       <form action={setSupplierActive}>
                         <input type="hidden" name="supplier_id" value={row.id} />
                         <input type="hidden" name="active" value={row.active ? "0" : "1"} />
-                        <SubmitButton variant="ghost" size="sm">
+                        <SubmitButton look="menuItem">
                           {row.active ? t("supplier.deactivate", locale) : t("supplier.reactivate", locale)}
                         </SubmitButton>
                       </form>
 
                       <ConfirmDialog
                         action={deleteSupplier}
+                        triggerLook="menuItem"
                         triggerLabel={t("common.remove", locale)}
                         triggerIcon={<TrashIcon />}
-                        triggerVariant="ghost"
-                        triggerSize="sm"
-                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("supplier.deleteTitle", locale)}
                         intro={row.name}
                         consequencesTitle={t("confirm.whatHappens", locale)}
@@ -299,12 +324,12 @@ export default async function SuppliersPage({
                         footnote={t("supplier.deleteFootnote", locale)}
                         confirmLabel={t("common.remove", locale)}
                         cancelLabel={t("confirm.keepIt", locale)}
-                        closeLabel={t("ui.close", locale)}
+                        closeLabel={closeLabel}
                       >
                         <input type="hidden" name="supplier_id" value={row.id} />
                       </ConfirmDialog>
-                    </div>
-                  </details>
+                    </ActionMenu>
+                  </div>
                 </li>
               );
             })}

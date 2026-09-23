@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 
@@ -83,7 +84,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequest
       <button
         type="submit"
         disabled={busy}
-        className="focus-ring inline-flex min-h-[44px] items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+        className={buttonVariants({ variant: "primary" })}
       >
         {busy ? t("work.uploading", locale) : kind === "invoice" ? t("work.recordInvoice", locale) : kind === "quote" ? t("work.recordQuote", locale) : t("work.uploadFile", locale)}
       </button>

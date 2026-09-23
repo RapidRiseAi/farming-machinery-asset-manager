@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -147,22 +148,27 @@ export function EmailDocument({
         </div>
       )}
 
+      {/* One disclosure treatment across the product: this was a bare `<details>` with
+          its own summary styling and no `list-none`, so it drew the browser's native
+          triangle where every other collapsed thing here draws a chevron. */}
       {history.length > 0 ? (
-        <details className="mt-3 border-t border-sand-100 pt-3">
-          <summary className="cursor-pointer text-sm font-medium text-sand-700">
-            {t("email.history", locale).replace("{n}", String(history.length))}
-          </summary>
-          <ul className="mt-2 flex flex-col gap-1.5 text-sm">
-            {history.map((h) => (
-              <li key={h.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sand-700">{h.to_email}</span>
-                <span className={h.status === "sent" ? "text-sand-500" : "text-status-bad"}>
-                  {h.status === "sent" ? relativeDate(h.created_at, locale) : (h.error ?? t("email.failed", locale))}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <div className="mt-3 border-t border-sand-100 pt-3">
+          <Disclosure
+            variant="inline"
+            summary={t("email.history", locale).replace("{n}", String(history.length))}
+          >
+            <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+              {history.map((h) => (
+                <li key={h.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sand-700">{h.to_email}</span>
+                  <span className={h.status === "sent" ? "text-sand-500" : "text-status-bad"}>
+                    {h.status === "sent" ? relativeDate(h.created_at, locale) : (h.error ?? t("email.failed", locale))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Disclosure>
+        </div>
       ) : null}
     </Card>
   );

@@ -247,7 +247,7 @@ export default async function VatPage({
             {docs.length === 0 ? (
               <AllClear title={t("vat.noSales", locale)} hint={t("vat.noSalesHint", locale)} />
             ) : (
-                <Table className="min-w-[36rem]">
+                <Table stacked className="lg:min-w-[36rem]">
                   <Thead>
                     <Tr className="text-left text-sand-500">
                       <Th className="font-medium">{t("vat.colDate", locale)}</Th>
@@ -263,8 +263,8 @@ export default async function VatPage({
                       const net = sign * Math.max(0, d.subtotal_cents - Math.min(d.discount_cents, d.subtotal_cents));
                       return (
                         <Tr key={d.id}>
-                          <Td className="whitespace-nowrap text-sand-600">{shortDate(d.issue_date, locale)}</Td>
-                          <Td>
+                          <Td label={t("vat.colDate", locale)} className="whitespace-nowrap text-sand-600">{shortDate(d.issue_date, locale)}</Td>
+                          <Td label={t("vat.colDocument", locale)}>
                             <Link href={`/documents/${d.id}`} className="focus-ring rounded text-brand-ink underline-offset-2 hover:underline">
                               {d.number}
                             </Link>
@@ -272,9 +272,9 @@ export default async function VatPage({
                               <Badge tone="danger" className="ml-2">{t("docStatus.written_off", locale)}</Badge>
                             ) : null}
                           </Td>
-                          <Td className="text-sand-700">{d.bill_to_name}</Td>
-                          <Td className="text-right tabular-nums text-sand-800">{rands(net)}</Td>
-                          <Td className="text-right tabular-nums text-sand-800">{rands(sign * d.vat_cents)}</Td>
+                          <Td label={t("vat.colCustomer", locale)} className="text-sand-700">{d.bill_to_name}</Td>
+                          <Td label={t("vat.colExVat", locale)} className="text-right tabular-nums text-sand-800">{rands(net)}</Td>
+                          <Td label={t("vat.colVat", locale)} className="text-right tabular-nums text-sand-800">{rands(sign * d.vat_cents)}</Td>
                         </Tr>
                       );
                     })}
@@ -300,7 +300,7 @@ export default async function VatPage({
                 </Link>
               </p>
             ) : (
-                <Table className="min-w-[34rem]">
+                <Table stacked className="lg:min-w-[34rem]">
                   <Thead>
                     <Tr className="text-left text-sand-500">
                       <Th className="font-medium">{t("vat.colDate", locale)}</Th>
@@ -312,16 +312,16 @@ export default async function VatPage({
                   <Tbody>
                     {expenses.map((e) => (
                       <Tr key={e.id}>
-                        <Td className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
-                        <Td className="text-sand-900">
+                        <Td label={t("vat.colDate", locale)} className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
+                        <Td label={t("expenses.colSupplier", locale)} className="text-sand-900">
                           {e.supplier_name}
                           <span className="block text-xs text-sand-500">{t(`expenseCategory.${e.category}`, locale)}</span>
                           {claimNeedsProof(e) ? (
                             <span className="block text-xs text-status-warn">{t("expenses.receiptMissing", locale)}</span>
                           ) : null}
                         </Td>
-                        <Td className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
-                        <Td className="text-right tabular-nums text-sand-800">
+                        <Td label={t("vat.colExVat", locale)} className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
+                        <Td label={t("vat.colVat", locale)} className="text-right tabular-nums text-sand-800">
                           {e.vat_claimable ? rands(e.vat_cents) : <span className="text-sand-400">{rands(0)}</span>}
                         </Td>
                       </Tr>

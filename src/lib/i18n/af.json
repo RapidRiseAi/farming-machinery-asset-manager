@@ -4,6 +4,7 @@
     "tagline": "Elke masjien op jou plaas: koste, dienste, foute, op een plek."
   },
   "common": {
+    "actions": "Aksies",
     "save": "Stoor",
     "cancel": "Kanselleer",
     "add": "Voeg by",
@@ -38,6 +39,8 @@
     "groupWorkshop": "Werkswinkel",
     "groupFarm": "Plaas",
     "groupAdmin": "Admin",
+    "groupAccount": "Rekening",
+    "groupHelp": "Hulp",
     "parts": "Onderdele",
     "partners": "Vennote",
     "checklists": "Kontrolelyste",
@@ -551,6 +554,8 @@
     "varianceShort": "{n} L minder as die boeke"
   },
   "machine": {
+    "kitQty": "Hoeveelheid",
+    "lastDoneDate": "Laas gedoen op",
     "edit": "Wysig",
     "editMachine": "Wysig masjien",
     "qrCode": "QR-kode",
@@ -857,6 +862,8 @@
     "tplBillingRenewalDue": "Jou FleetWise-intekening hernu op {date} en {amount} sal van die kaart op rekord afgaan. Niks om te doen nie, dis net sodat jy weet voordat dit gebeur."
   },
   "settings": {
+    "notSet": "Nie gestel nie",
+    "vatRateShort": "BTW-koers",
     "title": "Instellings",
     "thresholds": "Waarskuwingsdrempels",
     "dueHours": "Waarsku wanneer diens binne (ure) verskuldig is",
@@ -1365,6 +1372,7 @@
     "api": "API"
   },
   "compliance": {
+    "type": "Tipe",
     "title": "Nakoming",
     "warranty": "Waarborg",
     "warrantyDate": "Waarborg verval",
@@ -1411,6 +1419,11 @@
     "other": "Ander"
   },
   "incidents": {
+    "sectionDriver": "Wie het bestuur",
+    "sectionSaps": "Die polisieverslag",
+    "sectionThirdParty": "Die ander party",
+    "sectionInjuries": "Beserings",
+    "sectionClaim": "Die versekeringseis",
     "title": "Ongelukke & eise",
     "lead": "Botsings, diefstal en beserings, die SAPD-saak, die ander bestuurder, en wat die versekeraar nog skuld.",
     "statOpen": "Nog oop",

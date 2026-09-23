@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
 import { normaliseHex, DEFAULT_BRAND_PRIMARY, DEFAULT_BRAND_SECONDARY } from "@/lib/branding";
 import { percentToBps } from "@/lib/format";
+import { ownedUpdate } from "@/lib/partial-form";
 import { LAYOUT_SWITCHES } from "@/lib/doc-layout";
 import { isDocTemplate, templateLayout } from "@/lib/doc-templates";
 
@@ -36,39 +37,75 @@ export async function updatePartnerProfile(formData: FormData) {
   if (!profile.workshop_id) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
+
+  /*
+   * Only the columns this form OWNS are written.
+   *
+   * The screen edits one group at a time in a dialog, and this is a single `.update()`
+   * over every column, so a partial form that sent them all would have reset the ones it
+   * did not contain. Most are `s()`, which yields `undefined` and is dropped from the
+   * request, but the rest all substitute a default: `vat_registered` and
+   * `show_powered_by` would have gone false, `default_vat_rate_bps` back to 15%, the
+   * quote/invoice/credit prefixes back to QTE/INV/CN, and the letterhead colours back to
+   * brand green. Those appear on a contractor's tax invoices; resetting the invoice
+   * prefix silently restarts a number series a partner's books depend on.
+   *
+   * A form with no `__fields` marker still owns everything, so the old whole-form post
+   * behaves exactly as it did. See `src/lib/partial-form.ts`.
+   */
+  const patch = ownedUpdate(formData, {
+    name: () => String(formData.get("name") ?? "").trim() || undefined,
+    trading_name: () => s(formData, "trading_name"),
+    reg_number: () => s(formData, "reg_number"),
+    vat_number: () => s(formData, "vat_number"),
+    address: () => s(formData, "address"),
+    phone: () => s(formData, "phone"),
+    whatsapp: () => s(formData, "whatsapp"),
+    email: () => s(formData, "email"),
+    website: () => s(formData, "website"),
+    area: () => s(formData, "area"),
+    bank_name: () => s(formData, "bank_name"),
+    bank_account_name: () => s(formData, "bank_account_name"),
+    bank_account_number: () => s(formData, "bank_account_number"),
+    bank_branch_code: () => s(formData, "bank_branch_code"),
+    bank_account_type: () => s(formData, "bank_account_type"),
+    brand_primary: () => normaliseHex(String(formData.get("brand_primary") ?? "")) ?? DEFAULT_BRAND_PRIMARY,
+    brand_secondary: () => normaliseHex(String(formData.get("brand_secondary") ?? "")) ?? DEFAULT_BRAND_SECONDARY,
+    show_powered_by: () => formData.get("show_powered_by") != null,
+    doc_prefix_quote: () => (s(formData, "doc_prefix_quote") ?? "QTE").slice(0, 8).toUpperCase(),
+    doc_prefix_invoice: () => (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
+    // A credit note is its own kind of document under VAT Act s21, so it gets its own
+    // series, sharing the invoice counter makes both unreadable in a partner's books.
+    doc_prefix_credit: () => (s(formData, "doc_prefix_credit") ?? "CN").slice(0, 8).toUpperCase(),
+    quote_validity_days: () => intIn(formData, "quote_validity_days", 0, 365, 14),
+    invoice_terms_days: () => intIn(formData, "invoice_terms_days", 0, 365, 30),
+    vat_registered: () => formData.get("vat_registered") != null,
+    /*
+     * Reads `vat_rate_bps`, which is what the form actually posts.
+     *
+     * This asked for `vat_percent` and nothing on the screen has ever sent that.
+     * `VatRateField` shows a percent box with no `name` and posts a hidden
+     * `vat_rate_bps` in basis points, so `formData.get("vat_percent")` was always null,
+     * the `?? "15"` took over, and `default_vat_rate_bps` was written as 1500 on EVERY
+     * save no matter what the partner typed. The control was decorative and the stored
+     * rate goes on their tax invoices. It happens to match the current SA rate, which
+     * is why nobody noticed.
+     *
+     * `vat_percent` is still honoured as a fallback, because it is the convention on
+     * the document, order and recurring-expense forms, which post it as a hidden field.
+     */
+    default_vat_rate_bps: () => {
+      const bps = Number(String(formData.get("vat_rate_bps") ?? "").trim());
+      if (Number.isFinite(bps) && bps > 0) return Math.round(bps);
+      return percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500;
+    },
+    doc_terms: () => s(formData, "doc_terms"),
+    doc_footer: () => s(formData, "doc_footer"),
+  });
+
   const { error } = await supabase
     .from("workshops")
-    .update({
-      name: String(formData.get("name") ?? "").trim() || undefined,
-      trading_name: s(formData, "trading_name"),
-      reg_number: s(formData, "reg_number"),
-      vat_number: s(formData, "vat_number"),
-      address: s(formData, "address"),
-      phone: s(formData, "phone"),
-      whatsapp: s(formData, "whatsapp"),
-      email: s(formData, "email"),
-      website: s(formData, "website"),
-      area: s(formData, "area"),
-      bank_name: s(formData, "bank_name"),
-      bank_account_name: s(formData, "bank_account_name"),
-      bank_account_number: s(formData, "bank_account_number"),
-      bank_branch_code: s(formData, "bank_branch_code"),
-      bank_account_type: s(formData, "bank_account_type"),
-      brand_primary: normaliseHex(String(formData.get("brand_primary") ?? "")) ?? DEFAULT_BRAND_PRIMARY,
-      brand_secondary: normaliseHex(String(formData.get("brand_secondary") ?? "")) ?? DEFAULT_BRAND_SECONDARY,
-      show_powered_by: formData.get("show_powered_by") != null,
-      doc_prefix_quote: (s(formData, "doc_prefix_quote") ?? "QTE").slice(0, 8).toUpperCase(),
-      doc_prefix_invoice: (s(formData, "doc_prefix_invoice") ?? "INV").slice(0, 8).toUpperCase(),
-      // A credit note is its own kind of document under VAT Act s21, so it gets its own
-      // series, sharing the invoice counter makes both unreadable in a partner's books.
-      doc_prefix_credit: (s(formData, "doc_prefix_credit") ?? "CN").slice(0, 8).toUpperCase(),
-      quote_validity_days: intIn(formData, "quote_validity_days", 0, 365, 14),
-      invoice_terms_days: intIn(formData, "invoice_terms_days", 0, 365, 30),
-      vat_registered: formData.get("vat_registered") != null,
-      default_vat_rate_bps: percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500,
-      doc_terms: s(formData, "doc_terms"),
-      doc_footer: s(formData, "doc_footer"),
-    })
+    .update(patch)
     .eq("id", profile.workshop_id);
 
   if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);

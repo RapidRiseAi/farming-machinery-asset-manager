@@ -384,4 +384,86 @@ a {
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+
+  /*
+   * A wide table, restacked as one card per row on a phone.
+   *
+   * Opt in with `<Table stacked>`, which sets `data-stacked` on the <table> and needs a
+   * `label` on every <Td>. Below 1024px each row becomes a bordered card and each cell
+   * becomes a "Column name ....... value" line; from `lg` up nothing here applies and it
+   * is an ordinary table again.
+   *
+   * Written as plain CSS on purpose. The equivalent Tailwind is a stack of nested
+   * arbitrary variants (`max-lg:[table[data-stacked]_&]:flex`), which is unreadable, and
+   * whether the generator emits a bracket inside a bracket at all is not something to
+   * find out from a phone. This compiles to exactly what it says.
+   *
+   * The <thead> is `sr-only`, NOT `display: none`: the real <th scope="col"> elements
+   * stay in the accessibility tree, so the thing remains a table to a screen reader and
+   * the visible labels are aria-hidden duplicates for the eye.
+   */
+  @media (max-width: 1023.98px) {
+    table[data-stacked],
+    table[data-stacked] tbody,
+    table[data-stacked] tr {
+      display: block;
+    }
+
+    table[data-stacked] thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /*
+     * `Tbody` carries `divide-y divide-edge-soft`, which is
+     * `.divide-y > :not([hidden]) ~ :not([hidden])` at (0,3,0) and therefore BEATS the
+     * rule below at (0,1,2). It does not matter: both resolve the top border to 1px of
+     * `--edge-soft`, so rows 2..n take their border from the divide utility and row 1
+     * from here, and they look identical. Measured at 360px in both themes:
+     * rgb(230 226 215) light, rgb(83 82 74) dark, 1px, 12px radius.
+     */
+    table[data-stacked] tbody > tr {
+      border-width: 1px;
+      border-color: rgb(var(--edge-soft));
+      border-radius: 0.75rem;
+      margin-bottom: 0.625rem;
+      padding: 0.25rem;
+    }
+    table[data-stacked] tbody > tr:last-child {
+      margin-bottom: 0;
+    }
+
+    table[data-stacked] td {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.375rem 0.625rem;
+      /* first:pl-4 / last:pr-4 are for columns, and there are no columns here. */
+      padding-left: 0.625rem;
+      padding-right: 0.625rem;
+    }
+
+    /* The column name, rendered from the cell's `label`. */
+    table[data-stacked] td > [data-cell-label] {
+      display: inline;
+    }
+    /*
+     * The value wrapper is `display: contents` everywhere else, so it cannot disturb a
+     * cell holding a div or a button row. Here it becomes a real box, so it can sit to
+     * the right of its label. A cell with no label simply fills the line.
+     */
+    table[data-stacked] td > [data-cell-value] {
+      display: block;
+      min-width: 0;
+      text-align: right;
+    }
+  }
 }

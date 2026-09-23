@@ -23,7 +23,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ChevronRightIcon, TrashIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { roleLabel } from "@/lib/format";
 
 type TeamUser = {
@@ -54,6 +55,8 @@ export default async function TeamPage({
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   const sp = await searchParams;
 
   const permissionState = await farmPermissionState(profile);
@@ -169,42 +172,52 @@ export default async function TeamPage({
         <ChevronRightIcon className="shrink-0 text-sand-400" />
       </Link>
 
+      {/* Inviting somebody is a card of four fields that was open on a page whose job is
+          to show you who is on the farm and what they may do. */}
       {canManage ? (
-        <Card>
-          <CardHeader><CardTitle>{t("team.invite", locale)}</CardTitle></CardHeader>
-          <form action={inviteUser} className="flex flex-col gap-3">
-            <input type="hidden" name="back" value="/team" />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label={t("team.name", locale)} htmlFor="inv-name" required>
-                <Input id="inv-name" name="name" required />
-              </Field>
-              <Field label={t("team.email", locale)} htmlFor="inv-email" required>
-                <Input id="inv-email" name="email" type="email" required />
-              </Field>
-              <Field label={t("team.role", locale)} htmlFor="inv-role">
-                <Select id="inv-role" name="role" defaultValue="operator">
-                  <option value="manager">{t("team.roleManager", locale)}</option>
-                  <option value="mechanic">{t("team.roleMechanic", locale)}</option>
-                  <option value="operator">{t("team.roleOperator", locale)}</option>
-                </Select>
-              </Field>
-              <Field label={t("team.language", locale)} htmlFor="inv-lang">
-                <Select id="inv-lang" name="language" defaultValue="af">
-                  <option value="af">{t("settings.afrikaans", locale)}</option>
-                  <option value="en">{t("settings.english", locale)}</option>
-                </Select>
-              </Field>
-            </div>
-            <SubmitButton variant="primary" className="self-start">{t("team.inviteBtn", locale)}</SubmitButton>
-          </form>
-        </Card>
+        <div className="flex">
+          <DialogForm
+            trigger={t("team.invite", locale)}
+            triggerIcon={<PlusIcon />}
+            title={t("team.invite", locale)}
+            closeLabel={closeLabel}
+          >
+            <form action={inviteUser}>
+              <input type="hidden" name="back" value="/team" />
+              <DialogFields>
+                <Field label={t("team.name", locale)} htmlFor="inv-name" required>
+                  <Input id="inv-name" name="name" required />
+                </Field>
+                <Field label={t("team.email", locale)} htmlFor="inv-email" required>
+                  <Input id="inv-email" name="email" type="email" required />
+                </Field>
+                <Field label={t("team.role", locale)} htmlFor="inv-role">
+                  <Select id="inv-role" name="role" defaultValue="operator">
+                    <option value="manager">{t("team.roleManager", locale)}</option>
+                    <option value="mechanic">{t("team.roleMechanic", locale)}</option>
+                    <option value="operator">{t("team.roleOperator", locale)}</option>
+                  </Select>
+                </Field>
+                <Field label={t("team.language", locale)} htmlFor="inv-lang">
+                  <Select id="inv-lang" name="language" defaultValue="af">
+                    <option value="af">{t("settings.afrikaans", locale)}</option>
+                    <option value="en">{t("settings.english", locale)}</option>
+                  </Select>
+                </Field>
+              </DialogFields>
+              <DialogActions cancelLabel={cancelLabel}>
+                <SubmitButton variant="primary">{t("team.inviteBtn", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        </div>
       ) : null}
 
       <Card flush>
         {users.length === 0 ? (
           <p className="p-4 text-sm text-sand-500">{t("team.empty", locale)}</p>
         ) : (
-          <Table>
+          <Table stacked>
             <Thead>
               <Tr>
                 <Th>{t("team.name", locale)}</Th>
@@ -218,7 +231,7 @@ export default async function TeamPage({
             <Tbody>
               {users.map((u) => (
                 <Tr key={u.id}>
-                  <Td className="font-medium text-sand-900">
+                  <Td label={t("team.name", locale)} className="font-medium text-sand-900">
                     {u.name}
                     {u.id === profile.id ? <span className="ml-1 text-xs text-sand-400">({t("team.you", locale)})</span> : null}
                     {!u.isPrimaryMember ? (
@@ -227,10 +240,10 @@ export default async function TeamPage({
                       </span>
                     ) : null}
                   </Td>
-                  <Td><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
-                  <Td className="text-sand-500">{u.email ?? "-"}</Td>
-                  <Td>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
-                  <Td>
+                  <Td label={t("team.role", locale)}><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
+                  <Td label={t("team.email", locale)} className="text-sand-500">{u.email ?? "-"}</Td>
+                  <Td label={t("team.active", locale)}>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
+                  <Td label={t("permissions.title", locale)}>
                     <div className="flex min-w-56 flex-col gap-2 py-1">
                       {USER_PERMISSIONS.map((permission) => {
                         const baseline = roleHasBaselinePermission(u.role, permission);

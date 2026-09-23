@@ -25,7 +25,9 @@ import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";
 import { DocStatus as DocStatusBadge } from "@/components/ui/status";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { TrashIcon, DownloadIcon } from "@/components/ui/icons";
+import { TrashIcon, DownloadIcon, PlusIcon } from "@/components/ui/icons";
+import { Fact, FactList } from "@/components/ui/facts";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import {
   addDocumentLine, removeDocumentLine, updateDocument, sendDocument,
   convertQuoteToInvoice, acceptDocument, declineDocument, recordPayment,
@@ -493,25 +495,61 @@ export default async function DocumentPage({
             </form>
           </Card>
 
+          {/* The document's own fields: the subject, the dates, a discount, the notes and
+              terms. Six controls that are set once and then read, unlike the line form
+              above, which is the repeated act of building the document and stays open. */}
           <Card>
-            <CardHeader><CardTitle>{t("doc.details", locale)}</CardTitle></CardHeader>
-            <form action={updateDocument} className="flex flex-col gap-3">
-              <input type="hidden" name="document_id" value={doc.id} />
-              <TextField name="subject" label={t("doc.newSubject", locale)} defaultValue={doc.subject ?? ""} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField name="issue_date" type="date" label={t("doc.issued", locale)} defaultValue={doc.issue_date} />
-                <TextField
-                  name="due_date"
-                  type="date"
-                  label={t(doc.kind === "quote" ? "doc.validUntil" : "doc.dueBy", locale)}
-                  defaultValue={doc.due_date ?? ""}
-                />
-              </div>
-              <TextField name="discount" inputMode="decimal" label={t("doc.discountRands", locale)} defaultValue={doc.discount_cents ? String(doc.discount_cents / 100) : ""} />
-              <TextareaField name="notes" rows={3} label={t("doc.notes", locale)} hint={t("doc.notesHint", locale)} defaultValue={doc.notes ?? ""} />
-              <TextareaField name="terms" rows={3} label={t("doc.terms", locale)} defaultValue={doc.terms ?? ""} />
-              <SubmitButton variant="secondary">{t("common.save", locale)}</SubmitButton>
-            </form>
+            <CardHeader
+              action={
+                <DialogForm
+                  trigger={t("common.edit", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("doc.details", locale)}
+                  description={doc.number}
+                  closeLabel={t("ui.close", locale)}
+                  size="md"
+                >
+                  <form action={updateDocument}>
+                    <input type="hidden" name="document_id" value={doc.id} />
+                    <DialogFields columns={1}>
+                      <TextField name="subject" label={t("doc.newSubject", locale)} defaultValue={doc.subject ?? ""} />
+                      <TextField name="issue_date" type="date" label={t("doc.issued", locale)} defaultValue={doc.issue_date} />
+                      <TextField
+                        name="due_date"
+                        type="date"
+                        label={t(doc.kind === "quote" ? "doc.validUntil" : "doc.dueBy", locale)}
+                        defaultValue={doc.due_date ?? ""}
+                      />
+                      <TextField name="discount" inputMode="decimal" label={t("doc.discountRands", locale)} defaultValue={doc.discount_cents ? String(doc.discount_cents / 100) : ""} />
+                      <TextareaField name="notes" rows={3} label={t("doc.notes", locale)} hint={t("doc.notesHint", locale)} defaultValue={doc.notes ?? ""} />
+                      <TextareaField name="terms" rows={3} label={t("doc.terms", locale)} defaultValue={doc.terms ?? ""} />
+                    </DialogFields>
+                    <DialogActions cancelLabel={t("common.cancel", locale)}>
+                      <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              }
+            >
+              <CardTitle>{t("doc.details", locale)}</CardTitle>
+            </CardHeader>
+            <FactList>
+              <Fact
+                label={t("doc.newSubject", locale)}
+                value={doc.subject || t("settings.notSet", locale)}
+                muted={!doc.subject}
+              />
+              <Fact label={t("doc.issued", locale)} value={shortDate(doc.issue_date, locale)} />
+              <Fact
+                label={t(doc.kind === "quote" ? "doc.validUntil" : "doc.dueBy", locale)}
+                value={doc.due_date ? shortDate(doc.due_date, locale) : t("settings.notSet", locale)}
+                muted={!doc.due_date}
+              />
+              {doc.discount_cents ? (
+                <Fact label={t("doc.discountRands", locale)} value={rands(doc.discount_cents)} />
+              ) : null}
+            </FactList>
           </Card>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -709,29 +747,47 @@ export default async function DocumentPage({
             <p className="mb-3 text-sm text-sand-500">{t("doc.noPayments", locale)}</p>
           )}
 
+          {/* Recording a payment is an event, not a setting: it happens when the money
+              lands, which is rarely the moment you are looking at the invoice. The
+              balance due stays on the page; the four fields do not. */}
           {balance > 0 && canPay ? (
-            <form action={recordPayment} className="flex flex-col gap-3">
-              <input type="hidden" name="document_id" value={doc.id} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField
-                  name="amount"
-                  inputMode="decimal"
-                  label={t("doc.paymentAmount", locale)}
-                  hint={`${t("doc.balanceDue", locale)}: ${rands(balance)}`}
-                  defaultValue={String(balance / 100)}
-                  required
-                />
-                <TextField name="paid_on" type="date" label={t("doc.paidOn", locale)} defaultValue={new Date().toISOString().slice(0, 10)} />
-                <SelectField name="method" label={t("doc.paymentMethod", locale)} defaultValue="eft">
-                  <option value="eft">{t("doc.methodEft", locale)}</option>
-                  <option value="cash">{t("doc.methodCash", locale)}</option>
-                  <option value="card">{t("doc.methodCard", locale)}</option>
-                  <option value="other">{t("doc.methodOther", locale)}</option>
-                </SelectField>
-                <TextField name="reference" label={t("doc.paymentReference", locale)} defaultValue={doc.number} />
-              </div>
-              <SubmitButton variant="secondary">{t("doc.recordPayment", locale)}</SubmitButton>
-            </form>
+            <div className="flex">
+              <DialogForm
+                trigger={t("doc.recordPayment", locale)}
+                triggerIcon={<PlusIcon />}
+                triggerVariant="secondary"
+                triggerSize="sm"
+                title={t("doc.recordPayment", locale)}
+                description={`${t("doc.balanceDue", locale)}: ${rands(balance)}`}
+                closeLabel={t("ui.close", locale)}
+                size="md"
+              >
+                <form action={recordPayment}>
+                  <input type="hidden" name="document_id" value={doc.id} />
+                  <DialogFields>
+                    <TextField
+                      name="amount"
+                      inputMode="decimal"
+                      label={t("doc.paymentAmount", locale)}
+                      hint={`${t("doc.balanceDue", locale)}: ${rands(balance)}`}
+                      defaultValue={String(balance / 100)}
+                      required
+                    />
+                    <TextField name="paid_on" type="date" label={t("doc.paidOn", locale)} defaultValue={new Date().toISOString().slice(0, 10)} />
+                    <SelectField name="method" label={t("doc.paymentMethod", locale)} defaultValue="eft">
+                      <option value="eft">{t("doc.methodEft", locale)}</option>
+                      <option value="cash">{t("doc.methodCash", locale)}</option>
+                      <option value="card">{t("doc.methodCard", locale)}</option>
+                      <option value="other">{t("doc.methodOther", locale)}</option>
+                    </SelectField>
+                    <TextField name="reference" label={t("doc.paymentReference", locale)} defaultValue={doc.number} />
+                  </DialogFields>
+                  <DialogActions cancelLabel={t("common.cancel", locale)}>
+                    <SubmitButton variant="primary">{t("doc.recordPayment", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+              </DialogForm>
+            </div>
           ) : null}
 
           {/* Money going back. A credit note lowers what they owe; if they had already

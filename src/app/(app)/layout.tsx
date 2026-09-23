@@ -20,8 +20,16 @@ import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 // interactivity, the barrel would pull the kit's full client chunk (see
 // src/components/ui/README.md).
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
-import { BellIcon, MachinesIcon, SignOutIcon, FaultsIcon } from "@/components/ui/icons";
+import {
+  BellIcon,
+  MachinesIcon,
+  SignOutIcon,
+  FaultsIcon,
+  ChevronUpIcon,
+} from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { menuItemClass } from "@/components/ui/menu-item";
 // Direct, not the barrel: see the note above. The palette is the only new
 // client code this shell pulls, and it is one list plus two arrow keys.
 import { CommandPalette } from "@/components/ui/command-palette";
@@ -327,14 +335,31 @@ export default async function AppLayout({
     invisible until you found and opened a summary, a person who never did had no way
     to know those screens existed.
 
-    They are now a named group like any other, and the whole panel scrolls with a visible
+    They are now named groups like any other, and the whole panel scrolls with a visible
     scrollbar and an edge fade (see ScrollArea). Nothing in the nav is hidden from anyone
     who is allowed to reach it.
+
+    Three groups and not one. "Everything else" had grown to twelve destinations for an
+    owner, which is a bucket, not a heading, and the sticky headings added above make a
+    heading that says nothing more conspicuous rather than less. Two of those twelve are
+    unarguably a different KIND of thing from the other ten, so they are named: what you
+    do to your account (settings, billing, API access, and the cross-tenant admin
+    screens) and where you go for help. The remaining operational screens keep the
+    founder's existing label, because inventing a taxonomy for them is a product
+    decision and not a UI one.
   */
-  const tailItems: NavItemData[] = isWorkshop
+  const tailAccount: NavItemData[] = isWorkshop
+    ? []
+    : [
+        ...(apiTokensAllowed ? [apiTokens] : []),
+        ...(isManagerPlus ? [settings] : []),
+        ...(isOwner ? [billing] : []),
+        ...(isAdmin ? [admin, adminBilling, billing] : []),
+      ];
+  const tailRest: NavItemData[] = isWorkshop
     // `partnerSettings` lives in the "farm" group above; listing it here too put
     // the same destination in the sidebar twice.
-    ? [parts, install]
+    ? [parts]
     : [
         ...(canParts ? [parts] : []),
         tyres,
@@ -343,13 +368,29 @@ export default async function AppLayout({
         ...(finesAllowed ? [fines] : []),
         incidents,
         calendar,
-        ...(apiTokensAllowed ? [apiTokens] : []),
-        ...(isOwner ? [billing] : []),
-        ...(isManagerPlus ? [settings] : []),
-        ...(isAdmin ? [admin, adminBilling, billing] : []),
-        help,
-        install,
       ];
+  const tailHelp: NavItemData[] = isWorkshop ? [install] : [help, install];
+
+  /**
+   * One definition of the tail, spread by all four consumers (sidebar, "More" sheet,
+   * command palette, service-worker warm list). They used to rebuild
+   * `{ key: "tail", label: nav.everythingElse, items: tailItems }` at three separate
+   * call sites, which is three chances to disagree about what the tail is.
+   *
+   * Deduped by href: an account that is BOTH owner and rr_admin matched
+   * `isOwner ? [billing]` and `isAdmin ? [..., billing]`, and got the same
+   * destination twice in one group.
+   */
+  const tailGroups: { key: string; label: string; items: NavItemData[] }[] = [
+    { key: "tail", label: t("nav.everythingElse", locale), items: tailRest },
+    { key: "account", label: t("nav.groupAccount", locale), items: tailAccount },
+    { key: "help", label: t("nav.groupHelp", locale), items: tailHelp },
+  ]
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i, n) => g.items.findIndex((o) => o.href === i.href) === n),
+    }))
+    .filter((g) => g.items.length > 0);
 
   /*
     The "More" sheet used to be a FLAT, ungrouped list built by hand, for a
@@ -357,7 +398,7 @@ export default async function AppLayout({
     desktop sidebar was organised into three named groups. The phone and the
     desktop disagreed about what the product is.
 
-    It is now DERIVED from the sidebar's own `groups` + `tailItems`, so the two
+    It is now DERIVED from the sidebar's own `groups` + `tailGroups`, so the two
     shells cannot drift again, minus whatever already has a permanent tab at the
     bottom of the screen (no point listing it twice). `moreItems` above is kept
     only as the flat source for the badge roll-up.
@@ -365,22 +406,20 @@ export default async function AppLayout({
   const tabHrefs = new Set(tabItems.map((i) => i.href));
   const moreGroups = [
     ...groups,
-    ...(tailItems.length ? [{ key: "tail", label: t("nav.everythingElse", locale), items: tailItems }] : []),
+    ...tailGroups,
   ]
     .map((g) => ({ ...g, items: g.items.filter((i) => !tabHrefs.has(i.href)) }))
     .filter((g) => g.items.length > 0);
 
   /**
    * What Ctrl/⌘+K can reach. Built from the same server-computed `groups` and
-   * `tailItems` as the sidebar, so the palette cannot offer a destination this
+   * `tailGroups` as the sidebar, so the palette cannot offer a destination this
    * role may not open, but WITHOUT `moreGroups`' tab filter, because a tab
    * being on screen is no reason you should not be able to type its name.
    */
   const paletteGroups = [
     ...groups,
-    ...(tailItems.length
-      ? [{ key: "tail", label: t("nav.everythingElse", locale), items: tailItems }]
-      : []),
+    ...tailGroups,
   ].filter((g) => g.items.length > 0);
 
   const appName = t("app.name", locale);
@@ -448,7 +487,12 @@ export default async function AppLayout({
   // screens are there when the signal is not (see WarmRoutes / sw.js).
   const warmPaths = [
     ...new Set(
-      [...groups.flatMap((g) => g.items), ...tailItems, ...tabItems, ...moreItems].map((i) => i.href),
+      [
+        ...groups.flatMap((g) => g.items),
+        ...tailGroups.flatMap((g) => g.items),
+        ...tabItems,
+        ...moreItems,
+      ].map((i) => i.href),
     ),
   ];
 
@@ -478,11 +522,43 @@ export default async function AppLayout({
             <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
           </div>
         )}
-        <ScrollArea label={t("nav.menu", locale)} className="px-3 py-2" fadeClassName="from-surface">
-          <nav className="space-y-5">
-            {groups.map((g) => (
+        {/*
+          `rememberKey`/`revealActive`: this nav is up to 26 destinations and 909px of
+          scroll on a 720px laptop. A client-side navigation keeps the offset for free
+          because React never unmounts the panel; a HARD load does not, and this is a
+          PWA relaunched from a home screen with a service worker serving the document.
+          Measured before the fix: scrollTop 909 -> 0 on a full load. `revealActive`
+          covers the other half, arriving on /billing from an email link with the
+          active row 600px below the fold.
+
+          The vertical padding sits on the `<nav>` and not on the scroller, because a
+          sticky child is constrained by the scroll container's PADDING box: `py-2`
+          here pinned every group heading 8px down and left a strip above it that rows
+          scrolled through in the open. Measured: heading top 8, wanted 0.
+        */}
+        <ScrollArea
+          label={t("nav.menu", locale)}
+          className="px-3"
+          fadeClassName="from-surface"
+          rememberKey="nav-sidebar"
+          revealActive
+        >
+          <nav className="space-y-5 py-2">
+            {/*
+              One loop over one list. The tail used to be a second, near-identical block
+              below this map, which is how the two came to render the same heading markup
+              twice and could have drifted apart on the next change.
+            */}
+            {[...groups, ...tailGroups].map((g) => (
               <div key={g.key} className="space-y-1">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sand-400">
+                {/*
+                  Sticky, and above the ScrollArea's top fade (`z-10` beats the fade's
+                  `z-auto` in the aside's stacking context). Scrolling 900px of nav with
+                  no heading in sight is how you lose track of which section you are in.
+                  `-mx-3 px-6` bleeds it to the panel edges so rows pass BEHIND it
+                  rather than beside it.
+                */}
+                <p className="sticky top-0 z-10 -mx-3 bg-surface px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-sand-400">
                   {g.label}
                 </p>
                 {g.items.map((item) => (
@@ -490,47 +566,55 @@ export default async function AppLayout({
                 ))}
               </div>
             ))}
-            {tailItems.length > 0 ? (
-              <div className="space-y-1">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sand-400">
-                  {t("nav.everythingElse", locale)}
-                </p>
-                {tailItems.map((item) => (
-                  <NavLink key={item.href} item={item} variant="sidebar" />
-                ))}
-              </div>
-            ) : null}
           </nav>
         </ScrollArea>
-        <div className="border-t border-sand-200 p-3">
-          <div className="mb-2 flex items-center justify-between gap-2 px-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-sand-500">
-              {languageLabel}
-            </span>
-            <LanguageSwitcher current={languageChoice} label={languageLabel} />
-          </div>
-          <div className="mb-2 flex items-center justify-between gap-2 px-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-sand-500">
-              {themeLabel}
-            </span>
-            <ThemeToggle label={themeLabel} labels={themeLabels} />
-          </div>
-          <div className="mb-1 flex items-center gap-2.5 px-1">
-            {avatar}
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-sand-900">{profile.name}</span>
-              <span className="block truncate text-xs capitalize text-sand-500">{profile.role}</span>
-            </span>
-          </div>
-          <AssistantSafeSignOutForm action={signOut} locale={locale}>
-            <button
-              type="submit"
-              className="focus-ring flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-sand-600 hover:bg-sand-100 hover:text-sand-900"
-            >
-              <SignOutIcon className="text-xl" />
-              {signOutLabel}
-            </button>
-          </AssistantSafeSignOutForm>
+        {/*
+          One account row, not four stacked blocks.
+
+          This footer used to be a Language row, an Appearance row, the person's name
+          and a Sign out button, all permanently on screen: ~160px of a 720px sidebar
+          spent on two switchers that are pressed roughly never, taken off the nav,
+          which is the part with 909px of content and nowhere to put it. They now live
+          behind the row that names you, which is where every other product keeps them,
+          and the nav gets the height back.
+        */}
+        <div className="border-t border-edge-soft p-2">
+          <ActionMenu
+            title={profile.name}
+            label={t("nav.account", locale)}
+            closeLabel={t("ui.close", locale)}
+            triggerLook="bare"
+            triggerClassName="focus-ring flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
+            trigger={
+              <>
+                {avatar}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-sand-900">
+                    {profile.name}
+                  </span>
+                  <span className="block truncate text-xs capitalize text-sand-500">
+                    {profile.role}
+                  </span>
+                </span>
+                <ChevronUpIcon className="shrink-0 text-lg text-sand-400" />
+              </>
+            }
+          >
+            <div className="flex items-center justify-between gap-3 px-1 py-1">
+              <span className="text-sm font-medium text-sand-800">{languageLabel}</span>
+              <LanguageSwitcher current={languageChoice} label={languageLabel} />
+            </div>
+            <div className="flex items-center justify-between gap-3 px-1 py-1">
+              <span className="text-sm font-medium text-sand-800">{themeLabel}</span>
+              <ThemeToggle label={themeLabel} labels={themeLabels} />
+            </div>
+            <AssistantSafeSignOutForm action={signOut} locale={locale}>
+              <button type="submit" className={menuItemClass()}>
+                <SignOutIcon className="text-xl text-sand-500" />
+                {signOutLabel}
+              </button>
+            </AssistantSafeSignOutForm>
+          </ActionMenu>
         </div>
       </aside>
 

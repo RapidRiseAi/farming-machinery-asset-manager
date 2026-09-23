@@ -4,6 +4,7 @@
     "tagline": "Every machine on your farm: costs, services, faults, in one place."
   },
   "common": {
+    "actions": "Actions",
     "save": "Save",
     "cancel": "Cancel",
     "add": "Add",
@@ -38,6 +39,8 @@
     "groupWorkshop": "Workshop",
     "groupFarm": "Farm",
     "groupAdmin": "Admin",
+    "groupAccount": "Account",
+    "groupHelp": "Help",
     "parts": "Parts",
     "partners": "Partners",
     "checklists": "Checklists",
@@ -551,6 +554,8 @@
     "varianceShort": "{n} L short of the books"
   },
   "machine": {
+    "kitQty": "Quantity",
+    "lastDoneDate": "Last done on",
     "edit": "Edit",
     "editMachine": "Edit machine",
     "qrCode": "QR code",
@@ -857,6 +862,8 @@
     "tplBillingRenewalDue": "Your FleetWise subscription renews on {date} and {amount} will come off the card on file. Nothing to do. This is just so you know before it lands."
   },
   "settings": {
+    "notSet": "Not set",
+    "vatRateShort": "VAT rate",
     "title": "Settings",
     "thresholds": "Alert thresholds",
     "dueHours": "Warn when service due within (hours)",
@@ -1365,6 +1372,7 @@
     "api": "API"
   },
   "compliance": {
+    "type": "Type",
     "title": "Compliance",
     "warranty": "Warranty",
     "warrantyDate": "Warranty expiry",
@@ -1411,6 +1419,11 @@
     "other": "Other"
   },
   "incidents": {
+    "sectionDriver": "Who was driving",
+    "sectionSaps": "The police report",
+    "sectionThirdParty": "The other party",
+    "sectionInjuries": "Injuries",
+    "sectionClaim": "The insurance claim",
     "title": "Accidents & claims",
     "lead": "Collisions, thefts and injuries, the SAPS case, the other driver, and what the insurer still owes.",
     "statOpen": "Still open",

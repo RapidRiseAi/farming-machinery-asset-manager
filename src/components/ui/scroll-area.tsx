@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "./cn";
+import { useScrollMemory } from "./use-scroll-memory";
 
 /**
  * A scrollable panel that says so.
@@ -28,6 +29,8 @@ export function ScrollArea({
   // bottom nav rows in the dark theme, which read as a broken or selected row.
   fadeClassName = "from-surface",
   label,
+  rememberKey,
+  revealActive = false,
 }: {
   children: ReactNode;
   className?: string;
@@ -37,10 +40,25 @@ export function ScrollArea({
   fadeClassName?: string;
   /** Accessible name, a scrollable region needs one to be reachable by keyboard. */
   label?: string;
+  /**
+   * Remember this panel's scroll offset for the tab session under this key, and put it
+   * back when the panel mounts again. Without it a hard load, a PWA relaunch or a
+   * document served by the service worker drops you at the top of a 900px list.
+   */
+  rememberKey?: string;
+  /**
+   * On the first mount of a session, with nothing remembered yet, bring whatever
+   * carries `aria-current="page"` into view instead of showing the top.
+   */
+  revealActive?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(false);
   const [bottom, setBottom] = useState(false);
+
+  // Runs before the measuring effect below, so the offset is already restored when the
+  // fades are first measured and they describe where the panel actually is.
+  useScrollMemory(ref, rememberKey, revealActive ? { reveal: '[aria-current="page"]' } : {});
 
   useEffect(() => {
     const el = ref.current;

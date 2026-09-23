@@ -412,7 +412,16 @@ export default async function ContractorDashboardPage({
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                     <Stat label={t("contractor.clientsN", locale)} value={farmIds.length} />
-                    <Stat label={t("contractor.invoicedTotal", locale)} value={rands(totalInvoiced)} tone="brand" />
+                    {/* A two-column tile is about 136px wide inside on a 360px phone, and
+                        `rands` is one unbreakable token (U+00A0 thousands), so a partner
+                        with a good year overflows it at `text-3xl`. Steps down on the
+                        phone only, as the dashboard's fuel tiles already do. */}
+                    <Stat
+                      label={t("contractor.invoicedTotal", locale)}
+                      value={rands(totalInvoiced)}
+                      tone="brand"
+                      valueClassName="text-xl sm:text-3xl"
+                    />
                   </div>
                   <ul className="flex flex-col divide-y divide-sand-100 text-sm">
                     {farmStats.map((fs) => (

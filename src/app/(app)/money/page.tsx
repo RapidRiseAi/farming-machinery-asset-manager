@@ -284,7 +284,7 @@ function AgeingTable({
   nameHeader: string;
 }) {
   return (
-      <Table className="min-w-[34rem]">
+      <Table stacked className="lg:min-w-[34rem]">
         <Thead>
           <Tr className="text-left text-sand-500">
             <Th className="font-medium">{nameHeader}</Th>
@@ -298,12 +298,12 @@ function AgeingTable({
         <Tbody>
           {rows.map((r) => (
             <Tr key={r.label}>
-              <Td className="text-sand-900">{r.label}</Td>
-              <Td className="text-right tabular-nums text-sand-700">{rands(r.current_cents)}</Td>
-              <Td className="text-right tabular-nums text-sand-700">{rands(r.d30_cents)}</Td>
-              <Td className="text-right tabular-nums text-status-warn">{rands(r.d60_cents)}</Td>
-              <Td className="text-right tabular-nums text-status-overdue">{rands(r.d90_cents)}</Td>
-              <Td className="text-right font-medium tabular-nums text-sand-900">{rands(r.total_cents)}</Td>
+              <Td label={nameHeader} className="text-sand-900">{r.label}</Td>
+              <Td label={t("money.bucketCurrent", locale)} className="text-right tabular-nums text-sand-700">{rands(r.current_cents)}</Td>
+              <Td label={t("money.bucket30", locale)} className="text-right tabular-nums text-sand-700">{rands(r.d30_cents)}</Td>
+              <Td label={t("money.bucket60", locale)} className="text-right tabular-nums text-status-warn">{rands(r.d60_cents)}</Td>
+              <Td label={t("money.bucket90", locale)} className="text-right tabular-nums text-status-overdue">{rands(r.d90_cents)}</Td>
+              <Td label={t("money.bucketTotal", locale)} className="text-right font-medium tabular-nums text-sand-900">{rands(r.total_cents)}</Td>
             </Tr>
           ))}
         </Tbody>

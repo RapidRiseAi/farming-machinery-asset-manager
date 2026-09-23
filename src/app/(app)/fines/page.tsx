@@ -26,6 +26,8 @@ import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, AllClear } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { ExpiryStatus, FineStatus } from "@/components/ui/status";
 import { TrashIcon } from "@/components/ui/icons";
 
@@ -39,7 +41,6 @@ type FineRow = {
 };
 type UsageRow = { driver_user_id: string | null; driver_name: string | null; meter_reading: number | null };
 
-const inputCls = "rounded-lg border border-sand-300 px-3 py-2 text-sm";
 
 export default async function FinesPage({
   searchParams,
@@ -213,49 +214,83 @@ export default async function FinesPage({
           <FineStatus value={f.status} locale={locale} />
         </div>
 
+        {/*
+          Set the status, name the driver, delete: one button per row.
+
+          The row used to carry a `<Select>` of all seven fine statuses next to a Save
+          button, plus a `<details>` holding a two-field driver form, plus a delete. The
+          status select was the worst of them: seven options and a separate submit, on
+          every row, for a change that is made once in the life of a fine.
+        */}
         {canManage ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-sand-100 pt-2">
-            {/* Change status */}
-            <form action={updateFineStatus} className="flex items-center gap-1.5">
-              <input type="hidden" name="id" value={f.id} />
-              <Select name="status" defaultValue={f.status} className="text-sm">
-                {FINE_STATUSES.map((s) => (
-                  <option key={s} value={s}>{fineStatusLabel(s, locale)}</option>
-                ))}
-              </Select>
-              <SubmitButton variant="secondary" size="sm">{t("fines.setStatus", locale)}</SubmitButton>
-            </form>
-
-            {/* Identify / re-assign the driver */}
-            {nominationPending(f.status) ? (
-              <details>
-                <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("fines.identifyDriver", locale)}</summary>
-                <form action={identifyDriver} className="mt-2 flex flex-wrap items-end gap-2">
+          <div className="mt-2 flex border-t border-sand-100 pt-2">
+            <ActionMenu
+              title={f.notice_number ?? machineById.get(f.machine_id)?.name ?? "-"}
+              label={t("common.actions", locale)}
+              closeLabel={t("ui.close", locale)}
+              trigger={t("common.actions", locale)}
+            >
+              <DialogForm
+                triggerLook="menuItem"
+                trigger={t("fines.setStatus", locale)}
+                title={t("fines.setStatus", locale)}
+                description={f.notice_number ?? undefined}
+                closeLabel={t("ui.close", locale)}
+                size="md"
+              >
+                <form action={updateFineStatus}>
                   <input type="hidden" name="id" value={f.id} />
-                  <Field label={t("fines.driver", locale)} htmlFor={`d-${f.id}`}>
-                    <Select id={`d-${f.id}`} name="driver_user_id" defaultValue={f.driver_user_id ?? ""}>
-                      <option value="">{t("fines.driverNameOption", locale)}</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.id}>{op.name}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label={t("fines.driverName", locale)} htmlFor={`dn-${f.id}`}>
-                    <Input id={`dn-${f.id}`} name="driver_name" defaultValue={f.driver_name ?? ""} placeholder={t("fines.driverNamePlaceholder", locale)} />
-                  </Field>
-                  <SubmitButton variant="primary" size="sm">{t("common.save", locale)}</SubmitButton>
+                  <DialogFields columns={1}>
+                    <Field label={t("fines.status", locale)} htmlFor={`st-${f.id}`}>
+                      <Select id={`st-${f.id}`} name="status" defaultValue={f.status}>
+                        {FINE_STATUSES.map((s) => (
+                          <option key={s} value={s}>{fineStatusLabel(s, locale)}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </DialogFields>
+                  <DialogActions cancelLabel={t("common.cancel", locale)}>
+                    <SubmitButton variant="primary">{t("fines.setStatus", locale)}</SubmitButton>
+                  </DialogActions>
                 </form>
-              </details>
-            ) : null}
+              </DialogForm>
 
-            <div className="ml-auto">
+              {nominationPending(f.status) ? (
+                <DialogForm
+                  triggerLook="menuItem"
+                  trigger={t("fines.identifyDriver", locale)}
+                  title={t("fines.identifyDriver", locale)}
+                  description={f.notice_number ?? undefined}
+                  closeLabel={t("ui.close", locale)}
+                  size="md"
+                >
+                  <form action={identifyDriver}>
+                    <input type="hidden" name="id" value={f.id} />
+                    <DialogFields>
+                      <Field label={t("fines.driver", locale)} htmlFor={`d-${f.id}`}>
+                        <Select id={`d-${f.id}`} name="driver_user_id" defaultValue={f.driver_user_id ?? ""}>
+                          <option value="">{t("fines.driverNameOption", locale)}</option>
+                          {operators.map((op) => (
+                            <option key={op.id} value={op.id}>{op.name}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label={t("fines.driverName", locale)} htmlFor={`dn-${f.id}`}>
+                        <Input id={`dn-${f.id}`} name="driver_name" defaultValue={f.driver_name ?? ""} placeholder={t("fines.driverNamePlaceholder", locale)} />
+                      </Field>
+                    </DialogFields>
+                    <DialogActions cancelLabel={t("common.cancel", locale)}>
+                      <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              ) : null}
+
               <ConfirmDialog
                 action={deleteFine}
-                triggerVariant="ghost"
-                triggerSize="sm"
+                triggerLook="menuItem"
                 triggerIcon={<TrashIcon />}
                 triggerLabel={t("common.delete", locale)}
-                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                 title={t("confirm.deleteFineTitle", locale)}
                 intro={t("confirm.deleteFineIntro", locale)
                   .replace("{notice}", f.notice_number ?? "-")
@@ -272,7 +307,7 @@ export default async function FinesPage({
               >
                 <input type="hidden" name="id" value={f.id} />
               </ConfirmDialog>
-            </div>
+            </ActionMenu>
           </div>
         ) : null}
       </li>

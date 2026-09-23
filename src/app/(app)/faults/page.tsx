@@ -8,14 +8,15 @@ import { relativeDate } from "@/lib/format";
 import { resolveFault, acknowledgeFault, startFault, assignFault } from "./actions";
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { FaultCapture } from "@/components/fault-capture";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { AllClear } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { FaultsIcon, JobCardsIcon } from "@/components/ui/icons";
+import { FaultsIcon, JobCardsIcon, PlusIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { Field } from "@/components/ui/field";
 import { UrgencyStatus, FaultStatus } from "@/components/ui/status";
 
 type Fault = {
@@ -119,6 +120,29 @@ export default async function FaultsPage({
           {t("faults.titleNew", locale)}
         </h1>
           <PageInfoButton infoKey="faults" locale={locale} />
+          {/*
+            Reporting a fault is what an operator opens this screen to do, so it stays
+            the prominent action, but as a button rather than a permanently expanded
+            capture card with a machine picker, a photo control and a voice recorder.
+            `FaultCapture` navigates on success (`window.location`), so the dialog
+            closing is not something it has to be told about.
+          */}
+          {canReport && machines.length > 0 ? (
+            <DialogForm
+              trigger={t("faults.report", locale)}
+              triggerIcon={<PlusIcon />}
+              title={t("faults.report", locale)}
+              closeLabel={t("ui.close", locale)}
+            >
+              <FaultCapture
+                endpoint="/api/faults"
+                machines={reportMachines.map((m) => ({ id: m.id, name: m.name }))}
+                redirectTo="/faults?saved=1"
+                locale={locale}
+                variant="app"
+              />
+            </DialogForm>
+          ) : null}
         </div>
         <p className="mt-1 text-sm text-sand-500">
           {stoppedCount > 0 ? (
@@ -135,12 +159,6 @@ export default async function FaultsPage({
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
-      {canReport && machines.length > 0 ? (
-        <Card>
-          <CardHeader><CardTitle>{t("faults.report", locale)}</CardTitle></CardHeader>
-          <FaultCapture endpoint="/api/faults" machines={reportMachines.map((m) => ({ id: m.id, name: m.name }))} redirectTo="/faults?saved=1" locale={locale} variant="app" />
-        </Card>
-      ) : null}
 
       {openCount === 0 ? (
         <AllClear
@@ -227,9 +245,15 @@ export default async function FaultsPage({
 
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {/* One green action per row, every one of these used to be a
-                          `variant="ghost" size="sm"`, so when everything is quiet
-                          nothing is obvious. */}
+                      {/*
+                        One green action per row, kept on the row. Everything else moved
+                        behind it: acknowledge, start, assign and resolve were four more
+                        `<form>`s on every row, and the assign form carried a `<Select>`
+                        listing every active user on the farm, so eight open faults put
+                        forty controls and eight copies of the staff list on one screen.
+                        The primary action stays visible because a quiet screen with
+                        nothing obvious on it is the failure the green button fixed.
+                      */}
                       {canJob && !f.job_card_id ? (
                         <form action={createJobCard}>
                           <input type="hidden" name="machine_id" value={f.machine_id} />
@@ -241,35 +265,63 @@ export default async function FaultsPage({
                           </SubmitButton>
                         </form>
                       ) : null}
-                      {canJob && f.status === "open" ? (
-                        <form action={acknowledgeFault}>
-                          <input type="hidden" name="id" value={f.id} />
-                          <Button type="submit" variant="ghost" size="sm">{t("faults.acknowledge", locale)}</Button>
-                        </form>
-                      ) : null}
-                      {canJob && (f.status === "open" || f.status === "acknowledged") ? (
-                        <form action={startFault}>
-                          <input type="hidden" name="id" value={f.id} />
-                          <Button type="submit" variant="ghost" size="sm">{t("faults.startWork", locale)}</Button>
-                        </form>
-                      ) : null}
-                      {canResolve && users.length > 0 ? (
-                        <form action={assignFault} className="flex items-center gap-1">
-                          <input type="hidden" name="id" value={f.id} />
-                          <Select name="assigned_to" defaultValue={f.assigned_to ?? ""} aria-label={t("faults.assignTo", locale)} className="h-9 py-0 text-sm">
-                            <option value="">{t("faults.unassigned", locale)}</option>
-                            {users.map((u) => (
-                              <option key={u.id} value={u.id}>{u.name}</option>
-                            ))}
-                          </Select>
-                          <Button type="submit" variant="ghost" size="sm">{t("faults.assign", locale)}</Button>
-                        </form>
-                      ) : null}
-                      {canResolve ? (
-                        <form action={resolveFault}>
-                          <input type="hidden" name="id" value={f.id} />
-                          <Button type="submit" variant="ghost" size="sm">{t("faults.itsSorted", locale)}</Button>
-                        </form>
+
+                      {canJob || canResolve ? (
+                        <ActionMenu
+                          title={nameById[f.machine_id] ?? "-"}
+                          label={t("common.actions", locale)}
+                          closeLabel={t("ui.close", locale)}
+                        >
+                          {canJob && f.status === "open" ? (
+                            <form action={acknowledgeFault}>
+                              <input type="hidden" name="id" value={f.id} />
+                              <SubmitButton look="menuItem">{t("faults.acknowledge", locale)}</SubmitButton>
+                            </form>
+                          ) : null}
+                          {canJob && (f.status === "open" || f.status === "acknowledged") ? (
+                            <form action={startFault}>
+                              <input type="hidden" name="id" value={f.id} />
+                              <SubmitButton look="menuItem">{t("faults.startWork", locale)}</SubmitButton>
+                            </form>
+                          ) : null}
+                          {canResolve ? (
+                            <form action={resolveFault}>
+                              <input type="hidden" name="id" value={f.id} />
+                              <SubmitButton look="menuItem">{t("faults.itsSorted", locale)}</SubmitButton>
+                            </form>
+                          ) : null}
+
+                          {/* The one action with a field of its own, so it gets a dialog
+                              rather than a row: a `<Select>` of the whole farm inside a
+                              menu row is the clutter this was meant to remove. */}
+                          {canResolve && users.length > 0 ? (
+                            <DialogForm
+                              triggerLook="menuItem"
+                              trigger={t("faults.assign", locale)}
+                              title={t("faults.assignTo", locale)}
+                              description={nameById[f.machine_id] ?? undefined}
+                              closeLabel={t("ui.close", locale)}
+                              size="md"
+                            >
+                              <form action={assignFault}>
+                                <input type="hidden" name="id" value={f.id} />
+                                <DialogFields columns={1}>
+                                  <Field label={t("faults.assignTo", locale)} htmlFor={`as-${f.id}`}>
+                                    <Select id={`as-${f.id}`} name="assigned_to" defaultValue={f.assigned_to ?? ""}>
+                                      <option value="">{t("faults.unassigned", locale)}</option>
+                                      {users.map((u) => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                      ))}
+                                    </Select>
+                                  </Field>
+                                </DialogFields>
+                                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                                  <SubmitButton variant="primary">{t("faults.assign", locale)}</SubmitButton>
+                                </DialogActions>
+                              </form>
+                            </DialogForm>
+                          ) : null}
+                        </ActionMenu>
                       ) : null}
                     </div>
                   ) : null}

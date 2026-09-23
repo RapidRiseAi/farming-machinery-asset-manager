@@ -8,6 +8,7 @@ import { buildFormData } from "@/lib/offline/sync";
 import type { QueuedMutation } from "@/lib/offline/types";
 import Link from "next/link";
 import { CameraIcon, MicIcon, StopIcon, PinIcon, CheckIcon } from "@/components/ui/icons";
+import { buttonVariants } from "@/components/ui/button";
 
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
 const URGENCIES = ["can_work", "limping", "stopped"] as const;
@@ -304,7 +305,7 @@ export function FaultCapture({
       <button
         type="submit"
         disabled={busy || !description.trim()}
-        className="focus-ring min-h-[48px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white disabled:opacity-60"
+        className={buttonVariants({ variant: "primary", size: "lg", fullWidth: true })}
       >
         {busy ? t("faults.sending", locale) : t("faults.send", locale)}
       </button>

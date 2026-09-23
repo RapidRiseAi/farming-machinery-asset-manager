@@ -17,7 +17,8 @@
     "i18n:parity": "node scripts/i18n_parity.mjs",
     "i18n:keys": "node scripts/i18n_keys.mjs",
     "errors:check": "node scripts/error_coverage.mjs",
-    "dashes:check": "node scripts/dash_sweep.mjs --check"
+    "dashes:check": "node scripts/dash_sweep.mjs --check",
+    "ui:check": "node scripts/ui_check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

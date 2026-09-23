@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { PlusIcon, SearchIcon, TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { createPart, updatePart, deletePart } from "./actions";
 import { trackPart } from "./stock-actions";
@@ -38,6 +40,8 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   const permissionState = await farmPermissionState(profile);
   const selectedRole = permissionState.role;
   const farmId = permissionState.farmId;
@@ -115,7 +119,6 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   // user is RR admin. (RLS also enforces this on write.)
   const canEditRow = (p: Part) => (p.farm_id == null ? isAdmin : canManageCatalogue);
 
-  const inputCls = "rounded-lg border border-sand-300 px-3 py-2 text-sm";
 
   return (
     <div className="flex flex-col gap-4">
@@ -138,52 +141,62 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
             </p>
           ) : null}
         </div>
-        <form method="get" className="flex items-end gap-2">
-          <Field label={t("parts.search", locale)} htmlFor="q">
-            <span className="relative block">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-lg text-sand-400" />
-              <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("parts.searchPlaceholder", locale)} className="pl-8" />
-            </span>
-          </Field>
-          <SubmitButton variant="secondary">{t("parts.search", locale)}</SubmitButton>
-        </form>
+        <div className="flex items-end gap-2">
+          {/* Search stays on the page. It is how you USE a catalogue of a few hundred
+              parts, not something you occasionally capture, so putting it behind a
+              button would cost a tap on the one control that is always wanted. */}
+          <form method="get" className="flex items-end gap-2">
+            <Field label={t("parts.search", locale)} htmlFor="q">
+              <span className="relative block">
+                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-lg text-sand-400" />
+                <Input id="q" name="q" defaultValue={sp.q ?? ""} placeholder={t("parts.searchPlaceholder", locale)} className="pl-8" />
+              </span>
+            </Field>
+            <SubmitButton variant="secondary">{t("parts.search", locale)}</SubmitButton>
+          </form>
+
+          {/* Adding a part was a `<details>` holding six fields plus a VAT checkbox. */}
+          {canAdd ? (
+            <DialogForm
+              trigger={t("parts.add", locale)}
+              triggerIcon={<PlusIcon />}
+              title={t("parts.add", locale)}
+              closeLabel={closeLabel}
+            >
+              <form action={createPart}>
+                <DialogFields>
+                  <Field label={t("parts.partNo", locale)} htmlFor="new_part_no">
+                    <Input id="new_part_no" name="part_no" required />
+                  </Field>
+                  <Field label={t("parts.description", locale)} htmlFor="new_desc">
+                    <Input id="new_desc" name="description" />
+                  </Field>
+                  <Field label={t("parts.category", locale)} htmlFor="new_cat">
+                    <Input id="new_cat" name="category" placeholder={t("parts.categoryPlaceholder", locale)} />
+                  </Field>
+                  <Field label={t("parts.supplier", locale)} htmlFor="new_supplier">
+                    <Input id="new_supplier" name="supplier" />
+                  </Field>
+                  <Field label={t("parts.typicalCost", locale)} htmlFor="new_cost">
+                    <Input id="new_cost" name="typical_cost" inputMode="decimal" />
+                  </Field>
+                  <label className="flex items-center gap-2 self-end pb-2 text-sm text-sand-700">
+                    <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" />
+                    {t("parts.inclVat", locale)}
+                  </label>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("parts.add", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
+        </div>
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
-      {/* Add a part */}
-      {canAdd ? (
-        <Card>
-          <details>
-            <summary className="cursor-pointer font-semibold text-sand-900">{t("parts.add", locale)}</summary>
-            <form action={createPart} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label={t("parts.partNo", locale)} htmlFor="new_part_no">
-                <Input id="new_part_no" name="part_no" required />
-              </Field>
-              <Field label={t("parts.description", locale)} htmlFor="new_desc">
-                <Input id="new_desc" name="description" />
-              </Field>
-              <Field label={t("parts.category", locale)} htmlFor="new_cat">
-                <Input id="new_cat" name="category" placeholder={t("parts.categoryPlaceholder", locale)} />
-              </Field>
-              <Field label={t("parts.supplier", locale)} htmlFor="new_supplier">
-                <Input id="new_supplier" name="supplier" />
-              </Field>
-              <Field label={t("parts.typicalCost", locale)} htmlFor="new_cost">
-                <Input id="new_cost" name="typical_cost" inputMode="decimal" />
-              </Field>
-              <label className="flex items-center gap-2 self-end pb-2 text-sm text-sand-700">
-                <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" />
-                {t("parts.inclVat", locale)}
-              </label>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <SubmitButton variant="primary" size="sm">{t("parts.add", locale)}</SubmitButton>
-              </div>
-            </form>
-          </details>
-        </Card>
-      ) : null}
 
       {/* What the next N days need (0503), above the shelf it is about. */}
       {showStore ? (
@@ -206,7 +219,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
         {parts.length === 0 ? (
           <EmptyState title={t("parts.empty", locale)} hint={canAdd ? t("parts.emptyHint", locale) : undefined} />
         ) : (
-          <Table>
+          <Table stacked>
             <Thead>
               <Tr>
                 <Th>{t("parts.partNo", locale)}</Th>
@@ -221,39 +234,62 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
             <Tbody>
               {parts.map((p) => (
                 <Tr key={p.id}>
-                  <Td className="font-medium text-sand-900">
+                  <Td label={t("parts.partNo", locale)} className="font-medium text-sand-900">
                     {p.part_no}
+                    {/*
+                      Edit and delete, behind one button on the row.
+
+                      This was a `<details>` per part holding a five-field form laid out
+                      with fixed widths (`w-36`, `w-48`), which is why the table used to
+                      scroll sideways on a phone: the widest thing in the first column
+                      was a form nobody had opened. In a dialog the fields take the
+                      dialog's width and the column is as wide as a part number.
+                    */}
                     {canEditRow(p) ? (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
-                        <form action={updatePart} className="mt-2 flex flex-wrap gap-2">
-                          <input type="hidden" name="id" value={p.id} />
-                          <Field label={t("parts.partNoLabel", locale)} htmlFor={`e_no_${p.id}`} required>
-                            <Input id={`e_no_${p.id}`} name="part_no" defaultValue={p.part_no} className="w-36" required />
-                          </Field>
-                          <Field label={t("parts.descriptionLabel", locale)} htmlFor={`e_desc_${p.id}`}>
-                            <Input id={`e_desc_${p.id}`} name="description" defaultValue={p.description ?? ""} className="w-48" />
-                          </Field>
-                          <Field label={t("parts.categoryLabel", locale)} htmlFor={`e_cat_${p.id}`}>
-                            <Input id={`e_cat_${p.id}`} name="category" defaultValue={p.category ?? ""} className="w-36" />
-                          </Field>
-                          <Field label={t("parts.supplierLabel", locale)} htmlFor={`e_sup_${p.id}`}>
-                            <Input id={`e_sup_${p.id}`} name="supplier" defaultValue={p.supplier ?? ""} className="w-36" />
-                          </Field>
-                          <Field label={t("parts.costLabel", locale)} htmlFor={`e_cost_${p.id}`}>
-                            <Input id={`e_cost_${p.id}`} name="typical_cost" inputMode="decimal" defaultValue={p.typical_cost_cents != null ? (p.typical_cost_cents / 100).toFixed(2) : ""} className="w-28" />
-                          </Field>
-                          <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                          <span className="w-full" />
-                        </form>
-                        <div className="mt-1">
+                      <div className="mt-1 flex">
+                        <ActionMenu
+                          title={p.part_no ?? p.description ?? "-"}
+                          label={t("common.actions", locale)}
+                          closeLabel={closeLabel}
+                          trigger={t("common.edit", locale)}
+                        >
+                          <DialogForm
+                            triggerLook="menuItem"
+                            trigger={t("common.edit", locale)}
+                            title={t("common.edit", locale)}
+                            description={p.part_no ?? undefined}
+                            closeLabel={closeLabel}
+                          >
+                            <form action={updatePart}>
+                              <input type="hidden" name="id" value={p.id} />
+                              <DialogFields>
+                                <Field label={t("parts.partNoLabel", locale)} htmlFor={`e_no_${p.id}`} required>
+                                  <Input id={`e_no_${p.id}`} name="part_no" defaultValue={p.part_no} required />
+                                </Field>
+                                <Field label={t("parts.descriptionLabel", locale)} htmlFor={`e_desc_${p.id}`}>
+                                  <Input id={`e_desc_${p.id}`} name="description" defaultValue={p.description ?? ""} />
+                                </Field>
+                                <Field label={t("parts.categoryLabel", locale)} htmlFor={`e_cat_${p.id}`}>
+                                  <Input id={`e_cat_${p.id}`} name="category" defaultValue={p.category ?? ""} />
+                                </Field>
+                                <Field label={t("parts.supplierLabel", locale)} htmlFor={`e_sup_${p.id}`}>
+                                  <Input id={`e_sup_${p.id}`} name="supplier" defaultValue={p.supplier ?? ""} />
+                                </Field>
+                                <Field label={t("parts.costLabel", locale)} htmlFor={`e_cost_${p.id}`}>
+                                  <Input id={`e_cost_${p.id}`} name="typical_cost" inputMode="decimal" defaultValue={p.typical_cost_cents != null ? (p.typical_cost_cents / 100).toFixed(2) : ""} />
+                                </Field>
+                              </DialogFields>
+                              <DialogActions cancelLabel={cancelLabel}>
+                                <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                              </DialogActions>
+                            </form>
+                          </DialogForm>
+
                           <ConfirmDialog
                             action={deletePart}
-                            triggerVariant="ghost"
-                            triggerSize="sm"
+                            triggerLook="menuItem"
                             triggerIcon={<TrashIcon />}
                             triggerLabel={t("common.delete", locale)}
-                            triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                             title={t("confirm.deletePartTitle", locale).replace(
                               "{part}",
                               p.part_no ?? p.description ?? "-",
@@ -264,25 +300,25 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
                             footnote={t("confirm.softDeleteNote", locale)}
                             confirmLabel={t("confirm.deletePartYes", locale)}
                             cancelLabel={t("confirm.keepIt", locale)}
-                            closeLabel={t("ui.close", locale)}
+                            closeLabel={closeLabel}
                           >
                             <input type="hidden" name="id" value={p.id} />
                           </ConfirmDialog>
-                        </div>
-                      </details>
+                        </ActionMenu>
+                      </div>
                     ) : null}
                   </Td>
-                  <Td>{p.description ?? "-"}</Td>
-                  <Td>{p.category ?? "-"}</Td>
-                  <Td>{p.supplier ?? "-"}</Td>
-                  <Td className="text-right tabular-nums">{p.typical_cost_cents != null ? rands(p.typical_cost_cents) : "-"}</Td>
-                  <Td>
+                  <Td label={t("parts.description", locale)}>{p.description ?? "-"}</Td>
+                  <Td label={t("parts.category", locale)}>{p.category ?? "-"}</Td>
+                  <Td label={t("parts.supplier", locale)}>{p.supplier ?? "-"}</Td>
+                  <Td label={t("parts.typicalCost", locale)} className="text-right tabular-nums">{p.typical_cost_cents != null ? rands(p.typical_cost_cents) : "-"}</Td>
+                  <Td label={t("parts.scope", locale)}>
                     <Badge tone={p.farm_id == null ? "info" : "neutral"}>
                       {p.farm_id == null ? t("parts.scopeGlobal", locale) : t("parts.scopeFarm", locale)}
                     </Badge>
                   </Td>
                   {showStore ? (
-                    <Td>
+                    <Td label={t("stock.inStore", locale)}>
                       {trackedPartIds.has(p.id) ? (
                         <Badge tone="ok">{t("stock.tracked", locale)}</Badge>
                       ) : canManageStock ? (

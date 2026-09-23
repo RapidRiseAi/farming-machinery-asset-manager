@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { PageInfoButton } from "@/components/ui/page-info-button";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
@@ -142,6 +143,44 @@ export default async function PartnerClientsPage({
       <div className="flex flex-wrap items-center gap-2.5">
         <h1 className="text-2xl font-bold tracking-tight text-ink">{t("clients.title", locale)}</h1>
         <PageInfoButton infoKey="clients" locale={locale} />
+        {/* An eight-field "add a client" card sat under the three lists this page exists
+            to show, so the client book ended in a blank form. Same treatment as the
+            client's own detail screen, which was converted earlier. */}
+        <DialogForm
+          trigger={t("clients.add", locale)}
+          triggerIcon={<PlusIcon />}
+          title={t("clients.addTitle", locale)}
+          description={t("clients.addHint", locale)}
+          closeLabel={t("ui.close", locale)}
+        >
+          <form action={createClientRecord}>
+            <DialogFields>
+              <div className="sm:col-span-2">
+                <TextField name="name" label={t("clients.name", locale)} required />
+              </div>
+              <TextField name="contact_name" label={t("clients.contactName", locale)} />
+              <TextField name="phone" type="tel" label={t("clients.phone", locale)} />
+              <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} />
+              <TextField
+                name="email"
+                type="email"
+                label={t("clients.email", locale)}
+                hint={t("clients.emailHint", locale)}
+              />
+              <div className="sm:col-span-2">
+                <TextareaField name="address" rows={2} label={t("clients.address", locale)} />
+              </div>
+              <div className="sm:col-span-2">
+                <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
+              </div>
+            </DialogFields>
+            <DialogActions cancelLabel={t("common.cancel", locale)}>
+              <SubmitButton variant="primary" leftIcon={<PlusIcon />}>
+                {t("clients.add", locale)}
+              </SubmitButton>
+            </DialogActions>
+          </form>
+        </DialogForm>
       </div>
       <p className="text-sand-600">{t("clients.lead", locale)}</p>
 
@@ -206,27 +245,6 @@ export default async function PartnerClientsPage({
         </div>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>{t("clients.addTitle", locale)}</CardTitle></CardHeader>
-        <p className="mb-3 text-sm text-sand-600">{t("clients.addHint", locale)}</p>
-        <form action={createClientRecord} className="flex flex-col gap-3">
-          <TextField name="name" label={t("clients.name", locale)} required />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField name="contact_name" label={t("clients.contactName", locale)} />
-            <TextField name="phone" type="tel" label={t("clients.phone", locale)} />
-            <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} />
-            <TextField
-              name="email"
-              type="email"
-              label={t("clients.email", locale)}
-              hint={t("clients.emailHint", locale)}
-            />
-          </div>
-          <TextareaField name="address" rows={2} label={t("clients.address", locale)} />
-          <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
-          <SubmitButton leftIcon={<PlusIcon />}>{t("clients.add", locale)}</SubmitButton>
-        </form>
-      </Card>
     </div>
   );
 }

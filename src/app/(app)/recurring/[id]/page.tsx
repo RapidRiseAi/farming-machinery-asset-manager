@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { TextField, SelectField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Fact, FactList } from "@/components/ui/facts";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 import {
@@ -147,41 +149,70 @@ export default async function SchedulePage({
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>{t("recurring.whenTitle", locale)}</CardTitle></CardHeader>
-        <p className="mb-3 text-sm text-sand-600">
+        <CardHeader
+          action={
+            /* The schedule's own settings were eight controls open on a card whose
+               heading is a sentence about when the next invoice goes out. That sentence
+               is the answer somebody came for; changing the cadence is the rare act. */
+            <DialogForm
+              trigger={t("common.edit", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("recurring.whenTitle", locale)}
+              description={schedule.name}
+              closeLabel={t("ui.close", locale)}
+              size="md"
+            >
+              <form action={updateSchedule}>
+                <input type="hidden" name="schedule_id" value={schedule.id} />
+                <DialogFields columns={1}>
+                  <TextField name="name" label={t("recurring.name", locale)} defaultValue={schedule.name} required />
+                  <TextField name="subject" label={t("recurring.subject", locale)} defaultValue={schedule.subject ?? ""} />
+                  <SelectField name="cadence" label={t("recurring.howOften", locale)} defaultValue={schedule.cadence}>
+                    {CADENCES.map((c) => (
+                      <option key={c} value={c}>{t(`cadence.${c}`, locale)}</option>
+                    ))}
+                  </SelectField>
+                  <TextField name="next_issue_date" type="date" label={t("recurring.nextIssue", locale)} defaultValue={schedule.next_issue_date} />
+                  <TextField name="ends_on" type="date" label={t("recurring.endsOn", locale)} defaultValue={schedule.ends_on ?? ""} />
+                  <TextareaField name="notes" rows={2} label={t("recurring.notes", locale)} defaultValue={schedule.notes ?? ""} />
+                  <label className="flex items-start gap-3 text-sm text-sand-700">
+                    <input
+                      type="checkbox"
+                      name="auto_send"
+                      defaultChecked={schedule.auto_send}
+                      className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
+                    />
+                    <span>
+                      {t("recurring.autoSend", locale)}
+                      <span className="block text-xs text-sand-500">{t("recurring.autoSendHint", locale)}</span>
+                    </span>
+                  </label>
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
+          <CardTitle>{t("recurring.whenTitle", locale)}</CardTitle>
+        </CardHeader>
+        <p className="text-sm text-sand-600">
           {live
             ? `${t("recurring.nextOn", locale)} ${shortDate(schedule.next_issue_date, locale)} · ${t("recurring.thenPreview", locale)} ${advanceByCadence(schedule.next_issue_date, schedule.cadence)}`
             : t("recurring.stopped", locale)}
         </p>
-
-        <form action={updateSchedule} className="flex flex-col gap-3">
-          <input type="hidden" name="schedule_id" value={schedule.id} />
-          <TextField name="name" label={t("recurring.name", locale)} defaultValue={schedule.name} required />
-          <TextField name="subject" label={t("recurring.subject", locale)} defaultValue={schedule.subject ?? ""} />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SelectField name="cadence" label={t("recurring.howOften", locale)} defaultValue={schedule.cadence}>
-              {CADENCES.map((c) => (
-                <option key={c} value={c}>{t(`cadence.${c}`, locale)}</option>
-              ))}
-            </SelectField>
-            <TextField name="next_issue_date" type="date" label={t("recurring.nextIssue", locale)} defaultValue={schedule.next_issue_date} />
-            <TextField name="ends_on" type="date" label={t("recurring.endsOn", locale)} defaultValue={schedule.ends_on ?? ""} />
-          </div>
-          <TextareaField name="notes" rows={2} label={t("recurring.notes", locale)} defaultValue={schedule.notes ?? ""} />
-          <label className="flex items-start gap-3 text-sm text-sand-700">
-            <input
-              type="checkbox"
-              name="auto_send"
-              defaultChecked={schedule.auto_send}
-              className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
-            />
-            <span>
-              {t("recurring.autoSend", locale)}
-              <span className="block text-xs text-sand-500">{t("recurring.autoSendHint", locale)}</span>
-            </span>
-          </label>
-          <SubmitButton variant="secondary" className="self-start">{t("common.save", locale)}</SubmitButton>
-        </form>
+        <FactList className="mt-3">
+          <Fact label={t("recurring.howOften", locale)} value={t(`cadence.${schedule.cadence}`, locale)} />
+          <Fact label={t("recurring.nextIssue", locale)} value={shortDate(schedule.next_issue_date, locale)} />
+          <Fact
+            label={t("recurring.endsOn", locale)}
+            value={schedule.ends_on ? shortDate(schedule.ends_on, locale) : t("settings.notSet", locale)}
+            muted={!schedule.ends_on}
+          />
+          <Fact label={t("recurring.autoSend", locale)} value={t(schedule.auto_send ? "common.yes" : "common.no", locale)} />
+        </FactList>
       </Card>
 
       <Card>

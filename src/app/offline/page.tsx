@@ -1,4 +1,5 @@
 import { t, defaultLocale } from "@/lib/i18n";
+import { buttonVariants } from "@/components/ui/button";
 
 // Static fallback served by the service worker for never-visited routes while offline.
 // No auth, no data, deliberately tiny so it precaches cleanly.
@@ -13,7 +14,7 @@ export default function OfflinePage() {
       <p className="text-sm text-sand-600">{t("offline.pageBody", locale)}</p>
       <a
         href="/dashboard"
-        className="focus-ring min-h-[48px] rounded-lg bg-brand-600 px-5 py-3 text-base font-semibold text-white"
+        className={buttonVariants({ variant: "primary", size: "lg" })}
       >
         {t("offline.retry", locale)}
       </a>

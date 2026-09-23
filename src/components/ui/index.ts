@@ -33,9 +33,18 @@ export type {
   StatusBadgeProps, StatusShape, StatusLook,
 } from "./badge";
 export { Stat } from "./stat";
+export { Fact, FactList } from "./facts";
+export type { FactProps } from "./facts";
 export type { StatProps, StatTone } from "./stat";
 export { Modal, Sheet, Overlay } from "./dialog";
 export type { ModalProps, SheetProps } from "./dialog";
+export { DialogForm, DialogActions, DialogFields, DialogSection, useDialogForm } from "./dialog-form";
+export type { DialogFormProps } from "./dialog-form";
+export { ActionMenu, MenuSection } from "./action-menu";
+export { menuItemClass } from "./menu-item";
+export type { ActionMenuProps } from "./action-menu";
+export { Disclosure } from "./disclosure";
+export type { DisclosureProps } from "./disclosure";
 export { ConfirmDialog } from "./confirm-dialog";
 export type { ConfirmDialogProps, ConfirmFact, ConfirmTone } from "./confirm-dialog";
 export { FilterBar, type ChipOption, type FilterGroup } from "./filter-bar";

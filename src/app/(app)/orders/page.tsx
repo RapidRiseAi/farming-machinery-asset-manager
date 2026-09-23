@@ -168,7 +168,7 @@ export default async function OrdersPage({
         {orders.length === 0 ? (
           <GetStarted title={t("po.emptyTitle", locale)} hint={t("po.emptyBody", locale)} />
         ) : (
-            <Table className="min-w-[46rem]">
+            <Table stacked className="lg:min-w-[46rem]">
               <Thead>
                 <Tr className="text-left text-sand-500">
                   <Th className="font-medium">{t("po.colOrder", locale)}</Th>
@@ -185,7 +185,7 @@ export default async function OrdersPage({
                   const overdue = isLate(o);
                   return (
                     <Tr key={o.id}>
-                      <Td>
+                      <Td label={t("po.colOrder", locale)}>
                         <Link
                           href={`/orders/${o.id}`}
                           className="focus-ring font-medium text-brand-ink underline underline-offset-2"
@@ -197,10 +197,10 @@ export default async function OrdersPage({
                           {shortDate(o.order_date, locale)}
                         </span>
                       </Td>
-                      <Td>
+                      <Td label={t("po.colStatus", locale)}>
                         <OrderStatus value={o.status} locale={locale} />
                       </Td>
-                      <Td className="whitespace-nowrap">
+                      <Td label={t("po.colExpected", locale)} className="whitespace-nowrap">
                         {o.expected_date ? (
                           <span className={overdue ? "font-medium text-status-overdue" : "text-sand-600"}>
                             {shortDate(o.expected_date, locale)}
@@ -212,15 +212,15 @@ export default async function OrdersPage({
                           <span className="text-sand-400">{t("po.noDate", locale)}</span>
                         )}
                       </Td>
-                      <Td className="whitespace-nowrap text-sand-600">
+                      <Td label={t("po.colArrived", locale)} className="whitespace-nowrap text-sand-600">
                         {summary.ordered > 0
                           ? `${formatQty(summary.received)} / ${formatQty(summary.ordered)}`
                           : t("po.noLines", locale)}
                       </Td>
-                      <Td className="text-right font-medium tabular-nums text-sand-900">
+                      <Td label={t("po.colTotal", locale)} className="text-right font-medium tabular-nums text-sand-900">
                         {rands(o.total_cents)}
                       </Td>
-                      <Td>
+                      <Td label={t("po.colInvoice", locale)}>
                         {invoiced.has(o.id) ? (
                           <Badge tone="ok">{t("po.invoiced", locale)}</Badge>
                         ) : (

@@ -33,7 +33,14 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-6">
+    // `data-error-boundary` is for the gates, not for the person reading this.
+    // `scripts/ui_check.mjs` walks screens in a real browser and has to be able to tell
+    // "this page rendered" from "this page fell into its error boundary". Without a
+    // marker its only signal was the `<h1>`, and this boundary HAS an `<h1>`, so a
+    // crashed `/machines/[id]` was reported as a healthy page with zero dialogs. The
+    // alternative was matching the English sentence below, which would quietly stop
+    // working the day it is translated.
+    <div data-error-boundary="app" className="mx-auto flex w-full max-w-lg flex-col gap-4 py-6">
       <Card>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 shrink-0 text-2xl text-status-overdue">

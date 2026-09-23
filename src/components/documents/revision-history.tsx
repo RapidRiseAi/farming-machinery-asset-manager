@@ -1,5 +1,6 @@
 import { t, type Lang } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { rands } from "@/lib/money";
 import { dateTime } from "@/lib/format";
 
@@ -69,27 +70,28 @@ export function RevisionHistory({ revisions, locale }: { revisions: Revision[]; 
                 </p>
               )}
 
+              {/* Same disclosure as everywhere else, rather than a bare `<details>`
+                  drawing the browser's own triangle. */}
               {lines.length > 0 ? (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm font-medium text-sand-700">
-                    {t("revise.whatItSaid", locale)}
-                  </summary>
-                  <ul className="mt-1.5 flex flex-col gap-1 text-sm text-sand-600">
-                    {lines.map((l, i) => (
-                      <li key={i} className="flex items-baseline justify-between gap-3">
-                        <span>
-                          {String(l.description ?? "")}
-                          {l.part_no ? ` (${String(l.part_no)})` : ""}
-                          {" × "}
-                          {String(l.qty ?? "")}
-                        </span>
-                        <span className="shrink-0 tabular-nums">
-                          {rands(Number(l.line_total_cents ?? 0))}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
+                <div className="mt-2">
+                  <Disclosure variant="inline" summary={t("revise.whatItSaid", locale)}>
+                    <ul className="mt-1.5 flex flex-col gap-1 text-sm text-sand-600">
+                      {lines.map((l, i) => (
+                        <li key={i} className="flex items-baseline justify-between gap-3">
+                          <span>
+                            {String(l.description ?? "")}
+                            {l.part_no ? ` (${String(l.part_no)})` : ""}
+                            {" × "}
+                            {String(l.qty ?? "")}
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            {rands(Number(l.line_total_cents ?? 0))}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Disclosure>
+                </div>
               ) : null}
             </li>
           );

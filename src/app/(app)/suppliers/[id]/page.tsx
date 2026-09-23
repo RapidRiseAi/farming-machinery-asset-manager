@@ -269,7 +269,7 @@ export default async function SupplierAccountPage({
           />
         ) : (
           <>
-              <Table className="min-w-[38rem]">
+              <Table stacked className="lg:min-w-[38rem]">
                 <Thead>
                   <Tr className="text-left text-sand-500">
                     <Th className="font-medium">{t("supplierStatement.date", locale)}</Th>
@@ -283,8 +283,8 @@ export default async function SupplierAccountPage({
                 <Tbody>
                   {lines.map((l, i) => (
                     <Tr key={`${l.kind}-${l.expense_id ?? "opening"}-${i}`}>
-                      <Td className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
-                      <Td>
+                      <Td label={t("supplierStatement.date", locale)} className="whitespace-nowrap text-sand-600">{shortDate(l.entry_date, locale)}</Td>
+                      <Td label={t("supplierStatement.what", locale)}>
                         <span className="text-sand-900">{supplierStatementLabel(l, locale)}</span>
                         {l.reference ? <span className="ml-2 font-mono text-xs text-sand-500">{l.reference}</span> : null}
                         {l.category ? (
@@ -293,16 +293,16 @@ export default async function SupplierAccountPage({
                           </span>
                         ) : null}
                       </Td>
-                      <Td className="whitespace-nowrap text-sand-500">
+                      <Td label={t("supplierStatement.dueBy", locale)} className="whitespace-nowrap text-sand-500">
                         {l.due_date ? shortDate(l.due_date, locale) : ""}
                       </Td>
-                      <Td className="text-right tabular-nums text-sand-900">
+                      <Td label={t("supplierStatement.charged", locale)} className="text-right tabular-nums text-sand-900">
                         {l.debit_cents ? rands(l.debit_cents) : ""}
                       </Td>
-                      <Td className="text-right tabular-nums text-sand-900">
+                      <Td label={t("supplierStatement.paid", locale)} className="text-right tabular-nums text-sand-900">
                         {l.credit_cents ? rands(l.credit_cents) : ""}
                       </Td>
-                      <Td className="text-right font-medium tabular-nums text-sand-900">
+                      <Td label={t("supplierStatement.balance", locale)} className="text-right font-medium tabular-nums text-sand-900">
                         {rands(l.balance_cents)}
                       </Td>
                     </Tr>
@@ -376,7 +376,7 @@ export default async function SupplierAccountPage({
           ) : (
             <>
               <div className="-mx-4 mt-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <Table className="min-w-[34rem]">
+                <Table stacked className="lg:min-w-[34rem]">
                   <Thead>
                     <Tr className="text-left text-sand-500">
                       <Th className="font-medium">{t("supplierStatement.theirInvoice", locale)}</Th>
@@ -389,18 +389,18 @@ export default async function SupplierAccountPage({
                   <Tbody>
                     {remittance.map((r) => (
                       <Tr key={r.expense_id}>
-                        <Td>
+                        <Td label={t("supplierStatement.theirInvoice", locale)}>
                           <span className="font-mono text-sand-900">{r.reference ?? "-"}</span>
                           {r.description ? (
                             <span className="block text-xs text-sand-500">{r.description}</span>
                           ) : null}
                         </Td>
-                        <Td className="whitespace-nowrap text-sand-600">
+                        <Td label={t("supplierStatement.dated", locale)} className="whitespace-nowrap text-sand-600">
                           {shortDate(r.expense_date, locale)}
                         </Td>
-                        <Td className="text-right tabular-nums text-sand-800">{rands(r.amount_cents)}</Td>
-                        <Td className="text-right tabular-nums text-sand-800">{rands(r.vat_cents)}</Td>
-                        <Td className="text-right font-medium tabular-nums text-sand-900">
+                        <Td label={t("supplierStatement.exVat", locale)} className="text-right tabular-nums text-sand-800">{rands(r.amount_cents)}</Td>
+                        <Td label={t("supplierStatement.vat", locale)} className="text-right tabular-nums text-sand-800">{rands(r.vat_cents)}</Td>
+                        <Td label={t("supplierStatement.total", locale)} className="text-right font-medium tabular-nums text-sand-900">
                           {rands(r.total_cents)}
                         </Td>
                       </Tr>

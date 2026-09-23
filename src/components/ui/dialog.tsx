@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 import { CloseIcon } from "./icons";
+import { useScrollMemory } from "./use-scroll-memory";
 
 // `input:not([type="hidden"])` matters more than it looks. Almost every ConfirmDialog
 // passes its payload as `<input type="hidden">` children, so without that clause the
@@ -22,6 +23,46 @@ import { CloseIcon } from "./icons";
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+/**
+ * Scroll lock, counted rather than saved and restored per overlay.
+ *
+ * == Why a counter ============================================================
+ * Each Overlay used to snapshot `document.body.style.overflow` on open and write the
+ * snapshot back on close. With one overlay that is correct. With two it is a race,
+ * because the restores are order-dependent: the inner dialog saves "hidden" (the value
+ * the outer one just set) and hands it back, so the LAST restore to run decides, and
+ * nothing guarantees which that is.
+ *
+ * Measured on `/tyres`: open a row's action menu, open a dialog inside it, submit. The
+ * server action redirects, so the page remounts while the menu is still open; the
+ * menu's cleanup restored "" and the dialog's then restored "hidden", in that order.
+ * Both dialogs were gone and `document.body` was left `overflow: hidden`, so the page
+ * could not be scrolled again until a reload. The clean path (cancel the inner, then
+ * close the menu) happened to unwind in the opposite order and looked fine, which is
+ * why this survived: the bug only appears when a navigation does the unmounting.
+ *
+ * Counting makes it order-independent. The first overlay to open locks and remembers
+ * the page's own value; whichever one closes last brings the count to zero and puts
+ * that value back. Module scope is correct here, it is per browser tab.
+ */
+let openOverlays = 0;
+let pageOverflow = "";
+
+function lockScroll() {
+  if (openOverlays === 0) {
+    pageOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  openOverlays += 1;
+}
+
+function releaseScroll() {
+  // Floored: a double release would otherwise make the count negative and the next
+  // lock would never reach zero again, which is the same bug with a longer fuse.
+  openOverlays = Math.max(0, openOverlays - 1);
+  if (openOverlays === 0) document.body.style.overflow = pageOverflow;
+}
+
 /** Shared overlay: portal, backdrop, Esc-to-close, scroll lock, focus trap. */
 export function Overlay({
   open,
@@ -29,6 +70,8 @@ export function Overlay({
   labelledBy,
   describedBy,
   align,
+  wide = false,
+  rememberKey,
   children,
   panelClassName,
 }: {
@@ -38,6 +81,22 @@ export function Overlay({
   describedBy?: string;
   /** "responsive" = bottom sheet within thumb reach on a phone, centred modal from `sm` up. */
   align: "center" | "bottom" | "responsive";
+  /**
+   * Widen the desktop panel from `max-w-lg` to `max-w-2xl`, for a two-column form.
+   *
+   * A prop rather than a `panelClassName` override because `cn` does not de-duplicate
+   * conflicting Tailwind utilities: passing `sm:max-w-2xl` alongside the built-in
+   * `sm:max-w-lg` leaves BOTH in the class list and lets whichever Tailwind happens to
+   * emit later win. That is a coin toss dressed as a width.
+   */
+  wide?: boolean;
+  /**
+   * Remember how far this panel was scrolled, for the tab session, and restore it the
+   * next time it opens. The panel IS the scroller for a bottom sheet (`max-h-[85vh]
+   * overflow-y-auto`), and it mounts fresh on every open, so without this a 943px nav
+   * sheet reopens at the top every single time. Measured: `943 -> 0`.
+   */
+  rememberKey?: string;
   children: ReactNode;
   panelClassName?: string;
 }) {
@@ -46,6 +105,10 @@ export function Overlay({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  // Keyed on `open` so the restore runs on each open, and on nothing while closed
+  // (the panel is not in the DOM then, and a closed sheet has no offset to keep).
+  useScrollMemory(panelRef, open && mounted ? rememberKey : undefined);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -82,8 +145,7 @@ export function Overlay({
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
+    lockScroll();
     // Focus the first thing worth typing in, never the button that commits the action.
     // A dialog that opens with focus already on "Write it off" is one stray Enter away
     // from writing off an invoice, so a confirm-only dialog focuses the panel instead
@@ -97,14 +159,19 @@ export function Overlay({
       const field = visible.find(
         (el) => !(el instanceof HTMLButtonElement) && !(el instanceof HTMLAnchorElement),
       );
-      (field ?? panel).focus();
+      // `preventScroll` only where a remembered offset exists to protect. Focusing an
+      // element scrolls it into view, and this timeout runs AFTER the layout effect
+      // that restored the offset, so without it the focus call would quietly undo the
+      // restore and the sheet would open at the top anyway. Left on elsewhere, because
+      // a dialog with a field below the fold SHOULD scroll to show it.
+      (field ?? panel).focus(rememberKey ? { preventScroll: true } : undefined);
     }, 0);
     return () => {
       window.clearTimeout(id);
-      document.body.style.overflow = overflow;
+      releaseScroll();
       restoreRef.current?.focus?.();
     };
-  }, [open]);
+  }, [open, rememberKey]);
 
   if (!mounted || !open) return null;
 
@@ -136,7 +203,10 @@ export function Overlay({
           align === "bottom" &&
             "max-h-[85vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up",
           align === "responsive" &&
-            "max-h-[90vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl sm:pb-0 sm:animate-scale-in",
+            "max-h-[90vh] overflow-y-auto rounded-t-2xl pb-safe animate-slide-up sm:max-h-[85vh] sm:rounded-2xl sm:pb-0 sm:animate-scale-in",
+          // Exactly one desktop width utility reaches the class list, so there is
+          // nothing for Tailwind's emission order to arbitrate.
+          align === "responsive" && (wide ? "sm:max-w-2xl" : "sm:max-w-lg"),
           panelClassName,
         )}
       >
@@ -225,6 +295,8 @@ export type SheetProps = {
   closeLabel?: string;
   children: ReactNode;
   className?: string;
+  /** See `Overlay.rememberKey`: keeps the sheet's scroll offset between opens. */
+  rememberKey?: string;
 };
 
 /** Bottom sheet (mobile-first). Client component. Used by the "More" nav menu. */
@@ -235,6 +307,7 @@ export function Sheet({
   closeLabel = "Close",
   children,
   className,
+  rememberKey,
 }: SheetProps) {
   const titleId = "sheet-title";
   return (
@@ -244,6 +317,7 @@ export function Sheet({
       align="bottom"
       labelledBy={title ? titleId : undefined}
       panelClassName={className}
+      rememberKey={rememberKey}
     >
       {title ? (
         <DialogHeader title={title} titleId={titleId} onClose={onClose} closeLabel={closeLabel} />

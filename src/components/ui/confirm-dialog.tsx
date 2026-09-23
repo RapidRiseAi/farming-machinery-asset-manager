@@ -4,6 +4,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Overlay } from "./dialog";
 import { Button, buttonVariants, type ButtonVariant, type ButtonSize } from "./button";
 import { SubmitButton } from "./submit-button";
+import { menuItemClass } from "./menu-item";
 import { cn } from "./cn";
 import { WarningIcon } from "./icons";
 
@@ -25,6 +26,14 @@ export type ConfirmDialogProps = {
   triggerSize?: ButtonSize;
   triggerFullWidth?: boolean;
   triggerClassName?: string;
+  /**
+   * `menuItem` styles the trigger as a row in an `ActionMenu` rather than as a button.
+   *
+   * Same reason `DialogForm` has it: a delete inside a row menu has to look like the
+   * other rows in that menu, and `triggerClassName` cannot achieve it because `cn`
+   * does not de-duplicate, so the button's padding and the row's padding both land.
+   */
+  triggerLook?: "button" | "menuItem";
 
   /** Plain-language question, e.g. "Delete Rooi Massey 385?" */
   title: string;
@@ -71,6 +80,7 @@ export function ConfirmDialog({
   triggerSize = "md",
   triggerFullWidth,
   triggerClassName,
+  triggerLook = "button",
   title,
   intro,
   facts,
@@ -100,17 +110,28 @@ export function ConfirmDialog({
 
   return (
     <>
-      <Button
-        type="button"
-        variant={triggerVariant}
-        size={triggerSize}
-        fullWidth={triggerFullWidth}
-        className={triggerClassName}
-        leftIcon={triggerIcon}
-        onClick={() => setOpen(true)}
-      >
-        {triggerLabel}
-      </Button>
+      {triggerLook === "menuItem" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={menuItemClass(tone === "danger" ? "danger" : "default", triggerClassName)}
+        >
+          {triggerIcon}
+          {triggerLabel}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant={triggerVariant}
+          size={triggerSize}
+          fullWidth={triggerFullWidth}
+          className={triggerClassName}
+          leftIcon={triggerIcon}
+          onClick={() => setOpen(true)}
+        >
+          {triggerLabel}
+        </Button>
+      )}
 
       <Overlay
         open={open}

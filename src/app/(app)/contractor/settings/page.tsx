@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,10 @@ import { VatRateField } from "@/components/vat-rate-field";
 import { LogoUpload } from "@/components/partner/logo-upload";
 import { updatePartnerProfile, removePartnerLogo } from "./actions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Fact, FactList } from "@/components/ui/facts";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { OWNED_FIELD } from "@/lib/partial-form";
+import { PARTNER_PROFILE_GROUPS } from "@/lib/partner-profile";
 
 /**
  * The partner's own business profile (F14a).
@@ -60,14 +65,57 @@ export default async function PartnerSettingsPage({
     chosenTemplate = (data as { doc_template?: string } | null)?.doc_template ?? null;
   }
 
-  const groups = [
-    ["ps-templates", "docTemplate.title"],
-    ["ps-identity", "partnerSettings.identity"],
-    ["ps-contact", "partnerSettings.contact"],
-    ["ps-bank", "partnerSettings.banking"],
-    ["ps-brand", "partnerSettings.letterhead"],
-    ["ps-docs", "partnerSettings.documentDefaults"],
-  ] as const;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
+  const notSet = t("settings.notSet", locale);
+  const yesNo = (on: boolean) => t(on ? "common.yes" : "common.no", locale);
+
+  /**
+   * One group of the profile: what it is set to, and an Edit button that opens only its
+   * fields. `owns` becomes the `__fields` marker that keeps this dialog from resetting
+   * the other four groups when it saves.
+   */
+  const group = ({
+    title,
+    owns,
+    facts,
+    fields,
+    hint,
+  }: {
+    title: string;
+    owns: readonly string[];
+    facts: ReactNode;
+    fields: ReactNode;
+    hint?: string;
+  }) => (
+    <Card>
+      <CardHeader
+        action={
+          <DialogForm
+            trigger={t("common.edit", locale)}
+            triggerVariant="secondary"
+            triggerSize="sm"
+            title={title}
+            description={hint}
+            closeLabel={closeLabel}
+            size="md"
+          >
+            <form action={updatePartnerProfile}>
+              <input type="hidden" name={OWNED_FIELD} value={owns.join(" ")} />
+              <DialogFields columns={1}>{fields}</DialogFields>
+              <DialogActions cancelLabel={cancelLabel}>
+                <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        }
+      >
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      {hint ? <p className="mb-2 text-sm text-sand-500">{hint}</p> : null}
+      <FactList>{facts}</FactList>
+    </Card>
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
@@ -82,21 +130,6 @@ export default async function PartnerSettingsPage({
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.layout ? t("layout.savedFlash", locale) : undefined} />
       <Flash tone="success" message={sp.template ? t("docTemplate.savedFlash", locale) : undefined} />
-
-      <nav
-        aria-label={t("settings.jumpTo", locale)}
-        className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {groups.map(([anchor, key]) => (
-          <a
-            key={anchor}
-            href={`#${anchor}`}
-            className="focus-ring shrink-0 rounded-full border border-sand-200 bg-surface px-3 py-2 text-sm font-medium text-sand-700 hover:border-brand-300 hover:text-brand-ink"
-          >
-            {t(key, locale)}
-          </a>
-        ))}
-      </nav>
 
       {/* The letterhead as the farmer will see it, above the fields that change it -
           so a colour choice is judged against a document, not a swatch. */}
@@ -182,10 +215,33 @@ export default async function PartnerSettingsPage({
         }
       />
 
-      <form action={updatePartnerProfile} className="flex flex-col gap-4">
-        <Card id="ps-identity">
-          <CardHeader><CardTitle>{t("partnerSettings.identity", locale)}</CardTitle></CardHeader>
-          <div className="flex flex-col gap-3">
+      {/*
+        Each group states what it is set to and carries one Edit button.
+
+        It was one `<form>` of about twenty-five controls across five cards, with a
+        jump-to nav across the top and a sticky Save that followed you down, all three of
+        which were treatments for the same problem: the page was too big to take in, and
+        a contractor could not answer "what number does my next invoice get?" without
+        reading the contents of a text box.
+
+        Each dialog declares the COLUMNS it owns in `__fields`, because
+        `updatePartnerProfile` writes one `.update()` over every column and would
+        otherwise reset the ones it did not carry. See `src/lib/partial-form.ts`.
+      */}
+      {group({
+        title: t("partnerSettings.identity", locale),
+        owns: PARTNER_PROFILE_GROUPS.identity,
+        facts: (
+          <>
+            <Fact label={t("partnerSettings.name", locale)} value={workshop?.name || notSet} muted={!workshop?.name} />
+            <Fact label={t("partnerSettings.tradingName", locale)} value={workshop?.trading_name || notSet} muted={!workshop?.trading_name} />
+            <Fact label={t("partnerSettings.regNo", locale)} value={workshop?.reg_number || notSet} muted={!workshop?.reg_number} />
+            <Fact label={t("partnerSettings.vatNo", locale)} value={workshop?.vat_number || notSet} muted={!workshop?.vat_number} />
+            <Fact label={t("partnerSettings.address", locale)} value={workshop?.address || notSet} muted={!workshop?.address} />
+          </>
+        ),
+        fields: (
+          <>
             <TextField name="name" label={t("partnerSettings.name", locale)} defaultValue={workshop?.name ?? ""} required />
             <TextField
               name="trading_name"
@@ -193,22 +249,32 @@ export default async function PartnerSettingsPage({
               hint={t("partnerSettings.tradingNameHint", locale)}
               defaultValue={workshop?.trading_name ?? ""}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextField name="reg_number" label={t("partnerSettings.regNo", locale)} defaultValue={workshop?.reg_number ?? ""} />
-              <TextField
-                name="vat_number"
-                label={t("partnerSettings.vatNo", locale)}
-                hint={t("partnerSettings.vatNoHint", locale)}
-                defaultValue={workshop?.vat_number ?? ""}
-              />
-            </div>
+            <TextField name="reg_number" label={t("partnerSettings.regNo", locale)} defaultValue={workshop?.reg_number ?? ""} />
+            <TextField
+              name="vat_number"
+              label={t("partnerSettings.vatNo", locale)}
+              hint={t("partnerSettings.vatNoHint", locale)}
+              defaultValue={workshop?.vat_number ?? ""}
+            />
             <TextareaField name="address" label={t("partnerSettings.address", locale)} rows={3} defaultValue={workshop?.address ?? ""} />
-          </div>
-        </Card>
+          </>
+        ),
+      })}
 
-        <Card id="ps-contact">
-          <CardHeader><CardTitle>{t("partnerSettings.contact", locale)}</CardTitle></CardHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
+      {group({
+        title: t("partnerSettings.contact", locale),
+        owns: PARTNER_PROFILE_GROUPS.contact,
+        facts: (
+          <>
+            <Fact label={t("partnerSettings.phone", locale)} value={workshop?.phone || notSet} muted={!workshop?.phone} />
+            <Fact label={t("partnerSettings.whatsapp", locale)} value={workshop?.whatsapp || notSet} muted={!workshop?.whatsapp} />
+            <Fact label={t("partnerSettings.email", locale)} value={workshop?.email || notSet} muted={!workshop?.email} />
+            <Fact label={t("partnerSettings.website", locale)} value={workshop?.website || notSet} muted={!workshop?.website} />
+            <Fact label={t("partnerSettings.area", locale)} value={workshop?.area || notSet} muted={!workshop?.area} />
+          </>
+        ),
+        fields: (
+          <>
             <TextField name="phone" type="tel" label={t("partnerSettings.phone", locale)} defaultValue={workshop?.phone ?? ""} />
             <TextField
               name="whatsapp"
@@ -224,26 +290,74 @@ export default async function PartnerSettingsPage({
               label={t("partnerSettings.area", locale)}
               hint={t("partnerSettings.areaHint", locale)}
               defaultValue={workshop?.area ?? ""}
-              fieldClassName="sm:col-span-2"
             />
-          </div>
-        </Card>
+          </>
+        ),
+      })}
 
-        <Card id="ps-bank">
-          <CardHeader><CardTitle>{t("partnerSettings.banking", locale)}</CardTitle></CardHeader>
-          <p className="mb-3 text-sm text-sand-500">{t("partnerSettings.bankingHint", locale)}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+      {group({
+        title: t("partnerSettings.banking", locale),
+        hint: t("partnerSettings.bankingHint", locale),
+        owns: PARTNER_PROFILE_GROUPS.banking,
+        facts: (
+          <>
+            <Fact label={t("partnerSettings.bankName", locale)} value={workshop?.bank_name || notSet} muted={!workshop?.bank_name} />
+            <Fact label={t("partnerSettings.bankAccountName", locale)} value={workshop?.bank_account_name || notSet} muted={!workshop?.bank_account_name} />
+            <Fact label={t("partnerSettings.bankAccountNumber", locale)} value={workshop?.bank_account_number || notSet} muted={!workshop?.bank_account_number} />
+            <Fact label={t("partnerSettings.bankBranchCode", locale)} value={workshop?.bank_branch_code || notSet} muted={!workshop?.bank_branch_code} />
+            <Fact label={t("partnerSettings.bankAccountType", locale)} value={workshop?.bank_account_type || notSet} muted={!workshop?.bank_account_type} />
+          </>
+        ),
+        fields: (
+          <>
             <TextField name="bank_name" label={t("partnerSettings.bankName", locale)} defaultValue={workshop?.bank_name ?? ""} />
             <TextField name="bank_account_name" label={t("partnerSettings.bankAccountName", locale)} defaultValue={workshop?.bank_account_name ?? ""} />
             <TextField name="bank_account_number" label={t("partnerSettings.bankAccountNumber", locale)} defaultValue={workshop?.bank_account_number ?? ""} />
             <TextField name="bank_branch_code" label={t("partnerSettings.bankBranchCode", locale)} defaultValue={workshop?.bank_branch_code ?? ""} />
             <TextField name="bank_account_type" label={t("partnerSettings.bankAccountType", locale)} defaultValue={workshop?.bank_account_type ?? ""} />
-          </div>
-        </Card>
+          </>
+        ),
+      })}
 
-        <Card id="ps-brand">
-          <CardHeader><CardTitle>{t("partnerSettings.letterhead", locale)}</CardTitle></CardHeader>
-          <div className="flex flex-col gap-3">
+      {group({
+        title: t("partnerSettings.letterhead", locale),
+        owns: PARTNER_PROFILE_GROUPS.letterhead,
+        facts: (
+          <>
+            {/* The swatch as well as the hex: a hex code is not a colour anybody can read. */}
+            <Fact
+              label={t("partnerSettings.brandPrimary", locale)}
+              value={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-4 w-4 shrink-0 rounded border border-sand-300"
+                    style={{ backgroundColor: b.brand_primary ?? "#00572c" }}
+                  />
+                  <span className="font-mono text-xs">{b.brand_primary ?? "#00572c"}</span>
+                </span>
+              }
+            />
+            <Fact
+              label={t("partnerSettings.brandSecondary", locale)}
+              value={
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-4 w-4 shrink-0 rounded border border-sand-300"
+                    style={{ backgroundColor: b.brand_secondary ?? "#1f2937" }}
+                  />
+                  <span className="font-mono text-xs">{b.brand_secondary ?? "#1f2937"}</span>
+                </span>
+              }
+            />
+            <Fact label={t("partnerSettings.poweredBy", locale)} value={yesNo(b.show_powered_by !== false)} />
+            <Fact label={t("partnerSettings.terms", locale)} value={workshop?.doc_terms || notSet} muted={!workshop?.doc_terms} />
+            <Fact label={t("partnerSettings.footer", locale)} value={workshop?.doc_footer || notSet} muted={!workshop?.doc_footer} />
+          </>
+        ),
+        fields: (
+          <>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={t("partnerSettings.brandPrimary", locale)} htmlFor="f-brand_primary" hint={t("partnerSettings.brandPrimaryHint", locale)}>
                 <Input id="f-brand_primary" name="brand_primary" type="color" defaultValue={b.brand_primary ?? "#00572c"} className="p-1" />
@@ -272,52 +386,75 @@ export default async function PartnerSettingsPage({
               defaultValue={workshop?.doc_terms ?? ""}
             />
             <TextField name="doc_footer" label={t("partnerSettings.footer", locale)} defaultValue={workshop?.doc_footer ?? ""} />
-          </div>
-        </Card>
+          </>
+        ),
+      })}
 
-        <Card id="ps-docs">
-          <CardHeader><CardTitle>{t("partnerSettings.documentDefaults", locale)}</CardTitle></CardHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField
-              name="doc_prefix_quote"
-              label={t("partnerSettings.quotePrefix", locale)}
-              hint={t("partnerSettings.prefixHint", locale)}
-              defaultValue={workshop?.doc_prefix_quote ?? "QTE"}
-              maxLength={8}
+      {group({
+        title: t("partnerSettings.documentDefaults", locale),
+        owns: PARTNER_PROFILE_GROUPS.documents,
+        facts: (
+          <>
+            <Fact label={t("partnerSettings.quotePrefix", locale)} value={workshop?.doc_prefix_quote ?? "QTE"} />
+            <Fact label={t("partnerSettings.invoicePrefix", locale)} value={workshop?.doc_prefix_invoice ?? "INV"} />
+            <Fact label={t("partnerSettings.prefixCredit", locale)} value={workshop?.doc_prefix_credit ?? "CN"} />
+            <Fact label={t("partnerSettings.quoteValidity", locale)} value={b.quoteValidityDays} />
+            <Fact label={t("partnerSettings.invoiceTerms", locale)} value={b.invoiceTermsDays} />
+            <Fact
+              label={t("partnerSettings.vatRegistered", locale)}
+              value={yesNo(b.vatRegistered)}
+              hint={
+                b.vatRegistered
+                  ? vatPercent(b.defaultVatRateBps)
+                  : t("partnerSettings.vatNotRegisteredNote", locale)
+              }
             />
-            <TextField
-              name="doc_prefix_invoice"
-              label={t("partnerSettings.invoicePrefix", locale)}
-              defaultValue={workshop?.doc_prefix_invoice ?? "INV"}
-              maxLength={8}
-            />
-            {/* Its own series: a credit note is a different kind of document under
-                s21, and sharing the invoice counter makes both unreadable. */}
-            <TextField
-              name="doc_prefix_credit"
-              label={t("partnerSettings.prefixCredit", locale)}
-              defaultValue={workshop?.doc_prefix_credit ?? "CN"}
-              maxLength={8}
-            />
-            <TextField
-              name="quote_validity_days"
-              type="number"
-              min={0}
-              max={365}
-              label={t("partnerSettings.quoteValidity", locale)}
-              defaultValue={String(b.quoteValidityDays)}
-            />
-            <TextField
-              name="invoice_terms_days"
-              type="number"
-              min={0}
-              max={365}
-              label={t("partnerSettings.invoiceTerms", locale)}
-              defaultValue={String(b.invoiceTermsDays)}
-            />
+          </>
+        ),
+        fields: (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField
+                name="doc_prefix_quote"
+                label={t("partnerSettings.quotePrefix", locale)}
+                hint={t("partnerSettings.prefixHint", locale)}
+                defaultValue={workshop?.doc_prefix_quote ?? "QTE"}
+                maxLength={8}
+              />
+              <TextField
+                name="doc_prefix_invoice"
+                label={t("partnerSettings.invoicePrefix", locale)}
+                defaultValue={workshop?.doc_prefix_invoice ?? "INV"}
+                maxLength={8}
+              />
+              {/* Its own series: a credit note is a different kind of document under
+                  s21, and sharing the invoice counter makes both unreadable. */}
+              <TextField
+                name="doc_prefix_credit"
+                label={t("partnerSettings.prefixCredit", locale)}
+                defaultValue={workshop?.doc_prefix_credit ?? "CN"}
+                maxLength={8}
+              />
+              <TextField
+                name="quote_validity_days"
+                type="number"
+                min={0}
+                max={365}
+                label={t("partnerSettings.quoteValidity", locale)}
+                defaultValue={String(b.quoteValidityDays)}
+              />
+              <TextField
+                name="invoice_terms_days"
+                type="number"
+                min={0}
+                max={365}
+                label={t("partnerSettings.invoiceTerms", locale)}
+                defaultValue={String(b.invoiceTermsDays)}
+              />
+            </div>
             {/* Registration first, then the rate, because "do you charge VAT at all"
                 decides whether the rate matters, and most one-van operations do not. */}
-            <label className="flex items-start gap-3 text-sm text-sand-700 sm:col-span-2">
+            <label className="flex items-start gap-3 text-sm text-sand-700">
               <input
                 type="checkbox"
                 name="vat_registered"
@@ -329,21 +466,10 @@ export default async function PartnerSettingsPage({
                 <span className="block text-sand-500">{t("partnerSettings.vatRegisteredHint", locale)}</span>
               </span>
             </label>
-            <div className="sm:col-span-2">
-              <VatRateField defaultBps={workshop?.default_vat_rate_bps ?? 1500} locale={locale} />
-            </div>
-          </div>
-            <p className="mt-2 text-xs text-sand-500">
-            {b.vatRegistered
-              ? `${t("partnerSettings.vatDefaultHint", locale)} ${vatPercent(b.defaultVatRateBps)}`
-              : t("partnerSettings.vatNotRegisteredNote", locale)}
-          </p>
-        </Card>
-
-        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-10 -mx-1 rounded-xl border border-sand-200 bg-surface/95 p-2 shadow-soft backdrop-blur sm:bottom-4">
-          <SubmitButton className="w-full">{t("common.save", locale)}</SubmitButton>
-        </div>
-      </form>
+            <VatRateField defaultBps={workshop?.default_vat_rate_bps ?? 1500} locale={locale} />
+          </>
+        ),
+      })}
     </div>
   );
 }

@@ -45,7 +45,25 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
         role="tablist"
         aria-orientation="horizontal"
         onKeyDown={onKeyDown}
-        className="flex gap-1 border-b border-sand-200"
+        /*
+          Scrolls sideways rather than forcing the PAGE wider. Five tabs at their
+          natural width come to 415px, and when content cannot fit Chrome does not
+          add a scrollbar, it widens the layout viewport and renders the whole page
+          zoomed out. Measured on /machines/[id] at 360px: innerWidth 415, no
+          scrollbar, nothing to notice, just smaller text everywhere.
+
+          `shrink-0` on the buttons is the other half: without it flex would squeeze
+          the labels instead of scrolling, and "Papers & licence" would wrap to two
+          lines inside a 48px-tall tab.
+
+          The scrollbar is hidden because the cut-off tab at the edge IS the
+          affordance here, and a horizontal scrollbar under a tab strip reads as
+          broken chrome. This is the one place that argument beats ScrollArea's.
+        */
+        className={cn(
+          "flex gap-1 overflow-x-auto border-b border-sand-200",
+          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
       >
         {tabs.map((t) => {
           const selected = t.key === active;
@@ -63,7 +81,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(t.key)}
               className={cn(
-                "focus-ring -mb-px min-h-[48px] sm:min-h-[44px] border-b-2 px-3.5 text-sm font-medium transition-colors",
+                "focus-ring -mb-px min-h-[48px] shrink-0 whitespace-nowrap sm:min-h-[44px] border-b-2 px-3.5 text-sm font-medium transition-colors",
                 selected
                   ? "border-brand-600 text-brand-ink"
                   : "border-transparent text-sand-500 hover:text-sand-800",

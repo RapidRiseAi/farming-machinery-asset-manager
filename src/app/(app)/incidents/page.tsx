@@ -19,7 +19,7 @@ import {
   type IncidentRow,
 } from "@/lib/incidents";
 
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,15 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { GetStarted } from "@/components/ui/empty-state";
-import { buttonVariants } from "@/components/ui/button";
-import { ChevronDownIcon, TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { menuItemClass } from "@/components/ui/menu-item";
+import {
+  DialogActions,
+  DialogFields,
+  DialogForm,
+  DialogSection,
+} from "@/components/ui/dialog-form";
+import { PlusIcon, TrashIcon } from "@/components/ui/icons";
 
 import { recordIncident, removeIncident, updateIncident } from "./actions";
 
@@ -57,12 +64,20 @@ type JobCardRow = { id: string; machine_id: string; type: string; date_in: strin
  * == THE MONEY IS VAT-INCLUSIVE ===============================================
  * Unlike everything else in this product. These are figures copied off an insurer's
  * letter, and a screen that re-based them would disagree with the document on every line.
- * Said in words under the form rather than assumed.
+ * Said in words inside the form rather than assumed.
+ *
+ * == WHY THE FORM IS SECTIONED, NOT JUST HIDDEN ===============================
+ * Recording an accident takes twenty-two fields, and on the day of the accident five of
+ * them are knowable: which vehicle, what kind, when, where, what happened. The SAPS
+ * reference arrives later, the other driver's insurer later still, and the claim does
+ * not exist yet. Those five are open; the rest are named sections you open when you have
+ * the letter in front of you. Nothing was dropped, and an UPDATE opens the claim section
+ * by default, because that is the thing somebody came to change.
  */
 export default async function IncidentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; edit?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const profile = await requireProfile();
   const locale = profile.lang;
@@ -121,7 +136,8 @@ export default async function IncidentsPage({
     return d != null && (worst == null || d > worst) ? d : worst;
   }, null);
 
-  const editing = sp.edit ? incidents.find((r) => r.id === sp.edit) ?? null : null;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
 
   /** The claim fields, shared by the capture form and the update form. */
   const claimFields = (row: IncidentRow | null, prefix: string) => (
@@ -182,7 +198,128 @@ export default async function IncidentsPage({
           <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
             {t("incidents.title", locale)}
           </h1>
-          <PageInfoButton infoKey="incidents" locale={locale} />
+          <div className="flex shrink-0 items-center gap-2">
+            <PageInfoButton infoKey="incidents" locale={locale} />
+            {canManage ? (
+              <DialogForm
+                trigger={t("incidents.add", locale)}
+                triggerIcon={<PlusIcon />}
+                title={t("incidents.addTitle", locale)}
+                closeLabel={closeLabel}
+              >
+                <form action={recordIncident}>
+                  <DialogFields>
+                    {/* The five that are knowable on the day. */}
+                    <Field label={t("incidents.fieldMachine", locale)} htmlFor="in-machine" required>
+                      <Select id="in-machine" name="machine_id" required defaultValue="">
+                        <option value="" disabled>
+                          -
+                        </option>
+                        {machines.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.reg_no ? `${m.name} · ${m.reg_no}` : m.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label={t("incidents.fieldKind", locale)} htmlFor="in-kind">
+                      <Select id="in-kind" name="kind" defaultValue="collision">
+                        {INCIDENT_KINDS.map((k) => (
+                          <option key={k} value={k}>
+                            {enumLabel("incidentKind", k, locale)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label={t("incidents.fieldWhen", locale)} htmlFor="in-when">
+                      <Input id="in-when" name="occurred_at" type="datetime-local" />
+                    </Field>
+                    <Field label={t("incidents.fieldWhere", locale)} htmlFor="in-where">
+                      <Input id="in-where" name="location" maxLength={120} />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label={t("incidents.fieldDescription", locale)} htmlFor="in-desc">
+                        <Input id="in-desc" name="description" maxLength={400} />
+                      </Field>
+                    </div>
+
+                    <DialogSection title={t("incidents.sectionDriver", locale)}>
+                      <Field label={t("incidents.fieldDriver", locale)} htmlFor="in-driver">
+                        <Select id="in-driver" name="driver_user_id" defaultValue="">
+                          <option value="">{t("incidents.fieldDriverNone", locale)}</option>
+                          {people.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name ?? p.id.slice(0, 8)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label={t("incidents.fieldDriverName", locale)} htmlFor="in-drivername">
+                        <Input id="in-drivername" name="driver_name" maxLength={80} />
+                      </Field>
+                    </DialogSection>
+
+                    <DialogSection title={t("incidents.sectionSaps", locale)}>
+                      <Field label={t("incidents.fieldSaps", locale)} htmlFor="in-saps">
+                        <Input id="in-saps" name="saps_case_number" maxLength={40} />
+                      </Field>
+                      <Field label={t("incidents.fieldSapsStation", locale)} htmlFor="in-station">
+                        <Input id="in-station" name="saps_station" maxLength={60} />
+                      </Field>
+                    </DialogSection>
+
+                    <DialogSection title={t("incidents.sectionThirdParty", locale)}>
+                      <Field label={t("incidents.fieldThirdParty", locale)} htmlFor="in-tp">
+                        <Input id="in-tp" name="third_party_name" maxLength={80} />
+                      </Field>
+                      <Field label={t("incidents.fieldThirdPartyContact", locale)} htmlFor="in-tpc">
+                        <Input id="in-tpc" name="third_party_contact" maxLength={40} />
+                      </Field>
+                      <Field label={t("incidents.fieldThirdPartyReg", locale)} htmlFor="in-tpr">
+                        <Input id="in-tpr" name="third_party_reg_no" maxLength={20} />
+                      </Field>
+                      <Field label={t("incidents.fieldThirdPartyInsurer", locale)} htmlFor="in-tpi">
+                        <Input id="in-tpi" name="third_party_insurer" maxLength={60} />
+                      </Field>
+                    </DialogSection>
+
+                    <DialogSection title={t("incidents.sectionInjuries", locale)}>
+                      <label className="flex items-start gap-3 sm:col-span-2">
+                        <input type="checkbox" name="injuries" className="mt-1 size-5" />
+                        <span className="text-sm text-sand-800">{t("incidents.fieldInjuries", locale)}</span>
+                      </label>
+                      <div className="sm:col-span-2">
+                        <Field label={t("incidents.fieldInjuryNotes", locale)} htmlFor="in-injnotes">
+                          <Input id="in-injnotes" name="injury_notes" maxLength={300} />
+                        </Field>
+                      </div>
+                    </DialogSection>
+
+                    <DialogSection title={t("incidents.sectionClaim", locale)}>
+                      <Field label={t("incidents.fieldStatus", locale)} htmlFor="in-status">
+                        <Select id="in-status" name="status" defaultValue="reported">
+                          {INCIDENT_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {t(incidentLook(s).labelKey, locale)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      {claimFields(null, "in")}
+                      <div className="sm:col-span-2">
+                        <Field label={t("incidents.fieldClaimNotes", locale)} htmlFor="in-claimnotes">
+                          <Input id="in-claimnotes" name="claim_notes" maxLength={300} />
+                        </Field>
+                      </div>
+                    </DialogSection>
+                  </DialogFields>
+                  <DialogActions cancelLabel={cancelLabel} note={t("incidents.moneyNote", locale)}>
+                    <SubmitButton variant="primary">{t("incidents.add", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+              </DialogForm>
+            ) : null}
+          </div>
         </div>
         <p className="mt-1 text-sm text-sand-600">{t("incidents.lead", locale)}</p>
       </div>
@@ -239,6 +376,8 @@ export default async function IncidentsPage({
             {incidents.map((r) => {
               const look = incidentLook(r.status);
               const waiting = daysWaiting(r);
+              const rowName = machineLabel(r.machine_id);
+              const prefix = `u${r.id.slice(0, 8)}`;
               return (
                 <li key={r.id} className="p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -247,7 +386,7 @@ export default async function IncidentsPage({
                         href={`/machines/${r.machine_id}`}
                         className="focus-ring rounded font-semibold text-brand-ink hover:underline"
                       >
-                        {machineLabel(r.machine_id)}
+                        {rowName}
                       </Link>
                       <p className="mt-0.5 text-sm text-sand-700">
                         {enumLabel("incidentKind", r.kind, locale)}
@@ -255,7 +394,102 @@ export default async function IncidentsPage({
                         {r.location ? <span className="text-sand-500"> · {r.location}</span> : null}
                       </p>
                     </div>
-                    <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+
+                      {/* Open the repair, update the claim, remove the record: one button.
+                          The menu is titled with the vehicle, so a claim is never updated
+                          against the wrong bakkie by scrolling past its heading. */}
+                      {r.job_card_id || canManage ? (
+                        <ActionMenu
+                          title={rowName}
+                          label={t("common.actions", locale)}
+                          closeLabel={closeLabel}
+                        >
+                          {r.job_card_id ? (
+                            <Link href={`/jobcards/${r.job_card_id}`} className={menuItemClass()}>
+                              {t("incidents.viewJobCard", locale)}
+                            </Link>
+                          ) : null}
+
+                          {canManage ? (
+                            <DialogForm
+                              triggerLook="menuItem"
+                              trigger={t("incidents.update", locale)}
+                              title={t("incidents.updateTitle", locale)}
+                              description={rowName}
+                              closeLabel={closeLabel}
+                            >
+                              {/* The vehicle and the date are NOT in here: re-pointing an
+                                  accident at a different bakkie changes what the record
+                                  says happened, on a row that may end up in front of an
+                                  insurer. */}
+                              <form action={updateIncident}>
+                                <input type="hidden" name="id" value={r.id} />
+                                <input type="hidden" name="kind" value={r.kind} />
+                                <DialogFields>
+                                  <Field label={t("incidents.fieldStatus", locale)} htmlFor={`st-${r.id}`}>
+                                    <Select id={`st-${r.id}`} name="status" defaultValue={r.status}>
+                                      {INCIDENT_STATUSES.map((s) => (
+                                        <option key={s} value={s}>
+                                          {t(incidentLook(s).labelKey, locale)}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  </Field>
+                                  <Field label={t("incidents.fieldSaps", locale)} htmlFor={`saps-${r.id}`}>
+                                    <Input id={`saps-${r.id}`} name="saps_case_number" defaultValue={r.saps_case_number ?? ""} />
+                                  </Field>
+
+                                  {/* Open by default: the claim is what an update is for. */}
+                                  <DialogSection title={t("incidents.sectionClaim", locale)} defaultOpen>
+                                    {claimFields(r, prefix)}
+                                    <div className="sm:col-span-2">
+                                      <Field label={t("incidents.fieldClaimNotes", locale)} htmlFor={`cn-${r.id}`}>
+                                        <Input id={`cn-${r.id}`} name="claim_notes" defaultValue={r.claim_notes ?? ""} maxLength={300} />
+                                      </Field>
+                                    </div>
+                                  </DialogSection>
+                                </DialogFields>
+
+                                {/* Carried through so an update does not silently blank them. */}
+                                <input type="hidden" name="location" value={r.location ?? ""} />
+                                <input type="hidden" name="description" value={r.description ?? ""} />
+                                <input type="hidden" name="driver_user_id" value={r.driver_user_id ?? ""} />
+                                <input type="hidden" name="driver_name" value={r.driver_name ?? ""} />
+                                <input type="hidden" name="saps_station" value={r.saps_station ?? ""} />
+                                <input type="hidden" name="third_party_name" value={r.third_party_name ?? ""} />
+                                <input type="hidden" name="third_party_contact" value={r.third_party_contact ?? ""} />
+                                <input type="hidden" name="third_party_reg_no" value={r.third_party_reg_no ?? ""} />
+                                <input type="hidden" name="third_party_insurer" value={r.third_party_insurer ?? ""} />
+                                {r.injuries ? <input type="hidden" name="injuries" value="on" /> : null}
+                                <input type="hidden" name="injury_notes" value={r.injury_notes ?? ""} />
+
+                                <DialogActions cancelLabel={cancelLabel} note={t("incidents.moneyNote", locale)}>
+                                  <SubmitButton variant="primary">{t("incidents.update", locale)}</SubmitButton>
+                                </DialogActions>
+                              </form>
+                            </DialogForm>
+                          ) : null}
+
+                          {canManage ? (
+                            <ConfirmDialog
+                              triggerLook="menuItem"
+                              triggerLabel={t("incidents.remove", locale)}
+                              triggerIcon={<TrashIcon />}
+                              title={t("incidents.removeTitle", locale)}
+                              intro={t("incidents.removeBody", locale)}
+                              confirmLabel={t("incidents.remove", locale)}
+                              cancelLabel={t("incidents.removeNo", locale)}
+                              closeLabel={closeLabel}
+                              action={removeIncident}
+                            >
+                              <input type="hidden" name="id" value={r.id} />
+                            </ConfirmDialog>
+                          ) : null}
+                        </ActionMenu>
+                      ) : null}
+                    </div>
                   </div>
 
                   {r.description ? (
@@ -287,9 +521,6 @@ export default async function IncidentsPage({
                     </p>
                   ) : null}
 
-                  {/* The claim line. A lodged claim says how many days it has been waiting,
-                      because that is the sentence that gets somebody to ring the broker -
-                      and it is the same figure the nightly reminder puts in its message. */}
                   {/* The insurer and the claim reference. Captured since the first version,
                       put in the nightly reminder, and until a click-through caught it,
                       rendered nowhere: a farmer who opened this screen to ring their broker
@@ -306,6 +537,9 @@ export default async function IncidentsPage({
                     </p>
                   ) : null}
 
+                  {/* The claim line. A lodged claim says how many days it has been waiting,
+                      because that is the sentence that gets somebody to ring the broker -
+                      and it is the same figure the nightly reminder puts in its message. */}
                   {claimOpen(r.status) || r.status === "claim_settled" ? (
                     <p className="mt-1.5 text-sm text-sand-700">
                       {r.status === "claim_settled" && r.settled_incl_cents != null && r.settled_on
@@ -340,199 +574,12 @@ export default async function IncidentsPage({
                       ) : null}
                     </p>
                   ) : null}
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {r.job_card_id ? (
-                      <Link
-                        href={`/jobcards/${r.job_card_id}`}
-                        className={buttonVariants({ variant: "secondary", size: "sm" })}
-                      >
-                        {t("incidents.viewJobCard", locale)}
-                      </Link>
-                    ) : null}
-                    {canManage ? (
-                      <>
-                        <Link
-                          href={`/incidents?edit=${r.id}`}
-                          className={buttonVariants({ variant: "secondary", size: "sm" })}
-                        >
-                          {t("incidents.update", locale)}
-                        </Link>
-                        <ConfirmDialog
-                          triggerLabel={t("incidents.remove", locale)}
-                          triggerVariant="ghost"
-                          triggerSize="sm"
-                          triggerIcon={<TrashIcon />}
-                          title={t("incidents.removeTitle", locale)}
-                          intro={t("incidents.removeBody", locale)}
-                          confirmLabel={t("incidents.remove", locale)}
-                          cancelLabel={t("incidents.removeNo", locale)}
-                          action={removeIncident}
-                        >
-                          <input type="hidden" name="id" value={r.id} />
-                        </ConfirmDialog>
-                      </>
-                    ) : null}
-                  </div>
-
-                  {/* The update form opens in place, on the row it is about. The vehicle
-                      and the date are NOT in it: re-pointing an accident at a different
-                      bakkie changes what the record says happened, on a row that may end
-                      up in front of an insurer. */}
-                  {canManage && editing && editing.id === r.id ? (
-                    <form
-                      action={updateIncident}
-                      className="mt-3 grid gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3 sm:grid-cols-2"
-                    >
-                      <input type="hidden" name="id" value={r.id} />
-                      <input type="hidden" name="kind" value={r.kind} />
-                      <div className="sm:col-span-2">
-                        <CardTitle>{t("incidents.updateTitle", locale)}</CardTitle>
-                      </div>
-                      <Field label={t("incidents.fieldStatus", locale)} htmlFor={`st-${r.id}`}>
-                        <Select id={`st-${r.id}`} name="status" defaultValue={r.status}>
-                          {INCIDENT_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {t(incidentLook(s).labelKey, locale)}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-                      <Field label={t("incidents.fieldSaps", locale)} htmlFor={`saps-${r.id}`}>
-                        <Input id={`saps-${r.id}`} name="saps_case_number" defaultValue={r.saps_case_number ?? ""} />
-                      </Field>
-                      {claimFields(r, `u${r.id.slice(0, 8)}`)}
-                      <div className="sm:col-span-2">
-                        <Field label={t("incidents.fieldClaimNotes", locale)} htmlFor={`cn-${r.id}`}>
-                          <Input id={`cn-${r.id}`} name="claim_notes" defaultValue={r.claim_notes ?? ""} maxLength={300} />
-                        </Field>
-                      </div>
-                      {/* Carried through so an update does not silently blank them. */}
-                      <input type="hidden" name="location" value={r.location ?? ""} />
-                      <input type="hidden" name="description" value={r.description ?? ""} />
-                      <input type="hidden" name="driver_user_id" value={r.driver_user_id ?? ""} />
-                      <input type="hidden" name="driver_name" value={r.driver_name ?? ""} />
-                      <input type="hidden" name="saps_station" value={r.saps_station ?? ""} />
-                      <input type="hidden" name="third_party_name" value={r.third_party_name ?? ""} />
-                      <input type="hidden" name="third_party_contact" value={r.third_party_contact ?? ""} />
-                      <input type="hidden" name="third_party_reg_no" value={r.third_party_reg_no ?? ""} />
-                      <input type="hidden" name="third_party_insurer" value={r.third_party_insurer ?? ""} />
-                      {r.injuries ? <input type="hidden" name="injuries" value="on" /> : null}
-                      <input type="hidden" name="injury_notes" value={r.injury_notes ?? ""} />
-                      <div className="sm:col-span-2">
-                        <p className="mb-2 text-xs text-sand-500">{t("incidents.moneyNote", locale)}</p>
-                        <SubmitButton variant="primary">{t("incidents.update", locale)}</SubmitButton>
-                      </div>
-                    </form>
-                  ) : null}
                 </li>
               );
             })}
           </ul>
         </Card>
       )}
-
-      {canManage ? (
-        <details className="group rounded-2xl border border-sand-200 bg-surface shadow-xs">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-5">
-            <span className="font-semibold text-ink">{t("incidents.addTitle", locale)}</span>
-            <ChevronDownIcon className="shrink-0 text-sand-500 transition-transform group-open:rotate-180" />
-          </summary>
-          <form action={recordIncident} className="grid gap-3 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
-            <Field label={t("incidents.fieldMachine", locale)} htmlFor="in-machine" required>
-              <Select id="in-machine" name="machine_id" required defaultValue="">
-                <option value="" disabled>
-                  -
-                </option>
-                {machines.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.reg_no ? `${m.name} · ${m.reg_no}` : m.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t("incidents.fieldKind", locale)} htmlFor="in-kind">
-              <Select id="in-kind" name="kind" defaultValue="collision">
-                {INCIDENT_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {enumLabel("incidentKind", k, locale)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t("incidents.fieldWhen", locale)} htmlFor="in-when">
-              <Input id="in-when" name="occurred_at" type="datetime-local" />
-            </Field>
-            <Field label={t("incidents.fieldWhere", locale)} htmlFor="in-where">
-              <Input id="in-where" name="location" maxLength={120} />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label={t("incidents.fieldDescription", locale)} htmlFor="in-desc">
-                <Input id="in-desc" name="description" maxLength={400} />
-              </Field>
-            </div>
-            <Field label={t("incidents.fieldDriver", locale)} htmlFor="in-driver">
-              <Select id="in-driver" name="driver_user_id" defaultValue="">
-                <option value="">{t("incidents.fieldDriverNone", locale)}</option>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name ?? p.id.slice(0, 8)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t("incidents.fieldDriverName", locale)} htmlFor="in-drivername">
-              <Input id="in-drivername" name="driver_name" maxLength={80} />
-            </Field>
-            <Field label={t("incidents.fieldSaps", locale)} htmlFor="in-saps">
-              <Input id="in-saps" name="saps_case_number" maxLength={40} />
-            </Field>
-            <Field label={t("incidents.fieldSapsStation", locale)} htmlFor="in-station">
-              <Input id="in-station" name="saps_station" maxLength={60} />
-            </Field>
-            <Field label={t("incidents.fieldThirdParty", locale)} htmlFor="in-tp">
-              <Input id="in-tp" name="third_party_name" maxLength={80} />
-            </Field>
-            <Field label={t("incidents.fieldThirdPartyContact", locale)} htmlFor="in-tpc">
-              <Input id="in-tpc" name="third_party_contact" maxLength={40} />
-            </Field>
-            <Field label={t("incidents.fieldThirdPartyReg", locale)} htmlFor="in-tpr">
-              <Input id="in-tpr" name="third_party_reg_no" maxLength={20} />
-            </Field>
-            <Field label={t("incidents.fieldThirdPartyInsurer", locale)} htmlFor="in-tpi">
-              <Input id="in-tpi" name="third_party_insurer" maxLength={60} />
-            </Field>
-            <label className="flex items-start gap-3 sm:col-span-2">
-              <input type="checkbox" name="injuries" className="mt-1 size-5" />
-              <span className="text-sm text-sand-800">{t("incidents.fieldInjuries", locale)}</span>
-            </label>
-            <div className="sm:col-span-2">
-              <Field label={t("incidents.fieldInjuryNotes", locale)} htmlFor="in-injnotes">
-                <Input id="in-injnotes" name="injury_notes" maxLength={300} />
-              </Field>
-            </div>
-            <Field label={t("incidents.fieldStatus", locale)} htmlFor="in-status">
-              <Select id="in-status" name="status" defaultValue="reported">
-                {INCIDENT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(incidentLook(s).labelKey, locale)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {claimFields(null, "in")}
-            <div className="sm:col-span-2">
-              <Field label={t("incidents.fieldClaimNotes", locale)} htmlFor="in-claimnotes">
-                <Input id="in-claimnotes" name="claim_notes" maxLength={300} />
-              </Field>
-            </div>
-            <div className="sm:col-span-2">
-              <p className="mb-2 text-xs text-sand-500">{t("incidents.moneyNote", locale)}</p>
-              <SubmitButton variant="primary">{t("incidents.add", locale)}</SubmitButton>
-            </div>
-          </form>
-        </details>
-      ) : null}
     </div>
   );
 }

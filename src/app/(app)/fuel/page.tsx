@@ -26,7 +26,8 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FuelIcon } from "@/components/ui/icons";
+import { FuelIcon, PlusIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { num, shortDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export default async function FuelPage({
   const gate = await checkEntitlement("fuel");
   const profile = gate.profile;
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   if (!gate.allowed) {
     return (
       <div className="flex flex-col gap-5">
@@ -153,6 +156,120 @@ export default async function FuelPage({
           </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("fuel.subtitle", locale)}</p>
         </div>
+
+        {/*
+          The two things this screen is opened to DO, as buttons.
+
+          They were two cards of eight and six fields, side by side above the tank
+          balance, so the page opened on fourteen empty boxes and the reconciliation it
+          exists to show started below the fold. Both are still one tap away, and the
+          dialog names which one you are in, which the two adjacent cards did not do
+          well: "Tank", "Litres", "Cost" and "Date" appeared in both.
+        */}
+        <div className="flex flex-wrap items-center gap-2">
+          {canDraw && tanks.length > 0 ? (
+            <DialogForm
+              trigger={t("fuel.logDraw", locale)}
+              triggerIcon={<PlusIcon />}
+              title={t("fuel.logDraw", locale)}
+              description={t("fuel.logDrawDesc", locale)}
+              closeLabel={closeLabel}
+            >
+              <form action={addFuelIssue}>
+                <DialogFields>
+                  <Field label={t("fuel.machine", locale)} htmlFor="i_machine">
+                    <Select id="i_machine" name="machine_id" defaultValue="">
+                      <option value="">{t("fuel.farmLevel", locale)}</option>
+                      {machines.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={t("fuel.tank", locale)} htmlFor="i_tank">
+                    <Select id="i_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
+                      {tanks.map((tk) => (
+                        <option key={tk.id} value={tk.id}>{tk.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={t("fuel.litres", locale)} htmlFor="i_litres">
+                    <Input id="i_litres" name="litres" type="number" inputMode="decimal" step="0.1" required />
+                  </Field>
+                  <Field label={t("fuel.meter", locale)} htmlFor="i_meter">
+                    <Input id="i_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" />
+                  </Field>
+                  <Field label={t("fuel.cost", locale)} htmlFor="i_cost">
+                    <Input id="i_cost" name="cost" inputMode="decimal" placeholder="R" />
+                  </Field>
+                  <Field label={t("fuel.date", locale)} htmlFor="i_date">
+                    <Input id="i_date" name="date" type="date" />
+                  </Field>
+                  {operators.length > 0 ? (
+                    <Field label={t("fuel.driver", locale)} htmlFor="i_driver">
+                      <Select id="i_driver" name="driver_user_id" defaultValue="">
+                        <option value="">{profile.name}</option>
+                        {operators.map((op) => (
+                          <option key={op.id} value={op.id}>{op.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  ) : null}
+                  <Field label={t("fuel.activityLabel", locale)} htmlFor="i_activity">
+                    <Select id="i_activity" name="activity" defaultValue="">
+                      <option value="">-</option>
+                      {FUEL_ACTIVITIES.map((a) => (
+                        <option key={a} value={a}>{activityLabel(a, locale)}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("fuel.log", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
+
+          {canManage && tanks.length > 0 ? (
+            <DialogForm
+              trigger={t("fuel.logFill", locale)}
+              triggerVariant="secondary"
+              title={t("fuel.logFill", locale)}
+              description={t("fuel.logFillDesc", locale)}
+              closeLabel={closeLabel}
+            >
+              <form action={addFuelDelivery}>
+                <DialogFields>
+                  <Field label={t("fuel.tank", locale)} htmlFor="d_tank">
+                    <Select id="d_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
+                      {tanks.map((tk) => (
+                        <option key={tk.id} value={tk.id}>{tk.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={t("fuel.date", locale)} htmlFor="d_date">
+                    <Input id="d_date" name="date" type="date" />
+                  </Field>
+                  <Field label={t("fuel.litres", locale)} htmlFor="d_litres">
+                    <Input id="d_litres" name="litres" type="number" inputMode="decimal" step="0.1" required />
+                  </Field>
+                  <Field label={t("fuel.cost", locale)} htmlFor="d_cost">
+                    <Input id="d_cost" name="cost" inputMode="decimal" placeholder="R" />
+                  </Field>
+                  <Field label={t("fuel.supplier", locale)} htmlFor="d_supplier">
+                    <Input id="d_supplier" name="supplier" />
+                  </Field>
+                  <Field label={t("fuel.invoiceNo", locale)} htmlFor="d_invoice">
+                    <Input id="d_invoice" name="invoice_no" />
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("fuel.log", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
+        </div>
       </div>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -173,99 +290,6 @@ export default async function FuelPage({
         />
       ) : null}
 
-      {/* Capture: draw + delivery */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {canDraw && tanks.length > 0 ? (
-          <Card>
-            <CardHeader><CardTitle>{t("fuel.logDraw", locale)}</CardTitle></CardHeader>
-            <p className="-mt-2 mb-3 text-sm text-sand-500">{t("fuel.logDrawDesc", locale)}</p>
-            <form action={addFuelIssue} className="flex flex-col gap-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label={t("fuel.machine", locale)} htmlFor="i_machine">
-                  <Select id="i_machine" name="machine_id" defaultValue="">
-                    <option value="">{t("fuel.farmLevel", locale)}</option>
-                    {machines.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t("fuel.tank", locale)} htmlFor="i_tank">
-                  <Select id="i_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
-                    {tanks.map((tk) => (
-                      <option key={tk.id} value={tk.id}>{tk.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t("fuel.litres", locale)} htmlFor="i_litres">
-                  <Input id="i_litres" name="litres" type="number" inputMode="decimal" step="0.1" required />
-                </Field>
-                <Field label={t("fuel.meter", locale)} htmlFor="i_meter">
-                  <Input id="i_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" />
-                </Field>
-                <Field label={t("fuel.cost", locale)} htmlFor="i_cost">
-                  <Input id="i_cost" name="cost" inputMode="decimal" placeholder="R" />
-                </Field>
-                <Field label={t("fuel.date", locale)} htmlFor="i_date">
-                  <Input id="i_date" name="date" type="date" />
-                </Field>
-                {operators.length > 0 ? (
-                  <Field label={t("fuel.driver", locale)} htmlFor="i_driver">
-                    <Select id="i_driver" name="driver_user_id" defaultValue="">
-                      <option value="">{profile.name}</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.id}>{op.name}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                ) : null}
-                <Field label={t("fuel.activityLabel", locale)} htmlFor="i_activity">
-                  <Select id="i_activity" name="activity" defaultValue="">
-                    <option value="">-</option>
-                    {FUEL_ACTIVITIES.map((a) => (
-                      <option key={a} value={a}>{activityLabel(a, locale)}</option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              <SubmitButton variant="primary" className="self-start">{t("fuel.log", locale)}</SubmitButton>
-            </form>
-          </Card>
-        ) : null}
-
-        {canManage && tanks.length > 0 ? (
-          <Card>
-            <CardHeader><CardTitle>{t("fuel.logFill", locale)}</CardTitle></CardHeader>
-            <p className="-mt-2 mb-3 text-sm text-sand-500">{t("fuel.logFillDesc", locale)}</p>
-            <form action={addFuelDelivery} className="flex flex-col gap-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label={t("fuel.tank", locale)} htmlFor="d_tank">
-                  <Select id="d_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
-                    {tanks.map((tk) => (
-                      <option key={tk.id} value={tk.id}>{tk.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t("fuel.date", locale)} htmlFor="d_date">
-                  <Input id="d_date" name="date" type="date" />
-                </Field>
-                <Field label={t("fuel.litres", locale)} htmlFor="d_litres">
-                  <Input id="d_litres" name="litres" type="number" inputMode="decimal" step="0.1" required />
-                </Field>
-                <Field label={t("fuel.cost", locale)} htmlFor="d_cost">
-                  <Input id="d_cost" name="cost" inputMode="decimal" placeholder="R" />
-                </Field>
-                <Field label={t("fuel.supplier", locale)} htmlFor="d_supplier">
-                  <Input id="d_supplier" name="supplier" />
-                </Field>
-                <Field label={t("fuel.invoiceNo", locale)} htmlFor="d_invoice">
-                  <Input id="d_invoice" name="invoice_no" />
-                </Field>
-              </div>
-              <SubmitButton variant="primary" className="self-start">{t("fuel.log", locale)}</SubmitButton>
-            </form>
-          </Card>
-        ) : null}
-      </div>
 
       {/* Tank balance + add tank */}
       <Card>
@@ -323,47 +347,67 @@ export default async function FuelPage({
         <p className="mt-2 text-xs text-sand-400">{t("fuel.balanceHint", locale)}</p>
 
         {/* Measuring the tank is the same person at the same bowser as drawing from it. */}
-        {canDraw && tanks.length > 0 ? (
-          <details className="mt-3 border-t border-sand-100 pt-3">
-            <summary className="min-h-12 cursor-pointer text-sm font-medium text-brand-ink">
-              {t("fuel.addDip", locale)}
-            </summary>
-            <form action={addFuelDip} className="mt-2 flex flex-wrap items-end gap-2">
-              <Field label={t("fuel.tank", locale)} htmlFor="dip_tank" className="flex-1">
-                <Select id="dip_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
-                  {tanks.map((tk) => (
-                    <option key={tk.id} value={tk.id}>{tk.name}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={t("fuel.dipLitres", locale)} htmlFor="dip_litres">
-                <Input id="dip_litres" name="litres" type="number" inputMode="decimal" step="0.1" min={0} required className="w-28" />
-              </Field>
-              <Field label={t("fuel.dipDate", locale)} htmlFor="dip_date">
-                <Input id="dip_date" name="dipped_on" type="date" />
-              </Field>
-              <Field label={t("fuel.dipNote", locale)} htmlFor="dip_note" className="flex-1">
-                <Input id="dip_note" name="note" maxLength={300} />
-              </Field>
-              <SubmitButton variant="secondary">{t("fuel.addDipSubmit", locale)}</SubmitButton>
-            </form>
-            <p className="mt-2 text-xs text-sand-400">{t("fuel.dipHint", locale)}</p>
-          </details>
-        ) : null}
-        {canManage ? (
-          <details className="mt-3 border-t border-sand-100 pt-3">
-            <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("fuel.addTank", locale)}</summary>
-            <form action={addFuelTank} className="mt-2 flex flex-wrap items-end gap-2">
-              <Field label={t("fuel.tankName", locale)} htmlFor="t_name" className="flex-1">
-                <Input id="t_name" name="name" required />
-              </Field>
-              <Field label={t("fuel.capacityL", locale)} htmlFor="t_cap">
-                <Input id="t_cap" name="capacity_l" type="number" inputMode="decimal" step="1" />
-              </Field>
-              <SubmitButton variant="secondary">{t("fuel.add", locale)}</SubmitButton>
-            </form>
-          </details>
-        ) : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand-100 pt-3">
+          {canDraw && tanks.length > 0 ? (
+            <DialogForm
+              trigger={t("fuel.addDip", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("fuel.addDip", locale)}
+              description={t("fuel.dipHint", locale)}
+              closeLabel={closeLabel}
+              size="md"
+            >
+              <form action={addFuelDip}>
+                <DialogFields>
+                  <Field label={t("fuel.tank", locale)} htmlFor="dip_tank">
+                    <Select id="dip_tank" name="tank_id" required defaultValue={tanks[0]?.id ?? ""}>
+                      {tanks.map((tk) => (
+                        <option key={tk.id} value={tk.id}>{tk.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={t("fuel.dipLitres", locale)} htmlFor="dip_litres">
+                    <Input id="dip_litres" name="litres" type="number" inputMode="decimal" step="0.1" min={0} required />
+                  </Field>
+                  <Field label={t("fuel.dipDate", locale)} htmlFor="dip_date">
+                    <Input id="dip_date" name="dipped_on" type="date" />
+                  </Field>
+                  <Field label={t("fuel.dipNote", locale)} htmlFor="dip_note">
+                    <Input id="dip_note" name="note" maxLength={300} />
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("fuel.addDipSubmit", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
+          {canManage ? (
+            <DialogForm
+              trigger={t("fuel.addTank", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("fuel.addTank", locale)}
+              closeLabel={closeLabel}
+              size="md"
+            >
+              <form action={addFuelTank}>
+                <DialogFields>
+                  <Field label={t("fuel.tankName", locale)} htmlFor="t_name">
+                    <Input id="t_name" name="name" required />
+                  </Field>
+                  <Field label={t("fuel.capacityL", locale)} htmlFor="t_cap">
+                    <Input id="t_cap" name="capacity_l" type="number" inputMode="decimal" step="1" />
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("fuel.add", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
+        </div>
       </Card>
 
       {/* Consumption per machine */}

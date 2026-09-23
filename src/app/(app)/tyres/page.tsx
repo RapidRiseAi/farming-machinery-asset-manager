@@ -19,7 +19,7 @@ import {
   type TyreLifeRow,
 } from "@/lib/tyres";
 
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
@@ -29,8 +29,9 @@ import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { GetStarted } from "@/components/ui/empty-state";
-import { buttonVariants } from "@/components/ui/button";
-import { ChevronDownIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { PlusIcon } from "@/components/ui/icons";
 
 import { addTyre, fitTyre, recordTyreCheck, removeTyre } from "./actions";
 
@@ -59,11 +60,19 @@ type MachineRow = { id: string; name: string; meter_type: string };
  * == "Never checked" is amber, not silent =====================================
  * A tyre nobody has looked at is the one to go and look at. Rendering it the same as a
  * healthy tyre is how a bald tyre stays on a trailer.
+ *
+ * == Why the forms are in dialogs =============================================
+ * The row used to carry two or three buttons that were LINKS, to `?check=<id>`,
+ * `?fit=<id>` and `?off=<id>`. Revealing four fields therefore cost a full server
+ * render, and the URL you were left on reopened the form the next time you landed
+ * there. The fields are the same fields; they now open over the row instead, named
+ * after the tyre they are about, so recording a reading against the wrong tyre takes
+ * a deliberate misreading of the dialog's own title rather than a mis-scroll.
  */
 export default async function TyresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; fit?: string; check?: string; off?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const profile = await requireProfile();
   const locale = profile.lang;
@@ -97,6 +106,15 @@ export default async function TyresPage({
             ? "tyres.savedChecked"
             : null;
 
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
+
+  /** What to call a tyre in a dialog title, so the dialog names its own subject. */
+  const tyreName = (r: TyreLifeRow) =>
+    [[r.brand, r.pattern].filter(Boolean).join(" ") || t("tyres.title", locale), r.size]
+      .filter(Boolean)
+      .join(" · ");
+
   /** One tyre, wherever it is listed. */
   const tyreRow = (r: TyreLifeRow) => {
     const verdict = treadVerdict(r);
@@ -106,6 +124,7 @@ export default async function TyresPage({
     const where = whereKey(r);
     let whereText = t(where.key, locale);
     for (const [k, v] of Object.entries(where.vars)) whereText = whereText.replace(`{${k}}`, v);
+    const name = tyreName(r);
 
     return (
       <li key={r.tyre_id} className="p-4 sm:p-5">
@@ -124,6 +143,131 @@ export default async function TyresPage({
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone={statusLook(r.status).tone}>{t(statusLook(r.status).labelKey, locale)}</Badge>
             <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+
+            {/* Every action this tyre has, behind one button, titled with the tyre. */}
+            {canManage ? (
+              <ActionMenu title={name} label={t("common.actions", locale)} closeLabel={closeLabel}>
+                <DialogForm
+                  triggerLook="menuItem"
+                  trigger={t("tyres.checkTitle", locale)}
+                  title={t("tyres.checkTitle", locale)}
+                  description={name}
+                  closeLabel={closeLabel}
+                  size="md"
+                >
+                  <form action={recordTyreCheck}>
+                    <input type="hidden" name="tyre_id" value={r.tyre_id} />
+                    <DialogFields>
+                      <Field label={t("tyres.fieldTread", locale)} htmlFor={`tm-${r.tyre_id}`} required>
+                        <Input id={`tm-${r.tyre_id}`} name="tread_mm" inputMode="decimal" required />
+                      </Field>
+                      <Field label={t("tyres.fieldReading", locale)} htmlFor={`rd-${r.tyre_id}`}>
+                        <Input id={`rd-${r.tyre_id}`} name="reading" inputMode="decimal" />
+                      </Field>
+                      <Field label={t("tyres.fieldPressure", locale)} htmlFor={`pk-${r.tyre_id}`}>
+                        <Input id={`pk-${r.tyre_id}`} name="pressure_kpa" inputMode="decimal" />
+                      </Field>
+                      <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor={`cd-${r.tyre_id}`}>
+                        <Input id={`cd-${r.tyre_id}`} name="checked_on" type="date" />
+                      </Field>
+                    </DialogFields>
+                    <DialogActions cancelLabel={cancelLabel}>
+                      <SubmitButton variant="primary">{t("tyres.check", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+
+                {r.status === "fitted" ? (
+                  <DialogForm
+                    triggerLook="menuItem"
+                    triggerTone="danger"
+                    trigger={t("tyres.remove", locale)}
+                    title={t("tyres.remove", locale)}
+                    description={name}
+                    closeLabel={closeLabel}
+                    size="md"
+                  >
+                    <form action={removeTyre}>
+                      <input type="hidden" name="tyre_id" value={r.tyre_id} />
+                      <DialogFields>
+                        <Field label={t("tyres.fieldReason", locale)} htmlFor={`rr-${r.tyre_id}`}>
+                          <Input id={`rr-${r.tyre_id}`} name="removal_reason" maxLength={80} />
+                        </Field>
+                        <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`rd-off-${r.tyre_id}`}>
+                          <Input id={`rd-off-${r.tyre_id}`} name="removed_on" type="date" />
+                        </Field>
+                        <Field label={t("tyres.fieldReading", locale)} htmlFor={`rr2-${r.tyre_id}`}>
+                          <Input id={`rr2-${r.tyre_id}`} name="removed_reading" inputMode="decimal" />
+                        </Field>
+                        <label className="flex items-start gap-3 sm:col-span-2">
+                          <input type="checkbox" name="scrap" className="mt-1 size-5" />
+                          <span className="text-sm text-sand-800">{t("tyres.fieldScrap", locale)}</span>
+                        </label>
+                      </DialogFields>
+                      <DialogActions cancelLabel={cancelLabel}>
+                        <SubmitButton variant="primary">{t("tyres.remove", locale)}</SubmitButton>
+                      </DialogActions>
+                    </form>
+                  </DialogForm>
+                ) : r.status !== "scrapped" ? (
+                  <DialogForm
+                    triggerLook="menuItem"
+                    trigger={t("tyres.fit", locale)}
+                    title={t("tyres.fit", locale)}
+                    description={name}
+                    closeLabel={closeLabel}
+                    size="md"
+                  >
+                    <form action={fitTyre}>
+                      <input type="hidden" name="tyre_id" value={r.tyre_id} />
+                      <DialogFields>
+                        <Field label={t("tyres.fieldMachine", locale)} htmlFor={`fm-${r.tyre_id}`} required>
+                          <Select id={`fm-${r.tyre_id}`} name="machine_id" required defaultValue="">
+                            <option value="" disabled>
+                              -
+                            </option>
+                            {machines.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}
+                              </option>
+                            ))}
+                          </Select>
+                        </Field>
+                        <Field label={t("tyres.fieldAxle", locale)} htmlFor={`fa-${r.tyre_id}`}>
+                          <Select id={`fa-${r.tyre_id}`} name="axle" defaultValue="drive">
+                            {TYRE_AXLES.map((a) => (
+                              <option key={a} value={a}>
+                                {enumLabel("tyreAxle", a, locale)}
+                              </option>
+                            ))}
+                          </Select>
+                        </Field>
+                        <Field
+                          label={t("tyres.fieldPosition", locale)}
+                          htmlFor={`fp-${r.tyre_id}`}
+                          hint={t("tyres.fieldPositionHint", locale)}
+                        >
+                          <Input id={`fp-${r.tyre_id}`} name="position_label" maxLength={12} />
+                        </Field>
+                        <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`fd-${r.tyre_id}`}>
+                          <Input id={`fd-${r.tyre_id}`} name="fitted_on" type="date" />
+                        </Field>
+                        <Field
+                          label={t("tyres.fieldReading", locale)}
+                          htmlFor={`fr-${r.tyre_id}`}
+                          hint={t("tyres.fieldReadingHint", locale)}
+                        >
+                          <Input id={`fr-${r.tyre_id}`} name="fitted_reading" inputMode="decimal" />
+                        </Field>
+                      </DialogFields>
+                      <DialogActions cancelLabel={cancelLabel}>
+                        <SubmitButton variant="primary">{t("tyres.fit", locale)}</SubmitButton>
+                      </DialogActions>
+                    </form>
+                  </DialogForm>
+                ) : null}
+              </ActionMenu>
+            ) : null}
           </div>
         </div>
 
@@ -194,125 +338,6 @@ export default async function TyresPage({
             <span className="text-sand-500">{` · ${rands(r.purchase_cost_cents)}`}</span>
           ) : null}
         </p>
-
-        {canManage ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link
-              href={`/tyres?check=${r.tyre_id}`}
-              className={buttonVariants({ variant: "secondary", size: "sm" })}
-            >
-              {t("tyres.checkTitle", locale)}
-            </Link>
-            {r.status === "fitted" ? (
-              <Link
-                href={`/tyres?off=${r.tyre_id}`}
-                className={buttonVariants({ variant: "ghost", size: "sm" })}
-              >
-                {t("tyres.remove", locale)}
-              </Link>
-            ) : r.status !== "scrapped" ? (
-              <Link
-                href={`/tyres?fit=${r.tyre_id}`}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                {t("tyres.fit", locale)}
-              </Link>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* The three inline forms, each opening on the row it is about. A modal asking
-            "tread now" with the tyre's name three lines away is how a farm records a
-            reading against the wrong tyre. */}
-        {canManage && sp.check === r.tyre_id ? (
-          <form action={recordTyreCheck} className="mt-3 grid gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3 sm:grid-cols-4">
-            <input type="hidden" name="tyre_id" value={r.tyre_id} />
-            <Field label={t("tyres.fieldTread", locale)} htmlFor={`tm-${r.tyre_id}`} required>
-              <Input id={`tm-${r.tyre_id}`} name="tread_mm" inputMode="decimal" required />
-            </Field>
-            <Field label={t("tyres.fieldReading", locale)} htmlFor={`rd-${r.tyre_id}`}>
-              <Input id={`rd-${r.tyre_id}`} name="reading" inputMode="decimal" />
-            </Field>
-            <Field label={t("tyres.fieldPressure", locale)} htmlFor={`pk-${r.tyre_id}`}>
-              <Input id={`pk-${r.tyre_id}`} name="pressure_kpa" inputMode="decimal" />
-            </Field>
-            <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor={`cd-${r.tyre_id}`}>
-              <Input id={`cd-${r.tyre_id}`} name="checked_on" type="date" />
-            </Field>
-            <div className="sm:col-span-4">
-              <SubmitButton variant="primary">{t("tyres.check", locale)}</SubmitButton>
-            </div>
-          </form>
-        ) : null}
-
-        {canManage && sp.fit === r.tyre_id ? (
-          <form action={fitTyre} className="mt-3 grid gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3 sm:grid-cols-3">
-            <input type="hidden" name="tyre_id" value={r.tyre_id} />
-            <Field label={t("tyres.fieldMachine", locale)} htmlFor={`fm-${r.tyre_id}`} required>
-              <Select id={`fm-${r.tyre_id}`} name="machine_id" required defaultValue="">
-                <option value="" disabled>
-                  -
-                </option>
-                {machines.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t("tyres.fieldAxle", locale)} htmlFor={`fa-${r.tyre_id}`}>
-              <Select id={`fa-${r.tyre_id}`} name="axle" defaultValue="drive">
-                {TYRE_AXLES.map((a) => (
-                  <option key={a} value={a}>
-                    {enumLabel("tyreAxle", a, locale)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field
-              label={t("tyres.fieldPosition", locale)}
-              htmlFor={`fp-${r.tyre_id}`}
-              hint={t("tyres.fieldPositionHint", locale)}
-            >
-              <Input id={`fp-${r.tyre_id}`} name="position_label" maxLength={12} />
-            </Field>
-            <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`fd-${r.tyre_id}`}>
-              <Input id={`fd-${r.tyre_id}`} name="fitted_on" type="date" />
-            </Field>
-            <Field
-              label={t("tyres.fieldReading", locale)}
-              htmlFor={`fr-${r.tyre_id}`}
-              hint={t("tyres.fieldReadingHint", locale)}
-            >
-              <Input id={`fr-${r.tyre_id}`} name="fitted_reading" inputMode="decimal" />
-            </Field>
-            <div className="sm:col-span-3">
-              <SubmitButton variant="primary">{t("tyres.fit", locale)}</SubmitButton>
-            </div>
-          </form>
-        ) : null}
-
-        {canManage && sp.off === r.tyre_id ? (
-          <form action={removeTyre} className="mt-3 grid gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3 sm:grid-cols-3">
-            <input type="hidden" name="tyre_id" value={r.tyre_id} />
-            <Field label={t("tyres.fieldReason", locale)} htmlFor={`rr-${r.tyre_id}`}>
-              <Input id={`rr-${r.tyre_id}`} name="removal_reason" maxLength={80} />
-            </Field>
-            <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`rd-off-${r.tyre_id}`}>
-              <Input id={`rd-off-${r.tyre_id}`} name="removed_on" type="date" />
-            </Field>
-            <Field label={t("tyres.fieldReading", locale)} htmlFor={`rr2-${r.tyre_id}`}>
-              <Input id={`rr2-${r.tyre_id}`} name="removed_reading" inputMode="decimal" />
-            </Field>
-            <label className="flex items-start gap-3 sm:col-span-3">
-              <input type="checkbox" name="scrap" className="mt-1 size-5" />
-              <span className="text-sm text-sand-800">{t("tyres.fieldScrap", locale)}</span>
-            </label>
-            <div className="sm:col-span-3">
-              <SubmitButton variant="primary">{t("tyres.remove", locale)}</SubmitButton>
-            </div>
-          </form>
-        ) : null}
       </li>
     );
   };
@@ -324,7 +349,56 @@ export default async function TyresPage({
           <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
             {t("tyres.title", locale)}
           </h1>
-          <PageInfoButton infoKey="tyres" locale={locale} />
+          <div className="flex shrink-0 items-center gap-2">
+            <PageInfoButton infoKey="tyres" locale={locale} />
+            {/* The one thing you come here to ADD, at the top, where a primary action
+                belongs, instead of a nine-field panel below the list. */}
+            {canManage ? (
+              <DialogForm
+                trigger={t("tyres.add", locale)}
+                triggerIcon={<PlusIcon />}
+                title={t("tyres.addTitle", locale)}
+                closeLabel={closeLabel}
+              >
+                <form action={addTyre}>
+                  <DialogFields>
+                    <Field label={t("tyres.fieldBrand", locale)} htmlFor="ty-brand">
+                      <Input id="ty-brand" name="brand" maxLength={40} />
+                    </Field>
+                    <Field label={t("tyres.fieldPattern", locale)} htmlFor="ty-pattern">
+                      <Input id="ty-pattern" name="pattern" maxLength={40} />
+                    </Field>
+                    <Field label={t("tyres.fieldSize", locale)} htmlFor="ty-size">
+                      <Input id="ty-size" name="size" maxLength={30} />
+                    </Field>
+                    <Field label={t("tyres.fieldSerial", locale)} htmlFor="ty-serial">
+                      <Input id="ty-serial" name="serial_no" maxLength={40} />
+                    </Field>
+                    <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor="ty-date">
+                      <Input id="ty-date" name="purchase_date" type="date" />
+                    </Field>
+                    <Field label={t("tyres.fieldCost", locale)} htmlFor="ty-cost">
+                      <Input id="ty-cost" name="purchase_cost_cents" inputMode="decimal" />
+                    </Field>
+                    <Field label={t("tyres.fieldSupplier", locale)} htmlFor="ty-supplier">
+                      <Input id="ty-supplier" name="supplier" maxLength={60} />
+                    </Field>
+                    <Field label={t("tyres.fieldNewTread", locale)} htmlFor="ty-tread">
+                      <Input id="ty-tread" name="new_tread_mm" inputMode="decimal" />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label={t("tyres.fieldNotes", locale)} htmlFor="ty-notes">
+                        <Input id="ty-notes" name="notes" maxLength={200} />
+                      </Field>
+                    </div>
+                  </DialogFields>
+                  <DialogActions cancelLabel={cancelLabel} note={t("tyres.moneyNote", locale)}>
+                    <SubmitButton variant="primary">{t("tyres.add", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+              </DialogForm>
+            ) : null}
+          </div>
         </div>
         <p className="mt-1 text-sm text-sand-600">{t("tyres.lead", locale)}</p>
       </div>
@@ -374,50 +448,6 @@ export default async function TyresPage({
           ) : null}
         </>
       )}
-
-      {canManage ? (
-        <details className="group rounded-2xl border border-sand-200 bg-surface shadow-xs">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-5">
-            <span className="font-semibold text-ink">{t("tyres.addTitle", locale)}</span>
-            <ChevronDownIcon className="shrink-0 text-sand-500 transition-transform group-open:rotate-180" />
-          </summary>
-          <form action={addTyre} className="grid gap-3 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
-            <Field label={t("tyres.fieldBrand", locale)} htmlFor="ty-brand">
-              <Input id="ty-brand" name="brand" maxLength={40} />
-            </Field>
-            <Field label={t("tyres.fieldPattern", locale)} htmlFor="ty-pattern">
-              <Input id="ty-pattern" name="pattern" maxLength={40} />
-            </Field>
-            <Field label={t("tyres.fieldSize", locale)} htmlFor="ty-size">
-              <Input id="ty-size" name="size" maxLength={30} />
-            </Field>
-            <Field label={t("tyres.fieldSerial", locale)} htmlFor="ty-serial">
-              <Input id="ty-serial" name="serial_no" maxLength={40} />
-            </Field>
-            <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor="ty-date">
-              <Input id="ty-date" name="purchase_date" type="date" />
-            </Field>
-            <Field label={t("tyres.fieldCost", locale)} htmlFor="ty-cost">
-              <Input id="ty-cost" name="purchase_cost_cents" inputMode="decimal" />
-            </Field>
-            <Field label={t("tyres.fieldSupplier", locale)} htmlFor="ty-supplier">
-              <Input id="ty-supplier" name="supplier" maxLength={60} />
-            </Field>
-            <Field label={t("tyres.fieldNewTread", locale)} htmlFor="ty-tread">
-              <Input id="ty-tread" name="new_tread_mm" inputMode="decimal" />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label={t("tyres.fieldNotes", locale)} htmlFor="ty-notes">
-                <Input id="ty-notes" name="notes" maxLength={200} />
-              </Field>
-            </div>
-            <div className="sm:col-span-2">
-              <p className="mb-2 text-xs text-sand-500">{t("tyres.moneyNote", locale)}</p>
-              <SubmitButton variant="primary">{t("tyres.add", locale)}</SubmitButton>
-            </div>
-          </form>
-        </details>
-      ) : null}
     </div>
   );
 }

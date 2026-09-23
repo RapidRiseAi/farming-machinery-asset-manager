@@ -12,12 +12,12 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { JobCardsIcon, PlusIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { createJobCard } from "./actions";
 import { JOB_TYPES } from "@/lib/job-options";
 import { JobStatus } from "@/components/ui/status";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { Field } from "@/components/ui/field";
-import { buttonVariants } from "@/components/ui/button";
 
 
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
@@ -38,6 +38,8 @@ export default async function JobCardsPage({
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();
@@ -69,37 +71,46 @@ export default async function JobCardsPage({
           "repair", so every job was a repair and a mis-tap created a card you then had
           to delete. It also never posted `farm_id`, which `createJobCard` requires, so
           the button failed with "Missing machine". Now: a deliberate form with the type
-          chosen, behind a disclosure so it is not the loudest thing on the page.
+          chosen, in a dialog so it is not the loudest thing on the page.
+
+          It was a `<details>` wearing a primary button's clothes: a `<summary>` styled
+          with `buttonVariants` so it LOOKED like the button on every other screen, but
+          opening a panel with no focus trap, no Escape, and no way out on a phone except
+          finding the summary again. Being a `<details>` it was also in flow, so opening
+          it pushed the job-card list down the page.
         */}
         {canJob && machines.length > 0 ? (
-          <details className="w-full sm:w-auto">
-            <summary className={buttonVariants({ variant: "primary", className: "cursor-pointer list-none" })}>
-              <PlusIcon className="text-lg" />
-              {t("jobcards.startNew", locale)}
-            </summary>
-            <form
-              action={createJobCard}
-              className="mt-3 flex flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-4 shadow-card sm:w-80"
-            >
+          <DialogForm
+            trigger={t("jobcards.startNew", locale)}
+            triggerIcon={<PlusIcon className="text-lg" />}
+            title={t("jobcards.startNew", locale)}
+            closeLabel={closeLabel}
+            size="md"
+          >
+            <form action={createJobCard}>
               <input type="hidden" name="farm_id" value={farmIdForCreate} />
-              <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor="new_machine" required>
-                <Select id="new_machine" name="machine_id" defaultValue="" required>
-                  <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
-                  {machines.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={t("jobcards.whatKindLabel", locale)} htmlFor="new_type">
-                <Select id="new_type" name="type" defaultValue="repair">
-                  {JOB_TYPES.map((jt) => (
-                    <option key={jt} value={jt}>{t(`jobType.${jt}`, locale)}</option>
-                  ))}
-                </Select>
-              </Field>
-              <SubmitButton variant="primary">{t("jobcards.createIt", locale)}</SubmitButton>
+              <DialogFields columns={1}>
+                <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor="new_machine" required>
+                  <Select id="new_machine" name="machine_id" defaultValue="" required>
+                    <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
+                    {machines.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t("jobcards.whatKindLabel", locale)} htmlFor="new_type">
+                  <Select id="new_type" name="type" defaultValue="repair">
+                    {JOB_TYPES.map((jt) => (
+                      <option key={jt} value={jt}>{t(`jobType.${jt}`, locale)}</option>
+                    ))}
+                  </Select>
+                </Field>
+              </DialogFields>
+              <DialogActions cancelLabel={cancelLabel}>
+                <SubmitButton variant="primary">{t("jobcards.createIt", locale)}</SubmitButton>
+              </DialogActions>
             </form>
-          </details>
+          </DialogForm>
         ) : null}
       </div>
 

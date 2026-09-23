@@ -30,7 +30,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { GetStarted } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
-import { ChevronDownIcon, TrashIcon } from "@/components/ui/icons";
+import { PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 
 import { addDriverCredential, removeDriverCredential, renewDriverCredential } from "./actions";
 
@@ -63,6 +64,8 @@ export default async function DriverLicencesPage({
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
   const sp = await searchParams;
 
   const permissionState = await farmPermissionState(profile);
@@ -121,7 +124,88 @@ export default async function DriverLicencesPage({
           <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
             {t("credentials.title", locale)}
           </h1>
-          <PageInfoButton infoKey="credentials" locale={locale} />
+          <div className="flex shrink-0 items-center gap-2">
+            <PageInfoButton infoKey="credentials" locale={locale} />
+            {/* Capture is the occasional job on this screen and reading it is the daily
+                one, which is why it was behind a disclosure. A dialog says the same thing
+                and does not put a ten-field form under the list to say it. */}
+            <DialogForm
+              trigger={t("credentials.add", locale)}
+              triggerIcon={<PlusIcon />}
+              title={t("credentials.addTitle", locale)}
+              closeLabel={closeLabel}
+            >
+              <form action={addDriverCredential}>
+                <DialogFields>
+                  <Field
+                    label={t("credentials.person", locale)}
+                    htmlFor="dc-user"
+                    hint={t("credentials.personHint", locale)}
+                  >
+                    <Select id="dc-user" name="user_id" defaultValue="">
+                      <option value="">{t("credentials.personOther", locale)}</option>
+                      {people.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name?.trim() || p.email || p.id.slice(0, 8)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label={t("credentials.personName", locale)}
+                    htmlFor="dc-name"
+                    hint={t("credentials.personNameHint", locale)}
+                  >
+                    <Input id="dc-name" name="person_name" maxLength={80} />
+                  </Field>
+                  <Field label={t("credentials.type", locale)} htmlFor="dc-type">
+                    <Select id="dc-type" name="type" defaultValue="drivers_licence">
+                      {CREDENTIAL_TYPES.map((k) => (
+                        <option key={k} value={k}>
+                          {enumLabel("credentialType", k, locale)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label={t("credentials.code", locale)}
+                    htmlFor="dc-code"
+                    hint={t("credentials.codeHint", locale)}
+                  >
+                    <Input id="dc-code" name="code" maxLength={20} />
+                  </Field>
+                  <Field label={t("credentials.number", locale)} htmlFor="dc-number">
+                    <Input id="dc-number" name="number" maxLength={40} />
+                  </Field>
+                  <Field label={t("credentials.issuedOn", locale)} htmlFor="dc-issued">
+                    <Input id="dc-issued" name="issued_on" type="date" />
+                  </Field>
+                  <Field
+                    label={t("credentials.expiry", locale)}
+                    htmlFor="dc-expiry"
+                    hint={t("credentials.expiryHint", locale)}
+                  >
+                    <Input id="dc-expiry" name="expiry_date" type="date" />
+                  </Field>
+                  <Field
+                    label={t("credentials.lead", locale)}
+                    htmlFor="dc-lead"
+                    hint={t("credentials.leadHint", locale)}
+                  >
+                    <Input id="dc-lead" name="reminder_lead_days" inputMode="numeric" defaultValue="30" />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label={t("credentials.notes", locale)} htmlFor="dc-notes">
+                      <Input id="dc-notes" name="notes" maxLength={200} />
+                    </Field>
+                  </div>
+                </DialogFields>
+                <DialogActions cancelLabel={cancelLabel}>
+                  <SubmitButton variant="primary">{t("credentials.add", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          </div>
         </div>
         <p className="mt-1 text-sm text-sand-600">{t("credentials.lead", locale)}</p>
       </div>
@@ -261,81 +345,6 @@ export default async function DriverLicencesPage({
         </Card>
       )}
 
-      {/* Behind a disclosure: capture is the occasional job on this screen, and reading it
-          is the daily one. */}
-      <details className="group rounded-2xl border border-sand-200 bg-surface shadow-xs">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-5">
-          <span className="font-semibold text-ink">{t("credentials.addTitle", locale)}</span>
-          <ChevronDownIcon className="shrink-0 text-sand-500 transition-transform group-open:rotate-180" />
-        </summary>
-        <form action={addDriverCredential} className="grid gap-3 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5">
-          <Field
-            label={t("credentials.person", locale)}
-            htmlFor="dc-user"
-            hint={t("credentials.personHint", locale)}
-          >
-            <Select id="dc-user" name="user_id" defaultValue="">
-              <option value="">{t("credentials.personOther", locale)}</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name?.trim() || p.email || p.id.slice(0, 8)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label={t("credentials.personName", locale)}
-            htmlFor="dc-name"
-            hint={t("credentials.personNameHint", locale)}
-          >
-            <Input id="dc-name" name="person_name" maxLength={80} />
-          </Field>
-          <Field label={t("credentials.type", locale)} htmlFor="dc-type">
-            <Select id="dc-type" name="type" defaultValue="drivers_licence">
-              {CREDENTIAL_TYPES.map((k) => (
-                <option key={k} value={k}>
-                  {enumLabel("credentialType", k, locale)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label={t("credentials.code", locale)}
-            htmlFor="dc-code"
-            hint={t("credentials.codeHint", locale)}
-          >
-            <Input id="dc-code" name="code" maxLength={20} />
-          </Field>
-          <Field label={t("credentials.number", locale)} htmlFor="dc-number">
-            <Input id="dc-number" name="number" maxLength={40} />
-          </Field>
-          <Field label={t("credentials.issuedOn", locale)} htmlFor="dc-issued">
-            <Input id="dc-issued" name="issued_on" type="date" />
-          </Field>
-          <Field
-            label={t("credentials.expiry", locale)}
-            htmlFor="dc-expiry"
-            hint={t("credentials.expiryHint", locale)}
-          >
-            <Input id="dc-expiry" name="expiry_date" type="date" />
-          </Field>
-          <Field
-            label={t("credentials.lead", locale)}
-            htmlFor="dc-lead"
-            hint={t("credentials.leadHint", locale)}
-          >
-            <Input id="dc-lead" name="reminder_lead_days" inputMode="numeric" defaultValue="30" />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label={t("credentials.notes", locale)} htmlFor="dc-notes">
-              <Input id="dc-notes" name="notes" maxLength={200} />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
-            <SubmitButton variant="primary">{t("credentials.add", locale)}</SubmitButton>
-          </div>
-        </form>
-      </details>
 
       <p className="text-sm text-sand-600">
         <Link href="/team" className="font-medium text-brand-ink underline">

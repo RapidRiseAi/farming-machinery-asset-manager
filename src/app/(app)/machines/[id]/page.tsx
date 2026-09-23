@@ -57,8 +57,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { menuItemClass } from "@/components/ui/menu-item";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import {
-  ChevronDownIcon,
   ChevronLeftIcon,
   JobCardsIcon,
   FaultsIcon,
@@ -140,6 +142,8 @@ export default async function MachineDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -475,7 +479,6 @@ export default async function MachineDetailPage({
     return `${t("machine.every", locale)} ${parts.join(" / ")}`;
   };
 
-  const inputCls = "rounded-lg border border-sand-300 px-3 py-2 text-sm";
 
   return (
     <div className="flex flex-col gap-4">
@@ -562,16 +565,19 @@ export default async function MachineDetailPage({
             <Link href={`/machines/${machine.id}/qr`} className={buttonVariants({ variant: "secondary" })}>
               {t("machine.qrCode", locale)}
             </Link>
-            <details className="relative">
-              <summary className={buttonVariants({ variant: "ghost", className: "cursor-pointer list-none" })}>
-                {t("ui.viewAll", locale)}
-              </summary>
-              <div className="absolute right-0 z-10 mt-1 flex w-56 flex-col rounded-xl border border-sand-200 bg-surface p-1.5 shadow-pop">
-                <a href={`/machines/${machine.id}/file.pdf`} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-sand-700 hover:bg-sand-50">
-                  {t("machine.machineFile", locale)}
-                </a>
-              </div>
-            </details>
+            {/* Was a hand-rolled dropdown: a `<details className="relative">` with an
+                absolutely positioned panel, which has no focus trap, no Escape, and
+                clips inside any scrolling ancestor. `ActionMenu` portals instead. */}
+            <ActionMenu
+              title={machine.name}
+              label={t("common.actions", locale)}
+              closeLabel={closeLabel}
+              trigger={t("ui.viewAll", locale)}
+            >
+              <a href={`/machines/${machine.id}/file.pdf`} className={menuItemClass()}>
+                {t("machine.machineFile", locale)}
+              </a>
+            </ActionMenu>
           </div>
         </div>
       </header>
@@ -655,65 +661,95 @@ export default async function MachineDetailPage({
                       replaced hour meter, which is routine on an older tractor, did the
                       same. Both are the farm office's to fix, so this is owner/manager
                       only and stays shut until it is needed. */}
+                  {/* Two separate fixes, so two separate dialogs. They were stacked in
+                      one `<details>` divided by a hairline rule, which is how somebody
+                      corrects a typo in the form meant for a physically new meter. */}
                   {canEdit ? (
-                    <details className="group mt-4 border-t border-sand-200 pt-3">
-                      <summary className="focus-ring flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-brand-ink [&::-webkit-details-marker]:hidden">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-sand-200 pt-3">
+                      <span className="mr-auto text-sm font-medium text-sand-700">
                         {t("machine.meterFixTitle", locale)}
-                        <ChevronDownIcon className="shrink-0 text-lg transition-transform group-open:rotate-180" />
-                      </summary>
+                      </span>
 
                       {readings.length > 0 ? (
-                        <form action={correctReading} className="mt-3 flex flex-wrap items-end gap-2">
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input type="hidden" name="farm_id" value={machine.farm_id} />
-                          <Field
-                            label={t("machine.correctReadingLabel", locale)}
-                            htmlFor="reading_id"
-                            hint={t("machine.correctReadingHint", locale)}
-                            className="flex-1"
-                          >
-                            <Select id="reading_id" name="reading_id" required defaultValue="">
-                              <option value="" disabled>
-                                {t("machine.correctReadingPick", locale)}
-                              </option>
-                              {readings.slice(0, 8).map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.reading} {machine.meter_type} · {r.reading_date} · {r.source}
-                                </option>
-                              ))}
-                            </Select>
-                          </Field>
-                          <Field label={t("machine.correctReasonLabel", locale)} htmlFor="reason" className="flex-1">
-                            <Input id="reason" name="reason" maxLength={500} />
-                          </Field>
-                          <SubmitButton variant="secondary">
-                            {t("machine.correctReadingSubmit", locale)}
-                          </SubmitButton>
-                        </form>
+                        <DialogForm
+                          trigger={t("machine.correctReadingSubmit", locale)}
+                          triggerVariant="secondary"
+                          triggerSize="sm"
+                          title={t("machine.correctReadingSubmit", locale)}
+                          description={t("machine.correctReadingHint", locale)}
+                          closeLabel={closeLabel}
+                          size="md"
+                        >
+                          <form action={correctReading}>
+                            <input type="hidden" name="machine_id" value={machine.id} />
+                            <input type="hidden" name="farm_id" value={machine.farm_id} />
+                            <DialogFields columns={1}>
+                              <Field
+                                label={t("machine.correctReadingLabel", locale)}
+                                htmlFor="reading_id"
+                                hint={t("machine.correctReadingHint", locale)}
+                              >
+                                <Select id="reading_id" name="reading_id" required defaultValue="">
+                                  <option value="" disabled>
+                                    {t("machine.correctReadingPick", locale)}
+                                  </option>
+                                  {readings.slice(0, 8).map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.reading} {machine.meter_type} · {r.reading_date} · {r.source}
+                                    </option>
+                                  ))}
+                                </Select>
+                              </Field>
+                              <Field label={t("machine.correctReasonLabel", locale)} htmlFor="reason">
+                                <Input id="reason" name="reason" maxLength={500} />
+                              </Field>
+                            </DialogFields>
+                            <DialogActions cancelLabel={cancelLabel}>
+                              <SubmitButton variant="primary">
+                                {t("machine.correctReadingSubmit", locale)}
+                              </SubmitButton>
+                            </DialogActions>
+                          </form>
+                        </DialogForm>
                       ) : null}
 
-                      <form action={replaceMeter} className="mt-4 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
-                        <input type="hidden" name="machine_id" value={machine.id} />
-                        <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <Field
-                          label={t("machine.meterReplacedReading", locale)}
-                          htmlFor="new_reading"
-                          hint={t("machine.meterReplacedHint", locale)}
-                          className="flex-1"
-                        >
-                          <Input id="new_reading" name="new_reading" type="number" inputMode="decimal" step="0.1" min={0} required />
-                        </Field>
-                        <Field label={t("machine.meterReplacedOn", locale)} htmlFor="replaced_on">
-                          <Input id="replaced_on" name="replaced_on" type="date" />
-                        </Field>
-                        <Field label={t("machine.meterReplacedNote", locale)} htmlFor="note" className="flex-1">
-                          <Input id="note" name="note" maxLength={500} />
-                        </Field>
-                        <SubmitButton variant="secondary">
-                          {t("machine.meterReplacedSubmit", locale)}
-                        </SubmitButton>
-                      </form>
-                    </details>
+                      <DialogForm
+                        trigger={t("machine.meterReplacedSubmit", locale)}
+                        triggerVariant="secondary"
+                        triggerSize="sm"
+                        title={t("machine.meterReplacedSubmit", locale)}
+                        description={t("machine.meterReplacedHint", locale)}
+                        closeLabel={closeLabel}
+                        size="md"
+                      >
+                        <form action={replaceMeter}>
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <DialogFields>
+                            <Field
+                              label={t("machine.meterReplacedReading", locale)}
+                              htmlFor="new_reading"
+                              hint={t("machine.meterReplacedHint", locale)}
+                            >
+                              <Input id="new_reading" name="new_reading" type="number" inputMode="decimal" step="0.1" min={0} required />
+                            </Field>
+                            <Field label={t("machine.meterReplacedOn", locale)} htmlFor="replaced_on">
+                              <Input id="replaced_on" name="replaced_on" type="date" />
+                            </Field>
+                            <div className="sm:col-span-2">
+                              <Field label={t("machine.meterReplacedNote", locale)} htmlFor="note">
+                                <Input id="note" name="note" maxLength={500} />
+                              </Field>
+                            </div>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">
+                              {t("machine.meterReplacedSubmit", locale)}
+                            </SubmitButton>
+                          </DialogActions>
+                        </form>
+                      </DialogForm>
+                    </div>
                   ) : null}
                 </Card>
               ) : null}
@@ -946,27 +982,63 @@ export default async function MachineDetailPage({
                           <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "-"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
                           <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "-"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
                         </div>
+                        {/*
+                          Edit and delete this service line, behind one button.
+
+                          The form was a `<details>` on every line, and its fields were
+                          bare `<input placeholder=...>` with no label at all: a
+                          placeholder is not a label, it disappears the moment you type,
+                          and a screen reader gets nothing. In the dialog they are
+                          `Field`s, so every box says what it is.
+                        */}
                         {canEdit ? (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("machine.editServiceLine", locale)}</summary>
-                            <form action={updateServiceLine} className="mt-2 flex flex-wrap gap-2">
-                              <input type="hidden" name="id" value={l.id} />
-                              <input type="hidden" name="machine_id" value={machine.id} />
-                              <input name="task" defaultValue={l.task} placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
-                              <input name="interval_hours" type="number" step="0.1" defaultValue={l.interval_hours ?? ""} placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
-                              <input name="interval_months" type="number" defaultValue={l.interval_months ?? ""} placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
-                              <input name="last_done_reading" type="number" step="0.1" defaultValue={l.last_done_reading ?? ""} placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
-                              <input name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} className={`${inputCls}`} />
-                              <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                            </form>
-                            <div className="mt-1">
+                          <div className="mt-2 flex">
+                            <ActionMenu
+                              title={l.task}
+                              label={t("common.actions", locale)}
+                              closeLabel={closeLabel}
+                              trigger={t("machine.editServiceLine", locale)}
+                            >
+                              <DialogForm
+                                triggerLook="menuItem"
+                                trigger={t("machine.editServiceLine", locale)}
+                                title={t("machine.editServiceLine", locale)}
+                                description={l.task}
+                                closeLabel={closeLabel}
+                              >
+                                <form action={updateServiceLine}>
+                                  <input type="hidden" name="id" value={l.id} />
+                                  <input type="hidden" name="machine_id" value={machine.id} />
+                                  <DialogFields>
+                                    <div className="sm:col-span-2">
+                                      <Field label={t("machine.task", locale)} htmlFor={`sl-task-${l.id}`} required>
+                                        <Input id={`sl-task-${l.id}`} name="task" defaultValue={l.task} required />
+                                      </Field>
+                                    </div>
+                                    <Field label={t("machine.intervalHours", locale)} htmlFor={`sl-ih-${l.id}`}>
+                                      <Input id={`sl-ih-${l.id}`} name="interval_hours" type="number" step="0.1" defaultValue={l.interval_hours ?? ""} />
+                                    </Field>
+                                    <Field label={t("machine.intervalMonths", locale)} htmlFor={`sl-im-${l.id}`}>
+                                      <Input id={`sl-im-${l.id}`} name="interval_months" type="number" defaultValue={l.interval_months ?? ""} />
+                                    </Field>
+                                    <Field label={t("machine.lastDone", locale)} htmlFor={`sl-lr-${l.id}`}>
+                                      <Input id={`sl-lr-${l.id}`} name="last_done_reading" type="number" step="0.1" defaultValue={l.last_done_reading ?? ""} />
+                                    </Field>
+                                    <Field label={t("machine.lastDoneDate", locale)} htmlFor={`sl-ld-${l.id}`}>
+                                      <Input id={`sl-ld-${l.id}`} name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} />
+                                    </Field>
+                                  </DialogFields>
+                                  <DialogActions cancelLabel={cancelLabel}>
+                                    <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                  </DialogActions>
+                                </form>
+                              </DialogForm>
+
                               <ConfirmDialog
                                 action={deleteServiceLine}
-                                triggerVariant="ghost"
-                                triggerSize="sm"
+                                triggerLook="menuItem"
                                 triggerIcon={<TrashIcon />}
                                 triggerLabel={t("machine.delete", locale)}
-                                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                 title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
                                 intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
                                 consequencesTitle={t("confirm.whatHappens", locale)}
@@ -977,48 +1049,82 @@ export default async function MachineDetailPage({
                                 footnote={t("confirm.softDeleteNote", locale)}
                                 confirmLabel={t("confirm.deleteServiceLineYes", locale)}
                                 cancelLabel={t("confirm.keepIt", locale)}
-                                closeLabel={t("ui.close", locale)}
+                                closeLabel={closeLabel}
                               >
                                 <input type="hidden" name="id" value={l.id} />
                                 <input type="hidden" name="machine_id" value={machine.id} />
                               </ConfirmDialog>
-                            </div>
-                          </details>
+                            </ActionMenu>
+                          </div>
                         ) : null}
                       </li>
                     ))}
                   </ul>
                 )}
                 {canEdit ? (
-                  <div className="mt-3 flex flex-col gap-2 border-t border-sand-100 pt-3">
-                    <details>
-                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.addServiceLine", locale)}</summary>
-                      <form action={addServiceLine} className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand-100 pt-3">
+                    <DialogForm
+                      trigger={t("machine.addServiceLine", locale)}
+                      triggerIcon={<PlusIcon />}
+                      triggerSize="sm"
+                      title={t("machine.addServiceLine", locale)}
+                      closeLabel={closeLabel}
+                    >
+                      <form action={addServiceLine}>
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <input name="task" placeholder={t("machine.task", locale)} className={`${inputCls} flex-1`} required />
-                        <input name="interval_hours" type="number" step="0.1" placeholder={t("machine.intervalHours", locale)} className={`${inputCls} w-28`} />
-                        <input name="interval_months" type="number" placeholder={t("machine.intervalMonths", locale)} className={`${inputCls} w-28`} />
-                        <input name="last_done_reading" type="number" step="0.1" placeholder={t("machine.lastDone", locale)} className={`${inputCls} w-28`} />
-                        <input name="last_done_date" type="date" className={`${inputCls}`} />
-                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                        <DialogFields>
+                          <div className="sm:col-span-2">
+                            <Field label={t("machine.task", locale)} htmlFor="sl-new-task" required>
+                              <Input id="sl-new-task" name="task" required />
+                            </Field>
+                          </div>
+                          <Field label={t("machine.intervalHours", locale)} htmlFor="sl-new-ih">
+                            <Input id="sl-new-ih" name="interval_hours" type="number" step="0.1" />
+                          </Field>
+                          <Field label={t("machine.intervalMonths", locale)} htmlFor="sl-new-im">
+                            <Input id="sl-new-im" name="interval_months" type="number" />
+                          </Field>
+                          <Field label={t("machine.lastDone", locale)} htmlFor="sl-new-lr">
+                            <Input id="sl-new-lr" name="last_done_reading" type="number" step="0.1" />
+                          </Field>
+                          <Field label={t("machine.lastDoneDate", locale)} htmlFor="sl-new-ld">
+                            <Input id="sl-new-ld" name="last_done_date" type="date" />
+                          </Field>
+                        </DialogFields>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                        </DialogActions>
                       </form>
-                    </details>
+                    </DialogForm>
+
                     {templates.length > 0 ? (
-                      <details>
-                        <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.applyTemplate", locale)}</summary>
-                        <form action={applyTemplate} className="mt-2 flex flex-wrap items-end gap-2">
+                      <DialogForm
+                        trigger={t("machine.applyTemplate", locale)}
+                        triggerVariant="secondary"
+                        triggerSize="sm"
+                        title={t("machine.applyTemplate", locale)}
+                        closeLabel={closeLabel}
+                        size="md"
+                      >
+                        <form action={applyTemplate}>
                           <input type="hidden" name="machine_id" value={machine.id} />
                           <input type="hidden" name="farm_id" value={machine.farm_id} />
-                          <select name="template_id" className={`${inputCls} flex-1`} required defaultValue="">
-                            <option value="" disabled>{t("machine.template", locale)}</option>
-                            {templates.map((tp) => (
-                              <option key={tp.id} value={tp.id}>{tp.name}</option>
-                            ))}
-                          </select>
-                          <SubmitButton variant="secondary" size="sm">{t("machine.apply", locale)}</SubmitButton>
+                          <DialogFields columns={1}>
+                            <Field label={t("machine.template", locale)} htmlFor="sl-template" required>
+                              <Select id="sl-template" name="template_id" required defaultValue="">
+                                <option value="" disabled>{t("machine.template", locale)}</option>
+                                {templates.map((tp) => (
+                                  <option key={tp.id} value={tp.id}>{tp.name}</option>
+                                ))}
+                              </Select>
+                            </Field>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">{t("machine.apply", locale)}</SubmitButton>
+                          </DialogActions>
                         </form>
-                      </details>
+                      </DialogForm>
                     ) : null}
                   </div>
                 ) : null}
@@ -1104,62 +1210,126 @@ export default async function MachineDetailPage({
                                   </span>
                                 </div>
                                 {canKit ? (
-                                  <details className="mt-1">
-                                    <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
-                                    <form action={updateKitItem} className="mt-1 flex flex-wrap gap-2">
-                                      <input type="hidden" name="id" value={item.id} />
-                                      <input type="hidden" name="machine_id" value={machine.id} />
-                                      <input name="part_no" defaultValue={item.part_no ?? ""} placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
-                                      <input name="description" defaultValue={item.description ?? ""} placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
-                                      <input name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} className={`${inputCls} w-20`} />
-                                      <input name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
-                                      <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                                    </form>
-                                  </details>
+                                  <div className="mt-1 flex">
+                                    <DialogForm
+                                      trigger={t("common.edit", locale)}
+                                      triggerVariant="ghost"
+                                      triggerSize="sm"
+                                      title={t("common.edit", locale)}
+                                      description={item.part_no ?? item.description ?? undefined}
+                                      closeLabel={closeLabel}
+                                      size="md"
+                                    >
+                                      <form action={updateKitItem}>
+                                        <input type="hidden" name="id" value={item.id} />
+                                        <input type="hidden" name="machine_id" value={machine.id} />
+                                        <DialogFields>
+                                          <Field label={t("machine.kitPartNo", locale)} htmlFor={`ki-no-${item.id}`}>
+                                            <Input id={`ki-no-${item.id}`} name="part_no" defaultValue={item.part_no ?? ""} />
+                                          </Field>
+                                          <Field label={t("machine.kitQty", locale)} htmlFor={`ki-qty-${item.id}`}>
+                                            <Input id={`ki-qty-${item.id}`} name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} />
+                                          </Field>
+                                          <div className="sm:col-span-2">
+                                            <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ki-desc-${item.id}`}>
+                                              <Input id={`ki-desc-${item.id}`} name="description" defaultValue={item.description ?? ""} />
+                                            </Field>
+                                          </div>
+                                          <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ki-cost-${item.id}`}>
+                                            <Input id={`ki-cost-${item.id}`} name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} />
+                                          </Field>
+                                        </DialogFields>
+                                        <DialogActions cancelLabel={cancelLabel}>
+                                          <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                        </DialogActions>
+                                      </form>
+                                    </DialogForm>
+                                  </div>
                                 ) : null}
                               </li>
                             ))}
                           </ul>
                         )}
                         {canKit ? (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("machine.addKitItem", locale)}</summary>
-                            <form action={addKitItem} className="mt-2 flex flex-wrap gap-2">
-                              <input type="hidden" name="machine_id" value={machine.id} />
-                              <input type="hidden" name="farm_id" value={machine.farm_id} />
-                              <input type="hidden" name="service_kit_id" value={kit.id} />
-                              {catalogue.length > 0 ? (
-                                <select name="part_catalogue_id" defaultValue="" className={`${inputCls} w-full`}>
-                                  <option value="">{t("machine.kitFromCatalogue", locale)}</option>
-                                  {catalogue.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.part_no}{c.description ? `, ${c.description}` : ""}</option>
-                                  ))}
-                                </select>
-                              ) : null}
-                              <input name="part_no" placeholder={t("machine.kitPartNo", locale)} className={`${inputCls} w-28`} />
-                              <input name="description" placeholder={t("machine.kitPartDesc", locale)} className={`${inputCls} flex-1`} />
-                              <input name="qty" type="number" step="0.01" defaultValue="1" className={`${inputCls} w-20`} />
-                              <input name="unit_cost" inputMode="decimal" placeholder={t("machine.kitUnitCost", locale)} className={`${inputCls} w-24`} />
-                              <SubmitButton variant="secondary" size="sm">{t("common.add", locale)}</SubmitButton>
-                            </form>
-                          </details>
+                          <div className="mt-2 flex">
+                            <DialogForm
+                              trigger={t("machine.addKitItem", locale)}
+                              triggerIcon={<PlusIcon />}
+                              triggerVariant="secondary"
+                              triggerSize="sm"
+                              title={t("machine.addKitItem", locale)}
+                              description={kit.name}
+                              closeLabel={closeLabel}
+                            >
+                              <form action={addKitItem}>
+                                <input type="hidden" name="machine_id" value={machine.id} />
+                                <input type="hidden" name="farm_id" value={machine.farm_id} />
+                                <input type="hidden" name="service_kit_id" value={kit.id} />
+                                <DialogFields>
+                                  {catalogue.length > 0 ? (
+                                    <div className="sm:col-span-2">
+                                      <Field label={t("machine.kitFromCatalogue", locale)} htmlFor={`ka-cat-${kit.id}`}>
+                                        <Select id={`ka-cat-${kit.id}`} name="part_catalogue_id" defaultValue="">
+                                          <option value="">{t("machine.kitFromCatalogue", locale)}</option>
+                                          {catalogue.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.part_no}{c.description ? `, ${c.description}` : ""}</option>
+                                          ))}
+                                        </Select>
+                                      </Field>
+                                    </div>
+                                  ) : null}
+                                  <Field label={t("machine.kitPartNo", locale)} htmlFor={`ka-no-${kit.id}`}>
+                                    <Input id={`ka-no-${kit.id}`} name="part_no" />
+                                  </Field>
+                                  <Field label={t("machine.kitQty", locale)} htmlFor={`ka-qty-${kit.id}`}>
+                                    <Input id={`ka-qty-${kit.id}`} name="qty" type="number" step="0.01" defaultValue="1" />
+                                  </Field>
+                                  <div className="sm:col-span-2">
+                                    <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ka-desc-${kit.id}`}>
+                                      <Input id={`ka-desc-${kit.id}`} name="description" />
+                                    </Field>
+                                  </div>
+                                  <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ka-cost-${kit.id}`}>
+                                    <Input id={`ka-cost-${kit.id}`} name="unit_cost" inputMode="decimal" />
+                                  </Field>
+                                </DialogFields>
+                                <DialogActions cancelLabel={cancelLabel}>
+                                  <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                                </DialogActions>
+                              </form>
+                            </DialogForm>
+                          </div>
                         ) : null}
                       </li>
                     ))}
                   </ul>
                 )}
                 {canKit ? (
-                  <div className="mt-3 border-t border-sand-100 pt-3">
-                    <details>
-                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("machine.addServiceKit", locale)}</summary>
-                      <form action={createServiceKit} className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-3 flex border-t border-sand-100 pt-3">
+                    <DialogForm
+                      trigger={t("machine.addServiceKit", locale)}
+                      triggerIcon={<PlusIcon />}
+                      triggerSize="sm"
+                      title={t("machine.addServiceKit", locale)}
+                      closeLabel={closeLabel}
+                      size="md"
+                    >
+                      <form action={createServiceKit}>
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <input name="name" placeholder={t("machine.kitName", locale)} className={`${inputCls} flex-1`} required />
-                        <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
+                        <DialogFields columns={1}>
+                          <Field label={t("machine.kitName", locale)} htmlFor="kit-name" required>
+                            <Input id="kit-name" name="name" required />
+                          </Field>
+                          <Field label={t("machines.notes", locale)} htmlFor="kit-notes">
+                            <Input id="kit-notes" name="notes" />
+                          </Field>
+                        </DialogFields>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                        </DialogActions>
                       </form>
-                    </details>
+                    </DialogForm>
                   </div>
                 ) : null}
               </Card>
@@ -1175,10 +1345,13 @@ export default async function MachineDetailPage({
               {/* Lifetime stats */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
+                {/* The money tiles step down on a phone: a two-column tile is about 136px
+                    wide inside at 360px, and `rands` is one unbreakable token, so a
+                    machine that cost R1 500 000,00 would force the layout wider. */}
                 <div className="grid grid-cols-2 gap-3">
-                  <Stat label={t("machine.tco", locale)} value={rands(tco)} />
-                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} />
-                  <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} />
+                  <Stat label={t("machine.tco", locale)} value={rands(tco)} valueClassName="text-xl sm:text-3xl" />
+                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} valueClassName="text-xl sm:text-3xl" />
+                  <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} valueClassName="text-xl sm:text-3xl" />
                   <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
                   <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
                 </div>
@@ -1272,31 +1445,58 @@ export default async function MachineDetailPage({
                           {bp.pct != null ? ` · ${bp.pct.toFixed(0)}%` : ""}
                         </p>
                         {canBudget ? (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
-                            <form action={updateBudget} className="mt-2 flex flex-wrap gap-2">
-                              <input type="hidden" name="id" value={bp.budget.id} />
-                              <input type="hidden" name="machine_id" value={machine.id} />
-                              <select name="category" defaultValue={bp.budget.category ?? ""} className={`${inputCls} w-32`}>
-                                <option value="">{t("budget.allCategories", locale)}</option>
-                                {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
-                              </select>
-                              <select name="period_type" defaultValue={bp.budget.period_type} className={`${inputCls} w-28`}>
-                                {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
-                              </select>
-                              <input name="anchor" type="date" defaultValue={bp.budget.period_start} className={inputCls} />
-                              <input name="amount" inputMode="decimal" defaultValue={(bp.budget.amount_cents / 100).toFixed(2)} placeholder={t("budget.amount", locale)} className={`${inputCls} w-28`} />
-                              <input name="note" defaultValue={bp.budget.note ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                              <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                            </form>
-                            <div className="mt-1">
+                          <div className="mt-2 flex">
+                            <ActionMenu
+                              title={bp.budget.category ? t(`costType.${bp.budget.category}`, locale) : t("budget.allCategories", locale)}
+                              label={t("common.actions", locale)}
+                              closeLabel={closeLabel}
+                              trigger={t("common.edit", locale)}
+                            >
+                              <DialogForm
+                                triggerLook="menuItem"
+                                trigger={t("common.edit", locale)}
+                                title={t("common.edit", locale)}
+                                description={rands(bp.budget.amount_cents)}
+                                closeLabel={closeLabel}
+                              >
+                                <form action={updateBudget}>
+                                  <input type="hidden" name="id" value={bp.budget.id} />
+                                  <input type="hidden" name="machine_id" value={machine.id} />
+                                  <DialogFields>
+                                    <Field label={t("budget.category", locale)} htmlFor={`bu-cat-${bp.budget.id}`}>
+                                      <Select id={`bu-cat-${bp.budget.id}`} name="category" defaultValue={bp.budget.category ?? ""}>
+                                        <option value="">{t("budget.allCategories", locale)}</option>
+                                        {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label={t("budget.period", locale)} htmlFor={`bu-per-${bp.budget.id}`}>
+                                      <Select id={`bu-per-${bp.budget.id}`} name="period_type" defaultValue={bp.budget.period_type}>
+                                        {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label={t("budget.anchor", locale)} htmlFor={`bu-anc-${bp.budget.id}`}>
+                                      <Input id={`bu-anc-${bp.budget.id}`} name="anchor" type="date" defaultValue={bp.budget.period_start} />
+                                    </Field>
+                                    <Field label={t("budget.amount", locale)} htmlFor={`bu-amt-${bp.budget.id}`}>
+                                      <Input id={`bu-amt-${bp.budget.id}`} name="amount" inputMode="decimal" defaultValue={(bp.budget.amount_cents / 100).toFixed(2)} />
+                                    </Field>
+                                    <div className="sm:col-span-2">
+                                      <Field label={t("machines.notes", locale)} htmlFor={`bu-note-${bp.budget.id}`}>
+                                        <Input id={`bu-note-${bp.budget.id}`} name="note" defaultValue={bp.budget.note ?? ""} />
+                                      </Field>
+                                    </div>
+                                  </DialogFields>
+                                  <DialogActions cancelLabel={cancelLabel}>
+                                    <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                  </DialogActions>
+                                </form>
+                              </DialogForm>
+
                               <ConfirmDialog
                                 action={deleteBudget}
-                                triggerVariant="ghost"
-                                triggerSize="sm"
+                                triggerLook="menuItem"
                                 triggerIcon={<TrashIcon />}
                                 triggerLabel={t("common.delete", locale)}
-                                triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                 title={t("confirm.deleteBudgetTitle", locale)}
                                 intro={t("confirm.deleteBudgetIntro", locale).replace("{machine}", machine.name)}
                                 facts={[
@@ -1313,44 +1513,55 @@ export default async function MachineDetailPage({
                                 footnote={t("confirm.softDeleteNote", locale)}
                                 confirmLabel={t("confirm.deleteBudgetYes", locale)}
                                 cancelLabel={t("confirm.keepIt", locale)}
-                                closeLabel={t("ui.close", locale)}
+                                closeLabel={closeLabel}
                               >
                                 <input type="hidden" name="id" value={bp.budget.id} />
                                 <input type="hidden" name="machine_id" value={machine.id} />
                               </ConfirmDialog>
-                            </div>
-                          </details>
+                            </ActionMenu>
+                          </div>
                         ) : null}
                       </li>
                     ))}
                   </ul>
                 )}
                 {canBudget ? (
-                  <details className="mt-3 border-t border-sand-100 pt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("budget.add", locale)}</summary>
-                    <form action={addBudget} className="mt-2 flex flex-wrap items-end gap-2">
-                      <input type="hidden" name="machine_id" value={machine.id} />
-                      <input type="hidden" name="farm_id" value={machine.farm_id} />
-                      <Field label={t("budget.category", locale)} htmlFor="b_category">
-                        <Select id="b_category" name="category" defaultValue="">
-                          <option value="">{t("budget.allCategories", locale)}</option>
-                          {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
-                        </Select>
-                      </Field>
-                      <Field label={t("budget.period", locale)} htmlFor="b_period">
-                        <Select id="b_period" name="period_type" defaultValue="month">
-                          {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
-                        </Select>
-                      </Field>
-                      <Field label={t("budget.anchor", locale)} htmlFor="b_anchor">
-                        <Input id="b_anchor" name="anchor" type="date" defaultValue={todayYmd} />
-                      </Field>
-                      <Field label={t("budget.amount", locale)} htmlFor="b_amount">
-                        <Input id="b_amount" name="amount" inputMode="decimal" placeholder="R" className="w-28" />
-                      </Field>
-                      <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
-                    </form>
-                  </details>
+                  <div className="mt-3 flex border-t border-sand-100 pt-3">
+                    <DialogForm
+                      trigger={t("budget.add", locale)}
+                      triggerIcon={<PlusIcon />}
+                      triggerSize="sm"
+                      title={t("budget.add", locale)}
+                      closeLabel={closeLabel}
+                    >
+                      <form action={addBudget}>
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="farm_id" value={machine.farm_id} />
+                        <DialogFields>
+                          <Field label={t("budget.category", locale)} htmlFor="b_category">
+                            <Select id="b_category" name="category" defaultValue="">
+                              <option value="">{t("budget.allCategories", locale)}</option>
+                              {COST_TYPES.map((ct) => <option key={ct} value={ct}>{t(`costType.${ct}`, locale)}</option>)}
+                            </Select>
+                          </Field>
+                          <Field label={t("budget.period", locale)} htmlFor="b_period">
+                            <Select id="b_period" name="period_type" defaultValue="month">
+                              {BUDGET_PERIODS.map((p) => <option key={p} value={p}>{budgetPeriodLabel(p, locale)}</option>)}
+                            </Select>
+                          </Field>
+                          <Field label={t("budget.anchor", locale)} htmlFor="b_anchor">
+                            <Input id="b_anchor" name="anchor" type="date" defaultValue={todayYmd} />
+                          </Field>
+                          <Field label={t("budget.amount", locale)} htmlFor="b_amount">
+                            <Input id="b_amount" name="amount" inputMode="decimal" placeholder="R" />
+                          </Field>
+                        </DialogFields>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+                  </div>
                 ) : null}
               </Card>
 
@@ -1481,43 +1692,59 @@ export default async function MachineDetailPage({
                 )}
                 {canWorkReq ? (
                   linkedWorkshops.length > 0 ? (
-                    <details className="border-t border-sand-100 pt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("work.getSomethingDone", locale)}</summary>
-                      <form action={createWorkRequest} className="mt-2 flex flex-col gap-2">
-                        <input type="hidden" name="machine_id" value={machine.id} />
-                        <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
-                          <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
-                            {linkedWorkshops.map((w) => (
-                              <option key={w.id} value={w.id}>{w.name}</option>
-                            ))}
-                          </Select>
-                        </Field>
-                        <div className="flex flex-wrap gap-2">
-                          <Field label={t("work.kind", locale)} htmlFor="wr_kind">
-                            <Select id="wr_kind" name="kind" defaultValue="repair">
-                              {WORK_KINDS.map((k) => (
-                                <option key={k} value={k}>{workKindLabel(k, locale)}</option>
-                              ))}
-                            </Select>
-                          </Field>
-                          <Field label={t("work.priority", locale)} htmlFor="wr_priority">
-                            <Select id="wr_priority" name="priority" defaultValue="normal">
-                              {WORK_PRIORITIES.map((p) => (
-                                <option key={p} value={p}>{workPriorityLabel(p, locale)}</option>
-                              ))}
-                            </Select>
-                          </Field>
-                        </div>
-                        <Field label={t("work.titleField", locale)} htmlFor="wr_title">
-                          <Input id="wr_title" name="title" placeholder={t("work.titlePlaceholder", locale)} />
-                        </Field>
-                        <Field label={t("work.description", locale)} htmlFor="wr_desc">
-                          <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
-                        </Field>
-                        <SubmitButton variant="primary" size="sm">{t("work.send", locale)}</SubmitButton>
-                      </form>
-                    </details>
+                    <div className="flex border-t border-sand-100 pt-3">
+                      <DialogForm
+                        trigger={t("work.getSomethingDone", locale)}
+                        triggerIcon={<PlusIcon />}
+                        triggerSize="sm"
+                        title={t("work.getSomethingDone", locale)}
+                        description={machine.name}
+                        closeLabel={closeLabel}
+                      >
+                        <form action={createWorkRequest}>
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <DialogFields>
+                            <div className="sm:col-span-2">
+                              <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
+                                <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
+                                  {linkedWorkshops.map((w) => (
+                                    <option key={w.id} value={w.id}>{w.name}</option>
+                                  ))}
+                                </Select>
+                              </Field>
+                            </div>
+                            <Field label={t("work.kind", locale)} htmlFor="wr_kind">
+                              <Select id="wr_kind" name="kind" defaultValue="repair">
+                                {WORK_KINDS.map((k) => (
+                                  <option key={k} value={k}>{workKindLabel(k, locale)}</option>
+                                ))}
+                              </Select>
+                            </Field>
+                            <Field label={t("work.priority", locale)} htmlFor="wr_priority">
+                              <Select id="wr_priority" name="priority" defaultValue="normal">
+                                {WORK_PRIORITIES.map((p) => (
+                                  <option key={p} value={p}>{workPriorityLabel(p, locale)}</option>
+                                ))}
+                              </Select>
+                            </Field>
+                            <div className="sm:col-span-2">
+                              <Field label={t("work.titleField", locale)} htmlFor="wr_title">
+                                <Input id="wr_title" name="title" placeholder={t("work.titlePlaceholder", locale)} />
+                              </Field>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <Field label={t("work.description", locale)} htmlFor="wr_desc">
+                                <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
+                              </Field>
+                            </div>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">{t("work.send", locale)}</SubmitButton>
+                          </DialogActions>
+                        </form>
+                      </DialogForm>
+                    </div>
                   ) : (
                     <p className="border-t border-sand-100 pt-3 text-sm text-sand-500">
                       {t("work.noContractors", locale)}{" "}
@@ -1689,28 +1916,55 @@ export default async function MachineDetailPage({
                               <ExpiryStatus value={s} locale={locale} />
                             </div>
                             {canEdit ? (
-                              <details className="mt-2">
-                                <summary className="cursor-pointer text-xs font-medium text-brand-ink">{t("common.edit", locale)}</summary>
-                                <form action={updateLicence} className="mt-2 flex flex-wrap gap-2">
-                                  <input type="hidden" name="id" value={l.id} />
-                                  <input type="hidden" name="machine_id" value={machine.id} />
-                                  <select name="type" defaultValue={l.type} className={`${inputCls} w-40`}>
-                                    {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
-                                  </select>
-                                  <input name="number" defaultValue={l.number ?? ""} placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
-                                  <input name="expiry_date" type="date" defaultValue={l.expiry_date} className={inputCls} required />
-                                  <input name="reminder_lead_days" type="number" min={0} defaultValue={l.reminder_lead_days} className={`${inputCls} w-24`} />
-                                  <input name="notes" defaultValue={l.notes ?? ""} placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                                  <SubmitButton variant="secondary" size="sm">{t("common.save", locale)}</SubmitButton>
-                                </form>
-                                <div className="mt-1">
+                              <div className="mt-2 flex">
+                                <ActionMenu
+                                  title={licenceTypeLabel(l.type, locale)}
+                                  label={t("common.actions", locale)}
+                                  closeLabel={closeLabel}
+                                  trigger={t("common.edit", locale)}
+                                >
+                                  <DialogForm
+                                    triggerLook="menuItem"
+                                    trigger={t("common.edit", locale)}
+                                    title={t("common.edit", locale)}
+                                    description={licenceTypeLabel(l.type, locale)}
+                                    closeLabel={closeLabel}
+                                  >
+                                    <form action={updateLicence}>
+                                      <input type="hidden" name="id" value={l.id} />
+                                      <input type="hidden" name="machine_id" value={machine.id} />
+                                      <DialogFields>
+                                        <Field label={t("compliance.type", locale)} htmlFor={`lc-type-${l.id}`}>
+                                          <Select id={`lc-type-${l.id}`} name="type" defaultValue={l.type}>
+                                            {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                          </Select>
+                                        </Field>
+                                        <Field label={t("compliance.number", locale)} htmlFor={`lc-no-${l.id}`}>
+                                          <Input id={`lc-no-${l.id}`} name="number" defaultValue={l.number ?? ""} />
+                                        </Field>
+                                        <Field label={t("compliance.expires", locale)} htmlFor={`lc-exp-${l.id}`} required>
+                                          <Input id={`lc-exp-${l.id}`} name="expiry_date" type="date" defaultValue={l.expiry_date} required />
+                                        </Field>
+                                        <Field label={t("compliance.leadDays", locale)} htmlFor={`lc-lead-${l.id}`}>
+                                          <Input id={`lc-lead-${l.id}`} name="reminder_lead_days" type="number" min={0} defaultValue={l.reminder_lead_days} />
+                                        </Field>
+                                        <div className="sm:col-span-2">
+                                          <Field label={t("machines.notes", locale)} htmlFor={`lc-note-${l.id}`}>
+                                            <Input id={`lc-note-${l.id}`} name="notes" defaultValue={l.notes ?? ""} />
+                                          </Field>
+                                        </div>
+                                      </DialogFields>
+                                      <DialogActions cancelLabel={cancelLabel}>
+                                        <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                      </DialogActions>
+                                    </form>
+                                  </DialogForm>
+
                                   <ConfirmDialog
                                     action={deleteLicence}
-                                    triggerVariant="ghost"
-                                    triggerSize="sm"
+                                    triggerLook="menuItem"
                                     triggerIcon={<TrashIcon />}
                                     triggerLabel={t("common.delete", locale)}
-                                    triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                                     title={t("confirm.deleteLicenceTitle", locale).replace(
                                       "{type}",
                                       licenceTypeLabel(l.type, locale),
@@ -1724,13 +1978,13 @@ export default async function MachineDetailPage({
                                     footnote={t("confirm.softDeleteNote", locale)}
                                     confirmLabel={t("confirm.deleteLicenceYes", locale)}
                                     cancelLabel={t("confirm.keepIt", locale)}
-                                    closeLabel={t("ui.close", locale)}
+                                    closeLabel={closeLabel}
                                   >
                                     <input type="hidden" name="id" value={l.id} />
                                     <input type="hidden" name="machine_id" value={machine.id} />
                                   </ConfirmDialog>
-                                </div>
-                              </details>
+                                </ActionMenu>
+                              </div>
                             ) : null}
                           </li>
                         );
@@ -1738,43 +1992,78 @@ export default async function MachineDetailPage({
                     </ul>
                   )}
                   {canEdit ? (
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-brand-ink">{t("compliance.addLicence", locale)}</summary>
-                      <form action={addLicence} className="mt-2 flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="machine_id" value={machine.id} />
-                        <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <select name="type" defaultValue="vehicle_licence" className={`${inputCls} w-40`}>
-                          {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
-                        </select>
-                        <input name="number" placeholder={t("compliance.number", locale)} className={`${inputCls} w-32`} />
-                        <input name="expiry_date" type="date" className={inputCls} required />
-                        <input name="reminder_lead_days" type="number" min={0} defaultValue={30} className={`${inputCls} w-24`} />
-                        <input name="notes" placeholder={t("machines.notes", locale)} className={`${inputCls} flex-1`} />
-                        <SubmitButton variant="primary" size="sm">{t("common.add", locale)}</SubmitButton>
-                      </form>
-                    </details>
+                    <div className="mt-3 flex">
+                      <DialogForm
+                        trigger={t("compliance.addLicence", locale)}
+                        triggerIcon={<PlusIcon />}
+                        triggerSize="sm"
+                        title={t("compliance.addLicence", locale)}
+                        closeLabel={closeLabel}
+                      >
+                        <form action={addLicence}>
+                          <input type="hidden" name="machine_id" value={machine.id} />
+                          <input type="hidden" name="farm_id" value={machine.farm_id} />
+                          <DialogFields>
+                            <Field label={t("compliance.type", locale)} htmlFor="lc-new-type">
+                              <Select id="lc-new-type" name="type" defaultValue="vehicle_licence">
+                                {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                              </Select>
+                            </Field>
+                            <Field label={t("compliance.number", locale)} htmlFor="lc-new-no">
+                              <Input id="lc-new-no" name="number" />
+                            </Field>
+                            <Field label={t("compliance.expires", locale)} htmlFor="lc-new-exp" required>
+                              <Input id="lc-new-exp" name="expiry_date" type="date" required />
+                            </Field>
+                            <Field label={t("compliance.leadDays", locale)} htmlFor="lc-new-lead">
+                              <Input id="lc-new-lead" name="reminder_lead_days" type="number" min={0} defaultValue={30} />
+                            </Field>
+                            <div className="sm:col-span-2">
+                              <Field label={t("machines.notes", locale)} htmlFor="lc-new-note">
+                                <Input id="lc-new-note" name="notes" />
+                              </Field>
+                            </div>
+                          </DialogFields>
+                          <DialogActions cancelLabel={cancelLabel}>
+                            <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                          </DialogActions>
+                        </form>
+                      </DialogForm>
+                    </div>
                   ) : null}
                 </div>
               </Card>
 
-              {/* Edit */}
+              {/* Edit the machine's own identity. `MachineFields` is the same component the
+                  "new machine" screen uses, so this is the widest dialog on the page. */}
               {canEdit ? (
                 <Card>
-                  <details>
-                    <summary className="cursor-pointer font-semibold text-sand-900">{t("machine.editMachine", locale)}</summary>
-                    <form action={updateMachine} className="mt-3 flex flex-col gap-4">
-                      <input type="hidden" name="id" value={machine.id} />
-                      <MachineFields machine={machine} operators={operators} locale={locale} />
-                      <Field label={t("machines.status", locale)} htmlFor="status">
-                        <Select id="status" name="status" defaultValue={machine.status}>
-                          {MACHINE_STATUSES.map((s) => (
-                            <option key={s} value={s}>{statusLabel(s, locale)}</option>
-                          ))}
-                        </Select>
-                      </Field>
-                      <SubmitButton variant="primary" fullWidth>{t("common.save", locale)}</SubmitButton>
-                    </form>
-                  </details>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-sand-900">{t("machine.editMachine", locale)}</p>
+                    <DialogForm
+                      trigger={t("common.edit", locale)}
+                      triggerVariant="secondary"
+                      triggerSize="sm"
+                      title={t("machine.editMachine", locale)}
+                      description={machine.name}
+                      closeLabel={closeLabel}
+                    >
+                      <form action={updateMachine} className="flex flex-col gap-4">
+                        <input type="hidden" name="id" value={machine.id} />
+                        <MachineFields machine={machine} operators={operators} locale={locale} />
+                        <Field label={t("machines.status", locale)} htmlFor="status">
+                          <Select id="status" name="status" defaultValue={machine.status}>
+                            {MACHINE_STATUSES.map((s) => (
+                              <option key={s} value={s}>{statusLabel(s, locale)}</option>
+                            ))}
+                          </Select>
+                        </Field>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+                  </div>
                 </Card>
               ) : null}
                 </div>

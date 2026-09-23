@@ -175,7 +175,7 @@ export default async function ExpensesPage({
         {expenses.length === 0 ? (
           <GetStarted title={t("expenses.emptyTitle", locale)} hint={t("expenses.emptyBody", locale)} />
         ) : (
-            <Table className="min-w-[42rem]">
+            <Table stacked className="lg:min-w-[42rem]">
               <Thead>
                 <Tr className="text-left text-sand-500">
                   <Th className="font-medium">{t("expenses.colDate", locale)}</Th>
@@ -192,8 +192,8 @@ export default async function ExpensesPage({
               <Tbody>
                 {expenses.map((e) => (
                   <Tr key={e.id}>
-                    <Td className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
-                    <Td>
+                    <Td label={t("expenses.colDate", locale)} className="whitespace-nowrap text-sand-600">{shortDate(e.expense_date, locale)}</Td>
+                    <Td label={t("expenses.colSupplier", locale)}>
                       <span className="text-sand-900">{e.supplier_name}</span>
                       {e.reference ? <span className="block font-mono text-xs text-sand-500">{e.reference}</span> : null}
                       {e.description ? <span className="block text-xs text-sand-500">{e.description}</span> : null}
@@ -213,11 +213,11 @@ export default async function ExpensesPage({
                         </a>
                       ) : null}
                     </Td>
-                    <Td>
+                    <Td label={t("expenses.colCategory", locale)}>
                       <Badge tone="neutral">{t(`expenseCategory.${e.category}`, locale)}</Badge>
                     </Td>
-                    <Td className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
-                    <Td className="text-right tabular-nums text-sand-800">
+                    <Td label={t("expenses.colExVat", locale)} className="text-right tabular-nums text-sand-800">{rands(e.amount_cents)}</Td>
+                    <Td label={t("expenses.colVat", locale)} className="text-right tabular-nums text-sand-800">
                       {rands(e.vat_cents)}
                       {/* A partner who cannot claim it needs to see WHY it is not in the
                           return, or the total will look wrong to them every quarter. */}
@@ -225,10 +225,10 @@ export default async function ExpensesPage({
                         <span className="block text-xs text-status-warn">{t("expenses.notClaimable", locale)}</span>
                       ) : null}
                     </Td>
-                    <Td className="text-right font-medium tabular-nums text-sand-900">
+                    <Td label={t("expenses.colTotal", locale)} className="text-right font-medium tabular-nums text-sand-900">
                       {rands(expenseTotalCents(e))}
                     </Td>
-                    <Td className="whitespace-nowrap">
+                    <Td label={t("expenses.colPaid", locale)} className="whitespace-nowrap">
                       {e.paid_on ? (
                         <span className="text-sand-600">{shortDate(e.paid_on, locale)}</span>
                       ) : (
@@ -238,7 +238,7 @@ export default async function ExpensesPage({
                         </form>
                       )}
                     </Td>
-                    <Td className="whitespace-nowrap">
+                    <Td label={t("expenses.colProof", locale)} className="whitespace-nowrap">
                       {e.receipt_path ? (
                         <span className="flex items-center gap-2">
                           <a

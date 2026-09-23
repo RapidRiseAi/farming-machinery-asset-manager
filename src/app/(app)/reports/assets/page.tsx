@@ -118,7 +118,19 @@ export default async function AssetRegisterPage({
         </form>
       </Card>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/*
+        One column on a phone, three from `sm`.
+
+        These are whole-fleet figures, so they carry the longest money strings in the
+        product: a farm with one combine shows R5 000 000,00. `rands` joins the thousands
+        with U+00A0, a NO-BREAK space, which is the right character (nobody wants "R1" on
+        one line and "500 000" on the next) and which makes the value a single unbreakable
+        token about 200px wide at `text-3xl`. Three of those cannot share 360px, so Chrome
+        widened the layout viewport to 442px and ZOOMED THE WHOLE PAGE OUT rather than
+        scrolling. Measured, with every other screen sitting at 360. Nothing overflowed,
+        which is exactly why no scrollbar ever gave it away.
+      */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label={t("depreciation.statCost", locale)} value={rands(totals.cost)} />
         <Stat label={t("depreciation.statBook", locale)} value={rands(totals.book)} tone="brand" />
         <Stat
@@ -149,7 +161,7 @@ export default async function AssetRegisterPage({
           {/* A table here, unlike the other new screens: this one is read at a desk beside
               an insurance schedule, printed, and its columns are compared down the page. */}
           <div className="relative overflow-x-auto">
-            <Table>
+            <Table stacked>
               <Thead>
                 <Tr>
                   <Th>{t("depreciation.colMachine", locale)}</Th>
@@ -168,7 +180,7 @@ export default async function AssetRegisterPage({
                   }
                   return (
                     <Tr key={r.machine_id}>
-                      <Td>
+                      <Td label={t("depreciation.colMachine", locale)}>
                         <Link
                           href={`/machines/${r.machine_id}`}
                           className="focus-ring rounded font-medium text-brand-ink hover:underline"
@@ -180,7 +192,7 @@ export default async function AssetRegisterPage({
                           {r.purchase_date ? ` · ${shortDate(r.purchase_date, locale)}` : ""}
                         </span>
                       </Td>
-                      <Td className="text-sm text-sand-700">
+                      <Td label={t("depreciation.colPolicy", locale)} className="text-sm text-sand-700">
                         {policyText}
                         {canSetPolicy ? (
                           <Link
@@ -191,13 +203,13 @@ export default async function AssetRegisterPage({
                           </Link>
                         ) : null}
                       </Td>
-                      <Td className="text-right tabular-nums">
+                      <Td label={t("depreciation.colCost", locale)} className="text-right tabular-nums">
                         {r.purchase_price_cents != null ? rands(r.purchase_price_cents) : "-"}
                       </Td>
-                      <Td className="text-right tabular-nums text-sand-600">
+                      <Td label={t("depreciation.colWrittenOff", locale)} className="text-right tabular-nums text-sand-600">
                         {r.depreciated_cents != null ? rands(r.depreciated_cents) : "-"}
                       </Td>
-                      <Td className="text-right font-semibold tabular-nums">
+                      <Td label={t("depreciation.colBook", locale)} className="text-right font-semibold tabular-nums">
                         {r.book_value_cents != null ? rands(r.book_value_cents) : "-"}
                       </Td>
                     </Tr>

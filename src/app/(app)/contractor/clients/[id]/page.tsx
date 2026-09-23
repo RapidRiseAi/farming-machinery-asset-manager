@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { TrashIcon, PlusIcon } from "@/components/ui/icons";
 import {
   updateClientRecord, removeClientRecord, addClientVehicle,
@@ -252,7 +253,76 @@ export default async function PartnerClientPage({
 
       {/* == Contact ================================================ */}
       <Card>
-        <CardHeader><CardTitle>{t("clients.contactTitle", locale)}</CardTitle></CardHeader>
+        <CardHeader
+          action={
+            /* Fourteen fields, including the billing identity a tax invoice needs, were
+               open on a card headed "Contact". The contact details are what somebody
+               opens this for; changing them is the occasional act. */
+            <DialogForm
+              trigger={t("common.edit", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("clients.contactTitle", locale)}
+              description={client.name}
+              closeLabel={t("ui.close", locale)}
+            >
+              <form action={updateClientRecord}>
+                <DialogFields columns={1}>
+                  <input type="hidden" name="client_id" value={client.id} />
+                  <TextField name="name" label={t("clients.name", locale)} defaultValue={client.name} required />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextField name="contact_name" label={t("clients.contactName", locale)} defaultValue={client.contact_name ?? ""} />
+                    <TextField name="phone" type="tel" label={t("clients.phone", locale)} defaultValue={client.phone ?? ""} />
+                    <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} defaultValue={client.whatsapp ?? ""} />
+                    <TextField name="email" type="email" label={t("clients.email", locale)} defaultValue={client.email ?? ""} />
+                  </div>
+                  <TextareaField name="address" rows={2} label={t("clients.address", locale)} defaultValue={client.address ?? ""} />
+  
+                  {/* Billing identity (0410). Held on the client so it is not retyped, and so it
+                      is right on the invoice, where a missing VAT number costs them the claim. */}
+                  <fieldset className="flex flex-col gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3">
+                    <legend className="px-1 text-sm font-semibold text-sand-900">{t("clients.billing", locale)}</legend>
+                    <p className="-mt-1 text-sm text-sand-600">{t("clients.billingHint", locale)}</p>
+                    <TextField name="trading_name" label={t("clients.tradingName", locale)} defaultValue={client.trading_name ?? ""} />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <TextField
+                        name="vat_number"
+                        label={t("clients.vatNo", locale)}
+                        hint={t("clients.vatNoHint", locale)}
+                        defaultValue={client.vat_number ?? ""}
+                      />
+                      <TextField name="reg_number" label={t("clients.regNo", locale)} defaultValue={client.reg_number ?? ""} />
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <TextField
+                        name="payment_terms_days"
+                        type="number"
+                        min={0}
+                        max={365}
+                        label={t("clients.terms", locale)}
+                        hint={t("clients.termsHint", locale)}
+                        defaultValue={client.payment_terms_days != null ? String(client.payment_terms_days) : ""}
+                      />
+                      <TextField
+                        name="credit_limit"
+                        label={t("clients.creditLimit", locale)}
+                        hint={t("clients.creditLimitHint", locale)}
+                        defaultValue={client.credit_limit_cents != null ? (client.credit_limit_cents / 100).toFixed(2) : ""}
+                      />
+                    </div>
+                  </fieldset>
+  
+                  <TextareaField name="notes" rows={3} label={t("clients.notes", locale)} defaultValue={client.notes ?? ""} />
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
+          <CardTitle>{t("clients.contactTitle", locale)}</CardTitle>
+        </CardHeader>
         <div className="mb-3 flex flex-wrap gap-2">
           {client.phone ? (
             <a href={telHref(client.phone) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
@@ -270,59 +340,49 @@ export default async function PartnerClientPage({
             </a>
           ) : null}
         </div>
-        <form action={updateClientRecord} className="flex flex-col gap-3">
-          <input type="hidden" name="client_id" value={client.id} />
-          <TextField name="name" label={t("clients.name", locale)} defaultValue={client.name} required />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField name="contact_name" label={t("clients.contactName", locale)} defaultValue={client.contact_name ?? ""} />
-            <TextField name="phone" type="tel" label={t("clients.phone", locale)} defaultValue={client.phone ?? ""} />
-            <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} defaultValue={client.whatsapp ?? ""} />
-            <TextField name="email" type="email" label={t("clients.email", locale)} defaultValue={client.email ?? ""} />
-          </div>
-          <TextareaField name="address" rows={2} label={t("clients.address", locale)} defaultValue={client.address ?? ""} />
-
-          {/* Billing identity (0410). Held on the client so it is not retyped, and so it
-              is right on the invoice, where a missing VAT number costs them the claim. */}
-          <fieldset className="flex flex-col gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3">
-            <legend className="px-1 text-sm font-semibold text-sand-900">{t("clients.billing", locale)}</legend>
-            <p className="-mt-1 text-sm text-sand-600">{t("clients.billingHint", locale)}</p>
-            <TextField name="trading_name" label={t("clients.tradingName", locale)} defaultValue={client.trading_name ?? ""} />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField
-                name="vat_number"
-                label={t("clients.vatNo", locale)}
-                hint={t("clients.vatNoHint", locale)}
-                defaultValue={client.vat_number ?? ""}
-              />
-              <TextField name="reg_number" label={t("clients.regNo", locale)} defaultValue={client.reg_number ?? ""} />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField
-                name="payment_terms_days"
-                type="number"
-                min={0}
-                max={365}
-                label={t("clients.terms", locale)}
-                hint={t("clients.termsHint", locale)}
-                defaultValue={client.payment_terms_days != null ? String(client.payment_terms_days) : ""}
-              />
-              <TextField
-                name="credit_limit"
-                label={t("clients.creditLimit", locale)}
-                hint={t("clients.creditLimitHint", locale)}
-                defaultValue={client.credit_limit_cents != null ? (client.credit_limit_cents / 100).toFixed(2) : ""}
-              />
-            </div>
-          </fieldset>
-
-          <TextareaField name="notes" rows={3} label={t("clients.notes", locale)} defaultValue={client.notes ?? ""} />
-          <SubmitButton variant="secondary">{t("common.save", locale)}</SubmitButton>
-        </form>
       </Card>
 
       {/* == Their vehicles ========================================= */}
       <Card>
-        <CardHeader><CardTitle>{t("clients.vehiclesTitle", locale)}</CardTitle></CardHeader>
+        <CardHeader
+          action={
+            /* Seven fields for a vehicle nobody is adding most of the time, under the
+               list of the ones they already have. */
+            <DialogForm
+              trigger={t("clients.addVehicle", locale)}
+              triggerIcon={<PlusIcon />}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("clients.addVehicle", locale)}
+              description={client.name}
+              closeLabel={t("ui.close", locale)}
+            >
+              <form action={addClientVehicle}>
+                <input type="hidden" name="client_id" value={client.id} />
+                <DialogFields>
+                  <div className="sm:col-span-2">
+                    <TextField name="name" label={t("clients.vehicleName", locale)} hint={t("clients.vehicleNameHint", locale)} required />
+                  </div>
+                  <TextField name="make" label={t("clients.make", locale)} />
+                  <TextField name="model" label={t("clients.model", locale)} />
+                  <TextField name="reg_no" label={t("clients.regNo", locale)} />
+                  <TextField name="year" type="number" min={1900} max={2200} label={t("clients.year", locale)} />
+                  <div className="sm:col-span-2">
+                    <TextField name="serial_no" label={t("clients.serialNo", locale)} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
+                  </div>
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton variant="primary" leftIcon={<PlusIcon />}>{t("clients.addVehicle", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
+          <CardTitle>{t("clients.vehiclesTitle", locale)}</CardTitle>
+        </CardHeader>
         <p className="mb-3 text-sm text-sand-600">
           {connected ? t("clients.vehiclesConnectedHint", locale) : t("clients.vehiclesHint", locale)}
         </p>
@@ -362,19 +422,6 @@ export default async function PartnerClientPage({
           <p className="mb-4 text-sm text-sand-500">{t("clients.noVehiclesYet", locale)}</p>
         )}
 
-        <form action={addClientVehicle} className="flex flex-col gap-3">
-          <input type="hidden" name="client_id" value={client.id} />
-          <TextField name="name" label={t("clients.vehicleName", locale)} hint={t("clients.vehicleNameHint", locale)} required />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField name="make" label={t("clients.make", locale)} />
-            <TextField name="model" label={t("clients.model", locale)} />
-            <TextField name="reg_no" label={t("clients.regNo", locale)} />
-            <TextField name="year" type="number" min={1900} max={2200} label={t("clients.year", locale)} />
-            <TextField name="serial_no" label={t("clients.serialNo", locale)} fieldClassName="sm:col-span-2" />
-          </div>
-          <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
-          <SubmitButton variant="secondary" leftIcon={<PlusIcon />}>{t("clients.addVehicle", locale)}</SubmitButton>
-        </form>
       </Card>
 
       <div>

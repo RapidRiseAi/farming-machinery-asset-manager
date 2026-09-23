@@ -2,6 +2,7 @@ import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { MachinesIcon } from "@/components/ui/icons";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * The 404.
@@ -41,7 +42,7 @@ export default async function NotFound() {
       <div className="flex w-full flex-col gap-2.5">
         <Link
           href="/home"
-          className="focus-ring flex min-h-[48px] items-center justify-center rounded-lg bg-brand-600 px-5 text-base font-semibold text-white shadow-xs transition-colors hover:bg-brand-700"
+          className={buttonVariants({ variant: "primary", size: "lg", fullWidth: true })}
         >
           {t("notFound.home", locale)}
         </Link>

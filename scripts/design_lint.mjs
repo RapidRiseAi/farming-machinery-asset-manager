@@ -133,6 +133,15 @@ const EXEMPT = {
   // headers, hover rows, app padding) would make it stop looking like paper,
   // which is the one thing it exists to do. It carries scope="col" by hand.
   "use-kit-Table": [/src\/components\/documents\/document-preview\.tsx$/],
+  /*
+   * The marketing hero's two calls to action are a matched PAIR, "Start free" beside
+   * "Sign in", sharing `rounded-xl`, `shadow-soft`, `px-6` and `min-h-12 sm:min-h-11`.
+   * Only the first is brand-filled, so only the first would be rewritten, and it would
+   * come back `rounded-lg` at a different height from the button it sits next to. The
+   * landing page is already treated as its own role by the page-title rule for the same
+   * reason: it is not app chrome.
+   */
+  "kit-button": [/src\/app\/page\.tsx$/],
 };
 const exempt = (rule, file) =>
   (EXEMPT[rule] || []).some((re) => re.test(rel(file)));
@@ -162,6 +171,37 @@ const DEFINED = (() => {
   // `DEFAULT` is addressed as the bare family name (e.g. `bg-surface`).
   return out;
 })();
+
+/**
+ * Is the className on `lines[i]` part of an interactive element's opening tag?
+ *
+ * JSX puts the element on one line and its class on another, so matching the two on a
+ * single line misses the common case: `<Link` on 61 with its class on 63 is exactly what
+ * the first version of the `kit-button` rule failed to catch. This walks back a few
+ * lines to the tag that owns the attribute.
+ *
+ * It stops at a `>` that closes some earlier tag, so a `<span>` sitting just below a
+ * `<button>` is not mistaken for it. That distinction is the whole point: the "Primary"
+ * flag on a machine photo is a brand-filled `<span>`, not a button.
+ */
+function ownedByInteractive(lines, i) {
+  // `$` matters: JSX routinely puts the tag alone on its line with the attributes
+  // under it, so `<button` with nothing after it is the COMMON shape, not an edge
+  // case. Requiring a space or `>` after the name missed every one of them and the
+  // rule silently found almost nothing.
+  const INTERACTIVE = /<(button|a|Link|summary)(\s|>|\/|$)/;
+  for (let k = i; k >= 0 && k > i - 8; k -= 1) {
+    const l = lines[k];
+    // A tag opened on THIS line owns the attribute, whatever it is. That settles the
+    // logo chip in `public-shell`: a brand-filled `<span>` whose parent happens to be
+    // a `<Link>`, which a walk that ignored the current line attributed to the link.
+    const opensHere = /<[A-Za-z]/.test(l);
+    if (opensHere) return INTERACTIVE.test(l);
+    // The previous element's tag ended before this attribute, so nothing owns it.
+    if (k < i && /^[^<]*\/?>/.test(l.trim())) return false;
+  }
+  return false;
+}
 
 // Stock Tailwind palettes that are NOT the FleetWise palette.
 const STOCK =
@@ -216,7 +256,10 @@ for (const f of files) {
     //     `role="presentation"` declares a LAYOUT table, which is the only
     //     reliable way to lay out an HTML email and carries no data semantics
     //     to lose; and see EXEMPT above for the printed-document miniature.
+    //     Scoped to source: a stylesheet that SELECTS `table` is doing its job,
+    //     and prose in a CSS comment naming the element is not a raw table.
     if (
+      /\.tsx?$/.test(rel(f)) &&
       /<table[\s>]/.test(ln) &&
       !/role="presentation"/.test(ln) &&
       !/src\/components\/ui\/table\.tsx$/.test(rel(f)) &&
@@ -253,7 +296,84 @@ for (const f of files) {
     for (const m of ln.matchAll(/\b(?:text|bg|border|ring|fill|stroke|divide)-(status|brand|gold|sand|danger|callout|surface|ink|edge|accent)-([a-z0-9-]+)/g)) {
       if (!DEFINED[m[1]]?.has(m[2])) add("unknown-token", f, n, `${m[0]}, no such token`);
     }
+
+    // 11, a <summary> dressed as a button is a dropdown nobody can escape.
+    //      Two shipped: /jobcards styled its summary with `buttonVariants` and
+    //      the partner's "New document" hand-rolled `bg-brand-600 text-white`,
+    //      so both LOOKED like the primary button on every other screen while
+    //      opening a panel with no focus trap, no Escape and no way out on a
+    //      phone but finding the summary again. Being a <details> they were
+    //      also in flow, so opening one pushed the list below it down the page.
+    //      `ActionMenu` and `DialogForm` are the two replacements.
+    if (/<summary[\s>]/.test(ln) && /(buttonVariants|bg-brand-\d|bg-gold-\d)/.test(ln))
+      add("no-details-as-button", f, n, "a <summary> styled as a button, use ActionMenu/DialogForm");
+
+    /*
+     * 12, the primary button, hand-rolled.
+     *
+     * `buttonVariants` encodes the 48px phone target, the focus ring and the ink
+     * that keeps AA on each fill; a copy in raw classes gets none of that when
+     * the kit changes. `/checklists` had one at `py-2`, about 36px tall, so the
+     * single call to action on that screen was a SMALLER target than every other
+     * button in the product, on the device this is used on.
+     *
+     * Matched on the className alone, not on the element, because the element is
+     * usually on another line: `<Link` on 61 and its class on 63 is why the first
+     * version of this rule missed the very case that prompted it.
+     *
+     * What it must NOT flag is a brand-filled thing that is not a button. Padding
+     * alone is not enough to tell them apart: the "Primary" flag on a machine
+     * photo is a `<span>` with `bg-brand-600 px-1.5 text-white`, and an earlier
+     * version of this rule reported it, which is how a checker starts crying
+     * wolf. So it walks BACK from the class to the element that owns it and only
+     * fires for an interactive one. Scoped away from the kit itself and from
+     * (public), where the QR and document pages are a standalone visual context
+     * with no app chrome.
+     */
+    if (
+      /\.tsx$/.test(rel(f)) &&
+      /className=[`"][^`"]*\bbg-brand-600\b/.test(ln) &&
+      /\btext-white\b/.test(ln) &&
+      // Horizontal padding is what makes it a BUTTON rather than a tile. The bottom
+      // bar's "Report a problem" is a brand-green `<Link>` laid out like the nav tabs
+      // beside it, icon over label, sized by `min-w-[64px] flex-1` and no `px-`;
+      // `buttonVariants` would make it a horizontal pill and wrong for that row.
+      /\bpx-[\d.]+/.test(ln) &&
+      !/src\/components\/ui\//.test(rel(f)) &&
+      !/\(public\)/.test(rel(f)) &&
+      !exempt("kit-button", f) &&
+      ownedByInteractive(lines, i)
+    )
+      add("kit-button", f, n, "hand-rolled primary button, use Button/buttonVariants");
   });
+
+  /*
+   * 13, a stacked table must label every cell.
+   *
+   * `<Table stacked>` turns each row into a card below `lg` and renders each cell as
+   * "Column name .... value" from the `label` prop. A `<Td>` without one shows a bare
+   * value with nothing saying which figure it is, and the failure is invisible on a
+   * desktop, which is where it would be written.
+   *
+   * Counted rather than matched per cell, because an actions column legitimately has no
+   * label and its header is an empty `<Th />`. So the rule is: no more unlabelled cells
+   * than there are empty headers. Measured across the ten converted pages, every one of
+   * them sits exactly at that bound, which is what makes it safe to enforce rather than
+   * a checker that cries wolf.
+   */
+  if (/\.tsx$/.test(rel(f)) && /<Table stacked/.test(src)) {
+    const tds = (src.match(/<Td[\s>]/g) || []).length;
+    const labelled = (src.match(/<Td label=/g) || []).length;
+    const emptyHeaders = (src.match(/<Th ?\/>/g) || []).length;
+    const bare = tds - labelled;
+    if (bare > emptyHeaders)
+      add(
+        "stacked-table-labels",
+        f,
+        0,
+        `${bare} <Td> without a label but only ${emptyHeaders} empty <Th />; a stacked cell needs its column name`,
+      );
+  }
 
   // 9, theme colours must be tokens, checked across config files below too.
   if (/globals\.css$/.test(rel(f)) && !/--surface/.test(src))

@@ -5,6 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { SelectField, TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { PlusIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 
 export type Recipient = { id: string; name: string };
 
@@ -19,7 +20,7 @@ type Kind = "farm" | "client" | "oneoff";
  * record to seed from, that is the whole difference and it is why the fields are not all
  * on screen at once.
  *
- * The billing block is available on the saved kinds too, behind a disclosure, because
+ * The billing block is available on the saved kinds too, as a collapsed section, because
  * "their VAT number changed" happens and the document that goes out today should carry
  * today's details without anyone having to go and edit the customer record first.
  */
@@ -40,104 +41,115 @@ export function NewDocumentForm({
     "oneoff",
   ];
   const [kind, setKind] = useState<Kind>(available[0]);
-  const [showBilling, setShowBilling] = useState(false);
   const oneoff = kind === "oneoff";
 
+  /*
+    Was a `<details>` whose `<summary>` hand-rolled the primary button in raw classes
+    (`bg-brand-600 text-white hover:bg-brand-700`), a copy of `buttonVariants` that could
+    not follow it, opening a panel with no focus trap and no Escape. The `kind` state
+    stays HERE, above the dialog, so switching customer type and closing by accident does
+    not lose the choice.
+  */
   return (
-    <details className="ml-auto">
-      <summary className="focus-ring inline-flex min-h-[48px] cursor-pointer list-none items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 sm:min-h-[40px] [&::-webkit-details-marker]:hidden">
-        <PlusIcon /> {t("doc.new", locale)}
-      </summary>
-
-      <form
-        action={action}
-        className="mt-3 flex w-full max-w-lg flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-4 shadow-soft"
+    <div className="ml-auto flex">
+      <DialogForm
+        trigger={t("doc.new", locale)}
+        triggerIcon={<PlusIcon />}
+        title={t("doc.new", locale)}
+        closeLabel={t("ui.close", locale)}
+        size="md"
       >
-        <SelectField name="kind" label={t("doc.newKind", locale)} defaultValue="quote">
-          <option value="quote">{t("doc.kindQuote", locale)}</option>
-          <option value="invoice">{t("doc.kindInvoice", locale)}</option>
-        </SelectField>
+        <form action={action}>
+          <DialogFields columns={1}>
+            <SelectField name="kind" label={t("doc.newKind", locale)} defaultValue="quote">
+              <option value="quote">{t("doc.kindQuote", locale)}</option>
+              <option value="invoice">{t("doc.kindInvoice", locale)}</option>
+            </SelectField>
 
-        <SelectField
-          name="recipient_kind"
-          label={t("doc.whoFor", locale)}
-          value={kind}
-          onChange={(e) => setKind(e.target.value as Kind)}
-        >
-          {available.includes("farm") ? <option value="farm">{t("doc.whoFarm", locale)}</option> : null}
-          {available.includes("client") ? <option value="client">{t("doc.whoClient", locale)}</option> : null}
-          <option value="oneoff">{t("doc.whoOneOff", locale)}</option>
-        </SelectField>
+            <SelectField
+              name="recipient_kind"
+              label={t("doc.whoFor", locale)}
+              value={kind}
+              onChange={(e) => setKind(e.target.value as Kind)}
+            >
+              {available.includes("farm") ? <option value="farm">{t("doc.whoFarm", locale)}</option> : null}
+              {available.includes("client") ? <option value="client">{t("doc.whoClient", locale)}</option> : null}
+              <option value="oneoff">{t("doc.whoOneOff", locale)}</option>
+            </SelectField>
 
-        {kind === "farm" ? (
-          <SelectField name="farm_id" label={t("doc.newCustomer", locale)} required>
-            {farms.map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </SelectField>
-        ) : null}
+            {kind === "farm" ? (
+              <SelectField name="farm_id" label={t("doc.newCustomer", locale)} required>
+                {farms.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </SelectField>
+            ) : null}
 
-        {kind === "client" ? (
-          <SelectField name="partner_client_id" label={t("doc.newCustomer", locale)} required>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </SelectField>
-        ) : null}
+            {kind === "client" ? (
+              <SelectField name="partner_client_id" label={t("doc.newCustomer", locale)} required>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </SelectField>
+            ) : null}
 
-        {oneoff ? (
-          <p className="-mt-1 text-sm text-sand-600">{t("doc.oneOffHint", locale)}</p>
-        ) : null}
+            {oneoff ? (
+              <p className="-mt-1 text-sm text-sand-600">{t("doc.oneOffHint", locale)}</p>
+            ) : null}
 
-        {/* For a one-time customer these are the record. For a saved one they are an
-            override of it, so they stay behind a disclosure. */}
-        {oneoff || showBilling ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3">
+            <TextField name="subject" label={t("doc.newSubject", locale)} hint={t("doc.newSubjectHint", locale)} />
             <TextField
-              name="bill_to_name"
-              label={t("doc.billToName", locale)}
-              required={oneoff}
-              autoComplete="organization"
+              name="bill_to_reference"
+              label={t("doc.theirReference", locale)}
+              hint={t("doc.theirReferenceHint", locale)}
             />
-            <TextField name="bill_to_contact" label={t("doc.billToContact", locale)} />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+            {/*
+              For a one-time customer these ARE the record, so the section opens itself.
+              For a saved one they are an override of what the 0410 trigger will seed, so
+              it stays shut until somebody says "their VAT number changed".
+
+              It used to be a bespoke "Change billing details" text button that swapped
+              itself for the fields and could not be closed again. A `DialogSection` is
+              the same idea, reversible, and identical to every other optional group in
+              the product.
+            */}
+            <DialogSection title={t("doc.changeBilling", locale)} defaultOpen={oneoff}>
+              <div className="sm:col-span-2">
+                <TextField
+                  name="bill_to_name"
+                  label={t("doc.billToName", locale)}
+                  required={oneoff}
+                  autoComplete="organization"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <TextField name="bill_to_contact" label={t("doc.billToContact", locale)} />
+              </div>
               <TextField name="bill_to_email" label={t("doc.billToEmail", locale)} type="email" />
               <TextField name="bill_to_phone" label={t("doc.billToPhone", locale)} type="tel" />
-            </div>
-            <TextareaField
-              name="bill_to_address"
-              label={t("doc.billToAddress", locale)}
-              hint={t("doc.billToAddressHint", locale)}
-              rows={2}
-            />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <TextareaField
+                  name="bill_to_address"
+                  label={t("doc.billToAddress", locale)}
+                  hint={t("doc.billToAddressHint", locale)}
+                  rows={2}
+                />
+              </div>
               <TextField
                 name="bill_to_vat_number"
                 label={t("doc.billToVat", locale)}
                 hint={t("doc.billToVatHint", locale)}
               />
               <TextField name="bill_to_reg_number" label={t("doc.billToReg", locale)} />
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowBilling(true)}
-            className="focus-ring inline-flex min-h-[48px] items-center self-start rounded text-sm font-medium text-brand-ink underline-offset-2 hover:underline sm:min-h-[40px]"
-          >
-            {t("doc.changeBilling", locale)}
-          </button>
-        )}
+            </DialogSection>
+          </DialogFields>
 
-        <TextField name="subject" label={t("doc.newSubject", locale)} hint={t("doc.newSubjectHint", locale)} />
-        <TextField
-          name="bill_to_reference"
-          label={t("doc.theirReference", locale)}
-          hint={t("doc.theirReferenceHint", locale)}
-        />
-
-        <SubmitButton>{t("doc.newCreate", locale)}</SubmitButton>
-      </form>
-    </details>
+          <DialogActions cancelLabel={t("common.cancel", locale)}>
+            <SubmitButton variant="primary">{t("doc.newCreate", locale)}</SubmitButton>
+          </DialogActions>
+        </form>
+      </DialogForm>
+    </div>
   );
 }

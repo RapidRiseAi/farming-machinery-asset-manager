@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { buttonVariants } from "@/components/ui/button";
 import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistTemplate, duplicateChecklistTemplate } from "./actions";
@@ -57,11 +58,12 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
         </div>
           <p className="mt-0.5 text-sm text-sand-500">{t("checklists.subtitle", locale)}</p>
         </div>
+        {/* Was a hand-rolled copy of the primary button in raw classes. Its `py-2` made
+            it about 36px tall, so the one call to action on this screen was a SMALLER
+            target than every other button in the product, on the device this is used on.
+            `buttonVariants` carries the 48px phone floor. */}
         {canCreate ? (
-          <Link
-            href="/checklists/new"
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-          >
+          <Link href="/checklists/new" className={buttonVariants({ variant: "primary" })}>
             <PlusIcon className="text-lg" />
             {t("checklists.newTemplate", locale)}
           </Link>
