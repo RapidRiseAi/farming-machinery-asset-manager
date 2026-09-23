@@ -19,6 +19,7 @@ pnpm typecheck          # tsc --noEmit
 pnpm lint               # next lint
 pnpm db:test            # apply migrations + run RLS isolation tests on local Postgres
 pnpm db:check           # the same on PGlite when there is no psql; --suite runs them all
+pnpm ui:check           # drive Chrome over CDP: do the screens' dialogs actually work?
 ```
 `pnpm db:test` runs `supabase/tests/run.sh`: it (re)creates a local test DB, loads the
 Supabase auth shim, applies every migration in order, then runs the RLS isolation suite.
@@ -39,6 +40,13 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
   Phone/WhatsApp/SMS auth deferred (WhatsApp Stage 2).
 - **i18n from day one:** all UI strings in `src/lib/i18n/en.json` (filled) + `af.json` (keys ready for
   the Week 3 Afrikaans pass). Minimal `t()` helper, no heavy i18n lib (bundle size).
+- **A screen shows what IS; a button asks for what is NEW.** Capture forms live in dialogs,
+  not on the page. Three choices, and there is no fourth: fields to fill in go in a
+  `DialogForm` (with `DialogSection` for a long form's optional groups); the actions for one
+  row go in an `ActionMenu`, titled with the row; more detail to READ goes in a
+  `Disclosure`. Values are stated with `Fact`/`FactList` rather than rendered inside an
+  input box. Do not add a new `<details>` or a hand-rolled dropdown; `pnpm ui:check` puts a
+  ceiling on how many form controls a converted screen may show at rest.
 - **Out of scope for v1** (Scope §13) is a hard NO: GPS/telemetry, anomaly ML, parts inventory,
   invoicing/accounting, crop/livestock/labour, store apps, full offline sync, >2 languages.
 
@@ -82,6 +90,15 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   `docs/FEATURE_GAP_REVIEW_2026-09-19.md`.
 
 ### Open, needs a browser or a throwaway farm
+- **The service worker stops pages hydrating after about eight hard loads in one tab.**
+  The page renders correctly and React attaches to nothing: buttons visible, enabled,
+  clicks do nothing, no console error, no error boundary. Reproduced on pages nobody had
+  touched (`/machines/import`, `/statements`, `/settings/api`) and on `/tyres` at a third
+  of the bundle size, so it is neither a regression nor bundle weight; bypassing `sw.js`
+  makes the 9th and 10th loads hydrate fine. `ui:check` therefore bypasses the service
+  worker. **Whether a real person on a real device can provoke it is not answered** -
+  normal use is client-side routing, but this is a PWA relaunched from a home screen, and
+  the symptom a customer reports is "the buttons don't work". Needs a phone.
 - A real Paystack **decline** has never happened (test mode accepts every valid stored authorization).
 - `changeOwnPlan` / `changeVehicleSlots` are rendered and verified wired but **never
   pressed**, they write to the demo farm's ledger, and an upgrade raises a proration
@@ -132,7 +149,66 @@ will bite again.
   on a clean checkout before blaming your change for a failure.
 - **Three test layers all miss reachability.** The TS tests mock the Supabase client, so they
   assert *arguments* and never whether a function exists; `db:test` does not call the
-  database the way the app does; the build only compiles a string.
+  database the way the app does; the build only compiles a string. **`pnpm ui:check` is the
+  fourth layer**: it drives real Chrome, so it can see what a harness that reads HTML
+  cannot. Every capture form now lives behind a dialog, and a dialog is client state, so
+  the trigger is all the HTML shows. It caught both bugs below. It now walks 53 routes at
+  360px and 1024px, the full owner-reachable inventory.
+- **A plain function re-exported from a `"use client"` module is a CLIENT REFERENCE**, not a
+  function. A Server Component may render it or pass it as a prop; calling it throws
+  "Attempted to call X() from the server". `tsc` and `next build` both pass, because the
+  types are right. `menuItemClass` lives in `menu-item.ts` with no `"use client"` for this
+  reason and must never be re-exported from `action-menu.tsx` again. The nasty part: the
+  same bad import on `/incidents` passed every gate, because its one call sits behind
+  `r.job_card_id` and the test farm's incident has no job card.
+- **A dialog that saves and closes needs `DialogActions`.** Server actions here end in
+  `redirect()`, which is a soft navigation: the client component keeps its state, so a
+  hand-rolled dialog stays open over the row it just wrote. `DialogActions` watches
+  `useFormStatus()` for the pending edge.
+- **Save-and-restore of one global is a race as soon as there are two of anything.**
+  `Overlay` snapshotted `document.body.style.overflow` per overlay; with a menu and a
+  dialog open, the last restore won and left the page unscrollable. Count instead: first
+  to open locks, last to close restores.
+- **A phone can be too narrow WITHOUT anything overflowing.** When content cannot fit,
+  Chrome widens the layout viewport to the content's minimum instead of scrolling, and
+  the page renders zoomed out: no scrollbar, nothing to notice, just smaller text.
+  `/reports/assets` sat at 442px because three money tiles shared a hard `grid-cols-3`
+  and `rands` joins thousands with U+00A0, so "R1 500 000,00" is one unbreakable ~200px
+  token. `ui:check` asserts BOTH `scrollWidth > innerWidth` and `innerWidth > 360`.
+- **Check 1024px as well as 360px.** It is the narrowest width at which `lg:` applies, so
+  it is where a layout only ever seen at 1280 shows its seams. A `<Table stacked>` is
+  cards below `lg` and a real table above it, and shipping it without the scroll wrapper
+  pushed `/team` to 1112px on a 13-inch laptop.
+- **A lint rule dies in one of two ways, and both happened to `kit-button` in one hour.**
+  It matched the element and the class on ONE line, so it missed every real case (JSX puts
+  `<Link` on 61 and its class on 63); then, broadened, it cried wolf at a brand-filled
+  `<span>` badge. A rule over markup must walk to the element that owns the attribute, and
+  needs a second discriminator (here, horizontal padding) to tell a button from a tile.
+  Mutation-test every rule against the defect it exists for before shipping it.
+- **A hand-picked route list in a gate is a coverage CLAIM, not coverage.** `ui:check`
+  measured 28 routes at 360px against 82 `page.tsx` files, and the other 54 were not
+  covered elsewhere, they were unmeasured, while "the gate is green" stood in for "the
+  product fits a phone". Sweeping the rest found `/machines/[id]`, one of the most-used
+  screens, rendering zoomed out on every phone. A gate's list is now the INVENTORY minus
+  what the credential genuinely cannot open, and what is excluded is named with a reason.
+- **To find what forces a too-wide layout, force the document narrow FIRST.** At the
+  widened viewport nothing measures over-wide, because everything fits inside the width
+  Chrome just granted; the first walk returned zero offenders and said the page was fine.
+  Set `documentElement` and `body` to 360px, then walk for elements whose `right` exceeds
+  it, leaves before branches.
+- **A DETACHED element reports `scrollTop` 0**, and React tears a portal down before the
+  effect's destroy runs. So the obvious cleanup, `write(key, el.scrollTop)`, faithfully
+  stores 0 every time and the feature looks unimplemented with the code plainly in place.
+  Read such a value synchronously in the listener, while the node is still in the
+  document. Same family: focusing an element scrolls it into view, so a focus call that
+  runs after a scroll restore silently undoes it (`preventScroll`), and a `sticky` child
+  is bounded by the scroll container's PADDING box, so `py-2` on the scroller pins every
+  heading 8px down. All three were found by instrumenting the browser, not by reading.
+- **A client-side navigation preserves component state for free**, so a bug that only
+  appears when the DOM is actually remounted cannot be reproduced by clicking around.
+  Test the HARD load and the reopened portal too: the sidebar's scroll reset was
+  `909 -> 0` on a full document load and `943 -> 0` on every single open of the mobile
+  nav sheet, while three probes of ordinary clicking all reported it KEPT.
 - **The mutation harness reports false survivors**, it reads migrations from the repo, not
   the copy you just edited. This has happened three times. Confirm a mutation changed what
   actually ran.

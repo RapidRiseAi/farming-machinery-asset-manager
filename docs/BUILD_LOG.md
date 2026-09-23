@@ -3606,3 +3606,481 @@ typecheck, test (390), lint, i18n:parity (4860/4860), i18n:keys, errors:check, d
 
 **Left undone:** everything on the previous entry's list is still open. Nothing on the
 product itself changed here; this is tooling and comments only.
+
+
+## 2026-09-23 - Forms moved off the screens and into dialogs, and the gate that proves it
+
+A UI/UX pass over the capture screens: stop showing fields until somebody asks for them,
+put a row's actions behind one button, and state values instead of rendering them inside
+input boxes. Nothing was removed from any form and no server action's field names changed.
+
+### What was measured first
+
+Counted across the app, capture forms were revealed in four different ways and three of
+them cost something:
+
+- **Always open.** `/settings` rendered 22 input boxes; `/suppliers` its whole nine-field
+  "add a supplier" card between the totals and the list; `/fuel` two cards of 8 and 6
+  fields side by side above the tank balance it exists to show.
+- **A URL round trip.** `/tyres` and `/incidents` revealed a row's form by navigating to
+  `?check=<id>` / `?edit=<id>`, so revealing four fields cost a full server render and
+  left a URL that reopened the form next time.
+- **Collapsed but rendered.** `/suppliers`, `/parts` and `/machines/[id]` put per-row edit
+  forms in `<details>`, so every row shipped a complete form to the browser to hide it.
+- **A dialog**, which `/jobcards` already did correctly and nothing else did.
+
+`Modal` and `Sheet` had existed in the kit since the start and **nothing in the app used
+them** except the nav's "More" menu and `/jobcards`. The 13 `<details>` blocks had grown
+three different looks.
+
+### What was added to the kit
+
+- **`dialog-form.tsx`** - `DialogForm` (trigger + responsive dialog holding a
+  server-rendered form), `DialogActions`, `DialogFields`, `DialogSection`. Children are
+  server-rendered and passed as a prop, so actions, `Field`, `SubmitButton` and the
+  offline hooks work unchanged. `DialogActions` watches `useFormStatus()` for the pending
+  edge and closes the dialog, because every action here ends in a `redirect()`, which is a
+  soft navigation that KEEPS client state: without it the dialog sat open over the row it
+  had just written.
+- **`action-menu.tsx`** - `ActionMenu`, a row's actions behind one button. A responsive
+  sheet, not an anchored dropdown: no geometry to get wrong on a phone, and it can be
+  TITLED with the row, which an anchored panel cannot. It deliberately does not close on
+  click, because a nested `DialogForm` trigger lives inside it.
+- **`menu-item.ts`** - `menuItemClass()`, the row look, in a module of its own.
+- **`disclosure.tsx`** - one `<details>` treatment for reading, replacing three.
+- **`facts.tsx`** - `Fact`/`FactList`, label-and-value rows, so a screen can STATE a value
+  instead of rendering it inside a text box.
+- `triggerLook="menuItem"` on `DialogForm` and `ConfirmDialog`, `look="menuItem"` on
+  `SubmitButton`, because `cn` does not de-duplicate Tailwind: a `className` override
+  leaves both the button's padding and the row's in the class list.
+
+### Screens converted
+
+Seventeen: `/tyres`, `/incidents`, `/settings`, `/faults`, `/fuel`, `/fines`, `/parts`,
+`/team`, `/team/licences`, `/partners`, `/suppliers`, `/machines/[id]`,
+`/contractor/settings`, `/contractor/clients/[id]`, `/documents/[id]`,
+`/recurring/[id]`, `/admin/farms/[id]`.
+
+Measured in a browser, visible form controls on the page at rest: `/tyres` 25 to 0,
+`/settings` 22 to 0, `/incidents` 39 to 0, `/fuel` 20 to 0, `/team` 14 to 0, `/parts` 15
+to 2 (the catalogue search stays), `/machines/[id]` to 4 (the daily meter-reading form
+stays). `/machines/[id]` lost all 14 of its `<details>` blocks and its hand-rolled
+absolute-positioned dropdown; every one of its bare placeholder-only inputs, which had no
+label at all, became a `Field`. The `inputCls` ad-hoc input styling is gone from all three
+files that carried it.
+
+Two things were deliberately NOT converted, and the gate records why: the `/fines` capture
+is a two-step GET flow (pick vehicle and date, the server looks up who was driving, then
+the form renders with the driver suggested) and a dialog would break it, because
+submitting a GET navigates; and `/machines/[id]` keeps its meter-reading form on the
+Overview tab because logging hours is the daily task.
+
+### The defect this forced out of /settings, before it could bite
+
+`updateSettings` rebuilt the WHOLE settings blob from the submitted form, falling back to
+a hardcoded default for anything absent. Correct while one form posted all 18 keys
+together; **data loss** the moment the screen edits one group at a time. Saving quiet
+hours would have reset the farm's VAT rate to 15%, its service thresholds to 25 hours and
+its language to Afrikaans, with no error, and the screen would then have truthfully
+reported the defaults it had just written.
+
+So a partial form now declares what it owns (`__fields`) and `mergeSettings` merges over
+what is stored; a form that declares nothing still owns everything, so the old whole-form
+path is unchanged. Pure and tested: `src/lib/settings.test.ts`, 14 assertions, including
+the asymmetry that an owned CHECKBOX absent means false (the only signal a browser sends
+for "unticked") while an owned SELECT absent means keep. `formOwnsBilling` gates the
+billing RPC, which overwrites all five identity columns from whatever it is handed and
+would otherwise have blanked the farm's VAT number from the quiet-hours dialog.
+
+Two smaller facts recorded while writing that test: the old `intOr` returned **0**, not
+its default, for a missing key (`Number("")` is 0 and finite), and the old language read
+reset to "af" when absent. Neither was reachable from the one form that posted every key.
+
+### Two real bugs found by rendering it
+
+- **`Overlay` leaked its scroll lock.** Each overlay snapshotted
+  `document.body.style.overflow` on open and wrote it back on close, which is a race with
+  two overlays: the inner one saves "hidden" and hands it back, and the last restore to
+  run wins. Open a row menu on `/tyres`, open a dialog inside it, submit: the redirect
+  remounts the page, the menu's cleanup restored "" and the dialog's then restored
+  "hidden", so **the page could not be scrolled again until a reload**. The clean path
+  unwound in the opposite order and looked fine. Now a module-level count: first to open
+  locks, last to close restores.
+- **A plain function re-exported from a "use client" module is a client reference.**
+  `action-menu.tsx` briefly carried `export { menuItemClass }` as a convenience; calling
+  it from a Server Component threw "Attempted to call menuItemClass() from the server" and
+  took the whole of `/machines/[id]` to its error boundary. `tsc` and `next build` both
+  pass. Worse, `/incidents` had the same bad import and **passed every gate**, because its
+  one call sits behind `r.job_card_id` and the test farm's incident has no job card: it
+  would have crashed for the first customer who linked a repair to an accident. The
+  re-export is deleted, so the mistake is not available.
+
+### The gate: pnpm ui:check
+
+`scripts/ui_check.mjs`. Drives real Chrome over CDP with no new dependency (node 24 has a
+global `WebSocket`), signs in as the click-through owner the same way `click_through.mjs`
+does, and per route asserts: it renders, it did not fall into its error boundary, no raw
+i18n key is on screen, nothing is open before anything is pressed, the number of visible
+form controls is under a stated ceiling, and the first dialog trigger opens a labelled
+`aria-modal` dialog that takes focus, locks scroll, and on Escape closes, unlocks and
+returns focus to its trigger. Skips cleanly when there is no Chrome.
+
+This closes the gap CLAUDE.md already named: a dialog is client state, so a harness that
+reads HTML sees the trigger and never what it does. Both bugs above were invisible to
+typecheck, lint, build, `db:check`, the 404 TS tests and `click_through`.
+
+Three of its own defects, fixed, each worth knowing:
+
+- It picked the app shell's **hidden mobile nav button** as "the page's first dialog
+  trigger" (it carries `aria-haspopup="dialog"`), and `.focus()` on a `display:none`
+  element does nothing, so it reported "focus was not restored" on four healthy pages. It
+  now scopes to `main` and to visible elements.
+- The error boundary has an `h1` of its own, so a crashed page read as healthy. It now
+  carries `data-error-boundary`, which is cheaper and more honest than matching an English
+  sentence that will be translated.
+- `clickthrough@fleetwise.test` matched the raw-i18n-key regex, so "fleetwise.test" was
+  reported as an untranslated key on two pages.
+
+### The service worker stops pages hydrating after ~8 hard loads. Unresolved, pre-existing.
+
+Found while chasing the last gate failure, and it is NOT caused by this session's work, so
+it is recorded rather than fixed. Hard-navigating a single tab about eight times with
+`sw.js` in control leaves the next page rendered correctly and **never hydrated**: buttons
+visible, enabled, React attached to nothing, clicks do nothing, no console error and no
+error boundary.
+
+How it was pinned down: `/machines/[id]` failed as the 9th route and passed alone; 8 loads
+of `/team` then `/machines/[id]` reproduced it, so it was cumulative, not route-specific;
+`/machines/import`, `/statements` and `/settings/api`, **none of them touched this
+session**, and `/tyres` at a third of the bundle size, all failed identically, so it is
+neither a regression nor bundle weight; and with `Network.setBypassServiceWorker` the 9th
+and 10th loads hydrate fine. The gate therefore bypasses the service worker, because it is
+measuring the interface.
+
+Whether a real person on a real device can provoke it is **not answered**. Eight rapid
+hard loads in one tab is not an obvious user pattern, and normal use is client-side
+routing, but this is a PWA that is meant to be relaunched from a home screen, and the
+symptom a customer would report is "the buttons don't work". Worth a browser and a phone.
+
+### A second partial-form hazard, and a second real bug, on the partner side
+
+`/contractor/settings` is the same shape `/settings` was: about twenty-five controls in
+one `<form>`, five cards, a jump nav and a sticky Save. Splitting it into per-group
+dialogs hit the same hazard for the second time, so the ownership half of it moved into
+`src/lib/partial-form.ts` (`ownedKeys`, `owns`, `ownsAny`, `ownedUpdate`) with its own
+eight tests, and `src/lib/settings.ts` now imports from there instead of keeping a copy.
+
+Worse here than on the farm side, because `updatePartnerProfile` is one `.update()` over
+every column and the ones it would have reset are the ones that appear on a contractor's
+tax invoices: `vat_registered`, `default_vat_rate_bps`, the quote/invoice/credit-note
+number prefixes, and the letterhead colours. Resetting an invoice prefix silently
+restarts a number series a partner's books depend on. `ownedUpdate` omits a column the
+form does not own, rather than sending a default, so the database keeps what it has.
+
+**And the VAT rate on that screen never saved.** `updatePartnerProfile` read
+`vat_percent`; nothing on the page has ever posted that. `VatRateField` renders a percent
+box with NO `name` and posts a hidden `vat_rate_bps` in basis points, so
+`formData.get("vat_percent")` was always null, the `?? "15"` took over, and
+`default_vat_rate_bps` was written as 1500 on every single save no matter what the partner
+typed. The control was decorative. It happens to equal the current SA rate, which is why
+nobody noticed, and the stored value goes onto their invoices. It now reads
+`vat_rate_bps` first and keeps `vat_percent` as the fallback, because that IS the
+convention on the document, order and recurring-expense forms.
+
+A typo in a group's `owns` list is silent in the same way, so the five group lists live in
+`src/lib/partner-profile.ts` and `partner-profile.test.ts` asserts three things: every
+editable column is reachable from exactly one group, no group names a column the action
+cannot write, and the list matches the keys in the action's own `ownedUpdate` spec, read
+out of the source. That last one is the anti-drift check: add a column to the action and
+forget the list and it becomes uneditable on a screen that now edits group by group.
+
+### Which forms were deliberately left on the page
+
+Four, and the reasoning is the same each time: the form is the repeated act, not the
+occasional one, and putting the daily task behind a button is the tail wagging the dog.
+
+- `/parts` keeps its catalogue search. It is how you use a few hundred parts.
+- `/fines` keeps step one of its capture (vehicle + offence date). It is a GET that the
+  server uses to look up who was driving, and submitting a GET navigates, which would
+  close the dialog it was submitted from.
+- `/machines/[id]` keeps the meter-reading form on its Overview tab. Logging hours is
+  what an operator opens that screen to do.
+- `/documents/[id]` and `/recurring/[id]` keep their line-item forms. Building a document
+  means adding five lines; five dialog round trips would be worse than the wall.
+
+### What the browser gate can and cannot reach
+
+`ui:check` covers eleven routes. The other six converted screens cannot be reached by it,
+and the file says so rather than leaving them looking forgotten: `/suppliers`,
+`/contractor/settings`, `/contractor/clients/[id]` and `/recurring/[id]` are
+workshop-only, `/admin/farms/[id]` is rr_admin only, and `/documents/[id]` needs a
+document row the click-through farm does not have (verified: zero `partner_documents`).
+The only throwaway credential in the repo is a farm owner. There ARE workshop accounts on
+the live database, but they are real people's, so they were left alone.
+
+So those six are covered by typecheck, lint, build and the unit tests around the actions
+they post to, and **not by a browser**. The partner VAT fix in particular is proven by
+reasoning about what the form posts plus 8 + 5 unit tests, not by watching it save. A
+throwaway workshop and an rr_admin in `seed_test_farm.mjs` would close that, and is the
+obvious next step for this gate.
+
+### Second pass: what the first one missed
+
+A sweep for the same CLASS of defect rather than the same screens, plus gates so each one
+cannot come back.
+
+**Three more hand-rolled dropdowns, all `<details>` wearing a button's clothes.**
+`/jobcards` styled its `<summary>` with `buttonVariants` and the partner's "New document"
+hand-rolled `bg-brand-600 text-white` in raw classes, so both LOOKED like the primary
+button on every other screen while opening a panel with no focus trap, no Escape and no
+way out on a phone but finding the summary again. Being `<details>` they were also in
+flow, so opening one pushed the list below it down the page. `/admin/templates` kept a
+three-field edit form in one per row. All three are now `DialogForm`/`ActionMenu`.
+
+**Six hand-rolled primary buttons, two of them below the touch floor.** `/checklists`
+had `py-2`, about 36px tall, so the single call to action on that screen was a SMALLER
+target than every other button in the product, on the device it is used on;
+`jobcard-media` and `work-request-media` were `min-h-[44px]` against the kit's 48px.
+`not-found` and `/offline` were copies for no reason. All now go through
+`buttonVariants`. The landing page keeps its own pair, because its two CTAs are a matched
+set and rewriting only the brand-filled one would leave them different heights.
+
+**Loading states: 15 routes had none**, including `/tyres`, `/incidents`,
+`/team/licences`, `/statements`, `/home` and `/account`, so navigating to them showed
+nothing at all while the server worked. Every route under `(app)` now has one, shaped
+from what the page actually renders.
+
+**Two `<details>` were left alone, deliberately.** `/billing` is a no-JS GET two-step
+whose panel is opened by a searchParam because client-side scroll cannot open a
+`<details>`; `/d/[token]` is a public link opened from an email and has ZERO JavaScript
+on it. A dialog would make both worse.
+
+### Wide tables on a phone, and the two bugs that measuring found
+
+`<Table stacked>`: below `lg` each row becomes a labelled card, from `lg` up it is an
+ordinary table. Written as plain CSS in `globals.css` rather than nested Tailwind
+arbitrary variants (`max-lg:[table[data-stacked]_&]:flex`), because whether the generator
+emits a bracket inside a bracket is not something to find out from a phone. The `<thead>`
+is `sr-only`, not `display: none`, so the real `<th scope="col">` stay in the
+accessibility tree and the visible labels are aria-hidden duplicates for the eye.
+
+Applied to 13 tables across 10 screens. **Every cell's label was then checked against its
+own column** by parsing each table: 13/13 with matching column and cell counts, 0 labelled
+with the wrong column, 0 gaps. Measured at a true 360px: stacked 328px wide with no
+overflow, rows as 12px-radius cards bordered `rgb(230 226 215)` light and `rgb(83 82 74)`
+dark, label left and value right; the same markup unstacked is 576px in a 360px frame.
+
+Two real defects came out of measuring rather than reasoning:
+
+- **`/reports/assets` forced a 442px layout on a 360px phone, and had done all along.**
+  Not a regression: it survived removing `data-stacked` and hiding the table entirely.
+  Three whole-fleet money tiles shared a hard `grid-cols-3`, and `rands` joins thousands
+  with U+00A0, a NO-BREAK space, so "R1 500 000,00" is a single unbreakable ~200px token
+  at `text-3xl`. Three cannot share 360px, so Chrome widened the layout viewport and
+  ZOOMED THE WHOLE PAGE OUT instead of scrolling. Nothing overflowed, which is exactly
+  why no scrollbar ever gave it away, and any farm with a combine hits it. The grid is
+  now responsive; the two other fixed-column money grids step their value down on a phone
+  as the dashboard's fuel tiles already did.
+- **The stacked table itself regressed at 1024px.** Dropping the scroll wrapper looked
+  right, because below `lg` cards cannot overflow; it is wrong the moment the columns come
+  back. At a 13-inch laptop `/team` laid out an 823px table inside a 687px column and
+  pushed the document to 1112px, so the page scrolled sideways. `lg:overflow-x-auto`
+  restores the container exactly where it becomes a table again.
+
+### Gates added, all mutation-tested
+
+Three `design_lint` rules: `no-details-as-button`, `kit-button` and
+`stacked-table-labels` (no more unlabelled cells than there are empty `<Th />`; the ten
+converted pages sit exactly at that bound). `kit-button` took three attempts and each
+failure is recorded in the rule, because they are the two ways a checker dies: it first
+missed every real case (`<button` alone on a line never matched `[\s>]`), then it cried
+wolf at a brand-filled `<span>` badge and at the bottom bar's nav tile. It now walks back
+to the element that owns the class and requires horizontal padding.
+
+`ui:check` gained two dimensions beyond dialogs: **28 routes at 360px** and **28 at
+1024px**. The 360px pass asserts two different failures, and the second is the one that
+hid: `scrollWidth > innerWidth` is ordinary sideways scroll, while `innerWidth > 360` is
+the silent one where the browser zooms the page out instead.
+
+A sixth `partner-profile` test walks the contractor settings form's own `name=`
+attributes and insists each is a column the action reads. That is the guard for the VAT
+bug found earlier, where the action read `vat_percent` and the form has only ever posted
+`vat_rate_bps`: strings on both sides, so nothing else could see it.
+
+### Cleaned up
+
+Two imports this session orphaned (`ChevronDownIcon` on `/machines/[id]`, `menuItemClass`
+in `action-menu.tsx`) are gone. Twenty-one others were checked against HEAD, found to
+predate this work, and left alone rather than churning unrelated files.
+
+### Gates
+
+typecheck, lint, test (418, from 404: +8 partial-form, +6 partner-profile),
+i18n:parity (4871/4871), i18n:keys, errors:check, design:lint (34/34 contrast, 0
+violations), dashes:check, db:check (exit 0), build, click_through (22 screens, 9 RLS
+writes), ui:check (11 dialog routes, 28 routes at 360px, 28 at 1024px, exit 0). All green.
+
+Proven by running it, not asserted from the code: on `/tyres`, open a row menu, open the
+tread-check dialog inside it, type a reading, submit, and the dialog closes itself with
+"Check saved." on `?saved=checked`; on `/settings`, edit quiet hours and read all 25
+stated values back, **exactly one changed** (20 to 21) and the other 24 survived, which is
+the data-loss case the merge exists for. Every gate added this session was mutation-tested
+against the defect it exists for, with a passing control either side.
+
+**Left undone.** Twenty-one screens carry the pattern, and a final sweep for screens with
+four or more inline fields leaves exactly two, both on purpose:
+
+- **`/work/[id]`**, the workshop's live working screen: status chips, a status-with-note
+  form, a progress note and a quote amount, every one of them one or two fields used
+  repeatedly while a job is open. Same reasoning as the line-entry forms on
+  `/documents/[id]`, the meter reading on `/machines/[id]` and step one of `/fines`:
+  the REPEATED act stays on the page, and a dialog would add a tap to the most frequent
+  action on the screen.
+- **`/m/[token]`**, the no-login QR page a worker uses standing at the machine. It is a
+  standalone kiosk flow with no app chrome and no JavaScript, and dialogs would need JS.
+
+`/contractor/clients` and `/recurring-expenses/[id]` were the last two genuine holdouts
+and are now converted; the second was the odd one out against `/recurring/[id]`, its own
+sibling, which had been done in the first pass.
+
+Six of the seventeen converted screens are not covered by `ui:check` for want of a
+workshop and an rr_admin credential, as above; `/contractor/settings` in particular is
+proven by unit tests and a static field-name guard, **not by watching it save**. Adding a
+throwaway workshop and an rr_admin to `seed_test_farm.mjs` is the obvious next step and
+would close both that and the `/documents/[id]`, `/suppliers` and `/admin` gaps at once.
+
+The service-worker hydration finding is unresolved and needs a phone. Nothing here has
+been pushed or deployed, and everything on the previous entries' open lists is still open.
+
+## 2026-09-23 (later) - The sidebar: where it was left, what it is called, and what it costs
+
+A report, not a hunch: "when I click on something it auto scrolls back up in the side bar
+instead of staying at the current position". The first three attempts to reproduce it
+failed and said the position was KEPT, which is not the same as the bug not existing.
+
+### Reproducing it
+
+A programmatic `.click()` on a sidebar link kept the offset (`909 -> 909`). A real mouse
+press did not navigate at all, because the first-run tour was open over the sidebar
+(`probe-cover.mjs` found the blocker: `fixed inset-0 z-50` from `src/components/tour.tsx`).
+With the tour marked seen, a real press also kept the offset, and `sameDoc=true` said the
+navigation was client-side.
+
+That is the answer to the wrong question. A client-side navigation keeps the offset **for
+free**, because React never unmounts the panel. The two paths that do unmount it were
+never tested, and both were broken:
+
+```
+desktop sidebar, HARD navigation : 909 -> 0   RESET
+mobile "More" sheet, reopened    : 943 -> 0   RESET
+```
+
+The sheet is the unconditional one: it mounts fresh on every open, so a person who
+scrolled past nine books screens to reach Settings was put back at the top **every single
+time**. The sidebar resets on any full document load, which for a PWA relaunched from a
+home screen with a service worker serving the document is not a rare event.
+
+### The fix, and the bug inside the fix
+
+`src/components/ui/use-scroll-memory.ts` stores the offset per tab session and restores it
+in a layout effect, before paint. `ScrollArea` takes `rememberKey` and `revealActive`;
+`Overlay`/`Sheet` take `rememberKey` for the panel, which IS the scroller for a bottom
+sheet.
+
+The first version stored the offset and still reopened at the top, with the code visibly
+in place. Instrumenting `sessionStorage` rather than re-reading the code:
+
+```
+after scrolling  : {"farmgear:scroll:nav-more":"500"}
+storage on close : {"farmgear:scroll:nav-more":"0"}
+```
+
+A **detached element reports `scrollTop` 0**, and React tears the portal down before the
+effect's destroy runs, so the obvious cleanup (`write(key, el.scrollTop)`) faithfully
+stored 0 every time. The listener now keeps the value in a local, read synchronously while
+the node is still in the document.
+
+Two more measured corrections: focusing the panel after the restore undid it, so the focus
+call passes `preventScroll` where a remembered offset exists; and a sticky child is
+constrained by the scroll container's **padding box**, so `py-2` on the scroller pinned
+every heading 8px down and left a strip above it that rows scrolled through in the open.
+The padding moved onto the `<nav>`. Measured: heading top 8, then 0.
+
+### What else the sidebar was getting wrong
+
+- **Sticky section headings.** 900px of nav with no heading in sight. `z-10` puts them
+  above the `ScrollArea`'s top fade; verified with `elementFromPoint` at the heading's own
+  coordinates, which returns `P.sticky` and not the fade.
+- **`revealActive`.** Arriving on `/settings` from an email link showed the top of a list
+  whose active row was 600px below the fold. On a fresh session it now reveals it:
+  `{"scrollTop":945,"label":"Settings","inView":true}`.
+- **The footer was four stacked blocks**: a Language row, an Appearance row, the person's
+  name, a Sign out button, all permanently on screen. They are now behind the row that
+  names you, an `ActionMenu` titled with the person. Sidebar controls at rest **4 to 1**,
+  nav height **460px to 587px** on a 720px laptop. Verified by pressing them, not by
+  reading the markup: theme `unset -> light`, and sign out `/dashboard -> /login`.
+- **"Everything else" had grown to twelve destinations**, which is a bucket, not a
+  heading, and the sticky headings make a heading that says nothing more conspicuous
+  rather than less. Two of the twelve are a different KIND of thing, so they are named:
+  **Account** (settings, billing, API access, admin, subscriptions) and **Help**. The
+  remaining seven keep the existing label, because inventing a taxonomy for them is a
+  product decision and not a UI one. Nothing is hidden; every destination is still a
+  visible row.
+
+`tailItems` became `tailGroups`, defined once and spread by all four consumers (sidebar,
+"More" sheet, command palette, service-worker warm list) instead of three call sites
+rebuilding the same object literal. Deduped by href, which caught a live latent duplicate:
+an account that is both owner and rr_admin matched `isOwner ? [billing]` and
+`isAdmin ? [..., billing]` and got `/billing` twice in one group.
+
+Measured after: sidebar 6 groups, 25 destinations, **0 duplicates**; the "More" sheet
+mirrors it group for group.
+
+### Gates
+
+typecheck, lint, test (418), i18n:parity (4873/4873, +2 keys in both languages),
+i18n:keys, errors:check, design:lint (34/34 contrast, 0 violations), dashes:check,
+db:check (exit 0), build, click_through (22 screens, 9 RLS writes), ui:check (11 dialog
+routes, 28 at 360px, 28 at 1024px, exit 0). All green.
+
+**Left undone.** Whether a real person provokes the reset on a phone is still unmeasured;
+the fix removes the cause on every path that was reproducible here, but the service-worker
+hydration finding above it is still unresolved and still needs a phone. Nothing has been
+pushed or deployed. Everything on the previous entries' open lists is still open.
+
+### Afterwards: the mobile gate was a selection, not an inventory
+
+Asked whether the mobile UI was right, the honest answer was that nobody knew. `ui_check`
+measured **28 routes at 360px against 82 `page.tsx` files**, hand-picked. The other 54 were
+not covered elsewhere, they were unmeasured, and "the gate is green" had been standing in
+for "the product fits a phone".
+
+Sweeping every route the click-through owner can actually open, 53 of them, found one:
+
+```
+FAIL  /machines/f0000000-...-aa01   zoomed out: layout 415px
+52/53 clean at 360px, 1 with a problem
+```
+
+`/machines/[id]` is the densest and one of the most-used screens in the product, and it had
+been rendering **zoomed out on every phone**. The cause is the same failure mode already in
+the rules and it still hid: five tabs (`Overview`, `Servicing`, `What it costs`, `History`,
+`Papers & licence`) come to 415px at their natural width, and when content cannot fit Chrome
+does not add a scrollbar, it widens the layout viewport. No overflow, no scrollbar, nothing
+to notice, just smaller text everywhere.
+
+Finding it needed the document forced to 360px before walking for elements wider than their
+container; at the real (widened) viewport nothing is over-wide, because everything fits
+inside 415. The first walk returned `deepest: [], count: 0` and said the page was fine.
+
+`Tabs` now scrolls sideways (`overflow-x-auto` plus `shrink-0` on the buttons, without which
+flex squeezes the labels instead of scrolling). Measured after: `innerWidth 360`,
+`pageScrollWidth 360`, tablist `328` visible of `506`. Verified by eye as well as by number:
+the active underline still meets the strip border, and the cut-off tab at the right edge is
+the affordance, which is why the scrollbar is hidden here and nowhere else.
+
+`MOBILE_ROUTES` is now the inventory rather than a selection from it, 53 routes at both
+360px and 1024px. What stays out is only what this credential cannot open: workshop-only
+(`/contractor/*`), rr_admin-only (`/admin/*`), operator-only (`/driver`), the signed-out and
+marketing pages, and the token routes, which need a token to mean anything. Those remain
+genuinely unmeasured on a phone and are the next gap to close.
