@@ -4,7 +4,7 @@
  * Pure functions. `public.farm_calendar` does the gathering and keeps each source's RLS;
  * everything here is arithmetic about days and about what a month looks like on a phone.
  *
- * ── Dates are strings, deliberately ─────────────────────────────────────────
+ * == Dates are strings, deliberately =========================================
  * `YYYY-MM-DD` throughout, never `Date`. A calendar built on `Date` objects picks up the
  * server's timezone, and this product runs on Vercel in one timezone and is read in
  * another: a service due on the 1st renders on the 30th for anybody west of the server.

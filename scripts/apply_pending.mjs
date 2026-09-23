@@ -1,13 +1,13 @@
 /**
  * Apply the migrations a target database has not got yet, one transaction each.
  *
- * ── Why it checks OBJECTS and not a ledger ──────────────────────────────────
+ * == Why it checks OBJECTS and not a ledger ==================================
  * This schema has no migrations table, and `docs/SCHEMA_DRIFT.md` says why: the only
  * trustworthy answer to "is this applied" is whether the thing it creates is there. So
  * each migration is paired with a probe below, and anything whose probe already answers
  * true is skipped rather than re-run.
  *
- * ── Safety ──────────────────────────────────────────────────────────────────
+ * == Safety ==================================================================
  * One transaction per file, so a failure leaves that migration wholly unapplied rather
  * than half. `--dry` prints the plan and touches nothing. Nothing here drops, truncates or
  * updates existing rows; if a migration ever does, that is on the migration, and the plan

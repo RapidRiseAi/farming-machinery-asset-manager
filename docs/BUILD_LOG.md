@@ -3550,3 +3550,59 @@ the live database.
 - **The other suites added on 21/09 have now run on real Postgres once and passed**, but
   only once, and `atomic_offline_capture.sql` still fails on PGlite for its original
   `digest()` reason.
+
+
+## 2026-09-23 - The dash gate, and the check the sweep had quietly broken
+
+One loose end from the previous session, closed: the sweep that took ~5,800 em dashes out
+of 575 files was a one-off tool, so nothing stopped the next file written putting them
+straight back. It now has a gate.
+
+### What was added
+
+`scripts/dash_sweep.mjs --check` reports and exits non-zero. Three arms:
+
+- any em or en dash in a string value in one of the four dictionaries, reported by KEY,
+  because that is copy a customer reads;
+- any em or en dash on a line of source;
+- any box-drawing comment banner that is not part of a table.
+
+Wired in as `pnpm dashes:check`, and into the "App quality gates + build" CI job between
+`design:lint` and `build`.
+
+`.yml` and `.yaml` were added to the sweep's extensions at the same time. The only file in
+the repo that qualified was `.github/workflows/ci.yml` itself, which carried three em
+dashes in its own step comments.
+
+**Mutation-tested 3/3, one per arm**, each reproducing a non-zero exit and naming the right
+file, with a passing control either side.
+
+### What the gate found on its first run
+
+32 violations, every one a comment banner in a file written AFTER the sweep: the four
+scripts and the eight screens and libraries from 21/09. Which is the case the gate exists
+for, found on day one.
+
+### The defect underneath it
+
+The sweep had rewritten a literal em dash that was being used as DATA, not as prose. In
+`scripts/click_through.mjs` the line that detects an em dash on a rendered page had itself
+become `if (html.includes("-"))`, so the click-through's own detector was matching every
+page with a hyphen anywhere in it, which is every page. It would have reported "em dash"
+on all 22 screens forever, and a checker that cries wolf stops being read.
+
+It is now built from its code point, `String.fromCharCode(0x2014)`, which the sweep cannot
+rewrite, with a comment saying why.
+
+The whole 522dfb0 sweep was then re-read for the same class of damage: every non-comment
+line it changed in `.ts`, `.tsx`, `.mjs`, `.js` and `.sql`. The rest are all empty-cell
+placeholders, which is the intended rewrite. `src/lib/banking.ts:238` looks like the same
+bug and is not: it predates the sweep and is a real hyphen on a bank statement.
+
+### Gates
+
+typecheck, test (390), lint, i18n:parity (4860/4860), i18n:keys, errors:check, design:lint
+(34/34 contrast), dashes:check, build. All green.
+
+**Left undone:** everything on the previous entry's list is still open. Nothing on the
+product itself changed here; this is tooling and comments only.

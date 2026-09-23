@@ -219,6 +219,12 @@ will bite again.
   because the case may end with a person being told their card was used without permission.
 - **A checker that cries wolf stops being read.** The first `i18n:keys` gate flagged nine
   legitimate call sites; that gets fixed before the gate ships.
+- **A codemod that rewrites punctuation will rewrite a punctuation LITERAL used as data.**
+  `dash_sweep.mjs --apply` turned the click-through's own em-dash detector from
+  `html.includes("EM")` into `html.includes("-")`, which matches every page. The gate
+  cannot see this: the dash is gone, so the file is clean. Build such a literal from its
+  code point (`String.fromCharCode(0x2014)`) and read the sweep's non-comment diff before
+  trusting it.
 - **Runtime-built keys evade static sweeps.** `PageInfoButton` composes its key at runtime
   from an `infoKey` prop, so three pages rendered raw keys to users while parity passed.
   `pnpm i18n:keys` now covers static keys, dynamic stems and page-info keys. **`enumLabel`

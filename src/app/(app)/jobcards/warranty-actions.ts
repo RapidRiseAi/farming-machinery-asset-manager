@@ -10,13 +10,13 @@ import { WARRANTY_STATUSES, requiredFor, type WarrantyStatus } from "@/lib/warra
 /**
  * Claiming a repair back from the dealer.
  *
- * ── Money is EX-VAT here ─────────────────────────────────────────────────────
+ * == Money is EX-VAT here =====================================================
  * Unlike the insurance side, where the figures are copied off a letter. A warranty claim
  * is measured against a job card, whose parts, labour and totals are ex-VAT with a rate
  * captured beside them, and a claim on a different basis could not be compared with the
  * repair it is about. The form says so under the fields.
  *
- * ── What the database refuses, and why this asks first ───────────────────────
+ * == What the database refuses, and why this asks first =======================
  * A claim larger than its own job card (a trigger, because the limit lives on another
  * table), a paid claim with no amount or date, a sent claim with no send date, and a
  * second live claim against the same repair. Those are the authority; these checks exist

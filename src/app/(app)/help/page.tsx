@@ -38,23 +38,23 @@ const STATUS_LOOK: Record<HelpRequest["status"], { tone: BadgeTone; key: string 
 /**
  * Asking us for help without leaving the product.
  *
- * ── What it replaces ─────────────────────────────────────────────────────────
+ * == What it replaces =========================================================
  * An email address printed on `/billing`. A farmer with a problem had to leave FleetWise,
  * open a mail client, and describe from memory which screen they were on and what plan
  * they are on. Most will not bother, and the ones who do describe it wrongly, so the first
  * reply is always a request for context the product already had.
  *
- * ── Anybody signed in may ask ────────────────────────────────────────────────
+ * == Anybody signed in may ask ================================================
  * Including a driver. Somebody stuck on a checklist screen is exactly who this is for, and
  * making them find the owner first is how the question never gets asked at all.
  *
- * ── What is attached ─────────────────────────────────────────────────────────
+ * == What is attached =========================================================
  * The farm, its plan, who asked, and the screen they came from. NOT the billing dossier
  * that `app.support_ticket_evidence` builds for disputes: attaching a card's last four and
  * an attempt history to "the QR code will not scan" would put them in a support queue for
  * no reason.
  *
- * ── Their own list, from a function ──────────────────────────────────────────
+ * == Their own list, from a function ==========================================
  * `support_tickets` also holds disputes, so the farm reads its questions through
  * `my_help_requests()`, which returns four columns and no evidence at all rather than a
  * widened policy on a table full of billing cases.

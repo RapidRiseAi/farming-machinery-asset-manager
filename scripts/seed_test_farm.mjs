@@ -1,12 +1,12 @@
 /**
  * Create a throwaway farm, owner and a little data, so the new screens can be clicked.
  *
- * ── Why a whole farm and not a row on an existing one ───────────────────────
+ * == Why a whole farm and not a row on an existing one =======================
  * Because RLS is the thing being exercised. A test row inside a customer's farm would be
  * visible to that customer, would appear in their totals, and would have to be found again
  * to remove. A separate farm is isolated by the same mechanism the product sells.
  *
- * ── Everything it writes is prefixed and listed ─────────────────────────────
+ * == Everything it writes is prefixed and listed =============================
  * One farm, one auth user, one profile, and a handful of rows beneath them. `--remove`
  * deletes exactly what `--create` made, by id, and nothing else.
  *

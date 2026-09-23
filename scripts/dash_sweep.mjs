@@ -169,7 +169,7 @@ function rewriteSource(text) {
 // ── Walk ────────────────────────────────────────────────────────────────────
 
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", ".vercel"]);
-const SOURCE_EXT = new Set([".ts", ".tsx", ".mjs", ".js", ".sql", ".md", ".sh", ".css"]);
+const SOURCE_EXT = new Set([".ts", ".tsx", ".mjs", ".js", ".sql", ".md", ".sh", ".css", ".yml", ".yaml"]);
 
 function walk(dir, files = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -245,6 +245,76 @@ function sweepSource() {
     if (APPLY) fs.writeFileSync(p, next);
   }
   return { files, hits };
+}
+
+// == Check mode ==============================================================
+//
+// The sweep removed 5,800 of these once. Nothing stood behind it, and within a day they
+// had come back: every file written after the sweep carried a fresh banner. A cleanup with
+// no gate behind it is a cleanup somebody has to repeat.
+//
+// Exits non-zero and names the offenders, so the failure is actionable rather than a count.
+function check() {
+  const problems = [];
+  const note = (file, line, why, text) =>
+    problems.push({
+      file: typeof file === "string" ? path.relative(ROOT, file) : file,
+      line,
+      why,
+      text: String(text).trim().slice(0, 90),
+    });
+
+  // The dictionaries first: a dash here is read by a customer.
+  for (const file of I18N) {
+    const obj = JSON.parse(fs.readFileSync(file, "utf8"));
+    const walkObj = (o, prefix) => {
+      for (const [k, v] of Object.entries(o)) {
+        if (v && typeof v === "object") walkObj(v, `${prefix}${k}.`);
+        else if (typeof v === "string" && (v.includes(EM) || v.includes(EN))) {
+          note(path.relative(ROOT, file), `${prefix}${k}`, "dash in copy a customer reads", v);
+        }
+      }
+    };
+    walkObj(obj, "");
+  }
+
+  for (const file of walk(ROOT)) {
+    if (I18N.includes(file)) continue;
+    if (!SOURCE_EXT.has(path.extname(file))) continue;
+    // This file necessarily contains the characters it is looking for.
+    if (file.includes(`scripts${path.sep}dash_sweep.mjs`)) continue;
+
+    const text = fs.readFileSync(file, "utf8");
+    if (!text.includes(EM) && !text.includes(EN) && !text.includes(BOX)) continue;
+
+    text.split("\n").forEach((line, i) => {
+      if (line.includes(EM) || line.includes(EN)) {
+        note(file, i + 1, "em or en dash", line);
+      } else if (line.includes(BOX) && !TABLE_CHARS.test(line)) {
+        // A run of box-drawing with none of the corner or junction characters on the line
+        // is a decorative banner. Beside them it is a drawn table, and that stays.
+        note(file, i + 1, "comment banner", line);
+      }
+    });
+  }
+
+  if (problems.length === 0) {
+    console.log("No em dashes, en dashes or comment banners. Clean.");
+    return 0;
+  }
+
+  const SHOWN = 25;
+  console.log(`${problems.length} to fix. Run: node scripts/dash_sweep.mjs --apply\n`);
+  for (const p of problems.slice(0, SHOWN)) {
+    console.log(`  ${p.file}:${p.line}  ${p.why}`);
+    console.log(`    ${p.text}`);
+  }
+  if (problems.length > SHOWN) console.log(`  ... and ${problems.length - SHOWN} more`);
+  return 1;
+}
+
+if (process.argv.includes("--check")) {
+  process.exit(check());
 }
 
 const copy = sweepCopy();

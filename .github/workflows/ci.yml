@@ -50,11 +50,11 @@ jobs:
       - run: pnpm test
       - run: pnpm lint
       # Every string the product shows must exist in BOTH languages. Parity only
-      # compares en to af, so a key missing from both passes it — which is how 115 keys
+      # compares en to af, so a key missing from both passes it, which is how 115 keys
       # once reached a screen reading `reportSchedules.title`.
       - run: pnpm i18n:parity
       # And that every key the code ASKS for exists. Parity compares en to af and passes
-      # when a key is missing from BOTH — which is how 115 keys once reached a screen, and
+      # when a key is missing from BOTH, which is how 115 keys once reached a screen, and
       # how three "What is this?" panels were rendering raw keys to customers until this
       # gate found them. Mutation-tested 3/3 with a passing control.
       - run: pnpm i18n:keys
@@ -63,6 +63,10 @@ jobs:
       - run: pnpm errors:check
       # The palette this checks for landed in 7c96e80, so this is now true of the repo
       # rather than of one machine's working tree. It reported 302 violations against
-      # the committed tree right up until that commit — which is why it waited.
+      # the committed tree right up until that commit, which is why it waited.
       - run: pnpm design:lint
+      # No em dash, en dash or box-drawing comment banner anywhere in the source or in a
+      # dictionary. The sweep that removed ~5,800 of them was a one-off; without this the
+      # next file written puts them straight back. --apply rewrites, --check only reports.
+      - run: pnpm dashes:check
       - run: pnpm build

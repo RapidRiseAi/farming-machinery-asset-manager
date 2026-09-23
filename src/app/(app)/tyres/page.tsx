@@ -41,22 +41,22 @@ type MachineRow = { id: string; name: string; meter_type: string };
 /**
  * Every tyre, where it is, and what it has cost per hour.
  *
- * ── Why it is worth a screen ─────────────────────────────────────────────────
+ * == Why it is worth a screen =================================================
  * On a truck fleet tyres are the second largest running cost after diesel, and on a farm
  * they are the cost nobody measures. Before this, "tyre" existed in FleetWise only as a
  * fault category.
  *
- * ── Grouped by machine, ordered by position ──────────────────────────────────
+ * == Grouped by machine, ordered by position ==================================
  * Because that is how somebody uses it: they walk round the vehicle. A list ordered by
  * purchase date would be correct and useless.
  *
- * ── Three things the screen refuses to state ─────────────────────────────────
+ * == Three things the screen refuses to state =================================
  * A rate for a tyre with no cost recorded, a rate for one that has not run yet, and a rate
  * for one that has been on both an hours machine and a kilometre machine. The last is the
  * dangerous one: a sum of hours and kilometres looks exactly like an answer, so the row
  * says why there is no figure instead.
  *
- * ── "Never checked" is amber, not silent ─────────────────────────────────────
+ * == "Never checked" is amber, not silent =====================================
  * A tyre nobody has looked at is the one to go and look at. Rendering it the same as a
  * healthy tyre is how a bald tyre stays on a trailer.
  */

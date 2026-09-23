@@ -48,23 +48,23 @@ const DOT: Record<string, string> = {
 /**
  * What is due and what is booked, a month at a time.
  *
- * ── The gap this closes ──────────────────────────────────────────────────────
+ * == The gap this closes ======================================================
  * Everything here already existed, one screen at a time. Services carry a next-due date,
  * job cards carry a date in, licences and driver documents carry expiry dates. What nobody
  * could see is the WEEK: that the annual service, the roadworthy and a PrDP all land in
  * the fortnight the wheat has to come off. That is the whole point of a calendar on a farm.
  *
- * ── Grid and agenda, not grid or agenda ──────────────────────────────────────
+ * == Grid and agenda, not grid or agenda ======================================
  * A seven-column month grid at 360px gives each day about 44px, which is enough for a
  * number and a dot and nothing else. So the grid is the OVERVIEW, showing where the
  * pressure is, and the agenda beneath it is the detail, in reading order, skipping empty
  * days. Both come from the same grouping, so they cannot disagree.
  *
- * ── Every row is a link ──────────────────────────────────────────────────────
+ * == Every row is a link ======================================================
  * A planner who taps a day wants to act on it, and the thing to act on is the job card,
  * the machine or the personnel screen.
  *
- * ── No money on it ───────────────────────────────────────────────────────────
+ * == No money on it ===========================================================
  * `farm_calendar` returns none. A job card's total is behind `app.can_view_farm_costs`,
  * and a calendar carrying amounts would be a second door onto it.
  */

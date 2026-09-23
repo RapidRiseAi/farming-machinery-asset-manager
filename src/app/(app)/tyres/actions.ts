@@ -10,14 +10,14 @@ import { TYRE_AXLES } from "@/lib/tyres";
 /**
  * Buying, fitting, checking and scrapping tyres.
  *
- * ── Fitting goes through an RPC, not an insert ───────────────────────────────
+ * == Fitting goes through an RPC, not an insert ===============================
  * `public.fit_tyre` takes the tyre off whatever it was on and puts it on the new machine in
  * one statement. A rotation is a removal and a fitment, and doing those as two round trips
  * from here is how a farm ends up with a tyre recorded in two places, or in none. The
  * database also holds the rule that only one fitment per tyre may be open, and a partial
  * unique index cannot be satisfied halfway through a pair of client calls.
  *
- * ── Money and meters are typed as a person types them ────────────────────────
+ * == Money and meters are typed as a person types them ========================
  * Rands, and hours or kilometres with a decimal point or a comma. Converted here once;
  * everything below this line is cents and numerics.
  */

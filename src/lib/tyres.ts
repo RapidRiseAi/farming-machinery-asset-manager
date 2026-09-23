@@ -5,7 +5,7 @@
  * tyre's whole history across rotations and machines and the inputs live in three tables.
  * What is here is what the screen decides once it has that answer.
  *
- * ── The unit is never assumed ───────────────────────────────────────────────
+ * == The unit is never assumed ===============================================
  * A tractor wears tyres in hours and a truck in kilometres. `tyre_life` returns the unit
  * alongside the number and returns NO unit for a tyre that has run on both, because hours
  * and kilometres cannot be added. Every function here that touches a rate carries that

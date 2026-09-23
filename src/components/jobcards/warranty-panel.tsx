@@ -32,21 +32,21 @@ import {
 /**
  * "Was this under warranty?" on the repair it is about, and the claim if there is one.
  *
- * ── Why it lives on the job card ─────────────────────────────────────────────
+ * == Why it lives on the job card =============================================
  * Because that is where the question is asked. A farm looks at a repair, sees what it
  * cost, and wonders whether the dealer should have paid for it. Putting the answer
  * anywhere else means the wondering happens and the looking does not.
  *
- * ── The verdict is about the DAY of the repair ───────────────────────────────
+ * == The verdict is about the DAY of the repair ===============================
  * `app.job_card_warranty_cover` judges the machine's warranty against this job card's
  * `date_in` and `meter_reading`, not against today. Six weeks later "is it under warranty"
  * can be no while "was it, in January" is still yes, and that gap is where the money goes.
  *
- * ── Three answers, not two ───────────────────────────────────────────────────
+ * == Three answers, not two ===================================================
  * "Warranty not recorded" is not "out of warranty". It is the amber one, because the farm
  * should go and look at the paperwork rather than be told they have no claim.
  *
- * ── Its own component, and its own reads ─────────────────────────────────────
+ * == Its own component, and its own reads =====================================
  * So adding this to a 366-line page is one line there. It costs two queries on a page that
  * already makes several, and both are caller-scoped.
  */

@@ -1,7 +1,7 @@
 /**
  * Sign in as the throwaway owner and walk the product, checking what actually renders.
  *
- * ── Why this is not a browser ───────────────────────────────────────────────
+ * == Why this is not a browser ===============================================
  * It does not need to be. Every page here is a server component: what a person sees IS the
  * HTML this fetches, cookies and all. Driving Chrome would add a dependency and a lot of
  * timing in exchange for testing React's hydration, which the build already type-checks.
@@ -54,7 +54,7 @@ async function resolveOpenHelpRequests() {
   );
 }
 
-// ── Sign in the way the app does ────────────────────────────────────────────
+// == Sign in the way the app does ============================================
 const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: "POST",
   headers: { apikey: ANON, "content-type": "application/json" },
@@ -92,7 +92,7 @@ if (encoded.length <= CHUNK) {
 }
 const COOKIE = cookies.join("; ");
 
-// ── The walk ────────────────────────────────────────────────────────────────
+// == The walk ================================================================
 const PAGES = [
   ["/dashboard", ["Test Tractor"]],
   ["/machines", ["Test Tractor", "Test Bakkie"]],
@@ -143,7 +143,10 @@ for (const [route, mustContain] of PAGES) {
     // A raw i18n key on the page is the failure `t()` makes silently.
     const rawKeys = html.match(/>[a-z]+\.[a-zA-Z]{3,}</g) || [];
     if (rawKeys.length) problems.push(`raw i18n key ${rawKeys[0]}`);
-    if (html.includes("—")) problems.push("em dash");
+    // Built from its code point, not typed: this file is itself swept by
+    // scripts/dash_sweep.mjs, which rewrote the literal into a plain hyphen and turned
+    // this into a check that fired on every page with a hyphen in it.
+    if (html.includes(String.fromCharCode(0x2014))) problems.push("em dash");
     if (/Application error|Something went wrong/i.test(html)) problems.push("error boundary");
     for (const s of mustContain) {
       if (!html.includes(s)) problems.push(`missing "${s}"`);

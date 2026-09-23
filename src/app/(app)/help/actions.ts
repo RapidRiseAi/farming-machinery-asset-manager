@@ -10,13 +10,13 @@ import { safePath } from "@/lib/safe-path";
 /**
  * Asking us for help, from inside the product.
  *
- * ── It carries no authority ──────────────────────────────────────────────────
+ * == It carries no authority ==================================================
  * `public.open_help_request` establishes who is asking from `auth.uid()` and reads the
  * farm from their own profile. Nothing about the farm comes from this form, so there is no
  * field to tamper with: a farmer cannot open a case against somebody else's farm by
  * editing the HTML.
  *
- * ── Why the path is sent ─────────────────────────────────────────────────────
+ * == Why the path is sent =====================================================
  * Because the first reply to a support email is always "which screen were you on". Sending
  * it turns a two-day round trip into an answer. It is validated with `safePath` before it
  * goes, and the database keeps only three named keys whatever this posts.
