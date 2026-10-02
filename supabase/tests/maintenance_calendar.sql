@@ -77,14 +77,14 @@ insert into public.service_plan_lines
    'Service on a sold machine', 12, date '2026-10-14', 'due_soon');
 
 insert into public.job_cards
-  (id, farm_id, machine_id, workshop_id, type, status, date_in) values
+  (id, farm_id, machine_id, workshop_id, work_mode, type, status, date_in) values
   ('ca300000-0000-4000-8000-000000000001', 'ca000000-0000-4000-8000-000000000001',
    'ca200000-0000-4000-8000-000000000001', 'caf00000-0000-4000-8000-000000000001',
-   'repair', 'in_progress', date '2026-10-14'),
+   'external', 'repair', 'in_progress', date '2026-10-14'),
   -- Approved is finished and off the plan.
   ('ca300000-0000-4000-8000-000000000002', 'ca000000-0000-4000-8000-000000000001',
    'ca200000-0000-4000-8000-000000000002', null,
-   'scheduled_service', 'approved', date '2026-10-15');
+   'internal', 'scheduled_service', 'approved', date '2026-10-15');
 
 insert into public.licences (farm_id, machine_id, type, number, expiry_date) values
   ('ca000000-0000-4000-8000-000000000001', 'ca200000-0000-4000-8000-000000000002',

@@ -268,7 +268,7 @@ export default async function DocumentsPage({
         </div>
       )}
 
-      {isPartner || isFarmSide ? <UploadDocument locale={locale} parties={parties} isPartner={isPartner} /> : null}
+      {isPartner || isFarmSide ? <UploadDocument locale={locale} actorId={profile.id} parties={parties} isPartner={isPartner} /> : null}
 
       {isPartner && !canBuild ? (
         <Card>

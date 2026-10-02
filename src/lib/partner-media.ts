@@ -69,7 +69,7 @@ export async function uploadPartnerDocFile(
   });
   if (up.error) return null;
 
-  await svc.from("attachments").insert({
+  const { error: attachmentError } = await svc.from("attachments").insert({
     farm_id: farmId,
     parent_type: "partner_document",
     parent_id: documentId,
@@ -77,5 +77,9 @@ export async function uploadPartnerDocFile(
     storage_path: path,
     created_by: null,
   });
+  if (attachmentError) {
+    await svc.storage.from("partner-docs").remove([path]);
+    return null;
+  }
   return path;
 }

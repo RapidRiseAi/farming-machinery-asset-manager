@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
@@ -11,9 +12,13 @@ import { t, type Locale, type Lang } from "@/lib/i18n";
  * double-count). Posts multipart form data to /api/work/media, then refreshes the
  * server component so the new attachment / status / cost appear.
  */
-export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequestId: string; locale?: Lang }) {
+export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = ["photo"], amountKinds = [] }: {
+  workRequestId: string; locale?: Lang;
+  allowedKinds?: ("photo" | "quote" | "invoice")[];
+  amountKinds?: ("quote" | "invoice")[];
+}) {
   const router = useRouter();
-  const [kind, setKind] = useState<"photo" | "quote" | "invoice">("invoice");
+  const [kind, setKind] = useState<"photo" | "quote" | "invoice">(allowedKinds[0] ?? "photo");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -27,7 +32,16 @@ export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequest
     setErr(null);
     try {
       const res = await fetch("/api/work/media", { method: "POST", body: fd });
-      if (!res.ok) throw new Error(String(res.status));
+      const result = await res.json();
+      if (!res.ok) {
+        if (result.stored) {
+          const input = formEl.elements.namedItem("file");
+          if (input instanceof HTMLInputElement) input.value = "";
+          router.refresh();
+        }
+        setErr(errorMessage(result.error, locale) ?? t("work.mediaError", locale));
+        return;
+      }
       formEl.reset();
       router.refresh();
     } catch {
@@ -38,12 +52,12 @@ export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequest
   }
 
   const inputCls = "focus-ring w-full rounded-lg border border-sand-300 px-3 py-2 text-sm";
-  const showAmount = kind === "invoice" || kind === "quote";
+  const showAmount = (kind === "invoice" || kind === "quote") && amountKinds.includes(kind);
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-1">
-        {(["invoice", "quote", "photo"] as const).map((k) => (
+        {allowedKinds.map((k) => (
           <button
             key={k}
             type="button"
@@ -86,7 +100,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en" }: { workRequest
         disabled={busy}
         className={buttonVariants({ variant: "primary" })}
       >
-        {busy ? t("work.uploading", locale) : kind === "invoice" ? t("work.recordInvoice", locale) : kind === "quote" ? t("work.recordQuote", locale) : t("work.uploadFile", locale)}
+        {busy ? t("work.uploading", locale) : t("work.uploadFile", locale)}
       </button>
     </form>
   );

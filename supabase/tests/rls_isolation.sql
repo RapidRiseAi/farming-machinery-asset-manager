@@ -329,6 +329,10 @@ reset role;
 -- ═════════════════════════════════════════════════════════════════
 -- Structural: job-card lock, approving locks the card; edits then fail
 -- ═════════════════════════════════════════════════════════════════
+update job_cards set status = 'in_progress'
+  where id = 'ac111111-1111-1111-1111-111111111111';
+update job_cards set status = 'completed', work_performed = 'Replaced oil filter', date_in = current_date, date_out = current_date
+  where id = 'ac111111-1111-1111-1111-111111111111';
 update job_cards
   set status = 'approved', approved_by = 'a1111111-1111-1111-1111-111111111111',
       approved_at = now(), locked = true
@@ -724,9 +728,15 @@ reset role;
 set role authenticated;
 do $$ declare v bigint; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');
+  insert into job_cards (id,farm_id,machine_id,type,status,work_mode,external_provider_name,date_in)
+    values ('ac111111-1111-1111-1111-111111111112','11111111-1111-1111-1111-111111111111',
+      'aa111111-1111-1111-1111-111111111111','repair','open','external','Outside repair company',current_date);
+  update job_cards set status='in_progress' where id='ac111111-1111-1111-1111-111111111112';
+  update job_cards set status='completed',work_performed='Repaired hydraulic pump',date_out=current_date
+    where id='ac111111-1111-1111-1111-111111111112';
   insert into cost_entries (farm_id, machine_id, type, amount_cents, source_type, source_id, occurred_on)
     values ('11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'invoice', 50000,
-            'job_card', 'ac111111-1111-1111-1111-111111111111', current_date);
+            'job_card', 'ac111111-1111-1111-1111-111111111112', current_date);
   select app.machine_tco('aa111111-1111-1111-1111-111111111111') into v;
   if v <> 65000 then raise exception 'INVOICE FAIL: TCO after invoice = % (expected 65000)', v; end if;
 end $$;
@@ -734,6 +744,7 @@ reset role;
 
 -- (f) soft-deleting the source line soft-deletes its cost entry (preserved for audit).
 -- Farm B's job card (bc222222) is NOT locked, so its line may be soft-deleted.
+select set_config('request.jwt.claims','',false);
 update job_card_lines set deleted_at = now() where job_card_id = 'bc222222-2222-2222-2222-222222222222';
 do $$ declare v bigint; begin
   select count(*) into v from cost_entries
@@ -1519,6 +1530,7 @@ insert into job_cards (id, farm_id, machine_id, type, status) values
   ('9e000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'scheduled_service', 'open');
 insert into job_card_lines (id, farm_id, job_card_id, kind, part_no, description, qty, unit_cost_cents) values
   ('9f000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', '9e000000-0000-0000-0000-0000000000a1', 'part', 'OIL-15W40', 'Engine oil', 2, 120000);
+select set_config('request.jwt.claims','',false);
 do $$ declare c bigint; amt bigint; begin
   select count(*), coalesce(max(amount_cents), 0) into c, amt
     from cost_entries where source_type = 'job_card_line' and source_id = '9f000000-0000-0000-0000-0000000000a1' and deleted_at is null;
@@ -1774,6 +1786,7 @@ select 'ALL F11 CHECKLIST TESTS PASSED' as result;
 
 -- Seed as superuser (RLS bypassed): one Farm A request assigned to Workshop W (linked
 -- to Farm A), one Farm B request. Opening events for each.
+select set_config('request.jwt.claims','',false);
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, created_by) values
   ('d1000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'high', 'A hydraulic leak', 'Fix the leak', 'a1111111-1111-1111-1111-111111111111'),
   ('d2000000-0000-0000-0000-0000000000b1', '22222222-2222-2222-2222-222222222222', 'bb222222-2222-2222-2222-222222222222', null,                                     'quote',  'requested', 'normal', 'B service quote', 'Quote a 250h service', 'b2222222-2222-2222-2222-222222222222');
@@ -1912,6 +1925,7 @@ insert into users (id, farm_id, workshop_id, role, name) values
 
 -- Requests: one for W on Farm E (aggregation), one for X on the SHARED Farm A (own-only),
 -- and one for W on Farm B, a farm W is NOT linked to (unlinked-farm isolation).
+select set_config('request.jwt.claims','',false);
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title, created_by) values
   ('d3000000-0000-0000-0000-0000000000e1', 'e1000000-0000-0000-0000-0000000000e1', 'ee100000-0000-0000-0000-0000000000e1', '33333333-3333-3333-3333-333333333333', 'repair', 'requested', 'normal', 'E tractor service', null),
   ('d4000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', 'e3000000-0000-0000-0000-0000000000e3', 'parts',  'requested', 'normal', 'A parts order',     'a1111111-1111-1111-1111-111111111111'),
@@ -1990,6 +2004,7 @@ select 'ALL F12c CONTRACTOR-DASHBOARD TESTS PASSED' as result;
 -- Manager A opted out of in-app earlier (F6 §e); re-enable so Farm A targets owner+manager.
 update users set notify_inapp = true where id = 'a1111111-1111-1111-1111-1111111111aa';
 
+select set_config('request.jwt.claims','',false);
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, quote_amount_cents, invoice_amount_cents, vat_rate_bps, created_by) values
   ('e1000000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'repair',     'quoted',   'normal', 95000,  null,   1500, 'a1111111-1111-1111-1111-111111111111'),
   ('e2000000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111', 'aa111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'inspection', 'invoiced', 'normal', null,   180000, 1500, 'a1111111-1111-1111-1111-111111111111'),
@@ -2131,6 +2146,7 @@ insert into user_farm_memberships (id, user_id, farm_id, role, active) values
 
 -- Work requests on the SHARED Farm F: one for Workshop M, one for Workshop N (both on F1),
 -- and one on the unassigned F2 (for the operator negative test).
+select set_config('request.jwt.claims','',false);
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status) values
   ('f6000000-0000-0000-0000-0000000000f1', 'f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 'f3000000-0000-0000-0000-0000000000f1', 'repair', 'requested'),
   ('f6000000-0000-0000-0000-0000000000f2', 'f0000000-0000-0000-0000-0000000000f1', 'f1000000-0000-0000-0000-0000000000f1', 'f3000000-0000-0000-0000-0000000000f2', 'repair', 'requested'),
@@ -2688,6 +2704,8 @@ select 'ALL G1 BUDGETS & ANALYTICS TESTS PASSED' as result;
 -- Documents: W bills Farm A; X quotes Farm A (the shared-farm privacy case); W quotes
 -- Farm E. The W→Farm A invoice is attached to X's… no: to W's own Farm A request, so the
 -- double-count rule has something real to stand over.
+select set_config('request.jwt.claims','',false);
+update work_requests set status='completed' where id='d1000000-0000-0000-0000-0000000000a1';
 insert into partner_documents
   (id, farm_id, workshop_id, machine_id, work_request_id, kind, status, source, number, subject, vat_rate_bps, created_by)
 values
@@ -3327,6 +3345,7 @@ insert into auth.users (id, email) values ('f1640000-0000-0000-0000-000000000001
 insert into users (id, farm_id, role, name, email, phone) values
   ('f1640000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001', 'owner', 'Owner P', 'ownerp@test', '+27820000010');
 -- Y is assigned ONE machine.
+select set_config('request.jwt.claims','',false);
 insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, priority, title) values
   ('f1650000-0000-0000-0000-000000000001', 'f1600000-0000-0000-0000-000000000001',
    'f1610000-0000-0000-0000-000000000001', 'f1620000-0000-0000-0000-000000000001',
@@ -12089,6 +12108,7 @@ insert into fines (farm_id, machine_id, notice_number, amount_cents) values
   ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001', 'P1-FINE', 50000),
   ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', 'P2-FINE', 50000);
 -- Only P1's request is Workshop Z's, so the contractor's own baseline is 1 machine.
+select set_config('request.jwt.claims','',false);
 insert into work_requests (farm_id, machine_id, workshop_id, kind, status) values
   ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','33000000-0000-0000-0000-000000000001','repair','requested'),
   ('30000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000002', null,                                  'repair','requested');
@@ -13195,6 +13215,7 @@ values ('32000000-0000-4000-8000-000000000001', '32200000-0000-4000-8000-0000000
 -- The contractor is working on M1 only. Under F16's default scope that is the ONLY
 -- machine it reaches, which is what makes (f) below a statement about one row and not
 -- about the fleet.
+select set_config('request.jwt.claims','',false);
 insert into work_requests (
   id, farm_id, machine_id, workshop_id, kind, status, title, created_by)
 values ('32400000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001',

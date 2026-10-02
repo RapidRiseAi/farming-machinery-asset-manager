@@ -33,11 +33,11 @@ insert into public.machines(id,farm_id,name,type,meter_type,status,assigned_oper
 insert into public.machines(id,farm_id,name,type,meter_type,status,public_token,current_reading,current_reading_date) values
  ('fd200000-0000-0000-0000-000000000003','fd000000-0000-0000-0000-000000000003','Pending billing tractor','tractor','hours','active','fd900000-0000-0000-0000-000000000003',25,current_date),
  ('fd200000-0000-0000-0000-000000000004','fd000000-0000-0000-0000-000000000004','Closed billing tractor','tractor','hours','active','fd900000-0000-0000-0000-000000000004',25,current_date);
-insert into public.job_cards(id,farm_id,machine_id,type,status,date_in) values
- ('fd300000-0000-0000-0000-000000000001','fd000000-0000-0000-0000-000000000002','fd200000-0000-0000-0000-000000000001','repair','open',current_date),
- ('fd300000-0000-0000-0000-000000000002','fd000000-0000-0000-0000-000000000002','fd200000-0000-0000-0000-000000000002','repair','open',current_date),
- ('fd300000-0000-0000-0000-000000000003','fd000000-0000-0000-0000-000000000003','fd200000-0000-0000-0000-000000000003','repair','open',current_date),
- ('fd300000-0000-0000-0000-000000000004','fd000000-0000-0000-0000-000000000004','fd200000-0000-0000-0000-000000000004','repair','open',current_date);
+insert into public.job_cards(id,farm_id,machine_id,type,status,date_in,work_mode,workshop_id,work_performed) values
+ ('fd300000-0000-0000-0000-000000000001','fd000000-0000-0000-0000-000000000002','fd200000-0000-0000-0000-000000000001','repair','in_progress',current_date,'internal',null,'Replaced filter'),
+ ('fd300000-0000-0000-0000-000000000002','fd000000-0000-0000-0000-000000000002','fd200000-0000-0000-0000-000000000002','repair','in_progress',current_date,'external','fd600000-0000-0000-0000-000000000001','Replaced belt'),
+ ('fd300000-0000-0000-0000-000000000003','fd000000-0000-0000-0000-000000000003','fd200000-0000-0000-0000-000000000003','repair','open',current_date,'internal',null,null),
+ ('fd300000-0000-0000-0000-000000000004','fd000000-0000-0000-0000-000000000004','fd200000-0000-0000-0000-000000000004','repair','open',current_date,'internal',null,null);
 insert into public.work_requests(farm_id,machine_id,workshop_id,title) values
  ('fd000000-0000-0000-0000-000000000002','fd200000-0000-0000-0000-000000000002','fd600000-0000-0000-0000-000000000001','Offline contractor scope');
 do $$ begin
@@ -102,7 +102,7 @@ declare
  card uuid := 'fd300000-0000-0000-0000-000000000001';
  machine uuid := 'fd200000-0000-0000-0000-000000000001';
  key uuid := 'fd400000-0000-0000-0000-000000000020';
- fields jsonb := jsonb_build_object('job_card_id',card::text,'kind','part','qty','2','unit_cost_cents','115','incl_vat','1');
+ fields jsonb := jsonb_build_object('job_card_id',card::text,'kind','part','description','Filter','qty','2','unit_cost_cents','115','incl_vat','1');
  bad jsonb;
  denied boolean;
  r jsonb;
@@ -117,12 +117,12 @@ begin
  if r->>'duplicate' is distinct from 'true' or (select count(*) from public.job_card_lines where job_card_id=card) <> 1 then
    raise exception 'OFFLINE FAIL: duplicate job line'; end if;
  r := public.apply_offline_capture(gen_random_uuid(),now(),'add_job_line','app',actor,
-   jsonb_build_object('job_card_id',card::text,'kind','labour','hours','1.5','rate_cents','230','incl_vat','1'));
+   jsonb_build_object('job_card_id',card::text,'kind','labour','description','Fit filter','hours','1.5','rate_cents','230','incl_vat','1'));
  if r->>'status' is distinct from 'applied'
    or (select total_cents from public.job_card_lines where id=(r->>'entity_id')::uuid) is distinct from 300::bigint then
    raise exception 'OFFLINE FAIL: mechanic labour VAT calculation'; end if;
  r := public.apply_offline_capture(gen_random_uuid(),now(),'add_job_line','app',actor,
-   jsonb_build_object('job_card_id',card::text,'kind','other','unit_cost_cents','50'));
+   jsonb_build_object('job_card_id',card::text,'kind','other','description','Callout','unit_cost_cents','50'));
  if r->>'status' is distinct from 'applied' or (select total_cents from public.job_cards where id=card) is distinct from 550::bigint then
    raise exception 'OFFLINE FAIL: crew totals'; end if;
  for bad in select value from jsonb_array_elements('[
@@ -149,7 +149,7 @@ begin
  end loop;
  r := public.apply_offline_capture(gen_random_uuid(),now(),'complete_job','app',actor,
    jsonb_build_object('job_card_id',card::text,'meter_reading','9'));
- if r->>'status' is distinct from 'conflict' or (select status from public.job_cards where id=card) <> 'open'
+ if r->>'status' is distinct from 'conflict' or (select status from public.job_cards where id=card) <> 'in_progress'
    or (select current_reading from public.machines where id=machine) <> 10 then
    raise exception 'OFFLINE FAIL: completion rolled meter backwards'; end if;
  select count(*) into reading_count from public.meter_readings where machine_id=machine;
@@ -168,12 +168,12 @@ begin
  denied := false;
  begin
    perform public.apply_offline_capture(gen_random_uuid(),now(),'add_job_line','app',actor,
-     jsonb_build_object('job_card_id',card::text,'kind','other','unit_cost_cents','5'));
+     jsonb_build_object('job_card_id',card::text,'kind','other','description','Callout','unit_cost_cents','5'));
  exception when insufficient_privilege then denied := true; end;
  if not denied then raise exception 'OFFLINE FAIL: workshop escaped assigned-machine scope'; end if;
  card := 'fd300000-0000-0000-0000-000000000002';
  r := public.apply_offline_capture(gen_random_uuid(),now(),'add_job_line','app',actor,
-   jsonb_build_object('job_card_id',card::text,'kind','other','unit_cost_cents','5'));
+   jsonb_build_object('job_card_id',card::text,'kind','other','description','Callout','unit_cost_cents','5'));
  if r->>'status' is distinct from 'applied' then raise exception 'OFFLINE FAIL: scoped workshop line'; end if;
  r := public.apply_offline_capture(gen_random_uuid(),now(),'complete_job','app',actor,
    jsonb_build_object('job_card_id',card::text,'meter_reading','5'));
@@ -206,7 +206,7 @@ begin
    for capture in select * from (values
      ('log_reading','app',jsonb_build_object('machine_id',fixture.machine_id::text,'reading','30')),
      ('report_fault','app',jsonb_build_object('machine_id',fixture.machine_id::text,'description','Billing blocked fault','urgency','stopped')),
-     ('add_job_line','app',jsonb_build_object('job_card_id',fixture.card_id::text,'kind','other','unit_cost_cents','100')),
+     ('add_job_line','app',jsonb_build_object('job_card_id',fixture.card_id::text,'kind','other','description','Callout','unit_cost_cents','100')),
      ('complete_job','app',jsonb_build_object('job_card_id',fixture.card_id::text,'meter_reading','30')),
      ('log_reading','public',jsonb_build_object('token',fixture.public_token::text,'reading','30')),
      ('report_fault','public',jsonb_build_object('token',fixture.public_token::text,'description','Billing blocked QR fault','urgency','stopped'))

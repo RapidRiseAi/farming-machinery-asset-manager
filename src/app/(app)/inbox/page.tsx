@@ -53,6 +53,7 @@ export default async function InboxPage({
     supabase
       .from("work_requests_visible")
       .select("id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
+      .eq("farm_id", profile.farm_id!)
       .is("deleted_at", null)
       .neq("status", "closed")
       .order("updated_at", { ascending: false }),

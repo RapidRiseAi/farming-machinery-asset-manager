@@ -428,6 +428,10 @@ begin
     raise exception 'SELECTED FARM FAIL: Farm B owner could not administer its machine';
   end if;
 
+  update public.job_cards set status = 'in_progress'
+   where id = '9d700000-0000-0000-0000-000000000001';
+  update public.job_cards set status = 'completed', work_performed = 'Repair completed', date_out = current_date
+   where id = '9d700000-0000-0000-0000-000000000001';
   update public.job_cards
      set status = 'approved', locked = true,
          approved_by = '9d100000-0000-0000-0000-000000000002',
@@ -447,7 +451,7 @@ begin
   end if;
 
   update public.work_requests
-     set status = 'viewed'
+     set description = 'Owner clarified the requested repair'
    where id = '9d900000-0000-0000-0000-000000000001';
   get diagnostics v_rows = row_count;
   if v_rows <> 1 then
@@ -477,23 +481,17 @@ begin
 end;
 $$;
 
--- Farm mechanics can still initiate and progress contractor work and append a timeline.
+-- Mechanics record internal work; ordering external work requires an owner or manager.
 do $$
-declare v_id uuid; v_rows integer;
+declare denied boolean := false;
 begin
   perform _selected_farm_login('9d100000-0000-0000-0000-000000000003');
-  insert into public.work_requests (farm_id, machine_id, description)
-  values ('9d000000-0000-0000-0000-000000000002',
-          '9d500000-0000-0000-0000-000000000001', 'Mechanic-initiated work')
-  returning id into v_id;
-  update public.work_requests set status = 'viewed' where id = v_id;
-  get diagnostics v_rows = row_count;
-  if v_rows <> 1 then
-    raise exception 'SELECTED FARM FAIL: mechanic could not progress its contractor request';
-  end if;
-  insert into public.work_request_events (farm_id, work_request_id, to_status, note, by_user)
-  values ('9d000000-0000-0000-0000-000000000002', v_id, 'viewed',
-          'Mechanic timeline', '9d100000-0000-0000-0000-000000000003');
+  begin
+    insert into public.work_requests (farm_id, machine_id, description)
+    values ('9d000000-0000-0000-0000-000000000002',
+            '9d500000-0000-0000-0000-000000000001', 'Mechanic-initiated work');
+  exception when insufficient_privilege then denied := true; end;
+  if not denied then raise exception 'SELECTED FARM FAIL: mechanic ordered external work'; end if;
 end $$;
 
 reset role;

@@ -11,10 +11,10 @@
 // one connection means the first failure aborts the transaction and every suite after it
 // reports "current transaction is aborted", which says nothing about the suite itself.
 //
-// PGlite ships neither pgcrypto nor pg_trgm, so both CREATE EXTENSION lines are
-// neutralised and the two functions the migrations actually use are supplied below. What
-// is exercised is therefore this repo's SQL, not a stand-in's extension catalogue.
+// Load the bundled pg_trgm extension so the full isolation suite can exercise fuzzy
+// asset lookup too. pgcrypto's digest is stubbed below for migration application.
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -27,20 +27,16 @@ const read = (p) =>
   fs
     .readFileSync(p, "utf8")
     .replace(/\r\n/g, "\n")
-    .replace(/create extension if not exists (pgcrypto|pg_trgm)\s*;/gi, "select 1;")
-    // The trigram indexes go with the extension. They accelerate the assistant's lookups,
-    // have nothing to do with billing, and dropping them changes nothing this run is
-    // trying to establish.
-    .replace(/create\s+index[^;]*trgm_ops[^;]*;/gis, "select 1;");
+    .replace(/create extension if not exists pgcrypto\s*;/gi, "select 1;");
 
 /** A database with the roles, the auth shim and every migration applied. */
 async function freshDb() {
-  const db = new PGlite();
+  const db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(`
     do $$ begin
       if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
       if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
-      if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin; end if;
+      if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
       if not exists (select 1 from pg_roles where rolname = 'authenticator') then create role authenticator nologin; end if;
     end $$;
   `);
@@ -125,6 +121,7 @@ if (process.argv.includes("--suite")) {
     } catch (err) {
       console.error(`  FAIL  ${name}`);
       console.error(`        ${String(err.message).split("\n")[0]}`);
+      if (err.where) console.error(`        ${err.where}`);
       process.exitCode = 1;
     }
     await suiteDb.close();

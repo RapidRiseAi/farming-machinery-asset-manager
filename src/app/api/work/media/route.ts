@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadWorkRequestMedia } from "@/lib/workrequest-media";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
-import { workStatusStep } from "@/lib/work";
+import { canRecordWorkAmount } from "@/lib/work-lifecycle";
 import { sameOrigin } from "@/lib/security/same-origin";
 
 export const dynamic = "force-dynamic";
@@ -48,11 +48,11 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: wrData } = await supabase
     .from("work_requests")
-    .select("id, farm_id, machine_id, status, vat_rate_bps")
+    .select("id, farm_id, machine_id, workshop_id, status, vat_rate_bps")
     .eq("id", workRequestId)
     .is("deleted_at", null)
     .maybeSingle();
-  const wr = wrData as { id: string; farm_id: string; machine_id: string; status: string; vat_rate_bps: number | null } | null;
+  const wr = wrData as { id: string; farm_id: string; machine_id: string; workshop_id: string | null; status: string; vat_rate_bps: number | null } | null;
   if (!wr) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   // A primary-farm owner can be an operator here; primary role is not authority.
@@ -60,6 +60,31 @@ export async function POST(request: Request) {
   const role = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(wr.farm_id, profile);
   if (!role || !CREW.includes(role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (role === "workshop" && (!wr.workshop_id || profile.workshop_id !== wr.workshop_id)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (wr.status === "closed") return NextResponse.json({ error: "locked" }, { status: 409 });
+  if ((kind === "quote" || kind === "invoice") && (role === "mechanic" || !wr.workshop_id)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // Validate every amount before uploading. Farm users can file an issued supplier
+  // document, but only that supplier may author its price and move the billing stage.
+  const rawAmount = String(form.get("amount") ?? "").trim();
+  const amount = parseRandsToCents(rawAmount);
+  if (rawAmount && (kind !== "invoice" && kind !== "quote")) {
+    return NextResponse.json({ error: "need-amount" }, { status: 400 });
+  }
+  if (rawAmount && (kind === "invoice" || kind === "quote")) {
+    if (!canRecordWorkAmount(kind, wr.status, role, !!wr.workshop_id)) {
+      return NextResponse.json({ error: "work-transition" }, { status: 409 });
+    }
+    if (amount == null || amount < 0 || (kind === "quote" && amount === 0)) return NextResponse.json({ error: "need-amount" }, { status: 400 });
+    const { data: documents, error } = await supabase.from("partner_documents").select("id")
+      .eq("work_request_id", wr.id).eq("kind", kind).neq("status", "void").is("deleted_at", null).limit(1);
+    if (error) return NextResponse.json({ error: "failed" }, { status: 500 });
+    if (documents?.length) return NextResponse.json({ error: "work-use-document" }, { status: 409 });
   }
 
   const file = form.get("file");
@@ -75,28 +100,16 @@ export async function POST(request: Request) {
 
   // Optional amount → the quote (recorded) or invoice (→ cost_entry via 0311) column.
   let amountRecorded = false;
-  const amount = parseRandsToCents(String(form.get("amount") ?? ""));
-  if ((kind === "invoice" || kind === "quote") && amount != null && amount > 0) {
+  if ((kind === "invoice" || kind === "quote") && rawAmount && amount != null && amount >= 0) {
     const bps = wr.vat_rate_bps ?? 1500;
     const inclVat = String(form.get("incl_vat") ?? "") === "1";
     const exVat = inclVat ? exVatCents(amount, bps) : amount;
-    const col = kind === "invoice" ? "invoice_amount_cents" : "quote_amount_cents";
-    const target = kind === "invoice" ? "invoiced" : "quoted";
-    const advance = workStatusStep(wr.status) < workStatusStep(target);
-    const { data: updated, error } = await supabase
-      .from("work_requests")
-      .update({ [col]: exVat, vat_rate_bps: bps, ...(advance ? { status: target } : {}), updated_at: new Date().toISOString() })
-      .eq("id", wr.id)
-      .eq("farm_id", wr.farm_id)
-      .select("id")
-      .maybeSingle();
-    if (error || !updated) return NextResponse.json({ error: "amount_update_failed" }, { status: 500 });
-
-    await supabase.from("work_request_events").insert({
-      farm_id: wr.farm_id, work_request_id: wr.id,
-      from_status: wr.status, to_status: advance ? target : wr.status,
-      note: String(form.get("note") ?? "").trim() || null, by_user: profile.id,
+    const { error } = await supabase.rpc("update_work_request", {
+      p_request: wr.id,
+      [kind === "invoice" ? "p_invoice_cents" : "p_quote_cents"]: exVat,
+      p_note: String(form.get("note") ?? "").trim() || null,
     });
+    if (error) return NextResponse.json({ error: stored ? "work-file-saved-amount-failed" : error.message, stored }, { status: 409 });
     amountRecorded = true;
   }
 

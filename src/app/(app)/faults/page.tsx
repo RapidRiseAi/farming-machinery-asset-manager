@@ -6,14 +6,14 @@ import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { relativeDate } from "@/lib/format";
 import { resolveFault, acknowledgeFault, startFault, assignFault } from "./actions";
-import { createJobCard } from "@/app/(app)/jobcards/actions";
+import { NewJobCard } from "@/app/(app)/jobcards/new-job-card";
 import { FaultCapture } from "@/components/fault-capture";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { AllClear } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
-import { FaultsIcon, JobCardsIcon, PlusIcon } from "@/components/ui/icons";
+import { FaultsIcon, PlusIcon } from "@/components/ui/icons";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Field } from "@/components/ui/field";
@@ -79,6 +79,17 @@ export default async function FaultsPage({
 
   // Attachments for the listed faults, with signed URLs (farm-scoped by storage RLS).
   const faultIds = faults.map((f) => f.id);
+  const [requestResult, linkResult, providerResult] = await Promise.all([
+    faultIds.length ? supabase.from("work_requests").select("id, created_from_fault_id")
+      .in("created_from_fault_id", faultIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
+    supabase.from("workshop_links").select("workshop_id, farm_id").eq("status", "active").is("deleted_at", null),
+    supabase.from("workshops").select("id, name").is("deleted_at", null),
+  ]);
+  if (requestResult.error || linkResult.error || providerResult.error) throw new Error("Could not load repair options.");
+  const requestByFault = new Map((requestResult.data ?? []).map((r) => [r.created_from_fault_id, r.id]));
+  const providerNames = new Map((providerResult.data ?? []).map((p) => [p.id, p.name]));
+  const contractors = (linkResult.data ?? []).filter((l) => providerNames.has(l.workshop_id))
+    .map((l) => ({ id: l.workshop_id, farm_id: l.farm_id, name: providerNames.get(l.workshop_id)! }));
   const { data: aData } = faultIds.length
     ? await supabase.from("attachments").select("id, parent_id, kind, storage_path").eq("parent_type", "fault").is("deleted_at", null).in("parent_id", faultIds)
     : { data: [] };
@@ -243,6 +254,7 @@ export default async function FaultsPage({
                     </div>
                   ) : null}
 
+                  {f.job_card_id ? <Link href={`/jobcards/${f.job_card_id}`} className="focus-ring mt-3 inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink underline">{t("jobcards.workflow.openJob", locale)}</Link> : null}
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {/*
@@ -254,17 +266,14 @@ export default async function FaultsPage({
                         The primary action stays visible because a quiet screen with
                         nothing obvious on it is the failure the green button fixed.
                       */}
-                      {canJob && !f.job_card_id ? (
-                        <form action={createJobCard}>
-                          <input type="hidden" name="machine_id" value={f.machine_id} />
-                          <input type="hidden" name="farm_id" value={f.farm_id} />
-                          <input type="hidden" name="fault_id" value={f.id} />
-                          <input type="hidden" name="type" value="repair" />
-                          <SubmitButton variant="primary" leftIcon={<JobCardsIcon />}>
-                            {t("faults.makeJobCard", locale)}
-                          </SubmitButton>
-                        </form>
+                      {canJob && !f.job_card_id && !requestByFault.has(f.id) ? (
+                        <NewJobCard
+                          actorId={profile.id}
+                          machines={[{ id: f.machine_id, farm_id: f.farm_id, name: nameById[f.machine_id] ?? "-", allowExternal: ["owner", "manager", "rr_admin"].includes(roles.get(f.farm_id) ?? "") }]}
+                          contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} sourceFault={f}
+                        />
                       ) : null}
+                      {!f.job_card_id && requestByFault.has(f.id) ? <Link href={`/work/${requestByFault.get(f.id)}`} className="focus-ring rounded text-sm font-medium text-brand-ink underline">{t("jobcards.workflow.openRequest", locale)}</Link> : null}
 
                       {canJob || canResolve ? (
                         <ActionMenu

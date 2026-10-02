@@ -286,7 +286,7 @@ begin
     f := ('cf000000-0000-4000-8000-' || suffix)::uuid;
     m := ('cf200000-0000-4000-8000-' || lpad((case when i = 3 then 4 else i end)::text, 12, '0'))::uuid;
     insert into public.job_cards(id, farm_id, machine_id, type, mechanic_user_id)
-      values (('cf400000-0000-4000-8000-' || suffix)::uuid, f, m, 'repair', 'cf100000-0000-4000-8000-000000000001');
+      values (('cf400000-0000-4000-8000-' || suffix)::uuid, f, m, 'repair', case when i=1 then 'cf100000-0000-4000-8000-000000000001'::uuid end);
     insert into public.job_card_lines(id, farm_id, job_card_id, kind, description, qty, unit_cost_cents)
       values (('cf410000-0000-4000-8000-' || suffix)::uuid, f, ('cf400000-0000-4000-8000-' || suffix)::uuid,
               'part', 'Filter', 2, 1234);

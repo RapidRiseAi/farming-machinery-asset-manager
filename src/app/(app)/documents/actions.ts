@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
+import { requireRole, requireProfile, requireFarmRole, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
@@ -216,6 +216,15 @@ export async function createDocument(formData: FormData) {
 
   const recipient = await resolveRecipient(supabase, profile.workshop_id!, formData);
   if (!recipient) redirect("/documents?error=missing-recipient");
+  const requestId = recipient.farm_id ? s(formData, "work_request_id") : null;
+  const machineId = recipient.farm_id ? s(formData, "machine_id") : null;
+  if (requestId) {
+    const { data: request } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
+      .eq("id", requestId).is("deleted_at", null).maybeSingle();
+    if (!request || request.farm_id !== recipient.farm_id || request.workshop_id !== profile.workshop_id
+      || request.machine_id !== machineId) redirect("/documents?error=forbidden");
+    if (request.status === "closed") redirect(`/work/${requestId}?error=locked`);
+  }
 
   const bill = billToFields(formData);
   // A one-time customer has nothing to seed from, so the name has to be typed.
@@ -237,8 +246,8 @@ export async function createDocument(formData: FormData) {
       ...recipient,
       ...bill,
       workshop_id: profile.workshop_id,
-      machine_id: recipient.farm_id ? s(formData, "machine_id") : null,
-      work_request_id: recipient.farm_id ? s(formData, "work_request_id") : null,
+      machine_id: machineId,
+      work_request_id: requestId,
       kind,
       status: "draft",
       source: "built",
@@ -389,6 +398,8 @@ export async function sendDocument(formData: FormData) {
   if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
   revalidatePath(`/documents/${id}`);
   revalidatePath("/documents");
+  if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
+  revalidatePath("/inbox");
   redirect(`/documents/${id}?sent=1`);
 }
 
@@ -592,30 +603,37 @@ export async function billQuoteStage(formData: FormData) {
 
 /** Accept a quote. The partner sees it immediately; no money moves until they invoice. */
 export async function acceptDocument(formData: FormData) {
-  await requireRole(FARM_SIDE);
+  const profile = await requireProfile();
   const id = String(formData.get("document_id") ?? "");
   const supabase = await createClient();
   const doc = await loadDoc(supabase, id);
   if (!doc || doc.kind !== "quote") redirect("/documents?error=not-found");
-
-  await supabase
+  if (!doc.farm_id) redirect(`/documents/${id}?error=forbidden`);
+  await requireFarmRole(doc.farm_id, FARM_SIDE, `/documents/${id}?error=forbidden`, profile);
+  if (doc.status !== "sent") redirect(`/documents/${id}?error=locked`);
+  const { data: updated, error } = await supabase
     .from("partner_documents")
     .update({ status: "accepted", accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq("id", id);
-
+    .eq("id", id).eq("status", "sent").select("id").maybeSingle();
+  if (error || !updated) redirect(`/documents/${id}?error=${encodeURIComponent(error?.message ?? "work-changed")}`);
   revalidatePath("/documents");
+  revalidatePath(`/documents/${id}`);
+  if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
+  revalidatePath("/inbox");
   redirect(`${back(formData, `/documents/${id}`)}?accepted=1`);
 }
 
 /** Decline a quote, with the reason the partner will read. */
 export async function declineDocument(formData: FormData) {
-  await requireRole(FARM_SIDE);
+  const profile = await requireProfile();
   const id = String(formData.get("document_id") ?? "");
   const supabase = await createClient();
   const doc = await loadDoc(supabase, id);
   if (!doc || doc.kind !== "quote") redirect("/documents?error=not-found");
-
-  await supabase
+  if (!doc.farm_id) redirect(`/documents/${id}?error=forbidden`);
+  await requireFarmRole(doc.farm_id, FARM_SIDE, `/documents/${id}?error=forbidden`, profile);
+  if (doc.status !== "sent") redirect(`/documents/${id}?error=locked`);
+  const { data: updated, error } = await supabase
     .from("partner_documents")
     .update({
       status: "declined",
@@ -623,9 +641,11 @@ export async function declineDocument(formData: FormData) {
       declined_reason: s(formData, "reason"),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
-
+    .eq("id", id).eq("status", "sent").select("id").maybeSingle();
+  if (error || !updated) redirect(`/documents/${id}?error=${encodeURIComponent(error?.message ?? "work-changed")}`);
   revalidatePath("/documents");
+  revalidatePath(`/documents/${id}`);
+  if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
   redirect(`${back(formData, `/documents/${id}`)}?declined=1`);
 }
 

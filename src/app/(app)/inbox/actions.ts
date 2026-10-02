@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireFarmRole } from "@/lib/auth";
+import { workTransitions } from "@/lib/work-lifecycle";
 
 // The activity inbox is the owner/manager cockpit, only they act on quotes/invoices.
 const OWNERS = ["owner", "manager"] as const;
@@ -14,29 +15,29 @@ async function advance(id: string, to: "accepted" | "closed", noteKey: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("work_requests")
-    .select("farm_id, status")
+    .select("farm_id, status, workshop_id, job_card_id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
-  const row = data as { farm_id: string; status: string } | null;
+  const row = data as { farm_id: string; status: string; workshop_id: string | null; job_card_id: string | null } | null;
   if (!row) redirect("/inbox?error=Not+found");
-
-  const { error } = await supabase
-    .from("work_requests")
-    .update({ status: to, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) redirect(`/inbox?error=${encodeURIComponent(error.message)}`);
-
-  await supabase.from("work_request_events").insert({
-    farm_id: row.farm_id,
-    work_request_id: id,
-    from_status: row.status,
-    to_status: to,
-    note: noteKey,
-    by_user: profile.id,
+  const { role } = await requireFarmRole(row.farm_id, OWNERS, "/inbox?error=forbidden", profile);
+  if (!workTransitions(row.status, role, !!row.workshop_id).includes(to)) redirect("/inbox?error=work-transition");
+  if (to === "accepted") {
+    const { data: quotes, error } = await supabase.from("partner_documents").select("id")
+      .eq("work_request_id", id).eq("kind", "quote").eq("status", "sent").is("deleted_at", null).limit(1);
+    if (error) redirect(`/inbox?error=${encodeURIComponent(error.message)}`);
+    if (quotes?.[0]) redirect(`/documents/${quotes[0].id}`);
+  }
+  const { error } = await supabase.rpc("update_work_request", {
+    p_request: id, p_status: to, p_note: noteKey,
   });
+  if (error) redirect(`/inbox?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/inbox");
   revalidatePath(`/work/${id}`);
+  revalidatePath("/work");
+  revalidatePath("/contractor");
+  if (row.job_card_id) revalidatePath(`/jobcards/${row.job_card_id}`);
 }
 
 /** Owner accepts a contractor's quote → the request moves to `accepted`. */

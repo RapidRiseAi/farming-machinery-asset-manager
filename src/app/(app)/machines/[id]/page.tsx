@@ -45,7 +45,7 @@ import {
 } from "@/lib/compliance";
 import { fineStatusLabel, fineStatusTone, nominationPending, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
 import { auditPlaceLabel, auditDevice, isHumanChange, type AuditRow } from "@/lib/audit-context";
-import { createJobCard } from "@/app/(app)/jobcards/actions";
+import { NewJobCard } from "@/app/(app)/jobcards/new-job-card";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -78,7 +78,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { meterReading, relativeDate } from "@/lib/format";
 import { Tabs } from "@/components/ui/tabs";
 import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
-import { createWorkRequest } from "@/app/(app)/work/actions";
+import { WorkRequestIntakeForm } from "@/app/(app)/work/work-request-intake-form";
 import {
   WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
   workStatusLabel, workStatusTone,
@@ -161,7 +161,7 @@ export default async function MachineDetailPage({
     : await effectiveFarmRole(machineBase.farm_id, profile);
   const canEdit = resourceRole === "owner" || resourceRole === "manager";
   const canAddReading = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
-  const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop"].includes(resourceRole);
+  const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop", "rr_admin"].includes(resourceRole);
   const costsVisible = await canViewFarmCosts(supabase, machineBase.farm_id);
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
   const machine: Machine = {
@@ -332,14 +332,22 @@ export default async function MachineDetailPage({
 
   // Work requests (F12b): this machine's contractor requests + the farm's linked
   // contractors (RLS returns workshops linked to farms the user can access).
-  const canWorkReq = resourceRole != null && ["owner", "manager", "mechanic"].includes(resourceRole);
+  const canWorkReq = resourceRole != null && ["owner", "manager", "rr_admin"].includes(resourceRole);
   type WR = { id: string; kind: string; status: string; priority: string; title: string | null; workshop_id: string | null; quote_amount_cents: number | null; invoice_amount_cents: number | null; updated_at: string };
-  const [workReqRes, workshopRes] = await Promise.all([
+  const [workReqRes, workshopRes, workshopLinkRes] = await Promise.all([
     supabase.from("work_requests_visible").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false }),
     supabase.from("workshops").select("id, name, kind"),
+    supabase.from("workshop_links").select("workshop_id").eq("farm_id", machine.farm_id).eq("status", "active").is("deleted_at", null),
   ]);
   const workRequests = (workReqRes.data as WR[] | null) ?? [];
-  const linkedWorkshops = (workshopRes.data as { id: string; name: string; kind: string }[] | null) ?? [];
+  const linkedIds = new Set(((workshopLinkRes.data ?? []) as { workshop_id: string }[]).map((link) => link.workshop_id));
+  const linkedWorkshops = ((workshopRes.data as { id: string; name: string; kind: string }[] | null) ?? []).filter((workshop) => linkedIds.has(workshop.id));
+  const jobCreation = {
+    actorId: profile.id,
+    machines: [{ id: machine.id, name: machine.name, farm_id: machine.farm_id, allowExternal: canWorkReq }],
+    contractors: linkedWorkshops.map((workshop) => ({ ...workshop, farm_id: machine.farm_id })),
+    isContractor: profile.role === "workshop", locale,
+  };
   const workshopNameById = new Map(linkedWorkshops.map((w) => [w.id, w.name]));
 
   // Changes to the vehicle RECORD itself, with where they came from (FR-1.4, 0510).
@@ -553,14 +561,7 @@ export default async function MachineDetailPage({
 
           <div className="mt-4 flex flex-wrap gap-2">
             {canJob ? (
-              <form action={createJobCard}>
-                <input type="hidden" name="machine_id" value={machine.id} />
-                <input type="hidden" name="farm_id" value={machine.farm_id} />
-                <input type="hidden" name="type" value="repair" />
-                <SubmitButton variant="primary" leftIcon={<JobCardsIcon />}>
-                  {t("machine.makeJobCard", locale)}
-                </SubmitButton>
-              </form>
+              <NewJobCard {...jobCreation} />
             ) : null}
             <Link href={`/machines/${machine.id}/qr`} className={buttonVariants({ variant: "secondary" })}>
               {t("machine.qrCode", locale)}
@@ -952,12 +953,7 @@ export default async function MachineDetailPage({
               <Card>
                 <CardHeader
                   action={canJob ? (
-                    <form action={createJobCard} className="flex items-center gap-1">
-                      <input type="hidden" name="machine_id" value={machine.id} />
-                      <input type="hidden" name="farm_id" value={machine.farm_id} />
-                      <input type="hidden" name="type" value="scheduled_service" />
-                      <Button type="submit" variant="ghost" size="sm">{t("machine.newJobCard", locale)}</Button>
-                    </form>
+                    <NewJobCard {...jobCreation} defaultType="scheduled_service" />
                   ) : undefined}
                 >
                   <CardTitle>{t("machine.servicePlan", locale)}</CardTitle>
@@ -1609,12 +1605,7 @@ export default async function MachineDetailPage({
               <Card>
                 <CardHeader
                   action={canJob ? (
-                    <form action={createJobCard} className="flex items-center gap-1">
-                      <input type="hidden" name="machine_id" value={machine.id} />
-                      <input type="hidden" name="farm_id" value={machine.farm_id} />
-                      <input type="hidden" name="type" value="repair" />
-                      <Button type="submit" variant="ghost" size="sm"><PlusIcon className="text-base" />{t("machine.newJobCard", locale)}</Button>
-                    </form>
+                    <NewJobCard {...jobCreation} />
                   ) : undefined}
                 >
                   <CardTitle>{t("machine.jobCards", locale)}</CardTitle>
@@ -1701,13 +1692,13 @@ export default async function MachineDetailPage({
                         description={machine.name}
                         closeLabel={closeLabel}
                       >
-                        <form action={createWorkRequest}>
+                        <WorkRequestIntakeForm actorId={profile.id} machineId={machine.id} locale={locale}>
                           <input type="hidden" name="machine_id" value={machine.id} />
                           <input type="hidden" name="farm_id" value={machine.farm_id} />
                           <DialogFields>
                             <div className="sm:col-span-2">
                               <Field label={t("work.contractor", locale)} htmlFor="wr_workshop">
-                                <Select id="wr_workshop" name="workshop_id" defaultValue={linkedWorkshops[0]?.id ?? ""}>
+                                <Select id="wr_workshop" name="workshop_id" required defaultValue={linkedWorkshops[0]?.id ?? ""}>
                                   {linkedWorkshops.map((w) => (
                                     <option key={w.id} value={w.id}>{w.name}</option>
                                   ))}
@@ -1735,14 +1726,11 @@ export default async function MachineDetailPage({
                             </div>
                             <div className="sm:col-span-2">
                               <Field label={t("work.description", locale)} htmlFor="wr_desc">
-                                <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} />
+                                <Input id="wr_desc" name="description" placeholder={t("work.descPlaceholder", locale)} required />
                               </Field>
                             </div>
                           </DialogFields>
-                          <DialogActions cancelLabel={cancelLabel}>
-                            <SubmitButton variant="primary">{t("work.send", locale)}</SubmitButton>
-                          </DialogActions>
-                        </form>
+                        </WorkRequestIntakeForm>
                       </DialogForm>
                     </div>
                   ) : (

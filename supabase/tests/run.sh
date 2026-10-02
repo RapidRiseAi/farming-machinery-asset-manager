@@ -147,4 +147,19 @@ pg "$DB" < "$ROOT/supabase/tests/offline_reading_validation.sql"
 echo "==> running deploy-compatibility tests"
 pg "$DB" < "$ROOT/supabase/tests/deploy_compatibility.sql"
 
+echo "==> running job-card lifecycle and provider workflow tests"
+pg "$DB" < "$ROOT/supabase/tests/jobcard_workflow.sql"
+
+echo "==> running job-card media receipt tests"
+pg "$DB" < "$ROOT/supabase/tests/jobcard_media_receipts.sql"
+
+echo "==> running job-card corrections and retry tests"
+pg "$DB" < "$ROOT/supabase/tests/jobcard_revision.sql"
+
+echo "==> running job-card intake receipt tests"
+pg "$DB" < "$ROOT/supabase/tests/jobcard_intake.sql"
+
+echo "==> running received supplier invoice tests"
+pg "$DB" < "$ROOT/supabase/tests/jobcard_received_invoice.sql"
+
 echo "==> OK"

@@ -1,35 +1,33 @@
 import Link from "next/link";
-import { requireProfile, currentFarmId } from "@/lib/auth";
+import { requireProfile, effectiveFarmRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageInfoButton } from "@/components/ui/page-info-button";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { JobCardsIcon, PlusIcon } from "@/components/ui/icons";
-import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
-import { createJobCard } from "./actions";
-import { JOB_TYPES } from "@/lib/job-options";
+import { JobCardsIcon } from "@/components/ui/icons";
 import { JobStatus } from "@/components/ui/status";
 import { FilterBar } from "@/components/ui/filter-bar";
-import { Field } from "@/components/ui/field";
+import { NewJobCard, type JobMachine, type JobContractor } from "./new-job-card";
+import { JobCardRow } from "./job-card-row";
+import { Flash } from "@/components/ui/flash";
+import { errorMessage } from "@/lib/errors";
 
 
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
 
 type JobCard = {
   id: string; type: string; status: string; date_in: string | null; total_cents: number | null; machine_id: string;
+  work_mode: string; workshop_id: string | null;
 };
 
 export default async function JobCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; machine?: string }>;
+  searchParams: Promise<{ status?: string; machine?: string; error?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
@@ -38,25 +36,34 @@ export default async function JobCardsPage({
     Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
   ).toString();
   const locale = profile.lang;
-  const closeLabel = t("ui.close", locale);
-  const cancelLabel = t("common.cancel", locale);
-  const canJob = ["owner", "manager", "mechanic", "workshop"].includes(profile.role);
 
   const supabase = await createClient();
+  const farmId = await currentFarmId(profile);
   let q = supabase
     .from("job_cards_visible")
-    .select("id, type, status, date_in, total_cents, machine_id")
+    .select("id, type, status, date_in, total_cents, machine_id, work_mode, workshop_id")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (sp.status) q = q.eq("status", sp.status);
+  if (farmId) q = q.eq("farm_id", farmId);
   if (sp.machine) q = q.eq("machine_id", sp.machine);
-  const { data } = await q;
+  const { data, error } = await q;
   const cards = (data as JobCard[] | null) ?? [];
 
-  const { data: ms } = await supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
-  const machines = (ms as { id: string; name: string; farm_id: string }[] | null) ?? [];
-  // `createJobCard` requires farm_id and the old form never posted one.
-  const farmIdForCreate = (await currentFarmId(profile)) ?? profile.farm_id ?? machines[0]?.farm_id ?? "";
+  let machineQuery = supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
+  if (farmId) machineQuery = machineQuery.eq("farm_id", farmId);
+  const { data: ms, error: machineError } = await machineQuery;
+  const machines = (ms as JobMachine[] | null) ?? [];
+  const farmRoles = new Map(await Promise.all([...new Set(machines.map((machine) => machine.farm_id))].map(async (farmId) => [farmId, profile.role === "workshop" ? "workshop" : await effectiveFarmRole(farmId, profile)] as const)));
+  const creationMachines = machines.filter((machine) => ["owner", "manager", "mechanic", "workshop", "rr_admin"].includes(farmRoles.get(machine.farm_id) ?? "")).map((machine) => ({ ...machine, allowExternal: ["owner", "manager", "rr_admin"].includes(farmRoles.get(machine.farm_id) ?? "") }));
+  const [{ data: links, error: linkError }, { data: workshops, error: workshopError }] = await Promise.all([
+    supabase.from("workshop_links").select("workshop_id, farm_id").eq("status", "active").is("deleted_at", null),
+    supabase.from("workshops").select("id, name").is("deleted_at", null),
+  ]);
+  const contractorNames = new Map(((workshops ?? []) as { id: string; name: string }[]).map((w) => [w.id, w.name]));
+  const contractors: JobContractor[] = ((links ?? []) as { workshop_id: string; farm_id: string }[])
+    .filter((link) => contractorNames.has(link.workshop_id))
+    .map((link) => ({ id: link.workshop_id, farm_id: link.farm_id, name: contractorNames.get(link.workshop_id)! }));
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
 
   return (
@@ -66,53 +73,13 @@ export default async function JobCardsPage({
           <h1 className="text-2xl font-bold tracking-tight text-ink">{t("jobcards.title", locale)}</h1>
           <PageInfoButton infoKey="jobcards" locale={locale} />
         </div>
-        {/*
-          Pick a machine, press New, and a record existed, with `type` hardcoded to
-          "repair", so every job was a repair and a mis-tap created a card you then had
-          to delete. It also never posted `farm_id`, which `createJobCard` requires, so
-          the button failed with "Missing machine". Now: a deliberate form with the type
-          chosen, in a dialog so it is not the loudest thing on the page.
-
-          It was a `<details>` wearing a primary button's clothes: a `<summary>` styled
-          with `buttonVariants` so it LOOKED like the button on every other screen, but
-          opening a panel with no focus trap, no Escape, and no way out on a phone except
-          finding the summary again. Being a `<details>` it was also in flow, so opening
-          it pushed the job-card list down the page.
-        */}
-        {canJob && machines.length > 0 ? (
-          <DialogForm
-            trigger={t("jobcards.startNew", locale)}
-            triggerIcon={<PlusIcon className="text-lg" />}
-            title={t("jobcards.startNew", locale)}
-            closeLabel={closeLabel}
-            size="md"
-          >
-            <form action={createJobCard}>
-              <input type="hidden" name="farm_id" value={farmIdForCreate} />
-              <DialogFields columns={1}>
-                <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor="new_machine" required>
-                  <Select id="new_machine" name="machine_id" defaultValue="" required>
-                    <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
-                    {machines.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t("jobcards.whatKindLabel", locale)} htmlFor="new_type">
-                  <Select id="new_type" name="type" defaultValue="repair">
-                    {JOB_TYPES.map((jt) => (
-                      <option key={jt} value={jt}>{t(`jobType.${jt}`, locale)}</option>
-                    ))}
-                  </Select>
-                </Field>
-              </DialogFields>
-              <DialogActions cancelLabel={cancelLabel}>
-                <SubmitButton variant="primary">{t("jobcards.createIt", locale)}</SubmitButton>
-              </DialogActions>
-            </form>
-          </DialogForm>
+        {creationMachines.length > 0 ? (
+          <NewJobCard actorId={profile.id} machines={creationMachines} contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} />
         ) : null}
       </div>
+
+      <Flash tone="error" message={errorMessage(sp.error ?? error?.message, locale)} />
+      <Flash tone="error" message={machineError || linkError || workshopError ? t("jobcards.workflow.loadError", locale) : undefined} />
 
       {/* Chips apply on tap and write the same `status` / `machine` params the form
           did, the card of dropdowns plus a Search button ate the first screen on a
@@ -157,6 +124,7 @@ export default async function JobCardsPage({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "-"}</p>
+                        <p className="mt-1 text-xs font-medium text-brand-ink">{t("jobcards.workflow.openJob", locale)} #{c.id.slice(0, 8)}</p>
                         <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? ` · ${c.date_in}` : ""}</p>
                       </div>
                       <JobStatus value={c.status} locale={locale} />
@@ -178,21 +146,22 @@ export default async function JobCardsPage({
                   <Th>{t("jobcards.dateIn", locale)}</Th>
                   <Th>{t("machines.status", locale)}</Th>
                   <Th className="text-right">{t("jobcards.total", locale)}</Th>
+                  <Th><span className="sr-only">{t("jobcards.workflow.openJob", locale)}</span></Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {cards.map((c) => (
-                  <Tr key={c.id}>
+                  <JobCardRow key={c.id} href={`/jobcards/${c.id}`}>
                     <Td className="font-medium">
-                      <Link href={`/jobcards/${c.id}`} className="focus-ring rounded text-brand-ink hover:underline">
-                        {nameById[c.machine_id] ?? "-"}
-                      </Link>
+                      <span className="block">{nameById[c.machine_id] ?? "-"}</span>
+                      <Badge tone="neutral" className="mt-1">{t(c.work_mode === "external" || c.workshop_id ? "jobcards.workflow.external" : "jobcards.workflow.internal", locale)}</Badge>
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
                     <Td className="text-sand-600">{c.date_in ?? "-"}</Td>
                     <Td><JobStatus value={c.status} locale={locale} /></Td>
                     <Td className="text-right font-medium">{c.total_cents != null ? rands(c.total_cents) : "-"}</Td>
-                  </Tr>
+                    <Td><Link href={`/jobcards/${c.id}`} className="focus-ring inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink hover:underline" aria-label={`${t("jobcards.workflow.openJob", locale)}: ${nameById[c.machine_id] ?? ""} #${c.id.slice(0, 8)}`}>{t("jobcards.workflow.openJob", locale)} <span aria-hidden className="ml-1">→</span></Link></Td>
+                  </JobCardRow>
                 ))}
               </Tbody>
             </Table>

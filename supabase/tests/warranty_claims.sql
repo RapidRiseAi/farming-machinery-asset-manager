@@ -218,6 +218,8 @@ begin
 end $$;
 
 -- == (e) A job card from another farm cannot be claimed against ==============
+-- Seed historical records as the fixture owner, without a previous caller's JWT.
+select set_config('request.jwt.claims','',false);
 insert into public.farms (id, name, plan, status) values
   ('ac000000-0000-4000-8000-000000000002', 'Other Warranty Farm', 'complete', 'active');
 insert into public.machines (id, farm_id, name, type, meter_type, status) values
