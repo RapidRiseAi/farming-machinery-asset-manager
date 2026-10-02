@@ -73,6 +73,19 @@ const PROBES = {
     "   and pg_get_functiondef(('public.apply_offline_capture(uuid,timestamptz,text,text,uuid,jsonb)')::regprocedure) like '%v_date > v_today%'",
   "20260921160000":
     "select not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'app' and has_function_privilege('anon', p.oid, 'EXECUTE'))",
+  // The job-card workflow release. A migration with no probe is skipped as "assumed
+  // applied", so without these three the script reported "Nothing pending" while the
+  // live database had none of them, and the build that needs them would have shipped
+  // against a schema without its tables and functions. Each probe names an object only
+  // that migration creates.
+  "20260927160340":
+    "select to_regprocedure('public.update_work_request(uuid,text,bigint,bigint,text)') is not null" +
+    "   and to_regclass('public.job_card_line_receipts') is not null",
+  "20260928061830":
+    "select to_regprocedure('public.record_job_card_media(uuid,uuid,text,text,bigint,text)') is not null",
+  "20261001062931":
+    "select to_regprocedure('public.create_job_card_intake(uuid,jsonb)') is not null" +
+    "   and to_regprocedure('public.create_work_request_intake(uuid,jsonb)') is not null",
 };
 
 const url = readEnv("DATABASE_URL");
