@@ -322,8 +322,14 @@ await S("Network.enable");
  */
 await S("Network.setBypassServiceWorker", { bypass: true });
 
+/*
+ * The cookie goes to the host being checked. It was hard-coded to "localhost", so
+ * `--base=https://<live site>` signed in nowhere: every route redirected to /login, and
+ * the gate reported the login page's two inputs and zero dialogs on every screen, which
+ * reads exactly like a real regression.
+ */
 for (const [name, value] of cookies)
-  await S("Network.setCookie", { name, value, domain: "localhost", path: "/" });
+  await S("Network.setCookie", { name, value, domain: new URL(BASE).hostname, path: "/" });
 
 async function evaluate(expression) {
   const r = await S("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
@@ -343,6 +349,12 @@ async function goto(url) {
   }
   // Hydration, not load: every assertion below is about client behaviour.
   await new Promise((r) => setTimeout(r, 1100));
+  // A remote host can still be mid-redirect here, with no document body yet; measuring
+  // then throws on `document.body`. Localhost never showed it; the live site did.
+  for (let i = 0; i < 50; i += 1) {
+    if (await evaluate("!!document.body && document.readyState === 'complete'").catch(() => false)) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }
 
 const pressEscape = async () => {

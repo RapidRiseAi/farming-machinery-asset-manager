@@ -13,6 +13,7 @@ import { addLine, editJobLine } from "./actions";
 import { CheckIcon } from "@/components/ui/icons";
 import { DialogActions } from "@/components/ui/dialog-form";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export type CataloguePart = {
   id: string;
@@ -54,6 +55,7 @@ export function LineEntry({
   const [loaded, setLoaded] = useState(false);
   const [draftToken, setDraftToken] = useState("");
   const [draftConflict, setDraftConflict] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
   const draftKey = `fleetwise:job-line-draft:${actorId}:${jobCardId}${line ? `:${line.id}` : ""}`;
   const successToken = useSearchParams().get("line_token");
 
@@ -70,6 +72,7 @@ export function LineEntry({
           if (!line) { setKind("part"); setInclVat(false); setQty("1"); setUnit(""); setPartNo(""); setDesc(""); setHours(""); setRate(""); }
         } else {
           setDraftConflict(!!line && saved.version !== line.updated_at);
+          setHasDraft(true);
           if (typeof saved.token === "string") token = saved.token;
           if (["part", "labour", "other"].includes(saved.kind)) setKind(saved.kind);
           setInclVat(!!saved.inclVat);
@@ -95,7 +98,7 @@ export function LineEntry({
     setPartNo(line?.part_no ?? ""); setDesc(line?.description ?? "");
     setHours(line?.hours != null ? String(line.hours) : "");
     setRate(line?.rate_cents != null ? (line.rate_cents / 100).toFixed(2) : "");
-    setDraftToken(crypto.randomUUID()); setDraftConflict(false);
+    setDraftToken(crypto.randomUUID()); setDraftConflict(false); setHasDraft(false);
     try { localStorage.removeItem(draftKey); } catch { /* Optional device storage. */ }
   };
 
@@ -142,18 +145,26 @@ export function LineEntry({
       {line ? <><input type="hidden" name="line_id" value={line.id} /><input type="hidden" name="line_updated_at" value={line.updated_at} /><input type="hidden" name="kind" value={line.kind} /></> : null}
       {draftConflict ? <div role="status" className="rounded-lg border border-sand-200 p-3"><p className="text-sm text-sand-600">{t("jobcards.workflow.draftConflict", locale)}</p><div className="mt-2 flex gap-2"><Button type="button" variant="secondary" size="sm" onClick={() => setDraftConflict(false)}>{t("jobcards.workflow.useDraft", locale)}</Button><Button type="button" variant="ghost" size="sm" onClick={discardDraft}>{t("jobcards.workflow.keepSaved", locale)}</Button></div></div> : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label={t("jobcards.kind", locale)} htmlFor="line-kind">
-          <Select id="line-kind" name="kind" value={kind} disabled={!!line} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="part">{t("jobcards.partKind", locale)}</option>
-            <option value="labour">{t("jobcards.labourKind", locale)}</option>
-            <option value="other">{t("jobcards.otherKind", locale)}</option>
-          </Select>
-        </Field>
-        <Field label={t("jobcards.description", locale)} htmlFor="line-desc">
-          <Input id="line-desc" name="description" required={kind !== "part" || !partNo.trim()} value={desc} onChange={(e) => setDesc(e.target.value)} />
-        </Field>
-      </div>
+      {/* Part, labour or other is the first decision and there are only three, so they
+          are a segmented choice rather than a dropdown. An existing line keeps its kind. */}
+      {line ? (
+        <p className="text-sm text-sand-600">{t("jobcards.kind", locale)}: <span className="font-medium text-sand-900">{t(`jobcards.${kind}Kind`, locale)}</span></p>
+      ) : (
+        <fieldset className="min-w-0">
+          <legend className="sr-only">{t("jobcards.kind", locale)}</legend>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-sand-100 p-1">
+            {(["part", "labour", "other"] as const).map((k) => (
+              <label key={k} className={`focus-within:ring-2 focus-within:ring-brand-500/40 flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors ${kind === k ? "bg-surface text-sand-900 shadow-xs" : "text-sand-600 hover:text-sand-900"}`}>
+                <input type="radio" className="sr-only" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} />
+                {t(`jobcards.${k}Kind`, locale)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      <Field label={t("jobcards.description", locale)} htmlFor="line-desc">
+        <Input id="line-desc" name="description" required={kind !== "part" || !partNo.trim()} value={desc} onChange={(e) => setDesc(e.target.value)} />
+      </Field>
 
       {kind === "part" ? (
         <>
@@ -198,17 +209,9 @@ export function LineEntry({
 
       {/* The 16px checkbox became the whole row, 48px, and it says what it means.
           The live preview used to read "R968.30 incl -> R842.00 ex + R126.30 vat". */}
-      {costsVisible ? <label className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border border-sand-200 px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 focus-within:ring-2 focus-within:ring-brand-500/40">
-        <input
-          type="checkbox"
-          name="incl_vat"
-          value="1"
-          checked={inclVat}
-          onChange={(e) => setInclVat(e.target.checked)}
-          className="h-5 w-5 rounded border-sand-300 text-brand-ink"
-        />
-        {t("jobcards.priceInclVat", locale)}
-      </label> : null}
+      {costsVisible ? (
+        <Checkbox name="incl_vat" value="1" checked={inclVat} onChange={(e) => setInclVat(e.target.checked)} label={t("jobcards.priceInclVat", locale)} />
+      ) : null}
 
       {costsVisible && showPreview ? (
         <p className="text-sm text-sand-600" aria-live="polite">
@@ -220,7 +223,7 @@ export function LineEntry({
         </p>
       ) : null}
 
-      <DialogActions cancelLabel={t("common.cancel", locale)}><Button type="button" variant="ghost" onClick={discardDraft}>{t("jobcards.workflow.discardDraft", locale)}</Button><SubmitButton variant="primary" disabled={!loaded || draftConflict}>{t(line ? "jobcards.saveNow" : "jobcards.add", locale)}</SubmitButton></DialogActions>
+      <DialogActions cancelLabel={t("common.cancel", locale)}>{hasDraft ? <Button type="button" variant="ghost" onClick={discardDraft}>{t("jobcards.workflow.discardDraft", locale)}</Button> : null}<SubmitButton variant="primary" disabled={!loaded || draftConflict}>{t(line ? "jobcards.saveNow" : "jobcards.add", locale)}</SubmitButton></DialogActions>
       {queueError ? <p role="alert" className="text-sm text-status-overdue">{t("jobcards.workflow.queueFailed", locale)}</p> : null}
       {queued ? (
         <p role="status" className="text-sm font-medium text-status-due"><CheckIcon /> {t("offline.savedOffline", locale)}</p>

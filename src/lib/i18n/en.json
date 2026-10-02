@@ -5779,5 +5779,105 @@
     "body": "Something went wrong on our side, not yours. Nothing you entered has been lost. Try again. If it keeps happening, the farm office can send us the code below.",
     "home": "Go to my home screen",
     "reference": "Reference:"
+  },
+  "jobview": {
+    "progress": "Job progress",
+    "stepOf": "Step {n} of {total}",
+    "steps": {
+      "open": "Open",
+      "working": "Working",
+      "done": "Done",
+      "approved": "Approved"
+    },
+    "next": {
+      "open": "Start the work when you begin.",
+      "openWait": "Waiting for the work to start.",
+      "working": "Write up the work and add parts and labour, then mark it done.",
+      "workingWait": "The work is under way.",
+      "waiting": "Waiting for parts. Carry on when they arrive.",
+      "review": "The work is done. Check it, then approve it or send it back.",
+      "reviewNoReturn": "The work is done. Check it, then approve it.",
+      "reviewWait": "Done. Waiting for the owner or manager to approve it.",
+      "approved": "Approved and locked on {date}."
+    },
+    "ready": {
+      "title": "Before it can be marked done",
+      "work": "Write down what was done",
+      "meter": "Add the meter reading at handover",
+      "tasks": "Tick the service tasks that were done"
+    },
+    "section": {
+      "job": "The job",
+      "work": "The work",
+      "parts": "Parts and labour",
+      "tasks": "Service tasks done",
+      "handover": "Handover"
+    },
+    "ours": "Our team",
+    "doneBy": "Done by",
+    "cameInOn": "Came in {date}",
+    "notYet": "Nothing written yet.",
+    "noProblem": "No reason written yet.",
+    "writeUp": "Write up the work",
+    "add": "Add",
+    "useKit": "Use a service kit",
+    "linkedRequest": "Contractor request",
+    "lineActions": "Line",
+    "internalCostHint": "Internal work: these lines are the cost.",
+    "externalCostHint": "Estimates until the supplier's invoice arrives.",
+    "list": {
+      "review": "Waiting for approval",
+      "active": "In progress",
+      "done": "Approved"
+    },
+    "new": {
+      "ours": "Our team",
+      "oursHint": "Your people do the work and record the parts and labour.",
+      "connected": "A contractor on FleetWise",
+      "connectedHint": "Send them a request. They quote, do the work and invoice.",
+      "outside": "Another company",
+      "outsideHint": "Keep a record of their work and file the invoice they send.",
+      "contractorHint": "The job is for your workshop. You record the work and send the invoice."
+    }
+  },
+  "workview": {
+    "progress": "Request progress",
+    "steps": {
+      "requested": "Requested",
+      "quoted": "Quoted",
+      "agreed": "Agreed",
+      "working": "Working",
+      "done": "Done",
+      "closed": "Closed"
+    },
+    "next": {
+      "assign": "Choose a contractor to send this to.",
+      "providerQuote": "Send a quote, or wait for the farm to approve the work.",
+      "farmApprove": "Approve the work, or wait for a quote.",
+      "farmQuote": "Check the quote, then accept it.",
+      "waitFarm": "Waiting for the farm to approve the work.",
+      "providerWork": "Do the work on the job card, then mark it done there.",
+      "farmWorking": "The contractor is working on it.",
+      "providerInvoice": "The work is done. Send your invoice.",
+      "farmCompleted": "The work is done. The contractor sends the invoice.",
+      "farmClose": "Check the invoice, then close the request.",
+      "providerWaitClose": "Invoice sent. Waiting for the farm to close it.",
+      "closed": "Closed. Nothing more to do.",
+      "follow": "You can follow progress here."
+    },
+    "section": {
+      "request": "The request",
+      "money": "Quote and invoice"
+    },
+    "noneYet": "None yet",
+    "farm": "Farm",
+    "requestedOn": "Requested {date}",
+    "noDescription": "No description.",
+    "groups": {
+      "active": "In progress",
+      "closed": "Closed"
+    },
+    "updated": "Updated {date}",
+    "otherWays": "Other ways"
   }
 }

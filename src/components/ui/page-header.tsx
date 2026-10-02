@@ -104,6 +104,13 @@ export type PageHeaderProps = InfoProps & {
    * phone they take their own full-width row under the title.
    */
   actions?: ReactNode;
+  /**
+   * The overflow menu for the thing this page is about (an ActionMenu, "More"). It sits
+   * on the title row at its natural size, on a phone too, instead of stretching into a
+   * full-width button the way a primary action does: a detail page whose real actions
+   * live in its own status panel needs the menu within reach, not a slab under the title.
+   */
+  menu?: ReactNode;
   /** A back link above the title, for a detail page. */
   back?: BackTarget;
   /** Set when something else needs to point at the h1 (aria-labelledby). */
@@ -147,6 +154,7 @@ export function PageHeader({
   meta,
   badge,
   actions,
+  menu,
   back,
   titleId,
   className,
@@ -167,9 +175,18 @@ export function PageHeader({
 
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-ink">
-            {title}
-          </h1>
+          {menu ? (
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-ink">
+                {title}
+              </h1>
+              <div className="shrink-0">{menu}</div>
+            </div>
+          ) : (
+            <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-ink">
+              {title}
+            </h1>
+          )}
 
           {metaRow ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">

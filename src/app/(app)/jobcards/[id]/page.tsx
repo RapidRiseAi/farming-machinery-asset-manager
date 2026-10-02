@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { requireProfile, effectiveFarmRole } from "@/lib/auth";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
@@ -10,19 +11,20 @@ import { t } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
-import { DateText } from "@/components/ui/date-text";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { TrashIcon, LockIcon, SquareIcon, CheckIcon } from "@/components/ui/icons";
+import { SquareIcon, CheckIcon, PlusIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { JobStatus } from "@/components/ui/status";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { buttonVariants } from "@/components/ui/button";
 import { DialogActions, DialogForm } from "@/components/ui/dialog-form";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { Disclosure } from "@/components/ui/disclosure";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { menuItemClass } from "@/components/ui/menu-item";
+import { Fact, FactList } from "@/components/ui/facts";
+import { Stepper } from "@/components/ui/stepper";
 import { WarrantyPanel } from "@/components/jobcards/warranty-panel";
 import { JobCardMedia } from "@/components/jobcard-media";
 import { removeLine, toggleServiceLine, assignJobWorker } from "../actions";
@@ -47,6 +49,33 @@ type Line = {
   qty: number | null; unit_cost_cents: number | null; hours: number | null; rate_cents: number | null; total_cents: number;
 };
 
+/** The four stages a person thinks in. Waiting for parts is still "working". */
+const STEP_OF: Record<string, number> = { reported: 0, open: 0, in_progress: 1, waiting_parts: 1, completed: 2, approved: 3 };
+
+/** A labelled block of free text: stacked, because a paragraph does not fit beside its label. */
+function TextBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="py-2.5">
+      <p className="text-xs font-medium text-sand-500">{label}</p>
+      <p className="mt-0.5 whitespace-pre-wrap text-sm text-sand-900">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * One job card.
+ *
+ * == Calm by stage =============================================================
+ * The workflow behind this page is detailed (who owns the work, who bills, version
+ * checks, drafts, receipts), and the first version of the page showed all of it at once:
+ * three badges, two full-width buttons, a "Next step" card of explanatory paragraphs and
+ * eight numbered cards, most of them a column of "-" for fields nobody had filled yet.
+ *
+ * Now the page answers two questions first, in one panel: where is this job, and what do
+ * I do next. Then it shows only the sections that mean something at this stage: the work,
+ * parts and handover appear once work has started. Every rule is unchanged; the same
+ * actions, permissions and dialogs are reached, just from fewer places.
+ */
 export default async function JobCardDetail({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; saved?: string; line_token?: string }>;
@@ -66,6 +95,7 @@ export default async function JobCardDetail({ params, searchParams }: {
   const canApprove = canReviewJob(resourceRole);
   const external = jc.work_mode === "external" || !!jc.workshop_id;
   const working = jc.status === "in_progress" || jc.status === "waiting_parts";
+  const finished = jc.status === "completed" || jc.status === "approved";
   const closeLabel = t("ui.close", locale);
   const cancelLabel = t("common.cancel", locale);
 
@@ -109,19 +139,39 @@ export default async function JobCardDetail({ params, searchParams }: {
     date_in: jc.date_in ?? "", date_out: jc.date_out ?? "", meter_reading: jc.meter_reading != null ? String(jc.meter_reading) : "",
     reported_problem: jc.reported_problem ?? "", diagnosis: jc.diagnosis ?? "", work_performed: jc.work_performed ?? "", recommendations: jc.recommendations ?? "",
   };
-  const editDialog = (section: "intake" | "work" | "handover") => (
-    <DialogForm trigger={t(`jobcards.workflow.edit_${section}`, locale)} title={t(`jobcards.workflow.edit_${section}`, locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+  const sectionDialog = (section: "intake" | "work" | "handover", trigger: string, look: "button" | "menuItem" = "button") => (
+    <DialogForm trigger={trigger} title={t(`jobcards.workflow.edit_${section}`, locale)} description={machine?.name} triggerLook={look} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
       <JobCardEditor id={id} actorId={profile.id} updatedAt={jc.updated_at} section={section} meterType={machine?.meter_type ?? "none"} locale={locale} initial={initial} />
     </DialogForm>
   );
   const lineDetail = (line: Line) => line.kind === "part"
     ? `${line.qty ?? 0}${costsVisible ? ` × ${rands(line.unit_cost_cents)}` : ""}`
-    : line.kind === "labour" ? `${line.hours ?? 0}h${costsVisible ? ` × ${rands(line.rate_cents)}` : ""}` : costsVisible ? rands(line.unit_cost_cents) : "";
-  const workflowHint = jc.locked ? "approvedHint" : jc.status === "completed" ? (canReturn ? "reviewHint" : jc.completion_effects_recorded ? "billedReview" : "historicalReview") : jc.status === "waiting_parts" ? "waitingHint" : jc.status === "in_progress" ? "workingHint" : "intakeHint";
+    : line.kind === "labour" ? `${line.hours ?? 0} h${costsVisible ? ` × ${rands(line.rate_cents)}` : ""}` : t("jobcards.otherKind", locale);
   const assignedContractor = !!jc.workshop_id && profile.workshop_id === jc.workshop_id && profile.role === "workshop";
   const canInvoice = external && costsVisible && ["completed", "approved"].includes(jc.status) && (canApprove || assignedContractor);
   const canRecordAmount = canInvoice && !workRequest && (assignedContractor || !jc.workshop_id);
   const canMedia = canWork || canInvoice;
+  const canEditWork = canWork && working;
+  const meterNeeded = needsJobMeter(jc.type, machine?.meter_type ?? "none");
+  const needsServiceSelection = jc.type === "scheduled_service" && planLines.length > 0 && !planLines.some((line) => covered.has(line.id));
+
+  // One sentence, for this person, about what happens next.
+  const next = jc.locked || jc.status === "approved"
+    ? t("jobview.next.approved", locale).replace("{date}", jc.approved_at ? shortDate(jc.approved_at, locale) : "")
+    : jc.status === "completed"
+      ? canApprove ? t(canReturn ? "jobview.next.review" : "jobview.next.reviewNoReturn", locale) : t("jobview.next.reviewWait", locale)
+      : jc.status === "waiting_parts" ? t("jobview.next.waiting", locale)
+        : jc.status === "in_progress" ? t(canWork ? "jobview.next.working" : "jobview.next.workingWait", locale)
+          : t(canWork ? "jobview.next.open" : "jobview.next.openWait", locale);
+
+  const steps = [t("jobview.steps.open", locale), t("jobview.steps.working", locale), t("jobview.steps.done", locale), t("jobview.steps.approved", locale)];
+  const step = jc.locked ? 3 : (STEP_OF[jc.status] ?? 0);
+  const who = external ? (provider ?? t("jobcards.workflow.external", locale)) : t("jobview.ours", locale);
+  const hasWorkText = !!(jc.diagnosis?.trim() || jc.work_performed?.trim() || jc.recommendations?.trim());
+  const showWork = working || finished || hasWorkText;
+  const showParts = working || finished || lines.length > 0;
+  const showHandover = working || finished || !!jc.date_out || jc.meter_reading != null;
+  const docCount = attachments.length + invoices.length;
 
   return (
     <PageContainer>
@@ -129,78 +179,227 @@ export default async function JobCardDetail({ params, searchParams }: {
       <PageHeader
         back={{ href: "/jobcards", label: t("jobcards.back", locale) }}
         title={machine?.name ?? t("jobcards.title", locale)}
-        meta={<>{t("jobcards.workflow.jobCard", locale)} #{jc.id.slice(0, 8)}</>}
-        badge={<><Badge tone="neutral">{t(`jobType.${jc.type}`, locale)}</Badge><Badge tone="neutral">{t(external ? "jobcards.workflow.external" : "jobcards.workflow.internal", locale)}</Badge><JobStatus value={jc.status} locale={locale} /></>}
-        actions={<>
-          <Link href={`/machines/${jc.machine_id}`} className={buttonVariants({ variant: "secondary" })}>{t("jobcards.openMachine", locale)}</Link>
-          <a href={`/jobcards/${id}/pdf`} className={buttonVariants({ variant: "secondary" })}>{t("common.print", locale)}</a>
-        </>}
+        meta={<>{t(`jobType.${jc.type}`, locale)} · {who}{jc.date_in ? <> · {t("jobview.cameInOn", locale).replace("{date}", shortDate(jc.date_in, locale))}</> : null}</>}
+        badge={<JobStatus value={jc.status} locale={locale} />}
+        menu={
+          <ActionMenu title={machine?.name ?? t("jobcards.title", locale)} label={t("nav.more", locale)} closeLabel={closeLabel} trigger={t("nav.more", locale)}>
+            {canWork ? sectionDialog("intake", t("jobcards.workflow.edit_intake", locale), "menuItem") : null}
+            {!external && canWork && canApprove ? (
+              <DialogForm trigger={t("jobcards.workflow.assignWorker", locale)} triggerLook="menuItem" title={t("jobcards.workflow.assignWorker", locale)} description={machine?.name} closeLabel={closeLabel} size="md">
+                <form action={assignJobWorker} className="flex flex-col gap-4">
+                  <input type="hidden" name="id" value={id} />
+                  <input type="hidden" name="updated_at" value={jc.updated_at} />
+                  <Field label={t("jobcards.workflow.assignedWorker", locale)} htmlFor="job-assignee">
+                    <Select id="job-assignee" name="mechanic_user_id" defaultValue={jc.mechanic_user_id ?? ""}>
+                      <option value="">{t("jobcards.workflow.unassigned", locale)}</option>
+                      {team.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                    </Select>
+                  </Field>
+                  <DialogActions cancelLabel={cancelLabel}><SubmitButton variant="primary">{t("jobcards.saveNow", locale)}</SubmitButton></DialogActions>
+                </form>
+              </DialogForm>
+            ) : null}
+            {workRequest ? <Link href={`/work/${workRequest.id}`} className={menuItemClass()}>{t("jobview.linkedRequest", locale)}</Link> : null}
+            <Link href={`/machines/${jc.machine_id}`} className={menuItemClass()}>{t("jobcards.openMachine", locale)}</Link>
+            <a href={`/jobcards/${id}/pdf`} className={menuItemClass()}>{t("common.print", locale)}</a>
+          </ActionMenu>
+        }
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="error" message={loadError ? t("jobcards.workflow.loadError", locale) : undefined} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
 
-      <Card>
-        <CardHeader><CardTitle>{t("jobcards.workflow.nextStep", locale)}</CardTitle></CardHeader>
-        {provider ? <p className="mb-2 font-medium text-sand-900">{t("work.contractor", locale)}: {provider}</p> : null}
-        <p className="mb-3 text-sm text-sand-600">{t(`jobcards.workflow.${workflowHint}`, locale)}</p>
-        {jc.review_note && !["completed", "approved"].includes(jc.status) ? <div className="mb-3 rounded-lg border border-sand-200 bg-sand-50 p-3"><p className="text-sm font-semibold text-sand-900">{t("jobcards.workflow.correctionsRequested", locale)}</p><p className="mt-1 whitespace-pre-wrap text-sm text-sand-700">{jc.review_note}</p></div> : null}
-        <p className="mb-3 text-sm text-sand-600">{t(external ? jc.workshop_id ? "jobcards.workflow.providerOwnsWork" : "jobcards.workflow.outsideOwnsInvoice" : "jobcards.workflow.noInvoice", locale)}</p>
-        {workRequest ? <Link href={`/work/${workRequest.id}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>{t("jobcards.workflow.openRequest", locale)}</Link> : null}
-        {jc.locked ? <p className="mt-2 text-sm text-brand-ink"><LockIcon /> {t("jobcards.lockedBanner", locale)} {jc.approved_at ? shortDate(jc.approved_at, locale) : ""}</p> : (
-          <LifecycleActions id={id} status={jc.status} updatedAt={jc.updated_at} meterReading={jc.meter_reading} meterRequired={needsJobMeter(jc.type, machine?.meter_type ?? "none")} hasWorkPerformed={!!jc.work_performed?.trim()} needsServiceSelection={jc.type === "scheduled_service" && planLines.length > 0 && !planLines.some((line) => covered.has(line.id))} canWork={canWork} canApprove={canApprove} canReturn={canReturn} correctionHistoryAvailable={jc.completion_effects_recorded} locale={locale} />
+      {/* Where it is, and what to do next. */}
+      <Card className="flex flex-col gap-4">
+        <Stepper steps={steps} current={step} label={t("jobview.progress", locale)}
+          progressLabel={t("jobview.stepOf", locale).replace("{n}", String(step + 1)).replace("{total}", String(steps.length))} />
+        <p className="text-base text-sand-900">{next}</p>
+        {jc.review_note && !finished ? (
+          <div className="rounded-lg bg-callout-warn-bg px-3 py-2.5">
+            <p className="text-sm font-semibold text-sand-900">{t("jobcards.workflow.correctionsRequested", locale)}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-sand-700">{jc.review_note}</p>
+          </div>
+        ) : null}
+        {jc.locked ? null : (
+          <LifecycleActions
+            id={id} status={jc.status} updatedAt={jc.updated_at} meterReading={jc.meter_reading}
+            meterRequired={meterNeeded} hasWorkPerformed={!!jc.work_performed?.trim()} needsServiceSelection={needsServiceSelection}
+            canWork={canWork} canApprove={canApprove} canReturn={canReturn} correctionHistoryAvailable={jc.completion_effects_recorded} locale={locale}
+            fixWork={canEditWork ? sectionDialog("work", t("jobview.writeUp", locale)) : undefined}
+            fixMeter={canEditWork ? sectionDialog("handover", t("jobcards.workflow.edit_handover", locale)) : undefined}
+          />
         )}
       </Card>
 
+      {/* The job: what was wrong, and who is on it. */}
       <Card>
-        <CardHeader action={canWork ? editDialog("intake") : undefined}><CardTitle>{t("jobcards.workflow.intake", locale)}</CardTitle></CardHeader>
-        <p className="text-sm text-sand-500">{t("jobcards.cameIn", locale)}: <DateText value={jc.date_in} locale={locale} format="day" /></p>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-sand-900">{jc.reported_problem || t("jobcards.workflow.noProblem", locale)}</p>
-        {!external ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-sand-100 pt-3"><p className="text-sm text-sand-600">{t("jobcards.workflow.assignedWorker", locale)}: {assignee ?? t("jobcards.workflow.unassigned", locale)}</p>{canWork && canApprove ? <DialogForm trigger={t("jobcards.workflow.assignWorker", locale)} triggerVariant="secondary" triggerSize="sm" title={t("jobcards.workflow.assignWorker", locale)} closeLabel={closeLabel} size="md"><form action={assignJobWorker} className="flex flex-col gap-4"><input type="hidden" name="id" value={id} /><input type="hidden" name="updated_at" value={jc.updated_at} /><Field label={t("jobcards.workflow.assignedWorker", locale)} htmlFor="job-assignee"><Select id="job-assignee" name="mechanic_user_id" defaultValue={jc.mechanic_user_id ?? ""}><option value="">{t("jobcards.workflow.unassigned", locale)}</option>{team.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</Select></Field><DialogActions cancelLabel={cancelLabel}><SubmitButton variant="primary">{t("jobcards.saveNow", locale)}</SubmitButton></DialogActions></form></DialogForm> : null}</div> : null}
+        <CardHeader action={canWork ? sectionDialog("intake", t("common.edit", locale)) : undefined}>
+          <CardTitle>{t("jobview.section.job", locale)}</CardTitle>
+        </CardHeader>
+        <TextBlock label={t("jobcards.qWrong", locale)}>
+          {jc.reported_problem?.trim() ? jc.reported_problem : <span className="text-sand-500">{t("jobview.noProblem", locale)}</span>}
+        </TextBlock>
+        <FactList>
+          {external ? <Fact label={t("jobview.doneBy", locale)} value={who} /> : (
+            <Fact label={t("jobcards.workflow.assignedWorker", locale)} value={assignee ?? t("jobcards.workflow.unassigned", locale)} muted={!assignee} />
+          )}
+          {jc.date_in ? <Fact label={t("jobcards.cameIn", locale)} value={shortDate(jc.date_in, locale)} /> : null}
+        </FactList>
       </Card>
 
-      <Card>
-        <CardHeader action={canWork && working ? editDialog("work") : undefined}><CardTitle>{t("jobcards.workflow.workRecord", locale)}</CardTitle></CardHeader>
-        <dl className="flex flex-col gap-3 text-sm">
-          <div><dt className="text-sand-500">{t("jobcards.diagnosis", locale)}</dt><dd className="whitespace-pre-wrap text-sand-900">{jc.diagnosis || "-"}</dd></div>
-          <div><dt className="text-sand-500">{t("jobcards.workPerformed", locale)}</dt><dd className="whitespace-pre-wrap text-sand-900">{jc.work_performed || "-"}</dd></div>
-          {jc.recommendations ? <div><dt className="text-sand-500">{t("jobcards.recommendations", locale)}</dt><dd className="whitespace-pre-wrap text-sand-900">{jc.recommendations}</dd></div> : null}
-        </dl>
-        {!working && canWork ? <p className="mt-3 text-sm text-sand-500">{t("jobcards.workflow.startBeforeWork", locale)}</p> : null}
-      </Card>
+      {/* The work: only once there is work to write about. */}
+      {showWork ? (
+        <Card>
+          <CardHeader action={canEditWork && hasWorkText ? sectionDialog("work", t("common.edit", locale)) : undefined}>
+            <CardTitle>{t("jobview.section.work", locale)}</CardTitle>
+          </CardHeader>
+          {hasWorkText ? (
+            <div className="divide-y divide-sand-100">
+              {jc.diagnosis?.trim() ? <TextBlock label={t("jobcards.diagnosis", locale)}>{jc.diagnosis}</TextBlock> : null}
+              {jc.work_performed?.trim() ? <TextBlock label={t("jobcards.workPerformed", locale)}>{jc.work_performed}</TextBlock> : null}
+              {jc.recommendations?.trim() ? <TextBlock label={t("jobcards.recommendations", locale)}>{jc.recommendations}</TextBlock> : null}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-sand-500">{t("jobview.notYet", locale)}</p>
+              {canEditWork ? sectionDialog("work", t("jobview.writeUp", locale)) : null}
+            </div>
+          )}
+        </Card>
+      ) : null}
 
-      <Card>
-        <CardHeader action={canWork && working ? (
-          <DialogForm trigger={t("jobcards.workflow.addLine", locale)} title={t("jobcards.workflow.addLine", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
-            <LineEntry actorId={profile.id} jobCardId={id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} costsVisible={costsVisible} />
+      {/* Parts and labour, with the running total underneath. */}
+      {showParts ? (
+        <Card>
+          <CardHeader action={canEditWork ? (
+            <DialogForm trigger={t("jobview.add", locale)} triggerIcon={<PlusIcon />} title={t("jobcards.workflow.addLine", locale)} description={machine?.name} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+              <LineEntry actorId={profile.id} jobCardId={id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} costsVisible={costsVisible} />
+            </DialogForm>
+          ) : undefined}>
+            <CardTitle>{t("jobview.section.parts", locale)}</CardTitle>
+          </CardHeader>
+          {lines.length === 0 ? <p className="text-sm text-sand-500">{t("jobcards.noLines", locale)}</p> : (
+            <ul className="divide-y divide-sand-100">
+              {lines.map((line) => {
+                const name = line.description || line.part_no || t(`jobcards.${line.kind}Kind`, locale);
+                return (
+                  <li key={line.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-sand-900">{name}</p>
+                      <p className="text-xs text-sand-500">{lineDetail(line)}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {costsVisible ? <span className="text-sm font-medium tabular-nums text-sand-900">{rands(line.total_cents)}</span> : null}
+                      {canEditWork ? (
+                        <ActionMenu title={name} label={`${t("jobview.lineActions", locale)}: ${name}`} closeLabel={closeLabel}>
+                          <DialogForm trigger={t("common.edit", locale)} triggerLook="menuItem" title={t("jobcards.workflow.editLine", locale)} description={name} closeLabel={closeLabel} size="md">
+                            <LineEntry actorId={profile.id} jobCardId={id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} costsVisible={costsVisible} line={line} />
+                          </DialogForm>
+                          <ConfirmDialog action={removeLine} triggerLook="menuItem" triggerLabel={t("jobcards.remove", locale)} title={t("confirm.removeLineTitle", locale).replace("{line}", name)} confirmLabel={t("confirm.removeLineYes", locale)} cancelLabel={t("confirm.keepIt", locale)} closeLabel={closeLabel}>
+                            <input type="hidden" name="line_id" value={line.id} />
+                            <input type="hidden" name="line_updated_at" value={line.updated_at} />
+                            <input type="hidden" name="job_card_id" value={id} />
+                          </ConfirmDialog>
+                        </ActionMenu>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {canEditWork && costsVisible && kits.length > 0 ? (
+            <div className="mt-2">
+              <DialogForm trigger={t("jobview.useKit", locale)} title={t("jobcards.applyKit", locale)} description={machine?.name} triggerVariant="ghost" triggerSize="sm" closeLabel={closeLabel} size="md">
+                <ServiceKitForm jobId={id} farmId={jc.farm_id} actorId={profile.id} kits={kits} locale={locale} />
+              </DialogForm>
+            </div>
+          ) : null}
+          {costsVisible ? (
+            <FactList className="mt-3 border-t border-sand-100 pt-1">
+              <Fact
+                label={t(external ? "jobcards.thisJobSoFar" : "jobcards.workflow.internalCost", locale)}
+                value={<span className="text-lg font-bold tabular-nums">{rands(jc.total_cents)}</span>}
+                hint={`${t(external ? "jobview.externalCostHint" : "jobview.internalCostHint", locale)} ${t("jobcards.exVatNote", locale)}`}
+              />
+              {external && supplierTotal != null ? (
+                <Fact label={t("jobcards.workflow.supplierTotal", locale)} value={<span className="text-lg font-bold tabular-nums">{rands(supplierTotal)}</span>} />
+              ) : null}
+            </FactList>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {/* Which service tasks this job covered. */}
+      {jc.type === "scheduled_service" && planLines.length > 0 && (working || finished) ? (
+        <Card id="tasks" className="scroll-mt-24">
+          <CardHeader><CardTitle>{t("jobview.section.tasks", locale)}</CardTitle></CardHeader>
+          <ul className="flex flex-col">
+            {planLines.filter((line) => canEditWork || covered.has(line.id)).map((line) => (
+              <li key={line.id}>
+                {canEditWork ? (
+                  <form action={toggleServiceLine}>
+                    <input type="hidden" name="job_card_id" value={id} />
+                    <input type="hidden" name="farm_id" value={jc.farm_id} />
+                    <input type="hidden" name="service_plan_line_id" value={line.id} />
+                    <input type="hidden" name="on" value={covered.has(line.id) ? "0" : "1"} />
+                    <button type="submit" aria-pressed={covered.has(line.id)} className="focus-ring -mx-2 flex min-h-[48px] w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 text-left text-sm text-sand-900 hover:bg-sand-50 sm:min-h-[44px]">
+                      {covered.has(line.id) ? <CheckIcon className="text-lg text-status-ok" /> : <SquareIcon className="text-lg text-sand-400" />}
+                      <span>{line.task}</span>
+                    </button>
+                  </form>
+                ) : (
+                  <p className="flex min-h-[44px] items-center gap-3 text-sm text-sand-900"><CheckIcon className="text-lg text-status-ok" /> {line.task}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {/* Handover: when it went back, and the meter. */}
+      {showHandover ? (
+        <Card>
+          <CardHeader action={canEditWork ? sectionDialog("handover", t("common.edit", locale)) : undefined}>
+            <CardTitle>{t("jobview.section.handover", locale)}</CardTitle>
+          </CardHeader>
+          <FactList>
+            <Fact label={t("jobcards.wentOut", locale)} value={jc.date_out ? shortDate(jc.date_out, locale) : t("jobview.notYet", locale)} muted={!jc.date_out} />
+            {machine?.meter_type !== "none" ? (
+              <Fact label={t("jobcards.meterReading", locale)}
+                value={jc.meter_reading != null && machine ? meterReading(jc.meter_reading, machine.meter_type, locale) : t("jobview.notYet", locale)}
+                muted={jc.meter_reading == null} />
+            ) : null}
+          </FactList>
+        </Card>
+      ) : null}
+
+      <Disclosure summary={t("jobcards.workflow.documents", locale)} meta={docCount ? String(docCount) : undefined} defaultOpen={canInvoice && jc.status === "completed"}>
+        {invoices.length > 0 ? (
+          <ul className="mb-3 divide-y divide-sand-100 text-sm">
+            {invoices.map((invoice) => (
+              <li key={invoice.id} className="flex justify-between gap-3 py-2">
+                <span>{invoice.note || t("jobcards.invoiceRecorded", locale)}<span className="block text-sand-500">{shortDate(invoice.occurred_on, locale)}</span></span>
+                <span className="font-medium tabular-nums">{rands(invoice.amount_cents)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {attachments.length > 0 ? (
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            {attachments.map((attachment) => attachment.url ? (
+              <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="focus-ring flex items-center justify-center rounded-lg border border-sand-200 p-2 text-sm font-medium text-brand-ink">
+                {attachment.kind === "photo" ? <Photo src={attachment.url} alt={t("jobcards.attachment", locale)} size="card" className="aspect-square w-full rounded-lg" /> : t(`jobcards.kind_${attachment.kind === "invoice" ? "invoice" : "quote"}`, locale)}
+              </a>
+            ) : null)}
+          </div>
+        ) : null}
+        {docCount === 0 ? <p className="mb-3 text-sm text-sand-500">{t("jobcards.noMedia", locale)}</p> : null}
+        {canMedia ? (
+          <DialogForm trigger={t("jobcards.workflow.addDocument", locale)} title={t("jobcards.workflow.addDocument", locale)} description={machine?.name} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+            <JobCardMedia actorId={profile.id} jobCardId={id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} />
           </DialogForm>
-        ) : undefined}><CardTitle>{t("jobcards.partsAndLabour", locale)}</CardTitle></CardHeader>
-        {lines.length === 0 ? <p className="text-sm text-sand-500">{t("jobcards.noLines", locale)}</p> : (
-          <ul className="divide-y divide-sand-100 text-sm">{lines.map((line) => (
-            <li key={line.id} className="flex items-center justify-between gap-3 py-2">
-              <div className="min-w-0"><p className="font-medium text-sand-900">{line.description || line.part_no || t(`jobcards.${line.kind}Kind`, locale)}</p><p className="text-sand-500">{lineDetail(line)}</p></div>
-              <div className="flex shrink-0 items-center gap-2">{costsVisible ? <span className="font-medium tabular-nums">{rands(line.total_cents)}</span> : null}
-                {canWork && working ? <DialogForm trigger={t("common.edit", locale)} triggerVariant="ghost" triggerSize="sm" title={t("jobcards.workflow.editLine", locale)} closeLabel={closeLabel} size="md"><LineEntry actorId={profile.id} jobCardId={id} farmId={jc.farm_id} vatRateBps={jc.vat_rate_bps} locale={locale} catalogue={catalogue} costsVisible={costsVisible} line={line} /></DialogForm> : null}
-                {canWork && working ? <ConfirmDialog action={removeLine} triggerVariant="ghost" triggerSize="sm" triggerIcon={<TrashIcon />} triggerLabel={t("jobcards.remove", locale)} title={t("confirm.removeLineTitle", locale).replace("{line}", line.description || line.part_no || "-")} confirmLabel={t("confirm.removeLineYes", locale)} cancelLabel={t("confirm.keepIt", locale)} closeLabel={closeLabel}><input type="hidden" name="line_id" value={line.id} /><input type="hidden" name="line_updated_at" value={line.updated_at} /><input type="hidden" name="job_card_id" value={id} /></ConfirmDialog> : null}
-              </div>
-            </li>
-          ))}</ul>
-        )}
-        {canWork && working && costsVisible && kits.length > 0 ? <div className="mt-3"><DialogForm trigger={t("jobcards.applyKit", locale)} title={t("jobcards.applyKit", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md"><ServiceKitForm jobId={id} farmId={jc.farm_id} actorId={profile.id} kits={kits} locale={locale} /></DialogForm></div> : null}
-        {costsVisible ? <div className="mt-4 border-t border-sand-100 pt-3"><p className="text-sm text-sand-600">{t(external ? "jobcards.thisJobSoFar" : "jobcards.workflow.internalCost", locale)}</p><p className="text-2xl font-bold tabular-nums text-sand-950">{rands(jc.total_cents)}</p><p className="mt-1 text-xs text-sand-500">{t("jobcards.exVatNote", locale)}</p></div> : null}
-      </Card>
-
-      {external && costsVisible && supplierTotal != null ? <Card><CardTitle>{t("jobcards.workflow.supplierTotal", locale)}</CardTitle><p className="mt-2 text-2xl font-bold tabular-nums">{rands(supplierTotal)}</p><p className="mt-1 text-sm text-sand-600">{t("jobcards.workflow.supplierTotalHint", locale)}</p></Card> : null}
-
-      {jc.type === "scheduled_service" && planLines.length > 0 ? <Card><CardHeader><CardTitle>{t("jobcards.serviceLinesCovered", locale)}</CardTitle></CardHeader><p className="mb-2 text-sm text-sand-500">{t("jobcards.serviceLinesHint", locale)}</p><ul className="flex flex-col gap-1 text-sm">{planLines.filter((line) => canWork || covered.has(line.id)).map((line) => <li key={line.id}>{canWork && working ? <form action={toggleServiceLine}><input type="hidden" name="job_card_id" value={id} /><input type="hidden" name="farm_id" value={jc.farm_id} /><input type="hidden" name="service_plan_line_id" value={line.id} /><input type="hidden" name="on" value={covered.has(line.id) ? "0" : "1"} /><button type="submit" aria-pressed={covered.has(line.id)} className="focus-ring flex min-h-[44px] w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-sand-50">{covered.has(line.id) ? <CheckIcon className="text-status-ok" /> : <SquareIcon className="text-sand-500" />}<span>{line.task}</span></button></form> : <p className="py-2">{covered.has(line.id) ? <CheckIcon /> : null} {line.task}</p>}</li>)}</ul></Card> : null}
-
-      <Card><CardHeader action={canWork && working ? editDialog("handover") : undefined}><CardTitle>{t("jobcards.workflow.handover", locale)}</CardTitle></CardHeader><dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-sand-500">{t("jobcards.wentOut", locale)}</dt><dd>{jc.date_out ?? "-"}</dd></div>{machine?.meter_type !== "none" ? <div><dt className="text-sand-500">{t("jobcards.meterReading", locale)}</dt><dd>{jc.meter_reading != null && machine ? meterReading(jc.meter_reading, machine.meter_type, locale) : "-"}</dd></div> : null}</dl></Card>
-
-      <Disclosure summary={t("jobcards.workflow.documents", locale)} meta={String(attachments.length + invoices.length)} defaultOpen={canMedia}>
-        {invoices.length > 0 ? <ul className="mb-3 divide-y divide-sand-100 text-sm">{invoices.map((invoice) => <li key={invoice.id} className="flex justify-between gap-3 py-2"><span>{invoice.note || t("jobcards.invoiceRecorded", locale)}<span className="block text-sand-500">{invoice.occurred_on}</span></span><span className="font-medium tabular-nums">{rands(invoice.amount_cents)}</span></li>)}</ul> : null}
-        {attachments.length > 0 ? <div className="mb-3 grid grid-cols-3 gap-2">{attachments.map((attachment) => attachment.url ? <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="focus-ring flex items-center justify-center rounded-lg border border-sand-200 p-2 text-sm font-medium text-brand-ink">{attachment.kind === "photo" ? <Photo src={attachment.url} alt={t("jobcards.attachment", locale)} size="card" className="aspect-square w-full rounded-lg" /> : t(`jobcards.kind_${attachment.kind === "invoice" ? "invoice" : "quote"}`, locale)}</a> : null)}</div> : null}
-        {invoices.length === 0 && attachments.length === 0 ? <p className="mb-3 text-sm text-sand-500">{t("jobcards.noMedia", locale)}</p> : null}
-        {canMedia ? <DialogForm trigger={t("jobcards.workflow.addDocument", locale)} title={t("jobcards.workflow.addDocument", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md"><JobCardMedia actorId={profile.id} jobCardId={id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} /></DialogForm> : null}
+        ) : null}
       </Disclosure>
       <WarrantyPanel jobCardId={id} machineId={jc.machine_id} locale={locale} canManage={canApprove} />
     </PageContainer>

@@ -5779,5 +5779,105 @@
     "body": "Iets het aan ons kant verkeerd geloop, nie aan joune nie. Niks wat jy ingevul het, is verlore nie. Probeer weer. As dit aanhou gebeur, kan die plaaskantoor vir ons die kode hieronder stuur.",
     "home": "Gaan na my tuisskerm",
     "reference": "Verwysing:"
+  },
+  "jobview": {
+    "progress": "Vordering van die werk",
+    "stepOf": "Stap {n} van {total}",
+    "steps": {
+      "open": "Oop",
+      "working": "Besig",
+      "done": "Klaar",
+      "approved": "Goedgekeur"
+    },
+    "next": {
+      "open": "Begin die werk sodra jy daarmee begin.",
+      "openWait": "Wag dat die werk begin.",
+      "working": "Skryf die werk neer, voeg onderdele en arbeid by en merk dit dan klaar.",
+      "workingWait": "Die werk is aan die gang.",
+      "waiting": "Wag vir onderdele. Gaan voort wanneer hulle aankom.",
+      "review": "Die werk is klaar. Gaan dit na en keur dit dan goed of stuur dit terug.",
+      "reviewNoReturn": "Die werk is klaar. Gaan dit na en keur dit dan goed.",
+      "reviewWait": "Klaar. Wag dat die eienaar of bestuurder dit goedkeur.",
+      "approved": "Goedgekeur en gesluit op {date}."
+    },
+    "ready": {
+      "title": "Voordat dit klaar gemerk kan word",
+      "work": "Skryf neer wat gedoen is",
+      "meter": "Voeg die meterlesing by oorhandiging by",
+      "tasks": "Merk die dienstake wat gedoen is"
+    },
+    "section": {
+      "job": "Die opdrag",
+      "work": "Die werk",
+      "parts": "Onderdele en arbeid",
+      "tasks": "Dienstake gedoen",
+      "handover": "Oorhandiging"
+    },
+    "ours": "Ons span",
+    "doneBy": "Gedoen deur",
+    "cameInOn": "Ingekom {date}",
+    "notYet": "Nog niks neergeskryf nie.",
+    "noProblem": "Nog geen rede neergeskryf nie.",
+    "writeUp": "Skryf die werk neer",
+    "add": "Voeg by",
+    "useKit": "Gebruik 'n diensstel",
+    "linkedRequest": "Kontrakteurversoek",
+    "lineActions": "Lyn",
+    "internalCostHint": "Interne werk: hierdie lyne is die koste.",
+    "externalCostHint": "Skattings totdat die verskaffer se faktuur aankom.",
+    "list": {
+      "review": "Wag vir goedkeuring",
+      "active": "Aan die gang",
+      "done": "Goedgekeur"
+    },
+    "new": {
+      "ours": "Ons span",
+      "oursHint": "Jou mense doen die werk en teken die onderdele en arbeid aan.",
+      "connected": "'n Kontrakteur op FleetWise",
+      "connectedHint": "Stuur vir hulle 'n versoek. Hulle gee 'n kwotasie, doen die werk en stuur 'n faktuur.",
+      "outside": "'n Ander maatskappy",
+      "outsideHint": "Hou rekord van hul werk en liasseer die faktuur wat hulle stuur.",
+      "contractorHint": "Die werk is vir jou werkswinkel. Jy teken die werk aan en stuur die faktuur."
+    }
+  },
+  "workview": {
+    "progress": "Vordering van die versoek",
+    "steps": {
+      "requested": "Versoek",
+      "quoted": "Kwotasie",
+      "agreed": "Ooreengekom",
+      "working": "Besig",
+      "done": "Klaar",
+      "closed": "Gesluit"
+    },
+    "next": {
+      "assign": "Kies 'n kontrakteur om dit na te stuur.",
+      "providerQuote": "Stuur 'n kwotasie, of wag dat die plaas die werk goedkeur.",
+      "farmApprove": "Keur die werk goed, of wag vir 'n kwotasie.",
+      "farmQuote": "Gaan die kwotasie na en aanvaar dit dan.",
+      "waitFarm": "Wag dat die plaas die werk goedkeur.",
+      "providerWork": "Doen die werk op die werkkaart en merk dit daar klaar.",
+      "farmWorking": "Die kontrakteur werk daaraan.",
+      "providerInvoice": "Die werk is klaar. Stuur jou faktuur.",
+      "farmCompleted": "Die werk is klaar. Die kontrakteur stuur die faktuur.",
+      "farmClose": "Gaan die faktuur na en sluit dan die versoek.",
+      "providerWaitClose": "Faktuur gestuur. Wag dat die plaas dit sluit.",
+      "closed": "Gesluit. Niks meer om te doen nie.",
+      "follow": "Jy kan die vordering hier volg."
+    },
+    "section": {
+      "request": "Die versoek",
+      "money": "Kwotasie en faktuur"
+    },
+    "noneYet": "Nog geen",
+    "farm": "Plaas",
+    "requestedOn": "Versoek {date}",
+    "noDescription": "Geen beskrywing nie.",
+    "groups": {
+      "active": "Aan die gang",
+      "closed": "Gesluit"
+    },
+    "updated": "Bygewerk {date}",
+    "otherWays": "Ander maniere"
   }
 }

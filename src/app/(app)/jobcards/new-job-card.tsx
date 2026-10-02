@@ -82,6 +82,14 @@ function IntakeForm({ machines, contractors, isContractor, locale, actorId, defa
   const linked = contractors.filter((contractor) => contractor.farm_id === machine?.farm_id);
   const eligibleMachines = draft.mode !== "internal" && !isContractor ? machines.filter((entry) => entry.allowExternal) : machines;
   const unavailableDraft = restored && ((!!draft.machineId && !eligibleMachines.some((entry) => entry.id === draft.machineId)) || (isContractor && draft.mode !== "external"));
+  const canGoExternal = machines.some((entry) => entry.allowExternal);
+  const modes: { value: IntakeDraft["mode"]; title: string; hint: string }[] = [
+    { value: "internal", title: t("jobview.new.ours", locale), hint: t("jobview.new.oursHint", locale) },
+    ...(canGoExternal ? [
+      { value: "connected" as const, title: t("jobview.new.connected", locale), hint: t("jobview.new.connectedHint", locale) },
+      { value: "external" as const, title: t("jobview.new.outside", locale), hint: t("jobview.new.outsideHint", locale) },
+    ] : []),
+  ];
 
   return (
     <form action={connected ? createWorkRequest : createJobCard} onSubmit={() => persist(draft)} className="flex flex-col gap-4">
@@ -94,25 +102,44 @@ function IntakeForm({ machines, contractors, isContractor, locale, actorId, defa
       {storageError ? <p role="status" className="text-sm text-status-due">{t("jobcards.workflow.draftStorageUnavailable", locale)}</p> : null}
       <fieldset disabled={!loaded || unavailableDraft} className="min-w-0">
         <DialogFields columns={1}>
-          {!isContractor ? (
-            <Field label={t("jobcards.workflow.whoWorks", locale)} htmlFor={`${uid}-mode`}>
-              <Select id={`${uid}-mode`} value={draft.mode} onChange={(event) => {
-                const mode = event.target.value as IntakeDraft["mode"];
-                change({ mode, contractorId: "", machineId: mode !== "internal" && !machine?.allowExternal ? "" : draft.machineId });
-              }}>
-                <option value="internal">{t("jobcards.workflow.internal", locale)}</option>
-                {machines.some((entry) => entry.allowExternal) ? <option value="connected">{t("jobcards.workflow.connected", locale)}</option> : null}
-                {machines.some((entry) => entry.allowExternal) ? <option value="external">{t("jobcards.workflow.outside", locale)}</option> : null}
-              </Select>
-            </Field>
-          ) : null}
-          <p className="text-sm text-sand-600">{t(`jobcards.workflow.${isContractor ? "contractorCreateHint" : draft.mode + "Hint"}`, locale)}</p>
           <Field label={t("jobcards.whichMachineLabel", locale)} htmlFor={`${uid}-machine`} required>
             <Select id={`${uid}-machine`} name="machine_id" value={draft.machineId} onChange={(event) => change({ machineId: event.target.value, contractorId: "" })} required>
               <option value="" disabled>{t("jobcards.pickMachine", locale)}</option>
               {eligibleMachines.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
             </Select>
           </Field>
+
+          {/* Who does the work decides everything after it, so it is a visible choice,
+              not a dropdown. Real radios: arrow keys and screen readers work as usual. */}
+          {isContractor ? (
+            <p className="text-sm text-sand-600">{t("jobview.new.contractorHint", locale)}</p>
+          ) : (
+            <fieldset className="min-w-0">
+              <legend className="mb-2 text-sm font-medium text-sand-900">{t("jobcards.workflow.whoWorks", locale)}</legend>
+              <div className="flex flex-col gap-2">
+                {modes.map((option) => {
+                  const selected = draft.mode === option.value;
+                  return (
+                    <label key={option.value} className={`focus-within:ring-2 focus-within:ring-brand-500/40 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${selected ? "border-brand-600 bg-brand-tint" : "border-sand-200 bg-surface hover:bg-sand-50"}`}>
+                      <input
+                        type="radio"
+                        name={`${uid}-mode`}
+                        value={option.value}
+                        checked={selected}
+                        onChange={() => change({ mode: option.value, contractorId: "", machineId: option.value !== "internal" && !machine?.allowExternal ? "" : draft.machineId })}
+                        className="mt-1 h-4 w-4 shrink-0 accent-brand-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-sand-900">{option.title}</span>
+                        <span className="block text-xs text-sand-600">{option.hint}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
+
           {connected ? linked.length > 0 ? (
             <Field label={t("work.contractor", locale)} htmlFor={`${uid}-contractor`} required>
               <Select id={`${uid}-contractor`} name="workshop_id" value={draft.contractorId} onChange={(event) => change({ contractorId: event.target.value })} required>
@@ -125,18 +152,29 @@ function IntakeForm({ machines, contractors, isContractor, locale, actorId, defa
               <Input id={`${uid}-provider`} name="external_provider_name" value={draft.providerName} onChange={(event) => change({ providerName: event.target.value })} required maxLength={200} />
             </Field>
           ) : null}
-          <Field label={t("jobcards.whatKindLabel", locale)} htmlFor={`${uid}-type`}>
-            <Select id={`${uid}-type`} name={connected ? "job_type" : "type"} value={draft.jobType} onChange={(event) => change({ jobType: event.target.value as JobType })}>
-              {JOB_TYPES.map((kind) => <option key={kind} value={kind}>{t(`jobType.${kind}`, locale)}</option>)}
-            </Select>
-          </Field>
+
+          <fieldset className="min-w-0">
+            <legend className="mb-2 text-sm font-medium text-sand-900">{t("jobcards.whatKindLabel", locale)}</legend>
+            <div className="flex flex-wrap gap-2">
+              {JOB_TYPES.map((kind) => {
+                const selected = draft.jobType === kind;
+                return (
+                  <label key={kind} className={`focus-within:ring-2 focus-within:ring-brand-500/40 inline-flex min-h-[44px] cursor-pointer items-center rounded-full border px-4 text-sm font-medium transition-colors ${selected ? "border-brand-600 bg-brand-600 text-white" : "border-sand-300 bg-surface text-sand-800 hover:bg-sand-50"}`}>
+                    <input type="radio" className="sr-only" name={connected ? "job_type" : "type"} value={kind} checked={selected} onChange={() => change({ jobType: kind })} />
+                    {t(`jobType.${kind}`, locale)}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
           <Field label={t("jobcards.qWrong", locale)} htmlFor={`${uid}-reason`} required>
             <Textarea id={`${uid}-reason`} name={connected ? "description" : "reported_problem"} value={draft.description} onChange={(event) => change({ description: event.target.value })} rows={3} required />
           </Field>
         </DialogFields>
       </fieldset>
       <DialogActions cancelLabel={t("common.cancel", locale)}>
-        <Button type="button" variant="ghost" disabled={!loaded} onClick={discard}>{t("jobcards.workflow.discardDraft", locale)}</Button>
+        {restored ? <Button type="button" variant="ghost" disabled={!loaded} onClick={discard}>{t("jobcards.workflow.discardDraft", locale)}</Button> : null}
         <SubmitButton variant="primary" disabled={!loaded || unavailableDraft || !machine || (connected && !linked.some((contractor) => contractor.id === draft.contractorId))}>{t(connected ? "work.send" : "jobcards.createIt", locale)}</SubmitButton>
       </DialogActions>
     </form>
