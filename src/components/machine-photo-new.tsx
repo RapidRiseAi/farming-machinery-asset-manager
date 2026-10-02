@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Photo } from "@/components/ui/photo";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { t, type Locale, type Lang } from "@/lib/i18n";
+import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
 
 /**
  * Add-vehicle primary-photo picker. The machine's storage path only exists after
@@ -21,6 +22,10 @@ export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!looksLikeImage(file)) {
+      setErr(t("machine.uploadNotImage", locale));
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -29,7 +34,8 @@ export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
       setDataUrl(url);
       setPreview(url);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : t("machine.uploadFailed", locale));
+      // Compressing happens on the phone, so a failure here is a file it cannot read.
+      setErr(t(photoUploadErrorKey(e2, true), locale));
       setDataUrl("");
       setPreview(null);
     } finally {
@@ -49,17 +55,17 @@ export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
       {preview ? (
         <div className="flex items-center gap-3">
           <Photo src={preview} alt={t("machines.primaryPhoto", locale)} size="thumb" priority className="h-20 w-20 rounded-lg ring-1 ring-sand-200" />
-          <button type="button" onClick={clear} className="focus-ring rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
+          <button type="button" onClick={clear} className="focus-ring inline-flex min-h-[48px] items-center rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
             {t("machines.removePhoto", locale)}
           </button>
         </div>
       ) : (
-        <label className="focus-ring inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
+        <label className="focus-ring inline-flex w-fit cursor-pointer items-center gap-1.5 min-h-[48px] rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
           {busy ? t("machine.uploading", locale) : t("machines.choosePhoto", locale)}
           <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFile} disabled={busy} />
         </label>
       )}
-      {err ? <p className="text-sm text-status-overdue">{err}</p> : null}
+      {err ? <p role="alert" className="text-sm text-status-overdue">{err}</p> : null}
     </div>
   );
 }

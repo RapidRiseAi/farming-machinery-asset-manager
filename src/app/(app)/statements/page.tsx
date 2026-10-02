@@ -15,7 +15,7 @@ import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AllClear, GetStarted } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DownloadIcon } from "@/components/ui/icons";
 import { StatementPicker } from "./picker";
 import { SendStatement } from "@/components/statements/send-statement";
@@ -153,16 +153,13 @@ export default async function StatementsPage({
     : "#";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-ink">{t("statement.title", locale)}</h1>
-            <PageInfoButton infoKey="statements" locale={locale} />
-          </div>
-          <p className="mt-0.5 text-sm text-sand-500">{t("statement.tagline", locale)}</p>
-        </div>
-        {selected ? (
+    <PageContainer>
+      <PageHeader
+        title={t("statement.title", locale)}
+        lead={t("statement.tagline", locale)}
+        infoKey="statements"
+        locale={locale}
+        actions={selected ? (
           <div className="flex flex-wrap gap-2">
             <a href={pdfHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
               <DownloadIcon className="text-lg" /> {t("statement.pdf", locale)}
@@ -180,8 +177,8 @@ export default async function StatementsPage({
               locale={locale}
             />
           </div>
-        ) : null}
-      </div>
+        ) : undefined}
+      />
 
       {parties.length === 0 ? (
         <GetStarted
@@ -202,8 +199,9 @@ export default async function StatementsPage({
             <CardHeader>
               <CardTitle>{t("statement.owedNow", locale)}</CardTitle>
             </CardHeader>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
               <Stat
+                size="md"
                 label={t("statement.totalOwed", locale)}
                 value={rands(ageing.total_cents)}
                 tone={ageing.total_cents > 0 ? "brand" : "default"}
@@ -213,6 +211,7 @@ export default async function StatementsPage({
                 return (
                   <Stat
                     key={b.key}
+                    size="md"
                     label={t(`statement.age.${b.key}`, locale)}
                     value={rands(cents)}
                     tone={cents > 0 && b.key !== "current" ? "due" : "default"}
@@ -227,8 +226,8 @@ export default async function StatementsPage({
             <CardHeader>
               <CardTitle>
                 {selected?.label}
-                <Badge tone="neutral" className="ml-2 align-middle">
-                  {shortDate(from, locale)} - {shortDate(to, locale)}
+                <Badge tone="neutral" wrap className="ml-2 align-middle">
+                  {t("books.range", locale).replace("{from}", shortDate(from, locale)).replace("{to}", shortDate(to, locale))}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -309,6 +308,6 @@ export default async function StatementsPage({
           </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

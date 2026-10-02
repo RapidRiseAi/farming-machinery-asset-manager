@@ -6,9 +6,23 @@
 import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate } from "@/lib/format";
+import { enumLabel, num, shortDate } from "@/lib/format";
 
 export type NotePayload = Record<string, unknown>;
+
+/**
+ * A payload date as a person reads it ("12 Mar 2026"), never the ISO string the engine
+ * stored. Empty stays empty, so a missing date cannot print "-" mid-sentence.
+ */
+function day(value: unknown, locale: Lang): string {
+  return value ? shortDate(String(value), locale) : "";
+}
+
+/** A payload number with the locale's separators; anything unparseable passes through. */
+function amount(value: unknown): string {
+  const n = Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? String(value ?? "") : num(n);
+}
 
 function fill(key: string, locale: Lang, vars: Record<string, string>): string {
   let s = t(key, locale);
@@ -36,7 +50,10 @@ export function formatNotification(
     case "service_overdue":
       return fill("notifications.tplServiceOverdue", locale, { machine: m, task: String(p.task ?? "") });
     case "stale_meter":
-      return fill("notifications.tplStaleMeter", locale, { count: String(p.count ?? 0) });
+      // One and many are separate sentences, never "machine(s)".
+      return fill(Number(p.count ?? 0) === 1 ? "notifications.tplStaleMeterOne" : "notifications.tplStaleMeter", locale, {
+        count: num(Number(p.count ?? 0), 0),
+      });
     case "weekly_digest":
       return fill("notifications.tplWeeklyDigest", locale, {
         overdue: String(p.overdue_count ?? 0),
@@ -47,15 +64,16 @@ export function formatNotification(
       return fill("notifications.tplFaultReported", locale, {
         machine: m,
         description: String(p.description ?? ""),
-        urgency: String(p.urgency ?? ""),
+        // The enum in words ("Stopped"), never the stored value ("stopped").
+        urgency: p.urgency ? enumLabel("urgency", String(p.urgency), locale) : "",
       });
     case "job_completed":
       return fill("notifications.tplJobCompleted", locale, { machine: m, total: rands(p.total_cents as number) });
     case "fuel_anomaly":
       return fill("notifications.tplFuelAnomaly", locale, {
         machine: m,
-        litres: String(p.litres ?? ""),
-        delta: String(p.delta_pct ?? ""),
+        litres: amount(p.litres),
+        delta: amount(p.delta_pct),
       });
     case "low_stock":
       return fill("notifications.tplLowStock", locale, {
@@ -74,20 +92,20 @@ export function formatNotification(
         days: String(p.days ?? ""),
       });
     case "warranty_expiring":
-      return fill("notifications.tplWarrantyExpiring", locale, { machine: m, date: String(p.expiry_date ?? "") });
+      return fill("notifications.tplWarrantyExpiring", locale, { machine: m, date: day(p.expiry_date, locale) });
     case "warranty_expired":
-      return fill("notifications.tplWarrantyExpired", locale, { machine: m, date: String(p.expiry_date ?? "") });
+      return fill("notifications.tplWarrantyExpired", locale, { machine: m, date: day(p.expiry_date, locale) });
     case "licence_expiring":
       return fill("notifications.tplLicenceExpiring", locale, {
         machine: m,
         type: licenceType,
-        date: String(p.expiry_date ?? ""),
+        date: day(p.expiry_date, locale),
       });
     case "licence_expired":
       return fill("notifications.tplLicenceExpired", locale, {
         machine: m,
         type: licenceType,
-        date: String(p.expiry_date ?? ""),
+        date: day(p.expiry_date, locale),
       });
     // The licence in the PERSON's pocket (20260921090000), as distinct from the disc on
     // the windscreen above. The payload carries a name and a document kind and no number:
@@ -96,13 +114,13 @@ export function formatNotification(
       return fill("notifications.tplDriverCredentialExpiring", locale, {
         person: String(p.person ?? ""),
         credential: credentialType,
-        date: String(p.expiry_date ?? ""),
+        date: day(p.expiry_date, locale),
       });
     case "driver_credential_expired":
       return fill("notifications.tplDriverCredentialExpired", locale, {
         person: String(p.person ?? ""),
         credential: credentialType,
-        date: String(p.expiry_date ?? ""),
+        date: day(p.expiry_date, locale),
       });
     // An insurance claim lodged and still unpaid (20260921100000). It says HOW LONG,
     // because "a claim is outstanding" is a sentence a farm ignores and "lodged 60 days
@@ -155,18 +173,18 @@ export function formatNotification(
     // fact told to the person who can act on it, which for an overdue invoice is both
     // sides at once.
     case "quote_expiring":
-      return fill("notifications.tplQuoteExpiring", locale, { number: String(p.number ?? ""), due: String(p.due_date ?? "") });
+      return fill("notifications.tplQuoteExpiring", locale, { number: String(p.number ?? ""), due: day(p.due_date, locale) });
     case "quote_expiring_partner":
       return fill("notifications.tplQuoteExpiringPartner", locale, {
-        number: String(p.number ?? ""), customer: String(p.customer ?? ""), due: String(p.due_date ?? ""),
+        number: String(p.number ?? ""), customer: String(p.customer ?? ""), due: day(p.due_date, locale),
       });
     case "invoice_due_soon":
       return fill("notifications.tplInvoiceDueSoon", locale, {
-        number: String(p.number ?? ""), amount: rands(p.amount as number), due: String(p.due_date ?? ""),
+        number: String(p.number ?? ""), amount: rands(p.amount as number), due: day(p.due_date, locale),
       });
     case "invoice_overdue":
       return fill("notifications.tplInvoiceOverdue", locale, {
-        number: String(p.number ?? ""), amount: rands(p.amount as number), due: String(p.due_date ?? ""),
+        number: String(p.number ?? ""), amount: rands(p.amount as number), due: day(p.due_date, locale),
       });
     case "invoice_overdue_partner":
       return fill("notifications.tplInvoiceOverduePartner", locale, {
@@ -197,7 +215,7 @@ export function formatNotification(
       return fill(
         p.status === "expired" ? "notifications.tplAartoNominationOverdue" : "notifications.tplAartoNominationDue",
         locale,
-        { machine: m, deadline: String(p.deadline ?? ""), notice: String(p.notice_number ?? "") }
+        { machine: m, deadline: day(p.deadline, locale), notice: String(p.notice_number ?? "") }
       );
     // == Subscription billing ================================================
     // These four were being WRITTEN by the dunning engine and rendered by nothing. With
@@ -316,7 +334,6 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // Anything that names a document opens that document, the partner-side reminders and
   // the customer's answers from the emailed link included.
   if (p.document_id) return `/documents/${p.document_id}`;
-  // A low-stock nudge opens the store it is about.
   // A low-stock nudge opens the store it is about; a shortfall opens the panel that
   // explains which services are waiting on the part.
   if (template === "low_stock") return "/parts#store";

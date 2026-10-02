@@ -7,6 +7,13 @@ import { farmPermissionState, requireFarmPermission } from "@/lib/permissions";
 import { parseRandsToCents } from "@/lib/money";
 import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
+import { todayLocal } from "@/lib/format";
+
+/** Log the raw database message for us, and send the person a translated slug. */
+function failed(where: string, message: string): never {
+  console.error(`[parts] ${where}`, message);
+  redirect("/parts?error=save-failed");
+}
 
 /**
  * The store (§6 inventory, 0450).
@@ -51,9 +58,7 @@ export async function trackPart(formData: FormData) {
 
   // The unique index is the guard against tracking the same part twice, a second attempt
   // is somebody pressing again, not an error worth a red screen.
-  if (error && !/duplicate key/i.test(error.message)) {
-    redirect(`/parts?error=${encodeURIComponent(error.message)}`);
-  }
+  if (error && !/duplicate key/i.test(error.message)) failed("trackPart", error.message);
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
 }
@@ -78,7 +83,7 @@ export async function updateStockItem(formData: FormData) {
     .select("id")
     .maybeSingle();
 
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("updateStockItem", error.message);
   if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
@@ -126,14 +131,70 @@ export async function recordMovement(formData: FormData) {
     // read as "this arrived for the tractor", which is a different claim than it looks.
     machine_id: kind === "issue" || kind === "return" ? machineId : null,
     job_card_id: kind === "issue" ? s(formData, "job_card_id") : null,
-    occurred_on: s(formData, "occurred_on") ?? new Date().toISOString().slice(0, 10),
+    // Today in SAST, not the server's UTC date: a delivery booked at 01:00 is today's.
+    occurred_on: s(formData, "occurred_on") ?? todayLocal(),
     note: s(formData, "note"),
     by_user: profile.id,
   });
 
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("recordMovement", error.message);
   revalidatePath("/parts");
   revalidatePath("/machines");
+  redirect("/parts?saved=1#store");
+}
+
+/**
+ * Book a whole delivery in one go: one receipt per part that has a quantity.
+ *
+ * The dialog posts every tracked part as `stock_item_id`, with its quantity and unit
+ * cost under `qty__<id>` and `unit_cost__<id>`. A blank quantity means "not in this
+ * delivery" and is skipped. A quantity that is there but is not a positive number
+ * refuses the whole delivery: booking five of six lines and quietly dropping the sixth
+ * leaves a count nobody can trust. Every id is checked against this farm in one read,
+ * and the receipts go in as one insert, so the 0450 rollup sees all of them or none.
+ */
+export async function receiveDelivery(formData: FormData) {
+  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
+
+  const ids = [...new Set(formData.getAll("stock_item_id").map(String).filter(Boolean))];
+  const lines: { id: string; qty: number; unitCost: number | null }[] = [];
+  for (const id of ids) {
+    if (String(formData.get(`qty__${id}`) ?? "").trim() === "") continue;
+    const qty = num(formData, `qty__${id}`);
+    if (qty == null || qty <= 0) redirect("/parts?error=stock-need-qty");
+    lines.push({ id, qty, unitCost: parseRandsToCents(String(formData.get(`unit_cost__${id}`) ?? "")) });
+  }
+  if (lines.length === 0) redirect("/parts?error=stock-need-qty");
+
+  const supabase = await createClient();
+  const { data: items } = await supabase
+    .from("stock_items")
+    .select("id")
+    .in("id", lines.map((l) => l.id))
+    .eq("farm_id", farmId)
+    .is("deleted_at", null);
+  const known = new Set(((items ?? []) as { id: string }[]).map((i) => i.id));
+  if (lines.some((l) => !known.has(l.id))) redirect("/parts?error=not-found");
+
+  const occurredOn = s(formData, "occurred_on") ?? todayLocal();
+  const note = s(formData, "note");
+  const { error } = await supabase.from("stock_movements").insert(
+    lines.map((l) => ({
+      farm_id: farmId,
+      stock_item_id: l.id,
+      kind: "receipt" satisfies MoveKind,
+      qty: l.qty,
+      unit_cost_cents: l.unitCost,
+      machine_id: null,
+      job_card_id: null,
+      occurred_on: occurredOn,
+      note,
+      by_user: profile.id,
+    })),
+  );
+
+  if (error) failed("receiveDelivery", error.message);
+  revalidatePath("/parts");
   redirect("/parts?saved=1#store");
 }
 
@@ -152,7 +213,7 @@ export async function untrackPart(formData: FormData) {
     .eq("farm_id", farmId)
     .select("id")
     .maybeSingle();
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("untrackPart", error.message);
   if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
@@ -168,7 +229,7 @@ export async function untrackPart(formData: FormData) {
  * on read so a mistyped 3000 is not quietly stored and then silently ignored.
  *
  * It lives on /parts rather than /settings because this is where the number is read: the
- * card states the window in words directly above the control that changes it.
+ * card states the window in words, and its "Change" dialog is the control that moves it.
  */
 export async function setReorderWindow(formData: FormData) {
   const { farmId, role } = await farmPermissionState();
@@ -186,7 +247,7 @@ export async function setReorderWindow(formData: FormData) {
     p_settings: { reorder_lookahead_days: days },
   });
 
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("setReorderWindow", error.message);
   revalidatePath("/parts");
   redirect("/parts?saved=1#next");
 }

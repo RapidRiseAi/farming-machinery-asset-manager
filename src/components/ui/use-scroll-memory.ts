@@ -58,10 +58,14 @@ export function useScrollMemory(
   key: string | undefined,
   options: {
     /**
-     * CSS selector for the element to bring into view when there is NOTHING
-     * remembered yet, i.e. the first load of a session. Used for the nav's
-     * `[aria-current="page"]`: arriving on /billing from an email link should not
+     * CSS selector for the element that must be in view after mounting. Used for the
+     * nav's `[aria-current="page"]`: arriving on /billing from an email link should not
      * show the top of a list whose active row is 600px below the fold.
+     *
+     * It is checked AFTER a remembered offset is restored, too. It used to run only
+     * when nothing was remembered, so a hard load onto /dashboard restored the offset
+     * left on /billing and opened with the active row (and its whole group) out of view.
+     * A restored offset that already shows the target is left exactly as it was.
      */
     reveal?: string;
   } = {},
@@ -75,9 +79,8 @@ export function useScrollMemory(
     const max = el.scrollHeight - el.clientHeight;
     if (max > 0) {
       const saved = read(key);
-      if (saved !== null) {
-        el.scrollTop = Math.min(saved, max);
-      } else if (reveal) {
+      if (saved !== null) el.scrollTop = Math.min(saved, max);
+      if (reveal) {
         const target = el.querySelector<HTMLElement>(reveal);
         if (target) {
           // Rect deltas, not `offsetTop`: `offsetTop` is measured from the nearest
@@ -86,7 +89,13 @@ export function useScrollMemory(
           const t = target.getBoundingClientRect();
           const c = el.getBoundingClientRect();
           const delta = t.top - c.top;
-          const hidden = delta < 0 || delta + t.height > el.clientHeight;
+          // A row sitting under a sticky group heading is covered, not visible, so the
+          // visible band starts below the tallest sticky heading (about 36px here).
+          let covered = 0;
+          for (const h of Array.from(el.querySelectorAll<HTMLElement>(".sticky"))) {
+            covered = Math.max(covered, h.getBoundingClientRect().height);
+          }
+          const hidden = delta < covered || delta + t.height > el.clientHeight;
           if (hidden) {
             const centred = el.scrollTop + delta - (el.clientHeight - t.height) / 2;
             el.scrollTop = Math.max(0, Math.min(centred, max));

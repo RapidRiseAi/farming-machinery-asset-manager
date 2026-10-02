@@ -17,7 +17,7 @@ import {
   budgetProgress, budgetTone, budgetPeriodLabel, budgetCategoryLabel,
   BUDGET_PERIODS, type Budget, type BudgetCostRow,
 } from "@/lib/budgets";
-import { computeConsumption, formatConsumption, activityLabel, FUEL_ACTIVITIES } from "@/lib/fuel";
+import { computeConsumption, formatConsumption, activityLabel, latestInterval, FUEL_ACTIVITIES } from "@/lib/fuel";
 import { addFuelIssue } from "@/app/(app)/fuel/actions";
 import { FuelTrend } from "@/components/fuel-trend";
 import { t } from "@/lib/i18n";
@@ -48,20 +48,25 @@ import { auditPlaceLabel, auditDevice, isHumanChange, type AuditRow } from "@/li
 import { createJobCard } from "@/app/(app)/jobcards/actions";
 import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
-import { StatusPill, Badge, type BadgeTone } from "@/components/ui/badge";
+import { Stat, StatGrid } from "@/components/ui/stat";
+import { Fact, FactList } from "@/components/ui/facts";
+import { Disclosure } from "@/components/ui/disclosure";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
+import { readTab } from "@/components/ui/tabs-url";
+import { cn } from "@/components/ui/cn";
+import { StatusPill, StatusBadge, Badge, type BadgeTone } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState, GetStarted } from "@/components/ui/empty-state";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { menuItemClass } from "@/components/ui/menu-item";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import {
-  ChevronLeftIcon,
   JobCardsIcon,
   FaultsIcon,
   MachinesIcon,
@@ -75,7 +80,10 @@ import {
   PinIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { meterReading, relativeDate } from "@/lib/format";
+import { daysAgo, meterReading, meterUnit, num, relativeDate, shortDate, todayLocal } from "@/lib/format";
+import { SETTING_NUMBERS } from "@/lib/settings";
+import { serviceDueText, worstServiceLine } from "./service-due";
+import { setMachineStatus } from "./status-actions";
 import { Tabs } from "@/components/ui/tabs";
 import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
 import { createWorkRequest } from "@/app/(app)/work/actions";
@@ -125,7 +133,9 @@ const savedMsg: Record<string, string> = {
   // machine and "Saved" would not tell anybody that.
   "meter-corrected": "machine.savedMeterCorrected",
   "meter-replaced": "machine.savedMeterReplaced",
-  reading: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
+  // Straight from the Add machine form.
+  created: "machines.created",
+  reading: "ui.saved", status: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
 };
 
 export default async function MachineDetailPage({
@@ -133,7 +143,7 @@ export default async function MachineDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string; tab?: string; from?: string }>;
 }) {
   // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
   const { profile, plan } = await currentPlan();
@@ -161,6 +171,10 @@ export default async function MachineDetailPage({
     : await effectiveFarmRole(machineBase.farm_id, profile);
   const canEdit = resourceRole === "owner" || resourceRole === "manager";
   const canAddReading = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
+  // The same rule /faults uses to offer this machine in its report dialog.
+  const canReportFault = resourceRole != null &&
+    (["rr_admin", "owner", "manager", "mechanic"].includes(resourceRole) ||
+      (resourceRole === "operator" && machineBase.assigned_operator_id === profile.id));
   const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop"].includes(resourceRole);
   const costsVisible = await canViewFarmCosts(supabase, machineBase.farm_id);
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
@@ -191,7 +205,7 @@ export default async function MachineDetailPage({
     }
   }
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes] = await Promise.all([
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes, dimsRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
@@ -217,7 +231,12 @@ export default async function MachineDetailPage({
     costsVisible
       ? supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").eq("machine_id", id).is("deleted_at", null).order("period_start", { ascending: false })
       : Promise.resolve({ data: [] }),
+    // The values the farm already uses, as the Edit dialog's suggestions (same as Add machine).
+    supabase.from("machines").select("cost_centre, department, location").eq("farm_id", machine.farm_id).is("deleted_at", null),
   ]);
+  const dims = (dimsRes.data as { cost_centre: string | null; department: string | null; location: string | null }[] | null) ?? [];
+  const distinctValues = (values: (string | null)[]) =>
+    [...new Set(values.map((v) => v?.trim() ?? "").filter((v) => v !== ""))].sort((a, b) => a.localeCompare(b));
 
   const readings = (readingsRes.data as Reading[] | null) ?? [];
   const jobCards = (jcRes.data as JobCard[] | null) ?? [];
@@ -239,7 +258,12 @@ export default async function MachineDetailPage({
 
   // Driver-on-date lookup (AARTO nomination basis, FR-13.1): usage on a chosen date.
   const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
-  const usageOnDate = usageDate ? usage.filter((u) => u.occurred_on === usageDate) : [];
+  // Asked of the database, not of the 20 rows the log below shows: a fine arrives weeks
+  // later, and "no usage recorded" for a date past that window was simply wrong.
+  const { data: usageDayData } = usageDate
+    ? await supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).eq("occurred_on", usageDate).is("deleted_at", null)
+    : { data: [] };
+  const usageOnDate = (usageDayData as Usage[] | null) ?? [];
   const driverLabel = (u: Usage) =>
     (u.driver_user_id ? operatorName.get(u.driver_user_id) : null) ?? u.driver_name ?? t("machine.unknownDriver", locale);
   const isOutOfService = machine.status === "out_of_service";
@@ -301,7 +325,7 @@ export default async function MachineDetailPage({
   // Capacity + threshold are farm-configurable (settings); downtime is reconstructed from
   // the audit-log status trail server-side (0361 rpc). Retired/sold machines are excluded
   // from fleet reports, but the per-machine detail still shows these for the asset itself.
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  const todayYmd = todayLocal();
   const winFrom = addDaysYmd(todayYmd, -UTILISATION_WINDOW_DAYS);
   const hoursPerDay = Number(farmSettings.utilisation_hours_per_day) || DEFAULT_HOURS_PER_DAY;
   const kmPerDay = Number(farmSettings.utilisation_km_per_day) || DEFAULT_KM_PER_DAY;
@@ -369,7 +393,7 @@ export default async function MachineDetailPage({
   );
 
   // Timeline (merge + sort desc).
-  type Ev = { date: string; kind: "jobcard" | "fault" | "reading" | "watch" | "checklist" | "work" | "audit"; title: string; sub: string; href?: string };
+  type Ev = { date: string; kind: "jobcard" | "fault" | "watch" | "checklist" | "work" | "audit"; title: string; sub: string; href?: string; count?: number };
   const events: Ev[] = [];
   for (const c of recordChanges) {
     // Who, when, and now where. The place is a signal a human reads, never evidence:
@@ -398,14 +422,7 @@ export default async function MachineDetailPage({
       kind: "fault",
       title: f.description ?? t("machine.evFault", locale),
       sub: `${f.urgency ? t(`urgency.${f.urgency}`, locale) : ""}${f.urgency ? " · " : ""}${t(`faultStatus.${f.status}`, locale)}`,
-      href: "/faults",
-    });
-  for (const r of readings.slice(0, 10))
-    events.push({
-      date: r.reading_date,
-      kind: "reading",
-      title: `${r.reading} ${machine.meter_type}`,
-      sub: r.source,
+      href: `/faults#fault-${f.id}`,
     });
   for (const w of watchAll)
     events.push({
@@ -443,8 +460,45 @@ export default async function MachineDetailPage({
   }
   events.sort((a, b) => b.date.localeCompare(a.date));
 
+  // Several record edits on one day are one thing to a reader ("changed 3 times"), not
+  // three identical rows. Only neighbouring audit rows on the same day fold together.
+  const timeline: Ev[] = [];
+  for (const e of events) {
+    const prev = timeline[timeline.length - 1];
+    if (e.kind === "audit" && prev?.kind === "audit" && prev.date === e.date) {
+      prev.count = (prev.count ?? 1) + 1;
+      prev.title = t("machine.evAuditMany", locale).replace("{n}", String(prev.count));
+      continue;
+    }
+    timeline.push({ ...e });
+  }
+  const TIMELINE_ROWS = 15;
+  const timelineRecent = timeline.slice(0, TIMELINE_ROWS);
+  const timelineOlder = timeline.slice(TIMELINE_ROWS);
+
   const evIcon = (k: Ev["kind"]) =>
-    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "reading" ? <MachinesIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : k === "audit" ? <PinIcon /> : <BellIcon />;
+    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : k === "audit" ? <PinIcon /> : <BellIcon />;
+  const renderEvent = (e: Ev, i: number) => {
+    const body = (
+      <div className="flex gap-3 py-2.5">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-base text-sand-500">
+          {evIcon(e.kind)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="truncate text-sm font-medium text-sand-900">{e.title}</span>
+            <span className="shrink-0 text-xs tabular-nums text-sand-500">{shortDate(e.date, locale)}</span>
+          </div>
+          {e.sub ? <p className="truncate text-sm text-sand-500">{e.sub}</p> : null}
+        </div>
+      </div>
+    );
+    return (
+      <li key={i} className="border-b border-sand-100 last:border-0">
+        {e.href ? <Link href={e.href} className="focus-ring block rounded-md">{body}</Link> : body}
+      </li>
+    );
+  };
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
@@ -464,92 +518,287 @@ export default async function MachineDetailPage({
   const statusBar: Record<string, string> = { ok: "bg-status-ok", due_soon: "bg-status-due", overdue: "bg-status-overdue" };
   const statusPillLabel = (s: string) => t(`ui.status${s === "due_soon" ? "DueSoon" : s === "overdue" ? "Overdue" : "Ok"}`, locale);
 
-  const staleCut = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const isStale = machine.meter_type !== "none" && (!machine.current_reading_date || machine.current_reading_date < staleCut);
+  const staleSetting = Number(farmSettings.stale_reading_days);
+  const staleDays = Number.isFinite(staleSetting) && staleSetting > 0
+    ? Math.round(staleSetting)
+    : SETTING_NUMBERS.stale_reading_days;
+  const isStale = machine.meter_type !== "none" &&
+    (!machine.current_reading_date || (daysAgo(machine.current_reading_date) ?? Number.POSITIVE_INFINITY) > staleDays);
   const urgencyTone = (u: string | null): BadgeTone => {
     const s = (u ?? "").toLowerCase();
     if (s.includes("stop")) return "danger";
     if (s.includes("limp")) return "warning";
     return "neutral";
   };
+  const isKm = machine.meter_type === "km";
+  const intervalUnit = isKm ? t("machine.kmShort", locale) : t("machine.hrs", locale);
+  const intervalLabel = isKm ? t("machine.intervalKm", locale) : t("machine.intervalHours", locale);
   const intervalText = (l: PlanLine) => {
     const parts: string[] = [];
-    if (l.interval_hours) parts.push(`${l.interval_hours}${t("machine.hrs", locale)}`);
-    if (l.interval_months) parts.push(`${l.interval_months}${t("machine.mo", locale)}`);
+    if (l.interval_hours) parts.push(`${num(l.interval_hours)} ${intervalUnit}`);
+    if (l.interval_months) parts.push(`${l.interval_months} ${t("machine.mo", locale)}`);
     return `${t("machine.every", locale)} ${parts.join(" / ")}`;
   };
+  const lastDoneText = (l: PlanLine) =>
+    [
+      l.last_done_reading != null ? meterReading(l.last_done_reading, machine.meter_type, locale) : null,
+      l.last_done_date ? shortDate(l.last_done_date, locale) : null,
+    ].filter(Boolean).join(" · ") || "-";
+  const dueTone: Record<string, string> = { overdue: "text-status-overdue", due_soon: "text-status-due" };
 
+  // Where a reading came from, in the reader's language (the column holds "manual").
+  const sourceLabel = (src: string) => {
+    const key = `meterSource.${src}`;
+    const label = t(key, locale);
+    return label === key ? src : label;
+  };
+  const readingText = (value: number | null | undefined) => meterReading(value, machine.meter_type, locale);
+
+  // The header's "Next service": the plan line that needs attention first.
+  const nextLine = worstServiceLine(planLines, machine.current_reading);
+  const nextLineText = nextLine ? serviceDueText(nextLine, machine.current_reading, machine.meter_type, locale) : null;
+
+  // The tab to open on: ?tab= from a save or a link, or History for a driver lookup.
+  const tabKeys = ["overview", "servicing", ...(costsVisible ? ["costs"] : []), "history", "papers"];
+  const initialTab = usageDate ? "history" : readTab(sp.tab, tabKeys);
+
+  // The number to beat (the server refuses a reading below it). `min` is also the base of
+  // the input's 0.1 step, so a reading stored with more decimals than that would make
+  // every whole number "invalid": only use it when it sits on the step.
+  const cr = machine.current_reading;
+  const readingMin = cr != null && Math.abs(cr * 10 - Math.round(cr * 10)) < 1e-6 ? Math.round(cr * 10) / 10 : 0;
+
+  // The meter-reading form: today in SA, and the operator logging their own shift.
+  const defaultDriver =
+    resourceRole === "operator" && operators.some((o) => o.id === profile.id)
+      ? profile.id
+      : machine.assigned_operator_id ?? "";
+
+  // One edit dialog, two doors: the header's More menu and the Details card.
+  const editMachineDialog = (look: "menuItem" | "button") => (
+    <DialogForm
+      triggerLook={look}
+      trigger={look === "menuItem" ? t("machine.editMachine", locale) : t("common.edit", locale)}
+      triggerVariant="secondary"
+      triggerSize="sm"
+      title={t("machine.editMachine", locale)}
+      description={machine.name}
+      closeLabel={closeLabel}
+    >
+      <form action={updateMachine} className="flex flex-col gap-4">
+        <input type="hidden" name="id" value={machine.id} />
+        {/* The Details card lives on Papers, so an edit made there returns to Papers. */}
+        {look === "button" ? <input type="hidden" name="return_tab" value="papers" /> : null}
+        {/* Above the fields: MachineFields ends in collapsed optional sections, and a
+            status below them was the one setting nobody found. */}
+        <Field label={t("machines.status", locale)} htmlFor="status">
+          <Select id="status" name="status" defaultValue={machine.status}>
+            {MACHINE_STATUSES.map((s) => (
+              <option key={s} value={s}>{statusLabel(s, locale)}</option>
+            ))}
+          </Select>
+        </Field>
+        <MachineFields
+          machine={machine}
+          operators={operators}
+          locale={locale}
+          costCentres={distinctValues(dims.map((d) => d.cost_centre))}
+          departments={distinctValues(dims.map((d) => d.department))}
+          locations={distinctValues(dims.map((d) => d.location))}
+        />
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
+
+  // The machine's own record, stated (it could only be read inside the edit form).
+  const details: { label: string; value: string }[] = [
+    { label: t("machines.regNo", locale), value: machine.reg_no ?? "" },
+    { label: t("machines.serialNo", locale), value: machine.serial_no ?? "" },
+    { label: t("machines.make", locale), value: machine.make ?? "" },
+    { label: t("machines.model", locale), value: machine.model ?? "" },
+    { label: t("machines.year", locale), value: machine.year ? String(machine.year) : "" },
+    { label: t("machines.purchaseDate", locale), value: machine.purchase_date ? shortDate(machine.purchase_date, locale) : "" },
+    { label: t("machines.supplier", locale), value: costsVisible ? machine.supplier ?? "" : "" },
+    { label: t("machine.purchasePrice", locale), value: costsVisible && machine.purchase_price_cents != null ? rands(machine.purchase_price_cents) : "" },
+    { label: t("machines.location", locale), value: machine.location ?? "" },
+    { label: t("machines.costCentre", locale), value: machine.cost_centre ?? "" },
+    { label: t("machines.department", locale), value: machine.department ?? "" },
+    { label: t("machines.assignedOperator", locale), value: assignedOperatorName ?? "" },
+    { label: t("machines.notes", locale), value: machine.notes ?? "" },
+  ].filter((d) => d.value !== "");
+
+
+  const typeTemplate = templates.find((tp) => tp.machine_type === machine.type) ?? null;
+  const applyTemplateDialog = templates.length > 0 ? (
+    <DialogForm
+      trigger={planLines.length === 0 && typeTemplate
+        ? t("machine.useTemplatePlan", locale).replace("{template}", typeTemplate.name)
+        : t("machine.applyTemplate", locale)}
+      triggerVariant="secondary"
+      triggerSize="sm"
+      title={t("machine.applyTemplate", locale)}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <form action={applyTemplate}>
+        <input type="hidden" name="machine_id" value={machine.id} />
+        <input type="hidden" name="farm_id" value={machine.farm_id} />
+        <DialogFields columns={1}>
+          <Field label={t("machine.template", locale)} htmlFor="sl-template" required>
+            <Select id="sl-template" name="template_id" required defaultValue={typeTemplate?.id ?? ""}>
+              <option value="" disabled>{t("machine.template", locale)}</option>
+              {templates.map((tp) => (
+                <option key={tp.id} value={tp.id}>{tp.name}</option>
+              ))}
+            </Select>
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("machine.apply", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
+  const addLineDialog = (
+    <DialogForm
+      trigger={t("machine.addServiceLine", locale)}
+      triggerIcon={<PlusIcon />}
+      triggerVariant="secondary"
+      triggerSize="sm"
+      title={t("machine.addServiceLine", locale)}
+      closeLabel={closeLabel}
+    >
+      <form action={addServiceLine}>
+        <input type="hidden" name="machine_id" value={machine.id} />
+        <input type="hidden" name="farm_id" value={machine.farm_id} />
+        <DialogFields>
+          <div className="sm:col-span-2">
+            <Field label={t("machine.task", locale)} htmlFor="sl-new-task" required>
+              <Input id="sl-new-task" name="task" required />
+            </Field>
+          </div>
+          <Field label={intervalLabel} htmlFor="sl-new-ih">
+            <Input id="sl-new-ih" name="interval_hours" type="number" step="0.1" min={0} />
+          </Field>
+          <Field label={t("machine.intervalMonths", locale)} htmlFor="sl-new-im">
+            <Input id="sl-new-im" name="interval_months" type="number" min={0} />
+          </Field>
+          <Field label={t("machine.lastDone", locale)} htmlFor="sl-new-lr">
+            <Input id="sl-new-lr" name="last_done_reading" type="number" step="0.1" min={0} />
+          </Field>
+          <Field label={t("machine.lastDoneDate", locale)} htmlFor="sl-new-ld">
+            <Input id="sl-new-ld" name="last_done_date" type="date" max={todayYmd} />
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/machines" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("machines.title", locale)}
-      </Link>
+    <PageContainer>
+      <PageHeader
+        back={{ href: backHref(sp.from, "/machines"), label: t("machines.title", locale) }}
+        title={machine.name}
+        badge={<MachineStatus value={machine.status} locale={locale} size="md" />}
+        meta={[
+          typeLabel(machine.type, locale),
+          machine.make ? `${machine.make} ${machine.model ?? ""}`.trim() : null,
+          machine.reg_no,
+          machine.year ? String(machine.year) : null,
+          machine.location,
+        ].filter(Boolean).join(" · ")}
+      />
 
       {/*
-        The header answers "what is this and what do I do with it" before any of the
-        twenty sections below. Photo, name, status, the two numbers that matter, and
-        the two things people actually came to do.
+        What the machine is doing, and the things people came here to do. On a phone this
+        was a 132px empty photo box, a three-line subtitle, two numbers, three buttons over
+        two rows and a separate out-of-service card, so the tabs began about 890px down.
+        Now: a small photo beside the numbers that matter (meter, cost, next service), one
+        action row, and everything else about the machine in its More menu.
       */}
-      <header className="flex flex-col gap-4 rounded-2xl border border-sand-200 bg-surface p-4 shadow-card sm:flex-row sm:items-start sm:gap-5">
-        {/* Above the fold and the subject of the page, so it loads eagerly -
-            lazy-loading the LCP image only delays it. */}
-        <Photo
-          src={primaryPhotoUrl}
-          alt={machine.name}
-          size="detail"
-          priority
-          className="h-[132px] w-[132px] shrink-0 self-start rounded-xl ring-1 ring-sand-200 sm:h-24 sm:w-24"
-          placeholder={<MachinesIcon className="text-4xl" />}
-        />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-ink">{machine.name}</h1>
-            <MachineStatus value={machine.status} locale={locale} size="md" />
+      <section aria-label={machine.name} className="rounded-2xl border border-sand-200 bg-surface p-4 shadow-card">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-5">
+            {/* Above the fold and the subject of the page, so it loads eagerly -
+                lazy-loading the LCP image only delays it. */}
+            <Photo
+              src={primaryPhotoUrl}
+              alt={machine.name}
+              size="detail"
+              priority
+              className="h-16 w-16 shrink-0 rounded-xl ring-1 ring-sand-200 sm:h-24 sm:w-24"
+              placeholder={<MachinesIcon className="text-2xl" />}
+            />
+            <div className="min-w-0 flex-1">
+              <dl className="flex flex-wrap gap-x-8 gap-y-3">
+                {machine.meter_type !== "none" ? (
+                  <div>
+                    <dt className="text-xs text-sand-500">{meterLabel(machine.meter_type, locale)}</dt>
+                    <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">
+                      {machine.current_reading != null ? readingText(machine.current_reading) : "-"}
+                    </dd>
+                    <dd className={`text-xs ${isStale ? "font-medium text-status-due" : "text-sand-500"}`}>
+                      {machine.current_reading_date
+                        ? t("machine.lastRead", locale).replace("{when}", relativeDate(machine.current_reading_date, locale))
+                        : t("machines.neverRead", locale)}
+                    </dd>
+                  </div>
+                ) : null}
+                {costsVisible && perMeter != null ? (
+                  <div>
+                    <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
+                    <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
+                  </div>
+                ) : null}
+                {/* The column people scan on the list; it was only on the Servicing tab. */}
+                {nextLine ? (
+                  <div className="min-w-0">
+                    <dt className="text-xs text-sand-500">{t("machines.nextService", locale)}</dt>
+                    <dd>
+                      <Link
+                        href={`/machines/${machine.id}?tab=servicing`}
+                        className="focus-ring -mx-1 inline-flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-1 sm:min-h-9"
+                      >
+                        <StatusPill status={nextLine.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(nextLine.status)} />
+                        <span className="min-w-0 break-words text-sm font-medium text-sand-900">{nextLine.task}</span>
+                      </Link>
+                    </dd>
+                    {nextLineText ? (
+                      <dd className={cn("text-xs", dueTone[nextLine.status] ?? "text-sand-500")}>{nextLineText}</dd>
+                    ) : null}
+                  </div>
+                ) : canEdit ? (
+                  <div>
+                    <dt className="text-xs text-sand-500">{t("machines.nextService", locale)}</dt>
+                    <dd className="mt-1">
+                      <Link
+                        href={`/machines/${machine.id}?tab=servicing`}
+                        className="focus-ring inline-flex min-h-12 items-center rounded-lg border border-dashed border-sand-300 px-3 text-sm font-medium text-sand-600 sm:min-h-9"
+                      >
+                        {t("machines.setUpPlan", locale)}
+                      </Link>
+                    </dd>
+                  </div>
+                ) : null}
+                {openFaultCount > 0 ? (
+                  <div>
+                    <dt className="text-xs text-sand-500">{t("machine.openFaults", locale)}</dt>
+                    <dd className="text-xl font-bold tabular-nums leading-tight text-status-overdue">{openFaultCount}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {/* The pill above already says "Out of service"; this says why and what next. */}
+              {isOutOfService ? (
+                <p className="mt-3 text-sm text-sand-700">{t("machine.outOfServiceHint", locale)}</p>
+              ) : null}
+            </div>
           </div>
-          <p className="mt-1 text-sm text-sand-500">
-            {[
-              typeLabel(machine.type, locale),
-              machine.make ? `${machine.make} ${machine.model ?? ""}`.trim() : null,
-              machine.year ? String(machine.year) : null,
-              machine.serial_no ? `${t("machines.serialNo", locale)} ${machine.serial_no}` : null,
-              machine.location,
-              machine.cost_centre,
-            ].filter(Boolean).join(" · ")}
-          </p>
-          {assignedOperatorName ? (
-            <p className="mt-1 text-sm text-sand-600">
-              {t("machines.assignedOperator", locale)}:{" "}
-              <span className="font-medium text-sand-800">{assignedOperatorName}</span>
-            </p>
-          ) : null}
-
-          {/* The two numbers, said properly, this printed "6412 hours (2026-07-27)". */}
-          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
-            {machine.meter_type !== "none" ? (
-              <div>
-                <dt className="text-xs text-sand-500">{meterLabel(machine.meter_type, locale)}</dt>
-                <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">
-                  {machine.current_reading != null
-                    ? meterReading(machine.current_reading, machine.meter_type, locale)
-                    : "-"}
-                </dd>
-                <dd className={`text-xs ${isStale ? "font-medium text-status-due" : "text-sand-500"}`}>
-                  {machine.current_reading_date
-                    ? t("machine.lastRead", locale).replace("{when}", relativeDate(machine.current_reading_date, locale))
-                    : t("machines.neverRead", locale)}
-                </dd>
-              </div>
-            ) : null}
-            {costsVisible && perMeter != null ? (
-              <div>
-                <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
-                <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
-              </div>
-            ) : null}
-          </dl>
 
           <div className="mt-4 flex flex-wrap gap-2">
             {canJob ? (
@@ -562,43 +811,69 @@ export default async function MachineDetailPage({
                 </SubmitButton>
               </form>
             ) : null}
-            <Link href={`/machines/${machine.id}/qr`} className={buttonVariants({ variant: "secondary" })}>
-              {t("machine.qrCode", locale)}
-            </Link>
-            {/* Was a hand-rolled dropdown: a `<details className="relative">` with an
-                absolutely positioned panel, which has no focus trap, no Escape, and
-                clips inside any scrolling ancestor. `ActionMenu` portals instead. */}
+            {isOutOfService && canEdit ? (
+              <form action={returnMachineToService}>
+                <input type="hidden" name="id" value={machine.id} />
+                <SubmitButton variant="secondary">{t("machine.returnToService", locale)}</SubmitButton>
+              </form>
+            ) : null}
+            {/* The machine's own actions, in one menu titled with the machine. "View all"
+                opened a one-item menu, while Edit machine was the last card on the fifth
+                tab and a status change meant the 26-field edit form. */}
             <ActionMenu
               title={machine.name}
-              label={t("common.actions", locale)}
+              label={t("nav.more", locale)}
               closeLabel={closeLabel}
-              trigger={t("ui.viewAll", locale)}
+              trigger={t("nav.more", locale)}
             >
+              {canEdit ? editMachineDialog("menuItem") : null}
+              {canEdit ? (
+                <DialogForm
+                  triggerLook="menuItem"
+                  trigger={t("machine.changeStatus", locale)}
+                  title={t("machine.changeStatus", locale)}
+                  description={machine.name}
+                  closeLabel={closeLabel}
+                  size="md"
+                >
+                  <form action={setMachineStatus}>
+                    <input type="hidden" name="id" value={machine.id} />
+                    <DialogFields columns={1}>
+                      <Field label={t("machines.status", locale)} htmlFor="ms-status" hint={t("machine.changeStatusHint", locale)}>
+                        <Select id="ms-status" name="status" defaultValue={machine.status}>
+                          {MACHINE_STATUSES.map((s) => (
+                            <option key={s} value={s}>{statusLabel(s, locale)}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </DialogFields>
+                    <DialogActions cancelLabel={cancelLabel}>
+                      <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              ) : null}
+              {canFill ? (
+                <Link href={`/machines/${machine.id}/checklists/new`} className={menuItemClass()}>
+                  {t("checklists.newChecklist", locale)}
+                </Link>
+              ) : null}
+              {canReportFault ? (
+                // Opens the report dialog on /faults with this machine already chosen.
+                <Link href={`/faults?report=1&machine=${machine.id}`} className={menuItemClass()}>
+                  {t("faults.report", locale)}
+                </Link>
+              ) : null}
+              <Link href={`/machines/${machine.id}/qr`} className={menuItemClass()}>
+                {t("machine.qrSticker", locale)}
+              </Link>
               <a href={`/machines/${machine.id}/file.pdf`} className={menuItemClass()}>
                 {t("machine.machineFile", locale)}
               </a>
             </ActionMenu>
           </div>
         </div>
-      </header>
-
-      {/* Out-of-service banner (active-but-down), owner/manager can revert. */}
-      {isOutOfService ? (
-        <Card className="border-status-overdue bg-callout-danger-bg">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="font-semibold text-status-overdue">{t("machine.outOfServiceTitle", locale)}</p>
-              <p className="mt-0.5 text-sm text-sand-700">{t("machine.outOfServiceHint", locale)}</p>
-            </div>
-            {canEdit ? (
-              <form action={returnMachineToService}>
-                <input type="hidden" name="id" value={machine.id} />
-                <SubmitButton variant="secondary" size="sm">{t("machine.returnToService", locale)}</SubmitButton>
-              </form>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
+      </section>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
@@ -609,31 +884,58 @@ export default async function MachineDetailPage({
         Every section still runs the same query and the same server actions.
       */}
       <Tabs
-        className="mt-1"
+        param="tab"
+        defaultTab={initialTab}
         tabs={[
             {
               key: "overview",
               label: t("machine.tabOverview", locale),
               content: (
                 <div className="flex flex-col gap-4">
+              {/* A machine with no plan yet: the two jobs that make it useful, until done. */}
+              {canEdit && planLines.length === 0 ? (
+                <GetStarted
+                  title={t("machine.setupTitle", locale)}
+                  hint={t("machine.setupHint", locale)}
+                  action={
+                    <Link href={`/machines/${machine.id}?tab=servicing`} className={buttonVariants({ variant: "primary" })}>
+                      {t("machine.setupPlanCta", locale)}
+                    </Link>
+                  }
+                  secondaryAction={
+                    <Link href={`/machines/${machine.id}/qr`} className={buttonVariants({ variant: "secondary" })}>
+                      {t("machine.setupQrCta", locale)}
+                    </Link>
+                  }
+                />
+              ) : null}
               {/* Meter history */}
               {machine.meter_type !== "none" ? (
                 <Card id="meter-reading" className="scroll-mt-24">
                   <CardHeader><CardTitle>{t("machine.meterHistory", locale)}</CardTitle></CardHeader>
-                  <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} />
+                  <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} locale={locale} />
                   {canAddReading ? (
                     <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
                       <input type="hidden" name="machine_id" value={machine.id} />
                       <input type="hidden" name="farm_id" value={machine.farm_id} />
-                      <Field label={t("machine.newReading", locale)} htmlFor="reading" className="flex-1">
-                        <Input id="reading" name="reading" type="number" inputMode="decimal" step="0.1" required />
+                      <Field
+                        label={`${t("machine.newReading", locale)} (${meterUnit(machine.meter_type, locale)})`}
+                        htmlFor="reading"
+                        className="w-full sm:w-64"
+                        hint={machine.current_reading != null
+                          ? t("machine.lastReadingHint", locale)
+                            .replace("{reading}", readingText(machine.current_reading))
+                            .replace("{date}", machine.current_reading_date ? shortDate(machine.current_reading_date, locale) : "-")
+                          : undefined}
+                      >
+                        <Input id="reading" name="reading" type="number" inputMode="decimal" step="0.1" min={readingMin} required />
                       </Field>
                       <Field label={t("machine.date", locale)} htmlFor="reading_date">
-                        <Input id="reading_date" name="reading_date" type="date" />
+                        <Input id="reading_date" name="reading_date" type="date" defaultValue={todayYmd} max={todayYmd} />
                       </Field>
                       {operators.length > 0 ? (
                         <Field label={t("machine.driver", locale)} htmlFor="driver_user_id">
-                          <Select id="driver_user_id" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
+                          <Select id="driver_user_id" name="driver_user_id" defaultValue={defaultDriver}>
                             <option value="">{t("machines.noOperator", locale)}</option>
                             {operators.map((op) => (
                               <option key={op.id} value={op.id}>{op.name}</option>
@@ -641,15 +943,17 @@ export default async function MachineDetailPage({
                           </Select>
                         </Field>
                       ) : null}
-                      <SubmitButton variant="primary">{t("machine.log", locale)}</SubmitButton>
+                      <SubmitButton variant="primary">
+                        {t(machine.meter_type === "km" ? "machines.logKm" : "machines.logHours", locale)}
+                      </SubmitButton>
                     </OfflineForm>
                   ) : null}
                   {readings.length > 0 ? (
                     <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
                       {readings.slice(0, 8).map((r) => (
-                        <li key={r.id} className="flex justify-between py-1.5">
-                          <span>{r.reading} {machine.meter_type}</span>
-                          <span className="text-sand-500">{r.reading_date} · {r.source}</span>
+                        <li key={r.id} className="flex flex-wrap justify-between gap-x-3 py-1.5">
+                          <span className="tabular-nums">{readingText(r.reading)}</span>
+                          <span className="text-sand-500">{shortDate(r.reading_date, locale)} · {sourceLabel(r.source)}</span>
                         </li>
                       ))}
                     </ul>
@@ -695,7 +999,7 @@ export default async function MachineDetailPage({
                                   </option>
                                   {readings.slice(0, 8).map((r) => (
                                     <option key={r.id} value={r.id}>
-                                      {r.reading} {machine.meter_type} · {r.reading_date} · {r.source}
+                                      {readingText(r.reading)} · {shortDate(r.reading_date, locale)} · {sourceLabel(r.source)}
                                     </option>
                                   ))}
                                 </Select>
@@ -734,7 +1038,7 @@ export default async function MachineDetailPage({
                               <Input id="new_reading" name="new_reading" type="number" inputMode="decimal" step="0.1" min={0} required />
                             </Field>
                             <Field label={t("machine.meterReplacedOn", locale)} htmlFor="replaced_on">
-                              <Input id="replaced_on" name="replaced_on" type="date" />
+                              <Input id="replaced_on" name="replaced_on" type="date" defaultValue={todayYmd} max={todayYmd} />
                             </Field>
                             <div className="sm:col-span-2">
                               <Field label={t("machine.meterReplacedNote", locale)} htmlFor="note">
@@ -793,100 +1097,118 @@ export default async function MachineDetailPage({
               {/* Fuel & consumption (F4), Professional+ (F5 entitlement gate) */}
               {fuelAllowed ? (
               <Card>
-                <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-sand-400">{t("machine.fuelConsumption", locale)}</p>
-                    <p className="text-2xl font-bold tabular-nums text-sand-900">
-                      {fuelConsumption.display != null ? formatConsumption(fuelConsumption, locale) : "-"}
-                    </p>
-                    {fuelConsumption.intervals > 0 ? (
-                      <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
-                    ) : (
-                      <p className="text-xs text-sand-400">{t("fuel.needMoreData", locale)}</p>
-                    )}
-                  </div>
-                  {fuelConsumption.trend.length > 1 ? (
-                    <div className="w-40">
-                      <FuelTrend trend={fuelConsumption.trend} unit={machine.meter_type === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)} title={t("fuel.trend", locale)} />
+                <CardHeader
+                  action={canFuel && fuelTanks.length > 0 ? (
+                    <DialogForm
+                      trigger={t("machine.logFuel", locale)}
+                      triggerIcon={<PlusIcon />}
+                      triggerVariant="secondary"
+                      triggerSize="sm"
+                      title={t("machine.logFuel", locale)}
+                      description={machine.name}
+                      closeLabel={closeLabel}
+                    >
+                      {/* Queueable: a diesel draw is captured at the bowser, which is where
+                          the signal is worst. Offline, OfflineForm queues it and says so
+                          inside this dialog. The form always names a machine, which is how
+                          the replay finds the farm; the farm-level draw on /fuel stays online. */}
+                      <OfflineForm action={addFuelIssue} type="log_fuel" scope="app" locale={locale}>
+                        <input type="hidden" name="machine_id" value={machine.id} />
+                        <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
+                        <DialogFields>
+                          <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
+                            <Select id="f_tank" name="tank_id" required defaultValue={fuelTanks[0]?.id ?? ""}>
+                              {fuelTanks.map((tk) => (
+                                <option key={tk.id} value={tk.id}>{tk.name}</option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label={t("fuel.litres", locale)} htmlFor="f_litres" required>
+                            <Input id="f_litres" name="litres" type="number" inputMode="decimal" step="0.1" min={0} required />
+                          </Field>
+                          {machine.meter_type !== "none" ? (
+                            <Field label={`${t("fuel.meter", locale)} (${meterUnit(machine.meter_type, locale)})`} htmlFor="f_meter">
+                              <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" defaultValue={machine.current_reading ?? ""} />
+                            </Field>
+                          ) : null}
+                          {costsVisible ? (
+                            <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
+                              <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" />
+                            </Field>
+                          ) : null}
+                          <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
+                            <Select id="f_activity" name="activity" defaultValue="">
+                              <option value="">-</option>
+                              {FUEL_ACTIVITIES.map((a) => (
+                                <option key={a} value={a}>{activityLabel(a, locale)}</option>
+                              ))}
+                            </Select>
+                          </Field>
+                          {operators.length > 0 ? (
+                            <Field label={t("fuel.driver", locale)} htmlFor="f_driver">
+                              <Select id="f_driver" name="driver_user_id" defaultValue={defaultDriver}>
+                                <option value="">{t("machines.noOperator", locale)}</option>
+                                {operators.map((op) => (
+                                  <option key={op.id} value={op.id}>{op.name}</option>
+                                ))}
+                              </Select>
+                            </Field>
+                          ) : null}
+                        </DialogFields>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
+                        </DialogActions>
+                      </OfflineForm>
+                    </DialogForm>
+                  ) : undefined}
+                >
+                  <CardTitle>{t("machine.fuelTitle", locale)}</CardTitle>
+                </CardHeader>
+                {fuelConsumption.display != null ? (
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-sand-500">{t("machine.fuelConsumption", locale)}</p>
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="text-2xl font-bold tabular-nums text-sand-900">{formatConsumption(fuelConsumption, locale)}</span>
+                        {/* The same rule as the sparkline's last bar, so the two never disagree. */}
+                        {latestInterval(fuelConsumption.trend)?.high ? (
+                          <StatusBadge tone="danger" shape="triangle" label={t("fuel.highLatest", locale)} />
+                        ) : null}
+                      </p>
+                      {fuelConsumption.intervals > 0 ? (
+                        <p className="text-xs text-sand-500">{t("machine.fuelIntervals", locale).replace("{n}", String(fuelConsumption.intervals))}</p>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-
-                {/* Queueable: a diesel draw is captured at the bowser, which is where the
-                    signal is worst. This form always names a machine, which is how the
-                    replay finds the farm, the farm-level draw on /fuel stays online. */}
-                {canFuel && fuelTanks.length > 0 ? (
-                  <OfflineForm
-                    action={addFuelIssue}
-                    type="log_fuel"
-                    scope="app"
-                    locale={locale}
-                    className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3"
-                  >
-                    <input type="hidden" name="machine_id" value={machine.id} />
-                    <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
-                    <Field label={t("fuel.tank", locale)} htmlFor="f_tank">
-                      <Select id="f_tank" name="tank_id" required defaultValue={fuelTanks[0]?.id ?? ""}>
-                        {fuelTanks.map((tk) => (
-                          <option key={tk.id} value={tk.id}>{tk.name}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label={t("fuel.litres", locale)} htmlFor="f_litres">
-                      <Input id="f_litres" name="litres" type="number" inputMode="decimal" step="0.1" required className="w-24" />
-                    </Field>
-                    {machine.meter_type !== "none" ? (
-                      <Field label={t("fuel.meter", locale)} htmlFor="f_meter">
-                        <Input id="f_meter" name="meter_reading" type="number" inputMode="decimal" step="0.1" className="w-28" defaultValue={machine.current_reading ?? ""} />
-                      </Field>
+                    {fuelConsumption.trend.length > 1 ? (
+                      <div className="w-40">
+                        <FuelTrend trend={fuelConsumption.trend} unit={machine.meter_type === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale)} title={t("fuel.trend", locale)} locale={locale} />
+                      </div>
                     ) : null}
-                    {costsVisible ? (
-                      <Field label={t("fuel.cost", locale)} htmlFor="f_cost">
-                        <Input id="f_cost" name="cost" inputMode="decimal" placeholder="R" className="w-24" />
-                      </Field>
-                    ) : null}
-                    <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
-                      <Select id="f_activity" name="activity" defaultValue="">
-                        <option value="">-</option>
-                        {FUEL_ACTIVITIES.map((a) => (
-                          <option key={a} value={a}>{activityLabel(a, locale)}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    {operators.length > 0 ? (
-                      <Field label={t("fuel.driver", locale)} htmlFor="f_driver">
-                        <Select id="f_driver" name="driver_user_id" defaultValue={machine.assigned_operator_id ?? ""}>
-                          <option value="">{t("machines.noOperator", locale)}</option>
-                          {operators.map((op) => (
-                            <option key={op.id} value={op.id}>{op.name}</option>
-                          ))}
-                        </Select>
-                      </Field>
-                    ) : null}
-                    <SubmitButton variant="primary">{t("machine.logFuel", locale)}</SubmitButton>
-                  </OfflineForm>
-                ) : null}
+                  </div>
+                ) : (
+                  // No bold "-" over the hint: until two metered draws exist there is no number.
+                  <p className="text-sm text-sand-500">{t("fuel.needMoreData", locale)}</p>
+                )}
 
                 {fuelDraws.length > 0 ? (
                   <ul className="mt-3 flex flex-col divide-y divide-sand-100 text-sm">
                     {fuelDraws.slice(0, 8).map((d) => (
                       <li key={d.id} className="flex items-center justify-between gap-2 py-1.5">
                         <span className="min-w-0 truncate">
-                          <span className="font-medium text-sand-800">{d.litres} {t("fuel.litresShort", locale)}</span>
+                          <span className="font-medium text-sand-800">{num(d.litres)} {t("fuel.litresShort", locale)}</span>
                           {d.activity ? <span className="text-sand-500"> · {activityLabel(d.activity, locale)}</span> : null}
-                          {d.meter_reading != null ? <span className="text-sand-400"> · {d.meter_reading} {machine.meter_type}</span> : null}
+                          {d.meter_reading != null ? <span className="text-sand-500"> · {readingText(d.meter_reading)}</span> : null}
                         </span>
-                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                          {costsVisible && d.cost_cents != null ? <span className="tabular-nums text-sand-500">{rands(d.cost_cents)}</span> : null}
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-500">
+                          {costsVisible && d.cost_cents != null ? <span className="tabular-nums">{rands(d.cost_cents)}</span> : null}
                           {d.anomaly_notified_at ? <Badge tone="danger">{t("fuel.flagged", locale)}</Badge> : null}
-                          <span className="tabular-nums">{d.date}</span>
+                          <span className="tabular-nums">{shortDate(d.date, locale)}</span>
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-sm text-sand-400">{t("machine.noFuel", locale)}</p>
+                  <p className="mt-3 text-sm text-sand-500">{t("machine.noFuel", locale)}</p>
                 )}
               </Card>
               ) : (
@@ -900,25 +1222,29 @@ export default async function MachineDetailPage({
               <Card>
                 <CardHeader><CardTitle>{t("machine.utilisationTitle", locale)}</CardTitle></CardHeader>
                 <p className="mb-2 text-xs text-sand-500">{t("machine.utilisationWindow", locale).replace("{n}", String(UTILISATION_WINDOW_DAYS))}</p>
-                <div className="grid grid-cols-2 gap-3">
+                <StatGrid columns={4}>
                   <Stat
+                    size="md"
                     label={t("machine.utilisation", locale)}
                     value={utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "-"}
                   />
                   <Stat
-                    label={machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}
-                    value={utilisation.used != null ? utilisation.used.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "-"}
+                    size="md"
+                    label={`${machine.meter_type === "km" ? t("machine.kmUsed", locale) : t("machine.hoursUsed", locale)}`}
+                    value={utilisation.used != null ? num(utilisation.used, isKm ? 0 : 1) : "-"}
                   />
                   <Stat
-                    label={t("machine.idle", locale)}
-                    value={utilisation.idle != null ? utilisation.idle.toLocaleString("en-ZA", { maximumFractionDigits: machine.meter_type === "km" ? 0 : 1 }) : "-"}
+                    size="md"
+                    label={`${t("machine.idle", locale)} (${isKm ? t("machine.kmShort", locale) : meterUnit("hours", locale)})`}
+                    value={utilisation.idle != null ? num(utilisation.idle, isKm ? 0 : 1) : "-"}
                   />
                   <Stat
+                    size="md"
                     label={t("machine.downtime", locale)}
-                    value={`${downtimeDays.toLocaleString("en-ZA", { maximumFractionDigits: 1 })} ${t("machine.daysShort", locale)}`}
+                    value={`${num(downtimeDays)} ${t("machine.daysShort", locale)}`}
                     tone={downtimeDays > 0 ? "overdue" : "default"}
                   />
-                </div>
+                </StatGrid>
                 {utilisation.pct != null ? (
                   <div className="mt-3">
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
@@ -966,166 +1292,139 @@ export default async function MachineDetailPage({
                   <p className="text-sm text-sand-500">{t("machine.noServiceLines", locale)}</p>
                 ) : (
                   <ul className="flex flex-col gap-3">
-                    {planLines.map((l) => (
-                      <li key={l.id} className="rounded-lg border border-sand-200 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium text-sand-900">{l.task}</p>
-                            <p className="text-xs text-sand-500">{intervalText(l)}</p>
+                    {planLines.map((l) => {
+                      // Worked out, so nobody subtracts 3 500 from 4 000 under an Overdue pill.
+                      const due = serviceDueText(l, machine.current_reading, machine.meter_type, locale);
+                      return (
+                        <li key={l.id} className="rounded-lg border border-sand-200 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sand-900">{l.task}</p>
+                              <p className="text-xs text-sand-500">{intervalText(l)}</p>
+                            </div>
+                            <StatusPill status={l.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(l.status)} />
                           </div>
-                          <StatusPill status={l.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(l.status)} />
-                        </div>
-                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
-                          <div className={`h-full rounded-full ${statusBar[l.status] ?? "bg-status-ok"}`} style={{ width: `${Math.round(lineProgress(l) * 100)}%` }} />
-                        </div>
-                        <div className="mt-1.5 flex justify-between text-xs text-sand-500">
-                          <span>{t("machine.lastDone", locale)}: {l.last_done_reading ?? "-"}{l.last_done_date ? ` · ${l.last_done_date}` : ""}</span>
-                          <span>{t("machine.nextDue", locale)}: {l.next_due_reading ?? "-"}{l.next_due_date ? ` · ${l.next_due_date}` : ""}</span>
-                        </div>
-                        {/*
-                          Edit and delete this service line, behind one button.
-
-                          The form was a `<details>` on every line, and its fields were
-                          bare `<input placeholder=...>` with no label at all: a
-                          placeholder is not a label, it disappears the moment you type,
-                          and a screen reader gets nothing. In the dialog they are
-                          `Field`s, so every box says what it is.
-                        */}
-                        {canEdit ? (
-                          <div className="mt-2 flex">
-                            <ActionMenu
-                              title={l.task}
-                              label={t("common.actions", locale)}
-                              closeLabel={closeLabel}
-                              trigger={t("machine.editServiceLine", locale)}
-                            >
-                              <DialogForm
-                                triggerLook="menuItem"
-                                trigger={t("machine.editServiceLine", locale)}
-                                title={t("machine.editServiceLine", locale)}
-                                description={l.task}
+                          {due ? (
+                            <p className={cn("mt-2 text-sm font-medium", dueTone[l.status] ?? "text-sand-800")}>{due}</p>
+                          ) : null}
+                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sand-100">
+                            <div className={`h-full rounded-full ${statusBar[l.status] ?? "bg-status-ok"}`} style={{ width: `${Math.round(lineProgress(l) * 100)}%` }} />
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                            <p className="min-w-0 text-xs text-sand-500">
+                              {t("machine.lastDone", locale)}: {lastDoneText(l)}
+                            </p>
+                            {/*
+                              Mark done, edit and delete, behind one labelled trigger on the
+                              line's last row (it was a full-width button on a row of its own).
+                              Mark done sends the task and intervals back unchanged, because
+                              updateServiceLine rewrites them from the form.
+                            */}
+                            {canEdit ? (
+                              <ActionMenu
+                                title={l.task}
+                                label={t("common.actions", locale)}
                                 closeLabel={closeLabel}
+                                trigger={t("common.actions", locale)}
                               >
-                                <form action={updateServiceLine}>
+                                <DialogForm
+                                  triggerLook="menuItem"
+                                  trigger={t("machine.markDone", locale)}
+                                  title={t("machine.markDone", locale)}
+                                  description={l.task}
+                                  closeLabel={closeLabel}
+                                  size="md"
+                                >
+                                  <form action={updateServiceLine}>
+                                    <input type="hidden" name="id" value={l.id} />
+                                    <input type="hidden" name="machine_id" value={machine.id} />
+                                    <input type="hidden" name="task" value={l.task} />
+                                    <input type="hidden" name="interval_hours" value={l.interval_hours ?? ""} />
+                                    <input type="hidden" name="interval_months" value={l.interval_months ?? ""} />
+                                    <DialogFields>
+                                      {machine.meter_type !== "none" ? (
+                                        <Field label={`${t("machine.doneAtReading", locale)} (${meterUnit(machine.meter_type, locale)})`} htmlFor={`sl-dr-${l.id}`}>
+                                          <Input id={`sl-dr-${l.id}`} name="last_done_reading" type="number" inputMode="decimal" step="0.1" min={0} defaultValue={machine.current_reading ?? ""} />
+                                        </Field>
+                                      ) : null}
+                                      <Field label={t("machine.lastDoneDate", locale)} htmlFor={`sl-dd-${l.id}`}>
+                                        <Input id={`sl-dd-${l.id}`} name="last_done_date" type="date" defaultValue={todayYmd} max={todayYmd} />
+                                      </Field>
+                                    </DialogFields>
+                                    <DialogActions cancelLabel={cancelLabel}>
+                                      <SubmitButton variant="primary">{t("machine.markDone", locale)}</SubmitButton>
+                                    </DialogActions>
+                                  </form>
+                                </DialogForm>
+
+                                <DialogForm
+                                  triggerLook="menuItem"
+                                  trigger={t("machine.editServiceLine", locale)}
+                                  title={t("machine.editServiceLine", locale)}
+                                  description={l.task}
+                                  closeLabel={closeLabel}
+                                >
+                                  <form action={updateServiceLine}>
+                                    <input type="hidden" name="id" value={l.id} />
+                                    <input type="hidden" name="machine_id" value={machine.id} />
+                                    <DialogFields>
+                                      <div className="sm:col-span-2">
+                                        <Field label={t("machine.task", locale)} htmlFor={`sl-task-${l.id}`} required>
+                                          <Input id={`sl-task-${l.id}`} name="task" defaultValue={l.task} required />
+                                        </Field>
+                                      </div>
+                                      <Field label={intervalLabel} htmlFor={`sl-ih-${l.id}`}>
+                                        <Input id={`sl-ih-${l.id}`} name="interval_hours" type="number" step="0.1" min={0} defaultValue={l.interval_hours ?? ""} />
+                                      </Field>
+                                      <Field label={t("machine.intervalMonths", locale)} htmlFor={`sl-im-${l.id}`}>
+                                        <Input id={`sl-im-${l.id}`} name="interval_months" type="number" min={0} defaultValue={l.interval_months ?? ""} />
+                                      </Field>
+                                      <Field label={t("machine.lastDone", locale)} htmlFor={`sl-lr-${l.id}`}>
+                                        <Input id={`sl-lr-${l.id}`} name="last_done_reading" type="number" step="0.1" min={0} defaultValue={l.last_done_reading ?? ""} />
+                                      </Field>
+                                      <Field label={t("machine.lastDoneDate", locale)} htmlFor={`sl-ld-${l.id}`}>
+                                        <Input id={`sl-ld-${l.id}`} name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} />
+                                      </Field>
+                                    </DialogFields>
+                                    <DialogActions cancelLabel={cancelLabel}>
+                                      <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                    </DialogActions>
+                                  </form>
+                                </DialogForm>
+
+                                <ConfirmDialog
+                                  action={deleteServiceLine}
+                                  triggerLook="menuItem"
+                                  triggerIcon={<TrashIcon />}
+                                  triggerLabel={t("machine.delete", locale)}
+                                  title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
+                                  intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
+                                  consequencesTitle={t("confirm.whatHappens", locale)}
+                                  consequences={[
+                                    t("confirm.deleteServiceLineEffect1", locale),
+                                    t("confirm.deleteServiceLineEffect2", locale),
+                                  ]}
+                                  footnote={t("confirm.softDeleteNote", locale)}
+                                  confirmLabel={t("confirm.deleteServiceLineYes", locale)}
+                                  cancelLabel={t("confirm.keepIt", locale)}
+                                  closeLabel={closeLabel}
+                                >
                                   <input type="hidden" name="id" value={l.id} />
                                   <input type="hidden" name="machine_id" value={machine.id} />
-                                  <DialogFields>
-                                    <div className="sm:col-span-2">
-                                      <Field label={t("machine.task", locale)} htmlFor={`sl-task-${l.id}`} required>
-                                        <Input id={`sl-task-${l.id}`} name="task" defaultValue={l.task} required />
-                                      </Field>
-                                    </div>
-                                    <Field label={t("machine.intervalHours", locale)} htmlFor={`sl-ih-${l.id}`}>
-                                      <Input id={`sl-ih-${l.id}`} name="interval_hours" type="number" step="0.1" defaultValue={l.interval_hours ?? ""} />
-                                    </Field>
-                                    <Field label={t("machine.intervalMonths", locale)} htmlFor={`sl-im-${l.id}`}>
-                                      <Input id={`sl-im-${l.id}`} name="interval_months" type="number" defaultValue={l.interval_months ?? ""} />
-                                    </Field>
-                                    <Field label={t("machine.lastDone", locale)} htmlFor={`sl-lr-${l.id}`}>
-                                      <Input id={`sl-lr-${l.id}`} name="last_done_reading" type="number" step="0.1" defaultValue={l.last_done_reading ?? ""} />
-                                    </Field>
-                                    <Field label={t("machine.lastDoneDate", locale)} htmlFor={`sl-ld-${l.id}`}>
-                                      <Input id={`sl-ld-${l.id}`} name="last_done_date" type="date" defaultValue={l.last_done_date ?? ""} />
-                                    </Field>
-                                  </DialogFields>
-                                  <DialogActions cancelLabel={cancelLabel}>
-                                    <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
-                                  </DialogActions>
-                                </form>
-                              </DialogForm>
-
-                              <ConfirmDialog
-                                action={deleteServiceLine}
-                                triggerLook="menuItem"
-                                triggerIcon={<TrashIcon />}
-                                triggerLabel={t("machine.delete", locale)}
-                                title={t("confirm.deleteServiceLineTitle", locale).replace("{task}", l.task)}
-                                intro={t("confirm.deleteServiceLineIntro", locale).replace("{machine}", machine.name)}
-                                consequencesTitle={t("confirm.whatHappens", locale)}
-                                consequences={[
-                                  t("confirm.deleteServiceLineEffect1", locale),
-                                  t("confirm.deleteServiceLineEffect2", locale),
-                                ]}
-                                footnote={t("confirm.softDeleteNote", locale)}
-                                confirmLabel={t("confirm.deleteServiceLineYes", locale)}
-                                cancelLabel={t("confirm.keepIt", locale)}
-                                closeLabel={closeLabel}
-                              >
-                                <input type="hidden" name="id" value={l.id} />
-                                <input type="hidden" name="machine_id" value={machine.id} />
-                              </ConfirmDialog>
-                            </ActionMenu>
+                                </ConfirmDialog>
+                              </ActionMenu>
+                            ) : null}
                           </div>
-                        ) : null}
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {canEdit ? (
+                  // An empty plan leads with the plan for this machine type.
                   <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand-100 pt-3">
-                    <DialogForm
-                      trigger={t("machine.addServiceLine", locale)}
-                      triggerIcon={<PlusIcon />}
-                      triggerSize="sm"
-                      title={t("machine.addServiceLine", locale)}
-                      closeLabel={closeLabel}
-                    >
-                      <form action={addServiceLine}>
-                        <input type="hidden" name="machine_id" value={machine.id} />
-                        <input type="hidden" name="farm_id" value={machine.farm_id} />
-                        <DialogFields>
-                          <div className="sm:col-span-2">
-                            <Field label={t("machine.task", locale)} htmlFor="sl-new-task" required>
-                              <Input id="sl-new-task" name="task" required />
-                            </Field>
-                          </div>
-                          <Field label={t("machine.intervalHours", locale)} htmlFor="sl-new-ih">
-                            <Input id="sl-new-ih" name="interval_hours" type="number" step="0.1" />
-                          </Field>
-                          <Field label={t("machine.intervalMonths", locale)} htmlFor="sl-new-im">
-                            <Input id="sl-new-im" name="interval_months" type="number" />
-                          </Field>
-                          <Field label={t("machine.lastDone", locale)} htmlFor="sl-new-lr">
-                            <Input id="sl-new-lr" name="last_done_reading" type="number" step="0.1" />
-                          </Field>
-                          <Field label={t("machine.lastDoneDate", locale)} htmlFor="sl-new-ld">
-                            <Input id="sl-new-ld" name="last_done_date" type="date" />
-                          </Field>
-                        </DialogFields>
-                        <DialogActions cancelLabel={cancelLabel}>
-                          <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
-                        </DialogActions>
-                      </form>
-                    </DialogForm>
-
-                    {templates.length > 0 ? (
-                      <DialogForm
-                        trigger={t("machine.applyTemplate", locale)}
-                        triggerVariant="secondary"
-                        triggerSize="sm"
-                        title={t("machine.applyTemplate", locale)}
-                        closeLabel={closeLabel}
-                        size="md"
-                      >
-                        <form action={applyTemplate}>
-                          <input type="hidden" name="machine_id" value={machine.id} />
-                          <input type="hidden" name="farm_id" value={machine.farm_id} />
-                          <DialogFields columns={1}>
-                            <Field label={t("machine.template", locale)} htmlFor="sl-template" required>
-                              <Select id="sl-template" name="template_id" required defaultValue="">
-                                <option value="" disabled>{t("machine.template", locale)}</option>
-                                {templates.map((tp) => (
-                                  <option key={tp.id} value={tp.id}>{tp.name}</option>
-                                ))}
-                              </Select>
-                            </Field>
-                          </DialogFields>
-                          <DialogActions cancelLabel={cancelLabel}>
-                            <SubmitButton variant="primary">{t("machine.apply", locale)}</SubmitButton>
-                          </DialogActions>
-                        </form>
-                      </DialogForm>
-                    ) : null}
+                    {planLines.length === 0 ? applyTemplateDialog : addLineDialog}
+                    {planLines.length === 0 ? addLineDialog : applyTemplateDialog}
                   </div>
                 ) : null}
               </Card>
@@ -1145,161 +1444,160 @@ export default async function MachineDetailPage({
                             <p className="font-medium text-sand-900">{kit.name}</p>
                             {kit.notes ? <p className="text-xs text-sand-500">{kit.notes}</p> : null}
                           </div>
+                          {/* One menu per kit and per part, like every other row on the page
+                              (they were loose red trash buttons and an Edit on a second line). */}
                           {canKit ? (
-                            <ConfirmDialog
-                              action={deleteServiceKit}
-                              triggerVariant="ghost"
-                              triggerSize="sm"
-                              triggerIcon={<TrashIcon />}
-                              triggerLabel={t("machine.deleteKit", locale)}
-                              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
-                              title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
-                              intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
-                              consequencesTitle={t("confirm.whatHappens", locale)}
-                              consequences={[
-                                t("confirm.deleteKitEffect1", locale).replace("{n}", String(kit.items.length)),
-                                t("confirm.deleteKitEffect2", locale),
-                              ]}
-                              footnote={t("confirm.softDeleteNote", locale)}
-                              confirmLabel={t("confirm.deleteKitYes", locale)}
-                              cancelLabel={t("confirm.keepIt", locale)}
-                              closeLabel={t("ui.close", locale)}
+                            <ActionMenu
+                              title={kit.name}
+                              label={t("common.actions", locale)}
+                              closeLabel={closeLabel}
+                              trigger={t("common.actions", locale)}
                             >
-                              <input type="hidden" name="id" value={kit.id} />
-                              <input type="hidden" name="machine_id" value={machine.id} />
-                            </ConfirmDialog>
+                              <DialogForm
+                                triggerLook="menuItem"
+                                trigger={t("machine.addKitItem", locale)}
+                                title={t("machine.addKitItem", locale)}
+                                description={kit.name}
+                                closeLabel={closeLabel}
+                              >
+                                <form action={addKitItem}>
+                                  <input type="hidden" name="machine_id" value={machine.id} />
+                                  <input type="hidden" name="farm_id" value={machine.farm_id} />
+                                  <input type="hidden" name="service_kit_id" value={kit.id} />
+                                  <DialogFields>
+                                    {catalogue.length > 0 ? (
+                                      <div className="sm:col-span-2">
+                                        <Field label={t("machine.kitFromCatalogue", locale)} htmlFor={`ka-cat-${kit.id}`}>
+                                          <Select id={`ka-cat-${kit.id}`} name="part_catalogue_id" defaultValue="">
+                                            <option value="">{t("machine.kitFromCatalogue", locale)}</option>
+                                            {catalogue.map((c) => (
+                                              <option key={c.id} value={c.id}>{c.part_no}{c.description ? `, ${c.description}` : ""}</option>
+                                            ))}
+                                          </Select>
+                                        </Field>
+                                      </div>
+                                    ) : null}
+                                    <Field label={t("machine.kitPartNo", locale)} htmlFor={`ka-no-${kit.id}`}>
+                                      <Input id={`ka-no-${kit.id}`} name="part_no" />
+                                    </Field>
+                                    <Field label={t("machine.kitQty", locale)} htmlFor={`ka-qty-${kit.id}`}>
+                                      <Input id={`ka-qty-${kit.id}`} name="qty" type="number" step="0.01" min={0} defaultValue="1" />
+                                    </Field>
+                                    <div className="sm:col-span-2">
+                                      <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ka-desc-${kit.id}`}>
+                                        <Input id={`ka-desc-${kit.id}`} name="description" />
+                                      </Field>
+                                    </div>
+                                    <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ka-cost-${kit.id}`}>
+                                      <Input id={`ka-cost-${kit.id}`} name="unit_cost" inputMode="decimal" placeholder="R" />
+                                    </Field>
+                                  </DialogFields>
+                                  <DialogActions cancelLabel={cancelLabel}>
+                                    <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
+                                  </DialogActions>
+                                </form>
+                              </DialogForm>
+                              <ConfirmDialog
+                                action={deleteServiceKit}
+                                triggerLook="menuItem"
+                                triggerIcon={<TrashIcon />}
+                                triggerLabel={t("machine.deleteKit", locale)}
+                                title={t("confirm.deleteKitTitle", locale).replace("{kit}", kit.name)}
+                                intro={t("confirm.deleteKitIntro", locale).replace("{machine}", machine.name)}
+                                consequencesTitle={t("confirm.whatHappens", locale)}
+                                consequences={[
+                                  t("confirm.deleteKitEffect1", locale).replace("{n}", String(kit.items.length)),
+                                  t("confirm.deleteKitEffect2", locale),
+                                ]}
+                                footnote={t("confirm.softDeleteNote", locale)}
+                                confirmLabel={t("confirm.deleteKitYes", locale)}
+                                cancelLabel={t("confirm.keepIt", locale)}
+                                closeLabel={closeLabel}
+                              >
+                                <input type="hidden" name="id" value={kit.id} />
+                                <input type="hidden" name="machine_id" value={machine.id} />
+                              </ConfirmDialog>
+                            </ActionMenu>
                           ) : null}
                         </div>
                         {kit.items.length === 0 ? (
-                          <p className="mt-2 text-xs text-sand-400">{t("machine.noKitItems", locale)}</p>
+                          <p className="mt-2 text-xs text-sand-500">{t("machine.noKitItems", locale)}</p>
                         ) : (
                           <ul className="mt-2 flex flex-col divide-y divide-sand-100 text-sm">
-                            {kit.items.map((item) => (
-                              <li key={item.id} className="py-1.5">
-                                <div className="flex items-center justify-between gap-2">
+                            {kit.items.map((item) => {
+                              const partName = item.part_no ?? item.description ?? "-";
+                              return (
+                                <li key={item.id} className="flex items-center justify-between gap-2 py-1.5">
                                   <span className="min-w-0 truncate">
-                                    <span className="font-medium text-sand-800">{item.part_no ?? item.description ?? "-"}</span>
+                                    <span className="font-medium text-sand-800">{partName}</span>
                                     {item.part_no && item.description ? <span className="text-sand-500"> · {item.description}</span> : null}
-                                    <span className="text-sand-400"> · {t("machine.qtyShort", locale)} {item.qty ?? 1}</span>
+                                    <span className="text-sand-500"> · {t("machine.qtyShort", locale)} {num(item.qty ?? 1, 2)}</span>
                                   </span>
                                   <span className="flex shrink-0 items-center gap-2">
                                     {costsVisible ? (
                                       <span className="tabular-nums text-sand-500">{item.unit_cost_cents != null ? rands(item.unit_cost_cents) : "-"}</span>
                                     ) : null}
                                     {canKit ? (
-                                      <ConfirmDialog
-                                        action={deleteKitItem}
-                                        triggerVariant="ghost"
-                                        triggerSize="sm"
-                                        triggerIcon={<TrashIcon />}
-                                        triggerLabel={t("machine.removeItem", locale)}
-                                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
-                                        title={t("confirm.deleteKitItemTitle", locale).replace(
-                                          "{part}",
-                                          item.part_no ?? item.description ?? "-",
-                                        )}
-                                        intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
-                                        confirmLabel={t("confirm.deleteKitItemYes", locale)}
-                                        cancelLabel={t("confirm.keepIt", locale)}
-                                        closeLabel={t("ui.close", locale)}
+                                      <ActionMenu
+                                        title={partName}
+                                        label={t("common.actions", locale)}
+                                        closeLabel={closeLabel}
+                                        trigger={t("common.edit", locale)}
                                       >
-                                        <input type="hidden" name="id" value={item.id} />
-                                        <input type="hidden" name="machine_id" value={machine.id} />
-                                      </ConfirmDialog>
+                                        <DialogForm
+                                          triggerLook="menuItem"
+                                          trigger={t("common.edit", locale)}
+                                          title={t("common.edit", locale)}
+                                          description={partName}
+                                          closeLabel={closeLabel}
+                                          size="md"
+                                        >
+                                          <form action={updateKitItem}>
+                                            <input type="hidden" name="id" value={item.id} />
+                                            <input type="hidden" name="machine_id" value={machine.id} />
+                                            <DialogFields>
+                                              <Field label={t("machine.kitPartNo", locale)} htmlFor={`ki-no-${item.id}`}>
+                                                <Input id={`ki-no-${item.id}`} name="part_no" defaultValue={item.part_no ?? ""} />
+                                              </Field>
+                                              <Field label={t("machine.kitQty", locale)} htmlFor={`ki-qty-${item.id}`}>
+                                                <Input id={`ki-qty-${item.id}`} name="qty" type="number" step="0.01" min={0} defaultValue={item.qty ?? 1} />
+                                              </Field>
+                                              <div className="sm:col-span-2">
+                                                <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ki-desc-${item.id}`}>
+                                                  <Input id={`ki-desc-${item.id}`} name="description" defaultValue={item.description ?? ""} />
+                                                </Field>
+                                              </div>
+                                              <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ki-cost-${item.id}`}>
+                                                <Input id={`ki-cost-${item.id}`} name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} />
+                                              </Field>
+                                            </DialogFields>
+                                            <DialogActions cancelLabel={cancelLabel}>
+                                              <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
+                                            </DialogActions>
+                                          </form>
+                                        </DialogForm>
+                                        <ConfirmDialog
+                                          action={deleteKitItem}
+                                          triggerLook="menuItem"
+                                          triggerIcon={<TrashIcon />}
+                                          triggerLabel={t("machine.removeItem", locale)}
+                                          title={t("confirm.deleteKitItemTitle", locale).replace("{part}", partName)}
+                                          intro={t("confirm.deleteKitItemIntro", locale).replace("{kit}", kit.name)}
+                                          confirmLabel={t("confirm.deleteKitItemYes", locale)}
+                                          cancelLabel={t("confirm.keepIt", locale)}
+                                          closeLabel={closeLabel}
+                                        >
+                                          <input type="hidden" name="id" value={item.id} />
+                                          <input type="hidden" name="machine_id" value={machine.id} />
+                                        </ConfirmDialog>
+                                      </ActionMenu>
                                     ) : null}
                                   </span>
-                                </div>
-                                {canKit ? (
-                                  <div className="mt-1 flex">
-                                    <DialogForm
-                                      trigger={t("common.edit", locale)}
-                                      triggerVariant="ghost"
-                                      triggerSize="sm"
-                                      title={t("common.edit", locale)}
-                                      description={item.part_no ?? item.description ?? undefined}
-                                      closeLabel={closeLabel}
-                                      size="md"
-                                    >
-                                      <form action={updateKitItem}>
-                                        <input type="hidden" name="id" value={item.id} />
-                                        <input type="hidden" name="machine_id" value={machine.id} />
-                                        <DialogFields>
-                                          <Field label={t("machine.kitPartNo", locale)} htmlFor={`ki-no-${item.id}`}>
-                                            <Input id={`ki-no-${item.id}`} name="part_no" defaultValue={item.part_no ?? ""} />
-                                          </Field>
-                                          <Field label={t("machine.kitQty", locale)} htmlFor={`ki-qty-${item.id}`}>
-                                            <Input id={`ki-qty-${item.id}`} name="qty" type="number" step="0.01" defaultValue={item.qty ?? 1} />
-                                          </Field>
-                                          <div className="sm:col-span-2">
-                                            <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ki-desc-${item.id}`}>
-                                              <Input id={`ki-desc-${item.id}`} name="description" defaultValue={item.description ?? ""} />
-                                            </Field>
-                                          </div>
-                                          <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ki-cost-${item.id}`}>
-                                            <Input id={`ki-cost-${item.id}`} name="unit_cost" inputMode="decimal" defaultValue={item.unit_cost_cents != null ? (item.unit_cost_cents / 100).toFixed(2) : ""} />
-                                          </Field>
-                                        </DialogFields>
-                                        <DialogActions cancelLabel={cancelLabel}>
-                                          <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
-                                        </DialogActions>
-                                      </form>
-                                    </DialogForm>
-                                  </div>
-                                ) : null}
-                              </li>
-                            ))}
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
-                        {canKit ? (
-                          <div className="mt-2 flex">
-                            <DialogForm
-                              trigger={t("machine.addKitItem", locale)}
-                              triggerIcon={<PlusIcon />}
-                              triggerVariant="secondary"
-                              triggerSize="sm"
-                              title={t("machine.addKitItem", locale)}
-                              description={kit.name}
-                              closeLabel={closeLabel}
-                            >
-                              <form action={addKitItem}>
-                                <input type="hidden" name="machine_id" value={machine.id} />
-                                <input type="hidden" name="farm_id" value={machine.farm_id} />
-                                <input type="hidden" name="service_kit_id" value={kit.id} />
-                                <DialogFields>
-                                  {catalogue.length > 0 ? (
-                                    <div className="sm:col-span-2">
-                                      <Field label={t("machine.kitFromCatalogue", locale)} htmlFor={`ka-cat-${kit.id}`}>
-                                        <Select id={`ka-cat-${kit.id}`} name="part_catalogue_id" defaultValue="">
-                                          <option value="">{t("machine.kitFromCatalogue", locale)}</option>
-                                          {catalogue.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.part_no}{c.description ? `, ${c.description}` : ""}</option>
-                                          ))}
-                                        </Select>
-                                      </Field>
-                                    </div>
-                                  ) : null}
-                                  <Field label={t("machine.kitPartNo", locale)} htmlFor={`ka-no-${kit.id}`}>
-                                    <Input id={`ka-no-${kit.id}`} name="part_no" />
-                                  </Field>
-                                  <Field label={t("machine.kitQty", locale)} htmlFor={`ka-qty-${kit.id}`}>
-                                    <Input id={`ka-qty-${kit.id}`} name="qty" type="number" step="0.01" defaultValue="1" />
-                                  </Field>
-                                  <div className="sm:col-span-2">
-                                    <Field label={t("machine.kitPartDesc", locale)} htmlFor={`ka-desc-${kit.id}`}>
-                                      <Input id={`ka-desc-${kit.id}`} name="description" />
-                                    </Field>
-                                  </div>
-                                  <Field label={t("machine.kitUnitCost", locale)} htmlFor={`ka-cost-${kit.id}`}>
-                                    <Input id={`ka-cost-${kit.id}`} name="unit_cost" inputMode="decimal" />
-                                  </Field>
-                                </DialogFields>
-                                <DialogActions cancelLabel={cancelLabel}>
-                                  <SubmitButton variant="primary">{t("common.add", locale)}</SubmitButton>
-                                </DialogActions>
-                              </form>
-                            </DialogForm>
-                          </div>
-                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -1309,6 +1607,7 @@ export default async function MachineDetailPage({
                     <DialogForm
                       trigger={t("machine.addServiceKit", locale)}
                       triggerIcon={<PlusIcon />}
+                      triggerVariant="secondary"
                       triggerSize="sm"
                       title={t("machine.addServiceKit", locale)}
                       closeLabel={closeLabel}
@@ -1345,15 +1644,14 @@ export default async function MachineDetailPage({
               {/* Lifetime stats */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
-                {/* The money tiles step down on a phone: a two-column tile is about 136px
-                    wide inside at 360px, and `rands` is one unbreakable token, so a
-                    machine that cost R1 500 000,00 would force the layout wider. */}
-                <div className="grid grid-cols-2 gap-3">
-                  <Stat label={t("machine.tco", locale)} value={rands(tco)} valueClassName="text-xl sm:text-3xl" />
-                  <Stat label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} valueClassName="text-xl sm:text-3xl" />
-                  <Stat label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} valueClassName="text-xl sm:text-3xl" />
-                  <Stat label={t("machine.jobCardCount", locale)} value={jobCards.length} />
-                  <Stat label={t("machine.openFaults", locale)} value={openFaultCount} tone={openFaultCount > 0 ? "overdue" : "default"} />
+                {/* Three money tiles, one per row on a phone: `rands` is one unbreakable
+                    token, so "R1 500 000,00" in a two-column tile at 360px forced the page
+                    wider. The two counts that sat here (job cards, open faults) are not
+                    costs: job cards are on History, open faults are in the header. */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Stat size="md" label={t("machine.tco", locale)} value={rands(tco)} valueClassName="text-xl" />
+                  <Stat size="md" label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} valueClassName="text-xl" />
+                  <Stat size="md" label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} valueClassName="text-xl" />
                 </div>
                 {tco > 0 ? (
                   <ul className="mt-3 flex flex-col divide-y divide-sand-100 border-t border-sand-100 pt-3 text-sm">
@@ -1390,23 +1688,23 @@ export default async function MachineDetailPage({
               {hasFinance ? (
                 <Card>
                   <CardHeader><CardTitle>{t("machine.finance", locale)}</CardTitle></CardHeader>
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <FactList>
                     {machine.finance_provider ? (
-                      <div className="col-span-2"><dt className="text-sand-500">{t("machines.financeProvider", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_provider}</dd></div>
+                      <Fact label={t("machines.financeProvider", locale)} value={machine.finance_provider} />
                     ) : null}
                     {machine.finance_total_cents != null ? (
-                      <div><dt className="text-sand-500">{t("machines.financeTotal", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_total_cents)}</dd></div>
+                      <Fact label={t("machines.financeTotal", locale)} value={rands(machine.finance_total_cents)} />
                     ) : null}
                     {machine.finance_monthly_cents != null ? (
-                      <div><dt className="text-sand-500">{t("machines.financeMonthly", locale)}</dt><dd className="font-medium text-sand-900">{rands(machine.finance_monthly_cents)}</dd></div>
+                      <Fact label={t("machines.financeMonthly", locale)} value={rands(machine.finance_monthly_cents)} />
                     ) : null}
                     {machine.finance_term_months != null ? (
-                      <div><dt className="text-sand-500">{t("machines.financeTerm", locale)}</dt><dd className="font-medium text-sand-900">{machine.finance_term_months}</dd></div>
+                      <Fact label={t("machines.financeTerm", locale)} value={num(machine.finance_term_months)} />
                     ) : null}
                     {machine.finance_interest_bps != null ? (
-                      <div><dt className="text-sand-500">{t("machines.financeInterest", locale)}</dt><dd className="font-medium text-sand-900">{(machine.finance_interest_bps / 100).toFixed(2)}%</dd></div>
+                      <Fact label={t("machines.financeInterest", locale)} value={`${num(machine.finance_interest_bps / 100, 2)}%`} />
                     ) : null}
-                  </dl>
+                  </FactList>
                 </Card>
               ) : null}
 
@@ -1426,7 +1724,11 @@ export default async function MachineDetailPage({
                               {budgetCategoryLabel(bp.budget.category, locale)}
                               <span className="text-sand-500"> · {budgetPeriodLabel(bp.budget.period_type, locale)}</span>
                             </p>
-                            <p className="text-xs tabular-nums text-sand-500">{bp.budget.period_start} → {bp.budget.period_end}</p>
+                            <p className="text-xs tabular-nums text-sand-500">
+                              {t("machine.periodRange", locale)
+                                .replace("{start}", shortDate(bp.budget.period_start, locale))
+                                .replace("{end}", shortDate(bp.budget.period_end, locale))}
+                            </p>
                             {bp.budget.note ? <p className="mt-0.5 text-xs text-sand-500">{bp.budget.note}</p> : null}
                           </div>
                           <Badge tone={budgetTone(bp.status)}>{bp.status === "over" ? t("budget.over", locale) : t("budget.under", locale)}</Badge>
@@ -1530,6 +1832,7 @@ export default async function MachineDetailPage({
                     <DialogForm
                       trigger={t("budget.add", locale)}
                       triggerIcon={<PlusIcon />}
+                      triggerVariant="secondary"
                       triggerSize="sm"
                       title={t("budget.add", locale)}
                       closeLabel={closeLabel}
@@ -1576,32 +1879,21 @@ export default async function MachineDetailPage({
               {/* Timeline */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
-                {events.length === 0 ? (
+                {timeline.length === 0 ? (
                   <EmptyState title={t("machine.noTimeline", locale)} />
                 ) : (
-                  <ol className="flex flex-col">
-                    {events.map((e, i) => {
-                      const body = (
-                        <div className="flex gap-3 py-2.5">
-                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-base text-sand-500">
-                            {evIcon(e.kind)}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="truncate text-sm font-medium text-sand-900">{e.title}</span>
-                              <span className="shrink-0 text-xs tabular-nums text-sand-400">{e.date}</span>
-                            </div>
-                            {e.sub ? <p className="truncate text-sm text-sand-500">{e.sub}</p> : null}
-                          </div>
-                        </div>
-                      );
-                      return (
-                        <li key={i} className="border-b border-sand-100 last:border-0">
-                          {e.href ? <Link href={e.href} className="focus-ring block rounded-md">{body}</Link> : body}
-                        </li>
-                      );
-                    })}
-                  </ol>
+                  <>
+                    <ol className="flex flex-col">{timelineRecent.map(renderEvent)}</ol>
+                    {timelineOlder.length > 0 ? (
+                      <Disclosure
+                        variant="inline"
+                        summary={t("machine.timelineOlder", locale).replace("{n}", String(timelineOlder.length))}
+                        className="mt-2"
+                      >
+                        <ol className="flex flex-col">{timelineOlder.map((e, i) => renderEvent(e, i + TIMELINE_ROWS))}</ol>
+                      </Disclosure>
+                    ) : null}
+                  </>
                 )}
               </Card>
 
@@ -1625,9 +1917,15 @@ export default async function MachineDetailPage({
                   <ul className="flex flex-col divide-y divide-sand-100 text-sm">
                     {jobCards.slice(0, 6).map((j) => (
                       <li key={j.id}>
-                        <Link href={`/jobcards/${j.id}`} className="focus-ring flex items-center justify-between rounded-md py-1.5">
-                          <span>{t(`jobType.${j.type}`, locale)}</span>
-                          {costsVisible ? <span className="text-sand-500">{rands(j.total_cents)}</span> : null}
+                        <Link href={`/jobcards/${j.id}`} className="focus-ring flex min-h-12 items-center justify-between gap-2 rounded-md py-1.5 sm:min-h-0">
+                          <span className="min-w-0 truncate">
+                            <span className="font-medium text-sand-800">{t(`jobType.${j.type}`, locale)}</span>
+                            <span className="text-sand-500"> · {t(`jobStatus.${j.status}`, locale)}</span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2 text-xs text-sand-500">
+                            {costsVisible ? <span className="tabular-nums">{rands(j.total_cents)}</span> : null}
+                            <span className="tabular-nums">{shortDate(j.date_out ?? j.created_at, locale)}</span>
+                          </span>
                         </Link>
                       </li>
                     ))}
@@ -1696,6 +1994,7 @@ export default async function MachineDetailPage({
                       <DialogForm
                         trigger={t("work.getSomethingDone", locale)}
                         triggerIcon={<PlusIcon />}
+                        triggerVariant="secondary"
                         triggerSize="sm"
                         title={t("work.getSomethingDone", locale)}
                         description={machine.name}
@@ -1759,23 +2058,40 @@ export default async function MachineDetailPage({
               <Card>
                 <CardHeader><CardTitle>{t("machine.whoOperated", locale)}</CardTitle></CardHeader>
 
-                {/* Driver-on-date lookup (the AARTO nomination question). */}
-                <form method="get" className="mb-3 flex flex-wrap items-end gap-2">
-                  <Field label={t("machine.driverOnDate", locale)} htmlFor="usageDate">
-                    <Input id="usageDate" name="usageDate" type="date" defaultValue={usageDate ?? ""} />
-                  </Field>
-                  <SubmitButton variant="secondary" size="sm">{t("machine.check", locale)}</SubmitButton>
-                </form>
+                {/* Driver-on-date lookup (the AARTO nomination question). A GET form, so it
+                    sits in a dialog rather than on the page at rest; it reloads onto this tab
+                    (tab=history) and the answer is stated below as a fact. */}
+                <div className="mb-3 flex">
+                  <DialogForm
+                    trigger={t("machine.whoWasDriving", locale)}
+                    triggerVariant="secondary"
+                    triggerSize="sm"
+                    title={t("machine.whoWasDriving", locale)}
+                    description={machine.name}
+                    closeLabel={closeLabel}
+                    size="md"
+                  >
+                    <form method="get">
+                      <input type="hidden" name="tab" value="history" />
+                      <DialogFields columns={1}>
+                        <Field label={t("machine.driverOnDate", locale)} htmlFor="usageDate">
+                          <Input id="usageDate" name="usageDate" type="date" defaultValue={usageDate ?? todayYmd} max={todayYmd} required />
+                        </Field>
+                      </DialogFields>
+                      <DialogActions cancelLabel={cancelLabel}>
+                        <Button type="submit" variant="primary">{t("machine.check", locale)}</Button>
+                      </DialogActions>
+                    </form>
+                  </DialogForm>
+                </div>
                 {usageDate ? (
-                  usageOnDate.length > 0 ? (
-                    <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-800">
-                      {t("machine.operatedBy", locale)}:{" "}
-                      <span className="font-medium">{usageOnDate.map(driverLabel).join(", ")}</span>
-                      <span className="text-sand-400"> · {usageDate}</span>
-                    </p>
-                  ) : (
-                    <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-500">{t("machine.noDriverOn", locale)}</p>
-                  )
+                  <FactList className="mb-3 rounded-lg bg-sand-50 px-3">
+                    <Fact
+                      label={t("machine.operatedOn", locale).replace("{date}", shortDate(usageDate, locale))}
+                      value={usageOnDate.length > 0 ? usageOnDate.map(driverLabel).join(", ") : t("machine.noDriverOn", locale)}
+                      muted={usageOnDate.length === 0}
+                    />
+                  </FactList>
                 ) : null}
 
                 {usage.length === 0 ? (
@@ -1785,10 +2101,10 @@ export default async function MachineDetailPage({
                     {usage.slice(0, 12).map((u) => (
                       <li key={u.id} className="flex items-center justify-between gap-3 py-1.5">
                         <span className="min-w-0 truncate font-medium text-sand-800">{driverLabel(u)}</span>
-                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-400">
-                          {u.meter_reading != null ? <span className="tabular-nums">{u.meter_reading} {machine.meter_type !== "none" ? machine.meter_type : ""}</span> : null}
-                          <span>{t(`meterSource.${u.source}`, locale)}</span>
-                          <span className="tabular-nums">{u.occurred_on}</span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-sand-500">
+                          {u.meter_reading != null ? <span className="tabular-nums">{readingText(u.meter_reading)}</span> : null}
+                          <span>{sourceLabel(u.source)}</span>
+                          <span className="tabular-nums">{shortDate(u.occurred_on, locale)}</span>
                         </span>
                       </li>
                     ))}
@@ -1822,12 +2138,12 @@ export default async function MachineDetailPage({
                                 </p>
                                 <p className="text-xs text-sand-500">
                                   {t("fines.driver", locale)}: {fineDriverLabel(f)}
-                                  {f.offence_date ? <span className="text-sand-400"> · {f.offence_date}</span> : null}
+                                  {f.offence_date ? <span className="text-sand-500"> · {shortDate(f.offence_date, locale)}</span> : null}
                                   {costsVisible && f.amount_cents != null ? <span className="tabular-nums"> · {rands(f.amount_cents)}</span> : null}
                                 </p>
                                 {f.nomination_deadline && nominationPending(f.status) ? (
                                   <p className="text-xs text-sand-500">
-                                    {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
+                                    {t("fines.deadline", locale)}: <span className="tabular-nums">{shortDate(f.nomination_deadline, locale)}</span>
                                     {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
                                   </p>
                                 ) : null}
@@ -1855,19 +2171,24 @@ export default async function MachineDetailPage({
               label: t("machine.tabPapers", locale),
               content: (
                 <div className="flex flex-col gap-4">
-              {/*
-                Audit / sale / warranty packs (FR-13.4), the papers, as one PDF.
-
-                This sat above the tabs, so it spent roughly 150px of phone screen on every
-                visit to every machine for a job a farmer does a few times a year, at an
-                audit, or a sale. "Papers & licence" is already the warranty-and-licences
-                tab, which is what the packs are made of, so it is where somebody looks.
-
-                Hidden from operators and contractors: `authorizeMachinePack` refuses both
-                with a 403 before any query, so for them the card was a button that always
-                failed. The route is still what refuses, this is presentation only.
-              */}
-              <DocumentPacks machineId={machine.id} locale={locale} role={resourceRole ?? profile.role} />
+              {/* The machine's own record, stated as facts. Reg no, purchase, supplier and
+                  notes could only be read inside the edit form's input boxes. */}
+              {details.length > 0 || canEdit ? (
+                <Card>
+                  <CardHeader action={canEdit ? editMachineDialog("button") : undefined}>
+                    <CardTitle>{t("machines.identityCard", locale)}</CardTitle>
+                  </CardHeader>
+                  {details.length > 0 ? (
+                    <FactList>
+                      {details.map((d) => (
+                        <Fact key={d.label} label={d.label} value={<span className="break-words">{d.value}</span>} />
+                      ))}
+                    </FactList>
+                  ) : (
+                    <p className="text-sm text-sand-500">{t("machine.noDetails", locale)}</p>
+                  )}
+                </Card>
+              ) : null}
 
               {/* Compliance, warranty + licences (F6) */}
               <Card>
@@ -1879,10 +2200,10 @@ export default async function MachineDetailPage({
                   {hasWarranty ? (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-sand-700">
                       {machine.warranty_expiry_date ? (
-                        <span>{t("compliance.warrantyDate", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_date}</span></span>
+                        <span>{t("compliance.warrantyDate", locale)}: <span className="font-medium tabular-nums text-sand-900">{shortDate(machine.warranty_expiry_date, locale)}</span></span>
                       ) : null}
                       {machine.warranty_expiry_hours != null ? (
-                        <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{machine.warranty_expiry_hours}{machine.meter_type === "hours" ? " h" : ""}</span></span>
+                        <span>{t("compliance.warrantyHours", locale)}: <span className="font-medium tabular-nums text-sand-900">{readingText(machine.warranty_expiry_hours)}</span></span>
                       ) : null}
                       <ExpiryStatus value={wStatus} locale={locale} />
                     </div>
@@ -1909,7 +2230,7 @@ export default async function MachineDetailPage({
                                   {l.number ? <span className="text-sand-500"> · {l.number}</span> : null}
                                 </p>
                                 <p className="text-xs text-sand-500">
-                                  {t("compliance.expires", locale)}: <span className="tabular-nums">{l.expiry_date}</span> · {t("compliance.leadDays", locale)}: {l.reminder_lead_days}
+                                  {t("compliance.expires", locale)}: <span className="tabular-nums">{shortDate(l.expiry_date, locale)}</span> · {t("compliance.leadDays", locale)}: {l.reminder_lead_days}
                                 </p>
                                 {l.notes ? <p className="mt-0.5 text-xs text-sand-500">{l.notes}</p> : null}
                               </div>
@@ -1996,6 +2317,7 @@ export default async function MachineDetailPage({
                       <DialogForm
                         trigger={t("compliance.addLicence", locale)}
                         triggerIcon={<PlusIcon />}
+                        triggerVariant="secondary"
                         triggerSize="sm"
                         title={t("compliance.addLicence", locale)}
                         closeLabel={closeLabel}
@@ -2034,43 +2356,24 @@ export default async function MachineDetailPage({
                 </div>
               </Card>
 
-              {/* Edit the machine's own identity. `MachineFields` is the same component the
-                  "new machine" screen uses, so this is the widest dialog on the page. */}
-              {canEdit ? (
-                <Card>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-sand-900">{t("machine.editMachine", locale)}</p>
-                    <DialogForm
-                      trigger={t("common.edit", locale)}
-                      triggerVariant="secondary"
-                      triggerSize="sm"
-                      title={t("machine.editMachine", locale)}
-                      description={machine.name}
-                      closeLabel={closeLabel}
-                    >
-                      <form action={updateMachine} className="flex flex-col gap-4">
-                        <input type="hidden" name="id" value={machine.id} />
-                        <MachineFields machine={machine} operators={operators} locale={locale} />
-                        <Field label={t("machines.status", locale)} htmlFor="status">
-                          <Select id="status" name="status" defaultValue={machine.status}>
-                            {MACHINE_STATUSES.map((s) => (
-                              <option key={s} value={s}>{statusLabel(s, locale)}</option>
-                            ))}
-                          </Select>
-                        </Field>
-                        <DialogActions cancelLabel={cancelLabel}>
-                          <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
-                        </DialogActions>
-                      </form>
-                    </DialogForm>
-                  </div>
-                </Card>
-              ) : null}
+              {/*
+                Audit / sale / warranty packs (FR-13.4), the papers, as one PDF.
+
+                This sat above the tabs, so it spent roughly 150px of phone screen on every
+                visit to every machine for a job a farmer does a few times a year, at an
+                audit, or a sale. "Papers & licence" is already the warranty-and-licences
+                tab, which is what the packs are made of, so it is where somebody looks.
+
+                Hidden from operators and contractors: `authorizeMachinePack` refuses both
+                with a 403 before any query, so for them the card was a button that always
+                failed. The route is still what refuses, this is presentation only.
+              */}
+              <DocumentPacks machineId={machine.id} locale={locale} role={resourceRole ?? profile.role} />
                 </div>
               ),
             },
         ]}
       />
-    </div>
+    </PageContainer>
   );
 }

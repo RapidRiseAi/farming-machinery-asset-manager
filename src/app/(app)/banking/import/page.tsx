@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { Flash } from "@/components/ui/flash";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { BankImportClient } from "@/components/banking/import-client";
 
 export const dynamic = "force-dynamic";
@@ -33,19 +33,12 @@ export default async function BankImportPage({
   const known = new Set(["empty", "missing_date", "missing_amount", "nothing_valid", "too_many"]);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("bank.importTitle", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("bank.importLead", locale)}</p>
-        </div>
-        <Link
-          href="/banking"
-          className="focus-ring ml-auto text-sm font-medium text-brand-ink underline underline-offset-2"
-        >
-          {t("bank.backToBanking", locale)}
-        </Link>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("bank.importTitle", locale)}
+        lead={t("bank.importLead", locale)}
+        back={{ href: "/banking", label: t("bank.title", locale) }}
+      />
 
       <Flash
         tone="error"
@@ -53,6 +46,6 @@ export default async function BankImportPage({
       />
 
       <BankImportClient locale={locale} />
-    </div>
+    </PageContainer>
   );
 }

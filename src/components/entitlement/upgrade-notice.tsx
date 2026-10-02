@@ -18,6 +18,7 @@ export function UpgradeNotice({
   currentPlan,
   locale,
   compact = false,
+  canUpgrade = false,
 }: {
   /** i18n key stem under `upgrade.feature.*` describing the locked capability. */
   feature: string;
@@ -27,6 +28,13 @@ export function UpgradeNotice({
   locale: Lang;
   /** Inline (within an allowed page) vs full-page treatment. */
   compact?: boolean;
+  /**
+   * The viewer can change the farm's plan themselves: the farm OWNER, the only role
+   * /billing serves. The notice then points at the plans instead of telling them to
+   * "ask your farm owner", who is themselves. Callers pass `canUpgrade={role === "owner"}`.
+   * Ignored on the partner side, whose upgrade is arranged with FleetWise.
+   */
+  canUpgrade?: boolean;
 }) {
   const featureName = t(`upgrade.feature.${feature}`, locale);
   // Farm plans and partner products name themselves under different i18n stems, and the
@@ -35,9 +43,14 @@ export function UpgradeNotice({
   const nameOf = (plan: Plan | WorkshopPlan) =>
     t(isWorkshopPlan(plan) ? workshopPlanNameKey(plan) : planNameKey(plan as Plan), locale);
   const partnerSide = isWorkshopPlan(requiredPlan);
+  const owner = canUpgrade && !partnerSide;
   const planName = nameOf(requiredPlan);
   const title = t("upgrade.title", locale).replace("{feature}", featureName);
-  const hint = t("upgrade.body", locale)
+  // Three readers, three sentences: the farm owner (who upgrades from Billing), a partner
+  // (no farm owner to ask, FleetWise arranges it), and anyone else on a farm (who asks
+  // the owner).
+  const bodyKey = owner ? "upgrade.bodyOwner" : partnerSide ? "upgrade.bodyPartner" : "upgrade.body";
+  const hint = t(bodyKey, locale)
     .replace("{feature}", featureName)
     .replace("{plan}", planName)
     .replace("{current}", currentPlan ? nameOf(currentPlan) : "-");
@@ -47,9 +60,30 @@ export function UpgradeNotice({
       <div className="rounded-xl border border-dashed border-sand-300 bg-sand-50/60 p-4 text-sm">
         <p className="font-semibold text-sand-900">{title}</p>
         <p className="mt-1 text-sand-500">{hint}</p>
+        {owner ? (
+          <Link
+            href="/billing"
+            className="mt-2 inline-flex min-h-[48px] items-center font-semibold text-brand-ink underline-offset-2 hover:underline sm:min-h-0"
+          >
+            {t("upgrade.seePlans", locale)}
+          </Link>
+        ) : null}
       </div>
     );
   }
+
+  // Send people back to their OWN home. A partner denied the books has no business being
+  // pointed at a farm's vehicle list, which is what the single hardcoded href did the
+  // moment this notice started serving both sides. Home is never the filled button: it
+  // is not what the notice is about, and for an owner the plans are.
+  const home = (
+    <Link
+      href={partnerSide ? "/contractor" : "/machines"}
+      className={buttonVariants({ variant: "secondary", size: "sm" })}
+    >
+      {t(partnerSide ? "upgrade.ctaPartner" : "upgrade.cta", locale)}
+    </Link>
+  );
 
   return (
     <EmptyState
@@ -57,15 +91,16 @@ export function UpgradeNotice({
       title={title}
       hint={hint}
       action={
-        // Send people back to their OWN home. A partner denied the books has no business
-        // being pointed at a farm's vehicle list, which is what the single hardcoded
-        // href did the moment this notice started serving both sides.
-        <Link
-          href={partnerSide ? "/contractor" : "/machines"}
-          className={buttonVariants({ variant: "primary", size: "sm" })}
-        >
-          {t("upgrade.cta", locale)}
-        </Link>
+        owner ? (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link href="/billing" className={buttonVariants({ variant: "primary", size: "sm" })}>
+              {t("upgrade.seePlans", locale)}
+            </Link>
+            {home}
+          </div>
+        ) : (
+          home
+        )
       }
     />
   );

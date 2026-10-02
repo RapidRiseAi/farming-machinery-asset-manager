@@ -10,7 +10,16 @@ import { PageInfo } from "./page-info";
  * check still covers them, an array or a numbered set would let one language quietly
  * carry a different number of points.
  */
-export function PageInfoButton({ infoKey, locale }: { infoKey: string; locale: Lang }) {
+export function PageInfoButton({
+  infoKey,
+  locale,
+  className,
+}: {
+  infoKey: string;
+  locale: Lang;
+  /** Placement only (margins). Prefer `PageHeader`'s `infoKey`, which places it for you. */
+  className?: string;
+}) {
   const note = t(`pageInfo.${infoKey}Note`, locale);
   return (
     <PageInfo
@@ -26,6 +35,7 @@ export function PageInfoButton({ infoKey, locale }: { infoKey: string; locale: L
       closeLabel={t("pageInfo.close", locale)}
       tourLabel={t("tour.restart", locale)}
       headingId={`info-${infoKey}`}
+      triggerClassName={className}
     />
   );
 }

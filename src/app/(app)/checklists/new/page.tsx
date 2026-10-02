@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { Card } from "@/components/ui/card";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ChecklistTemplateBuilder } from "@/components/checklists/template-builder";
 
 export default async function NewChecklistTemplatePage() {
@@ -11,18 +10,15 @@ export default async function NewChecklistTemplatePage() {
   const isGlobal = profile.role === "rr_admin";
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/checklists" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("checklists.title", locale)}
-      </Link>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("checklists.newTemplate", locale)}</h1>
-        <p className="mt-0.5 text-sm text-sand-500">{t("checklists.builderHint", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("checklists.newTemplate", locale)}
+        lead={t("checklists.builderHint", locale)}
+        back={{ href: "/checklists", label: t("checklists.title", locale) }}
+      />
       <Card>
         <ChecklistTemplateBuilder mode="create" locale={locale} isGlobal={isGlobal} />
       </Card>
-    </div>
+    </PageContainer>
   );
 }

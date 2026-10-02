@@ -1,202 +1,74 @@
-import { MACHINE_TYPES, METER_TYPES } from "@/lib/machine-options";
-import { t, type Locale, type Lang } from "@/lib/i18n";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import type { Lang } from "@/lib/i18n";
+import {
+  MachineFieldsForm,
+  type MachineFieldDefaults,
+  type MachineFieldOperator,
+} from "@/components/machine-fields-form";
 
-type Defaults = {
-  name?: string | null;
-  type?: string | null;
-  make?: string | null;
-  model?: string | null;
-  year?: number | null;
-  serial_no?: string | null;
-  reg_no?: string | null;
-  meter_type?: string | null;
-  current_reading?: number | null;
-  purchase_date?: string | null;
-  purchase_price_cents?: number | null;
-  supplier?: string | null;
-  warranty_expiry_date?: string | null;
-  warranty_expiry_hours?: number | null;
-  assigned_operator_id?: string | null;
-  location?: string | null;
-  cost_centre?: string | null;
-  department?: string | null;
-  notes?: string | null;
-  finance_provider?: string | null;
-  finance_total_cents?: number | null;
-  finance_monthly_cents?: number | null;
-  finance_term_months?: number | null;
-  finance_interest_bps?: number | null;
-};
+export type OperatorOption = MachineFieldOperator;
 
-export type OperatorOption = { id: string; name: string };
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-xs font-semibold uppercase tracking-wider text-sand-400">{children}</h3>;
-}
-
-/** Shared machine input fields for the create + edit forms, on the UI kit. */
+/**
+ * Shared machine input fields for the create page and the Edit dialog.
+ *
+ * Server-side on purpose. The form itself is a client component (the type drives the
+ * meter), and a client component's props are serialised into the page. A caller hands
+ * this the whole machine row, so only the fields the form edits are picked out here;
+ * the rest of the row never travels to the browser.
+ *
+ * `costCentres`, `departments` and `locations` are the values already in use on the
+ * farm, offered as suggestions so the list filters do not split on spelling.
+ */
 export function MachineFields({
   machine,
   operators,
   locale = "en",
+  costCentres,
+  departments,
+  locations,
 }: {
-  machine?: Defaults;
+  machine?: MachineFieldDefaults;
   operators?: OperatorOption[];
   locale?: Lang;
+  costCentres?: string[];
+  departments?: string[];
+  locations?: string[];
 }) {
-  const m = machine ?? {};
-  const price =
-    m.purchase_price_cents != null ? (m.purchase_price_cents / 100).toFixed(2) : "";
-  const financeTotal =
-    m.finance_total_cents != null ? (m.finance_total_cents / 100).toFixed(2) : "";
-  const financeMonthly =
-    m.finance_monthly_cents != null ? (m.finance_monthly_cents / 100).toFixed(2) : "";
+  const picked: MachineFieldDefaults | undefined = machine
+    ? {
+        name: machine.name,
+        type: machine.type,
+        make: machine.make,
+        model: machine.model,
+        year: machine.year,
+        serial_no: machine.serial_no,
+        reg_no: machine.reg_no,
+        meter_type: machine.meter_type,
+        current_reading: machine.current_reading,
+        purchase_date: machine.purchase_date,
+        purchase_price_cents: machine.purchase_price_cents,
+        supplier: machine.supplier,
+        warranty_expiry_date: machine.warranty_expiry_date,
+        warranty_expiry_hours: machine.warranty_expiry_hours,
+        assigned_operator_id: machine.assigned_operator_id,
+        location: machine.location,
+        cost_centre: machine.cost_centre,
+        department: machine.department,
+        notes: machine.notes,
+        finance_provider: machine.finance_provider,
+        finance_total_cents: machine.finance_total_cents,
+        finance_monthly_cents: machine.finance_monthly_cents,
+        finance_term_months: machine.finance_term_months,
+        finance_interest_bps: machine.finance_interest_bps,
+      }
+    : undefined;
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.identity", locale)}</SectionTitle>
-        <Field label={t("machines.name", locale)} htmlFor="name" required>
-          <Input id="name" name="name" required defaultValue={m.name ?? ""} />
-        </Field>
-        <Field label={t("machines.type", locale)} htmlFor="type">
-          <Select id="type" name="type" defaultValue={m.type ?? "tractor"}>
-            {MACHINE_TYPES.map((ty) => (
-              <option key={ty} value={ty}>
-                {t(`machineType.${ty}`, locale)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Field label={t("machines.make", locale)} htmlFor="make">
-            <Input id="make" name="make" defaultValue={m.make ?? ""} />
-          </Field>
-          <Field label={t("machines.model", locale)} htmlFor="model">
-            <Input id="model" name="model" defaultValue={m.model ?? ""} />
-          </Field>
-          <Field label={t("machines.year", locale)} htmlFor="year">
-            <Input id="year" name="year" type="number" inputMode="numeric" defaultValue={m.year ?? ""} />
-          </Field>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={t("machines.serialNo", locale)} htmlFor="serial_no">
-            <Input id="serial_no" name="serial_no" defaultValue={m.serial_no ?? ""} />
-          </Field>
-          <Field label={t("machines.regNo", locale)} htmlFor="reg_no">
-            <Input id="reg_no" name="reg_no" defaultValue={m.reg_no ?? ""} />
-          </Field>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.meter", locale)}</SectionTitle>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={t("machines.meterType", locale)} htmlFor="meter_type">
-            <Select id="meter_type" name="meter_type" defaultValue={m.meter_type ?? "hours"}>
-              {METER_TYPES.map((mt) => (
-                <option key={mt} value={mt}>
-                  {t(`meterType.${mt}`, locale)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("machines.currentReading", locale)} htmlFor="current_reading">
-            <Input
-              id="current_reading"
-              name="current_reading"
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              defaultValue={m.current_reading ?? ""}
-            />
-          </Field>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.purchase", locale)}</SectionTitle>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={t("machines.purchaseDate", locale)} htmlFor="purchase_date">
-            <Input id="purchase_date" name="purchase_date" type="date" defaultValue={m.purchase_date ?? ""} />
-          </Field>
-          <Field label={t("machines.purchasePrice", locale)} htmlFor="purchase_price">
-            <Input id="purchase_price" name="purchase_price" type="number" inputMode="decimal" step="0.01" defaultValue={price} />
-          </Field>
-          <Field label={t("machines.supplier", locale)} htmlFor="supplier">
-            <Input id="supplier" name="supplier" defaultValue={m.supplier ?? ""} />
-          </Field>
-          <Field label={t("machines.location", locale)} htmlFor="location">
-            <Input id="location" name="location" defaultValue={m.location ?? ""} />
-          </Field>
-          <Field label={t("machines.warrantyDate", locale)} htmlFor="warranty_expiry_date">
-            <Input id="warranty_expiry_date" name="warranty_expiry_date" type="date" defaultValue={m.warranty_expiry_date ?? ""} />
-          </Field>
-          <Field label={t("machines.warrantyHours", locale)} htmlFor="warranty_expiry_hours">
-            <Input id="warranty_expiry_hours" name="warranty_expiry_hours" type="number" inputMode="decimal" step="0.1" defaultValue={m.warranty_expiry_hours ?? ""} />
-          </Field>
-        </div>
-      </div>
-
-      {/* Grouping dimensions for filtering/reporting (FR-3.4). */}
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.grouping", locale)}</SectionTitle>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={t("machines.costCentre", locale)} htmlFor="cost_centre">
-            <Input id="cost_centre" name="cost_centre" defaultValue={m.cost_centre ?? ""} />
-          </Field>
-          <Field label={t("machines.department", locale)} htmlFor="department">
-            <Input id="department" name="department" defaultValue={m.department ?? ""} />
-          </Field>
-        </div>
-      </div>
-
-      {operators ? (
-        <div className="flex flex-col gap-3">
-          <SectionTitle>{t("machines.sections.operator", locale)}</SectionTitle>
-          <Field label={t("machines.assignedOperator", locale)} htmlFor="assigned_operator_id">
-            <Select id="assigned_operator_id" name="assigned_operator_id" defaultValue={m.assigned_operator_id ?? ""}>
-              <option value="">{t("machines.noOperator", locale)}</option>
-              {operators.map((op) => (
-                <option key={op.id} value={op.id}>
-                  {op.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.finance", locale)}</SectionTitle>
-        <Field label={t("machines.financeProvider", locale)} htmlFor="finance_provider">
-          <Input id="finance_provider" name="finance_provider" defaultValue={m.finance_provider ?? ""} />
-        </Field>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Field label={t("machines.financeTotal", locale)} htmlFor="finance_total">
-            <Input id="finance_total" name="finance_total" type="number" inputMode="decimal" step="0.01" defaultValue={financeTotal} />
-          </Field>
-          <Field label={t("machines.financeMonthly", locale)} htmlFor="finance_monthly">
-            <Input id="finance_monthly" name="finance_monthly" type="number" inputMode="decimal" step="0.01" defaultValue={financeMonthly} />
-          </Field>
-          <Field label={t("machines.financeTerm", locale)} htmlFor="finance_term_months">
-            <Input id="finance_term_months" name="finance_term_months" type="number" inputMode="numeric" defaultValue={m.finance_term_months ?? ""} />
-          </Field>
-          <Field label={t("machines.financeInterest", locale)} htmlFor="finance_interest_bps">
-            <Input id="finance_interest_bps" name="finance_interest_bps" type="number" inputMode="numeric" defaultValue={m.finance_interest_bps ?? ""} />
-          </Field>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <SectionTitle>{t("machines.sections.notes", locale)}</SectionTitle>
-        <Field label={t("machines.notes", locale)} htmlFor="notes">
-          <Textarea id="notes" name="notes" rows={3} defaultValue={m.notes ?? ""} />
-        </Field>
-      </div>
-    </div>
+    <MachineFieldsForm
+      machine={picked}
+      operators={operators?.map((o) => ({ id: o.id, name: o.name }))}
+      locale={locale}
+      costCentres={costCentres}
+      departments={departments}
+      locations={locations}
+    />
   );
 }

@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ImportClient } from "./import-client";
 
 export default async function ImportMachinesPage({
@@ -16,14 +15,13 @@ export default async function ImportMachinesPage({
   const sp = await searchParams;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Link href="/machines" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("machines.title", locale)}
-      </Link>
-      <h1 className="text-2xl font-bold tracking-tight text-ink">{t("machines.importTitle", locale)}</h1>
+    <PageContainer>
+      <PageHeader
+        title={t("machines.importTitle", locale)}
+        back={{ href: "/machines", label: t("nav.machines", locale) }}
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <ImportClient locale={locale} />
-    </div>
+    </PageContainer>
   );
 }

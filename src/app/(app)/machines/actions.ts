@@ -12,6 +12,8 @@ import {
 } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
+import { todayLocal } from "@/lib/format";
+import { readTab, withTab } from "@/components/ui/tabs-url";
 import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
 
 function str(fd: FormData, k: string): string | null {
@@ -41,6 +43,22 @@ function priceToCents(fd: FormData, k: string): number | null {
   const [whole, frac = ""] = cleaned.split(".");
   const cents = Number.parseInt(whole || "0", 10) * 100 + Number.parseInt((frac + "00").slice(0, 2), 10);
   return Number.isFinite(cents) ? cents : null;
+}
+
+/**
+ * An interest rate typed in percent ("11.75") to whole basis points (1175).
+ *
+ * The form asks in percent, as a bank quotes it, while the column keeps basis points so
+ * the finance-interest trigger and the read view are untouched. The posted field keeps
+ * its old name, `finance_interest_bps`. A decimal comma is accepted; anything that is
+ * not a rate between 0 and 100 percent is stored as no rate rather than as nonsense.
+ */
+function pctToBps(fd: FormData, k: string): number | null {
+  const v = str(fd, k);
+  if (v == null) return null;
+  const pct = Number(v.replace(",", "."));
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
+  return Math.round(pct * 100);
 }
 
 /** Validate that a chosen assigned-operator id is an active user of this farm.
@@ -106,7 +124,7 @@ function extraFields(fd: FormData) {
     finance_total_cents: priceToCents(fd, "finance_total"),
     finance_monthly_cents: priceToCents(fd, "finance_monthly"),
     finance_term_months: intOrNull(fd, "finance_term_months"),
-    finance_interest_bps: intOrNull(fd, "finance_interest_bps"),
+    finance_interest_bps: pctToBps(fd, "finance_interest_bps"),
   };
 }
 
@@ -123,7 +141,8 @@ export async function createMachine(formData: FormData) {
 
   const meterInput = String(formData.get("meter_type") ?? "hours");
   const meter_type = inList(METER_TYPES, meterInput) ? meterInput : "hours";
-  const current_reading = numOrNull(formData, "current_reading");
+  // A calendar-only machine has no reading, whatever a stale field may have posted.
+  const current_reading = meter_type === "none" ? null : numOrNull(formData, "current_reading");
 
   const supabase = await createClient();
 
@@ -153,7 +172,8 @@ export async function createMachine(formData: FormData) {
       reg_no: str(formData, "reg_no"),
       meter_type,
       current_reading,
-      current_reading_date: current_reading != null ? new Date().toISOString().slice(0, 10) : null,
+      // Today on the farm, not in UTC: before 02:00 SAST the two are different days.
+      current_reading_date: current_reading != null ? todayLocal() : null,
       status: "active",
       assigned_operator_id,
       ...extraFields(formData),
@@ -161,7 +181,8 @@ export async function createMachine(formData: FormData) {
     .select("id")
     .single();
 
-  if (error || !data) redirect(`/machines/new?error=${encodeURIComponent(error?.message ?? "Failed")}`);
+  // Never the raw database message: it is English prose a farmer cannot act on.
+  if (error || !data) redirect("/machines/new?error=save-failed");
 
   // Optional primary photo captured on the add form (compressed client-side to a
   // base64 data URL). Upload it, then mark it primary. A photo failure never blocks
@@ -178,7 +199,9 @@ export async function createMachine(formData: FormData) {
   }
 
   revalidatePath("/machines");
-  redirect(`/machines/${data.id}`);
+  // Land on the new machine with a confirmation, which the machine page maps from
+  // `saved=created`; it used to open on an empty Overview with no word that it worked.
+  redirect(`/machines/${data.id}?saved=created`);
 }
 
 export async function updateMachine(formData: FormData) {
@@ -224,10 +247,15 @@ export async function updateMachine(formData: FormData) {
     .eq("id", id)
     .eq("farm_id", farmId);
 
-  if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
+  // The Papers tab's Details card sends `return_tab`, so an edit made there lands back on
+  // Papers instead of Overview. The header's More menu sends none.
+  const tab = readTab(String(formData.get("return_tab") ?? ""), ["overview", "servicing", "costs", "history", "papers"]);
+  const landing = (query: string) => (tab ? withTab(`/machines/${id}?${query}`, tab) : `/machines/${id}?${query}`);
+
+  if (error) redirect(landing(`error=${encodeURIComponent(error.message)}`));
 
   revalidatePath(`/machines/${id}`);
-  redirect(`/machines/${id}?saved=1`);
+  redirect(landing("saved=1"));
 }
 
 /** Return an out-of-service machine to `active` (FR-7.5 revert). Owner/manager only;
@@ -344,7 +372,7 @@ export async function importMachines(formData: FormData) {
     redirect("/machines/import?error=vehicle-limit-import");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const supabase = importClient;
   const { error } = await supabase.from("machines").insert(
     valid.map((m) => ({

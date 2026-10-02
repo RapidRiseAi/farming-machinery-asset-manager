@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { withTab } from "@/components/ui/tabs-url";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { uploadChecklistPhotoDataUrl } from "@/lib/checklist-media";
@@ -127,12 +128,12 @@ export async function deleteChecklistInstance(formData: FormData) {
   const profile = await requireRole(FILL_CREW);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id || !machineId) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id || !machineId) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "history"));
   const supabase = await createClient();
   const now = new Date().toISOString();
   await supabase.from("checklist_instance_values").update({ deleted_at: now, deleted_by: profile.id }).eq("instance_id", id).is("deleted_at", null);
   const { error } = await supabase.from("checklist_instances").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "history"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=checklist`);
+  redirect(withTab(`/machines/${machineId}?saved=checklist`, "history"));
 }

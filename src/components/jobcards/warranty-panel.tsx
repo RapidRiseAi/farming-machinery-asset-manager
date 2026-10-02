@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { t, type Lang } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate } from "@/lib/format";
+import { num, shortDate } from "@/lib/format";
 import {
   WARRANTY_CLAIM_COLUMNS,
   WARRANTY_STATUSES,
@@ -20,6 +20,13 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Disclosure } from "@/components/ui/disclosure";
+import {
+  DialogActions,
+  DialogFields,
+  DialogForm,
+  DialogSection,
+} from "@/components/ui/dialog-form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 
@@ -81,30 +88,154 @@ export async function WarrantyPanel({
   const reasonKey = coverReasonKey(cover);
   const waiting = claim ? daysWaiting(claim) : null;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("warranty.title", locale)}</CardTitle>
-      </CardHeader>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
-        {cover?.on_date ? (
-          <span className="text-sm text-sand-600">
-            {t("warranty.coverOn", locale).replace("{date}", shortDate(cover.on_date, locale))}
-            {cover.meter_reading != null
-              ? ` ${t("warranty.coverAtReading", locale).replace("{reading}", String(cover.meter_reading))}`
-              : ""}
-          </span>
-        ) : null}
-      </div>
-
+  const verdictLine = (
+    <>
+      {cover?.on_date ? (
+        <p className="text-sm text-sand-600">
+          {t("warranty.coverOn", locale).replace("{date}", shortDate(cover.on_date, locale))}
+          {cover.meter_reading != null
+            ? ` ${t("warranty.coverAtReading", locale).replace("{reading}", num(cover.meter_reading))}`
+            : ""}
+        </p>
+      ) : null}
       {reasonKey ? (
         <p className="mt-1.5 text-sm text-sand-600">{t(reasonKey, locale)}</p>
       ) : null}
       {verdict === "unknown" ? (
         <p className="mt-1.5 text-sm text-sand-600">{t("warranty.unknownHint", locale)}</p>
       ) : null}
+    </>
+  );
+
+  const claimLabel = claim ? t("warranty.claimUpdate", locale) : t("warranty.claimStart", locale);
+
+  // The eight claim fields live in a dialog, not on the job card: the card states the
+  // claim, the button asks for a new or changed one. Always secondary, because the job
+  // card's lifecycle button is the page's one filled action.
+  const claimDialog = canManage ? (
+    <DialogForm
+      trigger={claimLabel}
+      triggerVariant="secondary"
+      triggerSize="sm"
+      title={claim?.supplier ?? t("warranty.claimTitle", locale)}
+      description={t("warranty.moneyNote", locale)}
+      closeLabel={t("ui.close", locale)}
+    >
+      <form action={claim ? updateWarrantyClaim : startWarrantyClaim}>
+        <input type="hidden" name="job_card_id" value={jobCardId} />
+        <input type="hidden" name="machine_id" value={machineId} />
+        {claim ? <input type="hidden" name="id" value={claim.id} /> : null}
+        {/* The verdict as it stood when the claim was raised, carried onto the row. */}
+        {!claim ? (
+          <>
+            <input type="hidden" name="covered_by_date" value={String(cover?.covered_by_date)} />
+            <input type="hidden" name="covered_by_hours" value={String(cover?.covered_by_hours)} />
+          </>
+        ) : null}
+
+        <DialogFields>
+          <Field
+            label={t("warranty.fieldSupplier", locale)}
+            htmlFor="wc-supplier"
+            hint={t("warranty.fieldSupplierHint", locale)}
+          >
+            <Input id="wc-supplier" name="supplier" maxLength={80} defaultValue={claim?.supplier ?? ""} />
+          </Field>
+          <Field label={t("warranty.fieldReference", locale)} htmlFor="wc-ref">
+            <Input id="wc-ref" name="reference" maxLength={40} defaultValue={claim?.reference ?? ""} />
+          </Field>
+          <Field label={t("warranty.fieldStatus", locale)} htmlFor="wc-status">
+            <Select id="wc-status" name="status" defaultValue={claim?.status ?? "draft"}>
+              {WARRANTY_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(claimLook(s).labelKey, locale)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("warranty.fieldSubmitted", locale)} htmlFor="wc-sent">
+            <Input
+              id="wc-sent"
+              name="submitted_on"
+              type="date"
+              defaultValue={claim?.submitted_on ?? ""}
+            />
+          </Field>
+          <Field label={t("warranty.fieldClaimed", locale)} htmlFor="wc-claimed">
+            <Input
+              id="wc-claimed"
+              name="claimed_ex_vat_cents"
+              inputMode="decimal"
+              defaultValue={
+                claim?.claimed_ex_vat_cents != null ? String(claim.claimed_ex_vat_cents / 100) : ""
+              }
+            />
+          </Field>
+          <Field label={t("warranty.fieldNotes", locale)} htmlFor="wc-notes">
+            <Input id="wc-notes" name="notes" maxLength={300} defaultValue={claim?.notes ?? ""} />
+          </Field>
+          {/* What the dealer answered. Open when it already holds an answer, so an
+              update never hides what the person came to change. */}
+          <DialogSection
+            title={t("warranty.sectionOutcome", locale)}
+            defaultOpen={claim?.recovered_ex_vat_cents != null || !!claim?.decided_on}
+          >
+            <Field label={t("warranty.fieldRecovered", locale)} htmlFor="wc-recovered">
+              <Input
+                id="wc-recovered"
+                name="recovered_ex_vat_cents"
+                inputMode="decimal"
+                defaultValue={
+                  claim?.recovered_ex_vat_cents != null
+                    ? String(claim.recovered_ex_vat_cents / 100)
+                    : ""
+                }
+              />
+            </Field>
+            <Field label={t("warranty.fieldDecided", locale)} htmlFor="wc-decided">
+              <Input
+                id="wc-decided"
+                name="decided_on"
+                type="date"
+                defaultValue={claim?.decided_on ?? ""}
+              />
+            </Field>
+          </DialogSection>
+        </DialogFields>
+        <DialogActions cancelLabel={t("common.cancel", locale)}>
+          <SubmitButton>{claimLabel}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
+
+  // Nothing claimed and the dates say no (or nobody recorded the warranty): one quiet
+  // row that opens to the reason, instead of a whole card on every repair.
+  if (!claim && verdict !== "covered") {
+    return (
+      <Disclosure
+        summary={
+          <span className="flex flex-wrap items-center gap-2">
+            {t("warranty.title", locale)}
+            <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+          </span>
+        }
+      >
+        {verdictLine}
+        <p className="mt-3 text-sm text-sand-600">{t("warranty.claimNone", locale)}</p>
+        {claimDialog ? <div className="mt-3">{claimDialog}</div> : null}
+      </Disclosure>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader action={claimDialog}>
+        <CardTitle>{t("warranty.title", locale)}</CardTitle>
+      </CardHeader>
+
+      <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+      <div className="mt-1.5">{verdictLine}</div>
 
       {/* The claim itself. Rendered whenever one exists, whatever the verdict says: a farm
           may well claim on a repair the dates call out of warranty, and win. */}
@@ -156,96 +287,6 @@ export async function WarrantyPanel({
         </p>
       )}
 
-      {canManage ? (
-        <form
-          action={claim ? updateWarrantyClaim : startWarrantyClaim}
-          className="mt-3 grid gap-3 sm:grid-cols-2"
-        >
-          <input type="hidden" name="job_card_id" value={jobCardId} />
-          <input type="hidden" name="machine_id" value={machineId} />
-          {claim ? <input type="hidden" name="id" value={claim.id} /> : null}
-          {/* The verdict as it stood when the claim was raised, carried onto the row. */}
-          {!claim ? (
-            <>
-              <input type="hidden" name="covered_by_date" value={String(cover?.covered_by_date)} />
-              <input type="hidden" name="covered_by_hours" value={String(cover?.covered_by_hours)} />
-            </>
-          ) : null}
-
-          <Field
-            label={t("warranty.fieldSupplier", locale)}
-            htmlFor="wc-supplier"
-            hint={t("warranty.fieldSupplierHint", locale)}
-          >
-            <Input id="wc-supplier" name="supplier" maxLength={80} defaultValue={claim?.supplier ?? ""} />
-          </Field>
-          <Field label={t("warranty.fieldReference", locale)} htmlFor="wc-ref">
-            <Input id="wc-ref" name="reference" maxLength={40} defaultValue={claim?.reference ?? ""} />
-          </Field>
-          <Field label={t("warranty.fieldStatus", locale)} htmlFor="wc-status">
-            <Select id="wc-status" name="status" defaultValue={claim?.status ?? "draft"}>
-              {WARRANTY_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {t(claimLook(s).labelKey, locale)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("warranty.fieldSubmitted", locale)} htmlFor="wc-sent">
-            <Input
-              id="wc-sent"
-              name="submitted_on"
-              type="date"
-              defaultValue={claim?.submitted_on ?? ""}
-            />
-          </Field>
-          <Field label={t("warranty.fieldClaimed", locale)} htmlFor="wc-claimed">
-            <Input
-              id="wc-claimed"
-              name="claimed_ex_vat_cents"
-              inputMode="decimal"
-              defaultValue={
-                claim?.claimed_ex_vat_cents != null ? String(claim.claimed_ex_vat_cents / 100) : ""
-              }
-            />
-          </Field>
-          <Field label={t("warranty.fieldRecovered", locale)} htmlFor="wc-recovered">
-            <Input
-              id="wc-recovered"
-              name="recovered_ex_vat_cents"
-              inputMode="decimal"
-              defaultValue={
-                claim?.recovered_ex_vat_cents != null
-                  ? String(claim.recovered_ex_vat_cents / 100)
-                  : ""
-              }
-            />
-          </Field>
-          <Field label={t("warranty.fieldDecided", locale)} htmlFor="wc-decided">
-            <Input
-              id="wc-decided"
-              name="decided_on"
-              type="date"
-              defaultValue={claim?.decided_on ?? ""}
-            />
-          </Field>
-          <Field label={t("warranty.fieldNotes", locale)} htmlFor="wc-notes">
-            <Input id="wc-notes" name="notes" maxLength={300} defaultValue={claim?.notes ?? ""} />
-          </Field>
-
-          <div className="sm:col-span-2">
-            <p className="mb-2 text-xs text-sand-500">{t("warranty.moneyNote", locale)}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <SubmitButton variant="primary">
-                {claim ? t("warranty.claimUpdate", locale) : t("warranty.claimStart", locale)}
-              </SubmitButton>
-            </div>
-          </div>
-        </form>
-      ) : null}
-
-      {/* Its own form, outside the one above: a nested form is invalid HTML and the
-          browser silently drops the inner one. */}
       {canManage && claim ? (
         <div className="mt-2">
           <ConfirmDialog

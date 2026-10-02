@@ -155,6 +155,19 @@ export const SearchIcon = (p: IconProps) => (
   </Svg>
 );
 
+/**
+ * Filters: three sliders. Deliberately not the magnifier, which belongs to search, so a
+ * search field and a Filters button side by side no longer carry the same glyph.
+ */
+export const FilterIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
+    <circle cx="15" cy="6" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </Svg>
+);
+
 export const CheckIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M5 12.5l4.5 4.5L19 7" />
@@ -196,6 +209,15 @@ export const PartsIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="3" />
     <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" />
+  </Svg>
+);
+
+/** Tyres: a tyre side-on, the rim inside and tread blocks round the outer edge. */
+export const TyreIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.64 5.64l1.76 1.76M16.6 16.6l1.76 1.76M18.36 5.64L16.6 7.4M7.4 16.6l-1.76 1.76" />
   </Svg>
 );
 
@@ -493,6 +515,7 @@ export const iconByName = {
   reports: ReportsIcon,
   fuel: FuelIcon,
   parts: PartsIcon,
+  tyre: TyreIcon,
   partners: PartnersIcon,
   checklists: ChecklistIcon,
   work: WorkIcon,
@@ -514,6 +537,7 @@ export const iconByName = {
   square: SquareIcon,
   download: DownloadIcon,
   search: SearchIcon,
+  filter: FilterIcon,
   check: CheckIcon,
   warning: WarningIcon,
   info: InfoIcon,

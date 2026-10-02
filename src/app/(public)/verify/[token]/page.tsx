@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { createServiceClient } from "@/lib/supabase/service";
 import { hashToken, VERIFY_MAX_AGE_HOURS } from "@/lib/email/verify";
-import { MachinesIcon } from "@/components/ui/icons";
+import { CheckIcon, WarningIcon } from "@/components/ui/icons";
+import { buttonVariants } from "@/components/ui/button";
+import { PublicShell } from "@/components/public-shell";
 
 /**
  * The link in the verification email.
@@ -49,23 +50,30 @@ export default async function VerifyPage({
   const good = outcome === "verified" || outcome === "already";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <MachinesIcon className="size-8 text-brand-ink" aria-hidden="true" />
-        <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
-      </div>
+    <PublicShell locale={locale}>
+      <div className="pt-4 sm:pt-10">
+        <div className="rounded-2xl border border-sand-200 bg-surface p-6 shadow-xs">
+          {/* Shape and word as well as colour: a tick for done, a warning for a link
+              that did not work. */}
+          <span
+            className={`flex size-10 items-center justify-center rounded-full text-xl ${
+              good ? "bg-brand-tint text-status-ok" : "bg-callout-warn-bg text-status-due"
+            }`}
+            aria-hidden="true"
+          >
+            {good ? <CheckIcon /> : <WarningIcon />}
+          </span>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink">{heading}</h1>
+          <p className="mt-2 text-sand-700">{body}</p>
 
-      <div className="rounded-2xl border border-sand-300 bg-surface p-6">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{heading}</h1>
-        <p className="mt-2 text-sand-700">{body}</p>
-
-        <Link
-          href={good ? "/home" : "/account"}
-          className="mt-6 flex min-h-12 w-full items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white sm:min-h-11"
-        >
-          {t(good ? "verify.continue" : "verify.getAnother", locale)}
-        </Link>
+          <Link
+            href={good ? "/home" : "/account"}
+            className={`mt-6 ${buttonVariants({ variant: "primary", size: "lg", fullWidth: true })}`}
+          >
+            {t(good ? "verify.continue" : "verify.getAnother", locale)}
+          </Link>
+        </div>
       </div>
-    </main>
+    </PublicShell>
   );
 }

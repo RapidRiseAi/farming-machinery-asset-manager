@@ -200,3 +200,33 @@ test("the number and boolean key sets do not overlap", () => {
   const booleans = Object.keys(SETTING_BOOLEANS);
   for (const b of booleans) assert.ok(!numbers.includes(b), `${b} is in both sets`);
 });
+
+test("a negative threshold is refused and the stored value kept", () => {
+  const merged = mergeSettings(
+    CONFIGURED,
+    form({
+      [OWNED_FIELD]: "due_soon_hours due_soon_days stale_reading_days",
+      due_soon_hours: "-5",
+      due_soon_days: "-1",
+      stale_reading_days: "0",
+    }),
+  );
+  assert.equal(merged.due_soon_hours, CONFIGURED.due_soon_hours);
+  assert.equal(merged.due_soon_days, CONFIGURED.due_soon_days);
+  // Zero is a real choice ("warn only once it is due"), not a typo.
+  assert.equal(merged.stale_reading_days, 0);
+});
+
+test("a quiet hour outside the clock is refused", () => {
+  const merged = mergeSettings(
+    CONFIGURED,
+    form({ [OWNED_FIELD]: "quiet_hours_start quiet_hours_end", quiet_hours_start: "24", quiet_hours_end: "-1" }),
+  );
+  assert.equal(merged.quiet_hours_start, CONFIGURED.quiet_hours_start);
+  assert.equal(merged.quiet_hours_end, CONFIGURED.quiet_hours_end);
+});
+
+test("a percentage that must be positive refuses zero", () => {
+  const merged = mergeSettings(CONFIGURED, form({ [OWNED_FIELD]: "fuel_anomaly_pct", fuel_anomaly_pct: "0" }));
+  assert.equal(merged.fuel_anomaly_pct, CONFIGURED.fuel_anomaly_pct);
+});

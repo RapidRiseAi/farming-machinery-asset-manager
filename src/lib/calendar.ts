@@ -161,7 +161,42 @@ export function itemHref(item: CalendarItem): string {
   }
 }
 
-/** How many of each state are in a month, for the three tiles above the grid. */
+/**
+ * The twelve months after `month`, for "Nothing this month. Next: ...".
+ *
+ * An empty month said only "Nothing on this month", which reads as "nothing is ever
+ * due" when the annual service is simply in November.
+ */
+export function lookaheadRange(month: string, months = 12): { from: string; to: string } {
+  return { from: monthRange(shiftMonth(month, 1)).from, to: monthRange(shiftMonth(month, months)).to };
+}
+
+/**
+ * The twelve months before `month`, for overdue work carried into the current month.
+ *
+ * `farm_calendar` answers for one range, so an overdue service dated in July never showed
+ * in September, and the page said "Overdue 0" beside a dashboard listing two.
+ */
+export function lookbackRange(month: string, months = 12): { from: string; to: string } {
+  return { from: monthRange(shiftMonth(month, -months)).from, to: monthRange(shiftMonth(month, -1)).to };
+}
+
+/** The soonest item, and on a tie the loudest. `null` for none. */
+export function firstUpcoming(items: readonly CalendarItem[]): CalendarItem | null {
+  let best: CalendarItem | null = null;
+  for (const i of items) {
+    if (
+      !best ||
+      i.on_date < best.on_date ||
+      (i.on_date === best.on_date && stateOrder(i.state) < stateOrder(best.state))
+    ) {
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** How many of each state are in a month, for the summary line above the grid. */
 export function monthTotals(items: readonly CalendarItem[]): {
   overdue: number;
   dueSoon: number;

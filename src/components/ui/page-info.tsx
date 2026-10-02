@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Overlay } from "./dialog";
 import { Button } from "./button";
 import { InfoIcon, CheckIcon } from "./icons";
+import { cn } from "./cn";
 
 export type PageInfoContent = {
   /** The screen's name, as the person would say it. */
@@ -23,8 +24,9 @@ export type PageInfoContent = {
  * work request is. Someone opening FleetWise for the first time, often the person who
  * did not choose it, had no way to ask what a screen was for without leaving it.
  *
- * A button beside the page title, not a tour step and not a tooltip: it is there when
- * they want it and invisible when they don't, and it costs nothing to ignore.
+ * A quiet button by the page title, not a tour step and not a tooltip: it is there when
+ * they want it and invisible when they don't, and it costs nothing to ignore. Render it
+ * through `PageHeader`'s `infoKey` so it lands in the same place on every screen.
  */
 export function PageInfo({
   content,
@@ -32,6 +34,7 @@ export function PageInfo({
   closeLabel,
   tourLabel,
   headingId = "page-info-title",
+  triggerClassName,
 }: {
   content: PageInfoContent;
   buttonLabel: string;
@@ -39,15 +42,27 @@ export function PageInfo({
   /** Re-entry to the walkthrough. Somewhere findable beats a one-time-only tour. */
   tourLabel?: string;
   headingId?: string;
+  /** Placement only (margins); `PageHeader` uses it to sit the trigger in its meta row. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
+      {/* Quiet, not a button-shaped button: no border and muted ink, so it reads as help
+          and never competes with the page's real actions (it used to wear the secondary
+          button's border and surface). Icon AND word, never icon-only: this project
+          forbids icon-only controls. It stays compact by WHERE it sits instead: in
+          `PageHeader` it lives on the line under the title, so it never takes width from
+          the h1 on a 360px phone. The 48px hit area stays. */}
       <button
         type="button"
+        aria-haspopup="dialog"
         onClick={() => setOpen(true)}
-        className="focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg border border-sand-200 bg-surface px-3 text-sm font-medium text-sand-600 hover:bg-sand-50 hover:text-sand-900 sm:min-h-[40px]"
+        className={cn(
+          "focus-ring inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-ink-muted hover:bg-sand-100 hover:text-ink sm:min-h-[40px]",
+          triggerClassName,
+        )}
       >
         <InfoIcon className="text-lg" />
         {buttonLabel}

@@ -3,37 +3,51 @@
 import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { rands, parseRandsToCents } from "@/lib/money";
-import { percentToBps } from "@/lib/format";
+import { percentToBps, shortDate, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES } from "@/lib/expenses";
 import { CADENCES, advanceByCadence, type Cadence } from "@/lib/recurring-expenses";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DialogForm, DialogFields, DialogSection, DialogActions } from "@/components/ui/dialog-form";
+import { PlusIcon } from "@/components/ui/icons";
 import { createExpenseSchedule } from "@/app/(app)/recurring-expenses/actions";
 
 /**
- * Setting up a standing cost.
+ * Setting up a standing cost (rent, insurance, a debit order), in a dialog.
  *
- * A client component for two reasons, both of them things that are impossible to see in a
- * static form and expensive to get wrong TWELVE TIMES rather than once:
+ * It used to sit open on `/recurring-expenses` above the list of schedules, so the
+ * screen opened on an empty form rather than on what is due. Now one button asks for it.
+ * What every schedule needs (name, supplier, amount, how often, from when) is up front;
+ * the VAT arithmetic and the optional extras are two collapsed groups.
  *
- *  1. The VAT split, shown live. A partner types R5 175,00 off the landlord's invoice and
- *     sees "R4 500,00 + R675,00 VAT" appear underneath before pressing anything. That is
- *     what stops the commonest capture error, the inclusive amount typed into an ex-VAT
- *     field, and on a schedule the error repeats every month until somebody notices.
- *  2. The next two dates. A schedule started on the 31st falls on the 28th in February and
- *     the 31st again in March; seeing both before saving is what stops a partner assuming
- *     it has drifted. The arithmetic is `advanceByCadence`, which mirrors
- *     `app.advance_by_cadence`, so this preview cannot disagree with the generator.
+ * A client component for two live previews: the ex-VAT/VAT split of the amount typed,
+ * and the next two dates the schedule will fall on, so "monthly from the 31st" shows what
+ * it means before it is saved. The fields live in `ScheduleFields`, inside the dialog, so
+ * they mount fresh each time it opens.
  */
 export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; vatRegistered: boolean }) {
+  return (
+    <DialogForm
+      trigger={t("recexp.addTitle", locale)}
+      triggerIcon={<PlusIcon />}
+      title={t("recexp.addTitle", locale)}
+      closeLabel={t("ui.close", locale)}
+      size="lg"
+    >
+      <ScheduleFields locale={locale} vatRegistered={vatRegistered} />
+    </DialogForm>
+  );
+}
+
+function ScheduleFields({ locale, vatRegistered }: { locale: Lang; vatRegistered: boolean }) {
   const [amount, setAmount] = useState("");
   const [inclusive, setInclusive] = useState(true);
   const [percent, setPercent] = useState(vatRegistered ? "15" : "0");
   const [vatOverride, setVatOverride] = useState("");
   const [cadence, setCadence] = useState<Cadence>("monthly");
-  const [start, setStart] = useState(new Date().toISOString().slice(0, 10));
+  const [start, setStart] = useState(todayLocal());
 
   const rateBps = percentToBps(percent) ?? 0;
   const typed = parseRandsToCents(amount) ?? 0;
@@ -47,23 +61,26 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
   const after = then ? advanceByCadence(then, cadence) : "";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("recexp.addTitle", locale)}</CardTitle>
-      </CardHeader>
-
-      <form action={createExpenseSchedule} className="flex flex-col gap-3">
+    <form action={createExpenseSchedule}>
+      <DialogFields>
         <TextField name="name" label={t("recexp.name", locale)} hint={t("recexp.nameHint", locale)} required />
+        <TextField
+          name="supplier_name"
+          label={t("recexp.supplier", locale)}
+          hint={t("recexp.supplierHint", locale)}
+          required
+        />
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextField
-            name="supplier_name"
-            label={t("recexp.supplier", locale)}
-            hint={t("recexp.supplierHint", locale)}
+        <Field label={t("recexp.amount", locale)} htmlFor="recexp_amount">
+          <Input
+            id="recexp_amount"
+            name="amount"
+            inputMode="decimal"
             required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
           />
-          <TextField name="reference" label={t("recexp.reference", locale)} hint={t("recexp.referenceHint", locale)} />
-        </div>
+        </Field>
 
         <SelectField name="category" label={t("recexp.category", locale)} defaultValue="rent">
           {EXPENSE_CATEGORIES.map((c) => (
@@ -73,17 +90,66 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
           ))}
         </SelectField>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={t("recexp.amount", locale)} htmlFor="recexp_amount">
-            <Input
-              id="recexp_amount"
-              name="amount"
-              inputMode="decimal"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </Field>
+        <div className="flex flex-col gap-2 sm:col-span-2">
+          <Checkbox
+            name="amount_incl_vat"
+            checked={inclusive}
+            onChange={(e) => setInclusive(e.target.checked)}
+            label={t("recexp.inclVat", locale)}
+          />
+          {typed > 0 ? (
+            <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700" aria-live="polite">
+              {t("recexp.splitPreview", locale)}{" "}
+              <span className="font-semibold tabular-nums text-sand-900">{rands(split.exCents)}</span>
+              {rateBps > 0 ? (
+                <>
+                  {" + "}
+                  <span className="font-semibold tabular-nums text-sand-900">{rands(vatCents)}</span>{" "}
+                  {t("recexp.splitVat", locale)}
+                </>
+              ) : null}
+              {" = "}
+              <span className="font-semibold tabular-nums text-sand-900">{rands(split.exCents + vatCents)}</span>
+            </p>
+          ) : null}
+        </div>
+
+        <SelectField
+          name="cadence"
+          label={t("recexp.howOften", locale)}
+          value={cadence}
+          onChange={(e) => setCadence(e.target.value as Cadence)}
+        >
+          {CADENCES.map((c) => (
+            <option key={c} value={c}>
+              {t(`cadence.${c}`, locale)}
+            </option>
+          ))}
+        </SelectField>
+        <TextField
+          name="next_due_date"
+          type="date"
+          label={t("recexp.firstOn", locale)}
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+        />
+
+        {then ? (
+          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700 sm:col-span-2" aria-live="polite">
+            {t("recexp.thenPreview", locale)} <span className="font-medium text-sand-900">{shortDate(then, locale)}</span>,{" "}
+            <span className="font-medium text-sand-900">{shortDate(after, locale)}</span>…
+          </p>
+        ) : null}
+
+        <div className="sm:col-span-2">
+          <Checkbox
+            name="auto_paid"
+            label={t("recexp.autoPaid", locale)}
+            hint={t("recexp.autoPaidHint", locale)}
+          />
+        </div>
+
+        <DialogSection title={t("expenses.vatDetail", locale)}>
           <Field label={t("recexp.vatPercent", locale)} htmlFor="recexp_vat_percent">
             <div className="relative">
               <Input
@@ -111,95 +177,40 @@ export function ExpenseScheduleForm({ locale, vatRegistered }: { locale: Lang; v
               onChange={(e) => setVatOverride(e.target.value)}
             />
           </Field>
-        </div>
+          {/* Not offered when the business is not registered for VAT: it can never reclaim
+              input VAT, so the question has one answer. The 0490 trigger forces it either
+              way; this stops the screen suggesting a choice exists. */}
+          <div className="sm:col-span-2">
+            {vatRegistered ? (
+              <Checkbox
+                name="vat_claimable"
+                defaultChecked
+                label={t("recexp.claimable", locale)}
+                hint={t("recexp.claimableHint", locale)}
+              />
+            ) : (
+              <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
+                {t("recexp.claimableNotRegistered", locale)}
+              </p>
+            )}
+          </div>
+          <div className="sm:col-span-2">
+            <TextField name="supplier_vat_number" label={t("recexp.supplierVat", locale)} hint={t("recexp.supplierVatHint", locale)} />
+          </div>
+        </DialogSection>
 
-        <label className="flex items-center gap-3 text-sm text-sand-700">
-          <input
-            type="checkbox"
-            name="amount_incl_vat"
-            className="h-5 w-5 rounded border-sand-300 text-brand-ink"
-            checked={inclusive}
-            onChange={(e) => setInclusive(e.target.checked)}
-          />
-          {t("recexp.inclVat", locale)}
-        </label>
-
-        {typed > 0 ? (
-          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700">
-            {t("recexp.splitPreview", locale)}{" "}
-            <span className="font-semibold tabular-nums text-sand-900">{rands(split.exCents)}</span>
-            {rateBps > 0 ? (
-              <>
-                {" + "}
-                <span className="font-semibold tabular-nums text-sand-900">{rands(vatCents)}</span>{" "}
-                {t("recexp.splitVat", locale)}
-              </>
-            ) : null}
-            {" = "}
-            <span className="font-semibold tabular-nums text-sand-900">{rands(split.exCents + vatCents)}</span>
-          </p>
-        ) : null}
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <SelectField
-            name="cadence"
-            label={t("recexp.howOften", locale)}
-            value={cadence}
-            onChange={(e) => setCadence(e.target.value as Cadence)}
-          >
-            {CADENCES.map((c) => (
-              <option key={c} value={c}>
-                {t(`cadence.${c}`, locale)}
-              </option>
-            ))}
-          </SelectField>
-          <TextField
-            name="next_due_date"
-            type="date"
-            label={t("recexp.firstOn", locale)}
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
+        <DialogSection title={t("expenses.moreDetail", locale)}>
+          <TextField name="reference" label={t("recexp.reference", locale)} hint={t("recexp.referenceHint", locale)} />
           <TextField name="ends_on" type="date" label={t("recexp.endsOn", locale)} hint={t("recexp.endsOnHint", locale)} />
-        </div>
+          <div className="sm:col-span-2">
+            <TextField name="description" label={t("recexp.description", locale)} hint={t("recexp.descriptionHint", locale)} />
+          </div>
+        </DialogSection>
+      </DialogFields>
 
-        {then ? (
-          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700">
-            {t("recexp.thenPreview", locale)} <span className="font-medium text-sand-900">{then}</span>,{" "}
-            <span className="font-medium text-sand-900">{after}</span>…
-          </p>
-        ) : null}
-
-        {/* Not offered when the business is not registered for VAT: it can never reclaim
-            input VAT, so the question has one answer. The 0490 trigger forces it either
-            way; this stops the screen suggesting a choice exists. */}
-        {vatRegistered ? (
-          <label className="flex items-start gap-3 text-sm text-sand-700">
-            <input type="checkbox" name="vat_claimable" defaultChecked className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink" />
-            <span>
-              {t("recexp.claimable", locale)}
-              <span className="block text-xs text-sand-500">{t("recexp.claimableHint", locale)}</span>
-            </span>
-          </label>
-        ) : (
-          <p className="rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
-            {t("recexp.claimableNotRegistered", locale)}
-          </p>
-        )}
-
-        <label className="flex items-start gap-3 text-sm text-sand-700">
-          <input type="checkbox" name="auto_paid" className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink" />
-          <span>
-            {t("recexp.autoPaid", locale)}
-            <span className="block text-xs text-sand-500">{t("recexp.autoPaidHint", locale)}</span>
-          </span>
-        </label>
-
-        <TextField name="supplier_vat_number" label={t("recexp.supplierVat", locale)} hint={t("recexp.supplierVatHint", locale)} />
-        <TextField name="description" label={t("recexp.description", locale)} hint={t("recexp.descriptionHint", locale)} />
-
-        <SubmitButton className="self-start">{t("recexp.save", locale)}</SubmitButton>
-      </form>
-    </Card>
+      <DialogActions cancelLabel={t("common.cancel", locale)}>
+        <SubmitButton>{t("recexp.save", locale)}</SubmitButton>
+      </DialogActions>
+    </form>
   );
 }

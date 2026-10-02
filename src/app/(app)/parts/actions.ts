@@ -19,6 +19,12 @@ async function requireCatalogueManager() {
   return { profile, farmId: state.farmId, isAdmin: false } as const;
 }
 
+/** Log the raw database message for us, and send the person a translated slug. */
+function failed(where: string, message: string): never {
+  console.error(`[parts] ${where}`, message);
+  redirect("/parts?error=save-failed");
+}
+
 function s(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
   return v === "" ? null : v;
@@ -53,7 +59,7 @@ export async function createPart(formData: FormData) {
     typical_cost_cents: costToExVat(formData),
     created_by: profile.id,
   });
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("createPart", error.message);
   revalidatePath("/parts");
   redirect("/parts?saved=1");
 }
@@ -79,7 +85,7 @@ export async function updatePart(formData: FormData) {
     .eq("id", id);
   query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
   const { data, error } = await query.select("id").maybeSingle();
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("updatePart", error.message);
   if (!data) redirect("/parts?error=Part+not+found");
   revalidatePath("/parts");
   redirect("/parts?saved=1");
@@ -96,7 +102,7 @@ export async function deletePart(formData: FormData) {
     .eq("id", id);
   query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
   const { data, error } = await query.select("id").maybeSingle();
-  if (error) redirect(`/parts?error=${encodeURIComponent(error.message)}`);
+  if (error) failed("deletePart", error.message);
   if (!data) redirect("/parts?error=Part+not+found");
   revalidatePath("/parts");
   redirect("/parts?saved=1");

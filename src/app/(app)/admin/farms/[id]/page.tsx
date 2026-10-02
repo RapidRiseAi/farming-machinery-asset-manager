@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
@@ -26,7 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon, PlusIcon } from "@/components/ui/icons";
+import { PlusIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Fact, FactList } from "@/components/ui/facts";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { dateTime, roleLabel } from "@/lib/format";
@@ -39,6 +39,7 @@ type Farm = {
   asset_count: number;
   status: string;
   created_at: string;
+  settings: Record<string, unknown> | null;
 };
 type FarmUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 type Access = {
@@ -61,9 +62,12 @@ export default async function FarmDetailPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at").eq("id", id).maybeSingle();
+  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at, settings").eq("id", id).maybeSingle();
   const farm = farmData as Farm | null;
   if (!farm) notFound();
+  // The farm's own "language for new people" (/settings), read as /team and
+  // lib/settings.ts read it: anything but "en" is Afrikaans.
+  const inviteLanguage = farm.settings?.default_language === "en" ? "en" : "af";
 
   // Pricing figures are DISPLAY ONLY (VAT-inclusive), no charge is made (payments deferred).
   const farmPlan = farm.plan as Plan;
@@ -82,24 +86,19 @@ export default async function FarmDetailPage({
   const adminName = Object.fromEntries(((adminUsers as { id: string; name: string }[] | null) ?? []).map((u) => [u.id, u.name]));
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <Link href="/admin/farms" className="focus-ring inline-flex items-center gap-1 rounded-md text-sm text-sand-500">
-          <ChevronLeftIcon className="text-base" /> Farms
-        </Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{farm.name}</h1>
-      </div>
+    <PageContainer size="wide">
+      <PageHeader title={farm.name} back={{ href: "/admin/farms", label: "Farms" }} />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash
         tone="success"
         message={
           sp.saved
-            ? "Saved."
+            ? t("ui.saved", locale)
             : sp.invited
-              ? "Invited, they sign in via the magic link."
+              ? t("team.invited", locale)
               : sp.exited
-                ? "You have left the farm. The visit is in the log below, with the time you left."
+                ? t("admin.supportExited", locale)
                 : undefined
         }
       />
@@ -253,7 +252,7 @@ export default async function FarmDetailPage({
                     </Select>
                   </Field>
                   <Field label="Language" htmlFor="inv-lang">
-                    <Select id="inv-lang" name="language" defaultValue="af">
+                    <Select id="inv-lang" name="language" defaultValue={inviteLanguage}>
                       <option value="af">Afrikaans</option>
                       <option value="en">English</option>
                     </Select>
@@ -294,6 +293,6 @@ export default async function FarmDetailPage({
           </Table>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

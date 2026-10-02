@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { Card } from "@/components/ui/card";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { withTab } from "@/components/ui/tabs-url";
 import { ChecklistForm, type FormTemplate } from "@/components/checklists/checklist-form";
 
 type Machine = { id: string; farm_id: string; name: string; type: string; meter_type: string; current_reading: number | null };
@@ -64,15 +64,12 @@ export default async function NewMachineChecklistPage({
   }));
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href={`/machines/${machine.id}`} className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {machine.name}
-      </Link>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("checklists.newChecklist", locale)}</h1>
-        <p className="mt-0.5 text-sm text-sand-500">{t("checklists.fillHint", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        back={{ href: withTab(`/machines/${machine.id}`, "history"), label: machine.name }}
+        title={t("checklists.newChecklist", locale)}
+        lead={t("checklists.fillHint", locale)}
+      />
       <Card>
         <ChecklistForm
           machineId={machine.id}
@@ -83,6 +80,6 @@ export default async function NewMachineChecklistPage({
           locale={locale}
         />
       </Card>
-    </div>
+    </PageContainer>
   );
 }

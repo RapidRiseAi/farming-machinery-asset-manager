@@ -67,7 +67,9 @@ import { Input } from "@/components/ui/input";
 import { GetStarted } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { Fact, FactList } from "@/components/ui/facts";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { AdminIcon, CheckIcon, LockIcon, SearchIcon, WarningIcon } from "@/components/ui/icons";
 
@@ -206,18 +208,13 @@ export default async function AdminBillingPage({
   const farmName = selected?.farm?.name ?? "-";
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">
-            {t("adminBilling.title", locale)}
-          </h1>
-          <p className="text-sm text-sand-600">{t("adminBilling.lead", locale)}</p>
-        </div>
-        <span className="ml-auto">
-          <PageInfoButton infoKey="adminBilling" locale={locale} />
-        </span>
-      </div>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("adminBilling.title", locale)}
+        lead={t("adminBilling.lead", locale)}
+        infoKey="adminBilling"
+        locale={locale}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       {/* One resolver, shared with the owner's screen. Six of this page's outcomes -
@@ -431,6 +428,7 @@ export default async function AdminBillingPage({
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium text-sand-900">{farm.name}</span>
                   <span className="text-sm text-sand-600">
+                    {t(`plan.${farm.plan}`, locale)} &middot; {t(`billingPeriod.${farm.billing_period}`, locale)} &middot;{" "}
                     {t("adminBilling.startVehicles", locale).replace(
                       "{count}",
                       String(farm.asset_count),
@@ -438,73 +436,80 @@ export default async function AdminBillingPage({
                   </span>
                 </div>
 
-                <form
-                  action={adminStartSubscription}
-                  className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
-                >
-                  <input type="hidden" name="farm_id" value={farm.id} />
-                  <Field
-                    label={t("adminBilling.changePlanField", locale)}
-                    htmlFor={`start-plan-${farm.id}`}
-                    className="flex-1"
+                <div className="mt-3">
+                  <DialogForm
+                    trigger={t("adminBilling.startAction", locale)}
+                    triggerVariant="secondary"
+                    triggerSize="sm"
+                    title={t("adminBilling.startDialogTitle", locale)}
+                    description={farm.name}
+                    closeLabel={t("ui.close", locale)}
                   >
-                    <Select
-                      id={`start-plan-${farm.id}`}
-                      name="plan"
-                      defaultValue={farm.plan}
-                    >
-                      {PLANS.map((p) => (
-                        <option key={p} value={p}>
-                          {t(`plan.${p}`, locale)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field
-                    label={t("adminBilling.changePeriodField", locale)}
-                    htmlFor={`start-period-${farm.id}`}
-                    className="flex-1"
-                  >
-                    <Select
-                      id={`start-period-${farm.id}`}
-                      name="billing_period"
-                      defaultValue={farm.billing_period}
-                    >
-                      {BILLING_PERIODS.map((b) => (
-                        <option key={b} value={b}>
-                          {t(`billingPeriod.${b}`, locale)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field
-                    label={t("adminBilling.startTrialField", locale)}
-                    htmlFor={`start-trial-${farm.id}`}
-                    hint={t("adminBilling.startTrialHint", locale).replace(
-                      "{days}",
-                      String(settings?.trial_days ?? 0),
-                    )}
-                    className="sm:w-32"
-                  >
-                    <Input
-                      id={`start-trial-${farm.id}`}
-                      name="trial_days"
-                      type="number"
-                      min={0}
-                      max={365}
-                      inputMode="numeric"
-                      placeholder={String(settings?.trial_days ?? 0)}
-                    />
-                  </Field>
-                  <SubmitButton variant="primary">
-                    {t("adminBilling.startAction", locale)}
-                  </SubmitButton>
-                </form>
+                    <form action={adminStartSubscription}>
+                      <input type="hidden" name="farm_id" value={farm.id} />
+                      <DialogFields>
+                      <Field
+                        label={t("adminBilling.changePlanField", locale)}
+                        htmlFor={`start-plan-${farm.id}`}
+                      >
+                        <Select
+                          id={`start-plan-${farm.id}`}
+                          name="plan"
+                          defaultValue={farm.plan}
+                        >
+                          {PLANS.map((p) => (
+                            <option key={p} value={p}>
+                              {t(`plan.${p}`, locale)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field
+                        label={t("adminBilling.changePeriodField", locale)}
+                        htmlFor={`start-period-${farm.id}`}
+                      >
+                        <Select
+                          id={`start-period-${farm.id}`}
+                          name="billing_period"
+                          defaultValue={farm.billing_period}
+                        >
+                          {BILLING_PERIODS.map((b) => (
+                            <option key={b} value={b}>
+                              {t(`billingPeriod.${b}`, locale)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field
+                        label={t("adminBilling.startTrialField", locale)}
+                        htmlFor={`start-trial-${farm.id}`}
+                        hint={t("adminBilling.startTrialHint", locale).replace(
+                          "{days}",
+                          String(settings?.trial_days ?? 0),
+                        )}
+                      >
+                        <Input
+                          id={`start-trial-${farm.id}`}
+                          name="trial_days"
+                          type="number"
+                          min={0}
+                          max={365}
+                          inputMode="numeric"
+                          placeholder={String(settings?.trial_days ?? 0)}
+                        />
+                      </Field>
+                      </DialogFields>
+                      <p className="mt-3 text-xs text-sand-500">{t("adminBilling.startNote", locale)}</p>
+                      <DialogActions cancelLabel={t("common.cancel", locale)}>
+                        <SubmitButton>{t("adminBilling.startAction", locale)}</SubmitButton>
+                      </DialogActions>
+                    </form>
+                  </DialogForm>
+                </div>
               </li>
             ))}
           </ul>
 
-          <p className="mt-3 text-xs text-sand-500">{t("adminBilling.startNote", locale)}</p>
         </Card>
       ) : null}
 
@@ -744,51 +749,148 @@ export default async function AdminBillingPage({
 
           {/* == Change what they are billed for =============================== */}
           <Card>
-            <CardHeader>
-              <CardTitle>{t("adminBilling.changeTitle", locale)}</CardTitle>
-            </CardHeader>
-            <p className="text-sm text-sand-600">{t("adminBilling.changeLead", locale)}</p>
-            <form action={adminSetPlan} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-              <input type="hidden" name="farmId" value={selected.sub.farm_id} />
-              <input type="hidden" name="subscription_id" value={selected.sub.id} />
-              <Field
-                label={t("adminBilling.changePlanField", locale)}
-                htmlFor="billing-plan"
-                className="flex-1"
-              >
-                <Select id="billing-plan" name="plan" defaultValue={selected.sub.plan}>
-                  {PLANS.map((p) => (
-                    <option key={p} value={p}>
-                      {t(`plan.${p}`, locale)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                label={t("adminBilling.changePeriodField", locale)}
-                htmlFor="billing-period"
-                className="flex-1"
-              >
-                <Select
-                  id="billing-period"
-                  name="billing_period"
-                  defaultValue={selected.sub.billing_period}
+            <CardHeader
+              action={
+                <DialogForm
+                  trigger={t("adminBilling.changeOpen", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("adminBilling.changeTitle", locale)}
+                  description={t("adminBilling.changeLead", locale)}
+                  closeLabel={t("ui.close", locale)}
                 >
-                  {BILLING_PERIODS.map((b) => (
-                    <option key={b} value={b}>
-                      {t(`billingPeriod.${b}`, locale)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <SubmitButton variant="primary">{t("adminBilling.changeSave", locale)}</SubmitButton>
-            </form>
-            <p className="mt-2 text-xs text-sand-500">{t("adminBilling.changeNote", locale)}</p>
+                <form action={adminSetPlan}>
+                  <input type="hidden" name="farmId" value={selected.sub.farm_id} />
+                  <input type="hidden" name="subscription_id" value={selected.sub.id} />
+                  <DialogFields>
+                  <Field
+                    label={t("adminBilling.changePlanField", locale)}
+                    htmlFor="billing-plan"
+                  >
+                    <Select id="billing-plan" name="plan" defaultValue={selected.sub.plan}>
+                      {PLANS.map((p) => (
+                        <option key={p} value={p}>
+                          {t(`plan.${p}`, locale)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field
+                    label={t("adminBilling.changePeriodField", locale)}
+                    htmlFor="billing-period"
+                  >
+                    <Select
+                      id="billing-period"
+                      name="billing_period"
+                      defaultValue={selected.sub.billing_period}
+                    >
+                      {BILLING_PERIODS.map((b) => (
+                        <option key={b} value={b}>
+                          {t(`billingPeriod.${b}`, locale)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  </DialogFields>
+                  <p className="mt-3 text-xs text-sand-500">{t("adminBilling.changeNote", locale)}</p>
+                  <DialogActions cancelLabel={t("common.cancel", locale)}>
+                    <SubmitButton>{t("adminBilling.changeSave", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+                </DialogForm>
+              }
+            >
+              <CardTitle>{t("adminBilling.billedForTitle", locale)}</CardTitle>
+            </CardHeader>
+            <FactList className="mt-2">
+              <Fact label={t("adminBilling.changePlanField", locale)} value={t(`plan.${selected.sub.plan}`, locale)} />
+              <Fact
+                label={t("adminBilling.changePeriodField", locale)}
+                value={t(`billingPeriod.${selected.sub.billing_period}`, locale)}
+              />
+            </FactList>
           </Card>
 
           {/* == The kitchen-table deal ======================================== */}
           <Card>
-            <CardHeader>
+            <CardHeader
+              action={
+                <DialogForm
+                  trigger={t("adminBilling.discountOpen", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("adminBilling.discountTitle", locale)}
+                  description={farmName}
+                  closeLabel={t("ui.close", locale)}
+                >
+                <form action={adminSetDiscount}>
+                  <input type="hidden" name="subscription_id" value={selected.sub.id} />
+                  <DialogFields>
+                  <Field
+                    label={t("adminBilling.discountPercentField", locale)}
+                    htmlFor="discount-percent"
+                    hint={t("adminBilling.discountPercentHint", locale)}
+                  >
+                    <Input
+                      id="discount-percent"
+                      name="percent"
+                      inputMode="decimal"
+                      defaultValue={
+                        selected.sub.discount_percent_bps != null
+                          ? String(selected.sub.discount_percent_bps / 100)
+                          : ""
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={t("adminBilling.discountRandsField", locale)}
+                    htmlFor="discount-rands"
+                    hint={t("adminBilling.discountRandsHint", locale)}
+                  >
+                    <Input
+                      id="discount-rands"
+                      name="rands"
+                      inputMode="decimal"
+                      defaultValue={
+                        selected.sub.discount_fixed_cents != null
+                          ? String(selected.sub.discount_fixed_cents / 100)
+                          : ""
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label={t("adminBilling.discountLabelField", locale)}
+                    htmlFor="discount-label"
+                    hint={t("adminBilling.discountLabelHint", locale)}
+                  >
+                    <Input
+                      id="discount-label"
+                      name="label"
+                      maxLength={60}
+                      defaultValue={selected.sub.discount_label ?? ""}
+                    />
+                  </Field>
+                  <Field
+                    label={t("adminBilling.discountUntilField", locale)}
+                    htmlFor="discount-until"
+                    hint={t("adminBilling.discountUntilHint", locale)}
+                  >
+                    <Input
+                      id="discount-until"
+                      name="until"
+                      type="date"
+                      defaultValue={selected.sub.discount_until ?? ""}
+                    />
+                  </Field>
+                  </DialogFields>
+                  <p className="mt-3 text-xs text-sand-500">{t("adminBilling.discountNote", locale)}</p>
+                  <DialogActions cancelLabel={t("common.cancel", locale)}>
+                    <SubmitButton>{t("adminBilling.discountSave", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+                </DialogForm>
+              }
+            >
               <CardTitle>{t("adminBilling.discountTitle", locale)}</CardTitle>
             </CardHeader>
             <p className="text-sm text-sand-600">{t("adminBilling.discountLead", locale)}</p>
@@ -818,71 +920,6 @@ export default async function AdminBillingPage({
                 : t("adminBilling.discountNone", locale)}
             </p>
 
-            <form action={adminSetDiscount} className="mt-3 grid gap-3 sm:grid-cols-2">
-              <input type="hidden" name="subscription_id" value={selected.sub.id} />
-              <Field
-                label={t("adminBilling.discountPercentField", locale)}
-                htmlFor="discount-percent"
-                hint={t("adminBilling.discountPercentHint", locale)}
-              >
-                <Input
-                  id="discount-percent"
-                  name="percent"
-                  inputMode="decimal"
-                  defaultValue={
-                    selected.sub.discount_percent_bps != null
-                      ? String(selected.sub.discount_percent_bps / 100)
-                      : ""
-                  }
-                />
-              </Field>
-              <Field
-                label={t("adminBilling.discountRandsField", locale)}
-                htmlFor="discount-rands"
-                hint={t("adminBilling.discountRandsHint", locale)}
-              >
-                <Input
-                  id="discount-rands"
-                  name="rands"
-                  inputMode="decimal"
-                  defaultValue={
-                    selected.sub.discount_fixed_cents != null
-                      ? String(selected.sub.discount_fixed_cents / 100)
-                      : ""
-                  }
-                />
-              </Field>
-              <Field
-                label={t("adminBilling.discountLabelField", locale)}
-                htmlFor="discount-label"
-                hint={t("adminBilling.discountLabelHint", locale)}
-              >
-                <Input
-                  id="discount-label"
-                  name="label"
-                  maxLength={60}
-                  defaultValue={selected.sub.discount_label ?? ""}
-                />
-              </Field>
-              <Field
-                label={t("adminBilling.discountUntilField", locale)}
-                htmlFor="discount-until"
-                hint={t("adminBilling.discountUntilHint", locale)}
-              >
-                <Input
-                  id="discount-until"
-                  name="until"
-                  type="date"
-                  defaultValue={selected.sub.discount_until ?? ""}
-                />
-              </Field>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="primary">
-                  {t("adminBilling.discountSave", locale)}
-                </SubmitButton>
-              </div>
-            </form>
-            <p className="mt-2 text-xs text-sand-500">{t("adminBilling.discountNote", locale)}</p>
           </Card>
 
           {/* == Bills ========================================================= */}
@@ -1107,6 +1144,6 @@ export default async function AdminBillingPage({
           </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

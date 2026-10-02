@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
@@ -12,11 +11,12 @@ import {
   type Pl, type Debtor, type Creditor, type Cash, type QuoteConversion,
 } from "@/lib/money-report";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
-import { buttonVariants } from "@/components/ui/button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PeriodChips } from "@/components/books/period-chips";
+import { RememberView } from "@/components/books/remember-view";
 
 export const dynamic = "force-dynamic";
 
@@ -51,14 +51,14 @@ export default async function MoneyPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -92,39 +92,45 @@ export default async function MoneyPage({
   const owing = ageingTotal(creditors, "total_cents");
   const profitable = pl.profit_cents >= 0;
 
+  // The period is remembered per device: the chips are links carrying from/to, and a
+  // visit with neither reopens the last period chosen here. A from/to that is not one of
+  // the chips (a link from elsewhere) is shown but neither remembered nor forgotten.
+  const urlChose = Boolean(sp.from || sp.to);
+  const periodHrefs: Record<string, string> = Object.fromEntries(
+    periods.map((p) => [p.key, `/money?from=${p.from}&to=${p.to}`]),
+  );
+  const range = t("books.range", locale)
+    .replace("{from}", shortDate(from, locale))
+    .replace("{to}", shortDate(to, locale));
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("money.title", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("money.lead", locale)}</p>
-        </div>
-        <span className="ml-auto"><PageInfoButton infoKey="money" locale={locale} /></span>
+    <PageContainer>
+      <PageHeader
+        title={t("money.title", locale)}
+        lead={t("money.lead", locale)}
+        meta={range}
+        infoKey="money"
+        locale={locale}
+      />
+      {chosen || !urlChose ? (
+        <RememberView storageKey="money-period" value={chosen ? chosen.key : null} restore={periodHrefs} />
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <PeriodChips
+          label={t("money.periodTitle", locale)}
+          items={periods.map((p) => ({
+            key: p.key,
+            href: periodHrefs[p.key],
+            label: t(`money.period.${p.key}`, locale),
+            active: p.from === from && p.to === to,
+          }))}
+        />
+        <p className="text-sm text-sand-600">{t("money.basis", locale)}</p>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>{t("money.periodTitle", locale)}</CardTitle></CardHeader>
-        <div className="flex flex-wrap gap-2">
-          {periods.map((p) => {
-            const active = p.from === from && p.to === to;
-            return (
-              <Link
-                key={p.key}
-                href={`/money?from=${p.from}&to=${p.to}`}
-                aria-current={active ? "true" : undefined}
-                className={buttonVariants({ variant: active ? "primary" : "secondary", size: "sm" })}
-              >
-                {t(`money.period.${p.key}`, locale)}
-              </Link>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-sm text-sand-600">
-          {shortDate(from, locale)} - {shortDate(to, locale)} · {t("money.basis", locale)}
-        </p>
-      </Card>
-
-      {/* Did it make money */}
+      {/* Did it make money. The one number the screen exists for, so it comes first and
+          largest; how it was made up sits right under it. */}
       <Card>
         <CardHeader>
           <CardTitle>{profitable ? t("money.profitTitle", locale) : t("money.lossTitle", locale)}</CardTitle>
@@ -132,7 +138,7 @@ export default async function MoneyPage({
         <p className={`text-3xl font-bold tabular-nums ${profitable ? "text-sand-900" : "text-status-overdue"}`}>
           {rands(Math.abs(pl.profit_cents))}
         </p>
-        <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+        <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm sm:max-w-md">
           <dt className="text-sand-600">{t("money.revenue", locale)}</dt>
           <dd className="text-right tabular-nums text-sand-900">{rands(pl.revenue_ex_cents)}</dd>
 
@@ -162,13 +168,13 @@ export default async function MoneyPage({
         </dl>
 
         {breakdown.length > 0 ? (
-          <div className="mt-4">
+          <div className="mt-4 sm:max-w-md">
             <p className="mb-2 text-sm font-medium text-sand-700">{t("money.whereItWent", locale)}</p>
             <ul className="flex flex-col gap-1 text-sm">
               {breakdown.map((b) => (
                 <li key={b.category} className="flex items-baseline gap-2">
-                  <span className="text-sand-700">{t(`expenseCategory.${b.category}`, locale)}</span>
-                  <span className="ml-auto tabular-nums text-sand-900">{rands(b.cost_cents)}</span>
+                  <span className="min-w-0 text-sand-700">{t(`expenseCategory.${b.category}`, locale)}</span>
+                  <span className="ml-auto whitespace-nowrap tabular-nums text-sand-900">{rands(b.cost_cents)}</span>
                 </li>
               ))}
             </ul>
@@ -177,24 +183,65 @@ export default async function MoneyPage({
       </Card>
 
       {/* Cash is not profit */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label={t("money.cashIn", locale)} value={rands(cash.in_cents)} />
-        <Stat label={t("money.cashOut", locale)} value={rands(cash.out_cents)} />
+      <StatGrid columns={3}>
+        <Stat size="md" label={t("money.cashIn", locale)} value={rands(cash.in_cents)} />
+        <Stat size="md" label={t("money.cashOut", locale)} value={rands(cash.out_cents)} />
         <Stat
+          size="md"
           label={t("money.cashNet", locale)}
           value={rands(cash.net_cents)}
           tone={cash.net_cents < 0 ? "due" : "default"}
           delta={t("money.cashHint", locale)}
         />
-      </div>
+      </StatGrid>
 
-      {/* How much of what I quoted turned into work */}
+      {/* Who owes me, then who I owe: the two lists that turn into phone calls. */}
+      <Card>
+        <CardHeader><CardTitle>{t("money.owedTitle", locale)}</CardTitle></CardHeader>
+        {debtors.length === 0 ? (
+          <AllClear title={t("money.owedNoneTitle", locale)} hint={t("money.owedNoneBody", locale)} />
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-baseline gap-3">
+              <span className="text-2xl font-bold tabular-nums text-sand-900">{rands(owed)}</span>
+              {late > 0 ? (
+                <Badge tone="danger" wrap>{t("money.lateBadge", locale).replace("{amount}", rands(late))}</Badge>
+              ) : null}
+            </div>
+            <AgeingTable
+              rows={debtors.map((d) => ({ label: d.party_label, ...d }))}
+              locale={locale}
+              nameHeader={t("money.colCustomer", locale)}
+            />
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>{t("money.owingTitle", locale)}</CardTitle></CardHeader>
+        {creditors.length === 0 ? (
+          <AllClear title={t("money.owingNoneTitle", locale)} hint={t("money.owingNoneBody", locale)} />
+        ) : (
+          <>
+            <p className="mb-3 text-2xl font-bold tabular-nums text-sand-900">{rands(owing)}</p>
+            <AgeingTable
+              rows={creditors.map((c) => ({ label: c.supplier, ...c }))}
+              locale={locale}
+              nameHeader={t("money.colSupplier", locale)}
+            />
+            <p className="mt-2 text-xs text-sand-500">{t("money.owingAgeNote", locale)}</p>
+          </>
+        )}
+      </Card>
+
+      {/* How much of what I quoted turned into work. Worth knowing, not what the screen
+          is opened for, so it follows the money owed rather than interrupting it. */}
       {conv.sent_count > 0 ? (
         <Card>
           <CardHeader><CardTitle>{t("money.quotesTitle", locale)}</CardTitle></CardHeader>
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="text-3xl font-bold tabular-nums text-sand-900">{ratePercent(conv.rate_bps)}</span>
-            <span className="text-sm text-sand-600">
+            <span className="min-w-0 text-sm text-sand-600">
               {t("money.quotesRateHint", locale)
                 .replace("{converted}", String(conv.converted_count))
                 .replace("{sent}", String(conv.sent_count))}
@@ -206,7 +253,7 @@ export default async function MoneyPage({
           <p className="mt-1 text-sm text-sand-600">
             {t("money.quotesDecidedHint", locale).replace("{rate}", ratePercent(conv.decided_rate_bps))}
           </p>
-          <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm sm:max-w-md">
             <dt className="text-sand-600">{t("money.quotesConverted", locale)}</dt>
             <dd className="text-right tabular-nums text-sand-900">
               {conv.converted_count} · {rands(conv.converted_cents)}
@@ -229,47 +276,7 @@ export default async function MoneyPage({
           ) : null}
         </Card>
       ) : null}
-
-      {/* Who owes me */}
-      <Card>
-        <CardHeader><CardTitle>{t("money.owedTitle", locale)}</CardTitle></CardHeader>
-        {debtors.length === 0 ? (
-          <AllClear title={t("money.owedNoneTitle", locale)} hint={t("money.owedNoneBody", locale)} />
-        ) : (
-          <>
-            <div className="mb-3 flex flex-wrap items-baseline gap-3">
-              <span className="text-2xl font-bold tabular-nums text-sand-900">{rands(owed)}</span>
-              {late > 0 ? (
-                <Badge tone="danger">{t("money.lateBadge", locale).replace("{amount}", rands(late))}</Badge>
-              ) : null}
-            </div>
-            <AgeingTable
-              rows={debtors.map((d) => ({ label: d.party_label, ...d }))}
-              locale={locale}
-              nameHeader={t("money.colCustomer", locale)}
-            />
-          </>
-        )}
-      </Card>
-
-      {/* Who I owe */}
-      <Card>
-        <CardHeader><CardTitle>{t("money.owingTitle", locale)}</CardTitle></CardHeader>
-        {creditors.length === 0 ? (
-          <AllClear title={t("money.owingNoneTitle", locale)} hint={t("money.owingNoneBody", locale)} />
-        ) : (
-          <>
-            <p className="mb-3 text-2xl font-bold tabular-nums text-sand-900">{rands(owing)}</p>
-            <AgeingTable
-              rows={creditors.map((c) => ({ label: c.supplier, ...c }))}
-              locale={locale}
-              nameHeader={t("money.colSupplier", locale)}
-            />
-            <p className="mt-2 text-xs text-sand-500">{t("money.owingAgeNote", locale)}</p>
-          </>
-        )}
-      </Card>
-    </div>
+    </PageContainer>
   );
 }
 

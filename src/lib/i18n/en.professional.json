@@ -14,7 +14,7 @@
     "quickReportProblem": "Report a fault",
     "fleetCost": "Fleet operating cost",
     "fleetCostHint": "Parts, labour and external invoices · excluding VAT",
-    "fullCostReport": "View full cost report",
+    "fullCostReport": "Full report",
     "servicingOk": "Within interval",
     "servicingNothingToDo": "No action required",
     "fleetNow": "Current fleet status",
@@ -33,7 +33,10 @@
     "moreThan": "{amount} above {month}",
     "setupTitle": "Complete farm configuration",
     "setupOpen": "View configuration checklist",
-    "noMachinesHint": "Register your first machine to begin tracking services, faults and costs."
+    "noMachinesHint": "Register your first machine to begin tracking services, faults and costs.",
+    "staleDaysTitle": "{n} meter readings are more than {days} days old",
+    "staleDaysOneTitle": "1 meter reading is more than {days} days old",
+    "setupHide": "Dismiss"
   },
   "driver": {
     "greeting": "Welcome, {name}",
@@ -56,7 +59,16 @@
     "waitingTitle": "{n} of your reports are awaiting review",
     "oneWaitingTitle": "1 of your reports is awaiting review",
     "nothingReported": "You have not submitted any reports.",
-    "noMachines": "No machine has been assigned to you. Contact the farm office."
+    "noMachines": "No machine has been assigned to you. Contact the farm office.",
+    "tilePick": "Select a machine",
+    "tilePickHint": "Open the list of machines assigned to you",
+    "machinesHint": "Choose an action for the machine in use.",
+    "actProblem": "Report fault",
+    "actHours": "Hour meter",
+    "actKm": "Odometer",
+    "otherThings": "Other actions",
+    "fixedTitle": "Recently resolved",
+    "fixedWhen": "Resolved {when}"
   },
   "qr": {
     "quickActions": "Select an action",
@@ -121,7 +133,11 @@
     "nothingWaitingTitle": "No outstanding approvals",
     "nothingWaitingHint": "No quotes or invoices are awaiting your decision.",
     "whatsHappened": "Recent activity",
-    "noActiveWorkHint": "Open a machine and use \"Request work\" to send a job to a contractor."
+    "noActiveWorkHint": "Open a machine and use \"Request work\" to send a job to a contractor.",
+    "amountQuoted": "Quoted",
+    "amountBilled": "Invoiced",
+    "waitingAbove": "{n} awaiting your approval, above",
+    "nothingNew": "No new activity."
   },
   "machines": {
     "setUpPlan": "Configure service plan"
@@ -208,8 +224,8 @@
     "poweredByHint": "Disable to show only your business name on documents.",
     "termsHint": "Printed at the foot of every document.",
     "logoHint": "PNG, JPEG or SVG. Displayed at the head of every document.",
-    "quoteValidity": "Quotation validity (days)",
-    "invoiceTerms": "Payment terms (days)",
+    "quoteValidity": "Quotation validity",
+    "invoiceTerms": "Payment terms",
     "vatRegisteredHint": "Disable if you are below the registration threshold. Documents will be issued without VAT.",
     "vatNotRegisteredNote": "Documents are issued without VAT. The rate is retained should you register later."
   },
@@ -238,7 +254,8 @@
     "syncConfirmBody": "{n} vehicles will be added to {farm}'s fleet.",
     "syncConsequence": "They become assets on the customer's fleet, visible to everyone at that account.",
     "vehiclesHint": "Your own records of what they operate, maintained here until the account is connected.",
-    "syncPartial": "{n} copied. Some could not be added; the remainder are still pending, retry when ready."
+    "syncPartial": "{n} copied. Some could not be added; the remainder are still pending, retry when ready.",
+    "countMeta": "{n} in your customer register"
   },
   "partners": {
     "requestsHint": "They have your account in their client register. Approving grants them access to your vehicles.",
@@ -258,7 +275,10 @@
     "teamHint": "Names, email addresses and telephone numbers of all farm personnel.",
     "neverPartners": "Your other suppliers are never disclosed to them, regardless of the settings above.",
     "save": "Save access settings",
-    "disconnectBody": "{name} will lose access to this farm immediately."
+    "disconnectBody": "{name} will lose access to this farm immediately.",
+    "titleFor": "Access for {name}",
+    "summaryNone": "Minimum access: assigned vehicles only.",
+    "summaryExtra": "Additional access: {list}"
   },
   "correct": {
     "title": "Corrections",
@@ -304,6 +324,7 @@
   "contractor": {
     "owed": "Outstanding",
     "overdue": "Overdue",
-    "quotedOut": "Quotations issued"
+    "quotedOut": "Quotations issued",
+    "analyticsOwed": "Outstanding"
   }
 }

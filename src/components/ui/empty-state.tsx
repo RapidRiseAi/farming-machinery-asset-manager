@@ -1,4 +1,19 @@
+/**
+ * Empty states, server-compatible. Empty means different things on different screens,
+ * so pick by the reason:
+ *
+ *   <AllClear title=... />                      nothing outstanding: the good outcome
+ *   <GetStarted title=... action=... />         the farm has not set this up yet
+ *   <NoMatches title=... clearHref=... clearLabel=... />   a filter hid everything
+ *   <FilteredEmpty filtered={f.active} ...>{first-run or all-clear}</FilteredEmpty>
+ *   <EmptyState title=... />                    generic fallback
+ *
+ * `NoMatches` props: `title`, `hint?`, `action?`, `clearHref?` + `clearLabel?` (a
+ * secondary "Clear filters" link, from `filterState()` in `./filter-state`).
+ */
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { buttonVariants } from "./button";
 import { cn } from "./cn";
 import { CheckIcon, SearchIcon } from "./icons";
 
@@ -132,18 +147,26 @@ export function GetStarted({
  * NOT to add a machine, the old shared empty state offered "Add machine" here, which
  * sent people to create a duplicate of something they already had.
  */
-export function NoMatches({
-  title,
-  hint,
-  action,
-  className,
-}: {
+export type NoMatchesProps = {
   title: ReactNode;
   hint?: ReactNode;
-  /** Should clear the filter, that is the actual fix. */
+  /** Should clear the filter, that is the actual fix. Wins over `clearHref`. */
   action?: ReactNode;
+  /** Where "Clear filters" goes (`filterState().clearHref`). Renders a secondary link. */
+  clearHref?: string;
+  /** Label for that link, e.g. `t("empty.clearFilters", locale)`. */
+  clearLabel?: ReactNode;
   className?: string;
-}) {
+};
+
+export function NoMatches({ title, hint, action, clearHref, clearLabel, className }: NoMatchesProps) {
+  const act =
+    action ??
+    (clearHref && clearLabel ? (
+      <Link href={clearHref} className={buttonVariants({ variant: "secondary" })}>
+        {clearLabel}
+      </Link>
+    ) : null);
   return (
     <div
       className={cn(
@@ -156,7 +179,31 @@ export function NoMatches({
       </div>
       <p className="text-base font-semibold text-sand-900">{title}</p>
       {hint ? <p className="mt-1 max-w-sm text-sm text-sand-500">{hint}</p> : null}
-      {action ? <div className="mt-4">{action}</div> : null}
+      {act ? <div className="mt-4">{act}</div> : null}
     </div>
   );
+}
+
+/**
+ * The empty list, told apart by WHY it is empty. When `filtered` is true (a filter or a
+ * search is hiding every row) it renders `NoMatches` with a way back; otherwise it
+ * renders `children`, the page's own first-run `GetStarted` or `AllClear`.
+ *
+ * Before this, three of the four filtered lists showed "nothing here yet" or "All
+ * clear" under an active filter, which tells an owner nothing is outstanding when the
+ * filter is what hid it.
+ *
+ *   const f = filterState("/documents", qs, groups);
+ *   <FilteredEmpty filtered={f.active} clearHref={f.clearHref}
+ *     title={t("empty.noMatchTitle", locale)} hint={t("empty.noMatchHint", locale)}
+ *     clearLabel={t("empty.clearFilters", locale)}>
+ *     <AllClear title={t(ALL_CLEAR_KEY, locale)} />
+ *   </FilteredEmpty>
+ */
+export function FilteredEmpty({
+  filtered,
+  children,
+  ...noMatches
+}: NoMatchesProps & { filtered: boolean; children: ReactNode }) {
+  return filtered ? <NoMatches {...noMatches} /> : <>{children}</>;
 }

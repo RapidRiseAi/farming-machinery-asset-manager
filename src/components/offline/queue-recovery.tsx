@@ -58,7 +58,9 @@ export function QueueRecovery({ userId, locale }: { userId: string | null; local
   return <div className="flex flex-col gap-3" aria-busy={busy}>
     {error ? <p role="alert" className="text-status-overdue">{t("offline.storageFailed", locale)}</p> : null}
     {other > 0 ? <p role="status" className="text-sm text-sand-600">{t("offline.otherAccount", locale)}</p> : null}
-    <Button type="button" disabled={busy || !items.length} onClick={() => void run(flush)}>{t("offline.retryAll", locale)}</Button>
+    {/* Only when there is something to retry: a disabled filled button over an empty
+        queue still read as the thing to press. The empty state below says why not. */}
+    {items.length ? <Button type="button" disabled={busy} onClick={() => void run(flush)}>{t("offline.retryAll", locale)}</Button> : null}
     {ready && !items.length ? <p role="status">{t("offline.emptyQueue", locale)}</p> : null}
     {items.map(item => <article key={item.client_id} className="rounded-xl border border-sand-200 p-4">
       <h2 className="font-semibold">{t(`offline.types.${item.type}`, locale)}</h2>

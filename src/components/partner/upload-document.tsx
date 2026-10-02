@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { todayLocal } from "@/lib/format";
 import { Field, TextField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 
 /**
  * "I already made this in my own system" (F14b).
@@ -18,6 +19,11 @@ import { Button } from "@/components/ui/button";
  *
  * The total is asked VAT-inclusive because that is the figure printed on the document in
  * front of them; the server stores the ex-VAT split so it adds up like everything else.
+ *
+ * A secondary trigger in the page header, not a form open at the bottom of the list: the
+ * screen shows what IS, a button asks for what is NEW. The form posts to an API route
+ * (a file upload) rather than a server action, so it closes by navigating to the new
+ * document, and an error keeps it open with the message beside the button that sent it.
  */
 export function UploadDocument({
   locale,
@@ -55,24 +61,28 @@ export function UploadDocument({
   }
 
   return (
-    <Card>
-      <CardHeader><CardTitle>{t("doc.uploadTitle", locale)}</CardTitle></CardHeader>
-      <p className="mb-3 text-sm text-sand-600">{t("doc.uploadBody", locale)}</p>
+    <DialogForm
+      trigger={t("doc.uploadTrigger", locale)}
+      triggerVariant="secondary"
+      title={t("doc.uploadTitle", locale)}
+      description={t("doc.uploadBody", locale)}
+      closeLabel={t("ui.close", locale)}
+    >
+      <form onSubmit={submit}>
+        <DialogFields>
+          <SelectField
+            name={isPartner ? "farm_id" : "workshop_id"}
+            label={t(isPartner ? "doc.newCustomer" : "doc.from", locale)}
+            fieldClassName="sm:col-span-2"
+            required
+          >
+            {parties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </SelectField>
 
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <SelectField
-          name={isPartner ? "farm_id" : "workshop_id"}
-          label={t(isPartner ? "doc.newCustomer" : "doc.from", locale)}
-          required
-        >
-          {parties.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </SelectField>
-
-        <div className="grid gap-3 sm:grid-cols-2">
           <SelectField name="kind" label={t("doc.newKind", locale)} defaultValue="invoice">
             <option value="invoice">{t("doc.kindInvoice", locale)}</option>
             <option value="quote">{t("doc.kindQuote", locale)}</option>
@@ -84,28 +94,34 @@ export function UploadDocument({
             hint={t("doc.uploadTotalHint", locale)}
             required
           />
-        </div>
 
-        <TextField name="subject" label={t("doc.newSubject", locale)} />
+          <TextField name="subject" label={t("doc.newSubject", locale)} fieldClassName="sm:col-span-2" />
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextField name="issue_date" type="date" label={t("doc.issued", locale)} defaultValue={new Date().toISOString().slice(0, 10)} />
+          <TextField name="issue_date" type="date" label={t("doc.issued", locale)} defaultValue={todayLocal()} />
           <TextField name="due_date" type="date" label={t("doc.dueBy", locale)} />
-        </div>
 
-        <Field label={t("doc.uploadFile", locale)} htmlFor="doc-file" hint={t("doc.uploadFileHint", locale)}>
-          <Input id="doc-file" name="file" type="file" accept="application/pdf,image/*" required />
-        </Field>
+          <Field
+            label={t("doc.uploadFile", locale)}
+            htmlFor="doc-file"
+            hint={t("doc.uploadFileHint", locale)}
+            className="sm:col-span-2"
+          >
+            <Input id="doc-file" name="file" type="file" accept="application/pdf,image/*" required />
+          </Field>
 
-        <Button type="submit" disabled={busy}>
-          {busy ? t("doc.uploading", locale) : t("doc.uploadSubmit", locale)}
-        </Button>
-        {error ? (
-          <p role="alert" className="text-sm text-status-overdue">
-            {error}
-          </p>
-        ) : null}
+          {error ? (
+            <p role="alert" className="text-sm text-status-overdue sm:col-span-2">
+              {error}
+            </p>
+          ) : null}
+        </DialogFields>
+
+        <DialogActions cancelLabel={t("common.cancel", locale)}>
+          <Button type="submit" loading={busy}>
+            {busy ? t("doc.uploading", locale) : t("doc.uploadSubmit", locale)}
+          </Button>
+        </DialogActions>
       </form>
-    </Card>
+    </DialogForm>
   );
 }

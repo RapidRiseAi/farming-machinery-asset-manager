@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
@@ -8,11 +7,12 @@ import { formatChecklistValue, type ChecklistFieldType } from "@/lib/checklists"
 import { signChecklistPhotos } from "@/lib/checklist-media";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { ChevronLeftIcon, TrashIcon } from "@/components/ui/icons";
+import { TrashIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { withTab } from "@/components/ui/tabs-url";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistInstance } from "../actions";
-import { shortDate } from "@/lib/format";
+import { meterReading, shortDate } from "@/lib/format";
 
 type Instance = {
   id: string; farm_id: string; machine_id: string; template_name: string; status: string;
@@ -72,48 +72,38 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   const dateStr = shortDate(instance.completed_at ?? instance.created_at, locale);
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href={`/machines/${machine.id}`} className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {machine.name}
-      </Link>
-
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-ink">{instance.template_name}</h1>
-              <Badge tone={instance.status === "completed" ? "ok" : "warning"}>
-                {instance.status === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale)}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-sand-500">
-              {dateStr}
-              {performerName ? ` · ${t("checklists.by", locale)} ${performerName}` : ""}
-              {instance.meter_reading != null ? ` · ${instance.meter_reading} ${machine.meter_type !== "none" ? machine.meter_type : ""}` : ""}
-            </p>
-          </div>
-          {canEdit ? (
-            <ConfirmDialog
-              action={deleteChecklistInstance}
-              triggerVariant="ghost"
-              triggerSize="sm"
-              triggerIcon={<TrashIcon />}
-              triggerLabel={t("common.delete", locale)}
-              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
-              title={t("confirm.deleteChecklistInstanceTitle", locale)}
-              intro={t("confirm.deleteChecklistInstanceIntro", locale).replace("{date}", dateStr)}
-              footnote={t("confirm.softDeleteNote", locale)}
-              confirmLabel={t("confirm.deleteChecklistInstanceYes", locale)}
-              cancelLabel={t("confirm.keepIt", locale)}
-              closeLabel={t("ui.close", locale)}
-            >
-              <input type="hidden" name="id" value={instance.id} />
-              <input type="hidden" name="machine_id" value={machine.id} />
-            </ConfirmDialog>
-          ) : null}
-        </div>
-      </Card>
+    <PageContainer>
+      <PageHeader
+        back={{ href: withTab(`/machines/${machine.id}`, "history"), label: machine.name }}
+        title={instance.template_name}
+        badge={
+          <Badge tone={instance.status === "completed" ? "ok" : "warning"}>
+            {instance.status === "completed" ? t("checklists.statusCompleted", locale) : t("checklists.statusDraft", locale)}
+          </Badge>
+        }
+        meta={[
+          dateStr,
+          performerName ? `${t("checklists.by", locale)} ${performerName}` : null,
+          instance.meter_reading != null ? meterReading(instance.meter_reading, machine.meter_type, locale) : null,
+        ].filter(Boolean).join(" · ")}
+        actions={canEdit ? (
+          <ConfirmDialog
+            action={deleteChecklistInstance}
+            triggerVariant="secondary"
+            triggerIcon={<TrashIcon />}
+            triggerLabel={t("common.delete", locale)}
+            title={t("confirm.deleteChecklistInstanceTitle", locale)}
+            intro={t("confirm.deleteChecklistInstanceIntro", locale).replace("{date}", dateStr)}
+            footnote={t("confirm.softDeleteNote", locale)}
+            confirmLabel={t("confirm.deleteChecklistInstanceYes", locale)}
+            cancelLabel={t("confirm.keepIt", locale)}
+            closeLabel={t("ui.close", locale)}
+          >
+            <input type="hidden" name="id" value={instance.id} />
+            <input type="hidden" name="machine_id" value={machine.id} />
+          </ConfirmDialog>
+        ) : undefined}
+      />
 
       <Card>
         <CardHeader><CardTitle>{t("checklists.results", locale)}</CardTitle></CardHeader>
@@ -158,6 +148,6 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
           </div>
         ) : null}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

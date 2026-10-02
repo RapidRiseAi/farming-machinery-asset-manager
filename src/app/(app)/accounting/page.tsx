@@ -1,13 +1,12 @@
-import Link from "next/link";
 import {
   requireProfile, currentWorkshop, currentFarmId,
-  checkEntitlement, checkWorkshopEntitlement,
+  checkEntitlement, checkWorkshopEntitlement, effectiveFarmRole,
 } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate } from "@/lib/format";
+import { shortDate, num } from "@/lib/format";
 import { moneyPeriods } from "@/lib/money-report";
 import {
   journalTotals, accountSummary, accountName, chartFor,
@@ -15,11 +14,13 @@ import {
 } from "@/lib/accounting";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
+import { PeriodChips } from "@/components/books/period-chips";
 import { DownloadIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -59,18 +60,27 @@ export default async function AccountingPage({
     const gate = await checkWorkshopEntitlement("financials", profile);
     if (!gate.allowed) {
       return (
-        <div className="mx-auto w-full max-w-3xl">
+        <PageContainer size="narrow">
           <UpgradeNotice feature="financials" requiredPlan={gate.requiredPlan} currentPlan={gate.plan} locale={locale} />
-        </div>
+        </PageContainer>
       );
     }
   } else {
     const gate = await checkEntitlement("advanced_reports", profile);
     if (!gate.allowed) {
+      // Only the selected farm's owner can change its plan, so only they see Billing.
+      const deniedFarmId = await currentFarmId(profile);
+      const deniedRole = deniedFarmId ? await effectiveFarmRole(deniedFarmId, profile) : null;
       return (
-        <div className="mx-auto w-full max-w-3xl">
-          <UpgradeNotice feature="advanced_reports" requiredPlan={gate.requiredPlan} currentPlan={gate.plan} locale={locale} />
-        </div>
+        <PageContainer size="narrow">
+          <UpgradeNotice
+            feature="advanced_reports"
+            requiredPlan={gate.requiredPlan}
+            currentPlan={gate.plan}
+            locale={locale}
+            canUpgrade={deniedRole === "owner"}
+          />
+        </PageContainer>
       );
     }
   }
@@ -113,49 +123,36 @@ export default async function AccountingPage({
   const chart = chartFor(scope);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("accounting.title", locale)}</h1>
-          <p className="text-sm text-sand-600">
-            {subjectName
-              ? t("accounting.leadFor", locale).replace("{name}", subjectName)
-              : t("accounting.lead", locale)}
-          </p>
-        </div>
-        <span className="ml-auto">
-          <PageInfoButton infoKey="accounting" locale={locale} />
-        </span>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("accounting.title", locale)}
+        lead={
+          subjectName
+            ? t("accounting.leadFor", locale).replace("{name}", subjectName)
+            : t("accounting.lead", locale)
+        }
+        meta={t("books.range", locale).replace("{from}", shortDate(from, locale)).replace("{to}", shortDate(to, locale))}
+        infoKey="accounting"
+        locale={locale}
+      />
 
-      {/* The finding, said before anything is downloaded rather than after. */}
-      <Card>
-        <CardHeader><CardTitle>{t("accounting.genericTitle", locale)}</CardTitle></CardHeader>
+      <PeriodChips
+        label={t("accounting.periodTitle", locale)}
+        items={periods.map((p) => ({
+          key: p.key,
+          href: `/accounting?from=${p.from}&to=${p.to}&layout=${layout}`,
+          label: t(`money.period.${p.key}`, locale),
+          active: p.from === from && p.to === to,
+        }))}
+      />
+
+      {/* The finding, said before anything is downloaded rather than after. Its title
+          says it in one line; the why and the how are there to open, not a card of
+          prose in front of the figures on every visit. */}
+      <Disclosure summary={t("accounting.genericTitle", locale)}>
         <p className="text-sm text-sand-600">{t("accounting.genericBody", locale)}</p>
         <p className="mt-2 text-sm text-sand-600">{t("accounting.genericHow", locale)}</p>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>{t("accounting.periodTitle", locale)}</CardTitle></CardHeader>
-        <div className="flex flex-wrap gap-2">
-          {periods.map((p) => {
-            const active = p.from === from && p.to === to;
-            return (
-              <Link
-                key={p.key}
-                href={`/accounting?from=${p.from}&to=${p.to}&layout=${layout}`}
-                aria-current={active ? "true" : undefined}
-                className={buttonVariants({ variant: active ? "primary" : "secondary", size: "sm" })}
-              >
-                {t(`money.period.${p.key}`, locale)}
-              </Link>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-sm text-sand-600">
-          {shortDate(from, locale)} - {shortDate(to, locale)}
-        </p>
-      </Card>
+      </Disclosure>
 
       {lines.length === 0 ? (
         <AllClear title={t("accounting.emptyTitle", locale)} hint={t("accounting.emptyHint", locale)} />
@@ -163,12 +160,12 @@ export default async function AccountingPage({
         <>
           <Card>
             <CardHeader><CardTitle>{t("accounting.totalsTitle", locale)}</CardTitle></CardHeader>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label={t("accounting.totalDebit", locale)} value={rands(totals.debit)} />
-              <Stat label={t("accounting.totalCredit", locale)} value={rands(totals.credit)} />
-              <Stat label={t("accounting.entries", locale)} value={String(totals.entries)} />
-              <Stat label={t("accounting.lines", locale)} value={String(totals.lines)} />
-            </div>
+            <StatGrid columns={4}>
+              <Stat size="md" label={t("accounting.totalDebit", locale)} value={rands(totals.debit)} />
+              <Stat size="md" label={t("accounting.totalCredit", locale)} value={rands(totals.credit)} />
+              <Stat size="md" label={t("accounting.entries", locale)} value={num(totals.entries)} />
+              <Stat size="md" label={t("accounting.lines", locale)} value={num(totals.lines)} />
+            </StatGrid>
             {/* Should never fire. It is here because the moment it does, the person
                 about to email this to an accountant is the person who needs to know. */}
             {totals.unbalanced.length > 0 ? (
@@ -185,7 +182,6 @@ export default async function AccountingPage({
 
           <Card>
             <CardHeader><CardTitle>{t("accounting.byAccountTitle", locale)}</CardTitle></CardHeader>
-            <div className="overflow-x-auto">
               <Table stacked>
                 <Thead>
                   <Tr>
@@ -206,7 +202,6 @@ export default async function AccountingPage({
                   ))}
                 </Tbody>
               </Table>
-            </div>
           </Card>
         </>
       )}
@@ -236,12 +231,10 @@ export default async function AccountingPage({
         </div>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("accounting.chartTitle", locale)}</CardTitle>
-        </CardHeader>
+      {/* For whoever sets up the import at the other end, once. A disclosure, not a
+          twenty-row table at the foot of every visit. */}
+      <Disclosure summary={t("accounting.chartTitle", locale)} meta={String(chart.length)}>
         <p className="mb-3 text-sm text-sand-600">{t("accounting.chartBody", locale)}</p>
-        <div className="overflow-x-auto">
           <Table stacked>
             <Thead>
               <Tr>
@@ -262,8 +255,7 @@ export default async function AccountingPage({
               ))}
             </Tbody>
           </Table>
-        </div>
-      </Card>
-    </div>
+      </Disclosure>
+    </PageContainer>
   );
 }

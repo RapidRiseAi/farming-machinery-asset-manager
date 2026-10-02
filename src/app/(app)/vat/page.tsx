@@ -13,11 +13,12 @@ import {
 } from "@/lib/expenses";
 import { claimNeedsProof } from "@/lib/receipt-media";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
+import { PeriodChips } from "@/components/books/period-chips";
 import { DownloadIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
@@ -58,14 +59,14 @@ export default async function VatPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -122,16 +123,14 @@ export default async function VatPage({
   const q = `from=${from}&to=${to}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("vat.title", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("vat.lead", locale)}</p>
-        </div>
-        <span className="ml-auto">
-          <PageInfoButton infoKey="vat" locale={locale} />
-        </span>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("vat.title", locale)}
+        lead={t("vat.lead", locale)}
+        meta={workshop.vat_registered === false ? undefined : t("books.range", locale).replace("{from}", shortDate(from, locale)).replace("{to}", shortDate(to, locale))}
+        infoKey="vat"
+        locale={locale}
+      />
 
       {/* Not VAT registered: this whole screen is a claim they must not make. */}
       {workshop.vat_registered === false ? (
@@ -144,33 +143,29 @@ export default async function VatPage({
         </Card>
       ) : (
         <>
-          <Card>
-            <CardHeader><CardTitle>{t("vat.periodTitle", locale)}</CardTitle></CardHeader>
-            <p className="mb-3 text-sm text-sand-600">
+          {/* Which SARS period. Chips, not a card of filled buttons: the chosen one was a
+              second green primary on a screen whose one job is the amount below. */}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-sand-600">
               {t("vat.periodBody", locale)}{" "}
               <Badge tone="neutral">{t(`vat.category${category === "monthly" ? "Monthly" : category}`, locale)}</Badge>
             </p>
-            <div className="flex flex-wrap gap-2">
-              {periods.map((p) => {
-                const active = p.from === from && p.to === to;
+            <PeriodChips
+              label={t("vat.periodTitle", locale)}
+              items={periods.map((p) => {
                 const isOpen = p.from === open.from && p.to === open.to;
-                return (
-                  <Link
-                    key={p.from}
-                    href={`/vat?from=${p.from}&to=${p.to}`}
-                    aria-current={active ? "true" : undefined}
-                    className={buttonVariants({ variant: active ? "primary" : "secondary", size: "sm" })}
-                  >
-                    {shortDate(p.from, locale)} - {shortDate(p.to, locale)}
-                    {isOpen ? ` · ${t("vat.periodOpen", locale)}` : ""}
-                  </Link>
-                );
+                return {
+                  key: p.from,
+                  href: `/vat?from=${p.from}&to=${p.to}`,
+                  label: `${t("books.range", locale).replace("{from}", shortDate(p.from, locale)).replace("{to}", shortDate(p.to, locale))}${isOpen ? ` · ${t("vat.periodOpen", locale)}` : ""}`,
+                  active: p.from === from && p.to === to,
+                };
               })}
-            </div>
+            />
             {viewingOpen ? (
-              <p className="mt-3 text-sm text-sand-600">{t("vat.periodOpenNote", locale)}</p>
+              <p className="text-sm text-sand-600">{t("vat.periodOpenNote", locale)}</p>
             ) : null}
-          </Card>
+          </div>
 
           <Card>
             <CardHeader>
@@ -186,7 +181,7 @@ export default async function VatPage({
               {t("vat.invoiceBasis", locale)}
             </p>
 
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-sand-200 pt-3 text-sm sm:max-w-md">
+            <dl className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 border-t border-sand-200 pt-3 text-sm sm:max-w-md">
               <dt className="text-sand-600">{t("vat.standardSales", locale)}</dt>
               <dd className="text-right tabular-nums text-sand-900">{rands(vat.standard_ex_cents)}</dd>
               {vat.zero_rated_cents > 0 ? (
@@ -242,8 +237,10 @@ export default async function VatPage({
             </div>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>{t("vat.salesTitle", locale)}</CardTitle></CardHeader>
+          {/* The lines behind the return are detail to READ (and to check before filing),
+              so each list is a disclosure showing its count, not two long tables that push
+              the downloads and the next period out of reach. */}
+          <Disclosure summary={t("vat.salesTitle", locale)} meta={String(docs.length)}>
             {docs.length === 0 ? (
               <AllClear title={t("vat.noSales", locale)} hint={t("vat.noSalesHint", locale)} />
             ) : (
@@ -281,10 +278,13 @@ export default async function VatPage({
                   </Tbody>
                 </Table>
             )}
-          </Card>
+          </Disclosure>
 
-          <Card>
-            <CardHeader><CardTitle>{t("vat.purchasesTitle", locale)}</CardTitle></CardHeader>
+          <Disclosure
+            summary={t("vat.purchasesTitle", locale)}
+            meta={String(expenses.length)}
+            defaultOpen={unsupportedVat > 0}
+          >
             {unsupportedVat > 0 ? (
               <p className="mb-3 rounded-lg border border-callout-warn-edge bg-callout-warn-bg px-3 py-2 text-sm text-callout-warn-ink">
                 {t("vat.unsupportedInput", locale)}{" "}
@@ -329,9 +329,9 @@ export default async function VatPage({
                   </Tbody>
                 </Table>
             )}
-          </Card>
+          </Disclosure>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

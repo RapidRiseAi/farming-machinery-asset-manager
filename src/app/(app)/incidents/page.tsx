@@ -20,7 +20,7 @@ import {
 } from "@/lib/incidents";
 
 import { Card, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { GetStarted } from "@/components/ui/empty-state";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { menuItemClass } from "@/components/ui/menu-item";
@@ -183,7 +183,7 @@ export default async function IncidentsPage({
           <option value="">{t("incidents.fieldJobCardNone", locale)}</option>
           {jobCards.map((j) => (
             <option key={j.id} value={j.id}>
-              {machineLabel(j.machine_id)} · {j.date_in ? shortDate(j.date_in, locale) : "-"}
+              {machineLabel(j.machine_id)} · {j.date_in ? shortDate(j.date_in, locale) : t("incidents.jobCardNoDate", locale)}
             </option>
           ))}
         </Select>
@@ -191,16 +191,9 @@ export default async function IncidentsPage({
     </>
   );
 
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-            {t("incidents.title", locale)}
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <PageInfoButton infoKey="incidents" locale={locale} />
-            {canManage ? (
+  // Rendered once: in the header when there are records, as the empty state's one
+  // button when there are none (two copies would also duplicate every field id).
+  const recordDialog = canManage ? (
               <DialogForm
                 trigger={t("incidents.add", locale)}
                 triggerIcon={<PlusIcon />}
@@ -213,7 +206,7 @@ export default async function IncidentsPage({
                     <Field label={t("incidents.fieldMachine", locale)} htmlFor="in-machine" required>
                       <Select id="in-machine" name="machine_id" required defaultValue="">
                         <option value="" disabled>
-                          -
+                          {t("fines.selectVehicle", locale)}
                         </option>
                         {machines.map((m) => (
                           <option key={m.id} value={m.id}>
@@ -296,6 +289,9 @@ export default async function IncidentsPage({
                     </DialogSection>
 
                     <DialogSection title={t("incidents.sectionClaim", locale)}>
+                      {/* Said where the amounts are, not in the footer of a form whose
+                          amount fields are still folded away. */}
+                      <p className="text-sm text-sand-600 sm:col-span-2">{t("incidents.moneyNote", locale)}</p>
                       <Field label={t("incidents.fieldStatus", locale)} htmlFor="in-status">
                         <Select id="in-status" name="status" defaultValue="reported">
                           {INCIDENT_STATUSES.map((s) => (
@@ -313,16 +309,22 @@ export default async function IncidentsPage({
                       </div>
                     </DialogSection>
                   </DialogFields>
-                  <DialogActions cancelLabel={cancelLabel} note={t("incidents.moneyNote", locale)}>
+                  <DialogActions cancelLabel={cancelLabel}>
                     <SubmitButton variant="primary">{t("incidents.add", locale)}</SubmitButton>
                   </DialogActions>
                 </form>
               </DialogForm>
-            ) : null}
-          </div>
-        </div>
-        <p className="mt-1 text-sm text-sand-600">{t("incidents.lead", locale)}</p>
-      </div>
+  ) : null;
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title={t("incidents.title", locale)}
+        lead={t("incidents.lead", locale)}
+        infoKey="incidents"
+        locale={locale}
+        actions={incidents.length > 0 ? recordDialog : undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash
@@ -339,33 +341,46 @@ export default async function IncidentsPage({
       />
 
       {/* The three answers, above the list. "Owed by insurer" is the one this page exists
-          for, and "longest wait" is the one that makes somebody ring the broker. */}
-      <div className="grid grid-cols-3 gap-3">
-        <Stat
-          label={t("incidents.statOpen", locale)}
-          value={String(stillOpen)}
-          tone={stillOpen > 0 ? "due" : "default"}
-        />
-        <Stat
-          label={t("incidents.statOutstanding", locale)}
-          value={rands(owed)}
-          tone={owed > 0 ? "brand" : "default"}
-        />
-        <Stat
-          label={t("incidents.statWaiting", locale)}
-          value={
-            longest == null
-              ? t("incidents.waitingNone", locale)
-              : t("incidents.waitingDays", locale).replace("{n}", String(longest))
-          }
-          tone={longest != null && longest >= 30 ? "overdue" : "default"}
-        />
-      </div>
+          for, and "longest wait" is the one that makes somebody ring the broker. Hidden
+          until there is a record: three zeroes above "No accidents recorded" said the
+          same thing four times. Two tiles a row on a phone (StatGrid), where a hard
+          three-column row pushed the page to 383px. */}
+      {incidents.length > 0 ? (
+        <StatGrid columns={3}>
+          <Stat
+            label={t("incidents.statOpen", locale)}
+            value={String(stillOpen)}
+            tone={stillOpen > 0 ? "due" : "default"}
+            valueClassName="text-xl sm:text-3xl"
+          />
+          <Stat
+            label={t("incidents.statOutstanding", locale)}
+            value={rands(owed)}
+            tone={owed > 0 ? "brand" : "default"}
+            valueClassName="text-xl sm:text-3xl"
+          />
+          {longest == null ? (
+            <Stat
+              label={t("incidents.statWaiting", locale)}
+              value={t("incidents.waitingNone", locale)}
+              valueKind="text"
+            />
+          ) : (
+            <Stat
+              label={t("incidents.statWaiting", locale)}
+              value={t("incidents.waitingDays", locale).replace("{n}", String(longest))}
+              tone={longest >= 30 ? "overdue" : "default"}
+              valueClassName="text-xl sm:text-3xl"
+            />
+          )}
+        </StatGrid>
+      ) : null}
 
       {incidents.length === 0 ? (
         <GetStarted
           title={t("incidents.emptyTitle", locale)}
           hint={t("incidents.emptyBody", locale)}
+          action={recordDialog}
         />
       ) : (
         <Card flush>
@@ -443,6 +458,7 @@ export default async function IncidentsPage({
 
                                   {/* Open by default: the claim is what an update is for. */}
                                   <DialogSection title={t("incidents.sectionClaim", locale)} defaultOpen>
+                                    <p className="text-sm text-sand-600 sm:col-span-2">{t("incidents.moneyNote", locale)}</p>
                                     {claimFields(r, prefix)}
                                     <div className="sm:col-span-2">
                                       <Field label={t("incidents.fieldClaimNotes", locale)} htmlFor={`cn-${r.id}`}>
@@ -465,7 +481,7 @@ export default async function IncidentsPage({
                                 {r.injuries ? <input type="hidden" name="injuries" value="on" /> : null}
                                 <input type="hidden" name="injury_notes" value={r.injury_notes ?? ""} />
 
-                                <DialogActions cancelLabel={cancelLabel} note={t("incidents.moneyNote", locale)}>
+                                <DialogActions cancelLabel={cancelLabel}>
                                   <SubmitButton variant="primary">{t("incidents.update", locale)}</SubmitButton>
                                 </DialogActions>
                               </form>
@@ -580,6 +596,6 @@ export default async function IncidentsPage({
           </ul>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

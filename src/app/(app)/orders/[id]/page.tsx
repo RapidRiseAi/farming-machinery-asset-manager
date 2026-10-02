@@ -4,7 +4,7 @@ import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate, vatPercent } from "@/lib/format";
+import { shortDate, todayLocal, vatPercent } from "@/lib/format";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,12 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
 import { OrderStatus } from "@/components/ui/status";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Fact, FactList } from "@/components/ui/facts";
+import { DialogForm } from "@/components/ui/dialog-form";
+import { ActionMenu } from "@/components/ui/action-menu";
 import { OrderForm } from "@/components/orders/order-form";
+import { poErrorMessage } from "@/components/orders/po-error";
 import { LineEditor } from "@/components/orders/line-editor";
 import { ConvertForm } from "@/components/orders/convert-form";
 import {
@@ -32,9 +37,12 @@ export const dynamic = "force-dynamic";
 /**
  * One purchase order (G16), in the order the questions are asked: what state is it in,
  * what is still to come, has it been invoiced, and only then the details of the order
- * itself. Editing the header is last on purpose, it is the thing least often needed
- * once an order is out, and putting it first would bury the receiving fields under a
- * form nobody came here to fill in.
+ * itself. The details are STATED at the bottom, with an "Edit details" dialog, and the
+ * supplier's invoice is captured in a dialog too: the page used to carry both forms
+ * inline, about twenty live inputs and up to three filled buttons at once. Only the
+ * current step of the lifecycle is a filled button now: "Send it to the supplier" while
+ * the order is a draft with something on it, "Add it" while it is still empty, and
+ * "Record the supplier's invoice" once it is out.
  *
  * RLS decides visibility; this page only decides what to offer. A partner from another
  * workshop following a guessed link reads nothing and lands back on the list.
@@ -87,25 +95,20 @@ export default async function OrderPage({
   const editable = order.status !== "cancelled";
   const late = isLate(order);
 
-  const error = sp.error?.startsWith("po-")
-    ? t(`po.err.${sp.error.slice("po-".length)}`, locale)
-    : sp.error;
+  const title = `${order.reference ? `${order.reference} · ` : ""}${order.supplier_name}`;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
+  const draft = order.status === "draft";
+  const none = <span className="text-sand-500">{t("ui.none", locale)}</span>;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0">
-          <Link
-            href="/orders"
-            className="focus-ring text-sm font-medium text-brand-ink underline underline-offset-2"
-          >
-            {t("po.backToList", locale)}
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
-            {order.reference ? `${order.reference} · ` : ""}
-            {order.supplier_name}
-          </h1>
-          <p className="text-sm text-sand-600">
+    <PageContainer>
+      <PageHeader
+        back={{ href: "/orders", label: t("po.backToList", locale) }}
+        title={<span className="break-words">{title}</span>}
+        badge={<OrderStatus value={order.status} locale={locale} size="md" />}
+        meta={
+          <>
             {t("po.orderedOn", locale)} {shortDate(order.order_date, locale)}
             {order.expected_date ? (
               <>
@@ -113,14 +116,11 @@ export default async function OrderPage({
                 {t("po.dueOn", locale)} {shortDate(order.expected_date, locale)}
               </>
             ) : null}
-          </p>
-        </div>
-        <span className="ml-auto">
-          <OrderStatus value={order.status} locale={locale} size="md" />
-        </span>
-      </div>
+          </>
+        }
+      />
 
-      <Flash tone="error" message={error} />
+      <Flash tone="error" message={poErrorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? t("po.createdFlash", locale) : undefined} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.added ? t("po.addedFlash", locale) : undefined} />
@@ -131,7 +131,7 @@ export default async function OrderPage({
       {/* What it is worth, and how much of it is standing on the floor. Both are read
           from the header, which the 0473 trigger keeps in step with the lines. */}
       <Card>
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
               {t("po.subtotal", locale)}
@@ -170,12 +170,18 @@ export default async function OrderPage({
         {/* The lifecycle, as buttons that say what they do. Nothing here types a status
             that the 0474 engine owns, sending an order is a decision, receiving one is
             an observation, and only the first is a button. */}
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-sand-200 pt-4">
-          {order.status === "draft" ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-sand-200 pt-4">
+          {draft ? (
             <form action={setOrderStatus}>
               <input type="hidden" name="order_id" value={order.id} />
               <input type="hidden" name="status" value="sent" />
-              <SubmitButton size="sm" disabled={lines.length === 0}>
+              {/* Filled only once there is something to send; until then "Add it" is the
+                  next step and this waits, disabled and quiet. */}
+              <SubmitButton
+                size="sm"
+                variant={lines.length > 0 ? "primary" : "secondary"}
+                disabled={lines.length === 0}
+              >
                 {t("po.markSent", locale)}
               </SubmitButton>
             </form>
@@ -209,58 +215,63 @@ export default async function OrderPage({
             </ConfirmDialog>
           ) : null}
 
-          {order.status !== "cancelled" ? (
-            <ConfirmDialog
-              action={setOrderStatus}
-              triggerLabel={t("po.cancel", locale)}
-              triggerVariant="ghost"
-              triggerSize="sm"
-              title={t("po.cancelTitle", locale)}
-              intro={`${order.supplier_name} · ${rands(order.total_cents)}`}
-              consequences={[t("po.cancelConsequence", locale), t("po.cancelKeeps", locale)]}
-              confirmLabel={t("po.cancel", locale)}
-              cancelLabel={t("common.cancel", locale)}
-              closeLabel={t("ui.close", locale)}
-            >
-              <input type="hidden" name="order_id" value={order.id} />
-              <input type="hidden" name="status" value="cancelled" />
-            </ConfirmDialog>
-          ) : (
-            <form action={setOrderStatus}>
-              <input type="hidden" name="order_id" value={order.id} />
-              <input type="hidden" name="status" value="draft" />
-              <SubmitButton size="sm" variant="ghost">
-                {t("po.reopen", locale)}
-              </SubmitButton>
-            </form>
-          )}
+          {/* The rarer steps, behind one menu named for the order. */}
+          <span className="ml-auto">
+            <ActionMenu title={title} label={t("common.actions", locale)} closeLabel={closeLabel}>
+              {order.status !== "cancelled" ? (
+                <ConfirmDialog
+                  action={setOrderStatus}
+                  triggerLook="menuItem"
+                  triggerLabel={t("po.cancel", locale)}
+                  title={t("po.cancelTitle", locale)}
+                  intro={`${order.supplier_name} · ${rands(order.total_cents)}`}
+                  consequences={[t("po.cancelConsequence", locale), t("po.cancelKeeps", locale)]}
+                  confirmLabel={t("po.cancel", locale)}
+                  cancelLabel={cancelLabel}
+                  closeLabel={closeLabel}
+                >
+                  <input type="hidden" name="order_id" value={order.id} />
+                  <input type="hidden" name="status" value="cancelled" />
+                </ConfirmDialog>
+              ) : (
+                <form action={setOrderStatus}>
+                  <input type="hidden" name="order_id" value={order.id} />
+                  <input type="hidden" name="status" value="draft" />
+                  <SubmitButton look="menuItem">{t("po.reopen", locale)}</SubmitButton>
+                </form>
+              )}
 
-          {/* Deleting is refused server-side once an invoice points at the order, so the
-              button is not offered either, an action that always fails is worse than an
-              action that is not there. */}
-          {!expense ? (
-            <span className="ml-auto">
-              <ConfirmDialog
-                action={deleteOrder}
-                triggerLabel={t("common.remove", locale)}
-                triggerIcon={<TrashIcon />}
-                triggerVariant="ghost"
-                triggerSize="sm"
-                title={t("po.deleteTitle", locale)}
-                intro={`${order.supplier_name} · ${rands(order.total_cents)}`}
-                consequences={[t("po.deleteConsequence", locale), t("po.deletePrefer", locale)]}
-                confirmLabel={t("common.remove", locale)}
-                cancelLabel={t("common.cancel", locale)}
-                closeLabel={t("ui.close", locale)}
-              >
-                <input type="hidden" name="order_id" value={order.id} />
-              </ConfirmDialog>
-            </span>
-          ) : null}
+              {/* Deleting is refused server-side once an invoice points at the order, so
+                  it is not offered either, an action that always fails is worse than an
+                  action that is not there. */}
+              {!expense ? (
+                <ConfirmDialog
+                  action={deleteOrder}
+                  triggerLook="menuItem"
+                  triggerLabel={t("common.remove", locale)}
+                  triggerIcon={<TrashIcon />}
+                  title={t("po.deleteTitle", locale)}
+                  intro={`${order.supplier_name} · ${rands(order.total_cents)}`}
+                  consequences={[t("po.deleteConsequence", locale), t("po.deletePrefer", locale)]}
+                  confirmLabel={t("common.remove", locale)}
+                  cancelLabel={cancelLabel}
+                  closeLabel={closeLabel}
+                >
+                  <input type="hidden" name="order_id" value={order.id} />
+                </ConfirmDialog>
+              ) : null}
+            </ActionMenu>
+          </span>
         </div>
       </Card>
 
-      <LineEditor locale={locale} order={order} lines={lines} editable={editable} />
+      <LineEditor
+        locale={locale}
+        order={order}
+        lines={lines}
+        editable={editable}
+        addPrimary={draft && lines.length === 0}
+      />
 
       {/* The invoice. The only place in this feature where money enters the books. */}
       <Card>
@@ -301,26 +312,63 @@ export default async function OrderPage({
             </p>
           </div>
         ) : canConvert(order.status) ? (
-          <>
-            <p className="mb-3 text-sm text-sand-600">{t("po.invoiceHint", locale)}</p>
-            <ConvertForm locale={locale} order={order} />
-          </>
+          <div className="flex flex-col items-start gap-3">
+            <p className="text-sm text-sand-600">{t("po.invoiceHint", locale)}</p>
+            <DialogForm
+              trigger={t("po.recordInvoice", locale)}
+              title={t("po.invoiceTitle", locale)}
+              description={title}
+              closeLabel={closeLabel}
+            >
+              <ConvertForm locale={locale} order={order} today={todayLocal()} />
+            </DialogForm>
+          </div>
         ) : (
           <p className="text-sm text-sand-600">{t("po.invoiceNotYet", locale)}</p>
         )}
       </Card>
 
+      {/* What the order IS, stated; the fields only open when somebody asks to edit. */}
       <Card>
-        <CardHeader>
+        <CardHeader
+          action={
+            <DialogForm
+              trigger={t("machine.editDetails", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("po.detailsTitle", locale)}
+              description={title}
+              closeLabel={closeLabel}
+            >
+              <OrderForm
+                locale={locale}
+                action={updateOrder}
+                order={order}
+                submitLabel={t("po.detailsSubmit", locale)}
+              />
+            </DialogForm>
+          }
+        >
           <CardTitle>{t("po.detailsTitle", locale)}</CardTitle>
         </CardHeader>
-        <OrderForm
-          locale={locale}
-          action={updateOrder}
-          order={order}
-          submitLabel={t("po.detailsSubmit", locale)}
-        />
+        <FactList>
+          <Fact label={t("po.supplier", locale)} value={<span className="break-words">{order.supplier_name}</span>} />
+          <Fact
+            label={t("po.reference", locale)}
+            value={order.reference ? <span className="break-words">{order.reference}</span> : none}
+          />
+          <Fact label={t("po.orderDate", locale)} value={shortDate(order.order_date, locale)} />
+          <Fact
+            label={t("po.expectedDate", locale)}
+            value={order.expected_date ? shortDate(order.expected_date, locale) : none}
+          />
+          <Fact label={t("po.vatPercent", locale)} value={vatPercent(order.vat_rate_bps)} />
+          <Fact
+            label={t("po.notes", locale)}
+            value={order.notes ? <span className="whitespace-pre-line break-words">{order.notes}</span> : none}
+          />
+        </FactList>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

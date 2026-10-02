@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   createSpeechClient,
   SpeechClientError,
@@ -148,6 +148,7 @@ export function AssistantClient({
   initialAiConsent,
   capabilities,
   initialThread,
+  infoButton,
 }: {
   locale: Lang;
   offlineContextKey: string;
@@ -157,6 +158,12 @@ export function AssistantClient({
   capabilities: Capabilities;
   /** Past exchanges on this farm, oldest first, read through RLS by the page. */
   initialThread: ThreadEntry[];
+  /**
+   * "What is this?", rendered by the server page (it is a server component). When it is
+   * there, the lead paragraph and the typing hint live in its panel instead of above and
+   * below the composer, which is what kept the mic under a phone's first screen.
+   */
+  infoButton?: ReactNode;
 }) {
   const [speechLanguage, setSpeechLanguage] = useState<AssistantLocale>(initialSpeechLanguage);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -1088,7 +1095,11 @@ export function AssistantClient({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("assistant.title", locale)}</h1>
-        <p className="mt-1 text-sm leading-6 text-sand-600">{t("assistant.lead", locale)}</p>
+        {infoButton ? (
+          <div className="mt-1">{infoButton}</div>
+        ) : (
+          <p className="mt-1 text-sm leading-6 text-sand-600">{t("assistant.lead", locale)}</p>
+        )}
       </header>
 
       <div className="grid grid-cols-2 gap-2 rounded-xl border border-sand-200 bg-sand-50 p-1" aria-label={t("assistant.languageLabel", locale)}>
@@ -1127,7 +1138,10 @@ export function AssistantClient({
         <Card className="border-callout-warn-edge bg-callout-warn-bg/50">
           <CardTitle>{t("assistant.offlineTitle", locale)}</CardTitle>
           <p className="mt-1 text-sm text-sand-700">
-            {t("assistant.offlinePending", locale).replace("{count}", String(offlineCaptures.length))}
+            {t(offlineCaptures.length === 1 ? "assistant.offlinePendingOne" : "assistant.offlinePending", locale).replace(
+              "{count}",
+              String(offlineCaptures.length),
+            )}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
@@ -1480,7 +1494,8 @@ export function AssistantClient({
             disabled={isBusy}
             onClick={() => void (isListening ? stopListening() : startListening())}
             className={cn(
-              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl text-white shadow-xs transition-colors",
+              // Round and icon-only where the row is tight; from sm up it says what it does.
+              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center gap-2 rounded-full text-2xl text-white shadow-xs transition-colors sm:w-auto sm:px-5",
               isListening
                 ? "animate-pulse bg-status-overdue hover:bg-danger-600"
                 : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
@@ -1488,6 +1503,9 @@ export function AssistantClient({
             )}
           >
             {isListening ? <StopIcon /> : <MicIcon />}
+            <span className="hidden text-sm font-semibold sm:inline">
+              {isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
+            </span>
           </button>
 
           <button
@@ -1507,7 +1525,7 @@ export function AssistantClient({
           </button>
         </div>
 
-        <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>
+        {infoButton ? null : <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>}
 
         {/* Always present, not folded into the starters: the ordinary screens
             are the fallback when the assistant cannot help, and withdrawing AI

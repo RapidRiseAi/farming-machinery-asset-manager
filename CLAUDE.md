@@ -179,6 +179,12 @@ will bite again.
   it is where a layout only ever seen at 1280 shows its seams. A `<Table stacked>` is
   cards below `lg` and a real table above it, and shipping it without the scroll wrapper
   pushed `/team` to 1112px on a 13-inch laptop.
+- **A gate run on one English, near-empty fixture is a claim about that fixture.** `ui:check`
+  passed all 53 routes at 360px while six pages rendered zoomed out for the demo personas:
+  every Afrikaans page (the bell label "Kennisgewings" could not shrink), `/incidents` with
+  real money values, and a contractor's DRAFT document. Long translations and real data are
+  where width breaks; measure with an Afrikaans persona and a populated farm before calling a
+  screen phone-safe.
 - **A lint rule dies in one of two ways, and both happened to `kit-button` in one hour.**
   It matched the element and the class on ONE line, so it missed every real case (JSX puts
   `<Link` on 61 and its class on 63); then, broadened, it cried wolf at a brand-filled

@@ -25,6 +25,19 @@ export const INACTIVE_STATUSES = ["retired", "sold"] as const;
 
 export const METER_TYPES = ["hours", "km", "none"] as const;
 
+/**
+ * The meter a new machine of this type most likely has, so the add form starts on the
+ * right one: a bakkie or a truck has an odometer, an implement (a plough, a trailer)
+ * usually has no meter at all, and everything else runs on an hour meter. Only a
+ * starting point: the person can change it, and the form stops following the type the
+ * moment they do.
+ */
+export function defaultMeterFor(type: string | null | undefined): (typeof METER_TYPES)[number] {
+  if (type === "bakkie" || type === "truck") return "km";
+  if (type === "implement") return "none";
+  return "hours";
+}
+
 // i18n-aware label helpers (preferred going forward). Keys live under the
 // machineType / machineStatus / meterType namespaces in the i18n dictionaries.
 export const typeLabel = (key: string, locale: Lang) => t(`machineType.${key}`, locale);

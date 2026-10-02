@@ -3,7 +3,7 @@ import { errorMessage } from "@/lib/errors";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { typeLabel } from "@/lib/machine-options";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { buttonVariants } from "@/components/ui/button";
-import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { menuItemClass } from "@/components/ui/menu-item";
+import { CopyIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistTemplate, duplicateChecklistTemplate } from "./actions";
-import { relativeDate } from "@/lib/format";
+import { num, relativeDate } from "@/lib/format";
 
 type TemplateRow = {
   id: string;
@@ -48,27 +50,26 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
   // A global row is editable only by RR admin; a farm row by that farm's crew (RLS also enforces).
   const canEditRow = (tpl: TemplateRow) => (tpl.farm_id == null ? isAdmin : canManageFarm);
 
+  const closeLabel = t("ui.close", locale);
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("checklists.title", locale)}</h1>
-          <PageInfoButton infoKey="checklists" locale={locale} />
-        </div>
-          <p className="mt-0.5 text-sm text-sand-500">{t("checklists.subtitle", locale)}</p>
-        </div>
-        {/* Was a hand-rolled copy of the primary button in raw classes. Its `py-2` made
-            it about 36px tall, so the one call to action on this screen was a SMALLER
-            target than every other button in the product, on the device this is used on.
-            `buttonVariants` carries the 48px phone floor. */}
-        {canCreate ? (
-          <Link href="/checklists/new" className={buttonVariants({ variant: "primary" })}>
-            <PlusIcon className="text-lg" />
-            {t("checklists.newTemplate", locale)}
-          </Link>
-        ) : null}
-      </div>
+    <PageContainer>
+      {/* The New template link was once a hand-rolled copy of the primary button whose
+          `py-2` made it about 36px tall. `buttonVariants` carries the 48px phone floor. */}
+      <PageHeader
+        title={t("checklists.title", locale)}
+        lead={t("checklists.subtitle", locale)}
+        infoKey="checklists"
+        locale={locale}
+        actions={
+          canCreate ? (
+            <Link href="/checklists/new" className={buttonVariants({ variant: "primary" })}>
+              <PlusIcon className="text-lg" />
+              {t("checklists.newTemplate", locale)}
+            </Link>
+          ) : undefined
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
@@ -84,12 +85,27 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
         <div className="flex flex-col gap-3">
           {templates.map((tpl) => {
             const fieldCount = (tpl.checklist_template_fields ?? []).length;
+            const editable = canEditRow(tpl);
+            // A template this person cannot edit (the shared library, for a farm) can
+            // still be copied into their own farm and changed there.
+            const copyable = !editable && canCreate;
             return (
               <Card key={tpl.id}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-semibold text-sand-900">{tpl.name}</h2>
+                      <h2 className="min-w-0 break-words font-semibold text-sand-900">
+                        {editable ? (
+                          <Link
+                            href={`/checklists/${tpl.id}/edit`}
+                            className="focus-ring rounded hover:underline"
+                          >
+                            {tpl.name}
+                          </Link>
+                        ) : (
+                          tpl.name
+                        )}
+                      </h2>
                       <Badge tone={tpl.farm_id == null ? "info" : "neutral"}>
                         {tpl.farm_id == null ? t("checklists.scopeGlobal", locale) : t("checklists.scopeFarm", locale)}
                       </Badge>
@@ -97,29 +113,32 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                     </div>
                     {tpl.description ? <p className="mt-1 text-sm text-sand-600">{tpl.description}</p> : null}
                     <p className="mt-1 text-xs text-sand-500">
-                      {t("checklists.fieldCount", locale).replace("{n}", String(fieldCount))} ·{" "}
+                      {t("checklists.fieldCount", locale).replace("{n}", num(fieldCount))} ·{" "}
                       {t("checklists.updated", locale)} {relativeDate(tpl.updated_at, locale)}
                     </p>
                   </div>
-                  {canEditRow(tpl) ? (
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <Link
-                        href={`/checklists/${tpl.id}/edit`}
-                        className="focus-ring inline-flex items-center gap-1 rounded-lg border border-sand-300 px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-50"
-                      >
+                  {/* Every action on this template behind one button, titled with it.
+                      These were three loose buttons, one of them 32px tall. */}
+                  {editable ? (
+                    <ActionMenu
+                      title={tpl.name}
+                      label={t("common.actions", locale)}
+                      closeLabel={closeLabel}
+                    >
+                      <Link href={`/checklists/${tpl.id}/edit`} className={menuItemClass()}>
                         {t("common.edit", locale)}
                       </Link>
                       <form action={duplicateChecklistTemplate}>
                         <input type="hidden" name="id" value={tpl.id} />
-                        <SubmitButton variant="secondary" size="sm">{t("checklists.duplicate", locale)}</SubmitButton>
+                        <SubmitButton look="menuItem" leftIcon={<CopyIcon />}>
+                          {t("checklists.duplicate", locale)}
+                        </SubmitButton>
                       </form>
                       <ConfirmDialog
                         action={deleteChecklistTemplate}
-                        triggerVariant="ghost"
-                        triggerSize="sm"
+                        triggerLook="menuItem"
                         triggerIcon={<TrashIcon />}
                         triggerLabel={t("common.delete", locale)}
-                        triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
                         title={t("confirm.deleteChecklistTemplateTitle", locale).replace("{template}", tpl.name)}
                         intro={t("confirm.deleteChecklistTemplateIntro", locale)}
                         consequencesTitle={t("confirm.whatHappens", locale)}
@@ -130,20 +149,31 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
                         footnote={t("confirm.softDeleteNote", locale)}
                         confirmLabel={t("confirm.deleteChecklistTemplateYes", locale)}
                         cancelLabel={t("confirm.keepIt", locale)}
-                        closeLabel={t("ui.close", locale)}
+                        closeLabel={closeLabel}
                       >
                         <input type="hidden" name="id" value={tpl.id} />
                       </ConfirmDialog>
-                    </div>
-                  ) : (
-                    <span className="flex items-center text-sand-400"><ChevronRightIcon /></span>
-                  )}
+                    </ActionMenu>
+                  ) : copyable ? (
+                    <ActionMenu
+                      title={tpl.name}
+                      label={t("common.actions", locale)}
+                      closeLabel={closeLabel}
+                    >
+                      <form action={duplicateChecklistTemplate}>
+                        <input type="hidden" name="id" value={tpl.id} />
+                        <SubmitButton look="menuItem" leftIcon={<CopyIcon />}>
+                          {t("checklists.copyToFarm", locale)}
+                        </SubmitButton>
+                      </form>
+                    </ActionMenu>
+                  ) : null}
                 </div>
               </Card>
             );
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

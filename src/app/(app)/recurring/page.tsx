@@ -10,7 +10,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ScheduleForm } from "@/components/recurring/schedule-form";
 
 export const dynamic = "force-dynamic";
@@ -71,18 +71,19 @@ export default async function RecurringPage({
   ];
 
   const due = schedules.filter((s) => isDue(s));
+  const form = (
+    <ScheduleForm locale={locale} parties={parties} defaultVatBps={workshop.vat_registered === false ? 0 : 1500} />
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("recurring.title", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("recurring.lead", locale)}</p>
-        </div>
-        <span className="ml-auto">
-          <PageInfoButton infoKey="recurring" locale={locale} />
-        </span>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("recurring.title", locale)}
+        lead={t("recurring.lead", locale)}
+        infoKey="recurring"
+        locale={locale}
+        actions={form}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("recurring.deletedFlash", locale) : undefined} />
@@ -112,8 +113,6 @@ export default async function RecurringPage({
         </Card>
       ) : null}
 
-      <ScheduleForm locale={locale} parties={parties} defaultVatBps={workshop.vat_registered === false ? 0 : 1500} />
-
       <Card>
         <CardHeader><CardTitle>{t("recurring.listTitle", locale)}</CardTitle></CardHeader>
         {schedules.length === 0 ? (
@@ -122,7 +121,7 @@ export default async function RecurringPage({
           <ul className="flex flex-col divide-y divide-sand-100">
             {schedules.map((s) => (
               <li key={s.id} className="py-2.5">
-                <Link href={`/recurring/${s.id}`} className="focus-ring flex flex-wrap items-center gap-2 rounded">
+                <Link href={`/recurring/${s.id}`} className="focus-ring flex min-h-[48px] flex-wrap items-center gap-2 rounded sm:min-h-[40px]">
                   <span className="font-medium text-sand-900">{s.name}</span>
                   <Badge tone="neutral">{t(`cadence.${s.cadence}`, locale)}</Badge>
                   {s.auto_send ? <Badge tone="info">{t("recurring.autoSendBadge", locale)}</Badge> : null}
@@ -148,6 +147,6 @@ export default async function RecurringPage({
       </Card>
 
       <p className="text-sm text-sand-500">{t("recurring.footnote", locale)}</p>
-    </div>
+    </PageContainer>
   );
 }

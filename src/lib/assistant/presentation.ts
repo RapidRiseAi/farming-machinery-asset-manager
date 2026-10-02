@@ -6,6 +6,7 @@ import type {
   ConfirmationProposal,
 } from "./types";
 import { todayInSouthAfrica } from "./date";
+import { shortDate } from "../format";
 
 function af(locale: AssistantLocale): boolean {
   return locale === "af-ZA";
@@ -166,7 +167,8 @@ export function serviceDueAnswer(machine: AssistantMachine, locale: AssistantLoc
     : { ok: "up to date", due_soon: "due soon", overdue: "overdue" }[machine.serviceStatus];
   const due = [
     machine.nextDueReading == null ? null : meter(machine, machine.nextDueReading),
-    machine.nextDueDate,
+    // A person reads "4 Jun 2027", never the ISO string the database hands over.
+    machine.nextDueDate ? shortDate(machine.nextDueDate, af(locale) ? "af" : "en") : null,
   ].filter(Boolean);
   return af(locale)
     ? `${machine.name} se diens is ${status}.${due.length ? ` Volgende teiken: ${due.join(" of ")}.` : ""}`

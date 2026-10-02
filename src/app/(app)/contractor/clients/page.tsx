@@ -4,19 +4,18 @@ import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import { shortDate } from "@/lib/format";
+import { shortDate, num } from "@/lib/format";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { PlusIcon } from "@/components/ui/icons";
+import { PlusIcon, PhoneIcon, ChatIcon, MailIcon } from "@/components/ui/icons";
 import { createClientRecord } from "./actions";
 
 /**
@@ -95,7 +94,7 @@ export default async function PartnerClientsPage({
     return (
       <li className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/contractor/clients/${c.id}`} className="focus-ring rounded font-medium text-sand-900 hover:text-brand-ink hover:underline">
+          <Link href={`/contractor/clients/${c.id}`} className="focus-ring inline-flex min-h-[48px] min-w-0 items-center rounded font-medium text-sand-900 hover:text-brand-ink hover:underline sm:min-h-[36px]">
             {c.name}
           </Link>
           {c.farm_id ? (
@@ -112,24 +111,24 @@ export default async function PartnerClientsPage({
         <p className="text-sm text-sand-600">
           {[c.contact_name, c.phone ?? c.whatsapp, c.email].filter(Boolean).join(" · ") || t("clients.noContact", locale)}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {c.phone ? (
-            <a href={telHref(c.phone) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.call", locale)}
+            <a href={telHref(c.phone) ?? "#"} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              <PhoneIcon className="text-base" /> {t("contact.call", locale)}
             </a>
           ) : null}
           {c.whatsapp ? (
-            <a href={waHref(c.whatsapp) ?? "#"} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.whatsapp", locale)}
+            <a href={waHref(c.whatsapp) ?? "#"} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              <ChatIcon className="text-base" /> {t("contact.whatsapp", locale)}
             </a>
           ) : null}
           {c.email ? (
-            <a href={mailtoHref(c.email) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.email", locale)}
+            <a href={mailtoHref(c.email) ?? "#"} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              <MailIcon className="text-base" /> {t("contact.email", locale)}
             </a>
           ) : null}
           {c.linked_at ? (
-            <span className="self-center text-xs text-sand-400">
+            <span className="text-xs text-sand-500">
               {t("clients.connectedOn", locale)} {shortDate(c.linked_at, locale)}
             </span>
           ) : null}
@@ -139,60 +138,57 @@ export default async function PartnerClientsPage({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("clients.title", locale)}</h1>
-        <PageInfoButton infoKey="clients" locale={locale} />
-        {/* An eight-field "add a client" card sat under the three lists this page exists
-            to show, so the client book ended in a blank form. Same treatment as the
-            client's own detail screen, which was converted earlier. */}
-        <DialogForm
-          trigger={t("clients.add", locale)}
-          triggerIcon={<PlusIcon />}
-          title={t("clients.addTitle", locale)}
-          description={t("clients.addHint", locale)}
-          closeLabel={t("ui.close", locale)}
-        >
-          <form action={createClientRecord}>
-            <DialogFields>
-              <div className="sm:col-span-2">
-                <TextField name="name" label={t("clients.name", locale)} required />
-              </div>
-              <TextField name="contact_name" label={t("clients.contactName", locale)} />
-              <TextField name="phone" type="tel" label={t("clients.phone", locale)} />
-              <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} />
-              <TextField
-                name="email"
-                type="email"
-                label={t("clients.email", locale)}
-                hint={t("clients.emailHint", locale)}
-              />
-              <div className="sm:col-span-2">
-                <TextareaField name="address" rows={2} label={t("clients.address", locale)} />
-              </div>
-              <div className="sm:col-span-2">
-                <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
-              </div>
-            </DialogFields>
-            <DialogActions cancelLabel={t("common.cancel", locale)}>
-              <SubmitButton variant="primary" leftIcon={<PlusIcon />}>
-                {t("clients.add", locale)}
-              </SubmitButton>
-            </DialogActions>
-          </form>
-        </DialogForm>
-      </div>
-      <p className="text-sand-600">{t("clients.lead", locale)}</p>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("clients.title", locale)}
+        lead={t("clients.lead", locale)}
+        meta={clients.length > 0 ? t("clients.countMeta", locale).replace("{n}", num(clients.length, 0)) : undefined}
+        infoKey="clients"
+        locale={locale}
+        actions={
+          /* An eight-field "add a client" card sat under the three lists this page exists
+             to show, so the client book ended in a blank form. Same treatment as the
+             client's own detail screen, which was converted earlier. */
+          <DialogForm
+            trigger={t("clients.add", locale)}
+            triggerIcon={<PlusIcon />}
+            title={t("clients.addTitle", locale)}
+            description={t("clients.addHint", locale)}
+            closeLabel={t("ui.close", locale)}
+          >
+            <form action={createClientRecord}>
+              <DialogFields>
+                <div className="sm:col-span-2">
+                  <TextField name="name" label={t("clients.name", locale)} required />
+                </div>
+                <TextField name="contact_name" label={t("clients.contactName", locale)} />
+                <TextField name="phone" type="tel" label={t("clients.phone", locale)} />
+                <TextField name="whatsapp" type="tel" label={t("clients.whatsapp", locale)} />
+                <TextField
+                  name="email"
+                  type="email"
+                  label={t("clients.email", locale)}
+                  hint={t("clients.emailHint", locale)}
+                />
+                <div className="sm:col-span-2">
+                  <TextareaField name="address" rows={2} label={t("clients.address", locale)} />
+                </div>
+                <div className="sm:col-span-2">
+                  <TextareaField name="notes" rows={2} label={t("clients.notes", locale)} />
+                </div>
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <SubmitButton variant="primary" leftIcon={<PlusIcon />}>
+                  {t("clients.add", locale)}
+                </SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.removed ? t("clients.removed", locale) : undefined} />
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={t("clients.total", locale)} value={clients.length} />
-        <Stat label={t("clients.connectedCount", locale)} value={linked.length} tone="ok" />
-        <Stat label={t("clients.waitingCount", locale)} value={waiting.length} />
-        <Stat label={t("clients.offlineCount", locale)} value={offline.length} />
-      </div>
 
       {/* Farms that connected through the directory but were never written down. Offering
           to add them keeps one list rather than two half-lists. */}
@@ -225,26 +221,25 @@ export default async function PartnerClientsPage({
         <div className="flex flex-col gap-4">
           {linked.length > 0 ? (
             <Card>
-              <CardHeader><CardTitle>{t("clients.onFleetWise", locale)}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("clients.onFleetWise", locale)} <span className="font-normal tabular-nums text-sand-500">{num(linked.length, 0)}</span></CardTitle></CardHeader>
               <ul className="flex flex-col gap-2">{linked.map((c) => <Row key={c.id} c={c} />)}</ul>
             </Card>
           ) : null}
           {waiting.length > 0 ? (
             <Card>
-              <CardHeader><CardTitle>{t("clients.waitingTitle", locale)}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("clients.waitingTitle", locale)} <span className="font-normal tabular-nums text-sand-500">{num(waiting.length, 0)}</span></CardTitle></CardHeader>
               <p className="mb-2 text-sm text-sand-500">{t("clients.waitingHint", locale)}</p>
               <ul className="flex flex-col gap-2">{waiting.map((c) => <Row key={c.id} c={c} />)}</ul>
             </Card>
           ) : null}
           {offline.length > 0 ? (
             <Card>
-              <CardHeader><CardTitle>{t("clients.everyoneElse", locale)}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("clients.everyoneElse", locale)} <span className="font-normal tabular-nums text-sand-500">{num(offline.length, 0)}</span></CardTitle></CardHeader>
               <ul className="flex flex-col gap-2">{offline.map((c) => <Row key={c.id} c={c} />)}</ul>
             </Card>
           ) : null}
         </div>
       )}
-
-    </div>
+    </PageContainer>
   );
 }

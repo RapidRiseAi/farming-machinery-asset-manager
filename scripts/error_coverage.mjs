@@ -70,8 +70,10 @@ const emitted = new Map();
 for (const f of walk("src/app")) {
   const text = readFileSync(f, "utf8");
   // Capture the WHOLE value, commas included, `?error=Email,+name+and+role+required`
-  // is one message, and stopping at the comma invents a phantom code "email".
-  for (const m of text.matchAll(/[?&]error=([^"'`&\s)]+)/g)) {
+  // is one message, and stopping at the comma invents a phantom code "email". It does
+  // stop at "#": `?error=save-failed#alerts` sends the code "save-failed" (a fragment is
+  // never part of the query), and reading through it invented "save-failedalerts".
+  for (const m of text.matchAll(/[?&]error=([^"'`&\s)#]+)/g)) {
     let v = m[1];
     if (v.includes("$")) continue; // interpolated at runtime
     const c = norm(decodeURIComponent(v.replace(/\+/g, " ")));

@@ -10,7 +10,9 @@ import { CorrectionPanel, type CreditNoteRef } from "@/components/documents/corr
 import { EmailDocument, type EmailAttempt } from "@/components/documents/email-document";
 import { ReviseDocument } from "@/components/documents/revise-document";
 import { RevisionHistory, type Revision } from "@/components/documents/revision-history";
-import { shortDate, vatPercent } from "@/lib/format";
+import { num, shortDate, todayLocal, vatPercent } from "@/lib/format";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
 import { signedBrandingUrl, signedDocUrl } from "@/lib/partner-media";
@@ -209,6 +211,9 @@ export default async function DocumentPage({
   const fileUrl = await signedDocUrl(doc.upload_path);
 
   const editable = isPartner && isEditable(doc) && canBuild;
+  // One filled button per screen, and which one follows the job: on a built draft with
+  // no lines yet, adding the first line is the next step; once it has lines, sending is.
+  const needsLines = doc.source !== "uploaded" && lines.length === 0;
   const balance = balanceDueCents(doc);
   /** Paid MORE than the invoice, usually because a credit note landed after payment. */
   const inCreditCents = Math.max(0, (doc.amount_paid_cents || 0) - doc.total_cents);
@@ -222,13 +227,15 @@ export default async function DocumentPage({
   const cell = cellPadding(layout.density);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href="/documents" className="focus-ring rounded text-sm text-brand-ink hover:underline">
-          ← {t("doc.title", locale)}
-        </Link>
-        <DocStatusBadge value={doc.status} locale={locale} size="md" className="ml-auto" />
-      </div>
+    <PageContainer>
+      {/* The document below carries its own kind and number, so the screen header is
+          left off a printout rather than printed twice above it. */}
+      <PageHeader
+        title={`${kindLabel} ${doc.number}`}
+        badge={<DocStatusBadge value={doc.status} locale={locale} size="md" />}
+        back={{ href: backHref(sp.from, "/documents"), label: t("doc.title", locale) }}
+        className="print:hidden"
+      />
 
       <Flash tone="error" message={docError(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added || sp.paid ? t("ui.saved", locale) : undefined} />
@@ -326,7 +333,55 @@ export default async function DocumentPage({
             ) : null}
           </div>
         ) : lines.length > 0 ? (
-          <div className="overflow-x-auto border-t border-sand-100">
+          <>
+          {/*
+            Below `sm`, each line is a short stack: what was done, then "qty × each" on the
+            left and the line total on the right. A five-column table does not fit a 360px
+            phone, and scrolling it sideways put the one figure that matters, the line
+            total, off the edge of the screen.
+          */}
+          <ul className="divide-y divide-sand-100 border-t border-sand-100 sm:hidden print:hidden">
+            {lines.map((l, i) => (
+              <li key={l.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sand-900">
+                    {layout.show_line_numbers ? <span className="tabular-nums text-sand-500">{i + 1}. </span> : null}
+                    {l.description}
+                  </p>
+                  {l.part_no ? <p className="break-words text-xs text-sand-500">{l.part_no}</p> : null}
+                  <p className="text-xs tabular-nums text-sand-600">
+                    {layout.show_unit_price
+                      ? `${num(l.qty, 2)} × ${rands(l.unit_price_cents)}`
+                      : `${t("doc.lineQty", locale)} ${num(l.qty, 2)}`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <p className="font-medium tabular-nums text-sand-900">{rands(l.line_total_cents)}</p>
+                  {editable ? (
+                    <ConfirmDialog
+                      action={removeDocumentLine}
+                      triggerLabel={t("common.remove", locale)}
+                      triggerIcon={<TrashIcon />}
+                      triggerVariant="ghost"
+                      triggerSize="sm"
+                      title={t("doc.removeLine", locale)}
+                      intro={l.description}
+                      confirmLabel={t("common.remove", locale)}
+                      cancelLabel={t("common.cancel", locale)}
+                      closeLabel={t("ui.close", locale)}
+                    >
+                      <input type="hidden" name="document_id" value={doc.id} />
+                      <input type="hidden" name="line_id" value={l.id ?? ""} />
+                    </ConfirmDialog>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {/* `relative` makes this scroller the containing block of the screen-reader
+              labels inside the table. Without it an `sr-only` header in the last column
+              escaped the scroller's clip and widened the whole page on a phone. */}
+          <div className="relative hidden overflow-x-auto border-t border-sand-100 sm:block print:block">
             <Table className="min-w-[34rem]">
               <Thead>
                 <Tr className="text-left text-xs uppercase tracking-wide text-sand-500">
@@ -379,6 +434,7 @@ export default async function DocumentPage({
               </Tbody>
             </Table>
           </div>
+          </>
         ) : (
           <p className="border-t border-sand-100 px-4 py-4 text-sm text-sand-500">{t("doc.noLines", locale)}</p>
         )}
@@ -491,7 +547,7 @@ export default async function DocumentPage({
                 <input type="checkbox" name="incl_vat" className="h-5 w-5 rounded border-sand-300 text-brand-ink" />
                 {t("doc.priceInclVat", locale)}
               </label>
-              <SubmitButton>{t("doc.addLine", locale)}</SubmitButton>
+              <SubmitButton variant={needsLines ? "primary" : "secondary"}>{t("doc.addLine", locale)}</SubmitButton>
             </form>
           </Card>
 
@@ -555,7 +611,9 @@ export default async function DocumentPage({
           <div className="flex flex-wrap items-center gap-2">
             <form action={sendDocument}>
               <input type="hidden" name="document_id" value={doc.id} />
-              <SubmitButton>{t(doc.kind === "quote" ? "doc.sendQuote" : "doc.sendInvoice", locale)}</SubmitButton>
+              <SubmitButton variant={needsLines ? "secondary" : "primary"}>
+                {t(doc.kind === "quote" ? "doc.sendQuote" : "doc.sendInvoice", locale)}
+              </SubmitButton>
             </form>
             <ConfirmDialog
               action={deleteDraft}
@@ -773,7 +831,7 @@ export default async function DocumentPage({
                       defaultValue={String(balance / 100)}
                       required
                     />
-                    <TextField name="paid_on" type="date" label={t("doc.paidOn", locale)} defaultValue={new Date().toISOString().slice(0, 10)} />
+                    <TextField name="paid_on" type="date" label={t("doc.paidOn", locale)} defaultValue={todayLocal()} />
                     <SelectField name="method" label={t("doc.paymentMethod", locale)} defaultValue="eft">
                       <option value="eft">{t("doc.methodEft", locale)}</option>
                       <option value="cash">{t("doc.methodCash", locale)}</option>
@@ -825,7 +883,7 @@ export default async function DocumentPage({
                   />
                 </Field>
                 <Field label={t("doc.refundPaidOn", locale)} htmlFor="refund_paid_on">
-                  <Input id="refund_paid_on" name="paid_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                  <Input id="refund_paid_on" name="paid_on" type="date" defaultValue={todayLocal()} />
                 </Field>
                 <Field label={t("doc.refundWhy", locale)} htmlFor="refund_note">
                   <Input id="refund_note" name="note" maxLength={200} />
@@ -837,6 +895,6 @@ export default async function DocumentPage({
           {isPartner && !canPay ? <p className="text-sm text-sand-500">{t("doc.paymentsUpgrade", locale)}</p> : null}
         </Card>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

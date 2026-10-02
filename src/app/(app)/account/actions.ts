@@ -1,9 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { requireProfile } from "@/lib/auth";
+import { currentPlan, requireProfile } from "@/lib/auth";
+import {
+  PREFERENCE_COOKIE_MAX_AGE,
+  START_COOKIE,
+  TABS_COOKIE,
+  destinationsFor,
+  maxTabsFor,
+  parseTabs,
+  pinnableDestinations,
+  resolveStartPath,
+} from "@/lib/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
@@ -103,4 +114,52 @@ export async function resendVerification(): Promise<void> {
   }
 
   redirect("/account?saved=verification");
+}
+
+const PREFERENCE_COOKIE = {
+  path: "/",
+  httpOnly: true,
+  sameSite: "lax",
+  maxAge: PREFERENCE_COOKIE_MAX_AGE,
+} as const;
+
+/**
+ * Where the app opens on THIS device (`fw_start`). Validated against the screens the
+ * role and plan can open, and read back through the same check in /home, so a stale or
+ * hand-edited cookie can only ever fall back to the standard home. An empty choice means
+ * "the standard one" and forgets the cookie.
+ */
+export async function setStartPage(formData: FormData): Promise<void> {
+  const { profile, plan } = await currentPlan();
+  const choice = String(formData.get("start") ?? "").trim();
+  const chosen = resolveStartPath(choice, destinationsFor(profile.role, plan), "");
+  const store = await cookies();
+  if (chosen) store.set(START_COOKIE, chosen, PREFERENCE_COOKIE);
+  else store.delete(START_COOKIE);
+  redirect("/account?saved=start#shortcuts");
+}
+
+/**
+ * The phone bar's own screens on THIS device (`fw_tabs`, comma-separated hrefs): up to
+ * `maxTabsFor(role)`, in the order ticked, each one a pinnable screen this person can
+ * open. The app shell reads the cookie through the same `parseTabs` +
+ * `pinnableDestinations` pair and falls back to the standard set when it is empty.
+ * `reset` forgets the choice.
+ */
+export async function setPhoneShortcuts(formData: FormData): Promise<void> {
+  const { profile, plan } = await currentPlan();
+  const picked =
+    formData.get("reset") === "1"
+      ? []
+      : parseTabs(
+          formData.getAll("tabs").map(String).join(","),
+          pinnableDestinations(profile.role, plan),
+          maxTabsFor(profile.role),
+        );
+  const store = await cookies();
+  if (picked.length) store.set(TABS_COOKIE, picked.join(","), PREFERENCE_COOKIE);
+  else store.delete(TABS_COOKIE);
+  // The bar is drawn by the layout, which must re-render to show the new set.
+  revalidatePath("/", "layout");
+  redirect("/account?saved=shortcuts#shortcuts");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { withTab } from "@/components/ui/tabs-url";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
 
@@ -28,7 +29,7 @@ export async function createServiceKit(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const name = s(formData, "name");
-  if (!machineId || !farmId || !name) redirect(`/machines/${machineId}?error=Kit+name+is+required`);
+  if (!machineId || !farmId || !name) redirect(withTab(`/machines/${machineId}?error=Kit+name+is+required`, "servicing"));
 
   const supabase = await createClient();
   const { error } = await supabase.from("service_kits").insert({
@@ -38,24 +39,24 @@ export async function createServiceKit(formData: FormData) {
     notes: s(formData, "notes"),
     created_by: profile.id,
   });
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=kit`);
+  redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
 
 export async function deleteServiceKit(formData: FormData) {
   const profile = await requireRole(KIT_CREW);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "servicing"));
   const supabase = await createClient();
   const now = new Date().toISOString();
   // Soft-delete the kit and its items together (items cascade on hard delete only).
   await supabase.from("service_kit_items").update({ deleted_at: now, deleted_by: profile.id }).eq("service_kit_id", id).is("deleted_at", null);
   const { error } = await supabase.from("service_kits").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=kit`);
+  redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
 
 /** Add an item to a kit. May reference a catalogue part (prefill snapshot) or be a
@@ -65,7 +66,7 @@ export async function addKitItem(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const kitId = String(formData.get("service_kit_id") ?? "");
-  if (!machineId || !farmId || !kitId) redirect(`/machines/${machineId}?error=Missing+ids`);
+  if (!machineId || !farmId || !kitId) redirect(withTab(`/machines/${machineId}?error=Missing+ids`, "servicing"));
 
   const supabase = await createClient();
   const catalogueId = s(formData, "part_catalogue_id");
@@ -87,7 +88,7 @@ export async function addKitItem(formData: FormData) {
       unitCents = unitCents ?? p.typical_cost_cents;
     }
   }
-  if (partNo == null && description == null) redirect(`/machines/${machineId}?error=Pick+a+part+or+enter+a+part+number`);
+  if (partNo == null && description == null) redirect(withTab(`/machines/${machineId}?error=Pick+a+part+or+enter+a+part+number`, "servicing"));
 
   const { error } = await supabase.from("service_kit_items").insert({
     farm_id: farmId,
@@ -98,16 +99,16 @@ export async function addKitItem(formData: FormData) {
     qty: num(formData, "qty") ?? 1,
     unit_cost_cents: unitCents,
   });
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=kit`);
+  redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
 
 export async function updateKitItem(formData: FormData) {
   await requireRole(KIT_CREW);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "servicing"));
   const supabase = await createClient();
   const { error } = await supabase
     .from("service_kit_items")
@@ -118,22 +119,22 @@ export async function updateKitItem(formData: FormData) {
       unit_cost_cents: parseRandsToCents(String(formData.get("unit_cost") ?? "")),
     })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=kit`);
+  redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
 
 export async function deleteKitItem(formData: FormData) {
   const profile = await requireRole(KIT_CREW);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "servicing"));
   const supabase = await createClient();
   const { error } = await supabase
     .from("service_kit_items")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=kit`);
+  redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }

@@ -6,17 +6,37 @@ import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "./cn";
 import { Icon, MoreIcon, type IconName } from "./icons";
 import { Sheet } from "./dialog";
+import { INSTALL_HREF, useStandalone } from "./use-standalone";
 
 export type NavItemData = {
   href: string;
   label: string;
   icon: IconName;
-  /** Optional unread count → a small pill on the item (e.g. the inbox). */
+  /** Optional "needs you" count → a small pill on the item (e.g. the inbox). */
   badge?: number;
+  /**
+   * Other nav hrefs that live UNDER this one (computed on the server from the role's own
+   * catalogue). On one of those, this item is not active: /documents must not light up
+   * beside "Corrections" on /documents/corrections, nor /contractor beside "My clients".
+   * Real detail pages (/machines/[id]) are not nav items, so they keep prefix matching.
+   */
+  excludes?: string[];
 };
 
-/** Small unread-count pill shown on a nav item (caps at 99+). */
-function Badge({ count, className }: { count: number; className?: string }) {
+const under = (pathname: string, href: string) =>
+  pathname === href || pathname.startsWith(href + "/");
+
+/** The most specific nav item wins: active on its own subtree, minus its nav children. */
+function isNavItemActive(pathname: string, item: Pick<NavItemData, "href" | "excludes">): boolean {
+  if (!under(pathname, item.href)) return false;
+  return !(item.excludes ?? []).some((x) => under(pathname, x));
+}
+
+/**
+ * Small count pill shown on a nav item. Caps at 99+ in the sidebar and at 9+ on the
+ * phone tab bar, where a three-digit number would not fit over a 20px icon.
+ */
+function Badge({ count, className, cap = 99 }: { count: number; className?: string; cap?: number }) {
   if (!count || count <= 0) return null;
   return (
     <span
@@ -25,14 +45,14 @@ function Badge({ count, className }: { count: number; className?: string }) {
         className,
       )}
     >
-      {count > 99 ? "99+" : count}
+      {count > cap ? `${cap}+` : count}
     </span>
   );
 }
 
-function useIsActive(href: string) {
+function useIsActive(item: NavItemData) {
   const pathname = usePathname();
-  return pathname === href || pathname.startsWith(href + "/");
+  return isNavItemActive(pathname, item);
 }
 
 /**
@@ -46,7 +66,10 @@ export function NavLink({
   item: NavItemData;
   variant: "sidebar" | "tab";
 }) {
-  const active = useIsActive(item.href);
+  const active = useIsActive(item);
+  // Nobody needs "Install app" inside the installed app.
+  const standalone = useStandalone();
+  if (standalone && item.href === INSTALL_HREF) return null;
 
   if (variant === "tab") {
     return (
@@ -54,15 +77,17 @@ export function NavLink({
         href={item.href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-2xs font-medium",
+          // `min-w-0`: a flex item's automatic minimum is its content, so without it a
+          // long label refuses to truncate and widens the whole bar past the viewport.
+          "focus-ring relative flex min-h-[56px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 text-2xs font-medium",
           active ? "text-brand-ink" : "text-ink-muted",
         )}
       >
         <span className="relative">
           <Icon name={item.icon} className="text-xl" />
-          {item.badge ? <Badge count={item.badge} className="absolute -right-2.5 -top-1.5" /> : null}
+          {item.badge ? <Badge count={item.badge} cap={9} className="absolute -right-2.5 -top-1.5" /> : null}
         </span>
-        <span className="max-w-full truncate">{item.label}</span>
+        <span className="w-full truncate text-center tracking-tight">{item.label}</span>
       </Link>
     );
   }
@@ -99,6 +124,7 @@ export function MoreMenu({
   closeLabel,
   groups,
   signOutSlot,
+  newLabel,
 }: {
   label: string;
   title: string;
@@ -111,15 +137,23 @@ export function MoreMenu({
    */
   groups: NavGroup[];
   signOutSlot: ReactNode;
+  /** Screen-reader text for the dot on the collapsed button ("Something new inside"). */
+  newLabel?: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const items = groups.flatMap((g) => g.items);
-  const active = items.some(
-    (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
-  );
-  // Surface overflow unread counts on the collapsed "More" button.
-  const badgeTotal = items.reduce((a, i) => a + (i.badge ?? 0), 0);
+  const standalone = useStandalone();
+  const shown = standalone
+    ? groups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== INSTALL_HREF) }))
+        .filter((g) => g.items.length > 0)
+    : groups;
+  const items = shown.flatMap((g) => g.items);
+  const active = items.some((i) => isNavItemActive(pathname, i));
+  // A dot, not a sum. Adding every overflow count together produced a permanent "77" on
+  // every screen, a number that never goes down and so teaches people to ignore badges.
+  // The counts themselves are inside, on the rows they belong to.
+  const hasNew = items.some((i) => (i.badge ?? 0) > 0);
 
   // Close the sheet after a navigation.
   useEffect(() => {
@@ -134,15 +168,19 @@ export function MoreMenu({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          "focus-ring relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-2xs font-medium",
+          "focus-ring relative flex min-h-[56px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 text-2xs font-medium",
           active || open ? "text-brand-ink" : "text-sand-500",
         )}
       >
         <span className="relative">
           <MoreIcon className="text-xl" />
-          {badgeTotal > 0 ? <Badge count={badgeTotal} className="absolute -right-2.5 -top-1.5" /> : null}
+          {hasNew ? (
+            <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-surface">
+              {newLabel ? <span className="sr-only">{newLabel}</span> : null}
+            </span>
+          ) : null}
         </span>
-        <span>{label}</span>
+        <span className="w-full truncate text-center tracking-tight">{label}</span>
       </button>
 
       {/*
@@ -158,14 +196,13 @@ export function MoreMenu({
         rememberKey="nav-more"
       >
         <nav className="flex flex-col gap-5">
-          {groups.map((group) => (
+          {shown.map((group) => (
             <div key={group.key} className="flex flex-col">
               <p className="sticky top-0 z-10 -mx-4 bg-surface px-7 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 {group.label}
               </p>
               {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + "/");
+                const isActive = isNavItemActive(pathname, item);
                 return (
                   <Link
                     key={item.href}

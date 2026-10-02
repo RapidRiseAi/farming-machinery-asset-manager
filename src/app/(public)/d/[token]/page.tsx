@@ -128,15 +128,17 @@ export default async function PublicDocumentPage({
         </div>
       </header>
 
-      <Flash tone="success" message={sp.accepted ? t("pubDoc.acceptedFlash", locale) : undefined} />
-      <Flash tone="info" message={sp.declined ? t("pubDoc.declinedFlash", locale) : undefined} />
-      <Flash tone="success" message={sp.told ? t("pubDoc.toldFlash", locale) : undefined} />
+      {/* A customer's public link adds no client component, so no Flash here mounts the
+          URL tidy-up: clearParams={false} on every one, new ones included. */}
+      <Flash tone="success" message={sp.accepted ? t("pubDoc.acceptedFlash", locale) : undefined} clearParams={false} />
+      <Flash tone="info" message={sp.declined ? t("pubDoc.declinedFlash", locale) : undefined} clearParams={false} />
+      <Flash tone="success" message={sp.told ? t("pubDoc.toldFlash", locale) : undefined} clearParams={false} />
       {/* PayFast sends the customer back here. The notification that actually records the
           money arrives separately and may land a moment later, so this thanks them
           without claiming the balance has already moved. */}
-      <Flash tone="success" message={sp.paid ? t("pubDoc.paidFlash", locale) : undefined} />
-      <Flash tone="warning" message={sp.error === "closed" ? t("pubDoc.closedFlash", locale) : undefined} />
-      <Flash tone="warning" message={sp.error === "name" ? t("pubDoc.nameFlash", locale) : undefined} />
+      <Flash tone="success" message={sp.paid ? t("pubDoc.paidFlash", locale) : undefined} clearParams={false} />
+      <Flash tone="warning" message={sp.error === "closed" ? t("pubDoc.closedFlash", locale) : undefined} clearParams={false} />
+      <Flash tone="warning" message={sp.error === "name" ? t("pubDoc.nameFlash", locale) : undefined} clearParams={false} />
 
       <Flash
         tone="warning"
@@ -145,6 +147,7 @@ export default async function PublicDocumentPage({
             ? `${t("pubDoc.voided", locale).replace("{label}", label.toLowerCase())}${doc.void_reason ? ` ${doc.void_reason}` : ""}`
             : undefined
         }
+        clearParams={false}
       />
 
       <section className="rounded-xl border border-sand-200 bg-surface p-5">

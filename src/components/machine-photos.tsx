@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image-compress";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
+import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
 
 type Photo = { id: string; url: string | null };
 
@@ -65,6 +66,10 @@ export function MachinePhotos({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!looksLikeImage(file)) {
+      setErr(t("machine.uploadNotImage", locale));
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -85,7 +90,8 @@ export function MachinePhotos({
       if (ins.error) throw ins.error;
       await load();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : t("machine.uploadFailed", locale));
+      // Never the raw message: storage and RLS errors are English prose for developers.
+      setErr(t(photoUploadErrorKey(e2, navigator.onLine), locale));
     } finally {
       setBusy(false);
     }
@@ -101,7 +107,7 @@ export function MachinePhotos({
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-semibold text-sand-900">{t("machine.photos", locale)}</h2>
         {canEdit ? (
-          <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 py-1.5 text-sm font-medium text-sand-700 hover:bg-sand-50">
+          <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 min-h-[48px] rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
             {busy ? t("machine.uploading", locale) : t("machine.addPhoto", locale)}
             <input
               type="file"
@@ -114,7 +120,7 @@ export function MachinePhotos({
           </label>
         ) : null}
       </div>
-      {err ? <p className="mb-2 text-sm text-status-overdue">{err}</p> : null}
+      {err ? <p role="alert" className="mb-2 text-sm text-status-overdue">{err}</p> : null}
       <div className="grid grid-cols-3 gap-2">
         {ordered.map((p) => {
           const isPrimary = p.id === primaryAttachmentId;

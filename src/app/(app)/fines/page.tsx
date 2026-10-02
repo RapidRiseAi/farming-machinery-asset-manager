@@ -3,7 +3,8 @@ import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { errorMessage } from "@/lib/errors";
 import {
   FINE_STATUSES,
   fineStatusLabel,
@@ -11,10 +12,11 @@ import {
   nominationDeadlineStatus,
   nominationPending,
   DEFAULT_AARTO_LEAD_DAYS,
+  type FineStatus as FineStatusValue,
 } from "@/lib/fines";
 import { expiryTone, expiryLabel } from "@/lib/compliance";
 import { lapsedOn, type CredentialRow } from "@/lib/driver-credentials";
-import { enumLabel, shortDate } from "@/lib/format";
+import { enumLabel, shortDate, todayLocal } from "@/lib/format";
 import { createFine, identifyDriver, updateFineStatus, deleteFine } from "./actions";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,11 +25,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, AllClear } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ActionMenu } from "@/components/ui/action-menu";
-import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 import { ExpiryStatus, FineStatus } from "@/components/ui/status";
 import { TrashIcon } from "@/components/ui/icons";
 
@@ -40,6 +42,19 @@ type FineRow = {
   notes: string | null; created_at: string;
 };
 type UsageRow = { driver_user_id: string | null; driver_name: string | null; meter_reading: number | null };
+
+/**
+ * The one-tap status changes offered in a fine's menu: the steps that usually come next.
+ * "Driver identified" is not here, it goes through "Identify driver", which asks who.
+ * "Update" in the same menu still reaches any status for the rare jump.
+ */
+const NEXT_STATUSES: Record<string, readonly FineStatusValue[]> = {
+  received: ["nominated", "paid", "disputed"],
+  driver_identified: ["nominated", "paid", "disputed"],
+  nominated: ["paid", "disputed"],
+  disputed: ["paid", "closed"],
+  paid: ["closed"],
+};
 
 
 export default async function FinesPage({
@@ -54,13 +69,10 @@ export default async function FinesPage({
   const locale = profile.lang;
   if (!gate.allowed) {
     return (
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("fines.title", locale)}</h1>
-          <PageInfoButton infoKey="fines" locale={locale} />
-        </div>
+      <PageContainer size="wide">
+        <PageHeader title={t("fines.title", locale)} infoKey="fines" locale={locale} />
         <UpgradeNotice feature="aarto" requiredPlan={gate.requiredPlan} currentPlan={gate.plan} locale={locale} />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -146,12 +158,15 @@ export default async function FinesPage({
   pending.sort((a, b) => deadlineRank(a).localeCompare(deadlineRank(b)));
 
   const savedMsg = sp.saved ? t("ui.saved", locale) : undefined;
-  const errMsg = sp.error === "upgrade_required" ? t("fines.upgradeRequired", locale) : sp.error;
+  // Never the raw URL value: actions used to put Postgres messages there.
+  const errMsg = sp.error === "upgrade_required" ? t("fines.upgradeRequired", locale) : errorMessage(sp.error, locale);
 
   const renderFineCard = (f: FineRow) => {
     const ds = nominationDeadlineStatus(f.nomination_deadline, f.status, leadDays);
     return (
-      <li key={f.id} className="rounded-lg border border-sand-200 p-3">
+      // The id is the dashboard's "Name the driver" target (/fines#fine-<id>);
+      // scroll-mt clears the sticky header, the same offset /faults uses.
+      <li key={f.id} id={`fine-${f.id}`} className="scroll-mt-24 rounded-lg border border-sand-200 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <Link href={`/machines/${f.machine_id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">
@@ -163,13 +178,13 @@ export default async function FinesPage({
               {f.notice_number ? <span className="text-sand-400"> · {f.notice_number}</span> : null}
             </p>
             <p className="mt-0.5 text-xs text-sand-500">
-              {f.offence_date ? <>{t("fines.offenceDate", locale)}: <span className="tabular-nums">{f.offence_date}</span> · </> : null}
+              {f.offence_date ? <>{t("fines.offenceDate", locale)}: <span className="tabular-nums">{shortDate(f.offence_date, locale)}</span> · </> : null}
               {t("fines.driver", locale)}: <span className="font-medium text-sand-700">{driverText(f)}</span>
               {f.amount_cents != null ? <> · <span className="tabular-nums">{rands(f.amount_cents)}</span></> : null}
             </p>
             {f.nomination_deadline ? (
               <p className="mt-0.5 text-xs text-sand-500">
-                {t("fines.deadline", locale)}: <span className="tabular-nums">{f.nomination_deadline}</span>
+                {t("fines.deadline", locale)}: <span className="tabular-nums">{shortDate(f.nomination_deadline, locale)}</span>
                 {ds ? <> · <ExpiryStatus value={ds} locale={locale} /></> : null}
               </p>
             ) : null}
@@ -211,25 +226,32 @@ export default async function FinesPage({
               );
             })()}
           </div>
-          <FineStatus value={f.status} locale={locale} />
-        </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <FineStatus value={f.status} locale={locale} />
 
-        {/*
-          Set the status, name the driver, delete: one button per row.
+            {/*
+              Set the status, name the driver, delete: one button per row, in the row's
+              own title line (as on /incidents) rather than on a divided strip of its own.
 
-          The row used to carry a `<Select>` of all seven fine statuses next to a Save
-          button, plus a `<details>` holding a two-field driver form, plus a delete. The
-          status select was the worst of them: seven options and a separate submit, on
-          every row, for a change that is made once in the life of a fine.
-        */}
-        {canManage ? (
-          <div className="mt-2 flex border-t border-sand-100 pt-2">
+              The row used to carry a `<Select>` of all seven fine statuses next to a Save
+              button, plus a `<details>` holding a two-field driver form, plus a delete.
+              The likely next steps are now one tap each; "Update" stays for the rare jump.
+            */}
+            {canManage ? (
             <ActionMenu
-              title={f.notice_number ?? machineById.get(f.machine_id)?.name ?? "-"}
+              title={f.notice_number ? `${f.notice_number} · ${machineLabel(f.machine_id)}` : machineLabel(f.machine_id)}
               label={t("common.actions", locale)}
               closeLabel={t("ui.close", locale)}
-              trigger={t("common.actions", locale)}
             >
+              {(NEXT_STATUSES[f.status] ?? []).map((next) => (
+                <form key={next} action={updateFineStatus}>
+                  <input type="hidden" name="id" value={f.id} />
+                  <input type="hidden" name="status" value={next} />
+                  <SubmitButton look="menuItem">
+                    {t("fines.markAs", locale).replace("{status}", fineStatusLabel(next, locale))}
+                  </SubmitButton>
+                </form>
+              ))}
               <DialogForm
                 triggerLook="menuItem"
                 trigger={t("fines.setStatus", locale)}
@@ -292,9 +314,13 @@ export default async function FinesPage({
                 triggerIcon={<TrashIcon />}
                 triggerLabel={t("common.delete", locale)}
                 title={t("confirm.deleteFineTitle", locale)}
-                intro={t("confirm.deleteFineIntro", locale)
-                  .replace("{notice}", f.notice_number ?? "-")
-                  .replace("{machine}", machineById.get(f.machine_id)?.name ?? "-")}
+                intro={
+                  f.notice_number
+                    ? t("confirm.deleteFineIntro", locale)
+                        .replace("{notice}", f.notice_number)
+                        .replace("{machine}", machineLabel(f.machine_id))
+                    : t("confirm.deleteFineIntroNoNotice", locale).replace("{machine}", machineLabel(f.machine_id))
+                }
                 consequencesTitle={t("confirm.whatHappens", locale)}
                 consequences={[
                   t("confirm.deleteFineEffect1", locale),
@@ -308,38 +334,45 @@ export default async function FinesPage({
                 <input type="hidden" name="id" value={f.id} />
               </ConfirmDialog>
             </ActionMenu>
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </li>
     );
   };
 
+  const stepTwo = Boolean(sm && sd && captureMachine);
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-ink">{t("fines.title", locale)}</h1>
-            <PageInfoButton infoKey="fines" locale={locale} />
-          </div>
-          <p className="mt-0.5 text-sm text-sand-500">{t("fines.subtitle", locale)}</p>
-        </div>
-        {pending.length > 0 ? (
-          <Badge tone="warning">{t("fines.pendingCount", locale).replace("{n}", String(pending.length))}</Badge>
-        ) : null}
-      </div>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("fines.title", locale)}
+        lead={t("fines.subtitle", locale)}
+        infoKey="fines"
+        locale={locale}
+        badge={
+          pending.length > 0 ? (
+            <StatusBadge
+              tone="warning"
+              shape="clock"
+              label={t("fines.pendingCount", locale).replace("{n}", String(pending.length))}
+            />
+          ) : undefined
+        }
+      />
 
       <Flash tone="error" message={errMsg} />
       <Flash tone="success" message={savedMsg} />
 
-      {/* == Capture: pick a vehicle + offence date → auto-suggest the driver == */}
+      {/* == Capture: pick a vehicle + offence date, then the driver is suggested == */}
       {canManage ? (
         <Card>
           <CardHeader><CardTitle>{t("fines.captureTitle", locale)}</CardTitle></CardHeader>
           <p className="mb-3 text-sm text-sand-500">{t("fines.captureHint", locale)}</p>
 
-          {/* Step 1, which vehicle & when (drives the usage-log lookup). */}
-          <form method="get" className="flex flex-wrap items-end gap-2 border-b border-sand-100 pb-3">
+          {/* Step 1, which vehicle & when (drives the usage-log lookup). A GET form on the
+              page by agreement: it is a lookup, not a capture. */}
+          <form method="get" className={`flex flex-wrap items-end gap-2${stepTwo ? " border-b border-sand-100 pb-3" : ""}`}>
             <Field label={t("fines.vehicle", locale)} htmlFor="sm" className="min-w-[12rem] flex-1">
               <Select id="sm" name="sm" defaultValue={sm ?? ""} required>
                 <option value="" disabled>{t("fines.selectVehicle", locale)}</option>
@@ -354,68 +387,89 @@ export default async function FinesPage({
             <SubmitButton variant="secondary">{t("fines.findDriver", locale)}</SubmitButton>
           </form>
 
-          {sm && sd && captureMachine ? (
-            <div className="mt-3">
-              {/* Suggestion result. */}
-              {topSuggestion ? (
-                <p className="mb-3 rounded-lg bg-brand-tint p-3 text-sm text-brand-ink">
-                  {t("fines.suggested", locale)}:{" "}
-                  <span className="font-semibold">{suggestionNames.join(", ")}</span>
-                  <span className="text-brand-ink/70"> · {machineLabel(sm)} · {sd}</span>
-                </p>
-              ) : (
-                <p className="mb-3 rounded-lg bg-sand-50 p-3 text-sm text-sand-600">{t("fines.noSuggestion", locale)}</p>
-              )}
+          {stepTwo && sm && sd && captureMachine ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="min-w-0 text-sm text-sand-700">
+                {topSuggestion ? (
+                  <>
+                    {t("fines.suggested", locale)}:{" "}
+                    <span className="font-semibold">{suggestionNames.join(", ")}</span>
+                    {" · "}
+                  </>
+                ) : null}
+                <span className="text-sand-500">{machineLabel(sm)} · {shortDate(sd, locale)}</span>
+              </p>
 
-              {/* Step 2, full capture, driver pre-filled from the usage log. */}
-              <form action={createFine} className="flex flex-col gap-3">
-                <input type="hidden" name="machine_id" value={sm} />
-                <input type="hidden" name="farm_id" value={captureMachine.farm_id} />
-                <input type="hidden" name="offence_date" value={sd} />
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label={t("fines.driver", locale)} htmlFor="driver_user_id">
-                    <Select id="driver_user_id" name="driver_user_id" defaultValue={topSuggestion?.driver_user_id ?? ""}>
-                      <option value="">{t("fines.driverNameOption", locale)}</option>
-                      {operators.map((op) => (
-                        <option key={op.id} value={op.id}>{op.name}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label={t("fines.driverName", locale)} htmlFor="driver_name">
-                    <Input id="driver_name" name="driver_name" defaultValue={topSuggestion && !topSuggestion.driver_user_id ? topSuggestion.driver_name ?? "" : ""} placeholder={t("fines.driverNamePlaceholder", locale)} />
-                  </Field>
-                  <Field label={t("fines.noticeNumber", locale)} htmlFor="notice_number">
-                    <Input id="notice_number" name="notice_number" placeholder={t("fines.noticeNumberPlaceholder", locale)} />
-                  </Field>
-                  <Field label={t("fines.authority", locale)} htmlFor="authority">
-                    <Input id="authority" name="authority" placeholder={t("fines.authorityPlaceholder", locale)} />
-                  </Field>
-                  <Field label={t("fines.offence", locale)} htmlFor="offence" className="sm:col-span-2">
-                    <Input id="offence" name="offence" placeholder={t("fines.offencePlaceholder", locale)} />
-                  </Field>
-                  <Field label={t("fines.amount", locale)} htmlFor="amount">
-                    <Input id="amount" name="amount" inputMode="decimal" placeholder="R" />
-                  </Field>
-                  <Field label={t("fines.fineDate", locale)} htmlFor="fine_date">
-                    <Input id="fine_date" name="fine_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-                  </Field>
-                  <Field label={t("fines.deadline", locale)} htmlFor="nomination_deadline">
-                    <Input id="nomination_deadline" name="nomination_deadline" type="date" />
-                  </Field>
-                  <Field label={t("fines.status", locale)} htmlFor="status">
-                    <Select id="status" name="status" defaultValue={topSuggestion ? "driver_identified" : "received"}>
-                      {FINE_STATUSES.map((s) => (
-                        <option key={s} value={s}>{fineStatusLabel(s, locale)}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label={t("fines.notes", locale)} htmlFor="notes" className="sm:col-span-2">
-                    <Input id="notes" name="notes" placeholder={t("fines.notesPlaceholder", locale)} />
-                  </Field>
-                </div>
-                <SubmitButton variant="primary" className="self-start">{t("fines.record", locale)}</SubmitButton>
-              </form>
+              {/* Step 2, the capture itself, opens as a dialog on arrival from step 1, with
+                  the driver pre-filled from the usage log. It used to grow ten fields onto
+                  the page. Dismissed, its trigger here reopens it. */}
+              <DialogForm
+                defaultOpen
+                trigger={t("fines.continueRecording", locale)}
+                title={t("fines.captureTitle", locale)}
+                description={`${machineLabel(sm)} · ${shortDate(sd, locale)}`}
+                closeLabel={t("ui.close", locale)}
+              >
+                <form action={createFine}>
+                  <input type="hidden" name="machine_id" value={sm} />
+                  <input type="hidden" name="farm_id" value={captureMachine.farm_id} />
+                  <input type="hidden" name="offence_date" value={sd} />
+                  <DialogFields>
+                    {topSuggestion ? (
+                      <p className="rounded-lg bg-brand-tint p-3 text-sm text-brand-ink sm:col-span-2">
+                        {t("fines.suggested", locale)}:{" "}
+                        <span className="font-semibold">{suggestionNames.join(", ")}</span>
+                      </p>
+                    ) : (
+                      <p className="rounded-lg bg-sand-50 p-3 text-sm text-sand-600 sm:col-span-2">{t("fines.noSuggestion", locale)}</p>
+                    )}
+                    <Field label={t("fines.driver", locale)} htmlFor="driver_user_id">
+                      <Select id="driver_user_id" name="driver_user_id" defaultValue={topSuggestion?.driver_user_id ?? ""}>
+                        <option value="">{t("fines.driverNameOption", locale)}</option>
+                        {operators.map((op) => (
+                          <option key={op.id} value={op.id}>{op.name}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label={t("fines.driverName", locale)} htmlFor="driver_name">
+                      <Input id="driver_name" name="driver_name" defaultValue={topSuggestion && !topSuggestion.driver_user_id ? topSuggestion.driver_name ?? "" : ""} placeholder={t("fines.driverNamePlaceholder", locale)} />
+                    </Field>
+                    <Field label={t("fines.noticeNumber", locale)} htmlFor="notice_number">
+                      <Input id="notice_number" name="notice_number" placeholder={t("fines.noticeNumberPlaceholder", locale)} />
+                    </Field>
+                    <Field label={t("fines.authority", locale)} htmlFor="authority">
+                      <Input id="authority" name="authority" placeholder={t("fines.authorityPlaceholder", locale)} />
+                    </Field>
+                    <Field label={t("fines.offence", locale)} htmlFor="offence">
+                      <Input id="offence" name="offence" placeholder={t("fines.offencePlaceholder", locale)} />
+                    </Field>
+                    <Field label={t("fines.amount", locale)} htmlFor="amount">
+                      <Input id="amount" name="amount" inputMode="decimal" placeholder="R" />
+                    </Field>
+                    <DialogSection title={t("fines.sectionMore", locale)}>
+                      <Field label={t("fines.fineDate", locale)} htmlFor="fine_date">
+                        <Input id="fine_date" name="fine_date" type="date" defaultValue={todayLocal()} />
+                      </Field>
+                      <Field label={t("fines.deadline", locale)} htmlFor="nomination_deadline">
+                        <Input id="nomination_deadline" name="nomination_deadline" type="date" />
+                      </Field>
+                      <Field label={t("fines.status", locale)} htmlFor="status">
+                        <Select id="status" name="status" defaultValue={topSuggestion ? "driver_identified" : "received"}>
+                          {FINE_STATUSES.map((s) => (
+                            <option key={s} value={s}>{fineStatusLabel(s, locale)}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label={t("fines.notes", locale)} htmlFor="notes">
+                        <Input id="notes" name="notes" placeholder={t("fines.notesPlaceholder", locale)} />
+                      </Field>
+                    </DialogSection>
+                  </DialogFields>
+                  <DialogActions cancelLabel={t("common.cancel", locale)}>
+                    <SubmitButton variant="primary">{t("fines.record", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+              </DialogForm>
             </div>
           ) : null}
         </Card>
@@ -442,6 +496,6 @@ export default async function FinesPage({
       {fines.length === 0 && !canManage ? (
         <EmptyState title={t("fines.empty", locale)} />
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
-import { percentToBps } from "@/lib/format";
+import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import {
   parseQty,
@@ -29,6 +29,16 @@ import {
  * appears once, when the supplier's invoice is captured.
  */
 
+
+/**
+ * A database refusal, logged for us and reported to the person as `po-failed`, which
+ * the order pages translate. The raw Postgres message used to go into the URL and was
+ * printed on screen in English.
+ */
+function failCode(error: { message: string } | null | undefined): string {
+  if (error) console.error("[orders]", error.message);
+  return "po-failed";
+}
 const HOME = "/orders";
 
 function s(fd: FormData, k: string): string | null {
@@ -95,7 +105,7 @@ export async function createOrder(formData: FormData) {
       workshop_id: workshop.id,
       supplier_name: supplier,
       reference: s(formData, "reference"),
-      order_date: s(formData, "order_date") ?? new Date().toISOString().slice(0, 10),
+      order_date: s(formData, "order_date") ?? todayLocal(),
       expected_date: s(formData, "expected_date"),
       notes: s(formData, "notes"),
       vat_rate_bps: rate,
@@ -104,7 +114,7 @@ export async function createOrder(formData: FormData) {
     .select("id")
     .single();
 
-  if (error || !data) redirect(`${HOME}?error=${encodeURIComponent(error?.message ?? "po-failed")}`);
+  if (error || !data) redirect(`${HOME}?error=${failCode(error)}`);
 
   refresh();
   // Straight to the order, because an order with no lines on it is not yet an order -
@@ -127,7 +137,7 @@ export async function updateOrder(formData: FormData) {
     .update({
       supplier_name: supplier,
       reference: s(formData, "reference"),
-      order_date: s(formData, "order_date") ?? new Date().toISOString().slice(0, 10),
+      order_date: s(formData, "order_date") ?? todayLocal(),
       expected_date: s(formData, "expected_date"),
       notes: s(formData, "notes"),
       vat_rate_bps: percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500,
@@ -135,7 +145,7 @@ export async function updateOrder(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(orderPath(id, "?saved=1"));
 }
@@ -166,7 +176,7 @@ export async function setOrderStatus(formData: FormData) {
     .update({ status: raw, updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(orderPath(id, "?saved=1"));
 }
@@ -198,7 +208,7 @@ export async function deleteOrder(formData: FormData) {
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(`${HOME}?deleted=1`);
 }
@@ -242,7 +252,7 @@ export async function addLine(formData: FormData) {
     unit_price_cents: unitPrice(formData, rate),
   });
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(orderPath(id, "?added=1"));
 }
@@ -286,7 +296,7 @@ export async function saveLine(formData: FormData) {
     })
     .eq("id", lineId);
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(orderPath(id, "?saved=1"));
 }
@@ -304,7 +314,7 @@ export async function removeLine(formData: FormData) {
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", lineId);
 
-  if (error) redirect(orderPath(id, `?error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
   refresh(id);
   redirect(orderPath(id, "?saved=1"));
 }
@@ -406,7 +416,7 @@ export async function convertOrder(formData: FormData) {
     reference: s(formData, "reference"),
     category,
     description: s(formData, "description"),
-    expense_date: s(formData, "expense_date") ?? new Date().toISOString().slice(0, 10),
+    expense_date: s(formData, "expense_date") ?? todayLocal(),
     paid_on: s(formData, "paid_on"),
     amount_cents: split.exCents,
     vat_cents: rateBps === 0 ? 0 : typedVat != null && typedVat >= 0 ? typedVat : split.vatCents,
@@ -418,7 +428,7 @@ export async function convertOrder(formData: FormData) {
   if (error) {
     // 23505 is the 0475 unique index doing its job. Said in words, because "duplicate key
     // value violates unique constraint" tells a workshop nothing about what happened.
-    const code = (error as { code?: string }).code === "23505" ? "po-alreadyConverted" : encodeURIComponent(error.message);
+    const code = (error as { code?: string }).code === "23505" ? "po-alreadyConverted" : failCode(error);
     redirect(orderPath(id, `?error=${code}`));
   }
 

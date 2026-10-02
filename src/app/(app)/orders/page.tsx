@@ -6,14 +6,18 @@ import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate } from "@/lib/format";
+import { num, shortDate } from "@/lib/format";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
 import { OrderStatus } from "@/components/ui/status";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { DialogForm } from "@/components/ui/dialog-form";
+import { PlusIcon } from "@/components/ui/icons";
 import { OrderForm } from "@/components/orders/order-form";
+import { poErrorMessage } from "@/components/orders/po-error";
 import {
   receivedSummary,
   isOpen,
@@ -58,14 +62,14 @@ export default async function OrdersPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -116,49 +120,61 @@ export default async function OrdersPage({
   );
   const toInvoiceCents = toInvoice.reduce((sum, o) => sum + o.total_cents, 0);
 
-  const error = sp.error?.startsWith("po-")
-    ? t(`po.err.${sp.error.slice("po-".length)}`, locale)
-    : sp.error;
+  // "New order" was a six-field form in a card above the list, so the list started
+  // below a phone's first screen. It is one button now, rendered ONCE: in the header
+  // when there are orders, as the empty state's only action when there are none (two
+  // copies would also give the page two sets of the same field ids).
+  const newOrder = (
+    <DialogForm
+      trigger={t("po.newTitle", locale)}
+      triggerIcon={<PlusIcon />}
+      title={t("po.newTitle", locale)}
+      description={t("po.newHint", locale)}
+      closeLabel={t("ui.close", locale)}
+    >
+      <OrderForm locale={locale} action={createOrder} submitLabel={t("po.newSubmit", locale)} />
+    </DialogForm>
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("po.title", locale)}</h1>
-        <p className="text-sm text-sand-600">{t("po.lead", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("po.title", locale)}
+        lead={t("po.lead", locale)}
+        infoKey="orders"
+        locale={locale}
+        actions={orders.length > 0 ? newOrder : undefined}
+      />
 
-      <Flash tone="error" message={error} />
+      <Flash tone="error" message={poErrorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("po.deletedFlash", locale) : undefined} />
 
+      {/* The three figures only once there is something to count: three zero tiles above
+          an empty list say nothing the empty list does not. */}
       {orders.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <StatGrid columns={3}>
           <Stat
             label={t("po.statOnOrder", locale)}
             value={rands(onOrderCents)}
-            delta={`${open.length} ${t("po.statOnOrderHint", locale)}`}
+            delta={`${num(open.length, 0)} ${t("po.statOnOrderHint", locale)}`}
+            size="md"
           />
           <Stat
             label={t("po.statLate", locale)}
-            value={String(late.length)}
+            value={num(late.length, 0)}
             delta={t("po.statLateHint", locale)}
             tone={late.length > 0 ? "overdue" : "default"}
+            size="md"
           />
           <Stat
             label={t("po.statToInvoice", locale)}
             value={rands(toInvoiceCents)}
-            delta={`${toInvoice.length} ${t("po.statToInvoiceHint", locale)}`}
+            delta={`${num(toInvoice.length, 0)} ${t("po.statToInvoiceHint", locale)}`}
             tone={toInvoice.length > 0 ? "due" : "default"}
+            size="md"
           />
-        </div>
+        </StatGrid>
       ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("po.newTitle", locale)}</CardTitle>
-        </CardHeader>
-        <p className="mb-3 text-sm text-sand-600">{t("po.newHint", locale)}</p>
-        <OrderForm locale={locale} action={createOrder} submitLabel={t("po.newSubmit", locale)} />
-      </Card>
 
       <Card>
         <CardHeader>
@@ -166,7 +182,7 @@ export default async function OrdersPage({
         </CardHeader>
 
         {orders.length === 0 ? (
-          <GetStarted title={t("po.emptyTitle", locale)} hint={t("po.emptyBody", locale)} />
+          <GetStarted title={t("po.emptyTitle", locale)} hint={t("po.emptyBody", locale)} action={newOrder} />
         ) : (
             <Table stacked className="lg:min-w-[46rem]">
               <Thead>
@@ -234,6 +250,6 @@ export default async function OrdersPage({
             </Table>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

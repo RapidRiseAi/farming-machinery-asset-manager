@@ -7,7 +7,8 @@ import { Overlay } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { t, type Lang } from "@/lib/i18n";
-import { TOUR_SEEN_KEY, TOUR_STEP_KEY, type TourStep } from "@/lib/tour";
+import { TOUR_SEEN_KEY, TOUR_STEP_KEY, tourSeenKey, tourStepKey, type TourStep } from "@/lib/tour";
+import { useStandalone } from "@/components/ui/use-standalone";
 
 /**
  * The walkthrough itself: one card at a time, in thumb reach, with a visible way out.
@@ -23,12 +24,15 @@ import { TOUR_SEEN_KEY, TOUR_STEP_KEY, type TourStep } from "@/lib/tour";
  *    skipped it is reachable from the page-info panel, it does not reappear.
  */
 export function Tour({
-  steps,
+  steps: allSteps,
   locale,
   homePath,
+  userId,
 }: {
   steps: TourStep[];
   locale: Lang;
+  /** Keys the "seen it" flag and the saved step per person, not per device. */
+  userId: string;
   /**
    * The role's own home. The tour may open itself HERE and nowhere else, landing
    * mid-task and being interrupted by a tutorial is the thing people hate about them.
@@ -39,14 +43,26 @@ export function Tour({
   const [open, setOpen] = useState(false);
   const [i, setI] = useState(0);
   const atHome = pathname === homePath;
+  // Inside the installed app, "Install the app" is a step about something already done.
+  const standalone = useStandalone();
+  const steps = standalone ? allSteps.filter((s) => s.id !== "install") : allSteps;
+  const seenKey = tourSeenKey(userId);
+  const stepKey = tourStepKey(userId);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     let done = false;
     let saved = 0;
     try {
-      done = window.localStorage.getItem(TOUR_SEEN_KEY) === "1";
-      saved = Number(window.localStorage.getItem(TOUR_STEP_KEY) ?? "0");
+      const ls = window.localStorage;
+      // One-time migration from the device-wide flag (see lib/tour.ts).
+      if (ls.getItem(seenKey) === null && ls.getItem(TOUR_SEEN_KEY) === "1") {
+        ls.setItem(seenKey, "1");
+        ls.removeItem(TOUR_SEEN_KEY);
+        ls.removeItem(TOUR_STEP_KEY);
+      }
+      done = ls.getItem(seenKey) === "1";
+      saved = Number(ls.getItem(stepKey) ?? "0");
     } catch {
       // Private mode or storage disabled, treat as "never seen", never crash.
     }
@@ -60,12 +76,12 @@ export function Tour({
     };
     window.addEventListener("fleetwise:start-tour", reopen);
     return () => window.removeEventListener("fleetwise:start-tour", reopen);
-  }, [atHome, steps.length]);
+  }, [atHome, steps.length, seenKey, stepKey]);
 
   function remember(step: number, finished: boolean) {
     try {
-      window.localStorage.setItem(TOUR_STEP_KEY, String(step));
-      if (finished) window.localStorage.setItem(TOUR_SEEN_KEY, "1");
+      window.localStorage.setItem(stepKey, String(step));
+      if (finished) window.localStorage.setItem(seenKey, "1");
     } catch {
       /* storage unavailable, the tour still works for this session */
     }

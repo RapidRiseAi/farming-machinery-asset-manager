@@ -4,18 +4,21 @@ import { notFound, redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import { shortDate } from "@/lib/format";
+import { shortDate, num } from "@/lib/format";
 import { rands } from "@/lib/money";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { Fact, FactList } from "@/components/ui/facts";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
 import { TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
-import { TrashIcon, PlusIcon } from "@/components/ui/icons";
+import { TrashIcon, PlusIcon, PhoneIcon, ChatIcon, MailIcon } from "@/components/ui/icons";
 import {
   updateClientRecord, removeClientRecord, addClientVehicle,
   removeClientVehicle, requestClientLink, syncClientVehicles,
@@ -101,15 +104,19 @@ export default async function PartnerClientPage({
   } | null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link href="/contractor/clients" className="focus-ring rounded text-sm text-brand-ink hover:underline">
-          ← {t("clients.title", locale)}
-        </Link>
-        {connected ? <Badge tone="ok" className="ml-auto">{t("clients.connected", locale)}</Badge> : null}
-      </div>
-
-      <h1 className="text-2xl font-bold tracking-tight text-ink">{client.name}</h1>
+    <PageContainer>
+      <PageHeader
+        title={client.name}
+        back={{ href: backHref(sp.from, "/contractor/clients"), label: t("clients.title", locale) }}
+        badge={
+          connected ? (
+            <Badge tone="ok">{t("clients.connected", locale)}</Badge>
+          ) : client.link_status === "requested" ? (
+            <Badge tone="info">{t("clients.asked", locale)}</Badge>
+          ) : null
+        }
+        meta={client.trading_name && client.trading_name !== client.name ? client.trading_name : undefined}
+      />
 
       <Flash tone="error" message={sp.error === "already-synced" ? t("clients.alreadySynced", locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />
@@ -225,21 +232,17 @@ export default async function PartnerClientPage({
       {exposure?.has_limit ? (
         <Card>
           <CardHeader><CardTitle>{t("credit.title", locale)}</CardTitle></CardHeader>
-          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-            <p className="text-sm text-sand-600">
-              {t("credit.outstanding", locale)}{" "}
-              <span className="font-semibold tabular-nums text-sand-900">{rands(exposure.outstanding_cents)}</span>
-            </p>
-            <p className="text-sm text-sand-600">
-              {t("credit.limit", locale)}{" "}
-              <span className="font-semibold tabular-nums text-sand-900">{rands(exposure.limit_cents)}</span>
-            </p>
-            {exposure.pct_used != null ? (
+          <FactList>
+            <Fact label={t("credit.outstanding", locale)} value={rands(exposure.outstanding_cents)} />
+            <Fact label={t("credit.limit", locale)} value={rands(exposure.limit_cents)} />
+          </FactList>
+          {exposure.pct_used != null ? (
+            <div className="mt-2">
               <Badge tone={exposure.over_cents > 0 ? "danger" : exposure.pct_used >= 80 ? "warning" : "ok"}>
-                {t("credit.pctUsed", locale).replace("{pct}", String(exposure.pct_used))}
+                {t("credit.pctUsed", locale).replace("{pct}", num(exposure.pct_used, 0))}
               </Badge>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {exposure.over_cents > 0 ? (
             <p className="mt-3 rounded-lg bg-status-overdue/10 px-3 py-2 text-sm text-sand-800">
               {t("credit.over", locale).replace("{amount}", rands(exposure.over_cents))}
@@ -323,23 +326,54 @@ export default async function PartnerClientPage({
         >
           <CardTitle>{t("clients.contactTitle", locale)}</CardTitle>
         </CardHeader>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {client.phone ? (
-            <a href={telHref(client.phone) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.call", locale)}
-            </a>
+        {/* What is on file, stated. This card showed three buttons and none of the
+            details themselves: the phone number, the VAT number a tax invoice needs and
+            the terms were readable only inside the edit dialog's input boxes. A contact
+            line is listed when it is filled; the two billing facts an invoice depends on
+            always show, so a missing one reads as missing. */}
+        <FactList>
+          {client.contact_name ? <Fact label={t("clients.contactName", locale)} value={client.contact_name} /> : null}
+          {client.phone ? <Fact label={t("clients.phone", locale)} value={client.phone} /> : null}
+          {client.whatsapp && client.whatsapp !== client.phone ? (
+            <Fact label={t("clients.whatsapp", locale)} value={client.whatsapp} />
           ) : null}
-          {client.whatsapp ? (
-            <a href={waHref(client.whatsapp) ?? "#"} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.whatsapp", locale)}
-            </a>
+          {client.email ? <Fact label={t("clients.email", locale)} value={<span className="break-all">{client.email}</span>} /> : null}
+          {client.address ? <Fact label={t("clients.address", locale)} value={<span className="whitespace-pre-line">{client.address}</span>} /> : null}
+          <Fact
+            label={t("clients.vatNo", locale)}
+            value={client.vat_number ?? t("settings.notSet", locale)}
+            muted={!client.vat_number}
+          />
+          <Fact
+            label={t("clients.terms", locale)}
+            value={client.payment_terms_days != null ? num(client.payment_terms_days, 0) : t("settings.notSet", locale)}
+            muted={client.payment_terms_days == null}
+          />
+          {client.reg_number ? <Fact label={t("clients.regNo", locale)} value={client.reg_number} /> : null}
+          {client.credit_limit_cents != null ? (
+            <Fact label={t("credit.limit", locale)} value={rands(client.credit_limit_cents)} />
           ) : null}
-          {client.email ? (
-            <a href={mailtoHref(client.email) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("contact.email", locale)}
-            </a>
-          ) : null}
-        </div>
+          {client.notes ? <Fact label={t("clients.notes", locale)} value={<span className="whitespace-pre-line">{client.notes}</span>} /> : null}
+        </FactList>
+        {client.phone || client.whatsapp || client.email ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {client.phone ? (
+              <a href={telHref(client.phone) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                <PhoneIcon className="text-base" /> {t("contact.call", locale)}
+              </a>
+            ) : null}
+            {client.whatsapp ? (
+              <a href={waHref(client.whatsapp) ?? "#"} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                <ChatIcon className="text-base" /> {t("contact.whatsapp", locale)}
+              </a>
+            ) : null}
+            {client.email ? (
+              <a href={mailtoHref(client.email) ?? "#"} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                <MailIcon className="text-base" /> {t("contact.email", locale)}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
 
       {/* == Their vehicles ========================================= */}
@@ -442,6 +476,6 @@ export default async function PartnerClientPage({
           <input type="hidden" name="client_id" value={client.id} />
         </ConfirmDialog>
       </div>
-    </div>
+    </PageContainer>
   );
 }

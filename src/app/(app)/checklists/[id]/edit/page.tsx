@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { ratingMax, isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { Card } from "@/components/ui/card";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ChecklistTemplateBuilder } from "@/components/checklists/template-builder";
 
 type FieldRow = {
@@ -64,15 +63,12 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
     }));
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/checklists" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("checklists.title", locale)}
-      </Link>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("checklists.editTemplate", locale)}</h1>
-        <p className="mt-0.5 text-sm text-sand-500">{t("checklists.builderHint", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("checklists.editTemplate", locale)}
+        lead={t("checklists.builderHint", locale)}
+        back={{ href: "/checklists", label: t("checklists.title", locale) }}
+      />
       <Card>
         <ChecklistTemplateBuilder
           mode="edit"
@@ -85,6 +81,6 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
           initialFields={initialFields}
         />
       </Card>
-    </div>
+    </PageContainer>
   );
 }

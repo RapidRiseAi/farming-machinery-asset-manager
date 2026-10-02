@@ -72,6 +72,10 @@ export function tourFor(role: Role): TourStep[] {
       return CONTRACTOR;
     case "mechanic":
       return MECHANIC;
+    // Rapid Rise staff support farms; an owner's first-run walkthrough popping up on
+    // their screen is noise, not help.
+    case "rr_admin":
+      return [];
     default:
       return OWNER;
   }
@@ -89,3 +93,17 @@ export function tourFor(role: Role): TourStep[] {
  */
 export const TOUR_SEEN_KEY = "farmgear:tour-done";
 export const TOUR_STEP_KEY = "farmgear:tour-step";
+
+/**
+ * The per-PERSON keys. The flag used to be per device, so on a shared workshop tablet the
+ * second person (a driver after the mechanic) never got their role's walkthrough. The
+ * device-wide keys above are read once as a migration: the first person to open the app
+ * on a device that already dismissed the tour inherits "seen", and the old key is removed
+ * so the next person on that device gets their own.
+ */
+export function tourSeenKey(userId: string): string {
+  return `${TOUR_SEEN_KEY}:${userId}`;
+}
+export function tourStepKey(userId: string): string {
+  return `${TOUR_STEP_KEY}:${userId}`;
+}

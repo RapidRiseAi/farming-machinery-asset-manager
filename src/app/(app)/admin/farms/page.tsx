@@ -7,19 +7,34 @@ import { PLANS } from "@/lib/entitlements";
 import { createFarm } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { SelectField, TextField } from "@/components/ui/field";
+import { StatusBadge, type StatusLook } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { DateText } from "@/components/ui/date-text";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PlusIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { num } from "@/lib/format";
 
 type FarmRow = { id: string; name: string; plan: string; status: string; created_at: string };
 
 const planLabel = (p: string): string => t(`plan.${p}`, "en");
 
-const statusTone = (s: string): BadgeTone =>
-  s === "active" ? "ok" : s === "trial" ? "info" : s === "suspended" ? "warning" : "danger";
+// Status is shape + word + colour, never colour alone.
+const statusLook = (s: string): StatusLook =>
+  s === "active"
+    ? { tone: "ok", shape: "dot" }
+    : s === "trial"
+      ? { tone: "info", shape: "half" }
+      : s === "suspended"
+        ? { tone: "warning", shape: "triangle" }
+        : { tone: "danger", shape: "square" };
+const statusWord = (s: string): string => {
+  const words = s.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
 
 export default async function AdminFarmsPage({
   searchParams,
@@ -60,33 +75,46 @@ export default async function AdminFarmsPage({
   }
   const daysAgo = (iso?: string) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
 
+  const newFarm = (
+    <DialogForm
+      trigger="New farm"
+      triggerIcon={<PlusIcon />}
+      title="New farm"
+      description="The farm starts empty. Invite its owner from the farm's page once it exists."
+      closeLabel={t("ui.close", "en")}
+      size="md"
+    >
+      <form action={createFarm}>
+        <DialogFields columns={1}>
+          <TextField name="name" id="farm-name" label="Farm name" required autoComplete="off" />
+          <SelectField name="plan" id="farm-plan" label="Plan" defaultValue="essential">
+            {PLANS.map((p) => (
+              <option key={p} value={p}>{planLabel(p)}</option>
+            ))}
+          </SelectField>
+        </DialogFields>
+        <DialogActions cancelLabel={t("common.cancel", "en")}>
+          <SubmitButton>Create farm</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
+
   return (
-    <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold tracking-tight text-ink">Farms</h1>
+    <PageContainer size="wide">
+      <PageHeader
+        title="Farms"
+        meta={farms.length > 0 ? `${num(farms.length)} farm${farms.length === 1 ? "" : "s"}` : undefined}
+        lead="Every farm on FleetWise. Open one to change its plan or status, or to help it in support mode."
+        actions={newFarm}
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.created ? "Farm created." : undefined} />
+      <Flash tone="success" message={sp.created ? t("admin.farmCreated", locale) : undefined} />
 
-      <Card>
-        <CardHeader><CardTitle>Create farm</CardTitle></CardHeader>
-        <form action={createFarm} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="Farm name" htmlFor="farm-name" className="flex-1">
-            <Input id="farm-name" name="name" required />
-          </Field>
-          <Field label="Plan" htmlFor="farm-plan">
-            <Select id="farm-plan" name="plan" defaultValue="essential">
-              {PLANS.map((p) => (
-                <option key={p} value={p}>{planLabel(p)}</option>
-              ))}
-            </Select>
-          </Field>
-          <SubmitButton variant="primary">Create farm</SubmitButton>
-        </form>
-      </Card>
-
-      <Card flush>
-        {farms.length === 0 ? (
-          <p className="p-4 text-sm text-sand-500">No farms yet, create the first one above.</p>
-        ) : (
+      {farms.length === 0 ? (
+        <EmptyState title="No farms yet" hint="Create the first one with New farm." />
+      ) : (
+        <Card flush>
           <Table>
             <Thead>
               <Tr>
@@ -99,28 +127,31 @@ export default async function AdminFarmsPage({
             </Thead>
             <Tbody>
               {farms.map((f) => {
-                const d = daysAgo(lastActivityBy.get(f.id));
+                const last = lastActivityBy.get(f.id);
+                const d = daysAgo(last);
                 const stale = d != null && d >= 14;
+                const look = statusLook(f.status);
                 return (
                   <Tr key={f.id}>
                     <Td className="font-medium">
                       <Link href={`/admin/farms/${f.id}`} className="focus-ring rounded text-brand-ink hover:underline">{f.name}</Link>
                     </Td>
                     <Td className="text-sand-600">{planLabel(f.plan)}</Td>
-                    <Td><Badge tone={statusTone(f.status)} className="capitalize">{f.status}</Badge></Td>
-                    <Td className="text-right tabular-nums">{machinesBy.get(f.id) ?? 0}</Td>
-                    <Td className="text-right tabular-nums">{activeUsersBy.get(f.id) ?? 0}</Td>
-                    <Td className="text-right tabular-nums">{jobsThisMonthBy.get(f.id) ?? 0}</Td>
-                    <Td className={`text-right tabular-nums ${stale ? "text-status-overdue" : "text-sand-600"}`}>
-                      {d == null ? "-" : d === 0 ? "today" : `${d}d ago`}
+                    <Td><StatusBadge tone={look.tone} shape={look.shape} label={statusWord(f.status)} /></Td>
+                    <Td className="text-right tnum">{num(machinesBy.get(f.id) ?? 0)}</Td>
+                    <Td className="text-right tnum">{num(activeUsersBy.get(f.id) ?? 0)}</Td>
+                    <Td className="text-right tnum">{num(jobsThisMonthBy.get(f.id) ?? 0)}</Td>
+                    <Td className={`text-right tnum ${stale ? "font-medium text-status-overdue" : "text-sand-600"}`}>
+                      {last ? <DateText value={last} locale="en" format="relative" /> : "-"}
+                      {stale ? <span className="block text-xs">Quiet for 2 weeks</span> : null}
                     </Td>
                   </Tr>
                 );
               })}
             </Tbody>
           </Table>
-        )}
-      </Card>
-    </div>
+        </Card>
+      )}
+    </PageContainer>
   );
 }

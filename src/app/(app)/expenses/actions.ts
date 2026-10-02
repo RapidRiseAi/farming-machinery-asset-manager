@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
-import { percentToBps } from "@/lib/format";
+import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { uploadReceipt } from "@/lib/receipt-media";
 
@@ -111,7 +111,7 @@ export async function createExpense(formData: FormData) {
       reference: s(formData, "reference"),
       category: category(formData),
       description: s(formData, "description"),
-      expense_date: s(formData, "expense_date") ?? new Date().toISOString().slice(0, 10),
+      expense_date: s(formData, "expense_date") ?? todayLocal(),
       paid_on: s(formData, "paid_on"),
       amount_cents: m.amount_cents,
       vat_cents: m.vat_cents,
@@ -236,7 +236,7 @@ export async function updateExpense(formData: FormData) {
       reference: s(formData, "reference"),
       category: category(formData),
       description: s(formData, "description"),
-      expense_date: s(formData, "expense_date") ?? new Date().toISOString().slice(0, 10),
+      expense_date: s(formData, "expense_date") ?? todayLocal(),
       paid_on: s(formData, "paid_on"),
       amount_cents: m.amount_cents,
       vat_cents: m.vat_cents,
@@ -264,7 +264,7 @@ export async function markExpensePaid(formData: FormData) {
   const supabase = await createClient();
   await supabase
     .from("partner_expenses")
-    .update({ paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10), updated_at: new Date().toISOString() })
+    .update({ paid_on: s(formData, "paid_on") ?? todayLocal(), updated_at: new Date().toISOString() })
     .eq("id", id);
   revalidatePath("/expenses");
   redirect("/expenses?saved=1");

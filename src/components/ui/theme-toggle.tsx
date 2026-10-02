@@ -39,12 +39,20 @@ export function ThemeToggle({
   label,
   labels,
   className,
+  variant = "cycle",
 }: {
   /** Accessible name for the control as a whole, e.g. "Appearance". */
   label: string;
   /** Visible word for each state, already translated. */
   labels: Record<ThemeChoice, string>;
   className?: string;
+  /**
+   * `cycle` (default) is the compact one-button shortcut for menus: each press moves to
+   * the next state. `segmented` shows all three side by side with the current one
+   * pressed, so nobody has to tap through to find out what the options are. Use it
+   * wherever there is room, such as the preferences page.
+   */
+  variant?: "cycle" | "segmented";
 }) {
   // Start on "system" and correct after mount: the server cannot know what is in this
   // browser's localStorage, and rendering a guess would mismatch on hydration.
@@ -77,6 +85,37 @@ export function ThemeToggle({
 
   const shown: ThemeChoice = ready ? choice : "system";
   const Icon = shown === "dark" ? MoonIcon : shown === "light" ? SunIcon : DeviceIcon;
+
+  if (variant === "segmented") {
+    const icons: Record<ThemeChoice, typeof SunIcon> = { system: DeviceIcon, light: SunIcon, dark: MoonIcon };
+    return (
+      <div
+        role="group"
+        aria-label={label}
+        className={cn("inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-edge bg-surface-sunken p-1", className)}
+      >
+        {ORDER.map((c) => {
+          const I = icons[c];
+          const pressed = ready && c === shown;
+          return (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={pressed}
+              onClick={() => apply(c)}
+              className={cn(
+                "focus-ring inline-flex min-h-[48px] items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:min-h-[40px]",
+                pressed ? "bg-surface text-ink shadow-xs" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              <I className="shrink-0 text-base" aria-hidden />
+              {labels[c]}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <button

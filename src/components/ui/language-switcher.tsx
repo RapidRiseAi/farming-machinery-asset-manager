@@ -29,7 +29,8 @@ export function LanguageSwitcher({ current, label }: { current: Locale; label: s
           value={lng}
           aria-pressed={current === lng}
           className={cn(
-            "focus-ring rounded-md px-2.5 py-1 text-xs font-semibold uppercase transition-colors",
+            // 48px on a phone (the More sheet footer), stepping down once there is a mouse.
+            "focus-ring inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-md px-2.5 text-xs font-semibold uppercase transition-colors sm:min-h-[36px] sm:min-w-0",
             current === lng
               ? "bg-surface text-sand-900 shadow-xs"
               : "text-sand-500 hover:text-sand-800",

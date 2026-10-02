@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { enumLabel, shortDate } from "@/lib/format";
+import { enumLabel, meterReading, num, shortDate, todayLocal } from "@/lib/format";
 import {
   TYRE_AXLES,
   groupByMachine,
@@ -20,24 +20,30 @@ import {
 } from "@/lib/tyres";
 
 import { Card, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GetStarted } from "@/components/ui/empty-state";
 import { ActionMenu } from "@/components/ui/action-menu";
-import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import {
+  DialogActions,
+  DialogFields,
+  DialogForm,
+  DialogSection,
+} from "@/components/ui/dialog-form";
 import { PlusIcon } from "@/components/ui/icons";
 
 import { addTyre, fitTyre, recordTyreCheck, removeTyre } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-type MachineRow = { id: string; name: string; meter_type: string };
+type MachineRow = { id: string; name: string; meter_type: string; current_reading: number | null };
 
 /**
  * Every tyre, where it is, and what it has cost per hour.
@@ -85,7 +91,7 @@ export default async function TyresPage({
     farmId ? supabase.rpc("tyre_life", { p_farm: farmId }) : Promise.resolve({ data: [] }),
     supabase
       .from("machines")
-      .select("id, name, meter_type")
+      .select("id, name, meter_type, current_reading")
       .is("deleted_at", null)
       .order("name"),
   ]);
@@ -93,6 +99,7 @@ export default async function TyresPage({
   const rows = (lifeData as TyreLifeRow[] | null) ?? [];
   const machines = (machineData as MachineRow[] | null) ?? [];
   const { machines: byMachine, unfitted } = groupByMachine(rows);
+  const machineById = new Map(machines.map((m) => [m.id, m]));
   const totals = tyreTotals(rows);
 
   const savedKey =
@@ -108,6 +115,9 @@ export default async function TyresPage({
 
   const closeLabel = t("ui.close", locale);
   const cancelLabel = t("common.cancel", locale);
+  // Every date in these dialogs is "when did this happen", and the answer is nearly
+  // always today. Prefilled, so the common case is one less field to touch.
+  const today = todayLocal();
 
   /** What to call a tyre in a dialog title, so the dialog names its own subject. */
   const tyreName = (r: TyreLifeRow) =>
@@ -125,6 +135,16 @@ export default async function TyresPage({
     let whereText = t(where.key, locale);
     for (const [k, v] of Object.entries(where.vars)) whereText = whereText.replace(`{${k}}`, v);
     const name = tyreName(r);
+    // The meter's last known figure as a HINT, not a prefill: a prefilled reading
+    // gets saved unread, and a stale one would put the wrong distance on the tyre.
+    const onMachine = r.machine_id ? machineById.get(r.machine_id) : undefined;
+    const readingHint =
+      onMachine?.current_reading != null
+        ? t("tyres.fieldReadingLast", locale).replace(
+            "{reading}",
+            meterReading(onMachine.current_reading, onMachine.meter_type, locale),
+          )
+        : undefined;
 
     return (
       <li key={r.tyre_id} className="p-4 sm:p-5">
@@ -161,14 +181,20 @@ export default async function TyresPage({
                       <Field label={t("tyres.fieldTread", locale)} htmlFor={`tm-${r.tyre_id}`} required>
                         <Input id={`tm-${r.tyre_id}`} name="tread_mm" inputMode="decimal" required />
                       </Field>
-                      <Field label={t("tyres.fieldReading", locale)} htmlFor={`rd-${r.tyre_id}`}>
+                      <Field label={t("tyres.fieldReading", locale)} htmlFor={`rd-${r.tyre_id}`} hint={readingHint}>
                         <Input id={`rd-${r.tyre_id}`} name="reading" inputMode="decimal" />
                       </Field>
                       <Field label={t("tyres.fieldPressure", locale)} htmlFor={`pk-${r.tyre_id}`}>
                         <Input id={`pk-${r.tyre_id}`} name="pressure_kpa" inputMode="decimal" />
                       </Field>
-                      <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor={`cd-${r.tyre_id}`}>
-                        <Input id={`cd-${r.tyre_id}`} name="checked_on" type="date" />
+                      <Field label={t("tyres.fieldCheckedOn", locale)} htmlFor={`cd-${r.tyre_id}`}>
+                        <Input
+                          id={`cd-${r.tyre_id}`}
+                          name="checked_on"
+                          type="date"
+                          defaultValue={today}
+                          max={today}
+                        />
                       </Field>
                     </DialogFields>
                     <DialogActions cancelLabel={cancelLabel}>
@@ -193,16 +219,23 @@ export default async function TyresPage({
                         <Field label={t("tyres.fieldReason", locale)} htmlFor={`rr-${r.tyre_id}`}>
                           <Input id={`rr-${r.tyre_id}`} name="removal_reason" maxLength={80} />
                         </Field>
-                        <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`rd-off-${r.tyre_id}`}>
-                          <Input id={`rd-off-${r.tyre_id}`} name="removed_on" type="date" />
+                        <Field label={t("tyres.fieldRemovedOn", locale)} htmlFor={`rd-off-${r.tyre_id}`}>
+                          <Input
+                            id={`rd-off-${r.tyre_id}`}
+                            name="removed_on"
+                            type="date"
+                            defaultValue={today}
+                            max={today}
+                          />
                         </Field>
-                        <Field label={t("tyres.fieldReading", locale)} htmlFor={`rr2-${r.tyre_id}`}>
+                        <Field label={t("tyres.fieldReading", locale)} htmlFor={`rr2-${r.tyre_id}`} hint={readingHint}>
                           <Input id={`rr2-${r.tyre_id}`} name="removed_reading" inputMode="decimal" />
                         </Field>
-                        <label className="flex items-start gap-3 sm:col-span-2">
-                          <input type="checkbox" name="scrap" className="mt-1 size-5" />
-                          <span className="text-sm text-sand-800">{t("tyres.fieldScrap", locale)}</span>
-                        </label>
+                        <Checkbox
+                          name="scrap"
+                          label={t("tyres.fieldScrap", locale)}
+                          className="sm:col-span-2"
+                        />
                       </DialogFields>
                       <DialogActions cancelLabel={cancelLabel}>
                         <SubmitButton variant="primary">{t("tyres.remove", locale)}</SubmitButton>
@@ -224,7 +257,7 @@ export default async function TyresPage({
                         <Field label={t("tyres.fieldMachine", locale)} htmlFor={`fm-${r.tyre_id}`} required>
                           <Select id={`fm-${r.tyre_id}`} name="machine_id" required defaultValue="">
                             <option value="" disabled>
-                              -
+                              {t("tyres.pickMachine", locale)}
                             </option>
                             {machines.map((m) => (
                               <option key={m.id} value={m.id}>
@@ -250,7 +283,13 @@ export default async function TyresPage({
                           <Input id={`fp-${r.tyre_id}`} name="position_label" maxLength={12} />
                         </Field>
                         <Field label={t("tyres.fieldFittedOn", locale)} htmlFor={`fd-${r.tyre_id}`}>
-                          <Input id={`fd-${r.tyre_id}`} name="fitted_on" type="date" />
+                          <Input
+                            id={`fd-${r.tyre_id}`}
+                            name="fitted_on"
+                            type="date"
+                            defaultValue={today}
+                            max={today}
+                          />
                         </Field>
                         <Field
                           label={t("tyres.fieldReading", locale)}
@@ -278,9 +317,9 @@ export default async function TyresPage({
             <>
               {r.new_tread_mm != null
                 ? t("tyres.treadOf", locale)
-                    .replace("{now}", String(r.latest_tread_mm))
-                    .replace("{new}", String(r.new_tread_mm))
-                : `${r.latest_tread_mm}mm`}
+                    .replace("{now}", num(r.latest_tread_mm))
+                    .replace("{new}", num(r.new_tread_mm))
+                : `${num(r.latest_tread_mm)}mm`}
               {r.latest_checked_on ? (
                 <span className="text-sand-500">
                   {" · "}
@@ -327,7 +366,7 @@ export default async function TyresPage({
             <span className="text-sand-500">
               {" · "}
               {t("tyres.ranFor", locale)
-                .replace("{n}", String(Math.round(r.units_run)))
+                .replace("{n}", num(r.units_run, 0))
                 .replace(
                   "{unit}",
                   t(r.meter_type === "km" ? "tyres.unitKm" : "tyres.unitHours", locale),
@@ -342,87 +381,95 @@ export default async function TyresPage({
     );
   };
 
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-            {t("tyres.title", locale)}
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <PageInfoButton infoKey="tyres" locale={locale} />
-            {/* The one thing you come here to ADD, at the top, where a primary action
-                belongs, instead of a nine-field panel below the list. */}
-            {canManage ? (
-              <DialogForm
-                trigger={t("tyres.add", locale)}
-                triggerIcon={<PlusIcon />}
-                title={t("tyres.addTitle", locale)}
-                closeLabel={closeLabel}
-              >
-                <form action={addTyre}>
-                  <DialogFields>
-                    <Field label={t("tyres.fieldBrand", locale)} htmlFor="ty-brand">
-                      <Input id="ty-brand" name="brand" maxLength={40} />
-                    </Field>
-                    <Field label={t("tyres.fieldPattern", locale)} htmlFor="ty-pattern">
-                      <Input id="ty-pattern" name="pattern" maxLength={40} />
-                    </Field>
-                    <Field label={t("tyres.fieldSize", locale)} htmlFor="ty-size">
-                      <Input id="ty-size" name="size" maxLength={30} />
-                    </Field>
-                    <Field label={t("tyres.fieldSerial", locale)} htmlFor="ty-serial">
-                      <Input id="ty-serial" name="serial_no" maxLength={40} />
-                    </Field>
-                    <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor="ty-date">
-                      <Input id="ty-date" name="purchase_date" type="date" />
-                    </Field>
-                    <Field label={t("tyres.fieldCost", locale)} htmlFor="ty-cost">
-                      <Input id="ty-cost" name="purchase_cost_cents" inputMode="decimal" />
-                    </Field>
-                    <Field label={t("tyres.fieldSupplier", locale)} htmlFor="ty-supplier">
-                      <Input id="ty-supplier" name="supplier" maxLength={60} />
-                    </Field>
-                    <Field label={t("tyres.fieldNewTread", locale)} htmlFor="ty-tread">
-                      <Input id="ty-tread" name="new_tread_mm" inputMode="decimal" />
-                    </Field>
-                    <div className="sm:col-span-2">
-                      <Field label={t("tyres.fieldNotes", locale)} htmlFor="ty-notes">
-                        <Input id="ty-notes" name="notes" maxLength={200} />
-                      </Field>
-                    </div>
-                  </DialogFields>
-                  <DialogActions cancelLabel={cancelLabel} note={t("tyres.moneyNote", locale)}>
-                    <SubmitButton variant="primary">{t("tyres.add", locale)}</SubmitButton>
-                  </DialogActions>
-                </form>
-              </DialogForm>
-            ) : null}
+  // The one thing you come here to ADD. In the header once there are tyres; in the
+  // empty state while there are none, so the page never offers the same button twice.
+  const addTyreDialog = canManage ? (
+    <DialogForm
+      trigger={t("tyres.add", locale)}
+      triggerIcon={<PlusIcon />}
+      title={t("tyres.addTitle", locale)}
+      closeLabel={closeLabel}
+    >
+      <form action={addTyre}>
+        <DialogFields>
+          {/* What the tyre IS first: enough to tell it apart on the list. */}
+          <Field label={t("tyres.fieldBrand", locale)} htmlFor="ty-brand">
+            <Input id="ty-brand" name="brand" maxLength={40} />
+          </Field>
+          <Field label={t("tyres.fieldPattern", locale)} htmlFor="ty-pattern">
+            <Input id="ty-pattern" name="pattern" maxLength={40} />
+          </Field>
+          <Field label={t("tyres.fieldSize", locale)} htmlFor="ty-size">
+            <Input id="ty-size" name="size" maxLength={30} />
+          </Field>
+          <Field label={t("tyres.fieldNewTread", locale)} htmlFor="ty-tread">
+            <Input id="ty-tread" name="new_tread_mm" inputMode="decimal" />
+          </Field>
+          {/* Where it came from and what it cost: the paperwork, folded away until wanted. */}
+          <DialogSection title={t("tyres.sectionPurchase", locale)}>
+            <Field label={t("tyres.fieldPurchaseDate", locale)} htmlFor="ty-date">
+              <Input id="ty-date" name="purchase_date" type="date" defaultValue={today} max={today} />
+            </Field>
+            <Field label={t("tyres.fieldCost", locale)} htmlFor="ty-cost">
+              <Input id="ty-cost" name="purchase_cost_cents" inputMode="decimal" />
+            </Field>
+            <Field label={t("tyres.fieldSupplier", locale)} htmlFor="ty-supplier">
+              <Input id="ty-supplier" name="supplier" maxLength={60} />
+            </Field>
+            <Field label={t("tyres.fieldSerial", locale)} htmlFor="ty-serial">
+              <Input id="ty-serial" name="serial_no" maxLength={40} />
+            </Field>
+          </DialogSection>
+          <div className="sm:col-span-2">
+            <Field label={t("tyres.fieldNotes", locale)} htmlFor="ty-notes">
+              <Input id="ty-notes" name="notes" maxLength={200} />
+            </Field>
           </div>
-        </div>
-        <p className="mt-1 text-sm text-sand-600">{t("tyres.lead", locale)}</p>
-      </div>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel} note={t("tyres.moneyNote", locale)}>
+          <SubmitButton variant="primary">{t("tyres.add", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title={t("tyres.title", locale)}
+        lead={t("tyres.lead", locale)}
+        infoKey="tyres"
+        locale={locale}
+        actions={rows.length > 0 ? addTyreDialog : undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={savedKey ? t(savedKey, locale) : undefined} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={t("tyres.statFitted", locale)} value={String(totals.fitted)} />
-        <Stat
-          label={t("tyres.statReplace", locale)}
-          value={String(totals.replace)}
-          tone={totals.replace > 0 ? "overdue" : "default"}
-        />
-        <Stat
-          label={t("tyres.statUnchecked", locale)}
-          value={String(totals.unchecked)}
-          tone={totals.unchecked > 0 ? "due" : "default"}
-        />
-        <Stat label={t("tyres.statSpend", locale)} value={rands(totals.spendCents)} />
-      </div>
+      {/* No tiles over an empty page: four zeroes say nothing the empty state does not. */}
+      {rows.length > 0 ? (
+        <StatGrid>
+          <Stat label={t("tyres.statFitted", locale)} value={num(totals.fitted)} />
+          <Stat
+            label={t("tyres.statReplace", locale)}
+            value={num(totals.replace)}
+            tone={totals.replace > 0 ? "overdue" : "default"}
+          />
+          <Stat
+            label={t("tyres.statUnchecked", locale)}
+            value={num(totals.unchecked)}
+            tone={totals.unchecked > 0 ? "due" : "default"}
+          />
+          <Stat label={t("tyres.statSpend", locale)} value={rands(totals.spendCents)} />
+        </StatGrid>
+      ) : null}
 
       {rows.length === 0 ? (
-        <GetStarted title={t("tyres.emptyTitle", locale)} hint={t("tyres.emptyBody", locale)} />
+        <GetStarted
+          title={t("tyres.emptyTitle", locale)}
+          hint={t("tyres.emptyBody", locale)}
+          action={addTyreDialog}
+        />
       ) : (
         <>
           {byMachine.map((m) => (
@@ -448,6 +495,6 @@ export default async function TyresPage({
           ) : null}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

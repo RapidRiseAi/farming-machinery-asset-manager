@@ -18,6 +18,9 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Fact, FactList } from "@/components/ui/facts";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
 import { TrashIcon } from "@/components/ui/icons";
 import {
   updateSchedule, addScheduleLine, removeScheduleLine,
@@ -56,14 +59,16 @@ export default async function SchedulePage({
       .is("deleted_at", null)
       .order("sort_order"),
     // What this schedule has actually produced. The proof that it is working, and the
-    // first place to look when a partner thinks it is not.
-    supabase
-      .from("partner_documents")
-      .select("id, number, status, issue_date, total_cents")
-      .eq("workshop_id", workshop.id)
-      .is("deleted_at", null)
-      .order("issue_date", { ascending: false })
-      .limit(200),
+    // first place to look when a partner thinks it is not. Only the one document
+    // `last_document_id` names: this read the workshop's latest 200 documents to keep one.
+    schedule.last_document_id
+      ? supabase
+          .from("partner_documents")
+          .select("id, number, status, issue_date, total_cents")
+          .eq("workshop_id", workshop.id)
+          .eq("id", schedule.last_document_id)
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const lines = (lineData ?? []) as ScheduleLine[];
@@ -71,34 +76,33 @@ export default async function SchedulePage({
   const totalCents = scheduleTotalCents(lines, schedule.vat_rate_bps);
   const live = isLive(schedule);
 
-  // Only the documents this schedule raised. `last_document_id` names the most recent;
-  // anything older is matched by having been raised on a period start we have recorded.
-  const raised = ((raisedData ?? []) as { id: string; number: string; status: string; issue_date: string; total_cents: number }[])
-    .filter((d) => d.id === schedule.last_document_id);
+  // Only the document this schedule last raised (`last_document_id`).
+  const raised = (raisedData ?? []) as { id: string; number: string; status: string; issue_date: string; total_cents: number }[];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Link href="/recurring" className="focus-ring rounded text-sm text-brand-ink hover:underline">
-        ← {t("recurring.title", locale)}
-      </Link>
+    <PageContainer>
+      <PageHeader
+        title={schedule.name}
+        back={{ href: backHref(sp.from, "/recurring"), label: t("recurring.title", locale) }}
+        badge={
+          <>
+            <Badge tone="neutral">{t(`cadence.${schedule.cadence}`, locale)}</Badge>
+            {schedule.auto_send ? <Badge tone="info">{t("recurring.autoSendBadge", locale)}</Badge> : null}
+            {!live ? <Badge tone="warning">{t("recurring.pausedBadge", locale)}</Badge> : null}
+          </>
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved || sp.added ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.raised ? t("recurring.raisedFlash", locale) : undefined} />
       <Flash tone="info" message={sp.nothing ? t("recurring.nothingFlash", locale) : undefined} />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{schedule.name}</h1>
-        <Badge tone="neutral">{t(`cadence.${schedule.cadence}`, locale)}</Badge>
-        {schedule.auto_send ? <Badge tone="info">{t("recurring.autoSendBadge", locale)}</Badge> : null}
-        {!live ? <Badge tone="warning">{t("recurring.pausedBadge", locale)}</Badge> : null}
-      </div>
-
       <Card>
         <CardHeader><CardTitle>{t("recurring.whatItBills", locale)}</CardTitle></CardHeader>
 
         {lines.length === 0 ? (
-          <p className="mb-3 text-sm text-status-warn">{t("recurring.noLines", locale)}</p>
+          <p className="mb-3 text-sm text-status-due">{t("recurring.noLines", locale)}</p>
         ) : (
           <ul className="mb-3 flex flex-col divide-y divide-sand-100 text-sm">
             {lines.map((l) => (
@@ -140,10 +144,7 @@ export default async function SchedulePage({
             <TextField name="description" label={t("recurring.lineDescription", locale)} required className="sm:col-span-2" />
             <TextField name="unit_price" inputMode="decimal" label={t("recurring.linePrice", locale)} required />
           </div>
-          <label className="flex items-center gap-3 text-sm text-sand-700">
-            <input type="checkbox" name="incl_vat" defaultChecked className="h-5 w-5 rounded border-sand-300 text-brand-ink" />
-            {t("recurring.priceInclVat", locale)}
-          </label>
+          <Checkbox name="incl_vat" defaultChecked label={t("recurring.priceInclVat", locale)} />
           <SubmitButton variant="secondary" className="self-start">{t("recurring.addLine", locale)}</SubmitButton>
         </form>
       </Card>
@@ -176,18 +177,12 @@ export default async function SchedulePage({
                   <TextField name="next_issue_date" type="date" label={t("recurring.nextIssue", locale)} defaultValue={schedule.next_issue_date} />
                   <TextField name="ends_on" type="date" label={t("recurring.endsOn", locale)} defaultValue={schedule.ends_on ?? ""} />
                   <TextareaField name="notes" rows={2} label={t("recurring.notes", locale)} defaultValue={schedule.notes ?? ""} />
-                  <label className="flex items-start gap-3 text-sm text-sand-700">
-                    <input
-                      type="checkbox"
-                      name="auto_send"
-                      defaultChecked={schedule.auto_send}
-                      className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
-                    />
-                    <span>
-                      {t("recurring.autoSend", locale)}
-                      <span className="block text-xs text-sand-500">{t("recurring.autoSendHint", locale)}</span>
-                    </span>
-                  </label>
+                  <Checkbox
+                    name="auto_send"
+                    defaultChecked={schedule.auto_send}
+                    label={t("recurring.autoSend", locale)}
+                    hint={t("recurring.autoSendHint", locale)}
+                  />
                 </DialogFields>
                 <DialogActions cancelLabel={t("common.cancel", locale)}>
                   <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
@@ -200,7 +195,7 @@ export default async function SchedulePage({
         </CardHeader>
         <p className="text-sm text-sand-600">
           {live
-            ? `${t("recurring.nextOn", locale)} ${shortDate(schedule.next_issue_date, locale)} · ${t("recurring.thenPreview", locale)} ${advanceByCadence(schedule.next_issue_date, schedule.cadence)}`
+            ? `${t("recurring.nextOn", locale)} ${shortDate(schedule.next_issue_date, locale)} · ${t("recurring.thenPreview", locale)} ${shortDate(advanceByCadence(schedule.next_issue_date, schedule.cadence), locale)}`
             : t("recurring.stopped", locale)}
         </p>
         <FactList className="mt-3">
@@ -282,6 +277,6 @@ export default async function SchedulePage({
           </ul>
         </Card>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

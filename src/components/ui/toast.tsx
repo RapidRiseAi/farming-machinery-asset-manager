@@ -17,8 +17,11 @@ export type ToastProps = {
   tone?: FlashTone;
   /** Auto-dismiss after N ms (0 = never). Default 4000. */
   duration?: number;
-  /** Accessible label for the dismiss button (translated). */
-  closeLabel?: string;
+  /**
+   * The dismiss button's word, translated: `t("ui.dismiss", locale)`. Required, so no
+   * caller can fall back to an English default on an Afrikaans screen.
+   */
+  closeLabel: string;
   onDismissed?: () => void;
   className?: string;
 };
@@ -32,7 +35,7 @@ export function Toast({
   message,
   tone = "success",
   duration = 4000,
-  closeLabel = "Dismiss",
+  closeLabel,
   onDismissed,
   className,
 }: ToastProps) {

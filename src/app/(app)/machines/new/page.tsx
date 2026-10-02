@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
-import { requireRole } from "@/lib/auth";
+import { requireRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
@@ -9,8 +9,15 @@ import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { createMachine } from "../actions";
+
+/** Sorted distinct non-empty values, for the form's datalist suggestions. */
+function distinct(values: (string | null)[]): string[] {
+  return [...new Set(values.map((v) => v?.trim() ?? "").filter((v) => v !== ""))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
 
 export default async function NewMachinePage({
   searchParams,
@@ -22,25 +29,30 @@ export default async function NewMachinePage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data: opData } = await supabase
-    .from("users")
-    .select("id, name")
-    .eq("active", true)
-    .is("deleted_at", null)
-    .order("name");
+  const farmId = await currentFarmId(profile);
+  let dimQuery = supabase
+    .from("machines")
+    .select("cost_centre, department, location")
+    .is("deleted_at", null);
+  if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
+  const [{ data: opData }, { data: dimData }] = await Promise.all([
+    supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
+    dimQuery,
+  ]);
   const operators = (opData as OperatorOption[] | null) ?? [];
+  const dims = (dimData as { cost_centre: string | null; department: string | null; location: string | null }[] | null) ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <Link href="/machines" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("machines.title", locale)}
-      </Link>
-      <h1 className="text-2xl font-bold tracking-tight text-ink">{t("machines.add", locale)}</h1>
+    <PageContainer size="narrow">
+      <PageHeader
+        title={t("machines.add", locale)}
+        lead={t("machines.newLead", locale)}
+        back={{ href: "/machines", label: t("nav.machines", locale) }}
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       {/* The ceiling message told the farmer to "add more slots on the billing screen" and
-          then left them to go and find it. The one person who can act on this is the owner
-         , a manager sees the same wall and cannot buy anything, so the button is theirs
+          then left them to go and find it. The one person who can act on this is the owner:
+          a manager sees the same wall and cannot buy anything, so the button is theirs
           alone and everyone else keeps the sentence without a dead end attached. */}
       {sp.error === "vehicle-limit-reached" && profile.role === "owner" ? (
         // `manage` opens the disclosure the slots form lives behind on /billing; the
@@ -51,16 +63,29 @@ export default async function NewMachinePage({
       ) : null}
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
-          <MachineFields locale={locale} operators={operators} />
+          {/* The photo leads, because the first-run hint says so ("Take a photo, give it
+              the name everyone actually calls it") and because that is how a driver
+              recognises the machine on the list. */}
           <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-sand-400">{t("machines.primaryPhoto", locale)}</h3>
+            <h2 className="text-sm font-semibold text-sand-900">{t("machines.primaryPhoto", locale)}</h2>
             <MachinePhotoNew locale={locale} />
           </div>
-          <SubmitButton variant="primary" fullWidth>
-            {t("common.save", locale)}
-          </SubmitButton>
+          <MachineFields
+            locale={locale}
+            operators={operators}
+            costCentres={distinct(dims.map((d) => d.cost_centre))}
+            departments={distinct(dims.map((d) => d.department))}
+            locations={distinct(dims.map((d) => d.location))}
+          />
+          {/* Save stays in reach on a phone once a section is open, sitting just above
+              the tab bar; from lg it is simply the end of the form. */}
+          <div className="sticky bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom,0px))] z-10 -mx-4 -mb-4 border-t border-sand-200 bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:rounded-b-xl sm:px-5 lg:bottom-0">
+            <SubmitButton variant="primary" fullWidth>
+              {t("machines.add", locale)}
+            </SubmitButton>
+          </div>
         </form>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

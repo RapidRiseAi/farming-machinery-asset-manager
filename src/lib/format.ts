@@ -106,6 +106,57 @@ function calendarDay(d: Date): number {
   return Date.UTC(year, month - 1, day);
 }
 
+/**
+ * Today's date as "YYYY-MM-DD" in South Africa, for a date input's default and for
+ * any "today" a query or an action compares against.
+ *
+ * NOT `new Date().toISOString().slice(0, 10)`: that is the UTC date, and the server is
+ * in UTC, so between 00:00 and 02:00 SAST every default and every saved "today" was
+ * yesterday. Nor `current_date` in SQL, for the same reason (see CLAUDE.md). Built
+ * from `formatToParts` rather than `format`, so a runtime whose en-CA data orders the
+ * parts differently still yields ISO order.
+ */
+export function todayLocal(now: Date = new Date()): string {
+  const parts = Object.fromEntries(SA_DAY.formatToParts(now).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** Same as `todayLocal`, under the name `lib/assistant/date.ts` already uses. */
+export const todayInSouthAfrica = todayLocal;
+
+/**
+ * An hour of the day as a clock time: 20 → "20:00", 5 → "05:00", 5.5 → "05:30".
+ * 24-hour in both languages (South African convention); `locale` is taken so a call
+ * site does not change if that ever differs. Anything outside 0 to 24 reads "-".
+ */
+export function hourOfDay(h: number | null | undefined, locale: Lang): string {
+  void locale;
+  if (h == null || !Number.isFinite(h) || h < 0 || h > 24) return "-";
+  const whole = Math.floor(h);
+  const minutes = Math.round((h - whole) * 60);
+  const hh = minutes === 60 ? whole + 1 : whole;
+  const mm = minutes === 60 ? 0 : minutes;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+/**
+ * A quiet-hours window in words: (20, 5) → "20:00 to 05:00" / "20:00 tot 05:00".
+ * Either end missing reads "-", because half a window is not a window.
+ */
+export function quietHoursRange(
+  start: number | null | undefined,
+  end: number | null | undefined,
+  locale: Lang,
+): string {
+  const from = hourOfDay(start, locale);
+  const to = hourOfDay(end, locale);
+  if (from === "-" || to === "-") return "-";
+  const key = "format.timeRange";
+  const pattern = t(key, locale);
+  // Until the key ships in both dictionaries, say it in English rather than print a key.
+  return (pattern === key ? "{start} to {end}" : pattern).replace("{start}", from).replace("{end}", to);
+}
+
 export function daysAgo(value: string | Date | null | undefined, now = new Date()): number | null {
   const d = toDate(value);
   if (!d) return null;
@@ -181,6 +232,8 @@ export function monthLabel(value: string | Date | null | undefined, locale: Lang
   return d.toLocaleDateString(localeOf(locale) === "af" ? "af-ZA" : "en-ZA", {
     month: "short",
     year: "numeric",
+    // Pinned like `shortDate`: 23:30 UTC on 31 March is 1 April on the farm.
+    timeZone: SA_TIME_ZONE,
   });
 }
 

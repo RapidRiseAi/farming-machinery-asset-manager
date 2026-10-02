@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { withTab } from "@/components/ui/tabs-url";
 
 /** Mark a watch item done or dismissed (Scope §4.4 "watch items"). */
 export async function setWatchStatus(formData: FormData) {
@@ -15,5 +16,5 @@ export async function setWatchStatus(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("watch_items").update({ status }).eq("id", id);
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=watch`);
+  redirect(withTab(`/machines/${machineId}?saved=watch`, "overview"));
 }

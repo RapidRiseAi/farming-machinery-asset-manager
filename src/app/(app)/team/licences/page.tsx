@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { homePathFor, requireProfile } from "@/lib/auth";
@@ -18,8 +17,8 @@ import {
   type CredentialRow,
 } from "@/lib/driver-credentials";
 
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -27,13 +26,14 @@ import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { GetStarted } from "@/components/ui/empty-state";
-import { buttonVariants } from "@/components/ui/button";
-import { PlusIcon, TrashIcon } from "@/components/ui/icons";
-import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { CalendarIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 
 import { addDriverCredential, removeDriverCredential, renewDriverCredential } from "./actions";
+import { OTHER_PERSON } from "./credential-person";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export const dynamic = "force-dynamic";
 export default async function DriverLicencesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; renew?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
@@ -115,100 +115,105 @@ export default async function DriverLicencesPage({
   const expired = rows.filter((r) => r.state === "expired").length;
   const expiring = rows.filter((r) => r.state === "expiring").length;
 
-  const renewing = sp.renew && rows.find((r) => r.row.id === sp.renew);
+  // Capture is the occasional job on this screen and reading it is the daily one, which
+  // is why it was behind a disclosure. A dialog says the same thing and does not put a
+  // ten-field form under the list to say it. What is always to hand (who, which document,
+  // when it runs out) stays open; the rest folds under "More details".
+  const addDocument = (
+    <DialogForm
+      trigger={t("credentials.add", locale)}
+      triggerIcon={<PlusIcon />}
+      title={t("credentials.addTitle", locale)}
+      closeLabel={closeLabel}
+    >
+      <form action={addDriverCredential}>
+        <DialogFields>
+          <Field
+            label={t("credentials.person", locale)}
+            htmlFor="dc-user"
+            hint={t("credentials.personHint", locale)}
+            required
+          >
+            <Select id="dc-user" name="user_id" defaultValue="" required>
+              <option value="" disabled>
+                {t("credentials.choosePerson", locale)}
+              </option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name?.trim() || p.email || p.id.slice(0, 8)}
+                </option>
+              ))}
+              <option value={OTHER_PERSON}>{t("credentials.personOther", locale)}</option>
+            </Select>
+          </Field>
+          <Field
+            label={t("credentials.personName", locale)}
+            htmlFor="dc-name"
+            hint={t("credentials.personNameHint", locale)}
+          >
+            <Input id="dc-name" name="person_name" maxLength={80} />
+          </Field>
+          <Field label={t("credentials.type", locale)} htmlFor="dc-type">
+            <Select id="dc-type" name="type" defaultValue="drivers_licence">
+              {CREDENTIAL_TYPES.map((k) => (
+                <option key={k} value={k}>
+                  {enumLabel("credentialType", k, locale)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label={t("credentials.expiry", locale)}
+            htmlFor="dc-expiry"
+            hint={t("credentials.expiryHint", locale)}
+          >
+            <Input id="dc-expiry" name="expiry_date" type="date" />
+          </Field>
+          <Field
+            label={t("credentials.code", locale)}
+            htmlFor="dc-code"
+            hint={t("credentials.codeHint", locale)}
+          >
+            <Input id="dc-code" name="code" maxLength={20} />
+          </Field>
+          <Field label={t("credentials.number", locale)} htmlFor="dc-number">
+            <Input id="dc-number" name="number" maxLength={40} />
+          </Field>
+          <DialogSection title={t("credentials.moreDetails", locale)}>
+            <Field label={t("credentials.issuedOn", locale)} htmlFor="dc-issued">
+              <Input id="dc-issued" name="issued_on" type="date" />
+            </Field>
+            <Field
+              label={t("credentials.lead", locale)}
+              htmlFor="dc-lead"
+              hint={t("credentials.leadHint", locale)}
+            >
+              <Input id="dc-lead" name="reminder_lead_days" inputMode="numeric" defaultValue="30" />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label={t("credentials.notes", locale)} htmlFor="dc-notes">
+                <Input id="dc-notes" name="notes" maxLength={200} />
+              </Field>
+            </div>
+          </DialogSection>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("credentials.add", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-            {t("credentials.title", locale)}
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <PageInfoButton infoKey="credentials" locale={locale} />
-            {/* Capture is the occasional job on this screen and reading it is the daily
-                one, which is why it was behind a disclosure. A dialog says the same thing
-                and does not put a ten-field form under the list to say it. */}
-            <DialogForm
-              trigger={t("credentials.add", locale)}
-              triggerIcon={<PlusIcon />}
-              title={t("credentials.addTitle", locale)}
-              closeLabel={closeLabel}
-            >
-              <form action={addDriverCredential}>
-                <DialogFields>
-                  <Field
-                    label={t("credentials.person", locale)}
-                    htmlFor="dc-user"
-                    hint={t("credentials.personHint", locale)}
-                  >
-                    <Select id="dc-user" name="user_id" defaultValue="">
-                      <option value="">{t("credentials.personOther", locale)}</option>
-                      {people.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name?.trim() || p.email || p.id.slice(0, 8)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field
-                    label={t("credentials.personName", locale)}
-                    htmlFor="dc-name"
-                    hint={t("credentials.personNameHint", locale)}
-                  >
-                    <Input id="dc-name" name="person_name" maxLength={80} />
-                  </Field>
-                  <Field label={t("credentials.type", locale)} htmlFor="dc-type">
-                    <Select id="dc-type" name="type" defaultValue="drivers_licence">
-                      {CREDENTIAL_TYPES.map((k) => (
-                        <option key={k} value={k}>
-                          {enumLabel("credentialType", k, locale)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field
-                    label={t("credentials.code", locale)}
-                    htmlFor="dc-code"
-                    hint={t("credentials.codeHint", locale)}
-                  >
-                    <Input id="dc-code" name="code" maxLength={20} />
-                  </Field>
-                  <Field label={t("credentials.number", locale)} htmlFor="dc-number">
-                    <Input id="dc-number" name="number" maxLength={40} />
-                  </Field>
-                  <Field label={t("credentials.issuedOn", locale)} htmlFor="dc-issued">
-                    <Input id="dc-issued" name="issued_on" type="date" />
-                  </Field>
-                  <Field
-                    label={t("credentials.expiry", locale)}
-                    htmlFor="dc-expiry"
-                    hint={t("credentials.expiryHint", locale)}
-                  >
-                    <Input id="dc-expiry" name="expiry_date" type="date" />
-                  </Field>
-                  <Field
-                    label={t("credentials.lead", locale)}
-                    htmlFor="dc-lead"
-                    hint={t("credentials.leadHint", locale)}
-                  >
-                    <Input id="dc-lead" name="reminder_lead_days" inputMode="numeric" defaultValue="30" />
-                  </Field>
-                  <div className="sm:col-span-2">
-                    <Field label={t("credentials.notes", locale)} htmlFor="dc-notes">
-                      <Input id="dc-notes" name="notes" maxLength={200} />
-                    </Field>
-                  </div>
-                </DialogFields>
-                <DialogActions cancelLabel={cancelLabel}>
-                  <SubmitButton variant="primary">{t("credentials.add", locale)}</SubmitButton>
-                </DialogActions>
-              </form>
-            </DialogForm>
-          </div>
-        </div>
-        <p className="mt-1 text-sm text-sand-600">{t("credentials.lead", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("credentials.title", locale)}
+        lead={t("credentials.subtitle", locale)}
+        infoKey="credentials"
+        locale={locale}
+        back={{ href: "/team", label: t("team.title", locale) }}
+        actions={rows.length > 0 ? addDocument : undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash
@@ -225,25 +230,31 @@ export default async function DriverLicencesPage({
       />
 
       {/* The answer before the list: how many people cannot legally do their job today.
-          Both tiles are rendered even at zero, so "nothing is wrong" is something the
-          screen SAYS rather than something a farmer infers from an absence. */}
-      <div className="grid grid-cols-2 gap-3">
-        <Stat
-          label={t("credentials.statExpired", locale)}
-          value={String(expired)}
-          tone={countTone(expired, "expired")}
-        />
-        <Stat
-          label={t("credentials.statExpiring", locale)}
-          value={String(expiring)}
-          tone={countTone(expiring, "expiring")}
-        />
-      </div>
+          Once there is a record both tiles show, even at zero, so "nothing is wrong" is
+          something the screen SAYS rather than something a farmer infers from an
+          absence. Before the first record, two zeroes above "nothing recorded yet" said
+          the same thing three times, so the empty screen is the GetStarted alone, and
+          the add dialog is its action rather than also sitting in the header. */}
+      {rows.length > 0 ? (
+        <StatGrid columns={2}>
+          <Stat
+            label={t("credentials.statExpired", locale)}
+            value={String(expired)}
+            tone={countTone(expired, "expired")}
+          />
+          <Stat
+            label={t("credentials.statExpiring", locale)}
+            value={String(expiring)}
+            tone={countTone(expiring, "expiring")}
+          />
+        </StatGrid>
+      ) : null}
 
       {rows.length === 0 ? (
         <GetStarted
           title={t("credentials.emptyTitle", locale)}
           hint={t("credentials.emptyBody", locale)}
+          action={addDocument}
         />
       ) : (
         <Card flush>
@@ -255,88 +266,86 @@ export default async function DriverLicencesPage({
           <ul className="divide-y divide-sand-200">
             {rows.map(({ row, state }) => {
               const look = credentialLook(state);
+              const person = credentialPerson(row, nameById);
+              const docLabel = enumLabel("credentialType", row.type, locale);
+              const expiryText = row.expiry_date
+                ? t(state === "expired" ? "credentials.expiredOn" : "credentials.expiresOn", locale)
+                    .replace("{date}", shortDate(row.expiry_date, locale))
+                : t("credentials.noExpiry", locale);
               return (
                 <li key={row.id} className="p-4 sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-ink">
-                        {credentialPerson(row, nameById)}
-                      </p>
+                      <p className="break-words font-semibold text-ink">{person}</p>
                       <p className="mt-0.5 text-sm text-sand-600">
-                        {enumLabel("credentialType", row.type, locale)}
+                        {docLabel}
                         {row.code ? ` · ${row.code}` : ""}
                       </p>
                     </div>
-                    <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Badge tone={look.tone}>{t(look.labelKey, locale)}</Badge>
+                      {/* Titled with the person AND the document, so the renewal can never
+                          be for the wrong licence: that is what the old in-place form,
+                          reached through a ?renew= page reload, was guarding against. */}
+                      <ActionMenu
+                        title={`${person} · ${docLabel}`}
+                        label={t("common.actions", locale)}
+                        closeLabel={closeLabel}
+                      >
+                        <DialogForm
+                          triggerLook="menuItem"
+                          trigger={t("credentials.renew", locale)}
+                          triggerIcon={<CalendarIcon className="text-base" />}
+                          title={t("credentials.renewTitleFor", locale)
+                            .replace("{document}", docLabel)
+                            .replace("{person}", person)}
+                          description={expiryText}
+                          closeLabel={closeLabel}
+                          size="md"
+                        >
+                          <form action={renewDriverCredential}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <DialogFields>
+                              <Field label={t("credentials.newExpiry", locale)} htmlFor={`exp-${row.id}`} required>
+                                <Input id={`exp-${row.id}`} name="expiry_date" type="date" required />
+                              </Field>
+                              <Field label={t("credentials.issuedOn", locale)} htmlFor={`iss-${row.id}`}>
+                                <Input
+                                  id={`iss-${row.id}`}
+                                  name="issued_on"
+                                  type="date"
+                                  defaultValue={row.issued_on ?? ""}
+                                />
+                              </Field>
+                              <Field label={t("credentials.number", locale)} htmlFor={`num-${row.id}`}>
+                                <Input id={`num-${row.id}`} name="number" maxLength={40} defaultValue={row.number ?? ""} />
+                              </Field>
+                            </DialogFields>
+                            <DialogActions cancelLabel={cancelLabel}>
+                              <SubmitButton variant="primary">{t("credentials.saveRenewal", locale)}</SubmitButton>
+                            </DialogActions>
+                          </form>
+                        </DialogForm>
+                        <ConfirmDialog
+                          triggerLook="menuItem"
+                          triggerLabel={t("credentials.remove", locale)}
+                          triggerIcon={<TrashIcon />}
+                          title={t("credentials.removeTitle", locale)}
+                          intro={t("credentials.removeBody", locale)}
+                          confirmLabel={t("credentials.remove", locale)}
+                          cancelLabel={t("credentials.removeNo", locale)}
+                          closeLabel={closeLabel}
+                          action={removeDriverCredential}
+                        >
+                          <input type="hidden" name="id" value={row.id} />
+                        </ConfirmDialog>
+                      </ActionMenu>
+                    </div>
                   </div>
 
-                  <p className="mt-2 text-sm text-sand-700">
-                    {row.expiry_date
-                      ? t(state === "expired" ? "credentials.expiredOn" : "credentials.expiresOn", locale)
-                          .replace("{date}", shortDate(row.expiry_date, locale))
-                      : t("credentials.noExpiry", locale)}
-                  </p>
+                  <p className="mt-2 text-sm text-sand-700">{expiryText}</p>
                   {row.notes ? (
-                    <p className="mt-1 text-sm text-sand-600">{row.notes}</p>
-                  ) : null}
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/team/licences?renew=${row.id}`}
-                      className={buttonVariants({ variant: "secondary", size: "sm" })}
-                    >
-                      {t("credentials.renew", locale)}
-                    </Link>
-                    <ConfirmDialog
-                      triggerLabel={t("credentials.remove", locale)}
-                      triggerVariant="ghost"
-                      triggerSize="sm"
-                      triggerIcon={<TrashIcon />}
-                      title={t("credentials.removeTitle", locale)}
-                      intro={t("credentials.removeBody", locale)}
-                      confirmLabel={t("credentials.remove", locale)}
-                      cancelLabel={t("credentials.removeNo", locale)}
-                      action={removeDriverCredential}
-                    >
-                      <input type="hidden" name="id" value={row.id} />
-                    </ConfirmDialog>
-                  </div>
-
-                  {/* The renewal form opens IN PLACE, on the row it is about. A modal that
-                      asks "new expiry date" with the person's name three lines away is how
-                      a farm renews the wrong licence. */}
-                  {renewing && renewing.row.id === row.id ? (
-                    <form
-                      action={renewDriverCredential}
-                      className="mt-3 grid gap-3 rounded-lg border border-sand-200 bg-sand-50 p-3 sm:grid-cols-3"
-                    >
-                      <input type="hidden" name="id" value={row.id} />
-                      <Field label={t("credentials.newExpiry", locale)} htmlFor={`exp-${row.id}`} required>
-                        <Input
-                          id={`exp-${row.id}`}
-                          name="expiry_date"
-                          type="date"
-                          required
-                          defaultValue={row.expiry_date ?? ""}
-                        />
-                      </Field>
-                      <Field label={t("credentials.issuedOn", locale)} htmlFor={`iss-${row.id}`}>
-                        <Input
-                          id={`iss-${row.id}`}
-                          name="issued_on"
-                          type="date"
-                          defaultValue={row.issued_on ?? ""}
-                        />
-                      </Field>
-                      <Field label={t("credentials.number", locale)} htmlFor={`num-${row.id}`}>
-                        <Input id={`num-${row.id}`} name="number" defaultValue={row.number ?? ""} />
-                      </Field>
-                      <div className="sm:col-span-3">
-                        <SubmitButton variant="primary">
-                          {t("credentials.saveRenewal", locale)}
-                        </SubmitButton>
-                      </div>
-                    </form>
+                    <p className="mt-1 break-words text-sm text-sand-600">{row.notes}</p>
                   ) : null}
                 </li>
               );
@@ -344,13 +353,6 @@ export default async function DriverLicencesPage({
           </ul>
         </Card>
       )}
-
-
-      <p className="text-sm text-sand-600">
-        <Link href="/team" className="font-medium text-brand-ink underline">
-          {t("credentials.backToTeam", locale)}
-        </Link>
-      </p>
-    </div>
+    </PageContainer>
   );
 }
