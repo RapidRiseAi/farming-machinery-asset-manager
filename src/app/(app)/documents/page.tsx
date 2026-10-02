@@ -8,13 +8,14 @@ import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 import { awaitsCustomer, balanceDueCents, isNote, ledgerSign, type DocKind, type DocStatus } from "@/lib/partner-docs";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { DocStatus as DocStatusBadge } from "@/components/ui/status";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { AllClear, GetStarted } from "@/components/ui/empty-state";
+import { AllClear, FilteredEmpty, GetStarted } from "@/components/ui/empty-state";
+import { filterState } from "@/components/ui/filter-state";
 import { buttonVariants } from "@/components/ui/button";
 import { FilterBar, type FilterGroup } from "@/components/ui/filter-bar";
 import { NewDocument } from "@/components/partner/new-document";
@@ -24,6 +25,9 @@ import { UploadDocument } from "@/components/partner/upload-document";
 const KIND_KEY: Record<DocKind, string> = {
   quote: "Quote", invoice: "Invoice", credit_note: "Credit", debit_note: "Debit",
 };
+const KINDS = Object.keys(KIND_KEY) as DocKind[];
+/** The statuses the filter offers; anything else in the URL is ignored, not queried. */
+const FILTER_STATUSES: DocStatus[] = ["draft", "sent", "accepted", "part_paid", "paid", "declined"];
 
 /**
  * Quotes and invoices, one route, two audiences (F14c/F14d).
@@ -80,8 +84,14 @@ export default async function DocumentsPage({
   // scoped by RLS to the farms they are linked to, which is the whole point of their view.
   const farmId = isPartner ? null : await currentFarmId(profile);
   if (farmId) query = query.eq("farm_id", farmId);
-  if (sp.kind === "quote" || sp.kind === "invoice") query = query.eq("kind", sp.kind);
-  if (sp.status) query = query.eq("status", sp.status);
+  // Every kind the filter offers is honoured. Only quote and invoice used to reach the
+  // query, so choosing "Credit note" showed the whole list under a chip saying otherwise.
+  // An unknown value is dropped rather than sent to Postgres, where it would fail the
+  // enum cast and empty the list.
+  const kind = KINDS.find((k) => k === sp.kind);
+  const status = FILTER_STATUSES.find((v) => v === sp.status);
+  if (kind) query = query.eq("kind", kind);
+  if (status) query = query.eq("status", status);
 
   const { data } = await query;
   const rows = (data ?? []) as Row[];
@@ -102,7 +112,7 @@ export default async function DocumentsPage({
   );
   const machineName = new Map((machinesRes.data ?? []).map((m: { id: string; name: string }) => [m.id, m.name]));
 
-  // Who the "upload a document I made elsewhere" form can name on the other side: for a
+  // Who the "attach a document I made elsewhere" dialog can name on the other side: for a
   // partner, the farms linked to them; for a farm, the contractors linked to the farm.
   const { data: linkData } = await supabase
     .from("workshop_links")
@@ -152,7 +162,7 @@ export default async function DocumentsPage({
     {
       paramName: "kind",
       label: t("doc.filterKind", locale),
-      current: sp.kind,
+      current: kind,
       options: [
         { value: "quote", label: t("doc.kindQuote", locale) },
         { value: "invoice", label: t("doc.kindInvoice", locale) },
@@ -163,8 +173,8 @@ export default async function DocumentsPage({
     {
       paramName: "status",
       label: t("doc.filterStatus", locale),
-      current: sp.status,
-      options: (["draft", "sent", "accepted", "part_paid", "paid", "declined"] as DocStatus[]).map((v) => ({
+      current: status,
+      options: FILTER_STATUSES.map((v) => ({
         value: v,
         label: t(`docStatus.${v}`, locale),
       })),
@@ -173,6 +183,11 @@ export default async function DocumentsPage({
   const search = new URLSearchParams(
     Object.entries(sp).filter(([, v]) => typeof v === "string" && v !== "") as [string, string][],
   ).toString();
+  const filtered = filterState("/documents", search, filters);
+  // A row opened from a filtered list carries the list back with it, so the detail
+  // page's back link returns to the same filters (backHref accepts same-origin paths only).
+  const listQuery = new URLSearchParams({ ...(kind ? { kind } : {}), ...(status ? { status } : {}) }).toString();
+  const fromList = listQuery ? `?from=${encodeURIComponent(`/documents?${listQuery}`)}` : "";
 
   function DocRow({ r }: { r: Row }) {
     const other = isPartner ? farmName.get(r.farm_id) : shopName.get(r.workshop_id);
@@ -180,7 +195,7 @@ export default async function DocumentsPage({
     return (
       <li>
         <Link
-          href={`/documents/${r.id}`}
+          href={`/documents/${r.id}${fromList}`}
           className="focus-ring flex flex-col gap-1.5 rounded-xl border border-sand-200 bg-surface p-3 hover:border-brand-300 hover:bg-brand-tint/40"
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -209,22 +224,34 @@ export default async function DocumentsPage({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("doc.title", locale)}</h1>
-        <PageInfoButton infoKey={isPartner ? "documentsPartner" : "documents"} locale={locale} />
-        {isPartner ? <NewDocument locale={locale} canBuild={canBuild} /> : null}
-      </div>
-      <p className="text-sand-600">{t(isPartner ? "doc.leadPartner" : "doc.leadFarm", locale)}</p>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("doc.title", locale)}
+        lead={t(isPartner ? "doc.leadPartner" : "doc.leadFarm", locale)}
+        infoKey={isPartner ? "documentsPartner" : "documents"}
+        locale={locale}
+        actions={
+          isPartner || isFarmSide ? (
+            <>
+              {/* The secondary way in sits before the one filled primary, so New stays
+                  rightmost on a wide screen. */}
+              <UploadDocument locale={locale} actorId={profile.id} parties={parties} isPartner={isPartner} />
+              {isPartner ? <NewDocument locale={locale} canBuild={canBuild} /> : null}
+            </>
+          ) : undefined
+        }
+      />
 
       <Flash tone="error" message={sp.error === "upgrade" ? t("doc.upgradeNeeded", locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("doc.draftDeleted", locale) : undefined} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label={t("doc.outstanding", locale)} value={rands(outstanding)} tone={outstanding > 0 ? "due" : "ok"} />
-        <Stat label={t("doc.awaitingDecision", locale)} value={rands(quoted)} />
-        {isPartner ? <Stat label={t("doc.drafts", locale)} value={drafts.length} /> : null}
-      </div>
+      {/* Money tiles at the md size: "R1 500 000,00" is one unbreakable token (U+00A0
+          between the groups), and at the large size two of them do not fit a 360px row. */}
+      <StatGrid columns={isPartner ? 3 : 2}>
+        <Stat size="md" label={t("doc.outstanding", locale)} value={rands(outstanding)} tone={outstanding > 0 ? "due" : "ok"} />
+        <Stat size="md" label={t("doc.awaitingDecision", locale)} value={rands(quoted)} />
+        {isPartner ? <Stat size="md" label={t("doc.drafts", locale)} value={drafts.length} /> : null}
+      </StatGrid>
 
       <FilterBar
         path="/documents"
@@ -232,14 +259,24 @@ export default async function DocumentsPage({
         groups={filters}
         filtersLabel={t("filters.filters", locale)}
         clearLabel={t("filters.clearAll", locale)}
+        rememberKey="documents"
       />
 
       {rows.length === 0 ? (
-        isPartner ? (
-          <GetStarted title={t("doc.emptyPartnerTitle", locale)} hint={t("doc.emptyPartnerBody", locale)} />
-        ) : (
-          <AllClear title={t("doc.emptyFarmTitle", locale)} hint={t("doc.emptyFarmBody", locale)} />
-        )
+        // A filter that matches nothing is not an empty account: say so, with a way back.
+        <FilteredEmpty
+          filtered={filtered.active}
+          clearHref={filtered.clearHref}
+          title={t("empty.noMatchTitle", locale)}
+          hint={t("empty.noMatchHint", locale)}
+          clearLabel={t("empty.clearFilters", locale)}
+        >
+          {isPartner ? (
+            <GetStarted title={t("doc.emptyPartnerTitle", locale)} hint={t("doc.emptyPartnerBody", locale)} />
+          ) : (
+            <AllClear title={t("doc.emptyFarmTitle", locale)} hint={t("doc.emptyFarmBody", locale)} />
+          )}
+        </FilteredEmpty>
       ) : (
         <div className="flex flex-col gap-4">
           {needsAttention.length > 0 ? (
@@ -268,8 +305,6 @@ export default async function DocumentsPage({
         </div>
       )}
 
-      {isPartner || isFarmSide ? <UploadDocument locale={locale} actorId={profile.id} parties={parties} isPartner={isPartner} /> : null}
-
       {isPartner && !canBuild ? (
         <Card>
           <CardHeader><CardTitle>{t("doc.upgradeTitle", locale)}</CardTitle></CardHeader>
@@ -280,6 +315,6 @@ export default async function DocumentsPage({
           </Link>
         </Card>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

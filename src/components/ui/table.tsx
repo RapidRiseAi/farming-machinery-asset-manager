@@ -49,8 +49,13 @@ export function Table({
      *
      * Not applied below `lg`: `overflow-x` forces `overflow-y` to compute to `auto`
      * too, and there is no reason to introduce a clipping context around the cards.
+     *
+     * `relative` makes the scroller the containing block of anything absolutely
+     * positioned inside it. An `sr-only` label is `position:absolute`; without a
+     * positioned ancestor inside the scroller, one in a header cell scrolled past the
+     * right edge escaped the clip and widened the page (/documents/[id] at 434px).
      */
-    <div className={cn(stacked ? "lg:overflow-x-auto" : "-mx-4 overflow-x-auto sm:mx-0")}>
+    <div className={cn("relative", stacked ? "lg:overflow-x-auto" : "-mx-4 overflow-x-auto sm:mx-0")}>
       <table
         data-stacked={stacked ? "" : undefined}
         className={cn("w-full border-collapse text-left text-sm", className)}

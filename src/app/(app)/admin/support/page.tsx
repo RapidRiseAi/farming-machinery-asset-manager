@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 
 /**
  * Support cases, as Rapid Rise sees them.
@@ -89,18 +89,13 @@ export default async function AdminSupportPage() {
   const now = Date.now();
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">
-            {t("adminSupport.title", locale)}
-          </h1>
-          <p className="text-sm text-sand-600">{t("adminSupport.lead", locale)}</p>
-        </div>
-        <span className="ml-auto">
-          <PageInfoButton infoKey="adminSupport" locale={locale} />
-        </span>
-      </div>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("adminSupport.title", locale)}
+        lead={t("adminSupport.lead", locale)}
+        infoKey="adminSupport"
+        locale={locale}
+      />
 
       <Card flush>
         <div className="p-4 pb-0 sm:p-5 sm:pb-0">
@@ -220,6 +215,6 @@ export default async function AdminSupportPage() {
           {t("adminSupport.openCount", locale).replace("{n}", String(open.length))}
         </p>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

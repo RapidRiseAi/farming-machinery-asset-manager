@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
 import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
+import { rememberName, sentHref } from "./remembered-name";
 
 type QrCaptureError =
   | "invalid_reading"
@@ -26,7 +27,7 @@ const EXPECTED_ERRORS = new Set<QrCaptureError>([
   "not_found",
 ]);
 
-function qrHref(token: string, key: "error" | "sent", value: string): string {
+function qrHref(token: string, key: "error", value: string): string {
   const routeToken = encodeURIComponent(token || "invalid");
   return `/m/${routeToken}?${key}=${encodeURIComponent(value)}`;
 }
@@ -91,7 +92,11 @@ export async function submitReading(formData: FormData) {
   });
   if (failure) redirect(qrHref(token, "error", failure));
 
-  redirect(qrHref(token, "sent", "reading"));
+  // Only after the capture succeeded: a failed one should not change what the phone
+  // remembers. The confirmation link carries its own time, so it cannot thank anybody
+  // again tomorrow.
+  await rememberName(reporter);
+  redirect(sentHref(token, "reading"));
 }
 
 /** Anonymous fuel draw via QR, including tank resolution and usage attribution. */
@@ -131,5 +136,6 @@ export async function submitFuel(formData: FormData) {
   });
   if (failure) redirect(qrHref(token, "error", failure));
 
-  redirect(qrHref(token, "sent", "fuel"));
+  await rememberName(driver);
+  redirect(sentHref(token, "fuel"));
 }

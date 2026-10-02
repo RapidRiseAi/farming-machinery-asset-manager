@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -25,7 +24,12 @@ import { AllClear } from "@/components/ui/empty-state";
 import { TextField, SelectField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { TrashIcon, MailIcon } from "@/components/ui/icons";
+import { TrashIcon, MailIcon, PlusIcon } from "@/components/ui/icons";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { Fact, FactList } from "@/components/ui/facts";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import {
   addReportRecipient, deleteReportSchedule, removeReportRecipient,
@@ -76,10 +80,10 @@ export default async function ReportSchedulePage({
   const allowed = role === "rr_admin" || Boolean(farmPlan && planAllows(farmPlan, "advanced_reports"));
   if (!allowed) {
     return (
-      <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("reportSchedules.title", locale)}</h1>
-        <UpgradeNotice feature="advanced_reports" requiredPlan={gate.requiredPlan} currentPlan={farmPlan} locale={locale} />
-      </div>
+      <PageContainer>
+        <PageHeader title={t("reportSchedules.title", locale)} back={{ href: "/reports/schedules", label: t("reportSchedules.title", locale) }} />
+        <UpgradeNotice feature="advanced_reports" requiredPlan={gate.requiredPlan} currentPlan={farmPlan} locale={locale} canUpgrade={role === "owner"} />
+      </PageContainer>
     );
   }
   const supabase = await createClient();
@@ -137,21 +141,181 @@ export default async function ReportSchedulePage({
   const runTone = (s: ReportScheduleRun["status"]) =>
     s === "sent" ? "ok" : s === "failed" ? "danger" : "warning";
 
+  const statusBadge = !schedule.active ? (
+    <Badge tone="neutral">{t("reportSchedules.paused", locale)}</Badge>
+  ) : !live ? (
+    <Badge tone="neutral">{t("reportSchedules.finished", locale)}</Badge>
+  ) : null;
+
+  // Everything this schedule IS is stated on the page; changing it opens this form.
+  const settingsForm = (
+    <form action={updateReportSchedule} className="flex flex-col gap-3">
+      <input type="hidden" name="id" value={schedule.id} />
+      <TextField
+        label={t("reportSchedules.name", locale)}
+        name="name"
+        id={`edit-name-${schedule.id}`}
+        required
+        maxLength={120}
+        defaultValue={schedule.name}
+      />
+      <DialogFields>
+        <SelectField
+          label={t("reportSchedules.whichReport", locale)}
+          name="report_key"
+          id={`edit-report-${schedule.id}`}
+          defaultValue={schedule.report_key}
+        >
+          {REPORT_KEYS.map((k) => (
+            <option key={k} value={k}>{t(`reportSchedules.family.${k}`, locale)}</option>
+          ))}
+        </SelectField>
+        <SelectField
+          label={t("reportSchedules.whichFormat", locale)}
+          hint={t("reportSchedules.formatHint", locale)}
+          name="output_format"
+          id={`edit-format-${schedule.id}`}
+          defaultValue={schedule.output_format}
+        >
+          {REPORT_FORMATS.map((f) => (
+            <option key={f} value={f}>{t(`reportSchedules.format.${f}`, locale)}</option>
+          ))}
+        </SelectField>
+        <SelectField
+          label={t("reportSchedules.howOften", locale)}
+          name="cadence"
+          id={`edit-cadence-${schedule.id}`}
+          defaultValue={schedule.cadence}
+        >
+          {REPORT_CADENCES.map((c) => (
+            <option key={c} value={c}>{t(`cadence.${c}`, locale)}</option>
+          ))}
+        </SelectField>
+        <TextField
+          label={t("reportSchedules.nextRun", locale)}
+          hint={t("reportSchedules.nextRunHint", locale)}
+          type="date"
+          name="next_run_date"
+          id={`edit-next-${schedule.id}`}
+          defaultValue={schedule.next_run_date}
+        />
+        <TextField
+          label={t("reportSchedules.endsOn", locale)}
+          hint={t("reportSchedules.endsOnHint", locale)}
+          type="date"
+          name="ends_on"
+          id={`edit-ends-${schedule.id}`}
+          defaultValue={schedule.ends_on ?? ""}
+        />
+        <TextField
+          label={t("reportSchedules.site", locale)}
+          hint={t("reportSchedules.siteHint", locale)}
+          name="site"
+          id={`edit-site-${schedule.id}`}
+          defaultValue={schedule.site ?? ""}
+        />
+      </DialogFields>
+      <SelectField
+        label={t("reportSchedules.writtenIn", locale)}
+        hint={t("reportSchedules.writtenInHint", locale)}
+        name="lang"
+        id={`edit-lang-${schedule.id}`}
+        defaultValue={schedule.lang}
+      >
+        <option value="en">English</option>
+        <option value="af">Afrikaans</option>
+      </SelectField>
+      <Checkbox
+        name="include_inactive"
+        defaultChecked={schedule.include_inactive}
+        label={t("reportSchedules.includeInactive", locale)}
+      />
+      <DialogActions cancelLabel={t("common.cancel", locale)}>
+        <SubmitButton>{t("common.save", locale)}</SubmitButton>
+      </DialogActions>
+    </form>
+  );
+
+  const sendNow = (
+    <ConfirmDialog
+      action={sendReportScheduleNow}
+      triggerLabel={t("reportSchedules.sendNow", locale)}
+      triggerIcon={<MailIcon />}
+      triggerVariant="primary"
+      tone="brand"
+      title={t("reportSchedules.sendNowTitle", locale)}
+      intro={t("reportSchedules.sendNowBody", locale)}
+      facts={[
+        { label: t("reportSchedules.periodLabel", locale), value: periodLabel(p.from, p.to, locale) },
+        { label: t("reportSchedules.toLabel", locale), value: String(recipients.length) },
+      ]}
+      consequences={[t("reportSchedules.sendNowIdempotent", locale)]}
+      confirmLabel={t("reportSchedules.sendNow", locale)}
+      cancelLabel={t("common.cancel", locale)}
+      closeLabel={t("ui.close", locale)}
+    >
+      <input type="hidden" name="id" value={schedule.id} />
+    </ConfirmDialog>
+  );
+
+  // The rest of what can be done to this schedule, behind one button titled with it.
+  const moreMenu = (
+    <ActionMenu
+      title={schedule.name}
+      label={t("common.actions", locale)}
+      closeLabel={t("ui.close", locale)}
+      trigger={t("common.actions", locale)}
+    >
+      <DialogForm
+        triggerLook="menuItem"
+        trigger={t("reportSchedules.editAction", locale)}
+        title={t("reportSchedules.settingsTitle", locale)}
+        closeLabel={t("ui.close", locale)}
+        size="lg"
+      >
+        {settingsForm}
+      </DialogForm>
+      <form action={toggleReportSchedule}>
+        <input type="hidden" name="id" value={schedule.id} />
+        <input type="hidden" name="active" value={schedule.active ? "0" : "1"} />
+        <SubmitButton look="menuItem">
+          {schedule.active ? t("reportSchedules.pause", locale) : t("reportSchedules.resume", locale)}
+        </SubmitButton>
+      </form>
+      <ConfirmDialog
+        action={deleteReportSchedule}
+        triggerLabel={t("reportSchedules.delete", locale)}
+        triggerIcon={<TrashIcon />}
+        triggerLook="menuItem"
+        tone="danger"
+        title={t("reportSchedules.deleteTitle", locale)}
+        intro={t("reportSchedules.deleteBody", locale)}
+        facts={[{ label: t("reportSchedules.nameLabel", locale), value: schedule.name }]}
+        consequences={[t("reportSchedules.deleteConsequence", locale)]}
+        footnote={t("reportSchedules.deleteFootnote", locale)}
+        confirmLabel={t("reportSchedules.delete", locale)}
+        cancelLabel={t("common.cancel", locale)}
+        closeLabel={t("ui.close", locale)}
+      >
+        <input type="hidden" name="id" value={schedule.id} />
+      </ConfirmDialog>
+    </ActionMenu>
+  );
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{schedule.name}</h1>
-          <p className="text-sm text-sand-600">
-            {t(`reportSchedules.family.${schedule.report_key}`, locale)} ·{" "}
-            {t(`reportSchedules.format.${schedule.output_format}`, locale)} ·{" "}
-            {t(`cadence.${schedule.cadence}`, locale)}
-          </p>
-        </div>
-        <Link href="/reports/schedules" className="focus-ring ml-auto rounded-lg px-2 py-1 text-sm font-medium text-brand-ink hover:underline">
-          {t("reportSchedules.backToList", locale)}
-        </Link>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={schedule.name}
+        meta={`${t(`reportSchedules.family.${schedule.report_key}`, locale)} · ${t(`reportSchedules.format.${schedule.output_format}`, locale)} · ${t(`cadence.${schedule.cadence}`, locale)}`}
+        badge={statusBadge}
+        back={{ href: "/reports/schedules", label: t("reportSchedules.title", locale) }}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {sendNow}
+            {moreMenu}
+          </div>
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("reportSchedules.savedFlash", locale) : undefined} />
@@ -175,52 +339,34 @@ export default async function ReportSchedulePage({
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.nextTitle", locale)}</CardTitle></CardHeader>
         {live ? (
-          <p className="text-sm text-sand-700">
-            {t("reportSchedules.nextGoesOut", locale)} <strong>{shortDate(schedule.next_run_date, locale)}</strong>,{" "}
-            {t("reportSchedules.nextCovering", locale)} <strong>{periodLabel(p.from, p.to, locale)}</strong>.
-          </p>
+          <FactList>
+            <Fact
+              label={t("reportSchedules.nextRun", locale)}
+              value={shortDate(schedule.next_run_date, locale)}
+              hint={t("reportSchedules.nextRunHint", locale)}
+            />
+            <Fact label={t("reportSchedules.periodLabel", locale)} value={periodLabel(p.from, p.to, locale)} />
+            {schedule.last_period_start ? (
+              <Fact
+                label={t("reportSchedules.lastCovered", locale)}
+                value={shortDate(schedule.last_period_start, locale)}
+                hint={schedule.last_run_at ? dateTime(schedule.last_run_at, locale) : undefined}
+              />
+            ) : null}
+          </FactList>
         ) : (
-          <p className="text-sm text-sand-700">
-            {schedule.active ? t("reportSchedules.finishedBody", locale) : t("reportSchedules.pausedBody", locale)}
-          </p>
+          <>
+            <p className="text-sm text-sand-700">
+              {schedule.active ? t("reportSchedules.finishedBody", locale) : t("reportSchedules.pausedBody", locale)}
+            </p>
+            {schedule.last_period_start ? (
+              <p className="mt-1 text-sm text-sand-600">
+                {t("reportSchedules.lastCovered", locale)} {shortDate(schedule.last_period_start, locale)}
+                {schedule.last_run_at ? ` · ${dateTime(schedule.last_run_at, locale)}` : ""}
+              </p>
+            ) : null}
+          </>
         )}
-        {schedule.last_period_start ? (
-          <p className="mt-1 text-sm text-sand-600">
-            {t("reportSchedules.lastCovered", locale)} {shortDate(schedule.last_period_start, locale)}
-            {schedule.last_run_at ? ` · ${dateTime(schedule.last_run_at, locale)}` : ""}
-          </p>
-        ) : null}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <ConfirmDialog
-            action={sendReportScheduleNow}
-            triggerLabel={t("reportSchedules.sendNow", locale)}
-            triggerIcon={<MailIcon />}
-            triggerVariant="primary"
-            triggerSize="sm"
-            tone="brand"
-            title={t("reportSchedules.sendNowTitle", locale)}
-            intro={t("reportSchedules.sendNowBody", locale)}
-            facts={[
-              { label: t("reportSchedules.periodLabel", locale), value: periodLabel(p.from, p.to, locale) },
-              { label: t("reportSchedules.toLabel", locale), value: String(recipients.length) },
-            ]}
-            consequences={[t("reportSchedules.sendNowIdempotent", locale)]}
-            confirmLabel={t("reportSchedules.sendNow", locale)}
-            cancelLabel={t("common.cancel", locale)}
-            closeLabel={t("ui.close", locale)}
-          >
-            <input type="hidden" name="id" value={schedule.id} />
-          </ConfirmDialog>
-
-          <form action={toggleReportSchedule}>
-            <input type="hidden" name="id" value={schedule.id} />
-            <input type="hidden" name="active" value={schedule.active ? "0" : "1"} />
-            <SubmitButton variant="secondary" size="sm">
-              {schedule.active ? t("reportSchedules.pause", locale) : t("reportSchedules.resume", locale)}
-            </SubmitButton>
-          </form>
-        </div>
       </Card>
 
       {/* == Who gets it ================================================= */}
@@ -236,7 +382,7 @@ export default async function ReportSchedulePage({
           <ul className="mb-4 flex flex-col gap-2">
             {recipients.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-sand-200 px-3 py-2">
-                <span className="text-sm text-sand-900">{recipientLabel(r)}</span>
+                <span className="min-w-0 break-words text-sm text-sand-900">{recipientLabel(r)}</span>
                 <Badge tone={r.email ? "info" : "neutral"}>
                   {r.email ? t("reportSchedules.outsideAddress", locale) : t("reportSchedules.farmPerson", locale)}
                 </Badge>
@@ -264,171 +410,91 @@ export default async function ReportSchedulePage({
           </ul>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2">
           {/* Somebody on the farm: stored as a reference, never a copy of their address. */}
-          <form action={addReportRecipient} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={schedule.id} />
-            <input type="hidden" name="who" value="user" />
-            <SelectField
-              label={t("reportSchedules.addPerson", locale)}
-              hint={t("reportSchedules.addPersonHint", locale)}
-              name="user_id"
-              id={`add-user-${schedule.id}`}
-              disabled={addable.length === 0}
-              defaultValue=""
+          {addable.length > 0 ? (
+            <DialogForm
+              trigger={t("reportSchedules.addPersonAction", locale)}
+              triggerVariant="secondary"
+              triggerIcon={<PlusIcon />}
+              title={t("reportSchedules.addPerson", locale)}
+              description={t("reportSchedules.addPersonHint", locale)}
+              closeLabel={t("ui.close", locale)}
             >
-              <option value="" disabled>
-                {addable.length === 0 ? t("reportSchedules.everyoneAdded", locale) : t("reportSchedules.choosePerson", locale)}
-              </option>
-              {addable.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </SelectField>
-            <div>
-              <SubmitButton variant="secondary" size="sm" disabled={addable.length === 0}>
-                {t("reportSchedules.addPersonAction", locale)}
-              </SubmitButton>
-            </div>
-          </form>
+              <form action={addReportRecipient} className="flex flex-col gap-3">
+                <input type="hidden" name="id" value={schedule.id} />
+                <input type="hidden" name="who" value="user" />
+                <SelectField
+                  label={t("reportSchedules.addPerson", locale)}
+                  name="user_id"
+                  id={`add-user-${schedule.id}`}
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>{t("reportSchedules.choosePerson", locale)}</option>
+                  {addable.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </SelectField>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton>{t("reportSchedules.addPersonAction", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : (
+            <p className="w-full text-sm text-sand-500">{t("reportSchedules.everyoneAdded", locale)}</p>
+          )}
 
           {/* An address outside the farm. Said plainly, because it is farm data leaving. */}
-          <form action={addReportRecipient} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={schedule.id} />
-            <input type="hidden" name="who" value="email" />
-            <TextField
-              label={t("reportSchedules.addEmail", locale)}
-              hint={t("reportSchedules.addEmailHint", locale)}
-              type="email"
-              name="email"
-              id={`add-email-${schedule.id}`}
-            />
-            <div>
-              <SubmitButton variant="secondary" size="sm">{t("reportSchedules.addEmailAction", locale)}</SubmitButton>
-            </div>
-          </form>
+          <DialogForm
+            trigger={t("reportSchedules.addEmailAction", locale)}
+            triggerVariant="secondary"
+            triggerIcon={<PlusIcon />}
+            title={t("reportSchedules.addEmail", locale)}
+            description={t("reportSchedules.addEmailHint", locale)}
+            closeLabel={t("ui.close", locale)}
+          >
+            <form action={addReportRecipient} className="flex flex-col gap-3">
+              <input type="hidden" name="id" value={schedule.id} />
+              <input type="hidden" name="who" value="email" />
+              <TextField
+                label={t("reportSchedules.addEmail", locale)}
+                type="email"
+                name="email"
+                id={`add-email-${schedule.id}`}
+                required
+              />
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <SubmitButton>{t("reportSchedules.addEmailAction", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
         </div>
       </Card>
 
-      {/* == The settings ================================================ */}
+      {/* == The settings, stated ======================================== */}
       <Card>
         <CardHeader><CardTitle>{t("reportSchedules.settingsTitle", locale)}</CardTitle></CardHeader>
-        <form action={updateReportSchedule} className="flex flex-col gap-3">
-          <input type="hidden" name="id" value={schedule.id} />
-          <TextField
-            label={t("reportSchedules.name", locale)}
-            name="name"
-            id={`edit-name-${schedule.id}`}
-            required
-            maxLength={120}
-            defaultValue={schedule.name}
+        <FactList>
+          <Fact label={t("reportSchedules.whichReport", locale)} value={t(`reportSchedules.family.${schedule.report_key}`, locale)} />
+          <Fact label={t("reportSchedules.whichFormat", locale)} value={t(`reportSchedules.format.${schedule.output_format}`, locale)} />
+          <Fact label={t("reportSchedules.howOften", locale)} value={t(`cadence.${schedule.cadence}`, locale)} />
+          <Fact
+            label={t("reportSchedules.endsOn", locale)}
+            value={schedule.ends_on ? shortDate(schedule.ends_on, locale) : t("reportSchedules.noEnd", locale)}
+            muted={!schedule.ends_on}
           />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SelectField
-              label={t("reportSchedules.whichReport", locale)}
-              name="report_key"
-              id={`edit-report-${schedule.id}`}
-              defaultValue={schedule.report_key}
-            >
-              {REPORT_KEYS.map((k) => (
-                <option key={k} value={k}>{t(`reportSchedules.family.${k}`, locale)}</option>
-              ))}
-            </SelectField>
-            <SelectField
-              label={t("reportSchedules.whichFormat", locale)}
-              hint={t("reportSchedules.formatHint", locale)}
-              name="output_format"
-              id={`edit-format-${schedule.id}`}
-              defaultValue={schedule.output_format}
-            >
-              {REPORT_FORMATS.map((f) => (
-                <option key={f} value={f}>{t(`reportSchedules.format.${f}`, locale)}</option>
-              ))}
-            </SelectField>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SelectField
-              label={t("reportSchedules.howOften", locale)}
-              name="cadence"
-              id={`edit-cadence-${schedule.id}`}
-              defaultValue={schedule.cadence}
-            >
-              {REPORT_CADENCES.map((c) => (
-                <option key={c} value={c}>{t(`cadence.${c}`, locale)}</option>
-              ))}
-            </SelectField>
-            <TextField
-              label={t("reportSchedules.nextRun", locale)}
-              hint={t("reportSchedules.nextRunHint", locale)}
-              type="date"
-              name="next_run_date"
-              id={`edit-next-${schedule.id}`}
-              defaultValue={schedule.next_run_date}
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextField
-              label={t("reportSchedules.endsOn", locale)}
-              hint={t("reportSchedules.endsOnHint", locale)}
-              type="date"
-              name="ends_on"
-              id={`edit-ends-${schedule.id}`}
-              defaultValue={schedule.ends_on ?? ""}
-            />
-            <TextField
-              label={t("reportSchedules.site", locale)}
-              hint={t("reportSchedules.siteHint", locale)}
-              name="site"
-              id={`edit-site-${schedule.id}`}
-              defaultValue={schedule.site ?? ""}
-            />
-          </div>
-
-          <SelectField
-            label={t("reportSchedules.writtenIn", locale)}
-            hint={t("reportSchedules.writtenInHint", locale)}
-            name="lang"
-            id={`edit-lang-${schedule.id}`}
-            defaultValue={schedule.lang}
-          >
-            <option value="en">English</option>
-            <option value="af">Afrikaans</option>
-          </SelectField>
-
-          <label className="flex min-h-[48px] items-center gap-2.5 text-sm text-sand-700 sm:min-h-[40px]">
-            <input
-              type="checkbox"
-              name="include_inactive"
-              defaultChecked={schedule.include_inactive}
-              className="h-5 w-5 rounded border-sand-300"
-            />
-            {t("reportSchedules.includeInactive", locale)}
-          </label>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <SubmitButton>{t("common.save", locale)}</SubmitButton>
-            <ConfirmDialog
-              action={deleteReportSchedule}
-              triggerLabel={t("reportSchedules.delete", locale)}
-              triggerIcon={<TrashIcon />}
-              triggerVariant="ghost"
-              triggerSize="sm"
-              tone="danger"
-              title={t("reportSchedules.deleteTitle", locale)}
-              intro={t("reportSchedules.deleteBody", locale)}
-              facts={[{ label: t("reportSchedules.nameLabel", locale), value: schedule.name }]}
-              consequences={[t("reportSchedules.deleteConsequence", locale)]}
-              footnote={t("reportSchedules.deleteFootnote", locale)}
-              confirmLabel={t("reportSchedules.delete", locale)}
-              cancelLabel={t("common.cancel", locale)}
-              closeLabel={t("ui.close", locale)}
-            >
-              <input type="hidden" name="id" value={schedule.id} />
-            </ConfirmDialog>
-          </div>
-        </form>
+          <Fact
+            label={t("reportSchedules.site", locale)}
+            value={schedule.site || t("reports.allGroups", locale)}
+            muted={!schedule.site}
+          />
+          <Fact label={t("reportSchedules.writtenIn", locale)} value={schedule.lang === "af" ? "Afrikaans" : "English"} />
+          <Fact
+            label={t("reports.machinesFilter", locale)}
+            value={schedule.include_inactive ? t("reports.includeInactive", locale) : t("reports.activeOnly", locale)}
+          />
+        </FactList>
       </Card>
 
       {/* == What actually happened ====================================== */}
@@ -462,6 +528,6 @@ export default async function ReportSchedulePage({
           </ul>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

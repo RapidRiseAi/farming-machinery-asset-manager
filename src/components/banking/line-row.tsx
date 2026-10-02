@@ -6,6 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
 import { confirmMatch, undoMatch, setAsideLine, restoreLine, removeLine } from "@/app/(app)/banking/actions";
 
 export type BankLineView = {
@@ -75,7 +76,7 @@ export function BankLineRow({
         </div>
         <div className="text-right">
           <p
-            className={`text-lg font-semibold tabular-nums ${moneyIn ? "text-status-ok" : "text-status-overdue"}`}
+            className={`whitespace-nowrap text-lg font-semibold tabular-nums ${moneyIn ? "text-status-ok" : "text-sand-900"}`}
           >
             {rands(line.amount_cents)}
           </p>
@@ -154,7 +155,7 @@ export function BankLineRow({
                   <ConfirmDialog
                     action={confirmMatch}
                     triggerLabel={t("bank.confirmMatch", locale)}
-                    triggerVariant="primary"
+                    triggerVariant="secondary"
                     triggerSize="sm"
                     title={
                       sg.targetKind === "invoice"
@@ -200,10 +201,18 @@ export function BankLineRow({
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* What else can be done with a line nobody can match, behind one button titled
+              with the line, rather than two loose buttons under every suggestion. */}
+          <div className="flex justify-end">
+            <ActionMenu
+              title={`${line.description || t("bank.noDescription", locale)} · ${rands(line.amount_cents)}`}
+              label={t("common.actions", locale)}
+              closeLabel={t("ui.close", locale)}
+              trigger={t("common.actions", locale)}
+            >
             <form action={setAsideLine}>
               <input type="hidden" name="line_id" value={line.id} />
-              <SubmitButton variant="ghost" size="sm">
+              <SubmitButton look="menuItem">
                 {t("bank.setAside", locale)}
               </SubmitButton>
             </form>
@@ -211,8 +220,7 @@ export function BankLineRow({
               action={removeLine}
               triggerLabel={t("common.remove", locale)}
               triggerIcon={<TrashIcon />}
-              triggerVariant="ghost"
-              triggerSize="sm"
+              triggerLook="menuItem"
               title={t("bank.removeTitle", locale)}
               intro={`${line.description ?? ""} · ${rands(line.amount_cents)}`}
               consequences={[
@@ -225,6 +233,7 @@ export function BankLineRow({
             >
               <input type="hidden" name="line_id" value={line.id} />
             </ConfirmDialog>
+            </ActionMenu>
           </div>
         </>
       ) : null}

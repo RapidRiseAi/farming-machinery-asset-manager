@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
+import { OTHER_PERSON } from "./credential-person";
 
 /**
  * Driver and operator documents, the licence in the person's pocket.
@@ -61,7 +62,9 @@ export async function addDriverCredential(formData: FormData): Promise<void> {
   // Either a person on the farm, or a name. The database enforces exactly one of the two;
   // this turns "which one did they mean" into a decision made here rather than a check
   // constraint reaching a farmer.
-  const userId = String(formData.get("user_id") ?? "").trim();
+  // `OTHER_PERSON` is the picker's "someone who does not sign in": no user, a typed name.
+  const rawUser = String(formData.get("user_id") ?? "").trim();
+  const userId = rawUser === OTHER_PERSON ? "" : rawUser;
   const personName = String(formData.get("person_name") ?? "").trim();
   if (userId && personName) bounce("credential-two-people");
   if (!userId && !personName) bounce("credential-no-person");

@@ -1,5 +1,33 @@
 "use client";
 
+/**
+ * Capture forms in a dialog. Client module; the form inside is server-rendered.
+ *
+ *   <DialogForm trigger={t("tyres.add", locale)} title={t("tyres.addTitle", locale)}
+ *     closeLabel={t("ui.close", locale)}>
+ *     <form action={addTyre}>
+ *       <DialogFields>
+ *         <Field label=...><Input name="serial" /></Field>
+ *         <DialogSection title={t(SECTION_KEY, locale)}>...optional fields...</DialogSection>
+ *       </DialogFields>
+ *       <DialogActions cancelLabel={t("common.cancel", locale)}>
+ *         <SubmitButton>{t("common.save", locale)}</SubmitButton>
+ *       </DialogActions>
+ *     </form>
+ *   </DialogForm>
+ *
+ * `DialogForm` props: `trigger`, `title`, `closeLabel`, `description?`, `size?`
+ * ("lg" two-column | "md"), `defaultOpen?` (open on arrival, e.g. after a GET step or
+ * a `?new=1` link), `triggerVariant?`, `triggerSize?`, `triggerFullWidth?`,
+ * `triggerIcon?`, `triggerClassName?`, `triggerLabel?`, `triggerLook?` ("button" |
+ * "menuItem"), `triggerTone?`.
+ * `DialogActions`: `cancelLabel`, `note?`; closes the dialog when the form's submit
+ * settles (server actions redirect, a soft navigation that keeps client state).
+ * `DialogSection`: `title`, `defaultOpen?`; a collapsed group of optional fields that
+ * spans both columns of `DialogFields`. `DialogFields`: `columns?` (1 | 2).
+ * `useDialogForm()`: `{ close, titleId }` for anything inside that must close it.
+ */
+
 import {
   createContext,
   useCallback,
@@ -97,6 +125,12 @@ export type DialogFormProps = {
    */
   triggerLook?: "button" | "menuItem";
   triggerTone?: "default" | "danger";
+  /**
+   * Open on arrival. For a server-rendered page that should land with the dialog up,
+   * e.g. step two after a GET step, or a "record one" link carrying `?new=1`. Read
+   * once at mount; closing it afterwards is the person's choice.
+   */
+  defaultOpen?: boolean;
   children: ReactNode;
 };
 
@@ -120,9 +154,10 @@ export function DialogForm({
   size = "lg",
   triggerLook = "button",
   triggerTone = "default",
+  defaultOpen = false,
   children,
 }: DialogFormProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const uid = useId();
   const titleId = `dialog-form-title-${uid}`;
   const descId = `dialog-form-desc-${uid}`;
@@ -172,8 +207,14 @@ export function DialogForm({
             long form scrolls under a header that keeps saying which form it is. On a
             phone that matters by field six.
           */}
+          {/*
+            The title block is as tall as the Close button and centres its content, so
+            a one-line title sits level with Close (it used to ride 12px high against a
+            48px button), while a title with a description still starts at the top.
+            This matches `Modal`'s header in dialog.tsx.
+          */}
           <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-sand-100 bg-surface px-5 py-3.5">
-            <div className="min-w-0">
+            <div className="flex min-h-[48px] min-w-0 flex-col justify-center sm:min-h-[40px]">
               <h2 id={titleId} className="text-base font-semibold text-sand-900">
                 {title}
               </h2>

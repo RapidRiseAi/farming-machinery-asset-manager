@@ -11,11 +11,15 @@ import {
   type CashflowBucket, type CashflowMovement,
 } from "@/lib/cashflow";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Flash } from "@/components/ui/flash";
 import { AllClear } from "@/components/ui/empty-state";
-import { SelectField, TextField } from "@/components/ui/field";
+import { TextField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DialogForm, DialogFields, DialogActions } from "@/components/ui/dialog-form";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { PeriodChips } from "@/components/books/period-chips";
+import { RememberView } from "@/components/books/remember-view";
 import { ForecastTable } from "@/components/cashflow/forecast-table";
 import { MovementList } from "@/components/cashflow/movement-list";
 
@@ -58,14 +62,14 @@ export default async function CashflowPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -91,52 +95,78 @@ export default async function CashflowPage({
   const runsOut = runsOutAt(rows, opening);
   const closing = (opening ?? 0) + (rows[rows.length - 1]?.running_cents ?? 0);
 
-  return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("cash.title", locale)}</h1>
-        <p className="text-sm text-sand-600">{t("cash.lead", locale)}</p>
-      </div>
+  // The window and the bank balance are remembered on this device, the balance because it
+  // is typed every Monday by the same person. A visit that names neither reopens the last
+  // view; one that names either is the new view to keep (an emptied balance is dropped
+  // from what is kept, which is how it is forgotten).
+  const urlChose = sp.days != null || sp.open != null;
+  const keep = new URLSearchParams();
+  if (sp.days) keep.set("days", String(horizon));
+  if (opening != null && openingRaw) keep.set("open", openingRaw.trim());
+  const openParam = opening != null && openingRaw ? `&open=${encodeURIComponent(openingRaw.trim())}` : "";
 
-      {/* What you are looking at, and over what window. A GET form so the whole thing is
-          a shareable URL and works with no JavaScript at all, the same property the
-          period links on /money have. */}
-      <Card>
-        <CardHeader><CardTitle>{t("cash.windowTitle", locale)}</CardTitle></CardHeader>
-        <form method="get" action="/cashflow" className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <SelectField
-            label={t("cash.horizonLabel", locale)}
-            name="days"
-            defaultValue={String(horizon)}
-            fieldClassName="sm:w-56"
+  return (
+    <PageContainer>
+      <PageHeader title={t("cash.title", locale)} lead={t("cash.lead", locale)} />
+      <RememberView storageKey="cashflow-view" value={urlChose ? keep.toString() : null} restore="/cashflow" />
+
+      {/* What you are looking at: the window as chips (links, so it is a shareable URL and
+          works before any JavaScript), and the bank balance stated as a fact. Typing the
+          balance is a capture, so it lives behind its own button. */}
+      <section aria-label={t("cash.windowTitle", locale)} className="flex flex-col gap-3">
+        <PeriodChips
+          label={t("cash.horizonLabel", locale)}
+          items={CASH_HORIZONS.map((d) => ({
+            key: String(d),
+            href: `/cashflow?days=${d}${openParam}`,
+            label: t(`cash.horizon.${d}`, locale),
+            active: d === horizon,
+          }))}
+        />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="min-w-0 text-sm text-sand-600">
+            {t("cash.openingLabel", locale)}:{" "}
+            {opening != null ? (
+              <span className="font-semibold tabular-nums text-sand-900">{rands(opening)}</span>
+            ) : (
+              <span className="text-sand-500">{t("cash.openingNone", locale)}</span>
+            )}
+          </p>
+          <DialogForm
+            trigger={opening != null ? t("cash.changeOpening", locale) : t("cash.setOpening", locale)}
+            triggerVariant="secondary"
+            triggerSize="sm"
+            title={t("cash.openingLabel", locale)}
+            closeLabel={t("ui.close", locale)}
+            defaultOpen={openingRejected}
           >
-            {CASH_HORIZONS.map((d) => (
-              <option key={d} value={String(d)}>
-                {t(`cash.horizon.${d}`, locale)}
-              </option>
-            ))}
-          </SelectField>
-          <TextField
-            label={t("cash.openingLabel", locale)}
-            name="open"
-            inputMode="decimal"
-            defaultValue={openingRaw ?? ""}
-            hint={t("cash.openingHint", locale)}
-            error={openingRejected ? t("cash.openingBad", locale) : undefined}
-            fieldClassName="sm:w-56"
-          />
-          <SubmitButton variant="secondary" className="sm:mb-6">
-            {t("cash.apply", locale)}
-          </SubmitButton>
-        </form>
-        <p className="mt-3 text-sm text-sand-600">{t("cash.grossNote", locale)}</p>
-      </Card>
+            <form method="get" action="/cashflow">
+              <input type="hidden" name="days" value={String(horizon)} />
+              <DialogFields>
+                <TextField
+                  label={t("cash.openingLabel", locale)}
+                  name="open"
+                  inputMode="decimal"
+                  defaultValue={openingRaw ?? ""}
+                  hint={t("cash.openingHint", locale)}
+                  error={openingRejected ? t("cash.openingBad", locale) : undefined}
+                />
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <SubmitButton>{t("cash.apply", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        </div>
+        <p className="text-sm text-sand-500">{t("cash.grossNote", locale)}</p>
+      </section>
 
       {/* The verdict. Stated in a sentence before any table, because the reader came here
           for one answer and should not have to derive it from five rows. */}
       {runsOut ? (
         <Flash
           tone="error"
+          clearParams={false}
           message={t("cash.runsOutWarning", locale)
             .replace("{bucket}", t(`cash.bucket.${runsOut.bucket}`, locale))
             .replace("{amount}", rands((opening ?? 0) + runsOut.running_cents))}
@@ -144,22 +174,24 @@ export default async function CashflowPage({
       ) : opening != null ? (
         <Flash
           tone="success"
+          clearParams={false}
           message={t("cash.staysPositive", locale).replace("{amount}", rands(closing))}
         />
       ) : (
-        <Flash tone="info" message={t("cash.noOpening", locale)} />
+        <Flash tone="info" clearParams={false} message={t("cash.noOpening", locale)} />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label={t("cash.totalIn", locale)} value={rands(totals.in_cents)} />
-        <Stat label={t("cash.totalOut", locale)} value={rands(totals.out_cents)} />
+      <StatGrid columns={3}>
+        <Stat size="md" label={t("cash.totalIn", locale)} value={rands(totals.in_cents)} />
+        <Stat size="md" label={t("cash.totalOut", locale)} value={rands(totals.out_cents)} />
         <Stat
+          size="md"
           label={t("cash.totalNet", locale)}
           value={rands(totals.net_cents)}
           tone={totals.net_cents < 0 ? "overdue" : "ok"}
           delta={t("cash.netHint", locale)}
         />
-      </div>
+      </StatGrid>
 
       <Card>
         <CardHeader><CardTitle>{t("cash.forecastTitle", locale)}</CardTitle></CardHeader>
@@ -185,6 +217,6 @@ export default async function CashflowPage({
           </>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

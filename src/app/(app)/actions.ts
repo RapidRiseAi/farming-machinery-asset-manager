@@ -26,7 +26,7 @@ export async function setTone(formData: FormData) {
     if (user) await supabase.from("users").update({ tone }).eq("id", user.id);
   }
   revalidatePath("/", "layout");
-  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/home");
 }
 
 export async function signOut() {
@@ -89,7 +89,8 @@ export async function setLanguage(formData: FormData) {
     });
   }
   revalidatePath("/", "layout");
-  redirect(next && next.startsWith("/") ? next : "/dashboard");
+  // Same guard as `setTone`: "//host" is a protocol-relative URL, not a path.
+  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/home");
 }
 
 export async function setCurrentFarm(formData: FormData) {
@@ -108,5 +109,5 @@ export async function setCurrentFarm(formData: FormData) {
     }
   }
   revalidatePath("/", "layout");
-  redirect(next && next.startsWith("/") ? next : "/machines");
+  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/machines");
 }

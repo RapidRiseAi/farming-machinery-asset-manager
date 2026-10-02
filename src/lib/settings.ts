@@ -47,6 +47,27 @@ export const SETTING_NUMBERS = {
   utilisation_km_per_day: 200,
 } as const;
 
+/**
+ * The range each number may take. A threshold of -5 days, a quiet hour of 30 or a 0%
+ * fuel alert is not a setting, it is a typo, and it used to save because only
+ * `Number.isFinite` was checked. Out of range is treated like unparseable: the stored
+ * value is kept. Anything not listed here must be 0 or more.
+ */
+export const SETTING_RANGES: Partial<Record<keyof typeof SETTING_NUMBERS, { min: number; max?: number }>> = {
+  quiet_hours_start: { min: 0, max: 23 },
+  quiet_hours_end: { min: 0, max: 23 },
+  fuel_anomaly_pct: { min: 1 },
+  fuel_anomaly_min_history: { min: 1 },
+  repair_replace_pct: { min: 1 },
+  utilisation_hours_per_day: { min: 1, max: 24 },
+  utilisation_km_per_day: { min: 1 },
+};
+
+function inRange(key: string, n: number): boolean {
+  const r = SETTING_RANGES[key as keyof typeof SETTING_NUMBERS] ?? { min: 0 };
+  return n >= r.min && (r.max == null || n <= r.max);
+}
+
 export const SETTING_BOOLEANS = {
   approval_required: false,
   cost_visible_to_operators: false,
@@ -91,11 +112,12 @@ export function mergeSettings(
       out[key] = kept;
       continue;
     }
-    // An owned key that arrived empty or unparseable keeps what is stored rather than
-    // dropping to the default: clearing a box should not silently re-configure the farm.
+    // An owned key that arrived empty, unparseable or out of range (a negative
+    // threshold) keeps what is stored rather than dropping to the default: clearing a
+    // box, or a slipped minus sign, should not silently re-configure the farm.
     const raw = String(form.get(key) ?? "").trim();
     const n = Number(raw);
-    out[key] = raw !== "" && Number.isFinite(n) ? n : kept;
+    out[key] = raw !== "" && Number.isFinite(n) && inRange(key, n) ? n : kept;
   }
 
   for (const [key, dflt] of Object.entries(SETTING_BOOLEANS)) {

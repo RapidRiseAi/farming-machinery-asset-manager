@@ -356,8 +356,10 @@ const CODE_KEYS: Record<string, string> = {
   // lower-cases WITHOUT inserting a separator, so the lookup key has no hyphen
   // in the second half. Verified against what the code actually emits rather
   // than guessed; `scripts/` has a check that every emitted code is covered.
+  "po-alreadyconverted": "po.err.alreadyConverted",
   "po-badstatus": "errors.badValues",
   "po-cannotconvert": "errors.poCannot",
+  "po-failed": "errors.saveFailed",
   "po-hasexpense": "errors.poHas",
   "po-needamount": "errors.needAmount",
   "po-needdescription": "errors.needDescription",

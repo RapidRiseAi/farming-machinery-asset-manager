@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
+import { t } from "@/lib/i18n";
 
 // Who may build/maintain checklist templates: farm crew for their own farm's templates,
 // RR admin for the GLOBAL library. Operators/workshop are read-only here (they fill
@@ -196,7 +197,9 @@ export async function duplicateChecklistTemplate(formData: FormData) {
 
   const { data: created, error: insErr } = await supabase
     .from("checklist_templates")
-    .insert({ farm_id: farmId, name: `${source!.name} (copy)`, description: source!.description, machine_type: source!.machine_type, created_by: profile.id })
+    // The copy's name in the person's own language: "(copy)" on an Afrikaans farm's list
+    // was the one English word on the screen.
+    .insert({ farm_id: farmId, name: t("checklists.copyName", profile.lang).replace("{name}", source!.name), description: source!.description, machine_type: source!.machine_type, created_by: profile.id })
     .select("id")
     .single();
   if (insErr || !created) redirect(`/checklists?error=${encodeURIComponent(insErr?.message ?? "copy failed")}`);

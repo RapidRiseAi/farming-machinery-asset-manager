@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
-import { percentToBps } from "@/lib/format";
+import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { CADENCES, type Cadence } from "@/lib/recurring-expenses";
 
@@ -40,7 +40,7 @@ function cadence(fd: FormData): Cadence {
   return (CADENCES as readonly string[]).includes(raw) ? (raw as Cadence) : "monthly";
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayLocal();
 
 /** Amount + VAT off the form, however the partner chose to type it. */
 function money(fd: FormData): { amount_cents: number; vat_cents: number; vat_rate_bps: number } | null {

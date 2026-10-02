@@ -11,25 +11,37 @@ function compactRands(cents: number): string {
   return "R" + r.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 }
 
-/** Vertical bar chart, used for the 6-month spend trend. Values are cents. */
+/**
+ * Vertical bar chart, used for the 6-month spend trend. Values are cents.
+ *
+ * == Why each bar sits in its own track =======================================
+ * A bar's `height: N%` resolves against its parent's height, and only a DEFINITE one.
+ * The first version put the bar straight into a content-sized column (the row was
+ * `items-end`, which stops a column stretching), so every percentage resolved against
+ * nothing and computed to 0: the chart drew the value labels over 150px of empty space.
+ * Now the row stretches each column to the full chart height, and the bar lives in a
+ * `flex-1` track between the value and the month, which is definite, so N% is N% of it.
+ */
 export function SpendTrend({ data, title }: { data: Datum[]; title: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <figure role="img" aria-label={title} className="flex flex-col gap-2">
-      <div className="flex h-40 items-end gap-2">
+      <div className="flex h-40 items-stretch gap-2">
         {data.map((d) => {
           const pct = Math.round((d.value / max) * 100);
           return (
-            <div key={d.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
-              <span className="text-2xs font-medium tabular-nums text-sand-500">
+            <div key={d.key} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <span className="h-4 text-2xs font-medium tabular-nums text-sand-500">
                 {d.value > 0 ? compactRands(d.value) : ""}
               </span>
-              <div
-                className="w-full rounded-t-md bg-brand-500"
-                style={{ height: `${Math.max(pct, d.value > 0 ? 4 : 0)}%` }}
-                title={`${d.label}: ${compactRands(d.value)}`}
-              />
-              <span className="w-full truncate text-center text-2xs text-sand-400">{d.label}</span>
+              <div className="flex min-h-0 w-full flex-1 items-end border-b border-sand-200">
+                <div
+                  className="w-full rounded-t-md bg-brand-500"
+                  style={{ height: `${Math.max(pct, d.value > 0 ? 4 : 0)}%` }}
+                  title={`${d.label}: ${compactRands(d.value)}`}
+                />
+              </div>
+              <span className="w-full truncate text-center text-2xs text-sand-500">{d.label}</span>
             </div>
           );
         })}

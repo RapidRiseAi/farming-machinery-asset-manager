@@ -4084,3 +4084,153 @@ the affordance, which is why the scrollbar is hidden here and nowhere else.
 (`/contractor/*`), rr_admin-only (`/admin/*`), operator-only (`/driver`), the signed-out and
 marketing pages, and the token routes, which need a token to mean anything. Those remain
 genuinely unmeasured on a phone and are the next gap to close.
+
+
+## 2026-10-01 - Second UI/UX pass: measured against real personas, built on branch ui-pass-2
+
+A request to go over the whole interface again: clean, uncluttered, capture in dialogs,
+smarter defaults, and settings people can actually change. Built in a separate git
+worktree on local branch `ui-pass-2` from `48937b1`, because the main working tree held
+another workstream's uncommitted job-card rework. **Not committed, pushed or deployed.**
+No migration.
+
+### What was measured, and why the existing gate had not seen it
+
+`ui:check` signs in as the click-through owner: English, two machines, near-empty tables.
+A screenshot rig was driven instead with the six demo personas on the hosted demo project
+(owner without Books, operator, mechanic whose profile is Afrikaans, contractor with Books,
+rr_admin, signed out), 92 routes at 360px and 1366px, every first dialog opened, every
+machine tab, and dark-theme samples. Six pages rendered zoomed out on a phone that
+`ui:check` reported as fitting:
+
+- every Afrikaans page (mechanic, innerWidth 394): the header bell's word label
+  "Kennisgewings" plus the pills could not shrink;
+- `/incidents` (383): three `Stat` tiles in a hard `grid-cols-3` with money values;
+- `/documents/[id]` as the issuing contractor on a DRAFT (434): the preview's line table.
+
+Before and after, same rig, same data, 92 routes:
+
+```
+zoomed-out phone pages            6 -> 0
+form controls visible at rest   330 -> 94
+filled primary buttons (desktop) 105 -> 65
+total phone page height    209 619px -> 157 071px
+error boundaries                     0
+```
+
+`/partners` 28 controls -> 0 (9 946px -> 2 497px on a phone); `/contractor/settings` 17
+controls and 4 primaries -> 1 and 0; `/notifications` 8 825px -> 3 900px; `/inbox`
+6 212px -> 2 539px; `/expenses` 14 -> 0; `/recurring` 12 -> 0.
+
+### How it was done
+
+A 13-cluster audit (source plus screenshots, each cluster adversarially verified) produced
+258 findings; 216 were implemented in 17 packages with disjoint file ownership, run in six
+waves, plus a handoff sweep for changes that crossed packages. Every package confirmed a
+finding in the code before changing it. i18n went through per-package fragments merged
+centrally: +406 keys (5 279 each, parity held) and 85 deliberate wording changes, mostly
+units moved from labels into values ("Warn when service due within (hours)" becomes
+"Service due soon, by engine hours", stated as "25 hours").
+
+Kit added: `PageHeader`/`PageContainer`/`BackLink` (+ `backHref`), `StatGrid` and a `Stat`
+that wraps instead of widening the page, `Tabs param="tab"` with `withTab`/`readTab` so a
+save on tabs 2 to 5 reopens the same tab, `SearchField` (search as you type),
+`FilterBar searchField`/`rememberKey`, `filterState`/`FilteredEmpty` (NoMatches with a way
+back), `Checkbox` (48px row), `DateText`, `DialogForm defaultOpen`, and Flash now clears
+`?saved=`/`?error=` from the address bar after showing them (`clearParams={false}` on the
+zero-JS `/d/[token]`). `format.ts` gained `todayLocal()` (SAST, not the UTC day),
+`hourOfDay`, `quietHoursRange`.
+
+Customisation, all without a migration: `/account` is now one hub for every role (name,
+email, password as Facts with Change dialogs; language and wording for EVERY role, where
+tone used to be owner-only; light/dark/system; text size; start page in cookie `fw_start`;
+up to three phone shortcuts in cookie `fw_tabs`, read by the shell; alert channels and
+quiet hours), a dashboard "Customise" dialog (cookie `fw_dash`), filters remembered per
+list (localStorage), palette recents, `/` opens search.
+
+### Defects found by building it
+
+- The dashboard spend chart drew no bars: percentage heights inside an auto-height parent.
+- Alerts were dead text although `notificationUrl()` existed; preferences sat above them.
+- `/account` was linked from nowhere and both avatars were dead chips.
+- Accident times were stored two hours off: a `datetime-local` value parsed with
+  `new Date()` on a UTC server. New records are parsed as SA time; old rows are unchanged.
+- The Afrikaans report tab read "Meld aan", which is what the app uses for "Sign in".
+- `errors:check` read through a URL fragment: `?error=save-failed#alerts` was reported as
+  an uncovered code "save-failedalerts". The browser never sends a fragment; the gate now
+  stops at `#`.
+- Avatar initials for "Johan (Werkswinkel)" rendered "J(".
+
+### Gates
+
+typecheck, lint, test (453/453), i18n:parity (5279/5279), i18n:keys, errors:check,
+design:lint (0 violations, contrast contract passes), dashes:check, build (shared
+first-load JS flat at 103 kB), ui:check (11 dialog routes, 53 routes at 360px and 1024px).
+
+### Left undone, and why
+
+- **The job-card and work-request screens were not touched** (`src/app/(app)/jobcards/**`,
+  `src/app/(app)/work/**`): another workstream has them uncommitted. Its working tree
+  currently calls about 45 i18n keys that exist in neither dictionary, so those screens
+  would print raw keys; that belongs to that workstream.
+- **Merge overlap:** that workstream also edits `inbox/page.tsx`, `inbox/actions.ts`,
+  `faults/page.tsx`, `machines/[id]/page.tsx` and `documents/actions.ts`. Measured with
+  `patch --dry-run`: every hunk of its diff applies onto this branch, the last two with
+  fuzz in their import blocks.
+- **Needs a migration or RPC:** the fuel tank balance is computed from a capped,
+  role-filtered row set, so a driver sees a different balance from the owner (a data bug,
+  not cosmetic); correcting or reversing a fuel draw; per-category alert muting; help for
+  contractors (`open_help_request` refuses a profile with no farm); continuing a checklist
+  draft; undo after a soft delete; palette search over records.
+- **Needs a decision:** whether operators should see fuel analytics and leak flags, what a
+  mechanic's home should be, the owner sidebar taxonomy beyond the split done here, one
+  name for Problems/Faults/Report, bulk actions, starter checklist templates.
+- `ui:check` still measures only the click-through owner in English. An Afrikaans persona
+  at 360px would have caught the header; adding one needs a throwaway Afrikaans account.
+
+## 2026-10-02 - Integrate job-card workflow and second UI pass locally
+
+Preserved both completed sessions as separate commits from their shared `48937b1`
+base: job-card work in `91db552`, and Claude's `ui-pass-2` work in `1d5585c`.
+Merged them into local main, reconciling the five textual conflicts and reviewing
+the shared screens for behavioral conflicts. No push, deployment or live migration
+was performed. The earlier UI-pass entry's uncommitted status and missing job-card
+translation keys describe that earlier snapshot; both are resolved by this integration.
+
+The job-card rework separates internal work, connected contractors and outside
+companies; enforces supplier invoice ownership; stages intake, work and handover;
+and protects approvals, corrections, costs and concurrent edits in database operations.
+Stable creation, line, kit and upload receipts preserve drafts and prevent duplicate
+records after uncertain responses. The complete workflow and rollout requirements
+are in `docs/JOB_CARD_WORKFLOW.md`.
+
+Integration fixes:
+
+- Retained all three asset-page job-card intake entry points and fault-linked creation,
+  including draft receipts and active farm-specific contractor choices.
+- Combined the document screen's header upload action with actor/context-bound upload
+  receipts and the supplier's printed document number. Work-request uploads use their
+  enclosing dialog, avoiding a second nested dialog.
+- Kept transactional inbox approval actions and added the UI pass's alert-opening action.
+  Inbox navigation and decision counts now follow the selected farm and effective role.
+- Moved work-request note, amount, assignment and proof capture into shared dialogs.
+  Proof upload closes on success and keeps errors visible. Job-card headers, list dates
+  and contextual creation buttons now follow the shared UI conventions.
+- Preserved both language dictionaries by key-wise three-way merge, including professional
+  overlays. Added a regression test proving result-URL cleanup retains intake, line and
+  kit acknowledgements needed to clear the correct draft.
+- Excluded the already git-ignored `scratchpad` directory from punctuation scanning;
+  local research downloads and probe scripts must not change release gate results.
+
+Combined verification: 467 application tests pass; all 29 SQL suites pass on disposable
+PGlite databases after all 187 migrations apply. Production build, TypeScript, lint,
+translation parity (5,391 keys per language), translation usage, error coverage,
+design lint (34/34 contrast checks), punctuation and Git whitespace checks pass.
+There are no unresolved merge markers. Both original session commits remain in history.
+
+Limits: browser connection was unavailable, so the combined application's interactive
+desktop/mobile acceptance is still outstanding; the prior UI-only browser results are
+not claimed as combined verification. PGlite uses auth stubs and a digest substitute,
+so it does not establish hosted Auth/Storage behavior. The three new job-card migrations
+must be applied in order before releasing this app. Existing unrelated open items in
+the preceding entries remain open.

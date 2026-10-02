@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "./cn";
 import { CheckIcon, WarningIcon, InfoIcon } from "./icons";
+import { ClearResultParams } from "./clear-result-params";
 
 export type FlashTone = "success" | "error" | "info" | "warning";
 
@@ -41,6 +42,14 @@ export type FlashProps = {
   message?: ReactNode;
   tone?: FlashTone;
   className?: string;
+  /**
+   * Which result parameters to take out of the address bar once this message is on
+   * screen. Default: every known outcome key (`RESULT_PARAMS`: saved, error, deleted,
+   * added, sent, ...), never a filter, tab or step. Pass a list to narrow it, or `false`
+   * for a message that must survive a refresh (a "do not pay again" warning) or a page
+   * that must ship no client component at all.
+   */
+  clearParams?: readonly string[] | false;
 };
 
 /**
@@ -49,9 +58,13 @@ export type FlashProps = {
  *
  *   <Flash tone="success" message={searchParams.saved ? t("ui.saved", locale) : undefined} />
  *
- * For a dismissible/auto-hiding transient alert, use `Toast` (client) instead.
+ * The message stays for this view (Flash is the persistent alert; `Toast` is the one that
+ * hides itself). What does NOT stay is the parameter: a tiny client child strips the
+ * result keys from the URL with `history.replaceState` once the message is shown, so a
+ * refresh, a Back or a shared link does not say "Saved" again. Without JavaScript the
+ * banner still renders and only the tidy-up is skipped. See `clear-result-params.tsx`.
  */
-export function Flash({ message, tone = "info", className }: FlashProps) {
+export function Flash({ message, tone = "info", className, clearParams }: FlashProps) {
   if (!message) return null;
   const s = TONES[tone];
   return (
@@ -67,6 +80,18 @@ export function Flash({ message, tone = "info", className }: FlashProps) {
         {s.icon}
       </span>
       <span className="min-w-0">{message}</span>
+      {clearParams === false ? null : <ClearResultParams keys={clearParams} />}
     </div>
   );
+}
+
+/**
+ * Protects result keys from EVERY Flash on the page, not just one. `clearParams={false}`
+ * only stops the Flash it is set on; another Flash (an always-on warning, say) would still
+ * clear the key. Render this next to a message whose parameter must survive a refresh.
+ * A hidden marker, no JavaScript of its own: `ClearResultParams` reads it.
+ */
+export function KeepResultParams({ keys }: { keys: readonly string[] }) {
+  // Literal attribute name so it greps; it must equal KEEP_RESULT_PARAMS_ATTR.
+  return <span hidden data-keep-result-params={keys.join(" ")} />;
 }

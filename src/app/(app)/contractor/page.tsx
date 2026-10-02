@@ -1,30 +1,35 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { ledgerSign, isNote } from "@/lib/partner-docs";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
 import {
   WORK_STATUSES, WORK_KINDS, WORK_PRIORITIES,
-  workStatusLabel, workKindLabel, workStatusTone, workPriorityLabel, workPriorityTone,
+  workStatusLabel, workKindLabel, workPriorityLabel, workPriorityTone,
   isWorkKind, isWorkStatus,
 } from "@/lib/work";
-import { contractorView, contractorKindLabel } from "@/lib/contractor";
+import { contractorView } from "@/lib/contractor";
 import { workshopPlanAllows } from "@/lib/contractor-plan";
 // Direct module imports keep this Server Component free of the kit's client chunk.
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Flash } from "@/components/ui/flash";
+import { errorMessage } from "@/lib/errors";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { WorkStatus, PriorityStatus } from "@/components/ui/status";
-import { relativeDate } from "@/lib/format";
+import { buttonVariants } from "@/components/ui/button";
+import { EmptyState, NoMatches } from "@/components/ui/empty-state";
+import { FilterBar } from "@/components/ui/filter-bar";
+import type { FilterGroup } from "@/components/ui/filter-state";
+import { WorkStatus } from "@/components/ui/status";
+import { relativeDate, num, todayLocal } from "@/lib/format";
+import { cn } from "@/components/ui/cn";
 import {
-  WorkIcon, MachinesIcon, PartsIcon, InfoIcon, ChevronRightIcon,
+  WorkIcon, PartsIcon, InfoIcon, ChevronRightIcon,
   PhoneIcon, ChatIcon, MailIcon,
 } from "@/components/ui/icons";
 
@@ -45,10 +50,39 @@ type PartnerDoc = {
 /** urgent → 3 … low → 0 (for descending priority sort). */
 const prioRank = (p: string) => Math.max(0, WORK_PRIORITIES.indexOf(p as (typeof WORK_PRIORITIES)[number]));
 
+const PATH = "/contractor";
+
+/**
+ * One labelled figure in the quiet summary line under the tiles. A zero is dimmed so it
+ * reads as "nothing here" rather than competing with the figure that needs attention.
+ */
+function SummaryItem({ label, value, zero, href }: { label: ReactNode; value: ReactNode; zero: boolean; href?: string }) {
+  const body = (
+    <>
+      <span className="text-sand-500">{label}</span>
+      <span className={cn("tabular-nums font-semibold", zero ? "text-sand-400" : "text-sand-900")}>{value}</span>
+    </>
+  );
+  return (
+    <li>
+      {href ? (
+        <Link
+          href={href}
+          className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg hover:text-brand-ink sm:min-h-[36px]"
+        >
+          {body}
+        </Link>
+      ) : (
+        <span className="inline-flex min-h-[48px] items-center gap-1.5 sm:min-h-[36px]">{body}</span>
+      )}
+    </li>
+  );
+}
+
 export default async function ContractorDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string; status?: string; farm?: string; sort?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const profile = await requireProfile();
   const locale = profile.lang;
@@ -126,6 +160,8 @@ export default async function ContractorDashboardPage({
 
   // == Filters. Default KIND = the contractor's focus kinds (tailored per `kind`);
   // "all" shows every type; a specific value narrows to it. Status / farm / sort too.
+  // The URL params are the ones the old submit-to-filter form wrote, so every link into
+  // this screen (the tiles, the client list) keeps working.
   const kindParam = sp.kind; // undefined = focus default, "all" = no kind filter, else a kind
   const statusParam = sp.status && isWorkStatus(sp.status) ? sp.status : "";
   const farmParam = sp.farm && farmById.has(sp.farm) ? sp.farm : "";
@@ -154,23 +190,67 @@ export default async function ContractorDashboardPage({
   }
   const orderedStatuses = WORK_STATUSES.filter((s) => byStatus.has(s));
 
-  // Href builder that preserves the other active params (for the filter chips).
-  const hrefWith = (patch: Record<string, string | undefined>) => {
-    const params = new URLSearchParams();
-    const cur = { kind: kindParam, status: statusParam || undefined, farm: farmParam || undefined, sort: sortParam === "priority" ? undefined : sortParam };
-    const merged = { ...cur, ...patch };
-    for (const [k, v] of Object.entries(merged)) if (v !== undefined && v !== "") params.set(k, v);
-    const qs = params.toString();
-    return qs ? `/contractor?${qs}` : "/contractor";
-  };
+  // The query string the FilterBar edits: the four list params only, so a one-off
+  // result such as ?error= is not carried into every chip link.
+  const listParams = new URLSearchParams();
+  for (const k of ["kind", "status", "farm", "sort"]) {
+    const v = sp[k];
+    if (v) listParams.set(k, v);
+  }
+  const search = listParams.toString();
 
-  const chip = (active: boolean) =>
-    `focus-ring rounded-full px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`;
+  const groups: FilterGroup[] = [
+    {
+      paramName: "kind",
+      label: t("filters.type", locale),
+      current: kindParam && (kindParam === "all" || isWorkKind(kindParam)) ? kindParam : "",
+      options: [
+        { value: "", label: t("contractor.focus", locale) },
+        { value: "all", label: t("contractor.allTypes", locale) },
+        ...WORK_KINDS.map((k) => ({ value: k, label: workKindLabel(k, locale) })),
+      ],
+    },
+    {
+      paramName: "status",
+      label: t("work.status", locale),
+      current: statusParam,
+      options: [
+        { value: "", label: t("work.allStatuses", locale) },
+        ...WORK_STATUSES.map((s) => ({ value: s, label: workStatusLabel(s, locale) })),
+      ],
+    },
+    // A client filter with one client in it filters nothing.
+    ...(farmIds.length > 1
+      ? [{
+          paramName: "farm",
+          label: t("contractor.client", locale),
+          current: farmParam,
+          options: [
+            { value: "", label: t("contractor.allClients", locale) },
+            ...farmIds
+              .map((fid) => ({ value: fid, label: farmById.get(fid)?.name ?? "-" }))
+              .sort((a, b) => a.label.localeCompare(b.label)),
+          ],
+        }]
+      : []),
+    {
+      paramName: "sort",
+      label: t("contractor.sort", locale),
+      current: sortParam === "updated" ? "updated" : "",
+      options: [
+        { value: "", label: t("contractor.sortPriority", locale) },
+        { value: "updated", label: t("contractor.sortUpdated", locale) },
+      ],
+    },
+  ];
+  const focusLabels = view.focusKinds.map((k) => workKindLabel(k, locale)).join(", ");
 
   // == The money, from partner_documents =============================
   // An invoice owes what has not been paid; a credit note takes it back off. Anything
   // still owed past its due date is overdue, the number a partner actually needs.
-  const today = new Date().toISOString().slice(0, 10);
+  // Today in South Africa, not on the UTC server: between 00:00 and 02:00 SAST the two
+  // are different days, and an invoice due yesterday would not yet read as overdue.
+  const today = todayLocal();
   const owedOf = (d: PartnerDoc) =>
     d.kind === "invoice" ? Math.max(0, d.total_cents - (d.amount_paid_cents ?? 0)) : 0;
   // Notes move the balance both ways: a credit takes money off what is owed, a debit adds
@@ -185,6 +265,16 @@ export default async function ContractorDashboardPage({
   const quotedOut = docs.filter((d) => d.kind === "quote" && d.status === "sent")
     .reduce((s, d) => s + d.total_cents, 0);
 
+  // == "Your clients": the farms that send this workshop work, with a quick contact.
+  // Keyed by the FARM id. It used to share the analytics rollup's "farm:<id>" keys, so
+  // no contact ever matched (every client read "No contact details") and the client
+  // link filtered by a value the filter could not recognise.
+  const openByFarm = new Map<string, number>();
+  for (const r of openReqs) openByFarm.set(r.farm_id, (openByFarm.get(r.farm_id) ?? 0) + 1);
+  const clientFarms = farmIds
+    .map((fid) => ({ fid, name: farmById.get(fid)?.name ?? "-", open: openByFarm.get(fid) ?? 0 }))
+    .sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
+
   // Per-customer rollup for the (gated) analytics panel, farms AND client-book
   // customers, because a partner's book is not only the farms that found them.
   const byCustomer = new Map<string, { name: string; owed: number; billed: number; open: number }>();
@@ -196,59 +286,98 @@ export default async function ContractorDashboardPage({
     if (d.kind === "invoice") cur.billed += d.total_cents;
     byCustomer.set(key, cur);
   }
-  for (const r of all) {
-    if (r.status === "closed" || !r.farm_id) continue;
+  for (const r of openReqs) {
+    if (!r.farm_id) continue;
     const cur = byCustomer.get(`farm:${r.farm_id}`) ?? { name: farmById.get(r.farm_id)?.name ?? "-", owed: 0, billed: 0, open: 0 };
     cur.open += 1;
     byCustomer.set(`farm:${r.farm_id}`, cur);
   }
-  const farmStats = [...byCustomer.entries()]
-    .map(([key, v]) => ({ fid: key, name: v.name, total: v.billed, open: v.open, invoiced: Math.max(0, v.owed) }))
-    .sort((a, b) => b.invoiced - a.invoiced || b.open - a.open);
-  const totalInvoiced = outstanding;
+  // Each figure is named on screen. This printed `billed` as raw cents ("469488")
+  // beside the owed amount, and headed the owed sum "Invoiced total".
+  const customerStats = [...byCustomer.entries()]
+    .map(([key, v]) => ({ key, name: v.name, billed: v.billed, open: v.open, owed: Math.max(0, v.owed) }))
+    .sort((a, b) => b.billed - a.billed || b.owed - a.owed || b.open - a.open);
+  const billedTotal = docs.filter((d) => d.kind === "invoice").reduce((s, d) => s + d.total_cents, 0);
+
+  // == The tiles. Seven equal tiles, mostly zero, gave a 0 the same weight as the one
+  // number needing action. Now New requests and Owed to you always show (work in,
+  // money in); To invoice and Overdue appear only when there is something to do; the
+  // rest is one quiet line.
+  const tiles: ReactNode[] = [
+    <Stat
+      key="new"
+      label={t("contractor.kpiNew", locale)}
+      value={num(kpiNew, 0)}
+      tone={kpiNew > 0 ? "brand" : "default"}
+      icon={<WorkIcon />}
+      href={`${PATH}?kind=all&status=requested`}
+    />,
+  ];
+  if (kpiToInvoice > 0) {
+    tiles.push(
+      <Stat
+        key="invoice"
+        label={t("contractor.kpiToInvoice", locale)}
+        value={num(kpiToInvoice, 0)}
+        tone="due"
+        href={`${PATH}?kind=all&status=completed`}
+      />,
+    );
+  }
+  tiles.push(
+    <Stat
+      key="owed"
+      label={t("contractor.owed", locale)}
+      value={rands(outstanding)}
+      tone={outstanding > 0 ? "brand" : "default"}
+      size="md"
+      href="/statements"
+    />,
+  );
+  if (overdue > 0) {
+    tiles.push(
+      <Stat key="overdue" label={t("contractor.overdue", locale)} value={rands(overdue)} tone="overdue" size="md" href="/statements" />,
+    );
+  }
+  const tileColumns = tiles.length >= 4 ? 4 : tiles.length === 3 ? 3 : 2;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Header, tailored per contractor kind */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("contractor.title", locale)}</h1>
-          <PageInfoButton infoKey="contractor" locale={locale} />
-        </div>
-            <Badge tone="brand">{contractorKindLabel(workshop.kind, locale)}</Badge>
-          </div>
-          <p className="mt-0.5 text-sm text-sand-500">{t(view.taglineKey, locale)}</p>
-        </div>
-        <Link href="/work" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-          <WorkIcon className="text-lg" /> {t("contractor.allRequests", locale)}
-        </Link>
-      </div>
+    <PageContainer size="wide">
+      <PageHeader
+        title={t("contractor.title", locale)}
+        lead={t(view.taglineKey, locale)}
+        infoKey="contractor"
+        locale={locale}
+        actions={
+          <Link href="/work" className={buttonVariants({ variant: "secondary" })}>
+            <WorkIcon className="text-lg" /> {t("contractor.allRequests", locale)}
+          </Link>
+        }
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={t("contractor.kpiNew", locale)} value={kpiNew} tone={kpiNew > 0 ? "brand" : "default"} icon={<WorkIcon />} href={hrefWith({ kind: "all", status: "requested" })} />
-        <Stat label={t("contractor.kpiInProgress", locale)} value={kpiInProgress} icon={<MachinesIcon />} href={hrefWith({ kind: "all", status: "in_progress" })} />
-        <Stat label={t("contractor.kpiToInvoice", locale)} value={kpiToInvoice} tone={kpiToInvoice > 0 ? "due" : "default"} href={hrefWith({ kind: "all", status: "completed" })} />
-        <Stat label={t("contractor.kpiOpen", locale)} value={openReqs.length} />
-      </div>
+      {/* Other contractor screens send a missing workshop here (?error=no-workshop). */}
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
 
-      {/* What is owed, the question a partner asks before any other. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat
-          label={t("contractor.owed", locale)}
-          value={rands(outstanding)}
-          tone={outstanding > 0 ? "brand" : "ok"}
-          href="/statements"
-        />
-        <Stat
-          label={t("contractor.overdue", locale)}
-          value={rands(overdue)}
-          tone={overdue > 0 ? "due" : "ok"}
-          href="/statements"
-        />
-        <Stat label={t("contractor.quotedOut", locale)} value={rands(quotedOut)} href="/documents" />
+      <div className="flex flex-col gap-1">
+        <StatGrid columns={tileColumns}>{tiles}</StatGrid>
+        <ul className="flex flex-wrap items-center gap-x-5 text-sm">
+          <SummaryItem
+            label={t("contractor.kpiInProgress", locale)}
+            value={num(kpiInProgress, 0)}
+            zero={kpiInProgress === 0}
+            href={kpiInProgress > 0 ? `${PATH}?kind=all&status=in_progress` : undefined}
+          />
+          {kpiToInvoice === 0 ? (
+            <SummaryItem label={t("contractor.kpiToInvoice", locale)} value={num(0, 0)} zero />
+          ) : null}
+          <SummaryItem label={t("contractor.kpiOpen", locale)} value={num(openReqs.length, 0)} zero={openReqs.length === 0} />
+          <SummaryItem
+            label={t("contractor.quotedOut", locale)}
+            value={rands(quotedOut)}
+            zero={quotedOut === 0}
+            href="/documents"
+          />
+        </ul>
       </div>
 
       {all.length === 0 ? (
@@ -260,48 +389,38 @@ export default async function ContractorDashboardPage({
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Main column: filters + grouped requests */}
-          <div className="flex flex-col gap-4 lg:col-span-2">
-            <Card>
-              {/* Kind chips: tailored focus default + all + each type */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Link href={hrefWith({ kind: undefined })} className={chip(kindParam === undefined)}>{t("contractor.focus", locale)}</Link>
-                <Link href={hrefWith({ kind: "all" })} className={chip(kindParam === "all")}>{t("contractor.allTypes", locale)}</Link>
-                {WORK_KINDS.map((k) => (
-                  <Link key={k} href={hrefWith({ kind: k })} className={chip(kindParam === k)}>
-                    {workKindLabel(k, locale)}
-                  </Link>
-                ))}
-              </div>
-              {/* Status + farm + sort */}
-              <form className="mt-3 flex flex-wrap items-end gap-3 border-t border-sand-100 pt-3">
-                {kindParam !== undefined ? <input type="hidden" name="kind" value={kindParam} /> : null}
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-sand-800">{t("work.status", locale)}</span>
-                  <Select name="status" defaultValue={statusParam}>
-                    <option value="">{t("work.allStatuses", locale)}</option>
-                    {WORK_STATUSES.map((s) => (<option key={s} value={s}>{workStatusLabel(s, locale)}</option>))}
-                  </Select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-sand-800">{t("contractor.client", locale)}</span>
-                  <Select name="farm" defaultValue={farmParam}>
-                    <option value="">{t("contractor.allClients", locale)}</option>
-                    {farmIds.map((fid) => (<option key={fid} value={fid}>{farmById.get(fid)?.name ?? "-"}</option>))}
-                  </Select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-sand-800">{t("contractor.sort", locale)}</span>
-                  <Select name="sort" defaultValue={sortParam}>
-                    <option value="priority">{t("contractor.sortPriority", locale)}</option>
-                    <option value="updated">{t("contractor.sortUpdated", locale)}</option>
-                  </Select>
-                </label>
-                <Button type="submit" variant="secondary">{t("common.search", locale)}</Button>
-              </form>
-            </Card>
+          <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
+            {/* Type, status, client and sort apply on tap. This was three selects and a
+                "Search" button with no search box, so every change cost a second tap. */}
+            <FilterBar
+              path={PATH}
+              search={search}
+              groups={groups}
+              filtersLabel={t("filters.filters", locale)}
+              clearLabel={t("filters.clear", locale)}
+              extra={
+                <>
+                  <span>
+                    {t("filters.showing", locale)
+                      .replace("{n}", num(rows.length, 0))
+                      .replace("{total}", num(all.length, 0))}
+                  </span>
+                  {/* "My work" is the default and so has no pill; say what it is showing,
+                      so a request of another type is not mistaken for missing. */}
+                  {kindParam === undefined ? (
+                    <span>{t("contractor.focusNote", locale).replace("{kinds}", focusLabels)}</span>
+                  ) : null}
+                </>
+              }
+            />
 
             {rows.length === 0 ? (
-              <EmptyState title={t("contractor.noneMatch", locale)} hint={t("contractor.noneMatchHint", locale)} />
+              <NoMatches
+                title={t("contractor.noneMatch", locale)}
+                hint={t("contractor.noneMatchHint", locale)}
+                clearHref={`${PATH}?kind=all`}
+                clearLabel={t("contractor.showEverything", locale)}
+              />
             ) : (
               orderedStatuses.map((status) => {
                 const list = byStatus.get(status)!;
@@ -309,7 +428,7 @@ export default async function ContractorDashboardPage({
                   <section key={status} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <WorkStatus value={status} locale={locale} />
-                      <span className="text-sm text-sand-400">{list.length}</span>
+                      <span className="text-sm tabular-nums text-sand-500">{num(list.length, 0)}</span>
                     </div>
                     <ul className="flex flex-col gap-2">
                       {list.map((r) => {
@@ -323,10 +442,10 @@ export default async function ContractorDashboardPage({
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                      <span className="truncate font-semibold text-sand-900">{m?.name ?? "-"}</span>
+                                      <span className="min-w-0 truncate font-semibold text-sand-900">{m?.name ?? "-"}</span>
                                       <Badge tone="neutral">{farmById.get(r.farm_id)?.name ?? "-"}</Badge>
                                     </div>
-                                    <p className="mt-0.5 text-sm text-sand-500">
+                                    <p className="mt-0.5 break-words text-sm text-sand-500">
                                       {workKindLabel(r.kind, locale)}{r.title ? ` · ${r.title}` : ""}
                                     </p>
                                   </div>
@@ -337,10 +456,10 @@ export default async function ContractorDashboardPage({
                                     {amount != null ? (
                                       <span className="text-sm font-medium tabular-nums text-sand-900">
                                         {rands(amount)}
-                                        {amountLabel ? <span className="ml-1 text-xs font-normal text-sand-400">{amountLabel}</span> : null}
+                                        {amountLabel ? <span className="ml-1 text-xs font-normal text-sand-500">{amountLabel}</span> : null}
                                       </span>
                                     ) : null}
-                                    <span className="text-xs text-sand-400">{relativeDate(r.updated_at, locale)}</span>
+                                    <span className="text-xs text-sand-500">{relativeDate(r.updated_at, locale)}</span>
                                   </div>
                                 </div>
                               </Card>
@@ -356,23 +475,36 @@ export default async function ContractorDashboardPage({
           </div>
 
           {/* Sidebar: clients + parts shortcut + analytics */}
-          <div className="flex flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             {/* Your clients, the many-farms value prop + quick-contact the farmer */}
             <Card>
-              <CardHeader><CardTitle>{t("contractor.clients", locale)}</CardTitle></CardHeader>
+              <CardHeader
+                action={
+                  <Link href="/contractor/clients" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                    {t("clients.title", locale)}
+                  </Link>
+                }
+              >
+                <CardTitle>{t("contractor.clients", locale)}</CardTitle>
+              </CardHeader>
               <ul className="flex flex-col divide-y divide-sand-100">
-                {farmStats.map((fs) => {
-                  const c = contactByFarm.get(fs.fid);
+                {clientFarms.map((cf) => {
+                  const c = contactByFarm.get(cf.fid);
                   const wa = waHref(c?.phone, t("contact.waPrefill", locale));
                   const tel = telHref(c?.phone);
                   const mail = mailtoHref(c?.email);
                   return (
-                    <li key={fs.fid} className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0">
+                    <li key={cf.fid} className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0">
                       <div className="flex items-center justify-between gap-2">
-                        <Link href={hrefWith({ farm: fs.fid, kind: "all" })} className="focus-ring min-w-0 truncate rounded font-medium text-sand-900">
-                          {fs.name}
+                        <Link
+                          href={`${PATH}?kind=all&farm=${encodeURIComponent(cf.fid)}`}
+                          className="focus-ring inline-flex min-h-[48px] min-w-0 items-center rounded font-medium text-sand-900 hover:text-brand-ink sm:min-h-[36px]"
+                        >
+                          <span className="truncate">{cf.name}</span>
                         </Link>
-                        <span className="shrink-0 text-xs text-sand-500">{t("contractor.openN", locale).replace("{n}", String(fs.open))}</span>
+                        <span className={cn("shrink-0 text-xs tabular-nums", cf.open > 0 ? "text-sand-600" : "text-sand-400")}>
+                          {t("contractor.openN", locale).replace("{n}", num(cf.open, 0))}
+                        </span>
                       </div>
                       {(tel || wa || mail) ? (
                         <div className="flex flex-wrap gap-1.5">
@@ -381,7 +513,7 @@ export default async function ContractorDashboardPage({
                           {mail ? <a href={mail} className={buttonVariants({ variant: "ghost", size: "sm" })}><MailIcon className="text-base" /> {t("contact.email", locale)}</a> : null}
                         </div>
                       ) : (
-                        <span className="text-xs text-sand-400">{t("contact.none", locale)}</span>
+                        <span className="text-xs text-sand-500">{t("contact.none", locale)}</span>
                       )}
                     </li>
                   );
@@ -410,26 +542,33 @@ export default async function ContractorDashboardPage({
               </CardHeader>
               {analyticsAllowed ? (
                 <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Stat label={t("contractor.clientsN", locale)} value={farmIds.length} />
-                    {/* A two-column tile is about 136px wide inside on a 360px phone, and
-                        `rands` is one unbreakable token (U+00A0 thousands), so a partner
-                        with a good year overflows it at `text-3xl`. Steps down on the
-                        phone only, as the dashboard's fuel tiles already do. */}
-                    <Stat
-                      label={t("contractor.invoicedTotal", locale)}
-                      value={rands(totalInvoiced)}
-                      tone="brand"
-                      valueClassName="text-xl sm:text-3xl"
-                    />
-                  </div>
+                  {/* A two-column tile is about 136px wide inside on a 360px phone, and
+                      `rands` is one unbreakable token (U+00A0 thousands); `md` steps it
+                      down so a good year still fits. */}
+                  <StatGrid columns={2}>
+                    <Stat label={t("contractor.clientsN", locale)} value={num(customerStats.length, 0)} size="md" />
+                    <Stat label={t("contractor.invoicedTotal", locale)} value={rands(billedTotal)} tone="brand" size="md" />
+                  </StatGrid>
                   <ul className="flex flex-col divide-y divide-sand-100 text-sm">
-                    {farmStats.map((fs) => (
-                      <li key={fs.fid} className="flex items-center justify-between gap-2 py-1.5">
-                        <span className="min-w-0 truncate text-sand-700">{fs.name}</span>
-                        <span className="shrink-0 tabular-nums text-sand-500">
-                          {fs.total} · <span className="font-medium text-sand-800">{rands(fs.invoiced)}</span>
-                        </span>
+                    {customerStats.map((cs) => (
+                      <li key={cs.key} className="flex min-w-0 flex-col gap-0.5 py-2">
+                        <span className="min-w-0 truncate font-medium text-sand-800">{cs.name}</span>
+                        <dl className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+                          <div className="flex gap-1">
+                            <dt className="text-sand-500">{t("contractor.analyticsBilled", locale)}</dt>
+                            <dd className={cn("tabular-nums font-medium", cs.billed > 0 ? "text-sand-800" : "text-sand-400")}>{rands(cs.billed)}</dd>
+                          </div>
+                          <div className="flex gap-1">
+                            <dt className="text-sand-500">{t("contractor.analyticsOwed", locale)}</dt>
+                            <dd className={cn("tabular-nums font-medium", cs.owed > 0 ? "text-sand-800" : "text-sand-400")}>{rands(cs.owed)}</dd>
+                          </div>
+                          {cs.open > 0 ? (
+                            <div className="flex gap-1">
+                              <dt className="sr-only">{t("contractor.kpiOpen", locale)}</dt>
+                              <dd className="tabular-nums text-sand-600">{t("contractor.openN", locale).replace("{n}", num(cs.open, 0))}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
                       </li>
                     ))}
                   </ul>
@@ -440,7 +579,7 @@ export default async function ContractorDashboardPage({
                     <InfoIcon className="text-lg text-brand-ink" /> {t("contractor.analyticsLocked", locale)}
                   </p>
                   <p className="mt-1 text-sand-500">{t("contractor.analyticsLockedHint", locale)}</p>
-                  <p className="mt-2 flex items-center gap-1 text-xs text-sand-400">
+                  <p className="mt-2 flex items-center gap-1 text-xs text-sand-500">
                     <ChevronRightIcon className="text-base" /> {t("contractor.contactRr", locale)}
                   </p>
                 </div>
@@ -449,6 +588,6 @@ export default async function ContractorDashboardPage({
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -1,3 +1,5 @@
+import { deviceLocale } from "@/lib/locale";
+import { t } from "@/lib/i18n";
 import { Card } from "./card";
 import { Skeleton } from "./skeleton";
 
@@ -11,26 +13,36 @@ export type SkeletonShape = "list" | "detail" | "form" | "board" | "table";
  * previous screen simply sits there after a tap, looking like the app has hung. These
  * shapes are deliberately coarse: they hold the layout so it does not jump when the
  * real content lands, without pretending to know what is in it.
+ *
+ * The announced "Loading" is in the device language (`deviceLocale`: the `fw_lang`
+ * cookie, which `setLanguage` mirrors from the profile, then the phone's own language).
+ * A loading state renders before the profile is read, so that is the language it can
+ * know. Server-only for that reason, and so not re-exported from the kit barrel.
  */
-export function PageSkeleton({
+export async function PageSkeleton({
   shape = "list",
   rows = 6,
 }: {
   shape?: SkeletonShape;
   rows?: number;
 }) {
+  const locale = await deviceLocale();
   return (
     // `aria-busy` on the region, and a live-region label, so the wait is announced once
     // rather than being silence for anyone not watching the pixels.
     <div className="flex flex-col gap-4" aria-busy="true" role="status" aria-live="polite">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{t("ui.loading", locale)}</span>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-7 w-52" />
-          <Skeleton className="h-3.5 w-72" />
+      {/* Shaped like `PageHeader`: the title alone on its row, the quiet line under it,
+          the lead, and on a phone the action as its own full-width row, so the real
+          header lands where the placeholder was instead of shoving the page down. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Skeleton className="h-8 w-52 max-w-full" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3.5 w-72 max-w-full" />
         </div>
-        <Skeleton className="h-12 w-36 rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg sm:w-36" />
       </div>
 
       {shape === "board" ? (

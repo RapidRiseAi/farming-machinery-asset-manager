@@ -17,7 +17,8 @@
     "no": "Nee",
     "required": "Vereis",
     "print": "Druk",
-    "remove": "Verwyder"
+    "remove": "Verwyder",
+    "clearSearch": "Vee soektog uit"
   },
   "nav": {
     "dashboard": "Paneelbord",
@@ -57,7 +58,7 @@
     "tyres": "Bande",
     "everythingElse": "Alles anders",
     "theFleet": "Die vloot",
-    "reportProblem": "Meld aan",
+    "reportProblem": "Rapporteer",
     "reportProblemLong": "Rapporteer 'n probleem",
     "driverHome": "Tuis",
     "install": "Installeer program",
@@ -78,7 +79,17 @@
     "themeDark": "Donker",
     "billing": "Rekening",
     "adminBilling": "Intekeninge",
-    "account": "Jou rekening"
+    "account": "Jou rekening",
+    "accountAndPrefs": "Jou rekening en voorkeure",
+    "alertsUnread": "Kennisgewings, {count} ongelees",
+    "groupSales": "Verkope",
+    "groupBooks": "Boeke",
+    "groupBusiness": "Besigheid",
+    "groupRapidRise": "Rapid Rise",
+    "adminFarms": "Plase",
+    "adminPartners": "Vennootkatalogus",
+    "adminTemplates": "Sjablone",
+    "moreHasNew": "Iets nuuts hierbinne"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -109,7 +120,7 @@
     "recordingLimit": "Opnames stop outomaties ná een minuut sodat jy die transkripsie kan nagaan.",
     "offlineCaptured": "Op hierdie toestel vasgelê. Wanneer sein terugkeer, druk Transkribeer nou. FleetWise sal steeds vra voordat enigiets gestoor word.",
     "offlineTitle": "Opname wag op hierdie toestel",
-    "offlinePending": "{count} opname(s) wag om getranskribeer te word. Hulle bly net op dié toestel totdat jy hulle transkribeer of weggooi. Opnames ouer as sewe dae word verwyder wanneer dié assistent weer oopmaak.",
+    "offlinePending": "{count} opnames wag om getranskribeer te word. Hulle bly net op dié toestel totdat jy hulle transkribeer of weggooi. Opnames ouer as sewe dae word verwyder wanneer dié assistent weer oopmaak.",
     "offlineProcess": "Transkribeer nou",
     "waitingForSignal": "Wag vir sein",
     "offlineDiscard": "Gooi opname weg",
@@ -190,7 +201,8 @@
     "threadFailed": "FleetWise kon dit nie doen nie",
     "threadCollapsed": "{count} versoeke wat nie voltooi is nie",
     "threadCollapsedShow": "Wys hulle",
-    "threadCollapsedHide": "Versteek hulle"
+    "threadCollapsedHide": "Versteek hulle",
+    "offlinePendingOne": "{count} opname wag om getranskribeer te word. Dit bly net op dié toestel totdat jy dit transkribeer of weggooi. Opnames ouer as sewe dae word verwyder wanneer dié assistent weer oopmaak."
   },
   "auth": {
     "signIn": "Teken in",
@@ -200,7 +212,7 @@
     "showPassword": "Hou in om wagwoord te wys",
     "magicLink": "E-pos vir my 'n aanmeldskakel",
     "magicLinkHint": "Ons stuur ’n skakel wat jou aanteken. Geen wagwoord nodig nie.",
-    "forgot": "Vergeet?",
+    "forgot": "Wagwoord vergeet?",
     "revealPassword": "Hou vas om wagwoord te wys",
     "sendLink": "Stuur skakel",
     "checkEmail": "Kyk in jou e-pos vir die aanmeldskakel.",
@@ -239,17 +251,19 @@
     "step1Alt": "Voer CSV in",
     "step2Title": "Stel diensplanne op",
     "step2Desc": "Pas 'n diensjabloon op elke masjien toe sodat FleetWise weet wanneer 'n diens verskuldig is.",
-    "step2Cta": "Maak masjiene oop",
+    "step2Cta": "Pas diensplanne toe",
     "step3Title": "Druk & plak QR-kodes",
     "step3Desc": "Druk 'n QR-plakker vir elke masjien en plak dit op. Dit is die stukkie wat die hele ding laat werk: enigiemand wat 'n foon kan vashou, kan dan 'n probleem aanmeld of die ure neerskryf, sonder om aan te teken.",
-    "step3Cta": "Maak masjiene oop",
+    "step3Cta": "Druk QR-plakkers",
     "step4Title": "Nooi jou span",
     "step4Desc": "Voeg jou bestuurder en werktuigkundige by sodat werkkaarte en foute aangeteken word soos werk gebeur.",
     "step4Cta": "Nooi span",
     "step3Hint": "Druk hulle op gewone papier en plak hulle iewers droog, binne-in die kajuitdeur werk goed.",
     "step3Ack": "Ek het dit klaar gedoen",
     "step3Undo": "Nog nie gedoen nie",
-    "step3Done": "Plakkers is op die masjiene"
+    "step3Done": "Plakkers is op die masjiene",
+    "stepsDone": "{n} stappe klaar",
+    "oneStepDone": "1 stap klaar"
   },
   "machines": {
     "title": "Masjiene",
@@ -300,7 +314,9 @@
       "finance": "Finansiering",
       "notes": "Notas",
       "operator": "Operateur",
-      "grouping": "Groepering"
+      "grouping": "Groepering",
+      "details": "Vervaardiger, model & registrasie",
+      "placement": "Ligging & operateur"
     },
     "err": {
       "name_required": "Naam is vereis",
@@ -330,7 +346,7 @@
     "financeTotal": "Bedrag gefinansier (R, excl. BTW)",
     "financeMonthly": "Maandelikse paaiement (R, excl. BTW)",
     "financeTerm": "Termyn (maande)",
-    "financeInterest": "Rentekoers (bpt)",
+    "financeInterest": "Rentekoers",
     "assignedOperator": "Toegewese operateur",
     "noOperator": "Geen",
     "costCentre": "Kostesentrum",
@@ -377,7 +393,29 @@
     "mapNoName": "Kies watter van jou kolomme die masjien se naam hou. Ons kan niks sonder dit laai nie.",
     "mapFileSummary": "{file} · {n} rye",
     "useDifferentFile": "Gebruik 'n ander lêer",
-    "limitAddSlots": "Voeg meer voertuigplekke by"
+    "limitAddSlots": "Voeg meer voertuigplekke by",
+    "newLead": "'n Naam, 'n tipe en die meter is genoeg om te begin. Voeg die res nou of later by.",
+    "created": "Masjien bygevoeg.",
+    "warrantyKm": "Waarborg verval (km)",
+    "financeInterestPct": "Rentekoers (% per jaar)",
+    "logKm": "Teken km aan",
+    "lastReadingHint": "Laaste lesing {reading}, {when}",
+    "serviceNeeded": "Het diens nodig",
+    "sortLabel": "Sorteer",
+    "sortName": "Naam, A tot Z",
+    "sortAttention": "Kort aandag eerste",
+    "sortReading": "Hoogste lesing",
+    "sortLastRead": "Langste sonder lesing",
+    "printQrStickers": "Druk QR-plakkers",
+    "qrSheetTitle": "QR-plakkers",
+    "qrSheetLead": "Een plakker per masjien. Druk die blad, knip die plakkers uit en plak elkeen waar 'n bestuurder dit sal sien.",
+    "qrSheetCount": "{n} plakkers",
+    "qrSheetPrint": "Druk plakkers",
+    "qrSheetFiltered": "Net die masjiene in jou huidige filter is op hierdie blad.",
+    "qrSheetAll": "Druk die hele vloot",
+    "qrSheetEmpty": "Nog geen masjiene om plakkers voor te druk nie",
+    "qrSheetDone": "Die plakkers is op",
+    "qrSheetDoneHint": "Sodra elke masjien sy plakker het, merk hierdie stap af op jou plaas se opstellys."
   },
   "machineType": {
     "tractor": "Trekker",
@@ -474,7 +512,17 @@
     "errorInvalidFuel": "Voer 'n geldige aantal liter in en gaan die opsionele koste of meterlesing na.",
     "errorUpgrade": "Brandstofvaslegging is nie op hierdie plaas se plan beskikbaar nie. Vra die plaaskantoor vir hulp.",
     "errorRateLimited": "Hierdie masjien het verskeie opdaterings ontvang. Wag 'n paar minute en probeer dan weer.",
-    "errorUnavailable": "Ons kon dit nie nou stoor nie. Gaan jou sein na en probeer weer."
+    "errorUnavailable": "Ons kon dit nie nou stoor nie. Gaan jou sein na en probeer weer.",
+    "siteUrlMissing": "Hierdie QR wys na 'n toetsadres. Vra jou administrateur om die webwerfadres (NEXT_PUBLIC_SITE_URL) te stel voordat jy dit druk.",
+    "sentFaultTitle": "Na die plaaskantoor gestuur",
+    "sentFaultBody": "Dankie. Iemand sal daarna kyk. As die masjien nie veilig is om te gebruik nie, parkeer dit en sê vir jou voorman.",
+    "sentReadingTitle": "Lesing gestoor",
+    "sentReadingBody": "Dankie. Die plaaskantoor kan dit nou sien.",
+    "sentFuelTitle": "Brandstof aangeteken",
+    "sentFuelBody": "Dankie. Die liter is nou op hierdie masjien se rekord.",
+    "sentAnother": "Doen iets anders met hierdie masjien",
+    "fuelActivityNone": "Kies een (opsioneel)",
+    "yourNameRemembered": "Ingevul van die vorige keer op hierdie foon. Verander dit as dit nie jy is nie."
   },
   "fuel": {
     "title": "Brandstof & diesel",
@@ -551,7 +599,24 @@
     "dipHint": "Die peiling is die onafhanklike kontrole op ons eie syfers. Dit verander niks in die boeke nie, 'n verskil is 'n vraag om te vra, nie 'n inskrywing om reg te maak nie.",
     "dipOn": "Gepeil {date}",
     "variance": "{n} L meer as die boeke",
-    "varianceShort": "{n} L minder as die boeke"
+    "varianceShort": "{n} L minder as die boeke",
+    "activityNone": "Nie gespesifiseer nie",
+    "moreDetails": "Datum, bestuurder en aktiwiteit",
+    "lastReading": "Laaste: {reading} op {date}",
+    "lastReadingNoDate": "Laaste: {reading}",
+    "meterLower": "Laer as die laaste lesing. Kyk weer voordat jy stoor.",
+    "highLatest": "Laaste vul hoog",
+    "trendAria": "Jongste interval {last}, gewoonlik {usual}",
+    "trendAriaHigh": "Jongste interval {last} is ver bo die gewone {usual}",
+    "trendAriaOne": "Een interval: {last}",
+    "litresAt": "{litres} by {reading}",
+    "ofCapacity": "{n} van {cap} L, {pct}%",
+    "runningLow": "Raak min",
+    "monthOut": "Uit hierdie maand",
+    "monthIn": "In hierdie maand",
+    "monthCost": "Dieselkoste hierdie maand",
+    "yourMonth": "Jou trekke hierdie maand",
+    "noTanksTitle": "Nog geen dieseltenk nie"
   },
   "machine": {
     "kitQty": "Hoeveelheid",
@@ -703,7 +768,35 @@
     "meterReplacedNote": "Nota (opsioneel)",
     "meterReplacedSubmit": "Teken die nuwe meter aan",
     "savedMeterCorrected": "Daardie lesing is reggestel. Die masjien is terug op die lesings wat oorbly.",
-    "savedMeterReplaced": "Die nuwe meter is aangeteken, en die diensplan het saamgeskuif."
+    "savedMeterReplaced": "Die nuwe meter is aangeteken, en die diensplan het saamgeskuif.",
+    "dueOverdueBy": "Agterstallig met {amount} (verskuldig by {at})",
+    "dueOverdueSince": "Agterstallig sedert {date}",
+    "dueInOrBy": "Verskuldig oor {amount} of teen {date}",
+    "dueIn": "Verskuldig oor {amount}",
+    "dueBy": "Verskuldig teen {date}",
+    "dueAt": "Verskuldig by {at}",
+    "evAuditMany": "Voertuigrekord {n} keer verander",
+    "timelineOlder": "Wys {n} ouer",
+    "intervalKm": "Elke (km)",
+    "purchasePrice": "Aankoopprys",
+    "changeStatus": "Verander status",
+    "changeStatusHint": "Verkoopte of uitgetrede masjiene val uit die vlootverslae en die daaglikse lyste. Hul geskiedenis bly.",
+    "qrSticker": "QR-plakker",
+    "lastReadingHint": "Laaste: {reading} op {date}",
+    "useTemplatePlan": "Gebruik die {template}-plan",
+    "markDone": "Merk as gedoen",
+    "doneAtReading": "Gedoen by",
+    "periodRange": "{start} tot {end}",
+    "whoWasDriving": "Wie het bestuur?",
+    "operatedOn": "Bestuur op {date}",
+    "noDetails": "Nog niks aangeteken nie. Gebruik Wysig om die registrasie, reeksnommer en aankoopbesonderhede by te voeg.",
+    "uploadOffline": "Jy is aflyn. Voeg die foto by wanneer jy sein het.",
+    "uploadNotImage": "Ons kan nie daardie lêer as 'n foto lees nie. Probeer 'n ander een.",
+    "uploadTooLarge": "Daardie foto is te groot. Probeer 'n kleiner een.",
+    "setupTitle": "Voltooi die opstelling van hierdie masjien",
+    "setupHint": "'n Diensplan sê wanneer dit diens nodig het. Met sy QR-plakker kan enigiemand op die plaas 'n probleem rapporteer deur dit te skandeer.",
+    "setupPlanCta": "Stel sy diensplan op",
+    "setupQrCta": "Druk sy QR-plakker"
   },
   "admin": {
     "farms": "Plase",
@@ -714,8 +807,9 @@
     "supportModeBody": "Jy kyk na {farm} se data. Alles wat jy oopmaak, word aangeteken.",
     "supportModeExit": "Verlaat hierdie plaas",
     "supportEntered": "Jy kyk nou na hierdie plaas. Die baniertjie bo kry jou uit.",
-    "supportExited": "Jy het die plaas verlaat. Die besoek is in die log hieronder.",
-    "supportEnter": "Kyk binne hierdie plaas"
+    "supportExited": "Jy het die plaas verlaat. Die besoek is in die log hieronder, met die tyd waarop jy vertrek het.",
+    "supportEnter": "Kyk binne hierdie plaas",
+    "farmCreated": "Plaas geskep."
   },
   "plan": {
     "essential": "Essensieel",
@@ -742,7 +836,11 @@
       "whatsapp": "WhatsApp-kennisgewings",
       "api_access": "API-toegang",
       "financials": "Om die boeke te hou"
-    }
+    },
+    "bodyOwner": "{feature} is beskikbaar op die {plan}-plan en hoër. Jy is op {current}. Jy kan jou plan op die Rekening-skerm verander.",
+    "bodyPartner": "{feature} is beskikbaar op die {plan}-produk en hoër. Jy is op {current}. Vra FleetWise om jou op te gradeer.",
+    "seePlans": "Sien die planne",
+    "ctaPartner": "Gaan na my paneelbord"
   },
   "ui": {
     "close": "Maak toe",
@@ -817,7 +915,7 @@
     "unread": "Ongelees",
     "tplServiceDueSoon": "{machine}: {task}, diens binnekort verskuldig",
     "tplServiceOverdue": "{machine}: {task}, diens agterstallig",
-    "tplStaleMeter": "{count} masjien(e) benodig 'n meterlesing",
+    "tplStaleMeter": "{count} masjiene benodig 'n meterlesing",
     "tplWeeklyDigest": "Weeklikse opsomming: {overdue} agterstallig, {dueSoon} binnekort verskuldig, {faults} oop foute",
     "tplFaultReported": "{machine}: {description} ({urgency})",
     "tplJobCompleted": "{machine}: werk voltooi, {total}",
@@ -859,38 +957,48 @@
     "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
     "tplBillingRefund": "'n Terugbetaling van {amount} is by die verskaffer aangeteken ({event}). As hulle daarvoor gevra het, kanselleer hul intekening dadelik op hierdie skerm. As ons terugbetaal het omdat iets aan ons kant verkeerd geloop het, laat dit loop. Hulle behou die plan.",
     "tplSupportTicketDue": "'n Ondersteuningsaak moet binne {hours} uur beantwoord word: {subject}. Daarna besleg Paystack dit namens ons en neem die geld.",
-    "tplBillingRenewalDue": "Jou FleetWise-intekening hernu op {date} en {amount} sal van die kaart op rekord afgaan. Niks om te doen nie, dis net sodat jy weet voordat dit gebeur."
+    "tplBillingRenewalDue": "Jou FleetWise-intekening hernu op {date} en {amount} sal van die kaart op rekord afgaan. Niks om te doen nie, dis net sodat jy weet voordat dit gebeur.",
+    "tplStaleMeterOne": "{count} masjien benodig 'n meterlesing",
+    "earlier": "Vroeër",
+    "unreadOne": "{n} ongelees",
+    "unreadMany": "{n} ongelees",
+    "alertSettings": "Waarskuwinginstellings",
+    "showOlder": "Wys ouer waarskuwings",
+    "backToNewest": "Terug na die nuutste",
+    "summaryChannels": "Waarskuwings bereik jou: {channels}.",
+    "summaryNone": "Elke waarskuwingkanaal is af.",
+    "summaryQuiet": "Stil ure {range}."
   },
   "settings": {
     "notSet": "Nie gestel nie",
     "vatRateShort": "BTW-koers",
     "title": "Instellings",
     "thresholds": "Waarskuwingsdrempels",
-    "dueHours": "Waarsku wanneer diens binne (ure) verskuldig is",
-    "dueDays": "Waarsku wanneer diens binne (dae) verskuldig is",
-    "staleDays": "Merk 'n lesing verouderd na (dae)",
+    "dueHours": "Diens binnekort verskuldig, volgens enjinure",
+    "dueDays": "Diens binnekort verskuldig, volgens datum",
+    "staleDays": "'n Meterlesing word verouderd na",
     "money": "Geld & BTW",
     "vatRate": "BTW-koers (basispunte, 1500 = 15%)",
     "workflow": "Werkvloei",
     "approvalRequired": "Vereis eienaar se goedkeuring van werkkaarte",
     "costVisible": "Wys koste aan operateurs",
-    "quietHours": "Stil ure (geen nie-dringende kennisgewings)",
-    "quietStart": "Stil ure begin (0-23)",
-    "quietEnd": "Stil ure eindig (0-23)",
+    "quietHours": "Stil ure",
+    "quietStart": "Stil vanaf",
+    "quietEnd": "Stil tot",
     "fuelSection": "Brandstof-afwykings",
-    "fuelAnomalyPct": "Merk 'n uitreiking bo gewoonlik met (%)",
-    "fuelMinHistory": "Minimum uitreikings voor merking",
+    "fuelAnomalyPct": "Merk 'n uitreiking bo gewoonlik met",
+    "fuelMinHistory": "Uitreikings nodig voor merking",
     "expirySection": "Vervaldatum-herinneringe",
-    "warrantyLeadDays": "Waarsku voor waarborg verval (dae)",
-    "warrantyHoursLead": "Waarsku voor waarborg-uurgrens (ure)",
-    "licenceLeadDays": "Waarsku voor lisensie verval (dae)",
-    "language": "Verstektaal",
+    "warrantyLeadDays": "Waarsku voordat 'n waarborg verval",
+    "warrantyHoursLead": "Waarsku voor die waarborg-uurgrens",
+    "licenceLeadDays": "Waarsku voordat 'n lisensie verval",
+    "language": "Taal vir nuwe mense",
     "afrikaans": "Afrikaans",
     "english": "Engels",
     "save": "Stoor instellings",
-    "aartoLeadDays": "Waarsku voor nominasie-sperdatum (dae)",
+    "aartoLeadDays": "Waarsku voor 'n nominasie-sperdatum",
     "analyticsSection": "Analise & begrotings",
-    "repairReplacePct": "Vlag herstel-vs-vervang bo (% van prys)",
+    "repairReplacePct": "Merk herstel of vervang bo",
     "utilHoursPerDay": "Beskikbare ure per dag",
     "utilKmPerDay": "Beskikbare km per dag",
     "vatRateHint": "Die BTW-koers op jou fakture. 15% in Suid-Afrika.",
@@ -913,7 +1021,28 @@
     "billingAddress": "Besigheidsadres",
     "billingAddressHint": "Verpligtend op 'n belastingfaktuur oor R5 000.",
     "billingEmail": "Waarheen fakture gestuur moet word",
-    "billingEmailHint": "Kontrakteurs sal dit by verstek gebruik."
+    "billingEmailHint": "Kontrakteurs sal dit by verstek gebruik.",
+    "personalLink": "Jou eie taal, bewoording en waarskuwings is in Jou rekening en voorkeure.",
+    "personalLinkCta": "Maak jou voorkeure oop",
+    "sectionMoney": "Geld en fakture",
+    "sectionAlerts": "Herinneringe en waarskuwings",
+    "sectionWorkflow": "Werkvloei en verslae",
+    "nHoursOne": "{n} uur",
+    "nHours": "{n} uur",
+    "nDaysOne": "{n} dag",
+    "nDays": "{n} dae",
+    "nDrawsOne": "{n} uitreiking",
+    "nDraws": "{n} uitreikings",
+    "nKm": "{n} km",
+    "pctOfPrice": "{n}% van die prys",
+    "inHours": "In ure.",
+    "inDays": "In dae.",
+    "inPercent": "As 'n persentasie.",
+    "quietHint": "Geen nie-dringende waarskuwings gaan in hierdie tydvak uit nie. Elkeen kan hul eie ure in Jou rekening en voorkeure stel.",
+    "quietWindow": "Nie-dringende waarskuwings wag",
+    "languageFact": "Nuwe mense begin in",
+    "languageHint": "Jou eie taal is in Jou rekening en voorkeure.",
+    "apiLink": "Koppel jou eie stelsels aan dié plaas met 'n API-bewys."
   },
   "apiTokens": {
     "title": "API-toegang",
@@ -924,7 +1053,8 @@
       "name": "Gebruik 'n naam van tussen 3 en 80 karakters.",
       "scopes": "Kies ten minste een toestemming.",
       "expiry": "Kies 'n toekomstige vervaldatum of los dit leeg.",
-      "create_failed": "Die bewys kon nie geskep word nie. Probeer weer."
+      "create_failed": "Die bewys kon nie geskep word nie. Probeer weer.",
+      "revoke_failed": "Die bewys kon nie herroep word nie. Probeer weer."
     },
     "revoked": "API-bewys herroep. Dit kan nie meer gebruik word nie.",
     "createTitle": "Skep 'n bewys",
@@ -952,7 +1082,13 @@
     "never": "Nooit",
     "expires": "Verval",
     "revokeConfirm": "Herroep {name}? Enige integrasie wat dit gebruik, sal onmiddellik ophou werk. Dit kan nie ongedaan gemaak word nie.",
-    "revoke": "Herroep"
+    "revoke": "Herroep",
+    "new": "Nuwe bewys",
+    "createLead": "Vir een integrasie. Jy sien die geheim net een keer, reg nadat dit geskep is.",
+    "scopesLabel": "Wat dit mag doen",
+    "done": "Klaar",
+    "revokeTitle": "Herroep {name}?",
+    "revokeIntro": "Enige integrasie wat dit gebruik, hou onmiddellik op werk. Dit kan nie ongedaan gemaak word nie."
   },
   "team": {
     "title": "Span",
@@ -972,7 +1108,17 @@
     "primaryFarmControls": "Rekeningaktivering en -uitwissing bly by die primêre plaas.",
     "roleManager": "Bestuurder",
     "roleMechanic": "Werktuigkundige",
-    "roleOperator": "Operateur"
+    "roleOperator": "Operateur",
+    "subtitle": "Wie by hierdie plaas kan aanmeld, en wat hulle kan doen.",
+    "deactivated": "Aanmelding af",
+    "deactivatedFlash": "Aanmelding afgeskakel. Hulle kan nie meer aanmeld nie.",
+    "activatedFlash": "Aanmelding aangeskakel. Hulle kan weer aanmeld.",
+    "deactivateTitle": "Skakel {name} se aanmelding af?",
+    "deactivateBody": "Hulle kan nie meer by FleetWise aanmeld nie. Hulle werk en geskiedenis bly soos dit is.",
+    "deactivateFootnote": "Jy kan dit enige tyd weer aanskakel.",
+    "activateTitle": "Laat {name} weer aanmeld?",
+    "activateBody": "Hulle kan weer aanmeld, met dieselfde rol as voorheen.",
+    "inviteLanguageHint": "Begin op jou plaas se taal vir nuwe mense. Hulle kan dit later verander."
   },
   "permissions": {
     "title": "Ekstra toegang",
@@ -984,7 +1130,12 @@
     "see_all_vehicles": "Sien elke voertuig",
     "manage_stock": "Bestuur stoorvoorraad",
     "manage_partners": "Bestuur vennootgids",
-    "fullFleetActive": "Jou ekstra toegang laat jou elke voertuig op hierdie plaas sien."
+    "fullFleetActive": "Jou ekstra toegang laat jou elke voertuig op hierdie plaas sien.",
+    "extraList": "Ekstra: {list}",
+    "menuItem": "Wat hulle kan doen",
+    "dialogTitle": "Wat {name} kan doen",
+    "dialogHint": "Hulle rol dek reeds van hierdie dinge. Merk enigiets anders wat hulle op hierdie plaas mag doen.",
+    "save": "Stoor wat hulle kan doen"
   },
   "privacy": {
     "title": "Data & privaatheid (POPIA)",
@@ -1072,7 +1223,17 @@
     "sarsTitle": "SARS-dieselloglêers",
     "sarsBody": "Die twee rekords waarteen 'n dieselterugbetaling-eis geoudit word: wat in en uit elke tenk gegaan het, en wat elke masjien getrek het en waarmee dit besig was. Albei is 'n KONSEP volgens die gepubliseerde SARS-uitleg, laat jou rekenmeester dit nagaan voordat jy eis.",
     "sarsStorage": "Bergingsloglêer (CSV)",
-    "sarsUsage": "Gebruiksloglêer (CSV)"
+    "sarsUsage": "Gebruiksloglêer (CSV)",
+    "periodRange": "{from} tot {to}",
+    "machinesFilter": "Masjiene",
+    "activeOnly": "Net dié in gebruik",
+    "export": "Voer uit",
+    "exportTitle": "Laai af of druk",
+    "assetsLinkHint": "Wat die vloot op 'n datum werd is, vir die versekeraar of die rekenmeester.",
+    "nothingYet": "Geen in hierdie tydperk nie",
+    "tabCosts": "Koste",
+    "tabService": "Diens",
+    "tabUsage": "Gebruik en staantyd"
   },
   "faults": {
     "pages": "Foutlysbladsye",
@@ -1146,7 +1307,24 @@
     "noPhoto": "Geen foto",
     "voiceNoteAnon": "Stemnota",
     "playVoiceNote": "Speel die stemnota",
-    "reportedByWhen": "{name}, {when}"
+    "reportedByWhen": "{name}, {when}",
+    "howBad": "Hoe erg is dit?",
+    "photoAdded": "Foto bygevoeg",
+    "extras": "Voeg by as jy kan",
+    "sentTitle": "Probleem gestuur",
+    "sentBody": "Die werkswinkel kan nou sien wat met {machine} fout is. Dit bly op die probleemlys totdat iemand dit as reggemaak merk.",
+    "queuedBody": "Daar is nou geen sein nie. Die verslag stuur vanself sodra die foon weer aanlyn is.",
+    "reportAnother": "Rapporteer iets anders",
+    "openCount": "{n} oop",
+    "sortedCount": "{n} reggemaak",
+    "sortedWhen": "Reggemaak {when}",
+    "historyLatest": "Die nuutste {n} word gewys.",
+    "assignedFilter": "Wie het dit",
+    "mine": "Myne",
+    "savedResolved": "As reggemaak gemerk.",
+    "savedAcknowledged": "As gesien gemerk.",
+    "savedStarted": "Gemerk dat daar aan gewerk word.",
+    "savedAssigned": "Toekenning gestoor."
   },
   "jobcards": {
     "title": "Werkkaarte",
@@ -1368,7 +1546,7 @@
     "quickReportProblem": "Rapporteer 'n probleem",
     "fleetCost": "Wat die vloot jou gekos het",
     "fleetCostHint": "Onderdele, arbeid en buite-fakture · sonder BTW",
-    "fullCostReport": "Volledige kosteverslag",
+    "fullCostReport": "Volle verslag",
     "thisMonth": "Hierdie maand",
     "lessThan": "{amount} minder as {month}",
     "moreThan": "{amount} meer as {month}",
@@ -1398,7 +1576,30 @@
     "nominationDue": "Noem die bestuurder teen {when}",
     "setupTitle": "Maak die plaas se opstelling klaar",
     "setupProgress": "{done} van {total}",
-    "setupOpen": "Maak die opstellys oop"
+    "setupOpen": "Maak die opstellys oop",
+    "prefsSaved": "Gestoor. Hierdie bladsy wys nou wat jy gekies het, op hierdie toestel.",
+    "readingsSaved": "Lesing gestoor. Diensdatums word daarvolgens bereken.",
+    "lastReading": "laaste {reading}, {when}",
+    "noReadingYet": "nog geen lesing nie",
+    "showMore": "Wys nog {n}",
+    "sectionSetup": "Maak die plaas se opstelling klaar",
+    "sectionStale": "Ou meterlesings",
+    "readingDialogHint": "Kies die masjien en tik wat sy meter nou sê.",
+    "readingMachine": "Masjien",
+    "readingValue": "Lesing nou",
+    "customise": "Pas aan",
+    "customiseTitle": "Pas hierdie bladsy aan",
+    "customiseHint": "Kies wat hier wys. Dit word net op hierdie toestel gehou.",
+    "alwaysShown": "Wys altyd",
+    "setupNext": "Volgende: {step}",
+    "setupAll": "Alle stappe",
+    "setupHide": "Versteek",
+    "overSixMonths": "{amount} oor 6 maande",
+    "staleDaysTitle": "{n} meterlesings is ouer as {days} dae",
+    "staleDaysOneTitle": "1 meterlesing is ouer as {days} dae",
+    "recordReadings": "Teken lesings aan",
+    "recordReadingsHint": "Tik wat elke meter nou sê. Laat 'n masjien leeg om hom oor te slaan.",
+    "namesAndMore": "{names} en nog {n}."
   },
   "offline": {
     "mediaTooLarge": "Gebruik ’n JPEG-, PNG- of WebP-foto kleiner as 6 MB en ’n stemnota kleiner as 8 MB. Verwyder of vervang die aanhegsel en probeer weer.",
@@ -1428,7 +1629,12 @@
     "savedOffline": "Vanlyn gestoor, sal sinkroniseer sodra jy weer aanlyn is.",
     "pageTitle": "Jy is vanlyn",
     "pageBody": "Hierdie bladsy is nog nie vanlyn beskikbaar nie. Lesings, foute, dieseltrekke, kontrolelyste en werkkaartinskrywings wat jy vaslê word op jou toestel gestoor en sinkroniseer outomaties wanneer jy weer verbind.",
-    "retry": "Probeer weer"
+    "retry": "Probeer weer",
+    "backHome": "Tuis",
+    "savedOnPhone": "Op hierdie foon gestoor",
+    "toSync": "{count} wag",
+    "savedHere": "Gestoor op hierdie foon",
+    "syncNow": "Sinkroniseer nou"
   },
   "meterSource": {
     "app": "In-toep",
@@ -1557,7 +1763,8 @@
     "remove": "Verwyder",
     "removeTitle": "Verwyder hierdie rekord?",
     "removeBody": "Dit gaan van hierdie lys af. Die rekord daarvan, en van hierdie verwydering, bly in die geskiedenis.",
-    "removeNo": "Hou dit"
+    "removeNo": "Hou dit",
+    "jobCardNoDate": "geen datum"
   },
   "depreciation": {
     "title": "Bateregister",
@@ -1649,7 +1856,8 @@
     "listTitle": "Waarborgeise",
     "statOutstanding": "Deur handelaars verskuldig",
     "statRecovered": "Vanjaar verhaal",
-    "statOpen": "Eise oop"
+    "statOpen": "Eise oop",
+    "sectionOutcome": "Uitkoms"
   },
   "calendarKind": {
     "service_due": "Diens",
@@ -1683,7 +1891,16 @@
     "weekSun": "So",
     "atWorkshop": "by {name}",
     "noMachine": "Geen voertuig",
-    "navLabel": "Kalender"
+    "navLabel": "Kalender",
+    "countOverdue": "{n} agterstallig",
+    "countDueSoon": "{n} kom nader",
+    "dayOne": "{date}: 1 inskrywing",
+    "dayMany": "{date}: {n} inskrywings",
+    "dayOverdue": ", {n} agterstallig",
+    "emptyNext": "Niks hierdie maand nie. Volgende: {title} op {date}",
+    "carriedOver": "Agterstallig, oorgedra",
+    "dueByHours": "Verskuldig volgens ure",
+    "dueAtReading": "verskuldig by {reading}"
   },
   "help": {
     "title": "Kry hulp",
@@ -1707,7 +1924,10 @@
     "backToSettings": "Terug na instellings",
     "navLabel": "Kry hulp",
     "settingsLink": "Kry hulp",
-    "settingsLinkHint": "Vra ons iets sonder om FleetWise te verlaat."
+    "settingsLinkHint": "Vra ons iets sonder om FleetWise te verlaat.",
+    "backWhereYouWere": "Terug na waar jy was",
+    "leadAnswers": "Die meeste antwoorde is hieronder. As joune nie daar is nie, vra ons en ons kom terug na jou.",
+    "quickTitle": "Vinnige antwoorde"
   },
   "tyreAxle": {
     "steer": "Stuur",
@@ -1782,7 +2002,12 @@
     "savedRemoved": "Afgehaal.",
     "savedChecked": "Kontrole gestoor.",
     "moneyNote": "Voor BTW, soos elke ander koste in FleetWise.",
-    "navLabel": "Bande"
+    "navLabel": "Bande",
+    "fieldCheckedOn": "Nagegaan op",
+    "fieldRemovedOn": "Afgehaal op",
+    "pickMachine": "Kies ’n masjien",
+    "sectionPurchase": "Aankoopbesonderhede",
+    "fieldReadingLast": "Laaste lesing op hierdie masjien: {reading}"
   },
   "credentials": {
     "title": "Bestuurderdokumente",
@@ -1809,10 +2034,10 @@
     "addTitle": "Voeg ’n dokument by",
     "add": "Voeg dokument by",
     "person": "Persoon op die plaas",
-    "personHint": "Kies iemand wat aanmeld, of los dit op “Iemand anders”.",
-    "personOther": "Iemand anders",
-    "personName": "Of ’n naam",
-    "personNameHint": "Vir ’n bestuurder wat nie aanmeld nie. Vul een van hierdie twee in, nie albei nie.",
+    "personHint": "Kies iemand wat aanmeld, of kies “Iemand wat nie aanmeld nie” onderaan die lys.",
+    "personOther": "Iemand wat nie aanmeld nie",
+    "personName": "Hulle naam",
+    "personNameHint": "Net vir iemand wat nie aanmeld nie.",
     "type": "Dokument",
     "code": "Kode",
     "codeHint": "Wat daarop gedruk is: EC, C1, G.",
@@ -1829,7 +2054,11 @@
     "teamLink": "Bestuurderdokumente",
     "teamLinkHint": "Lisensies, PrDP’s en mediese sertifikate, en wanneer hulle verval.",
     "lapsedWarning": "{person} het op {date} geen geldige {credential} gehad nie.",
-    "lapsedLead": "Kyk voordat jy nomineer:"
+    "lapsedLead": "Kyk voordat jy nomineer:",
+    "subtitle": "Lisensies, PrDP's en mediese sertifikate, en wanneer hulle verval.",
+    "choosePerson": "Kies 'n persoon",
+    "moreDetails": "Meer besonderhede",
+    "renewTitleFor": "Hernu {person} se {document}"
   },
   "pushTitle": {
     "service": "Diensherinnering",
@@ -1853,9 +2082,9 @@
     "inapp": "Wys waarskuwings in die app",
     "push": "Stuur stootkennisgewings",
     "quietHours": "Jou stil ure",
-    "quietHoursHint": "Geen nie-dringende waarskuwings gedurende hierdie ure nie. Los leeg om die plaas se verstek te gebruik.",
-    "quietStart": "Stil vanaf (0-23)",
-    "quietEnd": "Stil tot (0-23)",
+    "quietHoursHint": "Geen nie-dringende waarskuwings gedurende hierdie ure nie. Stel albei om jou eie te gebruik; anders geld die plaas se ure.",
+    "quietStart": "Stil vanaf",
+    "quietEnd": "Stil tot",
     "inherit": "Plaas-verstek",
     "save": "Stoor voorkeure",
     "email": "E-pos hierdie waarskuwings ook vir my",
@@ -1871,7 +2100,8 @@
     "error": "Kon nie stootkennisgewings verander nie. Probeer asseblief weer.",
     "unsupported": "Hierdie blaaier ondersteun nie stootkennisgewings nie.",
     "unconfigured": "Stootkennisgewings is nog nie op hierdie bediener opgestel nie.",
-    "denied": "Kennisgewings is in jou blaaierinstellings geblokkeer."
+    "denied": "Kennisgewings is in jou blaaierinstellings geblokkeer.",
+    "accountOnDeviceOff": "Stootkennisgewings is aan vir jou rekening, maar nog nie op hierdie toestel nie."
   },
   "parts": {
     "title": "Onderdelekatalogus",
@@ -1896,7 +2126,11 @@
     "descriptionLabel": "Wat is dit?",
     "categoryLabel": "Soort onderdeel",
     "supplierLabel": "Wie verkoop dit",
-    "costLabel": "Wat dit gewoonlik kos"
+    "costLabel": "Wat dit gewoonlik kos",
+    "searchLabel": "Soek in die katalogus",
+    "noMatchTitle": "Geen onderdeel pas by daardie soektog nie",
+    "noMatchHint": "Probeer 'n korter woord, of soek op onderdeelnommer of verskaffer.",
+    "scopeGlobalNote": "Uit die gedeelde biblioteek"
   },
   "partnerKind": {
     "mechanic": "Werktuigkundige",
@@ -1962,7 +2196,19 @@
     "approveBody": "{name} sal in FleetWise aan hierdie plaas kan werk.",
     "approveConsequence1": "Hulle kan jou voertuie, foute, werkkaarte en diensgeskiedenis sien.",
     "approveConsequence2": "Hulle kan vir jou kwotasies en fakture stuur, en die werk wat jy stuur bywerk.",
-    "approveFootnote": "Jy kan hulle enige tyd weer ontkoppel."
+    "approveFootnote": "Jy kan hulle enige tyd weer ontkoppel.",
+    "addedFlash": "By jou vennote gevoeg.",
+    "removedFlash": "Uit jou vennote verwyder.",
+    "alreadyFlash": "Daardie vennoot is reeds in jou lys, so niks is bygevoeg nie.",
+    "loginSentFlash": "'n Nuwe aanmeldskakel is gereed. Deel dit hieronder.",
+    "approvedFlash": "Gekoppel. Hulle kan nou aan hierdie plaas se voertuie werk.",
+    "declinedFlash": "Versoek van die hand gewys. Hulle het geen toegang gekry nie.",
+    "linkErrorFlash": "Geen aanmeldskakel kon nou gemaak word nie. Om weer te probeer, maak hul aksies oop en kies Stuur aanmeldskakel.",
+    "loginUrlTitleFor": "Aanmeldskakel vir {name}",
+    "connectedOthers": "Gekoppelde kontrakteurs",
+    "connectedOthersHint": "Aan hierdie plaas gekoppel, maar nie in jou vennotelys nie.",
+    "inYourList": "In jou vennote",
+    "suggestedCount": "Voorgestel deur FleetWise ({n})"
   },
   "checklistField": {
     "checkbox": "Merkblokkie",
@@ -2040,7 +2286,11 @@
     "failUrgency": "Rapporteer dit as",
     "defectsRaised": "{n} fout(e) is uit hierdie kontrolelys geopen.",
     "draftNeedsSignal": "'n Konsep het 'n sein nodig. Voltooi die kontrolelys en stoor dit. Dit word op hierdie foon gehou en gestuur wanneer jy weer bereik het.",
-    "offlineNoPhotos": "Die foto's kon nie gehou word nie. Neem hulle weer wanneer jy weer bereik het."
+    "offlineNoPhotos": "Die foto's kon nie gehou word nie. Neem hulle weer wanneer jy weer bereik het.",
+    "copyName": "{name} (kopie)",
+    "copyToFarm": "Maak 'n kopie vir my plaas",
+    "moreOptions": "Meer opsies",
+    "fewerOptions": "Minder opsies"
   },
   "attachmentKind": {
     "photo": "Foto",
@@ -2202,7 +2452,11 @@
     "contactRr": "Gradeer op na Pro om te ontsluit, kontak RapidRise.",
     "owed": "Aan jou verskuldig",
     "overdue": "Agterstallig",
-    "quotedOut": "Kwotasies uit"
+    "quotedOut": "Kwotasies uit",
+    "focusNote": "Wys jou gewone werk: {kinds}.",
+    "showEverything": "Wys elke versoek",
+    "analyticsBilled": "Gefaktureer",
+    "analyticsOwed": "Verskuldig"
   },
   "inbox": {
     "title": "Aktiwiteit-inmandjie",
@@ -2253,7 +2507,12 @@
     "pricesToAccept": "Pryse om te aanvaar",
     "nothingWaitingTitle": "Niks wag vir jou nie",
     "nothingWaitingHint": "Geen pryse om te aanvaar en geen rekeninge om goed te keur nie.",
-    "whatsHappened": "Wat het gebeur"
+    "whatsHappened": "Wat het gebeur",
+    "amountQuoted": "Hulle vra",
+    "amountBilled": "Hulle faktureer",
+    "contact": "Kontak",
+    "waitingAbove": "{n} wag hierbo vir jou besluit",
+    "nothingNew": "Niks nuuts sedert jy laas gekyk het nie."
   },
   "fineStatus": {
     "received": "Ontvang",
@@ -2301,7 +2560,10 @@
     "noOffence": "Boete",
     "setStatus": "Opdateer",
     "identifyDriver": "Identifiseer bestuurder",
-    "upgradeRequired": "Hierdie aksie vereis die Volledig-plan."
+    "upgradeRequired": "Hierdie aksie vereis die Volledig-plan.",
+    "continueRecording": "Gaan voort met aanteken",
+    "sectionMore": "Datums, status en notas",
+    "markAs": "Merk as: {status}"
   },
   "budget": {
     "title": "Begrotings",
@@ -2402,7 +2664,11 @@
     "deleteChecklistInstanceYes": "Ja, verwyder die kontrole",
     "removeLineTitle": "Haal “{line}” van hierdie werkkaart af?",
     "removeLineIntro": "Die werkkaart se totaal gaan met {amount} af.",
-    "removeLineYes": "Ja, haal dit af"
+    "removeLineYes": "Ja, haal dit af",
+    "deleteFineIntroNoNotice": "Die boete op {machine}, wat geen kennisgewingnommer het nie.",
+    "reissueQrTitle": "Herreik die QR vir {machine} uit?",
+    "reissueQrEffect1": "Die plakker op die masjien hou dadelik op werk.",
+    "reissueQrEffect2": "Druk en plak die nuwe een op voordat iemand dit skandeer."
   },
   "format": {
     "unit": {
@@ -2417,7 +2683,8 @@
     "weeksAgo": "{n} weke gelede",
     "inDays": "oor {n} dae",
     "nextWeek": "volgende week",
-    "inWeeks": "oor {n} weke"
+    "inWeeks": "oor {n} weke",
+    "timeRange": "{start} tot {end}"
   },
   "role": {
     "owner": "Eienaar",
@@ -2468,7 +2735,17 @@
     "oneWaitingTitle": "1 van jou meldings wag nog",
     "nothingReported": "Jy het nog niks gemeld nie.",
     "signOut": "Teken uit",
-    "noMachines": "Geen masjien is nog vir jou gegee nie. Vra die plaaskantoor."
+    "noMachines": "Geen masjien is nog vir jou gegee nie. Vra die plaaskantoor.",
+    "tilePick": "Kies 'n masjien",
+    "tilePickHint": "Vind dit in die lys van jou masjiene",
+    "machinesHint": "Druk die knoppie onder die masjien wat jy gebruik.",
+    "actProblem": "Probleem",
+    "actHours": "Ure",
+    "actKm": "Kilometers",
+    "lastReading": "Laaste: {reading}, {when}",
+    "otherThings": "Iets anders",
+    "fixedTitle": "Onlangs reggemaak",
+    "fixedWhen": "Reggemaak {when}"
   },
   "pageInfo": {
     "button": "Wat is dit?",
@@ -2484,9 +2761,9 @@
     "dashboardTitle": "Plaas se tuisblad",
     "dashboardWhat": "Alles wat vandag 'n besluit nodig het, die ergste eerste, sodat jy nooit hoef te gaan soek vir moeilikheid nie.",
     "driverDoes": "Sê iets is stukkend\nSkryf die ure van die klok af neer\nSê jy het diesel ingegooi",
-    "driverNote": "Jy kan ook net jou foon teen die plakker op die masjien hou.",
+    "driverNote": "By die masjien kan jy ook jou foon se kamera oopmaak en dit na die plakker daarop rig.",
     "driverTitle": "Jou skerm",
-    "driverWhat": "Die vier dinge wat jy by 'n masjien nodig het, en wat geword het van wat jy aangemeld het.",
+    "driverWhat": "Jou masjiene met wat jy op elkeen kan doen, en wat geword het van wat jy aangemeld het.",
     "faultsDoes": "Meld iets aan wat verkeerd is, met 'n foto of 'n stemnota\nMaak van 'n probleem 'n werkkaart sodat 'n werktuigkundige daaraan kan werk\nMerk dit as reggemaak wanneer dit reg is",
     "faultsNote": "Bestuurders kan probleme aanmeld vanaf die QR-plakker op die masjien sonder om aan te meld.",
     "faultsTitle": "Probleme",
@@ -2632,7 +2909,18 @@
     "reportSchedulesTitle": "Verslae wat hulself stuur",
     "reportSchedulesWhat": "'n Staande opdrag om 'n verslag op 'n vasgestelde dag aan iemand te e-pos: jou rekenmeester, jou bank, jouself.",
     "reportSchedulesDoes": "Kies die verslag, hoe gereeld, en na wie dit gaan\nSien wanneer elkeen laas gegaan het, en of dit aangekom het\nStop een sonder om te verloor wat dit reeds gestuur het",
-    "reportSchedulesNote": "'n Skedule loop een keer per tydperk selfs al loop die nagtelike taak twee keer, sodat niemand ooit dieselfde verslag twee dae agtereen ontvang nie."
+    "reportSchedulesNote": "'n Skedule loop een keer per tydperk selfs al loop die nagtelike taak twee keer, sodat niemand ooit dieselfde verslag twee dae agtereen ontvang nie.",
+    "apiTokensTitle": "API-toegang",
+    "apiTokensWhat": "Bewyse wat 'n ander stelsel, soos 'n telematika-verskaffer, toelaat om hierdie plaas se data te lees of meterlesings by te voeg sonder dat iemand aanmeld.",
+    "apiTokensDoes": "Skep 'n bewys vir een integrasie en kopieer die geheim een keer\nKies of dit net mag lees, of ook meterlesings mag aanteken\nHerroep 'n bewys sodra dit nie meer nodig is nie",
+    "apiTokensNote": "Hanteer 'n geheim soos 'n wagwoord. Gee elke integrasie sy eie bewys, sodat die herroeping van een nooit die ander stop nie.",
+    "assistantTitle": "Stemassistent",
+    "assistantWhat": "Praat of tik in Afrikaans of Engels. FleetWise wys presies wat dit verstaan het en vra altyd voordat 'n verandering gestoor word.",
+    "assistantDoes": "Rapporteer 'n probleem, teken ure aan of log 'n diens deur te praat of te tik\nVra wanneer 'n masjien se volgende diens verskuldig is\nKyk wat dit verstaan het voordat iets gestoor word. Getikte versoeke kry dieselfde kontroles",
+    "assistantNote": "Kies eers die taal waarin jy gaan praat, sodat dit na die regte woorde luister.",
+    "ordersTitle": "Aankoopbestellings",
+    "ordersWhat": "Wat jy by verskaffers bestel het, wat aangekom het, en waarvoor jy nog nie gefaktureer is nie.",
+    "ordersDoes": "Skryf 'n bestelling neer wanneer jy dit deurbel\nMerk af wat aankom, selfs as dit in paaiemente kom\nTeken die verskaffer se faktuur een keer aan en sien of dit klop met wat jy bestel het"
   },
   "install": {
     "title": "Sit FleetWise op hierdie foon",
@@ -2866,6 +3154,7 @@
     "kindDebitNote": "Debietnota",
     "signedBy": "Geteken",
     "signedDate": "Datum",
+    "uploadTrigger": "Heg ’n dokument aan",
     "receivedUploadTitle": "Teken 'n ontvangde dokument aan",
     "receivedUploadBody": "Heg die verskaffer se dokument aan en voer die gedrukte totaal in. Die verskaffer bly die uitreiker; die bedrag word teen hierdie werk aangeteken.",
     "supplierNumber": "Verskaffer se dokumentnommer",
@@ -2922,13 +3211,43 @@
     "quotePrefix": "Kwotasienommers begin met",
     "invoicePrefix": "Faktuurnommers begin met",
     "prefixHint": "So jou eerste kwotasie is QTE-0001.",
-    "quoteValidity": "’n Kwotasie staan vir (dae)",
-    "invoiceTerms": "Jy gee (dae) om te betaal",
+    "quoteValidity": "’n Kwotasie bly geldig vir",
+    "invoiceTerms": "Betalingsterme op fakture",
     "vatDefaultHint": "Nuwe dokumente begin op",
     "vatRegistered": "Ons is vir BTW geregistreer",
     "vatRegisteredHint": "Skakel dit af as jy onder die drempel is. Jou dokumente sal glad geen BTW wys nie.",
     "vatNotRegisteredNote": "Jou dokumente wys geen BTW nie. Die koers word gehou indien jy later registreer.",
-    "prefixCredit": "Kredietnota-voorvoegsel"
+    "prefixCredit": "Kredietnotanommers begin met",
+    "oneDay": "1 dag",
+    "nDays": "{n} dae",
+    "prefixExample": "Nommers lyk soos {example}",
+    "vatNumberMissing": "Jy hef BTW, maar jou BTW-nommer is nie bygevoeg nie, so jou fakture is nie geldige belastingfakture nie. Voeg dit by onder {card}.",
+    "vatNoNeeded": "Nodig op ’n belastingfaktuur",
+    "accountTypeCheque": "Tjek of lopende",
+    "accountTypeSavings": "Spaar",
+    "accountTypeTransmission": "Transmissie",
+    "branchCodeHint": "Die meeste banke gebruik een universele takkode: Absa 632005, Capitec 470010, FNB 250655, Nedbank 198765, Standard Bank 051001.",
+    "template": "Sjabloon",
+    "templateAdjusted": "Met die hand aangepas sedert jy dit gekies het.",
+    "wording": "Bewoording",
+    "wordingStandard": "Standaard",
+    "wordingCustomOne": "1 eie benaming",
+    "wordingCustom": "{n} eie benamings",
+    "onPageLabel": "Op die bladsy",
+    "onPage": {
+      "show_vehicle": "voertuig",
+      "show_vat_number": "BTW-nommer",
+      "show_banking": "bankbesonderhede",
+      "show_line_numbers": "reëlnommers",
+      "show_unit_price": "prys per item",
+      "show_signature": "handtekeningstreep",
+      "show_thanks": "dankie-boodskap"
+    },
+    "onPageNone": "Net die noodsaaklike",
+    "changeTemplate": "Verander sjabloon",
+    "adjustLayout": "Pas bewoording en uitleg aan",
+    "quoteValidityHint": "Hoeveel dae ’n kwotasie geld voordat jou prys mag verander.",
+    "invoiceTermsHint": "Hoeveel dae na die faktuurdatum betaling verskuldig is."
   },
   "clients": {
     "title": "My kliënte",
@@ -3017,7 +3336,8 @@
     "terms": "Betaaltermyn (dae)",
     "termsHint": "Los leeg om jou eie verstek te gebruik.",
     "creditLimit": "Kredietperk (R)",
-    "creditLimitHint": "Opsioneel, net 'n nota vir jouself."
+    "creditLimitHint": "Opsioneel, net 'n nota vir jouself.",
+    "countMeta": "{n} in jou boek"
   },
   "access": {
     "title": "Wat hulle kan sien",
@@ -3039,7 +3359,11 @@
     "disconnectTitle": "Ontkoppel hierdie kontrakteur?",
     "disconnectBody": "{name} sal dadelik toegang tot hierdie plaas verloor.",
     "disconnectConsequence": "Hulle hou die kwotasies en fakture wat hulle reeds gestuur het, en jy hou joune.",
-    "disconnectFootnote": "Jy kan hulle later weer koppel."
+    "disconnectFootnote": "Jy kan hulle later weer koppel.",
+    "titleFor": "Wat {name} kan sien",
+    "summaryNone": "Sien net die voertuie waaraan hulle vir jou werk.",
+    "summaryExtra": "Sien ook: {list}",
+    "disconnectedFlash": "Ontkoppel. Hulle kan nie meer hierdie plaas sien nie."
   },
   "correct": {
     "title": "Is iets hier verkeerd?",
@@ -3139,7 +3463,9 @@
     "rowInvoice": "Faktuur",
     "rowCreditNote": "Kredietnota",
     "rowDebitNote": "Debietnota",
-    "writtenOff": "Afgeskryf"
+    "writtenOff": "Afgeskryf",
+    "changeDates": "Verander datums",
+    "datesTitle": "Watter datums?"
   },
   "pubDoc": {
     "vatNo": "BTW",
@@ -3307,7 +3633,13 @@
     "deletedFlash": "Verwyder.",
     "deleteTitle": "Verwyder hierdie aankoop?",
     "deleteConsequence": "As hierdie tydperk se BTW reeds ingedien is, sal jou syfers nie meer ooreenstem met wat jy ingedien het nie.",
-    "claimableNotRegistered": "Jy is nie vir BTW geregistreer nie, dus kan hierdie BTW nie teruggeëis word nie. Dit word vasgelê as deel van wat die rekening jou gekos het."
+    "claimableNotRegistered": "Jy is nie vir BTW geregistreer nie, dus kan hierdie BTW nie teruggeëis word nie. Dit word vasgelê as deel van wat die rekening jou gekos het.",
+    "addButton": "Voeg 'n aankoop by",
+    "vatDetail": "BTW op hierdie faktuur",
+    "moreDetail": "Meer besonderhede",
+    "filterUnpaid": "Nog nie betaal nie",
+    "filterNoProof": "Geen belastingfaktuur",
+    "receiptAttachMenu": "Heg die belastingfaktuur aan"
   },
   "vat": {
     "title": "BTW",
@@ -3448,7 +3780,8 @@
     "raisedTitle": "Wat dit geskep het",
     "emptyTitle": "Nog geen staande fakture nie",
     "emptyBody": "As jy iemand elke maand dieselfde bedrag faktureer, stel dit een keer hier op en hou op om dit te onthou.",
-    "footnote": "Hierdie word snags geskep. As een vandag verskuldig is, gaan dit vanaand uit."
+    "footnote": "Hierdie word snags geskep. As een vandag verskuldig is, gaan dit vanaand uit.",
+    "moreOptions": "Meer opsies"
   },
   "layout": {
     "title": "Hoe jou dokumente lyk",
@@ -3494,7 +3827,7 @@
     "tracked": "Word getel",
     "notTracked": "Nie getel nie",
     "emptyTitle": "Nog niks in die stoor nie",
-    "emptyBody": "Druk \"Hou in stoor\" by ’n onderdeel hieronder om dit te begin tel.",
+    "emptyBody": "Kies \"Hou in stoor\" in 'n onderdeel se kieslys in die katalogus hieronder om dit te begin tel.",
     "lowSummary": "Raak min:",
     "low": "Min",
     "negative": "Onder nul",
@@ -3511,7 +3844,19 @@
     "unitCost": "Elk (BTW uitgesluit)",
     "untrack": "Hou op tel",
     "untrackTitle": "Hou op om hierdie onderdeel te tel?",
-    "untrackConsequence": "Die onderdeel bly in die katalogus en die geskiedenis van wat gepas is bly. Net die raktelling gaan weg."
+    "untrackConsequence": "Die onderdeel bly in die katalogus en die geskiedenis van wat gepas is bly. Net die raktelling gaan weg.",
+    "onShelf": "Op die rak: {qty}",
+    "receiveDelivery": "Ontvang 'n aflewering",
+    "receiveDeliveryHint": "Tik hoeveel van elke onderdeel aangekom het. Los 'n onderdeel oop as dit nie in hierdie aflewering was nie.",
+    "deliveryMore": "Datum en afleweringsbrief",
+    "deliveredOn": "Afgelewer op",
+    "deliveryNote": "Afleweringsbrief-nommer of opmerking",
+    "takeOut": "Neem uit vir 'n voertuig",
+    "receiveOne": "Ontvang voorraad",
+    "editPlace": "Wysig plek en herbestelpunt",
+    "unit": {
+      "each": "stuks"
+    }
   },
   "money": {
     "title": "Geld",
@@ -3704,7 +4049,9 @@
     "vatAmount": "BTW op hulle faktuur",
     "vatAmountHint": "Los dit soos dit is, tensy hulle faktuur iets anders sê.",
     "vatPercent": "BTW",
-    "vatPercentHint": "Wat die verskaffer sal byvoeg. Gebruik 0 as hulle niks hef nie."
+    "vatPercentHint": "Wat die verskaffer sal byvoeg. Gebruik 0 as hulle niks hef nie.",
+    "moreDetails": "Meer besonderhede",
+    "recordInvoice": "Teken die verskaffer se faktuur aan"
   },
   "bank": {
     "aStatement": "'n bankstaat",
@@ -4023,7 +4370,10 @@
     "windowFrom": "Vanaf {date}",
     "windowNow": "Reeds verskuldig, nou verwag",
     "windowTitle": "Waarna jy kyk",
-    "termsFiled": "Rekeninge gebruik elke verskaffer se eie betaalvoorwaardes waar jy dit ingevul het."
+    "termsFiled": "Rekeninge gebruik elke verskaffer se eie betaalvoorwaardes waar jy dit ingevul het.",
+    "openingNone": "nie gegee nie",
+    "setOpening": "Voeg by wat in die bank is",
+    "changeOpening": "Verander die banksaldo"
   },
   "credit": {
     "title": "Krediet",
@@ -4089,7 +4439,10 @@
     "total": "Totaal",
     "rowOpening": "Saldo oorgedra",
     "rowBill": "Hul faktuur",
-    "rowPayment": "Volledig betaal"
+    "rowPayment": "Volledig betaal",
+    "customPeriod": "Kies datums",
+    "rangeTo": "tot",
+    "otherDate": "Ander betaaldatum"
   },
   "docTemplate": {
     "title": "Kies die dokument wat jy stuur",
@@ -4132,7 +4485,8 @@
     "severalKitsNote": "'n Voertuig met meer as een dienspak tel almal, want niks hier hou by watter pak by watter diens hoort nie. Eerder meer as minder.",
     "windowLabel": "Hoeveel dae vooruit om te kyk",
     "windowHint": "Tussen 1 en 365. Alles hierbo tel dienste wat binne soveel dae val.",
-    "windowSave": "Stoor tydperk"
+    "windowSave": "Stoor tydperk",
+    "windowChange": "Verander"
   },
   "packs": {
     "farm": "Plaas",
@@ -4450,7 +4804,10 @@
       "pending": "Wag om te stuur",
       "sent": "Gestuur",
       "failed": "Kon nie stuur nie"
-    }
+    },
+    "newAction": "Nuwe skedule",
+    "editAction": "Verander instellings",
+    "noEnd": "Gaan aan tot dit onderbreek word"
   },
   "reportEmail": {
     "greeting": "Hier is die verslag wat jy gevra het ons moet stuur.",
@@ -5011,7 +5368,11 @@
     "savedReconciledClosed": "Die verskaffer sê dit het nooit geslaag nie. Die poging is gesluit en normale rekeninge kan hervat.",
     "savedReconciledOpen": "Steeds onopgelos. Die verskaffer het nie 'n finale antwoord gegee nie, so die faktuur bly geblokkeer en niks is gehef nie.",
     "savedDiscount": "Ooreenkoms gestoor. Dit kom van hul volgende faktuur af, enigiets wat reeds uitgereik is, bly onveranderd.",
-    "savedDiscountCleared": "Ooreenkoms verwyder. Hulle gaan terug na die lysprys vanaf hul volgende faktuur."
+    "savedDiscountCleared": "Ooreenkoms verwyder. Hulle gaan terug na die lysprys vanaf hul volgende faktuur.",
+    "startDialogTitle": "Begin 'n intekening",
+    "billedForTitle": "Waarvoor hulle gefaktureer word",
+    "changeOpen": "Verander",
+    "discountOpen": "Stel hul prys"
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -5155,7 +5516,9 @@
     "compareChosen": "Jou keuse",
     "compareYes": "Ingesluit",
     "compareNo": "Nie ingesluit nie",
-    "compareSwipe": "Swiep sywaarts om al vier planne te sien."
+    "compareSwipe": "Swiep sywaarts om al vier planne te sien.",
+    "promoOpen": "Het jy 'n promosiekode?",
+    "submitting": "Stel tans jou plaas op..."
   },
   "closed": {
     "title": "Jou FleetWise-plaas is gesluit",
@@ -5171,8 +5534,8 @@
     "help": "Vir enigiets anders, e-pos {email} en 'n mens sal dit regmaak."
   },
   "account": {
-    "title": "Jou rekening",
-    "lead": "Jou naam, die adres waarop ons jou bereik, en jou wagwoord.",
+    "title": "Jou rekening en voorkeure",
+    "lead": "Wie jy is, hoe die app lyk en met jou praat, en hoe waarskuwings jou bereik.",
     "nameTitle": "Jou naam",
     "nameLabel": "Naam",
     "save": "Stoor",
@@ -5194,7 +5557,46 @@
     "savedEmail": "Kyk by die nuwe adres, die verandering gebeur wanneer jy die skakel volg.",
     "savedPassword": "Wagwoord verander.",
     "savedVerification": "Gestuur. Kyk in jou inkassie.",
-    "resetPrompt": "Jy is aangemeld met die skakel wat ons jou ge-e-pos het. Stel jou nuwe wagwoord hier onder. Dit werk van die oomblik af dat jy dit stoor."
+    "resetPrompt": "Jy is aangemeld met die skakel wat ons jou ge-e-pos het. Stel jou nuwe wagwoord hier onder. Dit werk van die oomblik af dat jy dit stoor.",
+    "whoTitle": "Wie jy is",
+    "change": "Verander",
+    "changeName": "Verander jou naam",
+    "changeEmailTitle": "Verander jou e-posadres",
+    "changePasswordTitle": "Stel 'n nuwe wagwoord",
+    "emailWhyCrew": "Jou aanmeldskakel en enige waarskuwings per e-pos gaan hierheen. As dit verkeerd is, bereik niks jou nie.",
+    "languageTitle": "Taal en bewoording",
+    "wordingLabel": "Bewoording",
+    "changeLanguage": "Kies jou taal",
+    "changeWording": "Kies jou bewoording",
+    "languageHint": "Verander elke skerm vir jou, en niemand anders s'n nie.",
+    "appearanceTitle": "Voorkoms op hierdie toestel",
+    "appearanceHint": "Word net op hierdie foon of rekenaar gestoor en geld sodra jy tik. 'n Ander toestel hou sy eie.",
+    "themeLabel": "Lig of donker",
+    "textSize": "Teksgrootte",
+    "textNormal": "Standaard",
+    "textLarge": "Groot",
+    "textLarger": "Grootste",
+    "alertsTitle": "Waarskuwings",
+    "alertsChange": "Verander waarskuwinginstellings",
+    "channelsSection": "Waarheen waarskuwings gaan",
+    "inApp": "In die app",
+    "push": "Stootkennisgewings",
+    "email": "E-pos",
+    "on": "Aan",
+    "off": "Af",
+    "quietFarm": "Plaas-verstek ({range})",
+    "quietFarmHour": "Plaas-verstek ({time})",
+    "quietUrgent": "Dringende waarskuwings kom steeds deur.",
+    "startTitle": "Beginblad en kortpaaie op hierdie toestel",
+    "startPage": "Beginblad",
+    "startHint": "Die skerm waarop die app oopmaak nadat jy aangemeld het.",
+    "startStandard": "Standaard ({page})",
+    "changeStart": "Kies jou beginblad",
+    "shortcuts": "Foon-kortpaaie",
+    "shortcutsHint": "Tot 3 skerms in die balk onderaan jou foon. Alles anders bly onder Meer.",
+    "shortcutsStandard": "Standaard",
+    "changeShortcuts": "Kies jou foon-kortpaaie",
+    "shortcutsReset": "Terug na die standaard kortpaaie"
   },
   "verify": {
     "verified": {
@@ -5296,15 +5698,18 @@
   },
   "command": {
     "trigger": "Soek",
-    "placeholder": "Soek vir 'n bladsy…",
+    "placeholder": "Soek masjiene en skerms…",
     "title": "Soek en spring na 'n bladsy",
     "empty": "Niks pas daarby nie.",
     "hintSelect": "om oop te maak",
     "hintClose": "om te sluit",
-    "results": "{n} bladsye pas",
+    "results": "{n} resultate",
     "pages": "Bladsye",
     "machines": "Masjiene",
-    "searching": "Soek vir masjiene…"
+    "searching": "Soek vir masjiene…",
+    "recent": "Onlangs",
+    "actions": "Doen iets",
+    "logDiesel": "Teken 'n dieseltrek aan"
   },
   "billingSubStatus": {
     "trialing": "Op proef",
@@ -5365,5 +5770,14 @@
     "colMeterType": "Meter",
     "colDriver": "Getrek deur",
     "colTank": "Tenk"
+  },
+  "books": {
+    "range": "{from} tot {to}"
+  },
+  "appError": {
+    "title": "Hierdie skerm het nie gelaai nie",
+    "body": "Iets het aan ons kant verkeerd geloop, nie aan joune nie. Niks wat jy ingevul het, is verlore nie. Probeer weer. As dit aanhou gebeur, kan die plaaskantoor vir ons die kode hieronder stuur.",
+    "home": "Gaan na my tuisskerm",
+    "reference": "Verwysing:"
   }
 }

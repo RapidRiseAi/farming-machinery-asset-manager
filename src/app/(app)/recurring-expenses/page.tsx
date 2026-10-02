@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ExpenseScheduleForm } from "@/components/recurring-expenses/schedule-form";
 
 export const dynamic = "force-dynamic";
@@ -51,14 +52,14 @@ export default async function RecurringExpensesPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -82,11 +83,12 @@ export default async function RecurringExpensesPage({
   const errorKey = sp.error ? SCHEDULE_ERROR_KEYS[sp.error] : undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{t("recexp.title", locale)}</h1>
-        <p className="text-sm text-sand-600">{t("recexp.lead", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("recexp.title", locale)}
+        lead={t("recexp.lead", locale)}
+        actions={<ExpenseScheduleForm locale={locale} vatRegistered={workshop.vat_registered !== false} />}
+      />
 
       <Flash tone="error" message={errorKey ? t(errorKey, locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.deleted ? t("recexp.deletedFlash", locale) : undefined} />
@@ -107,7 +109,7 @@ export default async function RecurringExpensesPage({
                   href={`/recurring-expenses/${s.id}`}
                   className="focus-ring flex flex-wrap items-center gap-2 rounded-lg border border-sand-200 px-3 py-2.5 hover:bg-sand-50"
                 >
-                  <span className="font-medium text-sand-900">{s.name}</span>
+                  <span className="min-w-0 font-medium text-sand-900">{s.name}</span>
                   <Badge tone="warning">{t("recexp.dueBadge", locale)}</Badge>
                   <span className="text-sm text-sand-600">{s.supplier_name}</span>
                   <span className="ml-auto tabular-nums text-sm text-sand-800">{rands(scheduleTotalCents(s))}</span>
@@ -121,8 +123,6 @@ export default async function RecurringExpensesPage({
           </ul>
         </Card>
       ) : null}
-
-      <ExpenseScheduleForm locale={locale} vatRegistered={workshop.vat_registered !== false} />
 
       <Card>
         <CardHeader>
@@ -146,7 +146,7 @@ export default async function RecurringExpensesPage({
                     <Badge tone="neutral">{t(`expenseCategory.${s.category}`, locale)}</Badge>
                     {s.auto_paid ? <Badge tone="info">{t("recexp.autoPaidBadge", locale)}</Badge> : null}
                     {!isLive(s) ? <Badge tone="neutral">{t("recexp.pausedBadge", locale)}</Badge> : null}
-                    <span className="ml-auto tabular-nums text-sm text-sand-800">{rands(scheduleTotalCents(s))}</span>
+                    <span className="ml-auto whitespace-nowrap tabular-nums text-sm font-medium text-sand-900">{rands(scheduleTotalCents(s))}</span>
                   </Link>
                   <p className="mt-0.5 text-xs text-sand-500">
                     {s.supplier_name}
@@ -164,6 +164,6 @@ export default async function RecurringExpensesPage({
       </Card>
 
       <p className="text-sm text-sand-500">{t("recexp.footnote", locale)}</p>
-    </div>
+    </PageContainer>
   );
 }

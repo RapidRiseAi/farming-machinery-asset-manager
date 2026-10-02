@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
-import { homePathFor, requireProfile } from "@/lib/auth";
-import { farmPermissionState, isUserPermission } from "@/lib/permissions";
+import { homePathFor, requireProfile, type Role } from "@/lib/auth";
+import {
+  farmPermissionState,
+  isUserPermission,
+  roleHasBaselinePermission,
+  USER_PERMISSIONS,
+  type UserPermission,
+} from "@/lib/permissions";
 import { safePath } from "@/lib/safe-path";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
@@ -147,49 +153,56 @@ export async function setUserActive(formData: FormData) {
   if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
   if (!data) redirect(`${back}?error=${encodeURIComponent("This account belongs to another primary farm.")}`);
   revalidatePath(back);
-  redirect(`${back}?saved=1`);
+  // Say which way it went: "Saved" after turning somebody's login off says nothing.
+  redirect(`${back}?saved=${active ? "activated" : "deactivated"}`);
 }
 
-/** Add or revoke one 0507 grant for another person on the selected farm. */
-export async function setUserPermission(formData: FormData) {
-  const { profile, farmId } = await requireTeamManager();
-  const back = safePath(String(formData.get("back") ?? ""), "/team");
-  const userId = String(formData.get("user_id") ?? "").trim();
-  const rawPermission = String(formData.get("permission") ?? "").trim();
-  const enabled = String(formData.get("enabled") ?? "false") === "true";
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
-  if (!userId || userId === profile.id) {
+/**
+ * May `userId` be given grants on `farmId` by the caller? Not themselves, and only a
+ * person active on this farm. Checked through the caller's RLS session; the table policy
+ * and 0507's `app.user_belongs_to_farm` repeat it at the write boundary.
+ *
+ * Returns their role on THIS farm, worked out the way /team shows it, so the caller can
+ * tell which permissions that role already includes.
+ */
+async function requireGrantee(
+  supabase: ServerClient,
+  { actorId, userId, farmId, back }: { actorId: string; userId: string; farmId: string; back: string },
+): Promise<Role | null> {
+  if (!userId || userId === actorId) {
     redirect(`${back}?error=${encodeURIComponent("You cannot grant permissions to yourself.")}`);
   }
-  if (!isUserPermission(rawPermission)) {
-    redirect(`${back}?error=${encodeURIComponent("Unknown permission.")}`);
-  }
-
-  const supabase = await createClient();
-  // Check membership through the caller's RLS session. The table policy and 0507's
-  // `app.user_belongs_to_farm` repeat this at the write boundary.
-  const [{ data: primary }, { data: membership }] = await Promise.all([
+  const [{ data: primaryData }, { data: membershipData }] = await Promise.all([
     supabase
       .from("users")
-      .select("id, active")
+      .select("id, active, role")
       .eq("id", userId)
       .eq("farm_id", farmId)
       .is("deleted_at", null)
       .maybeSingle(),
     supabase
       .from("user_farm_memberships")
-      .select("id, active")
+      .select("id, active, role")
       .eq("user_id", userId)
       .eq("farm_id", farmId)
       .is("deleted_at", null)
       .maybeSingle(),
   ]);
-  const belongs = Boolean(
-    (primary as { active?: boolean } | null)?.active ||
-      (membership as { active?: boolean } | null)?.active,
-  );
-  if (!belongs) redirect(`${back}?error=${encodeURIComponent("That person is not active on this farm.")}`);
+  const primary = primaryData as { active?: boolean; role?: Role } | null;
+  const membership = membershipData as { active?: boolean; role?: Role } | null;
+  if (!primary?.active && !membership?.active) {
+    redirect(`${back}?error=${encodeURIComponent("That person is not active on this farm.")}`);
+  }
+  return (membership?.active ? membership.role : primary ? primary.role : membership?.role) ?? null;
+}
 
+/** Open, reopen or revoke one 0507 grant row. Returns an error message, or null. */
+async function writeGrant(
+  supabase: ServerClient,
+  { userId, farmId, permission, enabled }: { userId: string; farmId: string; permission: UserPermission; enabled: boolean },
+): Promise<string | null> {
   // Managers are allowed to see revoked rows so the unique row can be reopened. The
   // post-0507 selected-farm policy intentionally keeps tombstones hidden from grantees.
   const { data: existing, error: findError } = await supabase
@@ -197,11 +210,15 @@ export async function setUserPermission(formData: FormData) {
     .select("id, deleted_at")
     .eq("user_id", userId)
     .eq("farm_id", farmId)
-    .eq("permission", rawPermission)
+    .eq("permission", permission)
     .maybeSingle();
-  if (findError) redirect(`${back}?error=${encodeURIComponent(findError.message)}`);
+  if (findError) return findError.message;
 
   if (existing) {
+    // Already the way it was asked for: nothing to write. The dialog posts every box,
+    // and rewriting the unchanged ones would fill audit_log with non-events.
+    const isOn = (existing as { deleted_at: string | null }).deleted_at == null;
+    if (isOn === enabled) return null;
     const { data, error } = await supabase
       .from("user_permission_grants")
       .update(
@@ -212,15 +229,64 @@ export async function setUserPermission(formData: FormData) {
       .eq("id", existing.id)
       .select("id")
       .maybeSingle();
-    if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-    if (!data) redirect(`${back}?error=${encodeURIComponent("Permission was not changed.")}`);
+    if (error) return error.message;
+    if (!data) return "Permission was not changed.";
   } else if (enabled) {
     const { error } = await supabase.from("user_permission_grants").insert({
       user_id: userId,
       farm_id: farmId,
-      permission: rawPermission,
+      permission,
     });
-    if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+    if (error) return error.message;
+  }
+  return null;
+}
+
+/** Add or revoke one 0507 grant for another person on the selected farm. */
+export async function setUserPermission(formData: FormData) {
+  const { profile, farmId } = await requireTeamManager();
+  const back = safePath(String(formData.get("back") ?? ""), "/team");
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const rawPermission = String(formData.get("permission") ?? "").trim();
+  const enabled = String(formData.get("enabled") ?? "false") === "true";
+
+  if (!isUserPermission(rawPermission)) {
+    redirect(`${back}?error=${encodeURIComponent("Unknown permission.")}`);
+  }
+
+  const supabase = await createClient();
+  await requireGrantee(supabase, { actorId: profile.id, userId, farmId, back });
+  const failed = await writeGrant(supabase, { userId, farmId, permission: rawPermission, enabled });
+  if (failed) redirect(`${back}?error=${encodeURIComponent(failed)}`);
+
+  revalidatePath(back);
+  redirect(`${back}?permissionSaved=1`);
+}
+
+/**
+ * "What they can do": every extra permission for one person, from one dialog of
+ * checkboxes. A ticked box is on and an absent one is off, so this applies the whole set
+ * the dialog showed. A permission the person's role already includes is skipped: the
+ * dialog shows it ticked and disabled, a disabled box posts nothing, and reading that as
+ * "off" would write a revocation nobody asked for.
+ */
+export async function setUserPermissions(formData: FormData) {
+  const { profile, farmId } = await requireTeamManager();
+  const back = safePath(String(formData.get("back") ?? ""), "/team");
+  const userId = String(formData.get("user_id") ?? "").trim();
+
+  const supabase = await createClient();
+  const role = await requireGrantee(supabase, { actorId: profile.id, userId, farmId, back });
+
+  for (const permission of USER_PERMISSIONS) {
+    if (roleHasBaselinePermission(role, permission)) continue;
+    const failed = await writeGrant(supabase, {
+      userId,
+      farmId,
+      permission,
+      enabled: formData.get(permission) === "on",
+    });
+    if (failed) redirect(`${back}?error=${encodeURIComponent(failed)}`);
   }
 
   revalidatePath(back);

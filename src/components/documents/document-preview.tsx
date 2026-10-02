@@ -2,14 +2,16 @@ import { t, type Lang } from "@/lib/i18n";
 import { Photo } from "@/components/ui/photo";
 import { rands } from "@/lib/money";
 import type { ResolvedLayout } from "@/lib/doc-layout";
+import { onBrand } from "@/lib/branding";
 
 /**
  * A miniature of the document a customer will actually receive.
  *
  * Extracted from the 0434 layout form so there is ONE preview in the codebase rather than
- * one per screen. It is now rendered in two places, under each of the four templates in
- * the picker, and live above the individual switches, and those two must never disagree,
- * because a partner comparing them is comparing the same document.
+ * one per screen. It is rendered in three places: once on /contractor/settings as the
+ * document going out today, under each of the four templates in the picker dialog, and
+ * live above the switches in the layout dialog. They must never disagree, because a
+ * partner comparing them is comparing the same document.
  *
  * It takes a `ResolvedLayout`, so it goes through the same resolver as the real page
  * (`documents/[id]`) and the PDF (`lib/pdf/partner-document`). A shape only this component
@@ -40,7 +42,23 @@ export type DocumentPreviewProps = {
   logoUrl?: string | null;
   /** Their SARS VAT number, so the `show_vat_number` switch is visible here too. */
   vatNumber?: string | null;
+  /** Their invoice prefix, so the sample reference reads like theirs ("TJI-0042"). */
+  invoicePrefix?: string | null;
+  /** Their bank, shown in the banking line instead of a placeholder. */
+  bankName?: string | null;
+  /** Their account number, masked to its first four digits in the miniature. */
+  bankAccountNumber?: string | null;
 };
+
+/**
+ * "62841937201" to "6284…". The miniature is a picture of the layout, not a payment
+ * slip, so it shows enough to recognise the account and no more.
+ */
+function maskAccount(value: string | null | undefined): string | null {
+  const digits = (value ?? "").replace(/D/g, "");
+  if (!digits) return null;
+  return digits.length > 4 ? `${digits.slice(0, 4)}…` : digits;
+}
 
 export function DocumentPreview({
   locale,
@@ -50,6 +68,9 @@ export function DocumentPreview({
   vatRegistered,
   logoUrl,
   vatNumber,
+  invoicePrefix,
+  bankName,
+  bankAccountNumber,
 }: DocumentPreviewProps) {
   // The heading a VAT-registered partner's invoice must carry (VAT Act s20(4)) unless they
   // have typed their own. Mirrors `documentTitle(kind='invoice', …)`.
@@ -57,20 +78,24 @@ export function DocumentPreview({
     l.invoice_title || (vatRegistered ? t("doc.kindTaxInvoice", locale) : t("doc.kindInvoice", locale));
   const pad = l.density === "compact" ? "px-2 py-0.5" : "px-2.5 py-1.5";
   const band = l.accent_style === "band";
+  // Placeholders only while the partner has not filled the value in, so a half-finished
+  // profile still previews a complete-looking banking line.
+  const reference = `${(invoicePrefix ?? "").trim() || "INV"}-0042`;
+  const bankLine = [bankName?.trim() || "FNB", maskAccount(bankAccountNumber) ?? "62…"].join(" · ");
 
   return (
     <div className="overflow-hidden rounded-lg border border-sand-200 bg-surface">
       <div
         className={
           band
-            ? "flex items-center gap-2 px-3 py-2.5 text-white"
+            ? "flex items-center gap-2 px-3 py-2.5"
             : l.accent_style === "line"
               ? "flex items-center gap-2 border-t-4 bg-surface px-3 py-2.5"
               : "flex items-center gap-2 border-b border-sand-200 bg-surface px-3 py-2.5"
         }
         style={
           band
-            ? { backgroundColor: brandPrimary }
+            ? { backgroundColor: brandPrimary, color: onBrand(brandPrimary) }
             : l.accent_style === "line"
               ? { borderTopColor: brandPrimary }
               : undefined
@@ -102,6 +127,9 @@ export function DocumentPreview({
         {l.show_vehicle ? <p className="text-sand-600">John Deere 6120M · CA 123-456</p> : null}
       </div>
 
+      {/* Its own scroller: in a dialog on a 360px phone, five columns of money can be
+          wider than the card, and the page must never widen to fit them. */}
+      <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-y border-sand-100 text-left text-sand-500">
@@ -119,13 +147,14 @@ export function DocumentPreview({
               <td className={`${pad} text-sand-900`}>{row.description}</td>
               <td className={`${pad} text-right text-sand-700`}>{row.qty}</td>
               {l.show_unit_price ? (
-                <td className={`${pad} text-right text-sand-700`}>{rands(row.unitCents)}</td>
+                <td className={`${pad} whitespace-nowrap text-right tabular-nums text-sand-700`}>{rands(row.unitCents)}</td>
               ) : null}
-              <td className={`${pad} text-right font-medium text-sand-900`}>{rands(row.qty * row.unitCents)}</td>
+              <td className={`${pad} whitespace-nowrap text-right font-medium tabular-nums text-sand-900`}>{rands(row.qty * row.unitCents)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
 
       <div className="px-3 py-2 text-right text-xs">
         <span className="text-sand-500">{l.total_label ?? t("doc.total", locale)} </span>
@@ -136,7 +165,7 @@ export function DocumentPreview({
 
       {l.show_banking ? (
         <p className="border-t border-sand-100 px-3 py-2 text-xs text-sand-600">
-          {t("doc.howToPay", locale)}: FNB · 62… · {t("doc.useReference", locale)} INV-0042
+          {t("doc.howToPay", locale)}: {bankLine} · {t("doc.useReference", locale)} {reference}
         </p>
       ) : null}
       {l.show_thanks && l.thanks_text ? (

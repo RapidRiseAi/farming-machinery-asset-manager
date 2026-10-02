@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { useDialogForm } from "@/components/ui/dialog-form";
 import { useRouter } from "next/navigation";
 import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
@@ -18,6 +19,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
   amountKinds?: ("quote" | "invoice")[];
 }) {
   const router = useRouter();
+  const { close } = useDialogForm();
   const [kind, setKind] = useState<"photo" | "quote" | "invoice">(allowedKinds[0] ?? "photo");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
       }
       formEl.reset();
       router.refresh();
+      close();
     } catch {
       setErr(t("work.mediaError", locale));
     } finally {
@@ -62,7 +65,9 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
             key={k}
             type="button"
             onClick={() => setKind(k)}
-            className={`focus-ring rounded-full px-3 py-1.5 text-sm font-medium ${kind === k ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`}
+            aria-pressed={kind === k}
+            disabled={busy}
+            className={`focus-ring min-h-[44px] rounded-full px-3 py-1.5 text-sm font-medium ${kind === k ? "bg-brand-600 text-white" : "bg-sand-100 text-sand-700 hover:bg-sand-200"}`}
           >
             {t(`work.kind_${k}`, locale)}
           </button>
@@ -88,20 +93,21 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
         id="wr-media-file"
         name="file"
         type="file"
+        required
+        disabled={busy}
         accept={kind === "photo" ? "image/*" : "image/*,application/pdf"}
         capture={kind === "photo" ? "environment" : undefined}
         className="block w-full text-sm text-sand-600 file:mr-3 file:rounded-lg file:border-0 file:bg-sand-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-sand-700"
       />
 
-      {err ? <p className="text-sm text-status-overdue">{err}</p> : null}
+      {err ? <p role="alert" className="text-sm text-status-overdue">{err}</p> : null}
 
-      <button
-        type="submit"
-        disabled={busy}
-        className={buttonVariants({ variant: "primary" })}
-      >
-        {busy ? t("work.uploading", locale) : t("work.uploadFile", locale)}
-      </button>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" disabled={busy} onClick={close}>{t("common.cancel", locale)}</Button>
+        <Button type="submit" variant="primary" loading={busy}>
+          {busy ? t("work.uploading", locale) : t("work.uploadFile", locale)}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -5,15 +5,17 @@ import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { shortDate, relativeDate } from "@/lib/format";
+import { shortDate, relativeDate, num } from "@/lib/format";
 import {
   suggestInvoiceMatches, suggestExpenseMatches,
   type BankLineLike, type InvoiceCandidate, type ExpenseCandidate,
 } from "@/lib/banking";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { Flash } from "@/components/ui/flash";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
 import { AllClear, GetStarted } from "@/components/ui/empty-state";
 import { BankLineRow, type BankLineView, type SuggestionView } from "@/components/banking/line-row";
 
@@ -58,14 +60,14 @@ export default async function BankingPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer size="narrow">
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -189,16 +191,18 @@ export default async function BankingPage({
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("bank.title", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("bank.lead", locale)}</p>
-        </div>
-        <Link href="/banking/import" className="ml-auto">
-          <Button variant="primary">{t("bank.loadStatement", locale)}</Button>
-        </Link>
-      </div>
+    <PageContainer>
+      {/* A Link styled as a button, not a <button> inside a <Link>: an interactive element
+          nested in another is invalid HTML and announced twice by a screen reader. */}
+      <PageHeader
+        title={t("bank.title", locale)}
+        lead={t("bank.lead", locale)}
+        actions={
+          <Link href="/banking/import" className={buttonVariants({ variant: "primary" })}>
+            {t("bank.loadStatement", locale)}
+          </Link>
+        }
+      />
 
       <Flash
         tone="error"
@@ -222,35 +226,30 @@ export default async function BankingPage({
       <Flash tone="success" message={sp.removed ? t("bank.removedFlash", locale) : undefined} />
 
       {lines.length === 0 ? (
-        <GetStarted
-          title={t("bank.emptyTitle", locale)}
-          hint={t("bank.emptyBody", locale)}
-          action={
-            <Link href="/banking/import">
-              <Button variant="primary">{t("bank.loadStatement", locale)}</Button>
-            </Link>
-          }
-        />
+        <GetStarted title={t("bank.emptyTitle", locale)} hint={t("bank.emptyBody", locale)} />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <StatGrid columns={3}>
             <Stat
+              size="md"
               label={t("bank.statOpen", locale)}
-              value={String(unmatched.length)}
+              value={num(unmatched.length)}
               delta={t("bank.statOpenHint", locale)}
               tone={unmatched.length > 0 ? "due" : "ok"}
             />
             <Stat
+              size="md"
               label={t("bank.statOpenIn", locale)}
               value={rands(openIn)}
               delta={t("bank.statOpenInHint", locale)}
             />
             <Stat
+              size="md"
               label={t("bank.statOpenOut", locale)}
               value={rands(openOut)}
               delta={t("bank.statOpenOutHint", locale)}
             />
-          </div>
+          </StatGrid>
 
           {last ? (
             <p className="text-sm text-sand-500">
@@ -279,27 +278,20 @@ export default async function BankingPage({
             </div>
           </Card>
 
+          {/* Set aside and done are history to look back at, not work to do, so each is a
+              disclosure with its count. Done in particular grows by every line matched. */}
           {aside.length > 0 ? (
-            <Card flush>
-              <CardHeader className="px-4 pt-4">
-                <CardTitle>{t("bank.asideTitle", locale)}</CardTitle>
-              </CardHeader>
-              <div className="px-4 pb-2">
+            <Disclosure summary={t("bank.asideTitle", locale)} meta={num(aside.length)}>
                 <ul className="flex flex-col">
                   {aside.map((line) => (
                     <BankLineRow key={line.id} locale={locale} line={line} suggestions={[]} />
                   ))}
                 </ul>
-              </div>
-            </Card>
+            </Disclosure>
           ) : null}
 
           {matched.length > 0 ? (
-            <Card flush>
-              <CardHeader className="px-4 pt-4">
-                <CardTitle>{t("bank.doneTitle", locale)}</CardTitle>
-              </CardHeader>
-              <div className="px-4 pb-2">
+            <Disclosure summary={t("bank.doneTitle", locale)} meta={num(matched.length)}>
                 <ul className="flex flex-col">
                   {matched.map((line) => (
                     <BankLineRow
@@ -315,11 +307,10 @@ export default async function BankingPage({
                     />
                   ))}
                 </ul>
-              </div>
-            </Card>
+            </Disclosure>
           ) : null}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

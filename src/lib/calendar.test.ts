@@ -14,6 +14,9 @@ import test from "node:test";
 import { t } from "@/lib/i18n";
 import {
   CALENDAR_KINDS,
+  firstUpcoming,
+  lookaheadRange,
+  lookbackRange,
   byDay,
   daysInMonth,
   isMonth,
@@ -163,4 +166,19 @@ test("every state and every kind has words in both languages", () => {
       assert.notEqual(t(key, lang), key, `${key} renders its own key in ${lang}`);
     }
   }
+});
+
+test("lookahead and lookback ranges wrap the year", () => {
+  assert.deepEqual(lookaheadRange("2026-11"), { from: "2026-12-01", to: "2027-11-30" });
+  assert.deepEqual(lookaheadRange("2026-01", 1), { from: "2026-02-01", to: "2026-02-28" });
+  assert.deepEqual(lookbackRange("2026-02"), { from: "2025-02-01", to: "2026-01-31" });
+});
+
+test("firstUpcoming picks the soonest, then the loudest", () => {
+  const base = { item_id: "x", machine_id: null, machine_name: null, title: null, detail: null } as const;
+  assert.equal(firstUpcoming([]), null);
+  const a = { ...base, kind: "licence" as const, on_date: "2026-11-03", state: "ok" as const };
+  const b = { ...base, kind: "service_due" as const, on_date: "2026-11-03", state: "due_soon" as const };
+  const c = { ...base, kind: "job_card" as const, on_date: "2026-12-01", state: "overdue" as const };
+  assert.equal(firstUpcoming([c, a, b]), b);
 });

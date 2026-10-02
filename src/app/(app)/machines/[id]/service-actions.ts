@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { withTab } from "@/components/ui/tabs-url";
 
 function numOrNull(fd: FormData, k: string): number | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -49,9 +50,9 @@ export async function addServiceLine(formData: FormData) {
   const task = strOrNull(formData, "task");
   const interval_hours = numOrNull(formData, "interval_hours");
   const interval_months = numOrNull(formData, "interval_months");
-  if (!machineId || !farmId || !task) redirect(`/machines/${machineId}?error=Task+is+required`);
+  if (!machineId || !farmId || !task) redirect(withTab(`/machines/${machineId}?error=Task+is+required`, "servicing"));
   if (interval_hours == null && interval_months == null)
-    redirect(`/machines/${machineId}?error=Set+an+hour+or+month+interval`);
+    redirect(withTab(`/machines/${machineId}?error=Set+an+hour+or+month+interval`, "servicing"));
 
   const last_done_reading = numOrNull(formData, "last_done_reading");
   const last_done_date = strOrNull(formData, "last_done_date");
@@ -70,9 +71,9 @@ export async function addServiceLine(formData: FormData) {
     ...due,
     status: "ok",
   });
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=service`);
+  redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
 
 export async function updateServiceLine(formData: FormData) {
@@ -82,7 +83,7 @@ export async function updateServiceLine(formData: FormData) {
   const task = strOrNull(formData, "task");
   const interval_hours = numOrNull(formData, "interval_hours");
   const interval_months = numOrNull(formData, "interval_months");
-  if (!id || !task) redirect(`/machines/${machineId}?error=Task+is+required`);
+  if (!id || !task) redirect(withTab(`/machines/${machineId}?error=Task+is+required`, "servicing"));
 
   const last_done_reading = numOrNull(formData, "last_done_reading");
   const last_done_date = strOrNull(formData, "last_done_date");
@@ -93,24 +94,24 @@ export async function updateServiceLine(formData: FormData) {
     .from("service_plan_lines")
     .update({ task, interval_hours, interval_months, last_done_reading, last_done_date, ...due })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=service`);
+  redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
 
 export async function deleteServiceLine(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "servicing"));
   const supabase = await createClient();
   const { error } = await supabase
     .from("service_plan_lines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=service`);
+  redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
 
 type TemplateLine = { task: string; interval_hours?: number | null; interval_months?: number | null };
@@ -122,7 +123,7 @@ export async function applyTemplate(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const templateId = String(formData.get("template_id") ?? "");
-  if (!machineId || !farmId || !templateId) redirect(`/machines/${machineId}?error=Pick+a+template`);
+  if (!machineId || !farmId || !templateId) redirect(withTab(`/machines/${machineId}?error=Pick+a+template`, "servicing"));
 
   const supabase = await createClient();
   const [{ data: tpl }, { data: mach }] = await Promise.all([
@@ -130,7 +131,7 @@ export async function applyTemplate(formData: FormData) {
     supabase.from("machines").select("current_reading").eq("id", machineId).maybeSingle(),
   ]);
   const lines = ((tpl as { lines: TemplateLine[] } | null)?.lines ?? []) as TemplateLine[];
-  if (lines.length === 0) redirect(`/machines/${machineId}?error=Template+has+no+lines`);
+  if (lines.length === 0) redirect(withTab(`/machines/${machineId}?error=Template+has+no+lines`, "servicing"));
 
   const today = new Date().toISOString().slice(0, 10);
   const currentReading = (mach as { current_reading: number | null } | null)?.current_reading ?? null;
@@ -155,7 +156,7 @@ export async function applyTemplate(formData: FormData) {
   });
 
   const { error } = await supabase.from("service_plan_lines").insert(rows);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=template`);
+  redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));
 }

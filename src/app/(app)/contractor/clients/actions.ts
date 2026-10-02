@@ -97,7 +97,8 @@ export async function createClientRecord(formData: FormData) {
 
   if (error) redirect(`/contractor/clients?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/contractor/clients");
-  redirect(`/contractor/clients/${(data as { id: string }).id}`);
+  // Land on the new record WITH the confirmation, so the save is not silent.
+  redirect(`/contractor/clients/${(data as { id: string }).id}?saved=1`);
 }
 
 export async function updateClientRecord(formData: FormData) {

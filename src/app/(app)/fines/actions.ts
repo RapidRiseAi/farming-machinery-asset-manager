@@ -5,7 +5,17 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, checkEntitlement } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
+import { todayLocal } from "@/lib/format";
 import { isFineStatus, nominationPending, type FineStatus } from "@/lib/fines";
+
+/**
+ * Back to /fines with an error CODE, never a Postgres message: the page renders
+ * `?error=` through errorMessage(), and the raw detail belongs in the server log.
+ */
+function failSave(where: string, error: { message: string }): never {
+  console.error(`[fines] ${where} failed:`, error.message);
+  redirect("/fines?error=save-failed");
+}
 
 function strOrNull(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -36,7 +46,7 @@ export async function createFine(formData: FormData) {
   await requireAartoManager();
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
-  if (!machineId || !farmId) redirect("/fines?error=Missing+vehicle");
+  if (!machineId || !farmId) redirect("/fines?error=missing-vehicle");
 
   const driverUserId = strOrNull(formData, "driver_user_id");
   const driverName = strOrNull(formData, "driver_name");
@@ -53,7 +63,7 @@ export async function createFine(formData: FormData) {
     authority: strOrNull(formData, "authority"),
     offence: strOrNull(formData, "offence"),
     offence_date: dateOrNull(formData, "offence_date"),
-    fine_date: dateOrNull(formData, "fine_date") ?? new Date().toISOString().slice(0, 10),
+    fine_date: dateOrNull(formData, "fine_date") ?? todayLocal(),
     amount_cents: parseRandsToCents(String(formData.get("amount") ?? "")),
     nomination_deadline: dateOrNull(formData, "nomination_deadline"),
     status,
@@ -61,7 +71,7 @@ export async function createFine(formData: FormData) {
     driver_name: driverUserId ? null : driverName,
     notes: strOrNull(formData, "notes"),
   });
-  if (error) redirect(`/fines?error=${encodeURIComponent(error.message)}`);
+  if (error) failSave("fine", error);
   revalidatePath("/fines");
   const back = String(formData.get("redirect_to") ?? "/fines?saved=fine");
   redirect(back);
@@ -71,7 +81,7 @@ export async function createFine(formData: FormData) {
 export async function identifyDriver(formData: FormData) {
   await requireAartoManager();
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect("/fines?error=Missing+fine");
+  if (!id) redirect("/fines?error=missing-fine");
   const driverUserId = strOrNull(formData, "driver_user_id");
   const driverName = strOrNull(formData, "driver_name");
 
@@ -84,7 +94,7 @@ export async function identifyDriver(formData: FormData) {
       status: "driver_identified",
     })
     .eq("id", id);
-  if (error) redirect(`/fines?error=${encodeURIComponent(error.message)}`);
+  if (error) failSave("fine", error);
   revalidatePath("/fines");
   redirect("/fines?saved=fine");
 }
@@ -97,7 +107,7 @@ export async function updateFineStatus(formData: FormData) {
   await requireAartoManager();
   const id = String(formData.get("id") ?? "");
   const status = statusOr(formData, "status", "received");
-  if (!id) redirect("/fines?error=Missing+fine");
+  if (!id) redirect("/fines?error=missing-fine");
 
   const patch: Record<string, unknown> = { status };
   if (!nominationPending(status)) {
@@ -107,7 +117,7 @@ export async function updateFineStatus(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("fines").update(patch).eq("id", id);
-  if (error) redirect(`/fines?error=${encodeURIComponent(error.message)}`);
+  if (error) failSave("fine", error);
   revalidatePath("/fines");
   redirect("/fines?saved=fine");
 }
@@ -116,13 +126,13 @@ export async function updateFineStatus(formData: FormData) {
 export async function deleteFine(formData: FormData) {
   const profile = await requireAartoManager();
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect("/fines?error=Missing+fine");
+  if (!id) redirect("/fines?error=missing-fine");
   const supabase = await createClient();
   const { error } = await supabase
     .from("fines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(`/fines?error=${encodeURIComponent(error.message)}`);
+  if (error) failSave("fine", error);
   revalidatePath("/fines");
   redirect("/fines?saved=fine");
 }

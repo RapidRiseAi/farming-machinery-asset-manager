@@ -6,7 +6,7 @@ import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { enumLabel, shortDate } from "@/lib/format";
+import { enumLabel, shortDate, todayLocal } from "@/lib/format";
 import { policyLabel, readBookValues, registerTotals } from "@/lib/depreciation";
 import { setDepreciationPolicy } from "./actions";
 
@@ -18,9 +18,10 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { PageInfoButton } from "@/components/ui/page-info-button";
 import { GetStarted } from "@/components/ui/empty-state";
-import { buttonVariants } from "@/components/ui/button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import type { BookValueRow } from "@/lib/depreciation";
 
 export const dynamic = "force-dynamic";
 
@@ -65,39 +66,120 @@ export default async function AssetRegisterPage({
   const on = sp.on && /^\d{4}-\d{2}-\d{2}$/.test(sp.on) ? sp.on : undefined;
   const rows = canSeeCosts ? await readBookValues(supabase, farmId, on) : [];
   const totals = registerTotals(rows);
-  const asAt = on ?? new Date().toISOString().slice(0, 10);
+  // The farm day, not UTC: before 02:00 in South Africa UTC is still on yesterday.
+  const asAt = on ?? todayLocal();
   // Only the owner and a manager may set a policy. The database refuses anybody else
   // inside `set_machine_depreciation`, so this decides whether to render a control that
   // would be refused rather than deciding anything about the data.
   const canSetPolicy = profile.role === "owner" || profile.role === "manager";
-  const editing = sp.edit && canSetPolicy ? rows.find((r) => r.machine_id === sp.edit) ?? null : null;
+  // `?edit=<machine>` still works as a deep link: it opens that row's dialog on arrival.
+  const editId = sp.edit && canSetPolicy ? sp.edit : null;
 
   const header = (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-          {t("depreciation.title", locale)}
-        </h1>
-        <PageInfoButton infoKey="assetRegister" locale={locale} />
-      </div>
-      <p className="mt-1 text-sm text-sand-600">{t("depreciation.lead", locale)}</p>
-    </div>
+    <PageHeader
+      title={t("depreciation.title", locale)}
+      lead={t("depreciation.lead", locale)}
+      meta={canSeeCosts ? `${t("depreciation.asAt", locale)}: ${shortDate(asAt, locale)}` : undefined}
+      infoKey="assetRegister"
+      locale={locale}
+      back={{ href: "/reports", label: t("reports.title", locale) }}
+    />
+  );
+
+  const machineName = (r: BookValueRow) => (r.reg_no ? `${r.name} · ${r.reg_no}` : r.name);
+
+  /*
+    The policy editor, one dialog per row. It used to open BELOW the table via ?edit=,
+    which on a long fleet meant tapping "Change" and then scrolling to find the form. Both
+    method fields are always rendered and the database ignores the one that does not
+    apply, so a farm switching from straight line to reducing balance does not have to
+    submit twice to see the field it needs.
+  */
+  const policyDialog = (r: BookValueRow) => (
+    <DialogForm
+      trigger={t("depreciation.change", locale)}
+      triggerVariant="ghost"
+      triggerSize="sm"
+      title={t("depreciation.policyFor", locale).replace("{machine}", machineName(r))}
+      closeLabel={t("ui.close", locale)}
+      size="lg"
+      defaultOpen={editId === r.machine_id}
+    >
+      <form action={setDepreciationPolicy} className="flex flex-col gap-3">
+        <input type="hidden" name="machine_id" value={r.machine_id} />
+        <DialogFields>
+          <Field label={t("depreciation.fieldMethod", locale)} htmlFor={`dp-method-${r.machine_id}`}>
+            <Select id={`dp-method-${r.machine_id}`} name="method" defaultValue={r.method}>
+              <option value="none">{t("depreciation.methodNone", locale)}</option>
+              <option value="straight_line">{t("depreciation.methodStraight", locale)}</option>
+              <option value="reducing_balance">{t("depreciation.methodReducing", locale)}</option>
+            </Select>
+          </Field>
+          <Field
+            label={t("depreciation.fieldYears", locale)}
+            htmlFor={`dp-years-${r.machine_id}`}
+            hint={t("depreciation.fieldYearsHint", locale)}
+          >
+            <Input
+              id={`dp-years-${r.machine_id}`}
+              name="years"
+              inputMode="decimal"
+              defaultValue={r.life_months != null ? String(r.life_months / 12) : ""}
+            />
+          </Field>
+          <Field
+            label={t("depreciation.fieldRate", locale)}
+            htmlFor={`dp-rate-${r.machine_id}`}
+            hint={t("depreciation.fieldRateHint", locale)}
+          >
+            <Input
+              id={`dp-rate-${r.machine_id}`}
+              name="rate"
+              inputMode="decimal"
+              defaultValue={r.rate_bps != null ? String(r.rate_bps / 100) : ""}
+            />
+          </Field>
+          <Field
+            label={t("depreciation.fieldResidual", locale)}
+            htmlFor={`dp-residual-${r.machine_id}`}
+            hint={t("depreciation.fieldResidualHint", locale)}
+          >
+            <Input
+              id={`dp-residual-${r.machine_id}`}
+              name="residual"
+              inputMode="decimal"
+              defaultValue={r.residual_value_cents != null ? String(r.residual_value_cents / 100) : ""}
+            />
+          </Field>
+          <Field
+            label={t("depreciation.fieldStart", locale)}
+            htmlFor={`dp-start-${r.machine_id}`}
+            hint={t("depreciation.fieldStartHint", locale)}
+          >
+            <Input id={`dp-start-${r.machine_id}`} name="start" type="date" defaultValue={r.start_date ?? ""} />
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={t("depreciation.cancel", locale)}>
+          <SubmitButton>{t("depreciation.savePolicy", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
   );
 
   if (!canSeeCosts) {
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <PageContainer size="wide">
         {header}
         <GetStarted
           title={t("depreciation.deniedTitle", locale)}
           hint={t("depreciation.deniedBody", locale)}
         />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+    <PageContainer size="wide">
       {header}
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("depreciation.saved", locale) : undefined} />
@@ -185,7 +267,7 @@ export default async function AssetRegisterPage({
                           href={`/machines/${r.machine_id}`}
                           className="focus-ring rounded font-medium text-brand-ink hover:underline"
                         >
-                          {r.reg_no ? `${r.name} · ${r.reg_no}` : r.name}
+                          {machineName(r)}
                         </Link>
                         <span className="block text-xs text-sand-500">
                           {enumLabel("machineType", r.type, locale)}
@@ -193,15 +275,10 @@ export default async function AssetRegisterPage({
                         </span>
                       </Td>
                       <Td label={t("depreciation.colPolicy", locale)} className="text-sm text-sand-700">
-                        {policyText}
-                        {canSetPolicy ? (
-                          <Link
-                            href={`/reports/assets?${on ? `on=${on}&` : ""}edit=${r.machine_id}`}
-                            className="ml-2 text-xs font-medium text-brand-ink underline"
-                          >
-                            {t("depreciation.change", locale)}
-                          </Link>
-                        ) : null}
+                        <span className="flex flex-wrap items-center justify-end gap-x-2 lg:justify-start">
+                          <span>{policyText}</span>
+                          {canSetPolicy ? policyDialog(r) : null}
+                        </span>
                       </Td>
                       <Td label={t("depreciation.colCost", locale)} className="text-right tabular-nums">
                         {r.purchase_price_cents != null ? rands(r.purchase_price_cents) : "-"}
@@ -221,94 +298,6 @@ export default async function AssetRegisterPage({
         </Card>
       )}
 
-      {/* The policy editor, below the table rather than inside a row: a form nested in a
-          horizontally scrolling table is a form somebody has to scroll sideways to submit,
-          and this one is filled in at a desk with a schedule of values beside it. Both
-          method fields are always rendered and the database ignores the one that does not
-          apply, so a farm switching from straight line to reducing balance does not have
-          to submit twice to see the field they need. */}
-      {editing ? (
-        <Card>
-          <CardTitle>
-            {t("depreciation.policyFor", locale).replace(
-              "{machine}",
-              editing.reg_no ? `${editing.name} · ${editing.reg_no}` : editing.name,
-            )}
-          </CardTitle>
-          <form action={setDepreciationPolicy} className="mt-3 grid gap-3 sm:grid-cols-2">
-            <input type="hidden" name="machine_id" value={editing.machine_id} />
-            <Field label={t("depreciation.fieldMethod", locale)} htmlFor="dp-method">
-              <Select id="dp-method" name="method" defaultValue={editing.method}>
-                <option value="none">{t("depreciation.methodNone", locale)}</option>
-                <option value="straight_line">{t("depreciation.methodStraight", locale)}</option>
-                <option value="reducing_balance">{t("depreciation.methodReducing", locale)}</option>
-              </Select>
-            </Field>
-            <Field
-              label={t("depreciation.fieldYears", locale)}
-              htmlFor="dp-years"
-              hint={t("depreciation.fieldYearsHint", locale)}
-            >
-              <Input
-                id="dp-years"
-                name="years"
-                inputMode="decimal"
-                defaultValue={editing.life_months != null ? String(editing.life_months / 12) : ""}
-              />
-            </Field>
-            <Field
-              label={t("depreciation.fieldRate", locale)}
-              htmlFor="dp-rate"
-              hint={t("depreciation.fieldRateHint", locale)}
-            >
-              <Input
-                id="dp-rate"
-                name="rate"
-                inputMode="decimal"
-                defaultValue={editing.rate_bps != null ? String(editing.rate_bps / 100) : ""}
-              />
-            </Field>
-            <Field
-              label={t("depreciation.fieldResidual", locale)}
-              htmlFor="dp-residual"
-              hint={t("depreciation.fieldResidualHint", locale)}
-            >
-              <Input
-                id="dp-residual"
-                name="residual"
-                inputMode="decimal"
-                defaultValue={
-                  editing.residual_value_cents != null
-                    ? String(editing.residual_value_cents / 100)
-                    : ""
-                }
-              />
-            </Field>
-            <Field
-              label={t("depreciation.fieldStart", locale)}
-              htmlFor="dp-start"
-              hint={t("depreciation.fieldStartHint", locale)}
-            >
-              <Input id="dp-start" name="start" type="date" defaultValue={editing.start_date ?? ""} />
-            </Field>
-            <div className="flex items-end gap-2 sm:col-span-2">
-              <SubmitButton variant="primary">{t("depreciation.savePolicy", locale)}</SubmitButton>
-              <Link
-                href={`/reports/assets${on ? `?on=${on}` : ""}`}
-                className={buttonVariants({ variant: "ghost" })}
-              >
-                {t("depreciation.cancel", locale)}
-              </Link>
-            </div>
-          </form>
-        </Card>
-      ) : null}
-
-      <p className="text-sm text-sand-600">
-        <Link href="/reports" className="font-medium text-brand-ink underline">
-          {t("depreciation.backToReports", locale)}
-        </Link>
-      </p>
-    </div>
+    </PageContainer>
   );
 }

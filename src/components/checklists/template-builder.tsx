@@ -30,6 +30,12 @@ type BuilderField = {
   fail_when: "" | "checked" | "unchecked" | "below" | "above";
   fail_threshold: string;
   fail_urgency: "can_work" | "limping" | "stopped";
+  /**
+   * UI only, never posted: whether this field's extra options (help text, rating
+   * scale, defect rule) are showing. The payload is mapped field by field, so this
+   * cannot leak into a save.
+   */
+  more?: boolean;
 };
 
 const EMPTY_FIELD: BuilderField = {
@@ -46,6 +52,20 @@ const EMPTY_FIELD: BuilderField = {
 /** Only a checkbox, a number or a rating can carry a rule that could ever fire. */
 function canFail(type: ChecklistFieldType): boolean {
   return type === "checkbox" || type === "number" || type === "rating";
+}
+
+/**
+ * Whether a field has anything set behind "More options". Such a field starts open,
+ * so editing a template never hides a rule the person came to change. Decided ONCE,
+ * when the builder loads: deciding it on every render would fold the panel away the
+ * moment somebody cleared the help text they were typing in.
+ */
+function hasOptions(f: BuilderField): boolean {
+  return (
+    f.help_text.trim() !== "" ||
+    f.fail_when !== "" ||
+    (f.field_type === "rating" && f.rating_max !== DEFAULT_RATING_MAX)
+  );
 }
 
 /**
@@ -77,8 +97,11 @@ export function ChecklistTemplateBuilder({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [machineType, setMachineType] = useState(initialMachineType);
-  const [fields, setFields] = useState<BuilderField[]>(
-    initialFields?.length ? initialFields : [{ ...EMPTY_FIELD }],
+  const [fields, setFields] = useState<BuilderField[]>(() =>
+    (initialFields?.length ? initialFields : [{ ...EMPTY_FIELD }]).map((f) => ({
+      ...f,
+      more: f.more ?? hasOptions(f),
+    })),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,183 +219,211 @@ export function ChecklistTemplateBuilder({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {fields.map((field, index) => (
-          <div key={index} className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-sand-50/60 p-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr_auto]">
-              <Field label={t("checklists.fieldType", locale)} htmlFor={`f${index}-type`}>
-                <Select
-                  id={`f${index}-type`}
-                  value={field.field_type}
-                  onChange={(e) => patch(index, { field_type: e.target.value as ChecklistFieldType })}
-                >
-                  {CHECKLIST_FIELD_TYPES.map((ft) => (
-                    <option key={ft} value={ft}>
-                      {fieldTypeLabel(ft, locale)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {/* Every input on this screen was labelled only by its placeholder. */}
-              <Field
-                label={
-                  field.field_type === "section_break"
-                    ? t("checklists.sectionHeading", locale)
-                    : t("checklists.fieldLabel", locale)
-                }
-                htmlFor={`f${index}-label`}
-              >
-                <Input
-                  id={`f${index}-label`}
-                  value={field.label}
-                  onChange={(e) => patch(index, { label: e.target.value })}
-                  spellCheck
-                  autoCapitalize="sentences"
-                />
-              </Field>
-              {field.field_type !== "section_break" ? (
-                <label className="flex min-h-[48px] items-center gap-2 self-end rounded-lg border border-sand-300 px-3 text-sm text-sand-700">
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 rounded border-sand-300"
-                    checked={field.required}
-                    onChange={(e) => patch(index, { required: e.target.checked })}
-                  />
-                  {t("common.required", locale)}
-                </label>
-              ) : (
-                <span className="hidden sm:block" />
-              )}
-            </div>
-
-            {field.field_type !== "section_break" ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                <Field label={t("checklists.helpTextHint", locale)} htmlFor={`f${index}-help`}>
-                  <Input
-                    id={`f${index}-help`}
-                    value={field.help_text}
-                    onChange={(e) => patch(index, { help_text: e.target.value })}
-                    spellCheck
-                  />
-                </Field>
-                {field.field_type === "rating" ? (
-                  <Field label={t("checklists.ratingMax", locale)} htmlFor={`f${index}-max`}>
-                    <Input
-                      id={`f${index}-max`}
-                      type="number"
-                      min={2}
-                      max={10}
-                      className="w-24"
-                      value={field.rating_max}
-                      onChange={(e) => patch(index, { rating_max: Number(e.target.value) || DEFAULT_RATING_MAX })}
-                    />
-                  </Field>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* == What makes this answer a defect ============================
-                A checklist used to record "Brakes: no" and stop there. A field with a
-                rule opens a fault the moment the answer matches, so the inspection
-                reaches somebody instead of sitting in a saved form. No rule is the
-                default, and every field built before this has none. */}
-            {canFail(field.field_type) ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Field label={t("checklists.failWhen", locale)} htmlFor={`f${index}-fail`}>
+        {fields.map((field, index) => {
+          // Only the type, the label and Required show at rest. A 15-question pre-use
+          // check was about 500px a question with every option out; the options are
+          // set once, at setup, and then only read.
+          const hasMore = field.field_type !== "section_break";
+          const open = hasMore && !!field.more;
+          const moreId = `f${index}-more`;
+          return (
+            <div key={index} className="flex flex-col gap-2 rounded-xl border border-sand-200 bg-sand-50/60 p-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr_auto]">
+                <Field label={t("checklists.fieldType", locale)} htmlFor={`f${index}-type`}>
                   <Select
-                    id={`f${index}-fail`}
-                    value={field.fail_when}
-                    onChange={(e) =>
-                      patch(index, { fail_when: e.target.value as BuilderField["fail_when"] })
-                    }
+                    id={`f${index}-type`}
+                    value={field.field_type}
+                    onChange={(e) => patch(index, { field_type: e.target.value as ChecklistFieldType })}
                   >
-                    <option value="">{t("checklists.failNever", locale)}</option>
-                    {field.field_type === "checkbox" ? (
-                      <>
-                        <option value="unchecked">{t("checklists.failUnchecked", locale)}</option>
-                        <option value="checked">{t("checklists.failChecked", locale)}</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="below">{t("checklists.failBelow", locale)}</option>
-                        <option value="above">{t("checklists.failAbove", locale)}</option>
-                      </>
-                    )}
+                    {CHECKLIST_FIELD_TYPES.map((ft) => (
+                      <option key={ft} value={ft}>
+                        {fieldTypeLabel(ft, locale)}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
-                {field.fail_when === "below" || field.fail_when === "above" ? (
-                  <Field label={t("checklists.failThreshold", locale)} htmlFor={`f${index}-thr`}>
-                    <Input
-                      id={`f${index}-thr`}
-                      type="number"
-                      step="0.01"
-                      value={field.fail_threshold}
-                      onChange={(e) => patch(index, { fail_threshold: e.target.value })}
+                {/* Every input on this screen was labelled only by its placeholder. */}
+                <Field
+                  label={
+                    field.field_type === "section_break"
+                      ? t("checklists.sectionHeading", locale)
+                      : t("checklists.fieldLabel", locale)
+                  }
+                  htmlFor={`f${index}-label`}
+                >
+                  <Input
+                    id={`f${index}-label`}
+                    value={field.label}
+                    onChange={(e) => patch(index, { label: e.target.value })}
+                    spellCheck
+                    autoCapitalize="sentences"
+                  />
+                </Field>
+                {field.field_type !== "section_break" ? (
+                  <label className="flex min-h-[48px] items-center gap-2 self-end rounded-lg border border-sand-300 px-3 text-sm text-sand-700">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-sand-300"
+                      checked={field.required}
+                      onChange={(e) => patch(index, { required: e.target.checked })}
                     />
-                  </Field>
-                ) : null}
-                {field.fail_when ? (
-                  <Field label={t("checklists.failUrgency", locale)} htmlFor={`f${index}-urg`}>
-                    <Select
-                      id={`f${index}-urg`}
-                      value={field.fail_urgency}
-                      onChange={(e) =>
-                        patch(index, {
-                          fail_urgency: e.target.value as BuilderField["fail_urgency"],
-                        })
-                      }
-                    >
-                      <option value="can_work">{t("urgency.can_work", locale)}</option>
-                      <option value="limping">{t("urgency.limping", locale)}</option>
-                      <option value="stopped">{t("urgency.stopped", locale)}</option>
-                    </Select>
-                  </Field>
-                ) : null}
+                    {t("common.required", locale)}
+                  </label>
+                ) : (
+                  <span className="hidden sm:block" />
+                )}
               </div>
-            ) : null}
 
-            {/* Was three ~26px text-only buttons. Same three actions, at the size the
-                thumb this product is built for actually needs, each with its glyph. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={index === 0}
-                onClick={() => move(index, -1)}
-              >
-                <ChevronUpIcon />
-                {t("checklists.moveUp", locale)}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={index === fields.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ChevronDownIcon />
-                {t("checklists.moveDown", locale)}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="ml-auto text-status-overdue"
-                onClick={() => setFields((cur) => cur.filter((_, i) => i !== index))}
-              >
-                <TrashIcon />
-                {t("checklists.removeField", locale)}
-              </Button>
+              {open ? (
+                <div id={moreId} className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                    <Field label={t("checklists.helpTextHint", locale)} htmlFor={`f${index}-help`}>
+                      <Input
+                        id={`f${index}-help`}
+                        value={field.help_text}
+                        onChange={(e) => patch(index, { help_text: e.target.value })}
+                        spellCheck
+                      />
+                    </Field>
+                    {field.field_type === "rating" ? (
+                      <Field label={t("checklists.ratingMax", locale)} htmlFor={`f${index}-max`}>
+                        <Input
+                          id={`f${index}-max`}
+                          type="number"
+                          min={2}
+                          max={10}
+                          className="w-24"
+                          value={field.rating_max}
+                          onChange={(e) => patch(index, { rating_max: Number(e.target.value) || DEFAULT_RATING_MAX })}
+                        />
+                      </Field>
+                    ) : null}
+                  </div>
+
+                  {/* == What makes this answer a defect ============================
+                      A checklist used to record "Brakes: no" and stop there. A field with a
+                      rule opens a fault the moment the answer matches, so the inspection
+                      reaches somebody instead of sitting in a saved form. No rule is the
+                      default, and every field built before this has none. */}
+                  {canFail(field.field_type) ? (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <Field label={t("checklists.failWhen", locale)} htmlFor={`f${index}-fail`}>
+                        <Select
+                          id={`f${index}-fail`}
+                          value={field.fail_when}
+                          onChange={(e) =>
+                            patch(index, { fail_when: e.target.value as BuilderField["fail_when"] })
+                          }
+                        >
+                          <option value="">{t("checklists.failNever", locale)}</option>
+                          {field.field_type === "checkbox" ? (
+                            <>
+                              <option value="unchecked">{t("checklists.failUnchecked", locale)}</option>
+                              <option value="checked">{t("checklists.failChecked", locale)}</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="below">{t("checklists.failBelow", locale)}</option>
+                              <option value="above">{t("checklists.failAbove", locale)}</option>
+                            </>
+                          )}
+                        </Select>
+                      </Field>
+                      {field.fail_when === "below" || field.fail_when === "above" ? (
+                        <Field label={t("checklists.failThreshold", locale)} htmlFor={`f${index}-thr`}>
+                          <Input
+                            id={`f${index}-thr`}
+                            type="number"
+                            step="0.01"
+                            value={field.fail_threshold}
+                            onChange={(e) => patch(index, { fail_threshold: e.target.value })}
+                          />
+                        </Field>
+                      ) : null}
+                      {field.fail_when ? (
+                        <Field label={t("checklists.failUrgency", locale)} htmlFor={`f${index}-urg`}>
+                          <Select
+                            id={`f${index}-urg`}
+                            value={field.fail_urgency}
+                            onChange={(e) =>
+                              patch(index, {
+                                fail_urgency: e.target.value as BuilderField["fail_urgency"],
+                              })
+                            }
+                          >
+                            <option value="can_work">{t("urgency.can_work", locale)}</option>
+                            <option value="limping">{t("urgency.limping", locale)}</option>
+                            <option value="stopped">{t("urgency.stopped", locale)}</option>
+                          </Select>
+                        </Field>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* Was three ~26px text-only buttons. Same three actions, at the size the
+                  thumb this product is built for actually needs, each with its glyph.
+                  Moving is hidden while there is only one field: there is nowhere to go. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {hasMore ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-expanded={open}
+                    aria-controls={open ? moreId : undefined}
+                    onClick={() => patch(index, { more: !open })}
+                  >
+                    {open ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                    {open ? t("checklists.fewerOptions", locale) : t("checklists.moreOptions", locale)}
+                  </Button>
+                ) : null}
+                {fields.length > 1 ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                    >
+                      <ChevronUpIcon />
+                      {t("checklists.moveUp", locale)}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={index === fields.length - 1}
+                      onClick={() => move(index, 1)}
+                    >
+                      <ChevronDownIcon />
+                      {t("checklists.moveDown", locale)}
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-status-overdue"
+                  onClick={() => setFields((cur) => cur.filter((_, i) => i !== index))}
+                >
+                  <TrashIcon />
+                  {t("checklists.removeField", locale)}
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div>
         <Button
           type="button"
           variant="secondary"
-          onClick={() => setFields((cur) => [...cur, { ...EMPTY_FIELD }])}
+          onClick={() => setFields((cur) => [...cur, { ...EMPTY_FIELD, more: false }])}
         >
           <PlusIcon />
           {t("checklists.addField", locale)}

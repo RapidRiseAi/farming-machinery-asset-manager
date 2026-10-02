@@ -13,8 +13,9 @@ import { balanceAfter, type CashflowBucket } from "@/lib/cashflow";
  * because "the red one" is not a signal on a cracked phone in sunlight, which is the
  * screen this product is used on.
  *
- * On a phone the table scrolls sideways inside its own container rather than pushing the
- * page out; the same treatment `/money`'s ageing tables use.
+ * On a phone each bucket is a small labelled card (`<Table stacked>`), the same treatment
+ * `/money`'s ageing tables use. It used to scroll sideways inside its own container,
+ * which left the closing balance, the one column people read, off the right edge.
  */
 export function ForecastTable({
   rows,
@@ -28,9 +29,10 @@ export function ForecastTable({
 }) {
   const closing = balanceAfter(rows, openingCents ?? 0);
   const firstNegative = openingCents == null ? -1 : closing.findIndex((c) => c < 0);
+  const balanceLabel = openingCents == null ? t("cash.colChange", locale) : t("cash.colBalance", locale);
 
   return (
-      <Table className="min-w-[36rem]">
+      <Table stacked className="lg:min-w-[36rem]">
         <caption className="sr-only">{t("cash.tableCaption", locale)}</caption>
         <Thead>
           <Tr className="text-left text-sand-500">
@@ -39,7 +41,7 @@ export function ForecastTable({
             <Th scope="col" className="text-right font-medium">{t("cash.colOut", locale)}</Th>
             <Th scope="col" className="text-right font-medium">{t("cash.colNet", locale)}</Th>
             <Th scope="col" className="text-right font-medium">
-              {openingCents == null ? t("cash.colChange", locale) : t("cash.colBalance", locale)}
+              {balanceLabel}
             </Th>
           </Tr>
         </Thead>
@@ -49,7 +51,7 @@ export function ForecastTable({
             const under = openingCents != null && shown < 0;
             return (
               <Tr key={r.bucket}>
-                <Th scope="row" className="text-left font-medium text-sand-900">
+                <Th scope="row" className="block px-4 pt-3 text-left font-medium text-sand-900 lg:table-cell lg:pt-2.5">
                   {t(`cash.bucket.${r.bucket}`, locale)}
                   <span className="block text-xs font-normal text-sand-500">
                     <BucketWindow row={r} locale={locale} />
@@ -60,16 +62,16 @@ export function ForecastTable({
                     </span>
                   ) : null}
                 </Th>
-                <Td className="text-right tabular-nums text-sand-700">
+                <Td label={t("cash.colIn", locale)} className="text-right tabular-nums text-sand-700">
                   {r.in_cents ? rands(r.in_cents) : "-"}
                 </Td>
-                <Td className="text-right tabular-nums text-sand-700">
+                <Td label={t("cash.colOut", locale)} className="text-right tabular-nums text-sand-700">
                   {r.out_cents ? `−${rands(r.out_cents)}` : "-"}
                 </Td>
-                <Td className={`py-2.5 pr-3 text-right tabular-nums ${ r.net_cents < 0 ? "text-status-warn" : "text-sand-700" }`}>
+                <Td label={t("cash.colNet", locale)} className={`py-2.5 pr-3 text-right tabular-nums ${ r.net_cents < 0 ? "text-status-warn" : "text-sand-700" }`}>
                   {rands(r.net_cents)}
                 </Td>
-                <Td className={`py-2.5 text-right font-semibold tabular-nums ${ under ? "text-status-overdue" : "text-sand-900" }`}>
+                <Td label={balanceLabel} className={`py-2.5 text-right font-semibold tabular-nums ${ under ? "text-status-overdue" : "text-sand-900" }`}>
                   {rands(shown)}
                 </Td>
               </Tr>

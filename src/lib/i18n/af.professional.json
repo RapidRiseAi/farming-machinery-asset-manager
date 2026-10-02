@@ -14,7 +14,7 @@
     "quickReportProblem": "Fout rapporteer",
     "fleetCost": "Vlootbedryfskoste",
     "fleetCostHint": "Onderdele, arbeid en eksterne fakture · BTW uitgesluit",
-    "fullCostReport": "Volledige kosteverslag",
+    "fullCostReport": "Volledige verslag",
     "servicingOk": "Binne interval",
     "servicingNothingToDo": "Geen aksie nodig nie",
     "fleetNow": "Huidige vlootstatus",
@@ -33,7 +33,10 @@
     "moreThan": "{amount} bo {month}",
     "setupTitle": "Voltooi plaaskonfigurasie",
     "setupOpen": "Bekyk konfigurasielys",
-    "noMachinesHint": "Registreer u eerste masjien om dienste, foute en kostes te begin volg."
+    "noMachinesHint": "Registreer u eerste masjien om dienste, foute en kostes te begin volg.",
+    "staleDaysTitle": "{n} meterlesings is meer as {days} dae oud",
+    "staleDaysOneTitle": "1 meterlesing is meer as {days} dae oud",
+    "setupHide": "Maak toe"
   },
   "driver": {
     "greeting": "Welkom, {name}",
@@ -121,7 +124,11 @@
     "nothingWaitingTitle": "Geen uitstaande goedkeurings nie",
     "nothingWaitingHint": "Geen kwotasies of fakture wag op u besluit nie.",
     "whatsHappened": "Onlangse aktiwiteit",
-    "noActiveWorkHint": "Open 'n masjien en gebruik \"Werk aanvra\" om 'n taak aan 'n kontrakteur te stuur."
+    "noActiveWorkHint": "Open 'n masjien en gebruik \"Werk aanvra\" om 'n taak aan 'n kontrakteur te stuur.",
+    "amountQuoted": "Gekwoteer",
+    "amountBilled": "Gefaktureer",
+    "waitingAbove": "{n} wag hierbo op u goedkeuring",
+    "nothingNew": "Geen nuwe aktiwiteit nie."
   },
   "machines": {
     "setUpPlan": "Diensplan opstel"
@@ -208,8 +215,8 @@
     "poweredByHint": "Skakel af om slegs u besigheidsnaam op dokumente te wys.",
     "termsHint": "Word onderaan elke dokument gedruk.",
     "logoHint": "PNG, JPEG of SVG. Word bo-aan elke dokument vertoon.",
-    "quoteValidity": "Kwotasiegeldigheid (dae)",
-    "invoiceTerms": "Betalingsterme (dae)",
+    "quoteValidity": "Kwotasiegeldigheid",
+    "invoiceTerms": "Betalingsterme",
     "vatRegisteredHint": "Skakel af indien u onder die registrasiedrempel is. Dokumente word sonder BTW uitgereik.",
     "vatNotRegisteredNote": "Dokumente word sonder BTW uitgereik. Die koers word behou indien u later registreer."
   },
@@ -238,7 +245,8 @@
     "syncConfirmBody": "{n} voertuie word by {farm} se vloot gevoeg.",
     "syncConsequence": "Hulle word bates op die klant se vloot, sigbaar vir almal by daardie rekening.",
     "vehiclesHint": "U eie rekords van wat hulle bedryf, hier onderhou tot die rekening gekoppel is.",
-    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende, probeer weer."
+    "syncPartial": "{n} gekopieer. Sommige kon nie bygevoeg word nie; die res is nog hangende, probeer weer.",
+    "countMeta": "{n} in u klanteregister"
   },
   "partners": {
     "requestsHint": "Hulle het u rekening in hul kliënteregister. Goedkeuring gee hulle toegang tot u voertuie.",
@@ -258,7 +266,10 @@
     "teamHint": "Name, e-posadresse en telefoonnommers van alle plaaspersoneel.",
     "neverPartners": "U ander verskaffers word nooit aan hulle bekend gemaak nie, ongeag die instellings hierbo.",
     "save": "Stoor toegangsinstellings",
-    "disconnectBody": "{name} sal onmiddellik toegang tot hierdie plaas verloor."
+    "disconnectBody": "{name} sal onmiddellik toegang tot hierdie plaas verloor.",
+    "titleFor": "Toegang vir {name}",
+    "summaryNone": "Minimum toegang: slegs toegewysde voertuie.",
+    "summaryExtra": "Bykomende toegang: {list}"
   },
   "correct": {
     "title": "Regstellings",
@@ -304,6 +315,7 @@
   "contractor": {
     "owed": "Uitstaande",
     "overdue": "Agterstallig",
-    "quotedOut": "Kwotasies uitgereik"
+    "quotedOut": "Kwotasies uitgereik",
+    "analyticsOwed": "Uitstaande"
   }
 }

@@ -25,6 +25,8 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { Fact, FactList } from "@/components/ui/facts";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
 import {
   updateExpenseSchedule,
   toggleExpenseSchedule,
@@ -80,23 +82,24 @@ export default async function ExpenseSchedulePage({
   const errorKey = sp.error ? SCHEDULE_ERROR_KEYS[sp.error] : undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <Link href="/recurring-expenses" className="focus-ring rounded text-sm text-brand-ink hover:underline">
-        ← {t("recexp.title", locale)}
-      </Link>
+    <PageContainer>
+      <PageHeader
+        title={schedule.name}
+        back={{ href: backHref(sp.from, "/recurring-expenses"), label: t("recexp.title", locale) }}
+        badge={
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge tone="neutral">{t(`cadence.${schedule.cadence}`, locale)}</Badge>
+            <Badge tone="neutral">{t(`expenseCategory.${schedule.category}`, locale)}</Badge>
+            {schedule.auto_paid ? <Badge tone="info">{t("recexp.autoPaidBadge", locale)}</Badge> : null}
+            {!live ? <Badge tone="warning">{t("recexp.pausedBadge", locale)}</Badge> : null}
+          </span>
+        }
+      />
 
       <Flash tone="error" message={errorKey ? t(errorKey, locale) : errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.captured ? t("recexp.capturedFlash", locale) : undefined} />
       <Flash tone="info" message={sp.nothing ? t("recexp.nothingFlash", locale) : undefined} />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{schedule.name}</h1>
-        <Badge tone="neutral">{t(`cadence.${schedule.cadence}`, locale)}</Badge>
-        <Badge tone="neutral">{t(`expenseCategory.${schedule.category}`, locale)}</Badge>
-        {schedule.auto_paid ? <Badge tone="info">{t("recexp.autoPaidBadge", locale)}</Badge> : null}
-        {!live ? <Badge tone="warning">{t("recexp.pausedBadge", locale)}</Badge> : null}
-      </div>
 
       <Card>
         <CardHeader>
@@ -106,7 +109,7 @@ export default async function ExpenseSchedulePage({
           {schedule.supplier_name}
           {schedule.reference ? ` · ${schedule.reference}` : ""}
         </p>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:max-w-sm">
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm sm:max-w-sm">
           <dt className="text-sand-600">{t("recexp.exVat", locale)}</dt>
           <dd className="text-right tabular-nums text-sand-900">{rands(schedule.amount_cents)}</dd>
           <dt className="text-sand-600">
@@ -350,6 +353,6 @@ export default async function ExpenseSchedulePage({
           </p>
         </Card>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/errors";
@@ -7,14 +5,18 @@ import { t } from "@/lib/i18n";
 import { dateTime } from "@/lib/format";
 import { COMPANY } from "@/lib/legal";
 
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { Disclosure } from "@/components/ui/disclosure";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { backHref } from "@/components/ui/back-href";
+import { ChatIcon } from "@/components/ui/icons";
 
 import { askForHelp } from "./actions";
 
@@ -36,6 +38,16 @@ const STATUS_LOOK: Record<HelpRequest["status"], { tone: BadgeTone; key: string 
 };
 
 /**
+ * The quick answers, per role, built from the "What is this?" copy the screens already
+ * carry. A driver asks how to report a problem or write down diesel; an owner asks what
+ * the dashboard and the calendar are for. Nothing new to keep in step.
+ */
+const QUICK_ANSWERS: Record<"operator" | "other", readonly string[]> = {
+  operator: ["driver", "faults", "checklists", "fuel"],
+  other: ["dashboard", "faults", "machines", "calendar", "fuel"],
+};
+
+/**
  * Asking us for help without leaving the product.
  *
  * == What it replaces =========================================================
@@ -43,6 +55,12 @@ const STATUS_LOOK: Record<HelpRequest["status"], { tone: BadgeTone; key: string 
  * open a mail client, and describe from memory which screen they were on and what plan
  * they are on. Most will not bother, and the ones who do describe it wrongly, so the first
  * reply is always a request for context the product already had.
+ *
+ * == Answers first, the form behind a button ================================
+ * The ask form used to fill a phone's first screen, so the page opened on two empty boxes
+ * for a question most people can answer from the screen's own "What is this?". The quick
+ * answers come first; asking us is the header's one button, and its form opens in a
+ * dialog with the same fields and the same hidden path.
  *
  * == Anybody signed in may ask ================================================
  * Including a driver. Somebody stuck on a checklist screen is exactly who this is for, and
@@ -73,30 +91,27 @@ export default async function HelpPage({
   const requests = (data as HelpRequest[] | null) ?? [];
   const openCount = requests.filter((r) => r.status === "open" || r.status === "waiting").length;
 
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-            {t("help.title", locale)}
-          </h1>
-          <PageInfoButton infoKey="help" locale={locale} />
-        </div>
-        <p className="mt-1 text-sm text-sand-600">{t("help.lead", locale)}</p>
-      </div>
+  // Back to wherever they came from, when that is a real same-origin path. The old
+  // "Back to settings" assumed Settings, a page a driver cannot even open.
+  const from = backHref(sp.from, "");
+  const back = from && !from.startsWith("/help") ? { href: from, label: t("help.backWhereYouWere", locale) } : undefined;
+  const answers = QUICK_ANSWERS[profile.role === "operator" ? "operator" : "other"];
 
-      <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.saved ? t("help.sent", locale) : undefined} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("help.askTitle", locale)}</CardTitle>
-        </CardHeader>
-        <form action={askForHelp} className="flex flex-col gap-3">
-          {/* Where they came from, so the first reply is not "which screen were you on".
-              Validated as a relative path in the action, and the database keeps only three
-              named keys whatever this posts. */}
-          <input type="hidden" name="path" value={sp.from ?? "/help"} />
+  const askDialog = (
+    <DialogForm
+      trigger={t("help.askTitle", locale)}
+      triggerIcon={<ChatIcon />}
+      title={t("help.askTitle", locale)}
+      description={t("help.lead", locale)}
+      closeLabel={t("ui.close", locale)}
+      size="md"
+    >
+      <form action={askForHelp}>
+        {/* Where they came from, so the first reply is not "which screen were you on".
+            Validated as a relative path in the action, and the database keeps only three
+            named keys whatever this posts. */}
+        <input type="hidden" name="path" value={sp.from ?? "/help"} />
+        <DialogFields columns={1}>
           <Field
             label={t("help.subject", locale)}
             htmlFor="help-subject"
@@ -111,14 +126,41 @@ export default async function HelpPage({
             hint={t("help.messageHint", locale)}
             required
           >
-            <Textarea id="help-message" name="message" required rows={6} maxLength={4000} />
+            <Textarea id="help-message" name="message" required rows={5} maxLength={4000} />
           </Field>
-          <div>
-            <SubmitButton variant="primary">{t("help.send", locale)}</SubmitButton>
-          </div>
-          <p className="text-xs text-sand-500">{t("help.attachNote", locale)}</p>
-        </form>
-      </Card>
+        </DialogFields>
+        <DialogActions cancelLabel={t("common.cancel", locale)} note={t("help.attachNote", locale)}>
+          <SubmitButton variant="primary">{t("help.send", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
+
+  return (
+    <PageContainer size="narrow">
+      <PageHeader
+        title={t("help.title", locale)}
+        lead={t("help.leadAnswers", locale)}
+        infoKey="help"
+        locale={locale}
+        back={back}
+        actions={openCount >= 5 ? undefined : askDialog}
+      />
+
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      <Flash tone="success" message={sp.saved ? t("help.sent", locale) : undefined} />
+
+      <section className="flex flex-col gap-2" aria-labelledby="help-quick">
+        <h2 id="help-quick" className="text-base font-bold text-sand-900">{t("help.quickTitle", locale)}</h2>
+        {answers.map((key) => (
+          <Disclosure key={key} summary={t(`pageInfo.${key}Title`, locale)}>
+            <div className="flex flex-col gap-2 text-sm leading-relaxed text-sand-700">
+              <p>{t(`pageInfo.${key}What`, locale)}</p>
+              <p>{t(`pageInfo.${key}Does`, locale)}</p>
+            </div>
+          </Disclosure>
+        ))}
+      </section>
 
       {requests.length > 0 ? (
         <Card flush>
@@ -131,7 +173,7 @@ export default async function HelpPage({
               return (
                 <li key={r.id} className="flex flex-wrap items-start justify-between gap-2 p-4 sm:p-5">
                   <div className="min-w-0">
-                    <p className="font-medium text-ink">{r.subject}</p>
+                    <p className="break-words font-medium text-ink">{r.subject}</p>
                     <p className="mt-0.5 text-xs text-sand-500">
                       {t("help.askedOn", locale).replace("{when}", dateTime(r.created_at, locale))}
                     </p>
@@ -154,16 +196,10 @@ export default async function HelpPage({
           group a support form cannot serve. */}
       <p className="text-sm text-sand-600">
         {t("help.orEmail", locale)}{" "}
-        <a href={`mailto:${COMPANY.email}`} className="font-medium text-brand-ink underline">
+        <a href={`mailto:${COMPANY.email}`} className="break-all font-medium text-brand-ink underline">
           {COMPANY.email}
         </a>
       </p>
-
-      <p className="text-sm text-sand-600">
-        <Link href="/settings" className="font-medium text-brand-ink underline">
-          {t("help.backToSettings", locale)}
-        </Link>
-      </p>
-    </div>
+    </PageContainer>
   );
 }

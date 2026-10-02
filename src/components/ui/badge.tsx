@@ -1,5 +1,20 @@
+/**
+ * Pills: `Badge` for a category or a count, `StatusBadge` for a state.
+ *
+ *   <Badge tone="brand">{t(TYPE_KEY, locale)}</Badge>
+ *   <StatusBadge label={enumLabel("machineStatus", m.status, locale)} {...look(MACHINE_LOOK, m.status)} />
+ *   <StatusPill status="due_soon" label={t("ui.statusDueSoon", locale)} />
+ *
+ * A pill never wraps onto two lines: in a table cell "Out of / service" became a
+ * two-line blob that broke the row rhythm, so the column widens (or the table's own
+ * scroll wrapper scrolls) instead. Pass `wrap` for the rare long label that must be
+ * allowed to break, e.g. a free-text tag inside a narrow phone card.
+ */
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "./cn";
+
+/** One line, never squeezed by a flex row: the shared base of every pill. */
+const NO_WRAP = "shrink-0 whitespace-nowrap";
 
 export type BadgeTone = "neutral" | "brand" | "ok" | "warning" | "danger" | "info";
 
@@ -17,14 +32,17 @@ const TONES: Record<BadgeTone, string> = {
 
 export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: BadgeTone;
+  /** Let a long label break over lines. Off by default: a pill is one line. */
+  wrap?: boolean;
 };
 
 /** Small pill label for categories/counts. Not for status, use `StatusBadge`. */
-export function Badge({ tone = "neutral", className, children, ...props }: BadgeProps) {
+export function Badge({ tone = "neutral", wrap = false, className, children, ...props }: BadgeProps) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+        wrap ? "min-w-0 break-words" : NO_WRAP,
         TONES[tone],
         className,
       )}
@@ -138,6 +156,8 @@ export type StatusBadgeProps = {
   shape: StatusShape;
   /** `sm` for dense table rows, `md` for cards and headers. */
   size?: "sm" | "md";
+  /** Let a long label break over lines. Off by default: a pill is one line. */
+  wrap?: boolean;
   className?: string;
 };
 
@@ -151,12 +171,14 @@ export function StatusBadge({
   tone,
   shape,
   size = "sm",
+  wrap = false,
   className,
 }: StatusBadgeProps) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full font-medium",
+        wrap ? "min-w-0 break-words" : NO_WRAP,
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
         TONES[tone],
         className,

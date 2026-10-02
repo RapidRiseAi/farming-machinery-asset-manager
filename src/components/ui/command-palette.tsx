@@ -6,6 +6,7 @@ import { cn } from "./cn";
 import { Overlay } from "./dialog";
 import { Icon, SearchIcon, MachinesIcon, type IconName } from "./icons";
 import type { NavGroup } from "./nav";
+import { INSTALL_HREF, useStandalone } from "./use-standalone";
 
 /**
  * Ctrl/⌘+K, one place to type where you want to go.
@@ -48,10 +49,20 @@ export type CommandLabels = {
   machines: string;
   /** Shown while the machine lookup is in flight. */
   searching: string;
+  /** Heading for what this person opened from here lately. */
+  recent?: string;
+  /** Heading for the quick actions ("Do something"). */
+  actions?: string;
 };
 
+/** A verb the palette offers, linking to the screen that holds it. */
+export type CommandAction = { href: string; label: string; icon: IconName };
+
+/** Asks the one mounted palette to open, from any trigger anywhere in the shell. */
+const OPEN_EVENT = "fleetwise:open-search";
+
 type Row = {
-  kind: "page" | "machine";
+  kind: "page" | "machine" | "recent" | "action";
   key: string;
   href: string;
   label: string;
@@ -98,12 +109,58 @@ function rank(label: string, meta: string, q: string): number {
   return -1;
 }
 
+/**
+ * Recently opened, per PERSON (keyed by profile id, so a shared workshop tablet does not
+ * show the mechanic's machines to the next driver) and per device. localStorage because
+ * it is a convenience that must cost no write and no migration; every access is wrapped
+ * because storage throws outright in a private window with site data blocked.
+ */
+const RECENT_MAX = 5;
+type StoredRecent = { href: string; label: string; icon: IconName; meta: string; from: "page" | "machine" };
+
+function readRecents(key: string | null): StoredRecent[] {
+  if (!key) return [];
+  try {
+    const raw = window.localStorage.getItem(key);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((r): r is StoredRecent => !!r && typeof r.href === "string" && typeof r.label === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecent(key: string | null, row: StoredRecent) {
+  if (!key) return;
+  try {
+    const next = [row, ...readRecents(key).filter((r) => r.href !== row.href)].slice(0, RECENT_MAX);
+    window.localStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    /* storage blocked or full: recents are a convenience, never a requirement */
+  }
+}
+
+/** True when focus is somewhere typing a "/" means a slash, not "open search". */
+function typingInField(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
 export function CommandPalette({
   groups,
   labels,
+  actions = [],
+  userId,
 }: {
   groups: NavGroup[];
   labels: CommandLabels;
+  /** Quick verbs for this role (report a fault, log diesel, add a machine). */
+  actions?: CommandAction[];
+  /** Keys the recent list per person. Omit to remember nothing. */
+  userId?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -111,33 +168,68 @@ export function CommandPalette({
   const [active, setActive] = useState(0);
   const [machines, setMachines] = useState<MachineHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [recents, setRecents] = useState<StoredRecent[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const standalone = useStandalone();
+  const recentKey = userId ? `fw:palette-recent:${userId}` : null;
 
   const pages = useMemo<Row[]>(
     () =>
       groups.flatMap((g) =>
-        g.items.map((i) => ({
-          kind: "page" as const,
-          key: "page:" + i.href,
-          href: i.href,
-          label: i.label,
-          icon: i.icon,
-          meta: g.label,
-        })),
+        g.items
+          .filter((i) => !(standalone && i.href === INSTALL_HREF))
+          .map((i) => ({
+            kind: "page" as const,
+            key: "page:" + i.href,
+            href: i.href,
+            label: i.label,
+            icon: i.icon,
+            meta: g.label,
+          })),
       ),
-    [groups],
+    [groups, standalone],
   );
+
+  const actionRows = useMemo<Row[]>(
+    () =>
+      actions.map((a) => ({
+        kind: "action" as const,
+        key: "action:" + a.href,
+        href: a.href,
+        label: a.label,
+        icon: a.icon,
+        meta: "",
+      })),
+    [actions],
+  );
+
+  // Recent pages are re-labelled from today's catalogue, so a language switch or a
+  // role change can neither show a stale label nor offer a page this role lost.
+  const recentRows = useMemo<Row[]>(() => {
+    const byHref = new Map(pages.map((p) => [p.href, p]));
+    return recents.flatMap((r): Row[] => {
+      if (r.from === "page") {
+        const p = byHref.get(r.href);
+        return p ? [{ ...p, kind: "recent", key: "recent:" + r.href }] : [];
+      }
+      return [{ kind: "recent", key: "recent:" + r.href, href: r.href, label: r.label, icon: "machines", meta: r.meta }];
+    });
+  }, [recents, pages]);
 
   const pageRows = useMemo(() => {
     const q = fold(query.trim());
-    if (!q) return pages;
-    return pages
-      .map((r) => ({ r, s: rank(r.label, r.meta, q) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s)
-      .map((x) => x.r);
-  }, [pages, query]);
+    // Nothing typed: what you opened lately, then the verbs, then every page.
+    if (!q) return [...recentRows, ...actionRows, ...pages];
+    // Ranked per kind and kept together, so each heading shows once.
+    const ranked = (list: Row[]) =>
+      list
+        .map((r) => ({ r, s: rank(r.label, r.meta, q) }))
+        .filter((x) => x.s >= 0)
+        .sort((a, b) => b.s - a.s)
+        .map((x) => x.r);
+    return [...ranked(actionRows), ...ranked(pages)];
+  }, [pages, actionRows, recentRows, query]);
 
   const machineRows = useMemo<Row[]>(
     () =>
@@ -165,14 +257,28 @@ export function CommandPalette({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // "/" opens search, the convention of most sites with one, but never while the
+      // person is typing in a field, where a slash is just a slash.
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !typingInField(e.target)) {
+        e.preventDefault();
+        setOpen(true);
+        return;
+      }
       const hit = e.key.toLowerCase() === "k" && (isMac ? e.metaKey : e.ctrlKey);
       if (!hit) return;
       // Only swallow the browser default once we are certain it is our shortcut.
       e.preventDefault();
       setOpen((v) => !v);
     };
+    // Other triggers (the phone header's search button) ask this one instance to open,
+    // so there is never a second palette with a second Ctrl+K listener.
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_EVENT, onOpen);
+    };
   }, [isMac]);
 
   // Reset each time it opens: a palette that remembers the last query makes the
@@ -182,9 +288,10 @@ export function CommandPalette({
     setQuery("");
     setActive(0);
     setMachines([]);
+    setRecents(readRecents(recentKey));
     const id = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(id);
-  }, [open]);
+  }, [open, recentKey]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -230,11 +337,16 @@ export function CommandPalette({
   }, [active, rows.length]);
 
   const go = useCallback(
-    (href: string) => {
+    (row: Row) => {
       setOpen(false);
-      router.push(href);
+      // Pages and machines are remembered; a verb is a shortcut, not a place you went.
+      if (row.kind !== "action") {
+        const from = row.kind === "machine" || row.href.startsWith("/machines/") ? "machine" : "page";
+        writeRecent(recentKey, { href: row.href, label: row.label, icon: row.icon, meta: row.meta, from });
+      }
+      router.push(row.href);
     },
-    [router],
+    [router, recentKey],
   );
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -253,7 +365,7 @@ export function CommandPalette({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const hit = rows[active];
-      if (hit) go(hit.href);
+      if (hit) go(hit);
     }
   };
 
@@ -262,15 +374,17 @@ export function CommandPalette({
   return (
     <>
       {/* A shortcut nobody is told about does not exist, so the trigger is
-          visible and carries its own key hint. */}
+          visible and carries its own key hint. It reads as a search field (and says
+          what it finds) because a small "Search" chip in an empty bar undersold it. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="focus-ring hidden min-h-[40px] items-center gap-2 rounded-lg border border-edge-soft bg-surface-sunken px-3 text-sm text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink lg:inline-flex"
+        aria-haspopup="dialog"
+        className="focus-ring hidden min-h-[40px] w-full max-w-md items-center gap-2 rounded-lg border border-edge-soft bg-surface-sunken px-3 text-left text-sm text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink lg:inline-flex"
       >
-        <SearchIcon className="text-base" />
-        <span>{labels.trigger}</span>
-        <kbd className="ml-2 rounded border border-edge-soft bg-surface px-1.5 py-0.5 font-sans text-2xs font-semibold text-ink-subtle">
+        <SearchIcon className="shrink-0 text-base" />
+        <span className="min-w-0 flex-1 truncate">{labels.placeholder}</span>
+        <kbd className="ml-2 shrink-0 rounded border border-edge-soft bg-surface px-1.5 py-0.5 font-sans text-2xs font-semibold text-ink-subtle">
           {shortcut}
         </kbd>
       </button>
@@ -321,7 +435,11 @@ export function CommandPalette({
               i === 0 || rows[i - 1].kind !== r.kind
                 ? r.kind === "page"
                   ? labels.pages
-                  : labels.machines
+                  : r.kind === "recent"
+                    ? (labels.recent ?? labels.pages)
+                    : r.kind === "action"
+                      ? (labels.actions ?? labels.pages)
+                      : labels.machines
                 : null;
             return (
               <li key={r.key} role="none">
@@ -340,7 +458,7 @@ export function CommandPalette({
                   aria-selected={i === active}
                   data-index={i}
                   onMouseEnter={() => setActive(i)}
-                  onClick={() => go(r.href)}
+                  onClick={() => go(r)}
                   className={cn(
                     "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
                     i === active ? "bg-accent-tint text-ink" : "text-ink hover:bg-surface-hover",
@@ -404,6 +522,29 @@ export function CommandPalette({
         </p>
       </Overlay>
     </>
+  );
+}
+
+/**
+ * A second way into the ONE mounted palette: the phone header's search button. Icon-only
+ * (48px, with its name for screen readers) because the phone header must fit 360px in
+ * Afrikaans; it dispatches an event rather than mounting another palette, which would
+ * register a second Ctrl/⌘+K listener and open two dialogs.
+ */
+export function SearchButton({ label, className }: { label: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}
+      className={cn(
+        "focus-ring inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-xl text-sand-600 hover:bg-sand-100",
+        className,
+      )}
+    >
+      <SearchIcon aria-hidden />
+      <span className="sr-only">{label}</span>
+    </button>
   );
 }
 

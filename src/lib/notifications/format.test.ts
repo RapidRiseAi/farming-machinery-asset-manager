@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { t } from "@/lib/i18n";
+import { shortDate } from "@/lib/format";
 import { formatNotification, notificationTitle, notificationUrl } from "./format";
 
 const LANGS = ["en", "af"] as const;
@@ -69,7 +70,9 @@ test("a driver credential reminder names the person and the document, in both la
       lang,
     );
     assert.ok(text.includes("Sipho Ndlovu"), `the person is missing in ${lang}: ${text}`);
-    assert.ok(text.includes("2026-08-21"), `the date is missing in ${lang}: ${text}`);
+    // As a person reads it ("21 Aug 2026"), never the ISO string the engine stored.
+    assert.ok(text.includes(shortDate("2026-08-21", lang)), `the date is missing in ${lang}: ${text}`);
+    assert.ok(!text.includes("2026-08-21"), `the raw ISO date leaked in ${lang}: ${text}`);
     assert.ok(text.includes(t("credentialType.prdp", lang)), `the document kind is missing in ${lang}`);
     // The placeholders were all filled. A stray "{person}" on a farmer's phone is the
     // failure mode this whole file exists for.

@@ -3,7 +3,8 @@ import { requireProfile, effectiveFarmRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { DateText } from "@/components/ui/date-text";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -67,16 +68,12 @@ export default async function JobCardsPage({
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("jobcards.title", locale)}</h1>
-          <PageInfoButton infoKey="jobcards" locale={locale} />
-        </div>
-        {creationMachines.length > 0 ? (
+    <PageContainer size="wide">
+      <PageHeader title={t("jobcards.title", locale)} infoKey="jobcards" locale={locale}
+        actions={creationMachines.length > 0 ? (
           <NewJobCard actorId={profile.id} machines={creationMachines} contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} />
-        ) : null}
-      </div>
+        ) : undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error ?? error?.message, locale)} />
       <Flash tone="error" message={machineError || linkError || workshopError ? t("jobcards.workflow.loadError", locale) : undefined} />
@@ -125,7 +122,7 @@ export default async function JobCardsPage({
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-sand-900">{nameById[c.machine_id] ?? "-"}</p>
                         <p className="mt-1 text-xs font-medium text-brand-ink">{t("jobcards.workflow.openJob", locale)} #{c.id.slice(0, 8)}</p>
-                        <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? ` · ${c.date_in}` : ""}</p>
+                        <p className="text-sm text-sand-500">{t(`jobType.${c.type}`, locale)}{c.date_in ? <> · <DateText value={c.date_in} locale={locale} /></> : null}</p>
                       </div>
                       <JobStatus value={c.status} locale={locale} />
                     </div>
@@ -157,7 +154,7 @@ export default async function JobCardsPage({
                       <Badge tone="neutral" className="mt-1">{t(c.work_mode === "external" || c.workshop_id ? "jobcards.workflow.external" : "jobcards.workflow.internal", locale)}</Badge>
                     </Td>
                     <Td className="text-sand-600">{t(`jobType.${c.type}`, locale)}</Td>
-                    <Td className="text-sand-600">{c.date_in ?? "-"}</Td>
+                    <Td className="text-sand-600"><DateText value={c.date_in} locale={locale} /></Td>
                     <Td><JobStatus value={c.status} locale={locale} /></Td>
                     <Td className="text-right font-medium">{c.total_cents != null ? rands(c.total_cents) : "-"}</Td>
                     <Td><Link href={`/jobcards/${c.id}`} className="focus-ring inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink hover:underline" aria-label={`${t("jobcards.workflow.openJob", locale)}: ${nameById[c.machine_id] ?? ""} #${c.id.slice(0, 8)}`}>{t("jobcards.workflow.openJob", locale)} <span aria-hidden className="ml-1">→</span></Link></Td>
@@ -168,6 +165,6 @@ export default async function JobCardsPage({
           </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -22,7 +22,24 @@ type State = "loading" | "unsupported" | "unconfigured" | "denied" | "off" | "on
  * explicit click. Registers the browser PushSubscription with the server; the per-user
  * `notify_push` toggle (separate, in the prefs form) decides whether we actually push.
  */
-export function PushToggle({ locale }: { locale: Lang }) {
+export function PushToggle({
+  locale,
+  bare = false,
+  accountPushOn,
+}: {
+  locale: Lang;
+  /**
+   * Render as a plain row (no bordered box), for a card that already frames it, so the
+   * control does not sit in a card inside a card.
+   */
+  bare?: boolean;
+  /**
+   * The account's own push switch (`users.notify_push`). When it is on and THIS device is
+   * not subscribed, the row says so: ticking "push" in the alert settings does nothing on
+   * a device that never turned push on, and only this component can know that.
+   */
+  accountPushOn?: boolean;
+}) {
   const [state, setState] = useState<State>("loading");
   const [error, setError] = useState<string | null>(null);
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -107,7 +124,7 @@ export function PushToggle({ locale }: { locale: Lang }) {
     }
   }
 
-  const box = "rounded-lg border border-sand-200 bg-sand-50 p-3 text-sm";
+  const box = bare ? "text-sm" : "rounded-lg border border-sand-200 bg-sand-50 p-3 text-sm";
   if (state === "loading") return <div className={box}><span className="text-sand-400">{t("common.loading", locale)}</span></div>;
   if (state === "unsupported") return <div className={box}><span className="text-sand-500">{t("push.unsupported", locale)}</span></div>;
   if (state === "unconfigured") return <div className={box}><span className="text-sand-500">{t("push.unconfigured", locale)}</span></div>;
@@ -120,12 +137,16 @@ export function PushToggle({ locale }: { locale: Lang }) {
         <div className="min-w-0">
           <p className="font-medium text-sand-800">{t("push.thisDevice", locale)}</p>
           <p className="text-xs text-sand-500">{on ? t("push.enabledHint", locale) : t("push.disabledHint", locale)}</p>
+          {!on && accountPushOn ? (
+            <p className="mt-1 text-xs font-medium text-status-due">{t("push.accountOnDeviceOff", locale)}</p>
+          ) : null}
         </div>
         <button
           type="button"
           onClick={on ? disable : enable}
           disabled={state === "busy"}
-          className="focus-ring rounded-lg border border-sand-300 bg-surface px-3 py-1.5 text-sm font-medium text-sand-800 hover:bg-sand-50 disabled:opacity-60"
+          aria-busy={state === "busy" || undefined}
+          className="focus-ring inline-flex min-h-[48px] items-center rounded-lg border border-sand-300 bg-surface px-3.5 text-sm font-medium text-sand-800 hover:bg-sand-50 disabled:opacity-60 sm:min-h-[40px]"
         >
           {state === "busy" ? t("common.loading", locale) : on ? t("push.disable", locale) : t("push.enable", locale)}
         </button>

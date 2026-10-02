@@ -13,9 +13,11 @@ import { isPlan, planAllows } from "@/lib/entitlements";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { buttonVariants } from "@/components/ui/button";
 import { MachinesIcon, CheckIcon, WarningIcon } from "@/components/ui/icons";
 import { QrChooser, type QrTask } from "./qr-chooser";
 import { submitReading, submitFuel } from "./actions";
+import { freshSent, readRememberedName, sentHref } from "./remembered-name";
 
 // Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
 export const dynamic = "force-dynamic";
@@ -45,6 +47,16 @@ type MachineLookup =
   | { status: "unavailable" };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What the confirmation screen says, per kind of capture. */
+const SENT_COPY: Record<"fault" | "reading" | "fuel", { title: string; body: string }> = {
+  fault: { title: "qr.sentFaultTitle", body: "qr.sentFaultBody" },
+  reading: { title: "qr.sentReadingTitle", body: "qr.sentReadingBody" },
+  fuel: { title: "qr.sentFuelTitle", body: "qr.sentFuelBody" },
+};
+
+/** The kiosk's one filled button, focus ring included, without a client component. */
+const SUBMIT_CLASS = buttonVariants({ variant: "primary", size: "lg", fullWidth: true });
 
 const QR_ERROR_KEYS: Record<string, string> = {
   invalid_reading: "qr.errorInvalidReading",
@@ -118,7 +130,7 @@ export default async function PublicMachinePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ sent?: string; error?: string }>;
+  searchParams: Promise<{ sent?: string; at?: string; error?: string }>;
 }) {
   const { token } = await params;
   const sp = await searchParams;
@@ -186,7 +198,65 @@ export default async function PublicMachinePage({
 
   const machine = lookup.machine;
 
-  const photoUrl = await getPhotoUrl(machine.primary_attachment_id);
+  const actionError = sp.error ? t(QR_ERROR_KEYS[sp.error] ?? "qr.errorUnavailable", locale) : null;
+  // A capture that just went through gets a screen of its own, not a banner over the
+  // same chooser: on a no-login page the worker cannot otherwise tell whether THIS
+  // visit sent anything. A stale or missing stamp falls back to the chooser.
+  const sent = actionError ? null : freshSent(sp.sent, sp.at);
+
+  if (sent) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-5 bg-sand-50 p-5">
+        <header className="flex items-center justify-between gap-2.5">
+          <span className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white" aria-hidden>
+              <MachinesIcon />
+            </span>
+            <span className="text-sm font-semibold text-sand-500">{t("app.name", locale)}</span>
+          </span>
+          <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />
+        </header>
+
+        <section
+          role="status"
+          className="flex flex-col items-center gap-4 rounded-2xl border border-sand-200 bg-surface px-5 py-8 text-center shadow-card"
+        >
+          <span
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-tint text-4xl text-brand-ink"
+            aria-hidden
+          >
+            <CheckIcon />
+          </span>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold leading-tight tracking-tight text-sand-950">
+              {t(SENT_COPY[sent].title, locale)}
+            </h1>
+            <p className="text-base text-ink-muted">{t(SENT_COPY[sent].body, locale)}</p>
+          </div>
+          <p className="min-w-0 break-words text-sm font-medium text-sand-600">{machine.name}</p>
+          {/* A plain link to the bare URL: it drops ?sent, so nothing re-shows or resends. */}
+          <Link href={`/m/${encodeURIComponent(token)}`} className={SUBMIT_CLASS}>
+            {t("qr.sentAnother", locale)}
+          </Link>
+        </section>
+
+        <Link
+          href="/login"
+          className="focus-ring mx-auto inline-flex min-h-[48px] items-center justify-center rounded-lg px-3 text-center text-sm font-medium text-sand-500"
+        >
+          {t("qr.workHere", locale)}
+        </Link>
+      </main>
+    );
+  }
+
+  const [photoUrl, rememberedName] = await Promise.all([
+    getPhotoUrl(machine.primary_attachment_id),
+    readRememberedName(),
+  ]);
+  // Filled in from this phone's last capture; the hint says so, so a borrowed phone
+  // is corrected rather than credited to the wrong person.
+  const nameHint = rememberedName ? t("qr.yourNameRemembered", locale) : t("qr.yourNameHint", locale);
 
   // Only surface the fuel quick-action when the farm's plan unlocks fuel (the server
   // action enforces this too, this just hides the UI on under-plan farms).
@@ -220,7 +290,6 @@ export default async function PublicMachinePage({
   ];
 
   const unitHint = metered ? t(`format.unit.${machine.meter_type}`, locale) : undefined;
-  const actionError = sp.error ? t(QR_ERROR_KEYS[sp.error] ?? "qr.errorUnavailable", locale) : null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col gap-5 bg-sand-50 p-5">
@@ -235,13 +304,6 @@ export default async function PublicMachinePage({
         </span>
         <DeviceLanguageSwitcher current={locale} label={t("auth.language", locale)} />
       </header>
-
-      {sp.sent ? (
-        <p className="flex items-start gap-2 rounded-xl border border-brand-200 bg-brand-tint p-3.5 text-sm font-medium text-brand-ink" role="status">
-          <CheckIcon className="mt-0.5 shrink-0 text-lg text-brand-ink" />
-          {sp.sent === "fuel" ? t("qr.fuelSent", locale) : t("qr.sentThanks", locale)}
-        </p>
-      ) : null}
 
       {actionError ? (
         <p
@@ -281,9 +343,10 @@ export default async function PublicMachinePage({
             <FaultCapture
               endpoint="/api/public/fault"
               token={token}
-              redirectTo={`/m/${token}?sent=1`}
+              redirectTo={sentHref(token, "fault")}
               locale={locale}
               variant="public"
+              defaultName={rememberedName ?? undefined}
             />
           ),
           reading: metered ? (
@@ -304,10 +367,16 @@ export default async function PublicMachinePage({
                   required
                 />
               </Field>
-              <Field label={t("qr.yourNameLabel", locale)} htmlFor="qr-reading-name" hint={t("qr.yourNameHint", locale)}>
-                <Input id="qr-reading-name" name="name" autoComplete="name" maxLength={200} />
+              <Field label={t("qr.yourNameLabel", locale)} htmlFor="qr-reading-name" hint={nameHint}>
+                <Input
+                  id="qr-reading-name"
+                  name="name"
+                  autoComplete="name"
+                  maxLength={200}
+                  defaultValue={rememberedName ?? undefined}
+                />
               </Field>
-              <button className="min-h-[52px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">
+              <button type="submit" className={SUBMIT_CLASS}>
                 {t("qr.logReading", locale)}
               </button>
             </OfflineForm>
@@ -345,16 +414,22 @@ export default async function PublicMachinePage({
               </Field>
               <Field label={t("qr.fuelActivityLabel", locale)} htmlFor="qr-activity">
                 <Select id="qr-activity" name="activity" defaultValue="">
-                  <option value="">-</option>
+                  <option value="">{t("qr.fuelActivityNone", locale)}</option>
                   {FUEL_ACTIVITIES.map((a) => (
                     <option key={a} value={a}>{activityLabel(a, locale)}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label={t("qr.yourNameLabel", locale)} htmlFor="qr-fuel-name" hint={t("qr.yourNameHint", locale)}>
-                <Input id="qr-fuel-name" name="name" autoComplete="name" maxLength={200} />
+              <Field label={t("qr.yourNameLabel", locale)} htmlFor="qr-fuel-name" hint={nameHint}>
+                <Input
+                  id="qr-fuel-name"
+                  name="name"
+                  autoComplete="name"
+                  maxLength={200}
+                  defaultValue={rememberedName ?? undefined}
+                />
               </Field>
-              <button className="min-h-[52px] rounded-lg bg-brand-600 px-4 text-base font-semibold text-white">
+              <button type="submit" className={SUBMIT_CLASS}>
                 {t("qr.logFuelBtn", locale)}
               </button>
             </form>
@@ -362,7 +437,10 @@ export default async function PublicMachinePage({
         }}
       />
 
-      <Link href="/login" className="pb-6 text-center text-sm font-medium text-sand-500">
+      <Link
+        href="/login"
+        className="focus-ring mx-auto mb-6 inline-flex min-h-[48px] items-center justify-center rounded-lg px-3 text-center text-sm font-medium text-sand-500"
+      >
         {t("qr.workHere", locale)}
       </Link>
     </main>

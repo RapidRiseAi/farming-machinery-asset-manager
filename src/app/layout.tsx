@@ -3,6 +3,7 @@ import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 import { RouteProgress } from "@/components/ui/route-progress";
 import { deviceLocale } from "@/lib/locale";
+import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
 
@@ -63,6 +64,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        {/* Text size on this device (Your account and preferences), same no-flash
+            treatment as the theme: stamped before paint, read by globals.css. */}
+        <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_BOOTSTRAP }} />
       </head>
       {/* Surfaces come from the semantic tokens so the whole app follows the
           theme without a single component knowing which theme it is in. */}

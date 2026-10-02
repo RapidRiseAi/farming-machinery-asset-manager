@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WarningIcon } from "@/components/ui/icons";
 import { reportClientError } from "@/lib/client-report";
+import { t, locales, defaultLocale, type Locale } from "@/lib/i18n";
 
 /**
  * What a signed-in page shows when it throws.
@@ -18,6 +19,11 @@ import { reportClientError } from "@/lib/client-report";
  * Deliberately plain-language, and offers the two things that actually help: try again
  * (most failures here are a dropped connection mid-query) and a way back to somewhere
  * that works. `digest` is shown small because it is the only handle support has.
+ *
+ * The words go through t(). This boundary is a client component with no profile in reach,
+ * so the language comes from `<html lang>`, which the root layout sets from the same
+ * cookie a signed-in person's language choice writes. It is read after mount so the
+ * first render matches whatever the server sent.
  */
 export default function AppError({
   error,
@@ -26,6 +32,12 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [locale, setLocale] = useState<Locale>(defaultLocale);
+  useEffect(() => {
+    const lang = document.documentElement.lang.slice(0, 2);
+    if ((locales as readonly string[]).includes(lang)) setLocale(lang as Locale);
+  }, []);
+
   useEffect(() => {
     console.error(error);
     // Until now this screen was the end of the road: the farmer saw it and we never did.
@@ -47,26 +59,23 @@ export default function AppError({
             <WarningIcon />
           </span>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-sand-950">This screen did not load</h1>
-            <p className="mt-1 text-sm text-sand-600">
-              Something went wrong on our side, not yours. Nothing you entered has been lost.
-              Try again, if it keeps happening, the farm office can send us the code below.
-            </p>
+            <h1 className="text-lg font-bold text-sand-950">{t("appError.title", locale)}</h1>
+            <p className="mt-1 text-sm text-sand-600">{t("appError.body", locale)}</p>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" variant="primary" onClick={() => reset()}>
-            Try again
+            {t("offline.retry", locale)}
           </Button>
           <Link href="/home" className={buttonVariants({ variant: "secondary" })}>
-            Go to my home screen
+            {t("appError.home", locale)}
           </Link>
         </div>
 
         {error.digest ? (
           <p className="mt-4 border-t border-sand-100 pt-3 text-xs text-sand-400">
-            Reference: <span className="font-mono">{error.digest}</span>
+            {t("appError.reference", locale)} <span className="font-mono">{error.digest}</span>
           </p>
         ) : null}
       </Card>

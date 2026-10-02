@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dateTime, daysAgo, relativeDate, shortDate } from "./format";
+import {
+  dateTime,
+  daysAgo,
+  hourOfDay,
+  monthLabel,
+  quietHoursRange,
+  relativeDate,
+  shortDate,
+  todayInSouthAfrica,
+  todayLocal,
+} from "./format";
 
 // Run as a server would: Vercel formats in UTC. Without this the test passes on
 // any machine that already sits in South Africa, which is the machine a
@@ -44,4 +54,41 @@ test("ordinary gaps are unchanged", () => {
   assert.equal(relativeDate("2026-09-14T10:00:00.000Z", "en", now), "Yesterday");
   assert.equal(daysAgo("2026-09-16T10:00:00.000Z", now), -1);
   assert.equal(relativeDate("2026-09-16T10:00:00.000Z", "en", now), "Tomorrow");
+});
+
+test("today is the South African date, not the UTC date the server is on", () => {
+  // 23:30 UTC on the 14th is 01:30 on the 15th in Johannesburg: the window in which
+  // `toISOString().slice(0, 10)` defaulted every date field to yesterday.
+  const lateUtc = new Date(INSTANT);
+  assert.equal(lateUtc.toISOString().slice(0, 10), "2026-09-14");
+  assert.equal(todayLocal(lateUtc), "2026-09-15");
+  assert.equal(todayInSouthAfrica(lateUtc), "2026-09-15");
+  // Mid-morning both calendars agree.
+  assert.equal(todayLocal(new Date("2026-09-15T08:00:00.000Z")), "2026-09-15");
+  assert.match(todayLocal(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("a month heading is South Africa's month at the boundary", () => {
+  // 23:30 UTC on 31 March is 01:30 on 1 April on the farm.
+  const label = monthLabel("2026-03-31T23:30:00.000Z", "en");
+  assert.match(label, /Apr/);
+  assert.match(label, /2026/);
+});
+
+test("an hour of the day reads as a 24-hour clock time", () => {
+  assert.equal(hourOfDay(20, "en"), "20:00");
+  assert.equal(hourOfDay(5, "af"), "05:00");
+  assert.equal(hourOfDay(0, "en"), "00:00");
+  assert.equal(hourOfDay(5.5, "en"), "05:30");
+  assert.equal(hourOfDay(null, "en"), "-");
+  assert.equal(hourOfDay(25, "en"), "-");
+  assert.equal(hourOfDay(-1, "en"), "-");
+});
+
+test("quiet hours read as a window, with a translated connector", () => {
+  assert.equal(quietHoursRange(20, 5, "en"), "20:00 to 05:00");
+  const af = quietHoursRange(20, 5, "af");
+  assert.match(af, /^20:00 \S+ 05:00$/);
+  assert.equal(quietHoursRange(20, null, "en"), "-");
+  assert.equal(quietHoursRange(undefined, 5, "en"), "-");
 });

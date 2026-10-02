@@ -19,13 +19,27 @@ import { Stat } from "@/components/ui/stat";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/field";
-import { DownloadIcon, ChevronLeftIcon } from "@/components/ui/icons";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { TextField } from "@/components/ui/field";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { cn } from "@/components/ui/cn";
+import { DownloadIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * A choice among windows or payment days. It states which one is SELECTED (tinted, with
+ * aria-current), it is not an action: these were filled primary buttons, so the page
+ * carried three green buttons and none of them was the thing to do.
+ */
+const choiceChip = (on: boolean) =>
+  cn(
+    "focus-ring inline-flex min-h-[48px] items-center rounded-full border px-4 text-sm font-medium transition-colors sm:min-h-[40px]",
+    on
+      ? "border-brand-600 bg-brand-tint text-brand-ink"
+      : "border-sand-300 bg-surface text-sand-700 hover:bg-sand-50",
+  );
 
 type SupplierRow = {
   id: string;
@@ -84,14 +98,14 @@ export default async function SupplierAccountPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer>
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -149,47 +163,37 @@ export default async function SupplierAccountPage({
   const remitCsv = chosenPaid ? `/api/suppliers/${supplier.id}/remittance/csv?paid=${chosenPaid}` : "#";
 
   const contact = [supplier.contact_person, supplier.phone, supplier.email].filter(Boolean).join(" · ");
+  const terms = [
+    supplier.payment_terms_days != null
+      ? `${t("supplier.termsShort", locale)} ${supplier.payment_terms_days}`
+      : t("supplierStatement.termsAssumed", locale),
+    supplier.account_number ? `${t("supplier.accountShort", locale)} ${supplier.account_number}` : null,
+    supplier.vat_number ? `${t("supplier.vatShort", locale)} ${supplier.vat_number}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div>
-        <Link
-          href="/suppliers"
-          className="focus-ring inline-flex min-h-[2.75rem] items-center gap-1 rounded text-sm font-medium text-brand-ink sm:min-h-0"
-        >
-          <ChevronLeftIcon className="text-lg" /> {t("supplierStatement.back", locale)}
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-ink">{supplier.name}</h1>
-            {supplier.active ? null : <Badge tone="neutral">{t("supplier.inactive", locale)}</Badge>}
-            <PageInfoButton infoKey="supplierStatement" locale={locale} />
-          </div>
-          <p className="mt-0.5 text-sm text-sand-600">{contact || t("supplierStatement.noContact", locale)}</p>
-          <p className="text-xs text-sand-500">
-            {[
-              supplier.payment_terms_days != null
-                ? `${t("supplier.termsShort", locale)} ${supplier.payment_terms_days}`
-                : t("supplierStatement.termsAssumed", locale),
-              supplier.account_number ? `${t("supplier.accountShort", locale)} ${supplier.account_number}` : null,
-              supplier.vat_number ? `${t("supplier.vatShort", locale)} ${supplier.vat_number}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <a href={stmtPdf} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            <DownloadIcon className="text-lg" /> {t("supplierStatement.pdf", locale)}
-          </a>
-          <a href={stmtCsv} className={buttonVariants({ variant: "ghost", size: "sm" })}>
-            {t("supplierStatement.csv", locale)}
-          </a>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={supplier.name}
+        back={{ href: "/suppliers", label: t("supplierStatement.back", locale) }}
+        badge={supplier.active ? null : <Badge tone="neutral">{t("supplier.inactive", locale)}</Badge>}
+        meta={terms}
+        lead={contact || t("supplierStatement.noContact", locale)}
+        infoKey="supplierStatement"
+        locale={locale}
+        actions={
+          <>
+            <a href={stmtPdf} className={buttonVariants({ variant: "secondary" })}>
+              <DownloadIcon className="text-lg" /> {t("supplierStatement.pdf", locale)}
+            </a>
+            <a href={stmtCsv} className={buttonVariants({ variant: "ghost" })}>
+              {t("supplierStatement.csv", locale)}
+            </a>
+          </>
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
 
@@ -199,11 +203,16 @@ export default async function SupplierAccountPage({
         <CardHeader>
           <CardTitle>{t("supplierStatement.owedNow", locale)}</CardTitle>
         </CardHeader>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {/* Phone: the total across the top, the four age buckets two by two under it.
+            Five money tiles in one row only from lg, where each has room for a
+            seven-figure amount (rands is one unbreakable token). */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat
             label={t("supplierStatement.totalOwed", locale)}
             value={rands(ageing.total_cents)}
             tone={ageing.total_cents > 0 ? "brand" : "default"}
+            size="md"
+            className="col-span-2 sm:col-span-1"
           />
           {SUPPLIER_AGEING_BUCKETS.map((b) => {
             const cents = ageing[b.field];
@@ -213,6 +222,7 @@ export default async function SupplierAccountPage({
                 label={t(`supplierStatement.age.${b.key}`, locale)}
                 value={rands(cents)}
                 tone={cents > 0 && b.key !== "current" ? "due" : "default"}
+                size="md"
               />
             );
           })}
@@ -225,31 +235,43 @@ export default async function SupplierAccountPage({
         <CardHeader>
           <CardTitle>{t("supplierStatement.periodTitle", locale)}</CardTitle>
         </CardHeader>
-        <div className="flex flex-wrap gap-2">
+        {/* Each window applies on tap. Your own dates open a small dialog instead of
+            sitting on the page as two date boxes and a button; it is still a native GET
+            form, so it needs no JavaScript to submit and the URL stays shareable. */}
+        <div className="flex flex-wrap items-center gap-2">
           {periods.map((p) => (
             <Link
               key={p.key}
               href={`/suppliers/${supplier.id}?from=${p.from}&to=${p.to}`}
               aria-current={activeKey === p.key ? "true" : undefined}
-              className={buttonVariants({ variant: activeKey === p.key ? "primary" : "secondary", size: "sm" })}
+              className={choiceChip(activeKey === p.key)}
             >
               {t(`supplierStatement.period.${p.key}`, locale)}
             </Link>
           ))}
+          <DialogForm
+            trigger={
+              activeKey === null
+                ? `${shortDate(from, locale)} ${t("supplierStatement.rangeTo", locale)} ${shortDate(to, locale)}`
+                : t("supplierStatement.customPeriod", locale)
+            }
+            triggerVariant={activeKey === null ? "secondary" : "ghost"}
+            triggerSize="sm"
+            title={t("supplierStatement.customPeriod", locale)}
+            closeLabel={t("ui.close", locale)}
+            size="md"
+          >
+            <form method="get">
+              <DialogFields>
+                <TextField id="stmt_from" name="from" type="date" label={t("supplierStatement.from", locale)} defaultValue={from} />
+                <TextField id="stmt_to" name="to" type="date" label={t("supplierStatement.to", locale)} defaultValue={to} />
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <Button type="submit" variant="primary">{t("supplierStatement.show", locale)}</Button>
+              </DialogActions>
+            </form>
+          </DialogForm>
         </div>
-        {/* A native GET form, so choosing your own window needs no JavaScript and the URL
-            stays the shareable thing it already is. */}
-        <form method="get" className="mt-3 flex flex-wrap items-end gap-3">
-          <Field label={t("supplierStatement.from", locale)} htmlFor="stmt_from">
-            <Input id="stmt_from" name="from" type="date" defaultValue={from} />
-          </Field>
-          <Field label={t("supplierStatement.to", locale)} htmlFor="stmt_to">
-            <Input id="stmt_to" name="to" type="date" defaultValue={to} />
-          </Field>
-          <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            {t("supplierStatement.show", locale)}
-          </button>
-        </form>
       </Card>
 
       <Card>
@@ -257,7 +279,7 @@ export default async function SupplierAccountPage({
           <CardTitle>
             {t("supplierStatement.ledgerTitle", locale)}
             <Badge tone="neutral" className="ml-2 align-middle">
-              {shortDate(from, locale)} - {shortDate(to, locale)}
+              {shortDate(from, locale)} {t("supplierStatement.rangeTo", locale)} {shortDate(to, locale)}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -347,7 +369,7 @@ export default async function SupplierAccountPage({
                 key={d}
                 href={`/suppliers/${supplier.id}?${qs}&paid=${d}`}
                 aria-current={d === chosenPaid ? "true" : undefined}
-                className={buttonVariants({ variant: d === chosenPaid ? "primary" : "secondary", size: "sm" })}
+                className={choiceChip(d === chosenPaid)}
               >
                 {shortDate(d, locale)}
               </Link>
@@ -355,20 +377,28 @@ export default async function SupplierAccountPage({
           </div>
         )}
 
-        <form method="get" className="mt-3 flex flex-wrap items-end gap-3">
-          <input type="hidden" name="from" value={from} />
-          <input type="hidden" name="to" value={to} />
-          <Field
-            label={t("supplierStatement.remitDate", locale)}
-            htmlFor="remit_date"
-            hint={t("supplierStatement.remitDateHint", locale)}
+        <div className="mt-2">
+          <DialogForm
+            trigger={t("supplierStatement.otherDate", locale)}
+            triggerVariant="ghost"
+            triggerSize="sm"
+            title={t("supplierStatement.remitDate", locale)}
+            description={t("supplierStatement.remitDateHint", locale)}
+            closeLabel={t("ui.close", locale)}
+            size="md"
           >
-            <Input id="remit_date" name="paid" type="date" defaultValue={chosenPaid ?? ""} />
-          </Field>
-          <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            {t("supplierStatement.show", locale)}
-          </button>
-        </form>
+            <form method="get">
+              <input type="hidden" name="from" value={from} />
+              <input type="hidden" name="to" value={to} />
+              <DialogFields columns={1}>
+                <TextField id="remit_date" name="paid" type="date" label={t("supplierStatement.remitDate", locale)} defaultValue={chosenPaid ?? ""} required />
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <Button type="submit" variant="primary">{t("supplierStatement.show", locale)}</Button>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        </div>
 
         {chosenPaid ? (
           remittance.length === 0 ? (
@@ -429,6 +459,6 @@ export default async function SupplierAccountPage({
           )
         ) : null}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

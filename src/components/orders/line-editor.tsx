@@ -5,6 +5,7 @@ import { Field, TextField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TrashIcon, PlusIcon } from "@/components/ui/icons";
 import { GetStarted } from "@/components/ui/empty-state";
@@ -39,12 +40,19 @@ export function LineEditor({
   order,
   lines,
   editable,
+  addPrimary = false,
 }: {
   locale: Lang;
   order: PurchaseOrder;
   lines: PurchaseOrderLine[];
   /** False once the order is cancelled, there is nothing left to buy or receive. */
   editable: boolean;
+  /**
+   * Fill the "Add it" button. Only while the order is an empty draft, when adding a line
+   * IS the next step; otherwise the page's one filled button belongs to the lifecycle
+   * ("Send it to the supplier", or the supplier's invoice once it is out).
+   */
+  addPrimary?: boolean;
 }) {
   return (
     <Card>
@@ -202,16 +210,13 @@ export function LineEditor({
           {/* A trade counter quotes ex-VAT and a till slip is inclusive. Asking which one
               was typed is the only way to stop the commonest capture error, and the
               conversion to ex-VAT cents happens on the server. */}
-          <label className="flex items-center gap-3 text-sm text-sand-700">
-            <input
-              type="checkbox"
-              name="price_incl_vat"
-              className="h-5 w-5 rounded border-sand-300 text-brand-ink"
-            />
-            {t("po.lineInclVat", locale)}
-          </label>
+          <Checkbox name="price_incl_vat" label={t("po.lineInclVat", locale)} />
 
-          <SubmitButton className="self-start" leftIcon={<PlusIcon />}>
+          <SubmitButton
+            className="self-start"
+            variant={addPrimary ? "primary" : "secondary"}
+            leftIcon={<PlusIcon />}
+          >
             {t("po.addLine", locale)}
           </SubmitButton>
         </form>

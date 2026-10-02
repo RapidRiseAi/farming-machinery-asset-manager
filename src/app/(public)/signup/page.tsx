@@ -25,6 +25,8 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Flash } from "@/components/ui/flash";
+import { Disclosure } from "@/components/ui/disclosure";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { PublicShell, Tick } from "@/components/public-shell";
 import { PlanPicker } from "./plan-picker";
 import { signUp } from "./actions";
@@ -44,6 +46,10 @@ export default async function SignUpPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const sp = await searchParams;
+  // The promo box is folded away (most people have no code, and an open code box makes
+  // them feel they are paying too much), but a bounced code must not hide the field the
+  // error is about.
+  const promoError = (sp.error ?? "").includes("promo");
   // Pre-auth there is no profile to read a language from, so the device decides.
   const locale = await deviceLocale();
 
@@ -197,7 +203,12 @@ export default async function SignUpPage({
               invoice being paid at checkout. `spellCheck` and `autoCapitalize` are off
               because Android will otherwise help a farmer turn FOUNDING20 into
               "Founding20" and the code is compared upper-case. */}
-          <div className="mt-4">
+          <Disclosure
+            variant="inline"
+            summary={t("signup.promoOpen", locale)}
+            defaultOpen={promoError}
+            className="mt-3"
+          >
             <Field
               label={t("signup.promoCode", locale)}
               htmlFor="promo_code"
@@ -213,7 +224,7 @@ export default async function SignUpPage({
                 maxLength={40}
               />
             </Field>
-          </div>
+          </Disclosure>
 
         <input type="hidden" name="terms_version" value={TERMS_VERSION} />
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-sand-200 bg-sand-50 p-4">
@@ -231,13 +242,12 @@ export default async function SignUpPage({
           </span>
         </label>
 
-        <button
-          type="submit"
-          className="mt-4 min-h-12 w-full rounded-xl bg-brand-600 px-4 text-base font-semibold text-white shadow-soft transition hover:bg-brand-700 sm:min-h-11"
-        >
+        {/* SubmitButton, not a bare button: it disables itself while the farm is being
+            created, so a second tap on a slow connection cannot start a second sign-up.
+            The note that sat under it repeated the three ticks above word for word. */}
+        <SubmitButton fullWidth size="lg" className="mt-4" pendingText={t("signup.submitting", locale)}>
           {t("signup.submit", locale)}
-        </button>
-        <p className="mt-3 text-xs leading-relaxed text-sand-600">{t("signup.note", locale)}</p>
+        </SubmitButton>
         </section>
       </form>
 

@@ -101,7 +101,9 @@ test("answers when one machine's next service falls due, in both languages", () 
   const english = serviceDueAnswer(machine, "en-ZA");
   assert.match(english, /Groen John Deere's service is up to date\./);
   assert.match(english, /Next target:/);
-  assert.match(english, /2027-06-04/);
+  assert.match(english, /4 Jun 2027/);
+  assert.doesNotMatch(english, /\d{4}-\d{2}-\d{2}/);
+  assert.doesNotMatch(serviceDueAnswer(machine, "af-ZA"), /\d{4}-\d{2}-\d{2}/);
   assert.match(serviceDueAnswer(machine, "af-ZA"), /Groen John Deere se diens is op datum\./);
   assert.match(
     serviceDueAnswer({ ...machine, serviceStatus: null } as AssistantMachine, "en-ZA"),

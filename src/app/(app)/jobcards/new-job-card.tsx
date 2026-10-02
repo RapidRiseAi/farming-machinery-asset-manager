@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonVariant, type ButtonSize } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
 import { createJobCard } from "./actions";
 import { createWorkRequest } from "../work/actions";
@@ -20,6 +20,7 @@ export type JobContractor = { id: string; name: string; farm_id: string };
 type Props = {
   machines: JobMachine[]; contractors: JobContractor[]; isContractor: boolean; locale: Lang; actorId: string;
   defaultType?: JobType; sourceFault?: { id: string; description: string | null };
+  triggerVariant?: ButtonVariant; triggerSize?: ButtonSize;
 };
 type IntakeDraft = {
   capture: string; mode: "internal" | "connected" | "external"; machineId: string; jobType: JobType;
@@ -29,7 +30,7 @@ const isCapture = (value: unknown): value is string => typeof value === "string"
 
 export function NewJobCard(props: Props) {
   return (
-    <DialogForm trigger={t("jobcards.startNew", props.locale)} triggerIcon={<PlusIcon />} title={t("jobcards.startNew", props.locale)} closeLabel={t("ui.close", props.locale)} size="md">
+    <DialogForm trigger={t("jobcards.startNew", props.locale)} triggerVariant={props.triggerVariant} triggerSize={props.triggerSize} triggerIcon={<PlusIcon />} title={t("jobcards.startNew", props.locale)} closeLabel={t("ui.close", props.locale)} size="md">
       <IntakeForm {...props} />
     </DialogForm>
   );

@@ -1,21 +1,10 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 
-// The RR admin console is internal (Rapid Rise staff), English-only, unlike the
-// bilingual farmer-facing UI.
+// The RR admin console is internal (Rapid Rise staff). Its sections (Farms, Partner
+// catalogue, Templates, Subscriptions) are a "Rapid Rise" group at the top of the app's
+// own sidebar and phone menu, built in (app)/layout.tsx. They used to be a second,
+// English-only text subnav here, split from the "Admin" row filed under Account.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["rr_admin"]);
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-sand-400">Rapid Rise admin</p>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link href="/admin/farms" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Farms</Link>
-          <Link href="/admin/partners" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Partners</Link>
-          <Link href="/admin/templates" className="focus-ring rounded-md px-3 py-1.5 font-medium text-sand-700 hover:bg-sand-100">Templates</Link>
-        </nav>
-      </div>
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }

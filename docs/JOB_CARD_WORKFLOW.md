@@ -76,7 +76,7 @@ Regression coverage includes role ownership, selected-farm permissions, invalid 
 
 Final review coverage adds `jobcard_intake.sql` and `jobcard_received_invoice.sql`, including fault-linked creation retries, request/event atomicity, changed-capture rejection, cross-kind capture reuse, role denials and zero-charge supplied invoices. Application tests also cover supplied-document receipt ownership, numbers, payload and file-hash matching.
 
-Local results: all 431 application tests passed. All 29 SQL suites passed; all 187 migrations applied. The production build, TypeScript/lint checks, translation parity/key coverage, error coverage and design checks passed. The SQL runner uses disposable PGlite databases with Supabase auth stubs, the real bundled trigram extension and a digest substitute; it does not validate hosted Auth or Storage behavior.
+Local results after integrating the second UI pass: all 467 application tests passed. All 29 SQL suites passed; all 187 migrations applied. The production build, TypeScript/lint checks, translation parity/key coverage (5,391 keys per language), error coverage, design and punctuation checks passed. The SQL runner uses disposable PGlite databases with Supabase auth stubs, the real bundled trigram extension and a digest substitute; it does not validate hosted Auth or Storage behavior.
 
 Apply the pending migrations in order before releasing the application that uses their fields and RPCs:
 

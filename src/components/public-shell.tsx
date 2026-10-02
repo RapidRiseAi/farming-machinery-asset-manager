@@ -35,7 +35,7 @@ export function PublicShell({
   return (
     <div className="flex min-h-dvh flex-col bg-sand-50">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-5">
-        <Link href="/" className="flex items-center gap-2.5" aria-label={APP_NAME}>
+        <Link href="/" className="focus-ring flex min-h-[48px] items-center gap-2.5 rounded-lg" aria-label={APP_NAME}>
           <span className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white">
             <MachinesIcon className="size-5" />
           </span>
@@ -57,14 +57,14 @@ export function PublicShell({
 
       <footer className="mx-auto w-full max-w-5xl px-6 py-8 text-sm text-sand-600">
         <div className="border-t border-sand-200 pt-6">
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link href="/terms" className="underline hover:text-sand-900">
+          <div className="flex flex-wrap gap-x-5 sm:gap-y-2">
+            <Link href="/terms" className="inline-flex min-h-[48px] items-center underline hover:text-sand-900 sm:min-h-0">
               {t("publicNav.terms", locale)}
             </Link>
-            <Link href="/privacy" className="underline hover:text-sand-900">
+            <Link href="/privacy" className="inline-flex min-h-[48px] items-center underline hover:text-sand-900 sm:min-h-0">
               {t("publicNav.privacy", locale)}
             </Link>
-            <a href={`mailto:${COMPANY.email}`} className="underline hover:text-sand-900">
+            <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-[48px] items-center underline hover:text-sand-900 sm:min-h-0">
               {COMPANY.email}
             </a>
           </div>

@@ -8,6 +8,8 @@ import { splitInclusive, EXPENSE_CATEGORIES } from "@/lib/expenses";
 import { Field, TextField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DialogActions, DialogSection } from "@/components/ui/dialog-form";
 import type { PurchaseOrder } from "@/lib/purchase-orders";
 import { convertOrder } from "@/app/(app)/orders/actions";
 
@@ -29,8 +31,13 @@ import { convertOrder } from "@/app/(app)/orders/actions";
  * ordinary. Storing the ordered amount because it was convenient would make the books
  * disagree with the paper. `convertOrder` does the same arithmetic server-side and both
  * call `splitInclusive`, so the preview cannot disagree with what is stored.
+ *
+ * It opens in a dialog ("Record the supplier's invoice"). What every invoice has stays in
+ * view: who, their number, the date, the amount and the comparison with the order. The
+ * rest (kind of spend, paid date, VAT rate and amount, claimability, their VAT number, a
+ * description) arrives prefilled or is rarely needed, so it waits in "More details".
  */
-export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOrder }) {
+export function ConvertForm({ locale, order, today }: { locale: Lang; order: PurchaseOrder; today: string }) {
   const [amount, setAmount] = useState((order.subtotal_cents / 100).toFixed(2));
   // Unchecked to start, because the figure above it is the order's EX-VAT subtotal. The
   // switch is here for the partner who would rather type the big number off the invoice.
@@ -68,29 +75,15 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
           label={t("po.invoiceNumber", locale)}
           hint={t("po.invoiceNumberHint", locale)}
         />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <SelectField name="category" id="convert-category" label={t("po.category", locale)} defaultValue="parts">
-          {EXPENSE_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {t(`expenseCategory.${c}`, locale)}
-            </option>
-          ))}
-        </SelectField>
         <TextField
           name="expense_date"
           id="convert-date"
           type="date"
           label={t("po.invoiceDate", locale)}
           hint={t("po.invoiceDateHint", locale)}
-          defaultValue={new Date().toISOString().slice(0, 10)}
+          defaultValue={today}
         />
-        <TextField name="paid_on" id="convert-paid" type="date" label={t("po.paidOn", locale)} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label={t("po.invoiceAmount", locale)} htmlFor="convert-amount">
+        <Field label={t("po.invoiceAmount", locale)} htmlFor="convert-amount" required>
           <Input
             id="convert-amount"
             name="amount"
@@ -100,49 +93,18 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
             onChange={(e) => setAmount(e.target.value)}
           />
         </Field>
-        <Field label={t("po.vatPercent", locale)} htmlFor="convert-vat-percent">
-          <div className="relative">
-            <Input
-              id="convert-vat-percent"
-              name="vat_percent"
-              inputMode="decimal"
-              value={percent}
-              onChange={(e) => setPercent(e.target.value)}
-              className="pr-9"
-            />
-            <span
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base font-medium text-sand-500"
-              aria-hidden
-            >
-              %
-            </span>
-          </div>
-        </Field>
-        <Field label={t("po.vatAmount", locale)} htmlFor="convert-vat-amount" hint={t("po.vatAmountHint", locale)}>
-          <Input
-            id="convert-vat-amount"
-            name="vat_amount"
-            inputMode="decimal"
-            value={vatOverride}
-            onChange={(e) => setVatOverride(e.target.value)}
-          />
-        </Field>
       </div>
 
-      <label className="flex items-center gap-3 text-sm text-sand-700">
-        <input
-          type="checkbox"
-          name="amount_incl_vat"
-          className="h-5 w-5 rounded border-sand-300 text-brand-ink"
-          checked={inclusive}
-          onChange={(e) => setInclusive(e.target.checked)}
-        />
-        {t("po.inclVat", locale)}
-      </label>
+      <Checkbox
+        name="amount_incl_vat"
+        label={t("po.inclVat", locale)}
+        checked={inclusive}
+        onChange={(e) => setInclusive(e.target.checked)}
+      />
 
       {typed > 0 ? (
-        <div className="flex flex-col gap-1 rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700">
-          <p>
+        <div className="flex min-w-0 flex-col gap-1 rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-700">
+          <p className="break-words">
             {t("po.splitPreview", locale)}{" "}
             <span className="font-semibold tabular-nums text-sand-900">{rands(split.exCents)}</span>
             {rateBps > 0 ? (
@@ -160,7 +122,7 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
           {difference === 0 ? (
             <p className="text-status-ok">{t("po.matchesOrder", locale)}</p>
           ) : (
-            <p className={difference > 0 ? "font-medium text-status-warn" : "text-sand-600"}>
+            <p className={difference > 0 ? "break-words font-medium text-status-due" : "break-words text-sand-600"}>
               {difference > 0 ? t("po.moreThanOrdered", locale) : t("po.lessThanOrdered", locale)}{" "}
               <span className="font-semibold tabular-nums">{rands(Math.abs(difference))}</span>{" "}
               {t("po.comparedToOrder", locale)}{" "}
@@ -170,30 +132,64 @@ export function ConvertForm({ locale, order }: { locale: Lang; order: PurchaseOr
         </div>
       ) : null}
 
-      <label className="flex items-start gap-3 text-sm text-sand-700">
-        <input
-          type="checkbox"
-          name="vat_claimable"
-          defaultChecked
-          className="mt-0.5 h-5 w-5 rounded border-sand-300 text-brand-ink"
-        />
-        <span>
-          {t("po.claimable", locale)}
-          <span className="block text-xs text-sand-500">{t("po.claimableHint", locale)}</span>
-        </span>
-      </label>
-
       <div className="grid gap-3 sm:grid-cols-2">
-        <TextField
-          name="supplier_vat_number"
-          id="convert-supplier-vat"
-          label={t("po.supplierVat", locale)}
-          hint={t("po.supplierVatHint", locale)}
-        />
-        <TextField name="description" id="convert-description" label={t("po.expenseDescription", locale)} />
+        <DialogSection title={t("po.moreDetails", locale)}>
+          <SelectField name="category" id="convert-category" label={t("po.category", locale)} defaultValue="parts">
+            {EXPENSE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {t(`expenseCategory.${c}`, locale)}
+              </option>
+            ))}
+          </SelectField>
+          <TextField name="paid_on" id="convert-paid" type="date" label={t("po.paidOn", locale)} />
+          <Field label={t("po.vatPercent", locale)} htmlFor="convert-vat-percent">
+            <div className="relative">
+              <Input
+                id="convert-vat-percent"
+                name="vat_percent"
+                inputMode="decimal"
+                value={percent}
+                onChange={(e) => setPercent(e.target.value)}
+                className="pr-9"
+              />
+              <span
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base font-medium text-sand-500"
+                aria-hidden
+              >
+                %
+              </span>
+            </div>
+          </Field>
+          <Field label={t("po.vatAmount", locale)} htmlFor="convert-vat-amount" hint={t("po.vatAmountHint", locale)}>
+            <Input
+              id="convert-vat-amount"
+              name="vat_amount"
+              inputMode="decimal"
+              value={vatOverride}
+              onChange={(e) => setVatOverride(e.target.value)}
+            />
+          </Field>
+          <Checkbox
+            id="convert-claimable"
+            name="vat_claimable"
+            defaultChecked
+            label={t("po.claimable", locale)}
+            hint={t("po.claimableHint", locale)}
+            className="sm:col-span-2"
+          />
+          <TextField
+            name="supplier_vat_number"
+            id="convert-supplier-vat"
+            label={t("po.supplierVat", locale)}
+            hint={t("po.supplierVatHint", locale)}
+          />
+          <TextField name="description" id="convert-description" label={t("po.expenseDescription", locale)} />
+        </DialogSection>
       </div>
 
-      <SubmitButton className="self-start">{t("po.convertSave", locale)}</SubmitButton>
+      <DialogActions cancelLabel={t("common.cancel", locale)}>
+        <SubmitButton variant="primary">{t("po.convertSave", locale)}</SubmitButton>
+      </DialogActions>
     </form>
   );
 }

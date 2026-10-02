@@ -168,7 +168,7 @@ function rewriteSource(text) {
 
 // ── Walk ────────────────────────────────────────────────────────────────────
 
-const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", ".vercel"]);
+const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", ".vercel", "scratchpad"]);
 const SOURCE_EXT = new Set([".ts", ".tsx", ".mjs", ".js", ".sql", ".md", ".sh", ".css", ".yml", ".yaml"]);
 
 function walk(dir, files = []) {

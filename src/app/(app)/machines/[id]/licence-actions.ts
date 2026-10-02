@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { withTab } from "@/components/ui/tabs-url";
 import { LICENCE_TYPES } from "@/lib/compliance";
 
 function strOrNull(fd: FormData, k: string): string | null {
@@ -25,8 +26,8 @@ export async function addLicence(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
   const expiry = strOrNull(formData, "expiry_date");
-  if (!machineId || !farmId) redirect(`/machines/${machineId}?error=Missing+machine`);
-  if (!expiry) redirect(`/machines/${machineId}?error=Expiry+date+is+required`);
+  if (!machineId || !farmId) redirect(withTab(`/machines/${machineId}?error=Missing+machine`, "papers"));
+  if (!expiry) redirect(withTab(`/machines/${machineId}?error=Expiry+date+is+required`, "papers"));
 
   const supabase = await createClient();
   const { error } = await supabase.from("licences").insert({
@@ -38,9 +39,9 @@ export async function addLicence(formData: FormData) {
     reminder_lead_days: intOr(formData, "reminder_lead_days", 30),
     notes: strOrNull(formData, "notes"),
   });
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=licence`);
+  redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }
 
 /** Edit a licence. Resets the notify marker so a corrected date re-evaluates cleanly. */
@@ -49,8 +50,8 @@ export async function updateLicence(formData: FormData) {
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
   const expiry = strOrNull(formData, "expiry_date");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
-  if (!expiry) redirect(`/machines/${machineId}?error=Expiry+date+is+required`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "papers"));
+  if (!expiry) redirect(withTab(`/machines/${machineId}?error=Expiry+date+is+required`, "papers"));
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -65,9 +66,9 @@ export async function updateLicence(formData: FormData) {
       last_notified_at: null,
     })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=licence`);
+  redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }
 
 /** Soft-delete a licence. */
@@ -75,13 +76,13 @@ export async function deleteLicence(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect(`/machines/${machineId}?error=Missing+id`);
+  if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "papers"));
   const supabase = await createClient();
   const { error } = await supabase
     .from("licences")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}?saved=licence`);
+  redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }

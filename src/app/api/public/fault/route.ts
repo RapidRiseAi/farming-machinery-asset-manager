@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
+import { rememberName } from "@/app/(public)/m/[token]/remembered-name";
 
 export const dynamic = "force-dynamic";
 
@@ -80,5 +81,8 @@ export async function POST(request: Request) {
   }
 
   const media = await uploadFaultMedia(svc, form, result.farm_id, result.fault_id, null);
+  // Only after the fault was recorded, as the kiosk's reading and fuel actions do: the
+  // phone remembers who reported it, and a cleared name field forgets it.
+  await rememberName(reporter);
   return NextResponse.json({ ok: true, fault_id: result.fault_id, media_saved: media.ok });
 }

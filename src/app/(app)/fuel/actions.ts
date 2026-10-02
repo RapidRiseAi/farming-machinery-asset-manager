@@ -8,7 +8,8 @@ import {
   requireEntitlement,
 } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
-import { FUEL_ACTIVITIES } from "@/lib/fuel";
+import { FUEL_ACTIVITIES, FUEL_FARM_LEVEL } from "@/lib/fuel";
+import { todayLocal } from "@/lib/format";
 import { FleetCommandError, recordFuelIssue } from "@/lib/domain/fleet-commands";
 
 function bounce(msg: string): never {
@@ -41,7 +42,10 @@ export async function addFuelTank(formData: FormData) {
     name,
     capacity_l: capacity != null && Number.isFinite(capacity) && capacity > 0 ? capacity : null,
   });
-  if (error) bounce(error.message);
+  if (error) {
+    console.error("[fuel] save failed:", error.message);
+    bounce("save-failed");
+  }
   revalidatePath("/fuel");
   redirect("/fuel?saved=tank");
 }
@@ -79,7 +83,7 @@ export async function addFuelDelivery(formData: FormData) {
   const { error } = await supabase.from("fuel_deliveries").insert({
     farm_id: farmId,
     tank_id: tankId,
-    date: dateRaw || new Date().toISOString().slice(0, 10),
+    date: dateRaw || todayLocal(),
     litres,
     price_per_l_cents: pricePerL,
     vat_rate_bps: exCents != null ? rate : null,
@@ -87,7 +91,10 @@ export async function addFuelDelivery(formData: FormData) {
     invoice_no: invoiceNo,
     by_user: profile.id,
   });
-  if (error) bounce(error.message);
+  if (error) {
+    console.error("[fuel] save failed:", error.message);
+    bounce("save-failed");
+  }
   revalidatePath("/fuel");
   redirect("/fuel?saved=delivery");
 }
@@ -127,9 +134,11 @@ export async function addFuelIssue(formData: FormData) {
     .maybeSingle();
   if (!tank) fail("Pick a tank");
 
-  // Validate the machine belongs to this farm (or allow farm-level: no machine).
+  // Validate the machine belongs to this farm (or allow farm-level: no machine). The
+  // dialog posts FUEL_FARM_LEVEL for an explicit "Whole farm" choice, so an empty value
+  // can be a placeholder the browser refuses rather than a silent farm-level draw.
   let machineId: string | null = null;
-  if (machineRaw) {
+  if (machineRaw && machineRaw !== FUEL_FARM_LEVEL) {
     const { data: m } = await supabase
       .from("machines").select("id").eq("id", machineRaw).eq("farm_id", farmId).is("deleted_at", null).maybeSingle();
     if (!m) fail("Pick a machine");
@@ -148,7 +157,7 @@ export async function addFuelIssue(formData: FormData) {
     driverId = driverRaw;
   }
 
-  const date = dateRaw || new Date().toISOString().slice(0, 10);
+  const date = dateRaw || todayLocal();
 
   // ONE transaction. This used to be two inserts, the draw, then the driver-usage log
   // whose result was never read, so a failure on the second left the litres and the cost
@@ -192,7 +201,7 @@ export async function addFuelDip(formData: FormData) {
   await requireEntitlement("fuel", "/fuel");
   const tankId = String(formData.get("tank_id") ?? "").trim();
   const litres = Number(String(formData.get("litres") ?? "").trim());
-  const dippedOn = String(formData.get("dipped_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
+  const dippedOn = String(formData.get("dipped_on") ?? "").trim() || todayLocal();
   const note = String(formData.get("note") ?? "").trim() || null;
   if (!tankId || !Number.isFinite(litres) || litres < 0) redirect("/fuel?error=invalid-values");
 

@@ -1,8 +1,23 @@
 // Server-rendered SVG line chart of meter readings over time. Dependency-free.
+// The axis labels go through the format helpers: this printed "2026-05-06 · 3270 hours"
+// under a header that says "4 000 hours", and gave the Afrikaans profile English units.
+import type { Lang } from "@/lib/i18n";
+import { meterReading, shortDate } from "@/lib/format";
 
 type Reading = { reading: number; reading_date: string };
 
-export function MeterGraph({ readings, unit, title }: { readings: Reading[]; unit: string; title: string }) {
+export function MeterGraph({
+  readings,
+  unit,
+  title,
+  locale,
+}: {
+  readings: Reading[];
+  /** The machine's meter_type ("hours" | "km"), not a display word. */
+  unit: string;
+  title: string;
+  locale: Lang;
+}) {
   // Oldest → newest, left → right.
   const pts = [...readings].sort((a, b) => a.reading_date.localeCompare(b.reading_date));
   if (pts.length < 2) return null;
@@ -31,9 +46,9 @@ export function MeterGraph({ readings, unit, title }: { readings: Reading[]; uni
           <circle key={i} cx={x(i)} cy={y(p.reading)} r={2.5} className="fill-brand-600" vectorEffect="non-scaling-stroke" />
         ))}
       </svg>
-      <figcaption className="mt-1 flex justify-between text-xs text-sand-400">
-        <span>{pts[0].reading_date} · {minV} {unit}</span>
-        <span>{pts[pts.length - 1].reading_date} · {maxV} {unit}</span>
+      <figcaption className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-sand-500">
+        <span>{shortDate(pts[0].reading_date, locale)} · {meterReading(minV, unit, locale)}</span>
+        <span>{shortDate(pts[pts.length - 1].reading_date, locale)} · {meterReading(maxV, unit, locale)}</span>
       </figcaption>
     </figure>
   );

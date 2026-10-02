@@ -128,10 +128,20 @@ export async function recordIncident(formData: FormData): Promise<void> {
   if (!machineId) bounce("missing-machine");
 
   // Datetime-local posts "2026-06-14T09:30" with no zone. Read as the farm's own wall
-  // clock, which is what somebody standing at the scene typed.
+  // clock, which is what somebody standing at the scene typed: South African time,
+  // +02:00 all year (no daylight saving). `new Date(whenRaw)` read it in the SERVER's
+  // zone, and Vercel runs UTC, so every new accident was stored two hours late.
+  // Existing rows are left as they are. An unparseable value used to throw a
+  // RangeError from `toISOString()` before the check below could bounce it.
   const whenRaw = String(formData.get("occurred_at") ?? "").trim();
-  const occurredAt = whenRaw === "" ? new Date().toISOString() : new Date(whenRaw).toISOString();
-  if (occurredAt === "Invalid Date" || Number.isNaN(Date.parse(occurredAt))) bounce("incident-bad-date");
+  let occurredAt = new Date().toISOString();
+  if (whenRaw !== "") {
+    const local = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(whenRaw) ? `${whenRaw}:00` : whenRaw;
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?$/.test(local)) bounce("incident-bad-date");
+    const when = new Date(`${local}+02:00`);
+    if (Number.isNaN(when.getTime())) bounce("incident-bad-date");
+    occurredAt = when.toISOString();
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.from("incidents").insert({

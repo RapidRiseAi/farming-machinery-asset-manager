@@ -293,6 +293,16 @@ body {
   font-family: theme("fontFamily.sans");
 }
 
+/* Text size on this device, chosen on /account and stamped on <html> before paint.
+   Scaling the ROOT font size grows every rem in the type scale together, so headings,
+   body and spacing keep their proportions. Touch floors are px and stay floors. */
+html[data-text="large"] {
+  font-size: 112.5%;
+}
+html[data-text="larger"] {
+  font-size: 125%;
+}
+
 /* Mobile-first: avoid the 300ms tap delay and keep tap targets responsive. */
 button,
 a {

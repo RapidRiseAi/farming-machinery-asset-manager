@@ -17,7 +17,8 @@
     "no": "No",
     "required": "Required",
     "print": "Print",
-    "remove": "Remove"
+    "remove": "Remove",
+    "clearSearch": "Clear search"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -78,7 +79,17 @@
     "themeDark": "Dark",
     "billing": "Billing",
     "adminBilling": "Subscriptions",
-    "account": "Your account"
+    "account": "Your account",
+    "accountAndPrefs": "Your account and preferences",
+    "alertsUnread": "Alerts, {count} unread",
+    "groupSales": "Sales",
+    "groupBooks": "Books",
+    "groupBusiness": "Business",
+    "groupRapidRise": "Rapid Rise",
+    "adminFarms": "Farms",
+    "adminPartners": "Partner catalogue",
+    "adminTemplates": "Templates",
+    "moreHasNew": "Something new inside"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -109,7 +120,7 @@
     "recordingLimit": "Recordings stop automatically after one minute so you can review the transcript.",
     "offlineCaptured": "Captured on this device. When signal returns, tap Transcribe now. FleetWise will still ask before saving anything.",
     "offlineTitle": "Recording waiting on this device",
-    "offlinePending": "{count} recording(s) are waiting to be transcribed. They stay only on this device until you transcribe or discard them. Recordings older than seven days are removed when this assistant next opens.",
+    "offlinePending": "{count} recordings are waiting to be transcribed. They stay only on this device until you transcribe or discard them. Recordings older than seven days are removed when this assistant next opens.",
     "offlineProcess": "Transcribe now",
     "waitingForSignal": "Waiting for signal",
     "offlineDiscard": "Discard recording",
@@ -190,7 +201,8 @@
     "threadFailed": "FleetWise couldn't do this",
     "threadCollapsed": "{count} requests that were not completed",
     "threadCollapsedShow": "Show them",
-    "threadCollapsedHide": "Hide them"
+    "threadCollapsedHide": "Hide them",
+    "offlinePendingOne": "{count} recording is waiting to be transcribed. It stays only on this device until you transcribe or discard it. Recordings older than seven days are removed when this assistant next opens."
   },
   "auth": {
     "signIn": "Sign in",
@@ -200,7 +212,7 @@
     "showPassword": "Hold to show password",
     "magicLink": "Email me a sign-in link",
     "magicLinkHint": "We send a link that signs you in. No password needed.",
-    "forgot": "Forgot?",
+    "forgot": "Forgot password?",
     "revealPassword": "Hold to show password",
     "sendLink": "Send link",
     "checkEmail": "Check your email for the sign-in link.",
@@ -239,17 +251,19 @@
     "step1Alt": "Import CSV",
     "step2Title": "Set up service plans",
     "step2Desc": "Apply a service template to each machine so FleetWise knows when a service is due.",
-    "step2Cta": "Open machines",
+    "step2Cta": "Apply service plans",
     "step3Title": "Print & stick QR codes",
     "step3Desc": "Print a QR sticker for each machine and stick it on. This is the bit that makes the whole thing work. Anyone who can hold a phone can then report a problem or write down the hours, with no login.",
-    "step3Cta": "Open machines",
+    "step3Cta": "Print QR labels",
     "step4Title": "Invite your team",
     "step4Desc": "Add your manager and mechanic so job cards and faults are captured as work happens.",
     "step4Cta": "Invite team",
     "step3Hint": "Print them on plain paper and tape them somewhere dry, inside the cab door works well.",
     "step3Ack": "I've done this already",
     "step3Undo": "Not done yet",
-    "step3Done": "Stickers are on the machines"
+    "step3Done": "Stickers are on the machines",
+    "stepsDone": "{n} steps done",
+    "oneStepDone": "1 step done"
   },
   "machines": {
     "title": "Machines",
@@ -300,7 +314,9 @@
       "finance": "Finance",
       "notes": "Notes",
       "operator": "Operator",
-      "grouping": "Grouping"
+      "grouping": "Grouping",
+      "details": "Make, model & registration",
+      "placement": "Location & operator"
     },
     "err": {
       "name_required": "Name is required",
@@ -330,7 +346,7 @@
     "financeTotal": "Amount financed (R, ex-VAT)",
     "financeMonthly": "Monthly instalment (R, ex-VAT)",
     "financeTerm": "Term (months)",
-    "financeInterest": "Interest rate (bps)",
+    "financeInterest": "Interest rate",
     "assignedOperator": "Assigned operator",
     "noOperator": "None",
     "costCentre": "Cost centre",
@@ -377,7 +393,29 @@
     "mapNoName": "Pick which of your columns holds the machine name. We can't load anything without it.",
     "mapFileSummary": "{file} · {n} rows",
     "useDifferentFile": "Use a different file",
-    "limitAddSlots": "Add more vehicle slots"
+    "limitAddSlots": "Add more vehicle slots",
+    "newLead": "A name, a type and the meter are enough to start. Add the rest now or later.",
+    "created": "Machine added.",
+    "warrantyKm": "Warranty expiry (km)",
+    "financeInterestPct": "Interest rate (% a year)",
+    "logKm": "Log km",
+    "lastReadingHint": "Last reading {reading}, {when}",
+    "serviceNeeded": "Needs service",
+    "sortLabel": "Sort",
+    "sortName": "Name, A to Z",
+    "sortAttention": "Needs attention first",
+    "sortReading": "Highest reading",
+    "sortLastRead": "Longest since read",
+    "printQrStickers": "Print QR stickers",
+    "qrSheetTitle": "QR stickers",
+    "qrSheetLead": "One sticker per machine. Print the sheet, cut the stickers out and stick each one where a driver will see it.",
+    "qrSheetCount": "{n} stickers",
+    "qrSheetPrint": "Print stickers",
+    "qrSheetFiltered": "Only the machines in your current filter are on this sheet.",
+    "qrSheetAll": "Print the whole fleet",
+    "qrSheetEmpty": "No machines to print stickers for yet",
+    "qrSheetDone": "The stickers are on",
+    "qrSheetDoneHint": "Once every machine has its sticker, tick this step off your farm set-up list."
   },
   "machineType": {
     "tractor": "Tractor",
@@ -474,7 +512,17 @@
     "errorInvalidFuel": "Enter a valid number of litres and check the optional cost or meter reading.",
     "errorUpgrade": "Fuel capture is not available on this farm's plan. Ask the farm office for help.",
     "errorRateLimited": "This machine has received several updates. Wait a few minutes, then try again.",
-    "errorUnavailable": "We couldn't save that right now. Check your signal and try again."
+    "errorUnavailable": "We couldn't save that right now. Check your signal and try again.",
+    "siteUrlMissing": "This QR points at a test address. Ask your administrator to set the site address (NEXT_PUBLIC_SITE_URL) before you print it.",
+    "sentFaultTitle": "Sent to the farm office",
+    "sentFaultBody": "Thank you. Someone will look at it. If the machine is not safe to use, park it and tell your foreman.",
+    "sentReadingTitle": "Reading saved",
+    "sentReadingBody": "Thank you. The farm office can see it now.",
+    "sentFuelTitle": "Fuel logged",
+    "sentFuelBody": "Thank you. The litres are on this machine's record now.",
+    "sentAnother": "Do something else on this machine",
+    "fuelActivityNone": "Choose one (optional)",
+    "yourNameRemembered": "Filled in from last time on this phone. Change it if it is not you."
   },
   "fuel": {
     "title": "Fuel & diesel",
@@ -551,7 +599,24 @@
     "dipHint": "The dip is the outside check on our own numbers. It changes nothing in the books, a difference is a question to ask, not an entry to correct.",
     "dipOn": "Dipped {date}",
     "variance": "{n} L more than the books",
-    "varianceShort": "{n} L short of the books"
+    "varianceShort": "{n} L short of the books",
+    "activityNone": "Not specified",
+    "moreDetails": "Date, driver and activity",
+    "lastReading": "Last: {reading} on {date}",
+    "lastReadingNoDate": "Last: {reading}",
+    "meterLower": "Lower than the last reading. Check it before you save.",
+    "highLatest": "Last fill high",
+    "trendAria": "Latest interval {last}, usual {usual}",
+    "trendAriaHigh": "Latest interval {last} is well above the usual {usual}",
+    "trendAriaOne": "One interval: {last}",
+    "litresAt": "{litres} at {reading}",
+    "ofCapacity": "{n} of {cap} L, {pct}%",
+    "runningLow": "Running low",
+    "monthOut": "Out this month",
+    "monthIn": "In this month",
+    "monthCost": "Diesel cost this month",
+    "yourMonth": "Your draws this month",
+    "noTanksTitle": "No diesel tank yet"
   },
   "machine": {
     "kitQty": "Quantity",
@@ -703,7 +768,35 @@
     "meterReplacedNote": "Note (optional)",
     "meterReplacedSubmit": "Record the new meter",
     "savedMeterCorrected": "That reading is corrected. The machine is back on the readings that are left.",
-    "savedMeterReplaced": "The new meter is recorded, and the service plan moved with it."
+    "savedMeterReplaced": "The new meter is recorded, and the service plan moved with it.",
+    "dueOverdueBy": "Overdue by {amount} (due at {at})",
+    "dueOverdueSince": "Overdue since {date}",
+    "dueInOrBy": "Due in {amount} or by {date}",
+    "dueIn": "Due in {amount}",
+    "dueBy": "Due by {date}",
+    "dueAt": "Due at {at}",
+    "evAuditMany": "Vehicle record changed {n} times",
+    "timelineOlder": "Show {n} older",
+    "intervalKm": "Every (km)",
+    "purchasePrice": "Purchase price",
+    "changeStatus": "Change status",
+    "changeStatusHint": "Sold or retired machines drop out of fleet reports and the everyday lists. Their history stays.",
+    "qrSticker": "QR sticker",
+    "lastReadingHint": "Last: {reading} on {date}",
+    "useTemplatePlan": "Use the {template} plan",
+    "markDone": "Mark done",
+    "doneAtReading": "Done at",
+    "periodRange": "{start} to {end}",
+    "whoWasDriving": "Who was driving?",
+    "operatedOn": "Driving on {date}",
+    "noDetails": "Nothing recorded yet. Use Edit to add the registration, serial number and purchase details.",
+    "uploadOffline": "You're offline. Add the photo when you have signal.",
+    "uploadNotImage": "We can't read that file as a photo. Try another one.",
+    "uploadTooLarge": "That photo is too large. Try a smaller one.",
+    "setupTitle": "Finish setting up this machine",
+    "setupHint": "A service plan says when it is due. Its QR sticker lets anyone on the farm report a problem by scanning it.",
+    "setupPlanCta": "Set up its service plan",
+    "setupQrCta": "Print its QR sticker"
   },
   "admin": {
     "farms": "Farms",
@@ -714,8 +807,9 @@
     "supportModeBody": "You are looking at {farm}'s data. Everything you open is logged.",
     "supportModeExit": "Leave this farm",
     "supportEntered": "You are now looking at this farm. The banner at the top gets you out.",
-    "supportExited": "You have left the farm. The visit is in the log below.",
-    "supportEnter": "Look inside this farm"
+    "supportExited": "You have left the farm. The visit is in the log below, with the time you left.",
+    "supportEnter": "Look inside this farm",
+    "farmCreated": "Farm created."
   },
   "plan": {
     "essential": "Essential",
@@ -742,7 +836,11 @@
       "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
       "financials": "Running the books"
-    }
+    },
+    "bodyOwner": "{feature} is available on the {plan} plan and above. You're on {current}. You can change your plan on the Billing screen.",
+    "bodyPartner": "{feature} is available on the {plan} product and above. You're on {current}. Ask FleetWise to move you up.",
+    "seePlans": "See plans",
+    "ctaPartner": "Go to my dashboard"
   },
   "ui": {
     "close": "Close",
@@ -817,7 +915,7 @@
     "unread": "Unread",
     "tplServiceDueSoon": "{machine}: {task}, service due soon",
     "tplServiceOverdue": "{machine}: {task}, service overdue",
-    "tplStaleMeter": "{count} machine(s) need a meter reading",
+    "tplStaleMeter": "{count} machines need a meter reading",
     "tplWeeklyDigest": "Weekly digest: {overdue} overdue, {dueSoon} due soon, {faults} open faults",
     "tplFaultReported": "{machine}: {description} ({urgency})",
     "tplJobCompleted": "{machine}: job completed, {total}",
@@ -859,38 +957,48 @@
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
     "tplBillingRefund": "A refund of {amount} has been recorded at the provider ({event}). If they asked for it, cancel their subscription immediately on this screen. If we refunded because something broke on our side, leave it running. They keep the plan.",
     "tplSupportTicketDue": "A support case needs an answer within {hours} hours: {subject}. After that Paystack settles it for us and takes the money.",
-    "tplBillingRenewalDue": "Your FleetWise subscription renews on {date} and {amount} will come off the card on file. Nothing to do. This is just so you know before it lands."
+    "tplBillingRenewalDue": "Your FleetWise subscription renews on {date} and {amount} will come off the card on file. Nothing to do. This is just so you know before it lands.",
+    "tplStaleMeterOne": "{count} machine needs a meter reading",
+    "earlier": "Earlier",
+    "unreadOne": "{n} unread",
+    "unreadMany": "{n} unread",
+    "alertSettings": "Alert settings",
+    "showOlder": "Show older alerts",
+    "backToNewest": "Back to the newest",
+    "summaryChannels": "Alerts reach you: {channels}.",
+    "summaryNone": "Every alert channel is off.",
+    "summaryQuiet": "Quiet hours {range}."
   },
   "settings": {
     "notSet": "Not set",
     "vatRateShort": "VAT rate",
     "title": "Settings",
     "thresholds": "Alert thresholds",
-    "dueHours": "Warn when service due within (hours)",
-    "dueDays": "Warn when service due within (days)",
-    "staleDays": "Flag a reading stale after (days)",
+    "dueHours": "Service due soon, by engine hours",
+    "dueDays": "Service due soon, by date",
+    "staleDays": "A meter reading goes stale after",
     "money": "Money & VAT",
     "vatRate": "VAT rate (basis points, 1500 = 15%)",
     "workflow": "Workflow",
     "approvalRequired": "Require owner approval of job cards",
     "costVisible": "Show costs to operators",
-    "quietHours": "Quiet hours (no non-urgent alerts)",
-    "quietStart": "Quiet hours start (0-23)",
-    "quietEnd": "Quiet hours end (0-23)",
+    "quietHours": "Quiet hours",
+    "quietStart": "Quiet from",
+    "quietEnd": "Quiet until",
     "fuelSection": "Fuel anomalies",
-    "fuelAnomalyPct": "Flag a draw above usual by (%)",
-    "fuelMinHistory": "Minimum draws before flagging",
+    "fuelAnomalyPct": "Flag a draw above usual by",
+    "fuelMinHistory": "Draws needed before flagging",
     "expirySection": "Expiry reminders",
-    "warrantyLeadDays": "Warn before warranty expiry (days)",
-    "warrantyHoursLead": "Warn before warranty hour limit (hours)",
-    "licenceLeadDays": "Warn before licence expiry (days)",
-    "language": "Default language",
+    "warrantyLeadDays": "Warn before a warranty expires",
+    "warrantyHoursLead": "Warn before the warranty hour limit",
+    "licenceLeadDays": "Warn before a licence expires",
+    "language": "Language for new people",
     "afrikaans": "Afrikaans",
     "english": "English",
     "save": "Save settings",
-    "aartoLeadDays": "Warn before nomination deadline (days)",
+    "aartoLeadDays": "Warn before a nomination deadline",
     "analyticsSection": "Analytics & budgets",
-    "repairReplacePct": "Flag repair-vs-replace above (% of price)",
+    "repairReplacePct": "Flag repair or replace above",
     "utilHoursPerDay": "Available hours per day",
     "utilKmPerDay": "Available km per day",
     "vatRateHint": "The VAT rate on your invoices. 15% in South Africa.",
@@ -913,7 +1021,28 @@
     "billingAddress": "Business address",
     "billingAddressHint": "Required on a tax invoice over R5 000.",
     "billingEmail": "Where invoices should be sent",
-    "billingEmailHint": "Contractors will use this by default."
+    "billingEmailHint": "Contractors will use this by default.",
+    "personalLink": "Your own language, wording and alerts are in Your account and preferences.",
+    "personalLinkCta": "Open your preferences",
+    "sectionMoney": "Money and invoices",
+    "sectionAlerts": "Reminders and alerts",
+    "sectionWorkflow": "Workflow and reports",
+    "nHoursOne": "{n} hour",
+    "nHours": "{n} hours",
+    "nDaysOne": "{n} day",
+    "nDays": "{n} days",
+    "nDrawsOne": "{n} draw",
+    "nDraws": "{n} draws",
+    "nKm": "{n} km",
+    "pctOfPrice": "{n}% of the price",
+    "inHours": "In hours.",
+    "inDays": "In days.",
+    "inPercent": "As a percentage.",
+    "quietHint": "No non-urgent alerts go out in this window. Anyone can set their own hours in Your account and preferences.",
+    "quietWindow": "Non-urgent alerts wait",
+    "languageFact": "New people start in",
+    "languageHint": "Your own language is in Your account and preferences.",
+    "apiLink": "Connect your own systems to this farm with an API token."
   },
   "apiTokens": {
     "title": "API access",
@@ -924,7 +1053,8 @@
       "name": "Use a name between 3 and 80 characters.",
       "scopes": "Choose at least one permission.",
       "expiry": "Choose a future expiry date or leave it blank.",
-      "create_failed": "The credential could not be created. Try again."
+      "create_failed": "The credential could not be created. Try again.",
+      "revoke_failed": "The credential could not be revoked. Try again."
     },
     "revoked": "API credential revoked. It can no longer be used.",
     "createTitle": "Create a credential",
@@ -952,7 +1082,13 @@
     "never": "Never",
     "expires": "Expires",
     "revokeConfirm": "Revoke {name}? Any integration using it will stop immediately. This cannot be undone.",
-    "revoke": "Revoke"
+    "revoke": "Revoke",
+    "new": "New credential",
+    "createLead": "For one integration. You see its secret once, right after it is created.",
+    "scopesLabel": "What it may do",
+    "done": "Done",
+    "revokeTitle": "Revoke {name}?",
+    "revokeIntro": "Any integration using it stops working immediately. This cannot be undone."
   },
   "team": {
     "title": "Team",
@@ -972,7 +1108,17 @@
     "primaryFarmControls": "Account activation and erasure stay with the primary farm.",
     "roleManager": "Manager",
     "roleMechanic": "Mechanic",
-    "roleOperator": "Operator"
+    "roleOperator": "Operator",
+    "subtitle": "Who can sign in to this farm, and what they can do.",
+    "deactivated": "Login off",
+    "deactivatedFlash": "Login turned off. They can no longer sign in.",
+    "activatedFlash": "Login turned on. They can sign in again.",
+    "deactivateTitle": "Turn off {name}'s login?",
+    "deactivateBody": "They can no longer sign in to FleetWise. Their work and history stay as they are.",
+    "deactivateFootnote": "You can turn it back on at any time.",
+    "activateTitle": "Let {name} sign in again?",
+    "activateBody": "They can sign in again, with the same role as before.",
+    "inviteLanguageHint": "Starts on your farm's language for new people. They can change it later."
   },
   "permissions": {
     "title": "Extra access",
@@ -984,7 +1130,12 @@
     "see_all_vehicles": "See every vehicle",
     "manage_stock": "Manage store stock",
     "manage_partners": "Manage partner directory",
-    "fullFleetActive": "Your extra access lets you see every vehicle on this farm."
+    "fullFleetActive": "Your extra access lets you see every vehicle on this farm.",
+    "extraList": "Extra: {list}",
+    "menuItem": "What they can do",
+    "dialogTitle": "What {name} can do",
+    "dialogHint": "Their role already covers some of this. Tick anything else they may do on this farm.",
+    "save": "Save what they can do"
   },
   "privacy": {
     "title": "Data & privacy (POPIA)",
@@ -1072,7 +1223,17 @@
     "sarsTitle": "SARS diesel logbooks",
     "sarsBody": "The two records a diesel-refund claim is audited against: what went into and out of each tank, and what every machine drew and what it was doing. Both are a DRAFT modelled on the published SARS layout, have your accountant check them before you claim.",
     "sarsStorage": "Storage logbook (CSV)",
-    "sarsUsage": "Usage logbook (CSV)"
+    "sarsUsage": "Usage logbook (CSV)",
+    "periodRange": "{from} to {to}",
+    "machinesFilter": "Machines",
+    "activeOnly": "In use only",
+    "export": "Export",
+    "exportTitle": "Download or print",
+    "assetsLinkHint": "What the fleet is worth on a date, for the insurer or the accountant.",
+    "nothingYet": "None in this period",
+    "tabCosts": "Costs",
+    "tabService": "Service",
+    "tabUsage": "Use and downtime"
   },
   "faults": {
     "pages": "Fault list pages",
@@ -1146,7 +1307,24 @@
     "noPhoto": "No photo",
     "voiceNoteAnon": "Voice note",
     "playVoiceNote": "Play the voice note",
-    "reportedByWhen": "{name}, {when}"
+    "reportedByWhen": "{name}, {when}",
+    "howBad": "How bad is it?",
+    "photoAdded": "Photo added",
+    "extras": "Add if you can",
+    "sentTitle": "Problem sent",
+    "sentBody": "The workshop can now see what is wrong with {machine}. It stays on the problems list until someone marks it sorted.",
+    "queuedBody": "There is no signal right now. The report sends by itself as soon as the phone is back online.",
+    "reportAnother": "Report something else",
+    "openCount": "{n} open",
+    "sortedCount": "{n} sorted",
+    "sortedWhen": "Sorted {when}",
+    "historyLatest": "The latest {n} are shown.",
+    "assignedFilter": "Who has it",
+    "mine": "Mine",
+    "savedResolved": "Marked as sorted.",
+    "savedAcknowledged": "Marked as seen.",
+    "savedStarted": "Marked as being worked on.",
+    "savedAssigned": "Assignment saved."
   },
   "jobcards": {
     "title": "Job cards",
@@ -1368,7 +1546,7 @@
     "quickReportProblem": "Report a problem",
     "fleetCost": "What the fleet cost you",
     "fleetCostHint": "Parts, labour and outside invoices · ex VAT",
-    "fullCostReport": "Full cost report",
+    "fullCostReport": "Full report",
     "thisMonth": "This month",
     "lessThan": "{amount} less than {month}",
     "moreThan": "{amount} more than {month}",
@@ -1398,7 +1576,30 @@
     "nominationDue": "Name the driver by {when}",
     "setupTitle": "Finish setting up the farm",
     "setupProgress": "{done} of {total}",
-    "setupOpen": "Open the setup list"
+    "setupOpen": "Open the setup list",
+    "prefsSaved": "Saved. This page now shows what you chose, on this device.",
+    "readingsSaved": "Reading saved. Service dates are worked out from it.",
+    "lastReading": "last {reading}, {when}",
+    "noReadingYet": "no reading yet",
+    "showMore": "Show {n} more",
+    "sectionSetup": "Finish setting up the farm",
+    "sectionStale": "Old meter readings",
+    "readingDialogHint": "Pick the machine and type what its meter says now.",
+    "readingMachine": "Machine",
+    "readingValue": "Reading now",
+    "customise": "Customise",
+    "customiseTitle": "Customise this page",
+    "customiseHint": "Choose what shows here. It is kept on this device only.",
+    "alwaysShown": "Always shown",
+    "setupNext": "Next: {step}",
+    "setupAll": "All steps",
+    "setupHide": "Hide",
+    "overSixMonths": "{amount} over 6 months",
+    "staleDaysTitle": "{n} meter readings are older than {days} days",
+    "staleDaysOneTitle": "1 meter reading is older than {days} days",
+    "recordReadings": "Record readings",
+    "recordReadingsHint": "Type what each meter says now. Leave a machine blank to skip it.",
+    "namesAndMore": "{names} and {n} more."
   },
   "offline": {
     "mediaTooLarge": "Use a JPEG, PNG or WebP photo under 6 MB and a voice note under 8 MB. Remove or replace the attachment, then try again.",
@@ -1428,7 +1629,12 @@
     "savedOffline": "Saved offline, will sync when you're back online.",
     "pageTitle": "You're offline",
     "pageBody": "This page isn't available offline yet. Readings, faults, diesel draws, checklists and job-card entries you capture are saved on your device and sync automatically when you reconnect.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "backHome": "Home",
+    "savedOnPhone": "Saved on this phone",
+    "toSync": "{count} to sync",
+    "savedHere": "Saved on this phone",
+    "syncNow": "Sync now"
   },
   "meterSource": {
     "app": "In-app",
@@ -1557,7 +1763,8 @@
     "remove": "Remove",
     "removeTitle": "Remove this record?",
     "removeBody": "It comes off this list. The record of it, and of this removal, stays in the history.",
-    "removeNo": "Keep it"
+    "removeNo": "Keep it",
+    "jobCardNoDate": "no date"
   },
   "depreciation": {
     "title": "Asset register",
@@ -1649,7 +1856,8 @@
     "listTitle": "Warranty claims",
     "statOutstanding": "Owed by dealers",
     "statRecovered": "Recovered this year",
-    "statOpen": "Claims open"
+    "statOpen": "Claims open",
+    "sectionOutcome": "Outcome"
   },
   "calendarKind": {
     "service_due": "Service",
@@ -1683,7 +1891,16 @@
     "weekSun": "Sun",
     "atWorkshop": "at {name}",
     "noMachine": "No vehicle",
-    "navLabel": "Calendar"
+    "navLabel": "Calendar",
+    "countOverdue": "{n} overdue",
+    "countDueSoon": "{n} coming up",
+    "dayOne": "{date}: 1 item",
+    "dayMany": "{date}: {n} items",
+    "dayOverdue": ", {n} overdue",
+    "emptyNext": "Nothing this month. Next: {title} on {date}",
+    "carriedOver": "Overdue, carried over",
+    "dueByHours": "Due by hours",
+    "dueAtReading": "due at {reading}"
   },
   "help": {
     "title": "Get help",
@@ -1707,7 +1924,10 @@
     "backToSettings": "Back to settings",
     "navLabel": "Get help",
     "settingsLink": "Get help",
-    "settingsLinkHint": "Ask us something without leaving FleetWise."
+    "settingsLinkHint": "Ask us something without leaving FleetWise.",
+    "backWhereYouWere": "Back to where you were",
+    "leadAnswers": "Most answers are below. If yours is not, ask us and we will come back to you.",
+    "quickTitle": "Quick answers"
   },
   "tyreAxle": {
     "steer": "Steering",
@@ -1782,7 +2002,12 @@
     "savedRemoved": "Taken off.",
     "savedChecked": "Check saved.",
     "moneyNote": "Before VAT, like every other cost in FleetWise.",
-    "navLabel": "Tyres"
+    "navLabel": "Tyres",
+    "fieldCheckedOn": "Checked on",
+    "fieldRemovedOn": "Taken off on",
+    "pickMachine": "Choose a machine",
+    "sectionPurchase": "Purchase details",
+    "fieldReadingLast": "Last recorded on this machine: {reading}"
   },
   "credentials": {
     "title": "Driver documents",
@@ -1809,10 +2034,10 @@
     "addTitle": "Add a document",
     "add": "Add document",
     "person": "Person on the farm",
-    "personHint": "Pick somebody who signs in, or leave this on “Someone else”.",
-    "personOther": "Someone else",
-    "personName": "Or a name",
-    "personNameHint": "For a driver who does not sign in. Fill in one of these two, not both.",
+    "personHint": "Pick somebody who signs in, or choose “Someone who does not sign in” at the bottom of the list.",
+    "personOther": "Someone who does not sign in",
+    "personName": "Their name",
+    "personNameHint": "Only for someone who does not sign in.",
     "type": "Document",
     "code": "Code",
     "codeHint": "What is printed on it: EC, C1, G.",
@@ -1829,7 +2054,11 @@
     "teamLink": "Driver documents",
     "teamLinkHint": "Licences, PrDPs and medicals, and when they expire.",
     "lapsedWarning": "{person} had no valid {credential} on {date}.",
-    "lapsedLead": "Check before you nominate:"
+    "lapsedLead": "Check before you nominate:",
+    "subtitle": "Licences, PrDPs and medicals, and when they expire.",
+    "choosePerson": "Choose a person",
+    "moreDetails": "More details",
+    "renewTitleFor": "Renew {person}'s {document}"
   },
   "pushTitle": {
     "service": "Service reminder",
@@ -1853,9 +2082,9 @@
     "inapp": "Show alerts in the app",
     "push": "Send push notifications",
     "quietHours": "Your quiet hours",
-    "quietHoursHint": "No non-urgent alerts during these hours. Leave blank to use the farm default.",
-    "quietStart": "Quiet from (0-23)",
-    "quietEnd": "Quiet until (0-23)",
+    "quietHoursHint": "No non-urgent alerts during these hours. Set both to use your own; otherwise the farm's hours apply.",
+    "quietStart": "Quiet from",
+    "quietEnd": "Quiet until",
     "inherit": "Farm default",
     "save": "Save preferences",
     "email": "Email me these alerts too",
@@ -1871,7 +2100,8 @@
     "error": "Couldn't change push notifications. Please try again.",
     "unsupported": "This browser doesn't support push notifications.",
     "unconfigured": "Push notifications aren't set up on this server yet.",
-    "denied": "Notifications are blocked in your browser settings."
+    "denied": "Notifications are blocked in your browser settings.",
+    "accountOnDeviceOff": "Push is on for your account, but not on this device yet."
   },
   "parts": {
     "title": "Parts catalogue",
@@ -1896,7 +2126,11 @@
     "descriptionLabel": "What is it?",
     "categoryLabel": "Kind of part",
     "supplierLabel": "Who sells it",
-    "costLabel": "What it usually costs"
+    "costLabel": "What it usually costs",
+    "searchLabel": "Search the catalogue",
+    "noMatchTitle": "No part matches that search",
+    "noMatchHint": "Try a shorter word, or search by part number or supplier.",
+    "scopeGlobalNote": "From the shared library"
   },
   "partnerKind": {
     "mechanic": "Mechanic",
@@ -1962,7 +2196,19 @@
     "approveBody": "{name} will be able to work on this farm in FleetWise.",
     "approveConsequence1": "They can see your vehicles, faults, job cards and service history.",
     "approveConsequence2": "They can send you quotes and invoices, and update the jobs you send them.",
-    "approveFootnote": "You can disconnect them again at any time."
+    "approveFootnote": "You can disconnect them again at any time.",
+    "addedFlash": "Added to your partners.",
+    "removedFlash": "Removed from your partners.",
+    "alreadyFlash": "That partner is already in your list, so nothing was added.",
+    "loginSentFlash": "A fresh login link is ready. Share it below.",
+    "approvedFlash": "Connected. They can now work on this farm's vehicles.",
+    "declinedFlash": "Request declined. They have not been given any access.",
+    "linkErrorFlash": "No login link could be made just now. To try again, open their actions and choose Send login link.",
+    "loginUrlTitleFor": "Login link for {name}",
+    "connectedOthers": "Connected contractors",
+    "connectedOthersHint": "Connected to this farm, but not in your partner list.",
+    "inYourList": "In your partners",
+    "suggestedCount": "Suggested by FleetWise ({n})"
   },
   "checklistField": {
     "checkbox": "Checkbox",
@@ -2040,7 +2286,11 @@
     "failUrgency": "Report it as",
     "defectsRaised": "{n} fault(s) were opened from this checklist.",
     "draftNeedsSignal": "A draft needs a signal. Finish the checklist and save it. It will be kept on this phone and sent when you are back in range.",
-    "offlineNoPhotos": "The photos could not be kept. Take them again once you are back in range."
+    "offlineNoPhotos": "The photos could not be kept. Take them again once you are back in range.",
+    "copyName": "{name} (copy)",
+    "copyToFarm": "Make a copy for my farm",
+    "moreOptions": "More options",
+    "fewerOptions": "Fewer options"
   },
   "attachmentKind": {
     "photo": "Photo",
@@ -2202,7 +2452,11 @@
     "contactRr": "Upgrade to Pro to unlock, contact RapidRise.",
     "owed": "Owed to you",
     "overdue": "Overdue",
-    "quotedOut": "Quotes out"
+    "quotedOut": "Quotes out",
+    "focusNote": "Showing your usual work: {kinds}.",
+    "showEverything": "Show every request",
+    "analyticsBilled": "Invoiced",
+    "analyticsOwed": "Owed"
   },
   "inbox": {
     "title": "Activity inbox",
@@ -2253,7 +2507,12 @@
     "pricesToAccept": "Prices to accept",
     "nothingWaitingTitle": "Nothing waiting on you",
     "nothingWaitingHint": "No prices to accept and no bills to approve.",
-    "whatsHappened": "What's happened"
+    "whatsHappened": "What's happened",
+    "amountQuoted": "They want",
+    "amountBilled": "They billed",
+    "contact": "Contact",
+    "waitingAbove": "{n} waiting for your decision, above",
+    "nothingNew": "Nothing new since you last looked."
   },
   "fineStatus": {
     "received": "Received",
@@ -2301,7 +2560,10 @@
     "noOffence": "Fine",
     "setStatus": "Update",
     "identifyDriver": "Identify driver",
-    "upgradeRequired": "This action requires the Complete plan."
+    "upgradeRequired": "This action requires the Complete plan.",
+    "continueRecording": "Continue recording",
+    "sectionMore": "Dates, status and notes",
+    "markAs": "Mark as: {status}"
   },
   "budget": {
     "title": "Budgets",
@@ -2402,7 +2664,11 @@
     "deleteChecklistInstanceYes": "Yes, remove the check",
     "removeLineTitle": "Take “{line}” off this job card?",
     "removeLineIntro": "The job card total goes down by {amount}.",
-    "removeLineYes": "Yes, take it off"
+    "removeLineYes": "Yes, take it off",
+    "deleteFineIntroNoNotice": "The fine on {machine}, which has no notice number.",
+    "reissueQrTitle": "Re-issue the QR for {machine}?",
+    "reissueQrEffect1": "The sticker on the machine stops working immediately.",
+    "reissueQrEffect2": "Print and stick on the new one before anyone scans it."
   },
   "format": {
     "unit": {
@@ -2417,7 +2683,8 @@
     "weeksAgo": "{n} weeks ago",
     "inDays": "in {n} days",
     "nextWeek": "next week",
-    "inWeeks": "in {n} weeks"
+    "inWeeks": "in {n} weeks",
+    "timeRange": "{start} to {end}"
   },
   "role": {
     "owner": "Owner",
@@ -2468,7 +2735,17 @@
     "oneWaitingTitle": "1 of your reports is still waiting",
     "nothingReported": "You haven't reported anything yet.",
     "signOut": "Sign out",
-    "noMachines": "No machine has been given to you yet. Ask the farm office."
+    "noMachines": "No machine has been given to you yet. Ask the farm office.",
+    "tilePick": "Pick a machine",
+    "tilePickHint": "Find it in the list of your machines",
+    "machinesHint": "Press the button under the machine you are using.",
+    "actProblem": "Problem",
+    "actHours": "Hours",
+    "actKm": "Kilometres",
+    "lastReading": "Last: {reading}, {when}",
+    "otherThings": "Something else",
+    "fixedTitle": "Fixed recently",
+    "fixedWhen": "Fixed {when}"
   },
   "pageInfo": {
     "button": "What is this?",
@@ -2484,9 +2761,9 @@
     "dashboardTitle": "Farm home",
     "dashboardWhat": "Everything that needs a decision today, worst first, so you never have to go looking for trouble.",
     "driverDoes": "Say something is broken\nWrite down the hours off the clock\nSay you put in diesel",
-    "driverNote": "You can also just hold your phone to the sticker on the machine.",
+    "driverNote": "At the machine you can also open your phone camera and point it at the sticker on it.",
     "driverTitle": "Your screen",
-    "driverWhat": "The four things you need on a machine, and what happened to what you reported.",
+    "driverWhat": "Your machines with what you can do on each one, and what happened to what you reported.",
     "faultsDoes": "Report something that is wrong, with a photo or a voice note\nTurn a problem into a job card so a mechanic can work on it\nMark it sorted out when it is fixed",
     "faultsNote": "Drivers can report problems from the QR sticker on the machine without logging in.",
     "faultsTitle": "Problems",
@@ -2632,7 +2909,18 @@
     "reportSchedulesTitle": "Reports that send themselves",
     "reportSchedulesWhat": "A standing instruction to email a report to somebody: your accountant, your bank, yourself, on a set day.",
     "reportSchedulesDoes": "Pick the report, how often, and who it goes to\nSee when each one last went, and whether it arrived\nStop one without losing what it has already sent",
-    "reportSchedulesNote": "A schedule runs once per period even if the nightly job runs twice, so nobody is ever sent the same report two days running."
+    "reportSchedulesNote": "A schedule runs once per period even if the nightly job runs twice, so nobody is ever sent the same report two days running.",
+    "apiTokensTitle": "API access",
+    "apiTokensWhat": "Credentials that let another system, such as a telematics provider, read this farm's data or add meter readings without anyone signing in.",
+    "apiTokensDoes": "Create a credential for one integration and copy its secret once\nChoose whether it may only read, or also record meter readings\nRevoke a credential the moment it is no longer needed",
+    "apiTokensNote": "Treat a secret like a password. Give each integration its own credential, so revoking one never stops the others.",
+    "assistantTitle": "Voice assistant",
+    "assistantWhat": "Speak or type in Afrikaans or English. FleetWise shows exactly what it understood and always asks before saving a change.",
+    "assistantDoes": "Report a problem, write down hours or log a service by speaking or typing\nAsk when a machine's next service is due\nCheck what it understood before anything is saved. Typed requests get the same checks",
+    "assistantNote": "Pick the language you will speak in first, so it listens for the right words.",
+    "ordersTitle": "Purchase orders",
+    "ordersWhat": "What you have ordered from suppliers, what has arrived, and what has not been invoiced yet.",
+    "ordersDoes": "Write down an order when you phone it through\nTick off what arrives, even when it comes in instalments\nCapture the supplier's invoice once and see if it matches what you ordered"
   },
   "install": {
     "title": "Put FleetWise on this phone",
@@ -2866,6 +3154,7 @@
     "kindDebitNote": "Debit note",
     "signedBy": "Signed",
     "signedDate": "Date",
+    "uploadTrigger": "Attach a document",
     "receivedUploadTitle": "Record a supplied document",
     "receivedUploadBody": "Attach the supplier's document and enter its printed total. The supplier remains the issuer; the amount is recorded against this work.",
     "supplierNumber": "Supplier document number",
@@ -2922,13 +3211,43 @@
     "quotePrefix": "Quote numbers start with",
     "invoicePrefix": "Invoice numbers start with",
     "prefixHint": "So your first quote is QTE-0001.",
-    "quoteValidity": "A quote stands for (days)",
-    "invoiceTerms": "You give (days) to pay",
+    "quoteValidity": "A quote stays valid for",
+    "invoiceTerms": "Invoice payment terms",
     "vatDefaultHint": "New documents start at",
     "vatRegistered": "We are registered for VAT",
     "vatRegisteredHint": "Turn this off if you are below the threshold. Your documents will show no VAT at all.",
     "vatNotRegisteredNote": "Your documents show no VAT. The rate is kept in case you register later.",
-    "prefixCredit": "Credit note prefix"
+    "prefixCredit": "Credit note numbers start with",
+    "oneDay": "1 day",
+    "nDays": "{n} days",
+    "prefixExample": "Numbers look like {example}",
+    "vatNumberMissing": "You charge VAT but have not added your VAT number, so your invoices are not valid tax invoices. Add it under {card}.",
+    "vatNoNeeded": "Needed on a tax invoice",
+    "accountTypeCheque": "Cheque or current",
+    "accountTypeSavings": "Savings",
+    "accountTypeTransmission": "Transmission",
+    "branchCodeHint": "Most banks use one universal branch code: Absa 632005, Capitec 470010, FNB 250655, Nedbank 198765, Standard Bank 051001.",
+    "template": "Template",
+    "templateAdjusted": "Adjusted by hand since you chose it.",
+    "wording": "Wording",
+    "wordingStandard": "Standard",
+    "wordingCustomOne": "1 name of your own",
+    "wordingCustom": "{n} names of your own",
+    "onPageLabel": "On the page",
+    "onPage": {
+      "show_vehicle": "vehicle",
+      "show_vat_number": "VAT number",
+      "show_banking": "banking details",
+      "show_line_numbers": "line numbers",
+      "show_unit_price": "price per item",
+      "show_signature": "signature line",
+      "show_thanks": "thank-you"
+    },
+    "onPageNone": "Only the essentials",
+    "changeTemplate": "Change template",
+    "adjustLayout": "Adjust wording and layout",
+    "quoteValidityHint": "How many days a quote holds before your price may change.",
+    "invoiceTermsHint": "How many days after the invoice date payment is due."
   },
   "clients": {
     "title": "My clients",
@@ -3017,7 +3336,8 @@
     "terms": "Payment terms (days)",
     "termsHint": "Leave blank to use your own default.",
     "creditLimit": "Credit limit (R)",
-    "creditLimitHint": "Optional, just a note to yourself."
+    "creditLimitHint": "Optional, just a note to yourself.",
+    "countMeta": "{n} in your book"
   },
   "access": {
     "title": "What they can see",
@@ -3039,7 +3359,11 @@
     "disconnectTitle": "Disconnect this contractor?",
     "disconnectBody": "{name} will lose access to this farm straight away.",
     "disconnectConsequence": "They keep the quotes and invoices they already sent you, and you keep yours.",
-    "disconnectFootnote": "You can connect them again later."
+    "disconnectFootnote": "You can connect them again later.",
+    "titleFor": "What {name} can see",
+    "summaryNone": "Sees only the vehicles they work on for you.",
+    "summaryExtra": "Also sees: {list}",
+    "disconnectedFlash": "Disconnected. They can no longer see this farm."
   },
   "correct": {
     "title": "Something wrong with this one?",
@@ -3139,7 +3463,9 @@
     "rowInvoice": "Invoice",
     "rowCreditNote": "Credit note",
     "rowDebitNote": "Debit note",
-    "writtenOff": "Written off"
+    "writtenOff": "Written off",
+    "changeDates": "Change dates",
+    "datesTitle": "Which dates?"
   },
   "pubDoc": {
     "vatNo": "VAT",
@@ -3307,7 +3633,13 @@
     "deletedFlash": "Removed.",
     "deleteTitle": "Remove this purchase?",
     "deleteConsequence": "If this period’s VAT has already been filed, your figures will no longer match what you submitted.",
-    "claimableNotRegistered": "You are not registered for VAT, so this VAT cannot be claimed back. It is captured as part of what the bill cost you."
+    "claimableNotRegistered": "You are not registered for VAT, so this VAT cannot be claimed back. It is captured as part of what the bill cost you.",
+    "addButton": "Add a purchase",
+    "vatDetail": "VAT on this invoice",
+    "moreDetail": "More detail",
+    "filterUnpaid": "Not paid yet",
+    "filterNoProof": "No tax invoice",
+    "receiptAttachMenu": "Attach the tax invoice"
   },
   "vat": {
     "title": "VAT",
@@ -3448,7 +3780,8 @@
     "raisedTitle": "What it has raised",
     "emptyTitle": "No standing invoices yet",
     "emptyBody": "If you bill someone the same amount every month, set it up once here and stop remembering it.",
-    "footnote": "These are raised overnight. If one is due today it will go out tonight."
+    "footnote": "These are raised overnight. If one is due today it will go out tonight.",
+    "moreOptions": "More options"
   },
   "layout": {
     "title": "How your documents look",
@@ -3494,7 +3827,7 @@
     "tracked": "Tracked",
     "notTracked": "Not tracked",
     "emptyTitle": "Nothing in the store yet",
-    "emptyBody": "Press \"Track in store\" on a part below to start counting it.",
+    "emptyBody": "Choose \"Track in store\" in a part's menu in the catalogue below to start counting it.",
     "lowSummary": "Running low:",
     "low": "Low",
     "negative": "Below zero",
@@ -3511,7 +3844,19 @@
     "unitCost": "Each (excl VAT)",
     "untrack": "Stop tracking",
     "untrackTitle": "Stop counting this part?",
-    "untrackConsequence": "The part stays in the catalogue and the history of what was fitted stays. Only the shelf count goes."
+    "untrackConsequence": "The part stays in the catalogue and the history of what was fitted stays. Only the shelf count goes.",
+    "onShelf": "On the shelf: {qty}",
+    "receiveDelivery": "Receive a delivery",
+    "receiveDeliveryHint": "Type how many of each part arrived. Leave a part blank if it was not in this delivery.",
+    "deliveryMore": "Date and delivery note",
+    "deliveredOn": "Delivered on",
+    "deliveryNote": "Delivery note number or remark",
+    "takeOut": "Take out for a vehicle",
+    "receiveOne": "Receive stock",
+    "editPlace": "Edit bin and reorder point",
+    "unit": {
+      "each": "each"
+    }
   },
   "money": {
     "title": "Money",
@@ -3704,7 +4049,9 @@
     "vatAmount": "VAT on their invoice",
     "vatAmountHint": "Leave this as it is unless their invoice says something different.",
     "vatPercent": "VAT",
-    "vatPercentHint": "What the supplier will add. Use 0 if they charge none."
+    "vatPercentHint": "What the supplier will add. Use 0 if they charge none.",
+    "moreDetails": "More details",
+    "recordInvoice": "Record the supplier's invoice"
   },
   "bank": {
     "aStatement": "a statement",
@@ -4023,7 +4370,10 @@
     "windowFrom": "From {date}",
     "windowNow": "Already due, expected now",
     "windowTitle": "What you are looking at",
-    "termsFiled": "Bills use each supplier’s own payment terms where you have filed them."
+    "termsFiled": "Bills use each supplier’s own payment terms where you have filed them.",
+    "openingNone": "not given",
+    "setOpening": "Add what is in the bank",
+    "changeOpening": "Change the bank balance"
   },
   "credit": {
     "title": "Credit",
@@ -4089,7 +4439,10 @@
     "total": "Total",
     "rowOpening": "Balance brought forward",
     "rowBill": "Their invoice",
-    "rowPayment": "Paid in full"
+    "rowPayment": "Paid in full",
+    "customPeriod": "Choose dates",
+    "rangeTo": "to",
+    "otherDate": "Another payment date"
   },
   "docTemplate": {
     "title": "Pick the document you send",
@@ -4132,7 +4485,8 @@
     "severalKitsNote": "A vehicle with more than one service kit counts all of them, because nothing here records which kit belongs to which service. Rather more than less.",
     "windowLabel": "How many days ahead to look",
     "windowHint": "Between 1 and 365. Everything above counts services due inside this many days.",
-    "windowSave": "Save window"
+    "windowSave": "Save window",
+    "windowChange": "Change"
   },
   "packs": {
     "farm": "Farm",
@@ -4450,7 +4804,10 @@
       "pending": "Waiting to send",
       "sent": "Sent",
       "failed": "Did not send"
-    }
+    },
+    "newAction": "New schedule",
+    "editAction": "Change settings",
+    "noEnd": "Keeps going until paused"
   },
   "reportEmail": {
     "greeting": "Here is the report you asked us to send.",
@@ -5011,7 +5368,11 @@
     "savedReconciledClosed": "The provider says it never succeeded. The attempt is closed and normal billing can resume.",
     "savedReconciledOpen": "Still unresolved. The provider has not given a final answer, so the invoice stays blocked and nothing was charged.",
     "savedDiscount": "Deal saved. It comes off their next invoice, anything already raised is unchanged.",
-    "savedDiscountCleared": "Deal removed. They go back to the list price from their next invoice."
+    "savedDiscountCleared": "Deal removed. They go back to the list price from their next invoice.",
+    "startDialogTitle": "Start a subscription",
+    "billedForTitle": "What they are billed for",
+    "changeOpen": "Change",
+    "discountOpen": "Set their price"
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -5155,7 +5516,9 @@
     "compareChosen": "Your choice",
     "compareYes": "Included",
     "compareNo": "Not included",
-    "compareSwipe": "Swipe sideways to see all four plans."
+    "compareSwipe": "Swipe sideways to see all four plans.",
+    "promoOpen": "Have a promo code?",
+    "submitting": "Setting up your farm..."
   },
   "closed": {
     "title": "Your FleetWise farm is closed",
@@ -5171,8 +5534,8 @@
     "help": "Anything else, email {email} and a person will sort it out."
   },
   "account": {
-    "title": "Your account",
-    "lead": "Your name, the address we reach you on, and your password.",
+    "title": "Your account and preferences",
+    "lead": "Who you are, how the app looks and talks to you, and how alerts reach you.",
     "nameTitle": "Your name",
     "nameLabel": "Name",
     "save": "Save",
@@ -5194,7 +5557,46 @@
     "savedEmail": "Check the new address, the change happens when you follow the link we sent.",
     "savedPassword": "Password changed.",
     "savedVerification": "Sent. Check your inbox.",
-    "resetPrompt": "You are signed in from the link we emailed you. Set your new password below. It works from the moment you save it."
+    "resetPrompt": "You are signed in from the link we emailed you. Set your new password below. It works from the moment you save it.",
+    "whoTitle": "Who you are",
+    "change": "Change",
+    "changeName": "Change your name",
+    "changeEmailTitle": "Change your email address",
+    "changePasswordTitle": "Set a new password",
+    "emailWhyCrew": "Your sign-in link and any alerts by email go here. If it is wrong, nothing reaches you.",
+    "languageTitle": "Language and wording",
+    "wordingLabel": "Wording",
+    "changeLanguage": "Choose your language",
+    "changeWording": "Choose your wording",
+    "languageHint": "Changes every screen for you, and nobody else's.",
+    "appearanceTitle": "Appearance on this device",
+    "appearanceHint": "Saved on this phone or computer only, and applied as you tap. Another device keeps its own.",
+    "themeLabel": "Light or dark",
+    "textSize": "Text size",
+    "textNormal": "Standard",
+    "textLarge": "Large",
+    "textLarger": "Largest",
+    "alertsTitle": "Alerts",
+    "alertsChange": "Change alert settings",
+    "channelsSection": "Where alerts go",
+    "inApp": "In the app",
+    "push": "Push",
+    "email": "Email",
+    "on": "On",
+    "off": "Off",
+    "quietFarm": "Farm default ({range})",
+    "quietFarmHour": "Farm default ({time})",
+    "quietUrgent": "Urgent alerts still come through.",
+    "startTitle": "Start page and shortcuts on this device",
+    "startPage": "Start page",
+    "startHint": "The screen the app opens on after you sign in.",
+    "startStandard": "Standard ({page})",
+    "changeStart": "Choose your start page",
+    "shortcuts": "Phone shortcuts",
+    "shortcutsHint": "Up to 3 screens in the bar at the bottom of your phone. Everything else stays under More.",
+    "shortcutsStandard": "Standard",
+    "changeShortcuts": "Choose your phone shortcuts",
+    "shortcutsReset": "Back to the standard shortcuts"
   },
   "verify": {
     "verified": {
@@ -5296,15 +5698,18 @@
   },
   "command": {
     "trigger": "Search",
-    "placeholder": "Search for a page…",
+    "placeholder": "Search machines and screens…",
     "title": "Search and jump to a page",
     "empty": "Nothing matches that.",
     "hintSelect": "to open",
     "hintClose": "to close",
-    "results": "{n} matching pages",
+    "results": "{n} results",
     "pages": "Pages",
     "machines": "Machines",
-    "searching": "Looking for machines…"
+    "searching": "Looking for machines…",
+    "recent": "Recent",
+    "actions": "Do something",
+    "logDiesel": "Log a diesel draw"
   },
   "billingSubStatus": {
     "trialing": "On trial",
@@ -5365,5 +5770,14 @@
     "colMeterType": "Meter",
     "colDriver": "Drawn by",
     "colTank": "Tank"
+  },
+  "books": {
+    "range": "{from} to {to}"
+  },
+  "appError": {
+    "title": "This screen did not load",
+    "body": "Something went wrong on our side, not yours. Nothing you entered has been lost. Try again. If it keeps happening, the farm office can send us the code below.",
+    "home": "Go to my home screen",
+    "reference": "Reference:"
   }
 }

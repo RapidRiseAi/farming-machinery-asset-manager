@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
+import { partnerMatchKey } from "@/lib/partner-match";
 
 async function requireDirectoryManager() {
   const profile = await requireProfile();
@@ -76,7 +77,7 @@ export async function createPartner(formData: FormData) {
   });
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/partners");
-  redirect("/partners?saved=1");
+  redirect("/partners?added=1");
 }
 
 export async function updatePartner(formData: FormData) {
@@ -111,7 +112,7 @@ export async function deletePartner(formData: FormData) {
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
   if (!data) redirect("/partners?error=Partner+not+found");
   revalidatePath("/partners");
-  redirect("/partners?saved=1");
+  redirect("/partners?removed=1");
 }
 
 /**
@@ -132,6 +133,19 @@ export async function adoptSuggested(formData: FormData) {
     .maybeSingle();
   if (!src) redirect("/partners?error=Suggested+partner+not+found");
 
+  // Already copied? The page hides the button for a match, and this refuses a second
+  // tap (or a stale tab) rather than filing a duplicate contractor.
+  const { data: own } = await supabase
+    .from("partners")
+    .select("name, phone")
+    .eq("farm_id", farmId)
+    .is("deleted_at", null);
+  const srcKey = partnerMatchKey(src.name, src.phone);
+  const ownRows = (own ?? []) as { name: string; phone: string | null }[];
+  if (ownRows.some((p) => partnerMatchKey(p.name, p.phone) === srcKey)) {
+    redirect("/partners?already=1");
+  }
+
   const { error } = await supabase.from("partners").insert({
     farm_id: farmId,
     is_suggested: false,
@@ -146,7 +160,7 @@ export async function adoptSuggested(formData: FormData) {
   });
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/partners");
-  redirect("/partners?saved=1");
+  redirect("/partners?added=1");
 }
 
 // == Invite / connect a contractor ============================================
@@ -283,12 +297,12 @@ export async function inviteContractor(formData: FormData) {
   await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
 
   revalidatePath("/partners");
-  if (linkErr || !url) {
-    redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(linkErr ?? "Login link unavailable")}`);
-  }
+  // The connection stands either way; `linkerror` says only that no login link could be
+  // made, and the page says so in the farmer's language rather than in Auth's.
+  if (linkErr || !url) redirect("/partners?linkerror=1");
   // The login URL is a bearer credential, it never travels in a query string.
   await setPartnerLink({ pid: partnerId, url });
-  redirect(`/partners?connected=1&pid=${partnerId}`);
+  redirect("/partners?connected=1");
 }
 
 /** Re-issue a fresh magic login URL for an already-connected contractor. */
@@ -312,12 +326,11 @@ export async function sendLoginUrl(formData: FormData) {
   const svc = createServiceClient();
   const origin = await siteOrigin();
   const { url, error } = await issueLoginUrl(svc, email, origin);
-  if (error || !url) {
-    redirect(`/partners?connected=1&pid=${partnerId}&linkerror=${encodeURIComponent(error ?? "Login link unavailable")}`);
-  }
+  if (error || !url) redirect("/partners?linkerror=1");
   // The login URL is a bearer credential, it never travels in a query string.
   await setPartnerLink({ pid: partnerId, url });
-  redirect(`/partners?connected=1&pid=${partnerId}`);
+  // `sent`, not `connected`: they were connected already, this is only a fresh link.
+  redirect("/partners?sent=1");
 }
 
 
@@ -393,7 +406,9 @@ export async function approveLinkRequest(formData: FormData) {
     .is("farm_id", null);
 
   revalidatePath("/partners");
-  redirect("/partners?connected=1");
+  // `accepted`, not `connected`: no login link follows an approval, and the invite's
+  // "share the login link below" would promise one.
+  redirect("/partners?accepted=1");
 }
 
 /** Decline it. The link is revoked (not deleted) so the history of the ask survives. */
@@ -452,7 +467,8 @@ export async function setPartnerAccess(formData: FormData) {
 
   if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/partners");
-  redirect("/partners?access=1");
+  // `saved=access`: `access` alone is not a result word the Flash clears.
+  redirect("/partners?saved=access");
 }
 
 /** Disconnect a contractor. The link is revoked, so access stops immediately. */

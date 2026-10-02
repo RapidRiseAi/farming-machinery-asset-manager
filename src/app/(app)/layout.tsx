@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import {
   currentPlan,
@@ -13,7 +14,9 @@ import { planAllows } from "@/lib/entitlements";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { countInboxUnread } from "@/lib/inbox";
+import { countInboxDecisions } from "@/lib/inbox-decisions";
 import { t } from "@/lib/i18n";
+import { roleLabel } from "@/lib/format";
 import { signOut } from "./actions";
 import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 // Direct module imports keep every (app) route's client bundle to just the nav
@@ -26,16 +29,17 @@ import {
   SignOutIcon,
   FaultsIcon,
   ChevronUpIcon,
+  SettingsIcon,
 } from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { menuItemClass } from "@/components/ui/menu-item";
 // Direct, not the barrel: see the note above. The palette is the only new
 // client code this shell pulls, and it is one list plus two arrow keys.
-import { CommandPalette } from "@/components/ui/command-palette";
+import { CommandPalette, SearchButton, type CommandAction } from "@/components/ui/command-palette";
 import { WarmRoutes } from "@/components/offline/warm-routes";
 import { SupportBanner } from "@/components/support-banner";
-import { SiteSwitcher } from "@/components/ui/site-switcher";
+import { SiteSwitcher, SiteSwitcherChip } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SyncStatus } from "@/components/offline/sync-status";
@@ -43,10 +47,29 @@ import { Tour } from "@/components/tour";
 import { tourFor } from "@/lib/tour";
 import { farmPermissionState } from "@/lib/permissions";
 import { assistantNavigationVisible } from "@/lib/assistant/navigation";
+import {
+  START_COOKIE,
+  TABS_COOKIE,
+  destinationsFor,
+  maxTabsFor,
+  parseTabs,
+  pinnableDestinations,
+  resolveStartPath,
+  standardHomeFor,
+} from "@/lib/preferences";
 
-/** Two-letter initials from a display name, for the avatar chip. */
+/**
+ * Two-letter initials from a display name, for the avatar chip. A bracketed part is
+ * not a name ("Johan (Werkswinkel)" rendered "J("), and neither is punctuation, so
+ * both are dropped before taking letters.
+ */
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = name
+    .replace(/\([^)]*\)/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -107,9 +130,20 @@ export default async function AppLayout({
   const fuelAllowed = has("fuel");
   // AARTO fine workflow (G2), Complete+ (aarto), farm roles only (not the contractor shell).
   const finesAllowed = !isWorkshop && has("aarto");
-  // Logo/home link must point somewhere the role/plan can actually open. A contractor's
-  // home is their aggregated dashboard (F12c).
-  const homeHref = isWorkshop ? "/contractor" : isOperator ? "/driver" : dashAllowed ? "/dashboard" : "/machines";
+  // The role's standard home, somewhere the role/plan can actually open. A contractor's
+  // home is their aggregated dashboard (F12c). It is the phone bar's first tab and the
+  // tour's page; the logo honours a chosen start page on top of it (below).
+  const homeHref = standardHomeFor(profile.role, plan);
+  // Device preferences written by /account (src/lib/preferences.ts): the start page and
+  // the pinned phone shortcuts. Both are read through the same helpers and the same
+  // role/plan lists the account page offers and its actions validate, so the shell can
+  // never show a choice the page did not make, or miss one it did.
+  const prefCookies = await cookies();
+  const logoHref = resolveStartPath(
+    prefCookies.get(START_COOKIE)?.value,
+    destinationsFor(profile.role, plan),
+    homeHref,
+  );
 
   // The partner's own product ladder (0492), which is a different axis from the farm plan
   // above: `books` unlocks running the business here, the purchase and accounting half
@@ -120,14 +154,6 @@ export default async function AppLayout({
   const booksAllowed = isWorkshop
     ? (await checkWorkshopEntitlement("financials", profile)).allowed
     : false;
-
-  // Owner/manager activity inbox (F13): unread badge on the nav. Only the two roles that
-  // own the inbox pay the extra query; the count runs under RLS (own farm only).
-  let inboxUnread = 0;
-  if (isManagerPlus) {
-    const supabase = await createClient();
-    inboxUnread = await countInboxUnread(supabase, profile.id);
-  }
 
   // Multi-site switcher (F7): only for farm roles that can reach more than one farm.
   // Contractors (workshop) and rr_admin get [] from accessibleFarms and no switcher.
@@ -140,6 +166,14 @@ export default async function AppLayout({
       ? (await currentFarmId(profile)) ?? ""
       : profile.farm_id ?? "";
   const currentRole = currentFarm ? await effectiveFarmRole(currentFarm, profile) : null;
+  // The inbox page authorizes the selected farm. Its navigation and decision count
+  // must use that same context rather than the profile's primary-farm role and ID.
+  const canUseInbox = currentRole === "owner" || currentRole === "manager";
+  const countsClient = await createClient();
+  const [alertsUnread, inboxDecisions] = await Promise.all([
+    countInboxUnread(countsClient, profile.id),
+    canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),
+  ]);
   const permissionState = await farmPermissionState(profile, currentFarm || null);
   // A named stock keeper must be able to reach the screen containing the controls the
   // grant opens. Baseline catalogue roles and RR's global catalogue stay unchanged.
@@ -240,8 +274,8 @@ export default async function AppLayout({
   const help: NavItemData = { href: "/help", label: t("nav.help", locale), icon: "info" };
   // Tyres sit with parts: both are consumables bought, fitted and worn out, and a farm
   // looking for one is in the same frame of mind as a farm looking for the other.
-  const tyres: NavItemData = { href: "/tyres", label: t("nav.tyres", locale), icon: "machines" };
-  const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxUnread || undefined };
+  const tyres: NavItemData = { href: "/tyres", label: t("nav.tyres", locale), icon: "tyre" };
+  const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxDecisions || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
@@ -256,14 +290,25 @@ export default async function AppLayout({
   // server-side; hiding a nav item is not access control.
   const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "card" };
   const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "repeat" };
-  const admin: NavItemData = { href: "/admin/farms", label: t("nav.admin", locale), icon: "admin" };
+  // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
+  // Account plus an English-only text subnav inside the page; now they are one group.
+  const admin: NavItemData = { href: "/admin/farms", label: t("nav.adminFarms", locale), icon: "admin" };
+  const adminPartners: NavItemData = { href: "/admin/partners", label: t("nav.adminPartners", locale), icon: "partners" };
+  const adminTemplates: NavItemData = { href: "/admin/templates", label: t("nav.adminTemplates", locale), icon: "documents" };
+  // Reached from the account menu and the palette, not listed in the sidebar: the menu
+  // on the row that names you is where people look for their own account.
+  const yourAccount: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "settings" };
 
   // Mobile: primary tabs + a "More" sheet holding the rest (gated items dropped).
   // Contractors get a contractor-first tab set; everyone else the farm set.
-  const tabItems: NavItemData[] = isWorkshop
+  //
+  // Drivers: Faults is NOT a tab. The permanent green Report button beside the tabs goes
+  // to the same page, so two of five slots opened /faults. Fuel takes the slot when the
+  // plan has it; otherwise the bar has one fewer, wider tab. Faults stays in More.
+  const defaultTabs: NavItemData[] = isWorkshop
     ? [contractor, clients, work, documents]
     : isOperator
-      ? [driverHome, machines, faults]
+      ? [driverHome, machines, ...(fuelAllowed ? [fuel] : [])]
       : [...(dashAllowed ? [dashboard] : []), machines, jobcards];
   // The eight screens that make up running the books here (0492). Listed once and reused
   // by both shells, so the phone and the desktop can never disagree about what a
@@ -272,9 +317,9 @@ export default async function AppLayout({
     ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, accounting]
     : [];
   const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, alerts, partnerSettings, install]
+    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, parts, partnerSettings, install]
     : [
-        ...(isManagerPlus ? [inbox] : []),
+        ...(canUseInbox ? [inbox] : []),
         faults,
         ...(assistantNavVisible ? [assistant] : []),
         work,
@@ -292,7 +337,7 @@ export default async function AppLayout({
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
-        ...(isAdmin ? [admin] : []),
+        ...(isAdmin ? [admin, adminPartners, adminTemplates, adminBilling] : []),
         help,
         install,
       ];
@@ -300,22 +345,35 @@ export default async function AppLayout({
   // Desktop: grouped sidebar sections (gated items dropped).
   const overviewItems: NavItemData[] = [
     ...(dashAllowed ? [dashboard] : []),
-    ...(isManagerPlus ? [inbox] : []),
+    ...(canUseInbox ? [inbox] : []),
     ...(reportsAllowed ? [reports] : []),
     ...(reportsAllowed && isManagerPlus ? [accounting] : []),
   ];
-  const groups: { key: string; label: string; items: NavItemData[] }[] = isOperator
+  /*
+    "Alerts" is no longer a nav row. The bell is permanent in both top bars and now carries
+    the unread count, so the row was the same destination a second (and on phones a third)
+    time. It stays reachable from the command palette.
+
+    Contractors get real groups instead of one 16-row "Contractor" heading with the Books
+    screens mixed in and a "Farm" group for a business that is not a farm: what they sell,
+    the books (only when entitled), the workshop, and their business settings.
+  */
+  const groups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
         { key: "fleet", label: t("nav.theFleet", locale), items: [machines, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
-        { key: "contractor", label: t("nav.groupContractor", locale), items: [contractor, clients, work, documents, statements, recurring, ...booksItems, corrections] },
-        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists] },
-        { key: "farm", label: t("nav.groupFarm", locale), items: [alerts, partnerSettings] },
+        { key: "sales", label: t("nav.groupSales", locale), items: [contractor, clients, work, documents, statements, recurring, corrections] },
+        { key: "books", label: t("nav.groupBooks", locale), items: booksItems },
+        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists, parts] },
+        { key: "business", label: t("nav.groupBusiness", locale), items: [partnerSettings] },
       ]
     : [
+        ...(isAdmin
+          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: [admin, adminPartners, adminTemplates, adminBilling] }]
+          : []),
         ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
         {
           key: "fleet",
@@ -325,9 +383,10 @@ export default async function AppLayout({
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: [...(isManagerPlus ? [documents, corrections, team] : []), alerts],
+          items: isManagerPlus ? [documents, corrections, team] : [],
         },
-      ];
+      ]
+  ).filter((g) => g.items.length > 0);
 
   /*
     The long tail. It used to sit behind an "Everything else" disclosure in the sidebar,
@@ -354,12 +413,11 @@ export default async function AppLayout({
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [settings] : []),
         ...(isOwner ? [billing] : []),
-        ...(isAdmin ? [admin, adminBilling, billing] : []),
+        ...(isAdmin ? [billing] : []),
       ];
   const tailRest: NavItemData[] = isWorkshop
-    // `partnerSettings` lives in the "farm" group above; listing it here too put
-    // the same destination in the sidebar twice.
-    ? [parts]
+    // Parts moved into the contractor's "Workshop" group, beside the job cards it serves.
+    ? []
     : [
         ...(canParts ? [parts] : []),
         tyres,
@@ -369,6 +427,8 @@ export default async function AppLayout({
         incidents,
         calendar,
       ];
+  // Not /help for contractors yet: `open_help_request` refuses a profile without a farm
+  // ("Only a farm member can ask for help here"), so the row would lead to a form that fails.
   const tailHelp: NavItemData[] = isWorkshop ? [install] : [help, install];
 
   /**
@@ -392,6 +452,44 @@ export default async function AppLayout({
     }))
     .filter((g) => g.items.length > 0);
 
+  // Everything this role may open in the nav, the catalogue both the pinned tabs and the
+  // active-state exclusions are checked against.
+  const navItems = [...groups.flatMap((g) => g.items), ...tailGroups.flatMap((g) => g.items), ...defaultTabs];
+  const navByHref = new Map(navItems.map((i) => [i.href, i]));
+
+  /*
+    Pinned phone tabs (cookie `fw_tabs`, written from /account): the hrefs a person chose
+    for the slots after the first tab. `parseTabs` keeps only `pinnableDestinations`
+    (the role/plan list the account page offers, minus the first tab) and at most
+    `maxTabsFor(role)`, which keeps the bar at five slots: first tab, pins, Report (farm
+    roles) and More. Each href is then mapped to this role's own nav item (plus Alerts,
+    which every role has), so a cookie can never add a destination the nav would not
+    show. No valid pin keeps today's defaults.
+  */
+  const homeTab = defaultTabs[0];
+  const pinnable = new Map([...navByHref, [alerts.href, alerts]]);
+  const pinned = parseTabs(
+    prefCookies.get(TABS_COOKIE)?.value,
+    pinnableDestinations(profile.role, plan),
+    maxTabsFor(profile.role),
+  )
+    .filter((h) => h !== homeTab.href)
+    .map((h) => pinnable.get(h))
+    .filter((i): i is NavItemData => Boolean(i));
+  const tabItems: NavItemData[] = pinned.length > 0 ? [homeTab, ...pinned] : defaultTabs;
+
+  /*
+    Active state: the most specific item wins. Each item learns which other nav hrefs sit
+    under it, so "Quotes & invoices" (/documents) is not lit beside "Corrections"
+    (/documents/corrections), nor "Settings" beside "API access", nor "My dashboard"
+    (/contractor) beside "My clients" on a contractor's tab bar.
+  */
+  const navHrefs = [...navByHref.keys()];
+  for (const item of new Set(navItems)) {
+    const below = navHrefs.filter((h) => h !== item.href && h.startsWith(item.href + "/"));
+    if (below.length > 0) item.excludes = below;
+  }
+
   /*
     The "More" sheet used to be a FLAT, ungrouped list built by hand, for a
     books-tier partner that was 21 undifferentiated rows, while the SAME person's
@@ -401,7 +499,7 @@ export default async function AppLayout({
     It is now DERIVED from the sidebar's own `groups` + `tailGroups`, so the two
     shells cannot drift again, minus whatever already has a permanent tab at the
     bottom of the screen (no point listing it twice). `moreItems` above is kept
-    only as the flat source for the badge roll-up.
+    only as a flat source for the service worker's warm list.
   */
   const tabHrefs = new Set(tabItems.map((i) => i.href));
   const moreGroups = [
@@ -417,10 +515,23 @@ export default async function AppLayout({
    * role may not open, but WITHOUT `moreGroups`' tab filter, because a tab
    * being on screen is no reason you should not be able to type its name.
    */
-  const paletteGroups = [
-    ...groups,
-    ...tailGroups,
-  ].filter((g) => g.items.length > 0);
+  const personalItems: NavItemData[] = [yourAccount, alerts];
+  const paletteBase = [...groups, ...tailGroups];
+  const paletteGroups = (
+    paletteBase.some((g) => g.key === "account")
+      ? paletteBase.map((g) => (g.key === "account" ? { ...g, items: [...personalItems, ...g.items] } : g))
+      : [...paletteBase, { key: "account", label: t("nav.groupAccount", locale), items: personalItems }]
+  ).filter((g) => g.items.length > 0);
+
+  /*
+    Quick verbs for the palette, only for roles that can do them. Each links to the
+    screen that holds the action ("?report=1" asks /faults to open its report dialog).
+  */
+  const paletteActions: CommandAction[] = [
+    ...(!isWorkshop ? [{ href: "/faults?report=1", label: t("faults.report", locale), icon: "faults" as const }] : []),
+    ...(!isWorkshop && fuelAllowed ? [{ href: "/fuel", label: t("command.logDiesel", locale), icon: "fuel" as const }] : []),
+    ...(isManagerPlus ? [{ href: "/machines/new", label: t("onboarding.step1Cta", locale), icon: "plus" as const }] : []),
+  ];
 
   const appName = t("app.name", locale);
   const signOutLabel = t("nav.signOut", locale);
@@ -438,31 +549,108 @@ export default async function AppLayout({
     </span>
   );
 
+  // Decorative inside whichever button carries it; the button has the name.
   const avatar = (
     <span
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-tint text-xs font-semibold text-brand-ink"
-      title={profile.name}
-      aria-label={profile.name}
+      aria-hidden
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-tint text-xs font-semibold text-brand-ink"
     >
       {initials(profile.name)}
     </span>
   );
 
+  const accountLabel = t("nav.account", locale);
+  const accountPrefsLabel = t("nav.accountAndPrefs", locale);
+  const alertsWord = t("nav.notifications", locale);
+  const bellLabel =
+    alertsUnread > 0 ? t("nav.alertsUnread", locale).replace("{count}", String(alertsUnread)) : alertsWord;
+
+  /*
+    The bell: icon plus unread count on phones, icon plus word from `sm:` up.
+
+    It used to show the word at every width. In Afrikaans that is "Kennisgewings", and
+    with the "Aanlyn" pill beside it the phone header was 394px wide in a 360px viewport,
+    so Chrome zoomed EVERY page out for every Afrikaans phone user. On a phone the bell
+    now has its name for screen readers and a count badge that sits over the icon (no
+    width), which also puts the unread number where people look for news.
+
+    Width budget of the phone header at 360px (328px inside px-4), Afrikaans, worst case:
+    search 48 + sync pill at most 116 ("Vanlyn · 3", "Sinkroniseer…", label capped at
+    5rem) + bell 48 + avatar 48 + three 4px gaps = 272, leaving 56 for the 36px brand mark
+    and an 8px gap. The farm chip and the wordmark are the only things that shrink, and
+    they truncate. Online (the normal case) the pill is a 16px dot, so 156px is left.
+  */
   const bellLink = (
     <Link
       href="/notifications"
-      className="focus-ring inline-flex min-h-[48px] items-center gap-1.5 rounded-lg px-2 text-xl text-sand-600 hover:bg-sand-100 sm:min-h-[44px]"
+      aria-label={bellLabel}
+      className="focus-ring inline-flex h-12 min-w-[48px] shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xl text-sand-600 hover:bg-sand-100 sm:h-11 sm:justify-start"
     >
-      <BellIcon />
-      {/* Icon and word. A bell alone is guessable; "Alerts" is not. */}
-      <span className="text-sm font-medium">{t("nav.notifications", locale)}</span>
+      <span className="relative inline-flex">
+        <BellIcon aria-hidden />
+        {alertsUnread > 0 ? (
+          <span className="absolute -right-2 -top-1.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-brand-600 px-1 text-2xs font-bold leading-4 text-white ring-2 ring-surface">
+            {alertsUnread > 9 ? "9+" : alertsUnread}
+          </span>
+        ) : null}
+      </span>
+      <span className="hidden text-sm font-medium sm:inline">{alertsWord}</span>
     </Link>
   );
 
-  // Footer slot for the "More" sheet: language switch + sign-out (server action stays
-  // server-side).
+  /*
+    The account menu, one set of rows reached from three places: the sidebar's account
+    row, the phone header avatar and the desktop top-bar avatar. The avatars used to be
+    dead chips, and /account (name, email, password, preferences) was linked from nowhere
+    in the app.
+  */
+  const accountMenuRows = (
+    <>
+      <Link href="/account" className={menuItemClass()}>
+        <SettingsIcon className="text-xl text-sand-500" aria-hidden />
+        {accountPrefsLabel}
+      </Link>
+      <div className="flex items-center justify-between gap-3 px-1 py-1">
+        <span className="text-sm font-medium text-sand-800">{languageLabel}</span>
+        <LanguageSwitcher current={languageChoice} label={languageLabel} />
+      </div>
+      <div className="flex items-center justify-between gap-3 px-1 py-1">
+        <span className="text-sm font-medium text-sand-800">{themeLabel}</span>
+        <ThemeToggle label={themeLabel} labels={themeLabels} />
+      </div>
+      <AssistantSafeSignOutForm action={signOut} locale={locale}>
+        <button type="submit" className={menuItemClass()}>
+          <SignOutIcon className="text-xl text-sand-500" />
+          {signOutLabel}
+        </button>
+      </AssistantSafeSignOutForm>
+    </>
+  );
+
+  const avatarMenu = (
+    <ActionMenu
+      title={profile.name}
+      label={`${accountLabel}: ${profile.name}`}
+      closeLabel={t("ui.close", locale)}
+      triggerLook="bare"
+      triggerClassName="focus-ring inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full hover:bg-sand-100 sm:h-11 sm:w-11"
+      trigger={avatar}
+    >
+      {accountMenuRows}
+    </ActionMenu>
+  );
+
+  // Footer slot for the "More" sheet: the account page, language, theme and sign-out
+  // (the server action stays server-side).
   const signOutSlot = (
     <div className="space-y-2">
+      <Link
+        href="/account"
+        className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-base font-medium text-sand-800 hover:bg-sand-100"
+      >
+        <SettingsIcon className="text-xl text-sand-500" aria-hidden />
+        {accountPrefsLabel}
+      </Link>
       <div className="flex items-center justify-between gap-3 px-3 py-1">
         <span className="text-base font-medium text-sand-800">{languageLabel}</span>
         <LanguageSwitcher current={languageChoice} label={languageLabel} />
@@ -488,10 +676,10 @@ export default async function AppLayout({
   const warmPaths = [
     ...new Set(
       [
-        ...groups.flatMap((g) => g.items),
-        ...tailGroups.flatMap((g) => g.items),
+        ...navItems,
         ...tabItems,
         ...moreItems,
+        ...personalItems,
       ].map((i) => i.href),
     ),
   ];
@@ -581,10 +769,10 @@ export default async function AppLayout({
         <div className="border-t border-edge-soft p-2">
           <ActionMenu
             title={profile.name}
-            label={t("nav.account", locale)}
+            label={`${accountLabel}: ${profile.name}`}
             closeLabel={t("ui.close", locale)}
             triggerLook="bare"
-            triggerClassName="focus-ring flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
+            triggerClassName="focus-ring flex min-h-[48px] w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
             trigger={
               <>
                 {avatar}
@@ -592,58 +780,70 @@ export default async function AppLayout({
                   <span className="block truncate text-sm font-semibold text-sand-900">
                     {profile.name}
                   </span>
-                  <span className="block truncate text-xs capitalize text-sand-500">
-                    {profile.role}
+                  {/* The role in words, at the selected farm. It printed the raw enum
+                      ("Rr_admin", "Workshop"), in English for an Afrikaans user. */}
+                  <span className="block truncate text-xs text-sand-500">
+                    {roleLabel(currentRole ?? profile.role, locale)}
                   </span>
                 </span>
                 <ChevronUpIcon className="shrink-0 text-lg text-sand-400" />
               </>
             }
           >
-            <div className="flex items-center justify-between gap-3 px-1 py-1">
-              <span className="text-sm font-medium text-sand-800">{languageLabel}</span>
-              <LanguageSwitcher current={languageChoice} label={languageLabel} />
-            </div>
-            <div className="flex items-center justify-between gap-3 px-1 py-1">
-              <span className="text-sm font-medium text-sand-800">{themeLabel}</span>
-              <ThemeToggle label={themeLabel} labels={themeLabels} />
-            </div>
-            <AssistantSafeSignOutForm action={signOut} locale={locale}>
-              <button type="submit" className={menuItemClass()}>
-                <SignOutIcon className="text-xl text-sand-500" />
-                {signOutLabel}
-              </button>
-            </AssistantSafeSignOutForm>
+            {accountMenuRows}
           </ActionMenu>
         </div>
       </aside>
 
       {/* ---- Content column ---- */}
       <div className="flex min-h-dvh flex-col lg:pl-64">
-        {/* Mobile header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sand-200 bg-surface/95 px-4 py-2.5 backdrop-blur lg:hidden">
-          <Link href={homeHref} className="focus-ring flex items-center gap-2 rounded-lg">
+        {/*
+          Mobile header. ONE sticky row: the multi-farm switcher used to be a second
+          sticky row under it at a hard-coded `top-[57px]` (stale once the controls grew
+          to 48px, so it tucked under the header on scroll), taking about 65px of every
+          phone screen. It is now the farm chip beside the brand mark. See the width
+          budget above `bellLink`: nothing here can push the page past 360px.
+        */}
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-sand-200 bg-surface/95 px-4 py-1 backdrop-blur lg:hidden">
+          <Link
+            href={logoHref}
+            aria-label={appName}
+            className={`focus-ring flex min-h-[48px] items-center gap-2 rounded-lg ${showSwitcher ? "shrink-0" : "min-w-0"}`}
+          >
             {brandMark}
-            <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
+            {showSwitcher ? null : (
+              // The wordmark only where there is room for it; the mark is the home link.
+              <span className="hidden min-w-0 truncate text-lg font-bold tracking-tight text-sand-900 min-[400px]:inline">
+                {appName}
+              </span>
+            )}
           </Link>
-          <div className="flex items-center gap-1.5">
+          {showSwitcher ? (
+            <SiteSwitcherChip
+              farms={farms}
+              current={currentFarm}
+              label={switcherLabel}
+              closeLabel={t("ui.close", locale)}
+              className="max-w-[45vw]"
+            />
+          ) : null}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <SearchButton label={t("command.trigger", locale)} />
             <SyncStatus locale={locale} />
             {bellLink}
-            {avatar}
+            {avatarMenu}
           </div>
         </header>
 
-        {/* Mobile site switcher (F7), only when the account can reach >1 farm */}
-        {showSwitcher && (
-          <div className="sticky top-[57px] z-10 border-b border-sand-200 bg-surface/95 px-4 py-2 backdrop-blur lg:hidden">
-            <SiteSwitcher farms={farms} current={currentFarm} label={switcherLabel} />
-          </div>
-        )}
-
-        {/* Desktop slim top bar */}
+        {/*
+          Desktop slim top bar. The palette is mounted here ONCE for every width (its
+          dialog is portalled, so the phone header's search button opens this instance).
+        */}
         <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
           <CommandPalette
             groups={paletteGroups}
+            actions={paletteActions}
+            userId={profile.id}
             labels={{
               trigger: t("command.trigger", locale),
               placeholder: t("command.placeholder", locale),
@@ -655,12 +855,14 @@ export default async function AppLayout({
               pages: t("command.pages", locale),
               machines: t("command.machines", locale),
               searching: t("command.searching", locale),
+              recent: t("command.recent", locale),
+              actions: t("command.actions", locale),
             }}
           />
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <SyncStatus locale={locale} />
             {bellLink}
-            {avatar}
+            {avatarMenu}
           </div>
         </header>
 
@@ -671,7 +873,7 @@ export default async function AppLayout({
           tabIndex={-1}
           className="mx-auto w-full max-w-screen-2xl flex-1 px-4 pb-24 pt-5 focus:outline-none sm:px-6 lg:px-8 lg:pb-10"
         >
-          <Tour steps={tourFor(profile.role)} locale={locale} homePath={homeHref} />
+          <Tour steps={tourFor(profile.role)} locale={locale} homePath={homeHref} userId={profile.id} />
         {children}
         </main>
       </div>
@@ -686,10 +888,11 @@ export default async function AppLayout({
             <NavLink key={item.href} item={item} variant="tab" />
           ))}
           {/* The daily action, report a problem, was nowhere in the chrome. It is
-              now a permanent green target, not an item buried in "More". */}
+              now a permanent green target, not an item buried in "More".
+              `?report=1` asks /faults to open its report dialog on arrival. */}
           {!isWorkshop ? (
             <Link
-              href="/faults"
+              href="/faults?report=1"
               className="focus-ring flex min-w-[64px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand-600 text-white"
               aria-label={t("nav.reportProblemLong", locale)}
             >
@@ -703,6 +906,7 @@ export default async function AppLayout({
             closeLabel={t("ui.close", locale)}
             groups={moreGroups}
             signOutSlot={signOutSlot}
+            newLabel={t("nav.moreHasNew", locale)}
           />
         </div>
       </nav>

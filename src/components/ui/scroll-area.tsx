@@ -47,8 +47,9 @@ export function ScrollArea({
    */
   rememberKey?: string;
   /**
-   * On the first mount of a session, with nothing remembered yet, bring whatever
-   * carries `aria-current="page"` into view instead of showing the top.
+   * Make sure whatever carries `aria-current="page"` is in view after mounting: on the
+   * first mount of a session instead of showing the top, and after a remembered offset
+   * is restored when that offset would leave the active row hidden.
    */
   revealActive?: boolean;
 }) {

@@ -11,6 +11,8 @@
  * from here. Anything in this file that looks like it computes a quantity is computing a
  * PREVIEW for the screen, not a value to store.
  */
+import { t, type Lang } from "./i18n";
+import { num } from "./format";
 
 export const MOVE_KINDS = ["receipt", "issue", "adjustment", "return"] as const;
 export type MoveKind = (typeof MOVE_KINDS)[number];
@@ -91,9 +93,29 @@ export function movementBooksCost(m: {
   );
 }
 
-/** Quantities read as words, not floats: 3, 2.5, 0.25, never "3.000". */
-export function qtyLabel(qty: number, unit: string): string {
+/**
+ * The units the app itself writes, with a word for each language. A new stock item is
+ * "each" unless told otherwise (`parts/stock-actions.ts`); a unit somebody typed is
+ * shown exactly as they typed it.
+ */
+const UNIT_KEYS: Record<string, string> = { each: "stock.unit.each" };
+
+/**
+ * Quantities read as words, not floats: 3, 2.5, 0.25, never "3.000".
+ *
+ * Given a `locale`, the number is written the way `num()` writes every other number
+ * ("2,5", "1 200") and a known unit is translated, so an Afrikaans store reads
+ * "4 stuks" rather than "4 each". Without one it keeps the old plain form, which is
+ * what a caller that has not been handed the locale yet still gets.
+ */
+export function qtyLabel(qty: number, unit: string, locale?: Lang): string {
   const n = Number(qty);
-  const trimmed = Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
-  return `${trimmed} ${unit}`;
+  const rounded = Number(n.toFixed(3));
+  if (!locale) {
+    const trimmed = Number.isInteger(n) ? String(n) : String(rounded);
+    return `${trimmed} ${unit}`;
+  }
+  const decimals = Number.isInteger(rounded) ? 0 : (String(rounded).split(".")[1] ?? "").length;
+  const key = UNIT_KEYS[unit.trim().toLowerCase()];
+  return `${num(rounded, Math.min(decimals, 3))} ${key ? t(key, locale) : unit}`;
 }

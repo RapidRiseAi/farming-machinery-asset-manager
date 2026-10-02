@@ -21,6 +21,9 @@ export const FUEL_ACTIVITIES = [
   "other",
 ] as const;
 export type FuelActivity = (typeof FUEL_ACTIVITIES)[number];
+
+/** The draw form's value for an explicit "Whole farm (no machine)" choice. */
+export const FUEL_FARM_LEVEL = "farm";
 export const activityLabel = (key: string, locale: Lang) => t(`fuel.activity.${key}`, locale);
 
 export type FuelIssueRow = {
@@ -82,6 +85,30 @@ export function computeConsumption(issues: FuelIssueRow[], meterType: string): F
         : consumption;
 
   return { meterType, litres, meterSpan, intervals: trend.length, consumption, display, trend };
+}
+
+/** The latest interval counts as high above this multiple of the earlier average. */
+export const HIGH_INTERVAL_FACTOR = 1.5;
+
+export type LatestInterval = {
+  /** The latest interval's consumption, display unit. */
+  last: number;
+  /** Average of the intervals before it, display unit; null with only one interval. */
+  usual: number | null;
+  /** True when `last` is above HIGH_INTERVAL_FACTOR x `usual`. */
+  high: boolean;
+};
+
+/**
+ * Was the latest fill well above this machine's usual? One rule for the sparkline and
+ * the word beside it, so the bar and the "Last fill high" pill can never disagree.
+ */
+export function latestInterval(trend: FuelInterval[]): LatestInterval | null {
+  if (trend.length === 0) return null;
+  const last = trend[trend.length - 1].value;
+  const earlier = trend.slice(0, -1);
+  const usual = earlier.length > 0 ? earlier.reduce((a, d) => a + d.value, 0) / earlier.length : null;
+  return { last, usual, high: usual != null && last > usual * HIGH_INTERVAL_FACTOR };
 }
 
 /** Format a consumption figure with its unit, e.g. "0.63 L/hr" or "18.5 L/100km". */

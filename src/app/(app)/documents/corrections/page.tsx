@@ -7,9 +7,9 @@ import { rands } from "@/lib/money";
 import { dateTime } from "@/lib/format";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import { AllClear } from "@/components/ui/empty-state";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -76,20 +76,20 @@ export default async function CorrectionsPage() {
   const raised = rows.filter((r) => r.total_cents_after != null && r.total_cents_after > r.total_cents_before);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("corrections.title", locale)}</h1>
-          <PageInfoButton infoKey="corrections" locale={locale} />
-        </div>
-        <p className="mt-0.5 text-sm text-sand-500">{t("corrections.tagline", locale)}</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={t("corrections.title", locale)}
+        lead={t("corrections.tagline", locale)}
+        infoKey="corrections"
+        locale={locale}
+        back={{ href: "/documents", label: t("doc.title", locale) }}
+      />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label={t("corrections.total", locale)} value={rows.length} />
-        <Stat label={t("corrections.reduced", locale)} value={reduced.length} tone={reduced.length > 0 ? "due" : "default"} />
-        <Stat label={t("corrections.raised", locale)} value={raised.length} />
-      </div>
+      <StatGrid columns={3}>
+        <Stat size="md" label={t("corrections.total", locale)} value={rows.length} />
+        <Stat size="md" label={t("corrections.reduced", locale)} value={reduced.length} tone={reduced.length > 0 ? "due" : "default"} />
+        <Stat size="md" label={t("corrections.raised", locale)} value={raised.length} />
+      </StatGrid>
 
       <Card>
         <CardHeader>
@@ -151,6 +151,6 @@ export default async function CorrectionsPage() {
           </ol>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

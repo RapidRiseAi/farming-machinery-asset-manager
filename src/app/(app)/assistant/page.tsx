@@ -3,6 +3,8 @@ import { AssistantClient } from "@/components/assistant/assistant-client";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoIcon } from "@/components/ui/icons";
+import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { checkEntitlement, currentFarmId, effectiveFarmRole, getFarmPlan } from "@/lib/auth";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import { loadAssistantThread } from "@/lib/assistant/history";
@@ -21,11 +23,14 @@ export default async function AssistantPage() {
   const farmId = await currentFarmId(profile);
   if (!farmId) {
     return (
-      <EmptyState
-        icon={<InfoIcon />}
-        title={t("assistant.farmRequired", locale)}
-        hint={t("assistant.farmRequiredHint", locale)}
-      />
+      <PageContainer size="narrow">
+        <PageHeader title={t("assistant.title", locale)} infoKey="assistant" locale={locale} />
+        <EmptyState
+          icon={<InfoIcon />}
+          title={t("assistant.farmRequired", locale)}
+          hint={t("assistant.farmRequiredHint", locale)}
+        />
+      </PageContainer>
     );
   }
 
@@ -36,18 +41,21 @@ export default async function AssistantPage() {
   const allowed = role === "rr_admin" ? true : Boolean(farmPlan && planAllows(farmPlan, "voice_ai"));
   if (!allowed) {
     return (
-      <div className="flex flex-col gap-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("assistant.title", locale)}</h1>
-          <p className="mt-1 text-sm text-sand-600">{t("assistant.lead", locale)}</p>
-        </div>
+      <PageContainer size="narrow">
+        <PageHeader
+          title={t("assistant.title", locale)}
+          lead={t("assistant.lead", locale)}
+          infoKey="assistant"
+          locale={locale}
+        />
         <UpgradeNotice
           feature="voice_ai"
           requiredPlan={gate.requiredPlan}
           currentPlan={farmPlan}
           locale={locale}
+          canUpgrade={role === "owner"}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -69,6 +77,7 @@ export default async function AssistantPage() {
       machines={machines}
       initialAiConsent={profile.ai_processing_opt_in}
       initialThread={initialThread}
+      infoButton={<PageInfoButton infoKey="assistant" locale={locale} />}
       capabilities={{
         reportFault: ["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role),
         logReading: canChange,

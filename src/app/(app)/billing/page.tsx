@@ -61,7 +61,8 @@ import { SavedMessage } from "@/components/billing/saved-message";
 import { GetStarted } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { Fact, FactList } from "@/components/ui/facts";
 import { buttonVariants } from "@/components/ui/button";
 import {
   AdminIcon,
@@ -170,25 +171,13 @@ export default async function BillingPage({
   // control is not a guard; this only spares a manager a button that would refuse them.
   const canManage = profile.role === "owner" || profile.role === "rr_admin";
 
-  // The title and the info button share a row, and the lead runs full width beneath. As a
-  // wrapping row the lead's width pushed the button onto a line of its own on every phone -
-  // 56px of nothing above the summary tiles, on the one screen whose answer has to fit
-  // above the fold at 360px.
-  const header = (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="min-w-0 text-2xl font-bold tracking-tight text-ink">
-          {t("billing.title", locale)}
-        </h1>
-        <PageInfoButton infoKey="billing" locale={locale} />
-      </div>
-      <p className="mt-1 text-sm text-sand-600">{t("billing.lead", locale)}</p>
-    </div>
-  );
+  // The kit header: title alone on its row, the quiet "What is this?" beneath it, then
+  // the lead, so the summary tiles still start within the first screen at 360px.
+  const header = <PageHeader title={t("billing.title", locale)} lead={t("billing.lead", locale)} infoKey="billing" locale={locale} />;
 
   if (!farmId) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <PageContainer>
         {header}
         <GetStarted
           icon={<AdminIcon />}
@@ -202,7 +191,7 @@ export default async function BillingPage({
             ) : undefined
           }
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -431,7 +420,7 @@ export default async function BillingPage({
     !!sub && sub.status !== "cancelled" && sub.status !== "non_renewing" && !sub.cancel_at_period_end;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <PageContainer>
       {header}
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -539,16 +528,16 @@ export default async function BillingPage({
             const noChange = q.kind === "no_change";
             return (
               <>
-                <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 text-sm">
                   {planReview ? (
                     <>
                       <dt className="text-sand-600">{t("billing.planNowLabel", locale)}</dt>
-                      <dd className="font-medium text-sand-900 sm:text-right">
+                      <dd className="font-medium text-sand-900 text-right">
                         {t(`plan.${sub!.plan}`, locale)} ·{" "}
                         {t(`billingPeriod.${sub!.billing_period}`, locale)}
                       </dd>
                       <dt className="text-sand-600">{t("billing.planNewLabel", locale)}</dt>
-                      <dd className="font-semibold text-sand-900 sm:text-right">
+                      <dd className="font-semibold text-sand-900 text-right">
                         {t(`plan.${String(sp.plan)}`, locale)} ·{" "}
                         {t(`billingPeriod.${String(sp.period)}`, locale)}
                       </dd>
@@ -556,11 +545,11 @@ export default async function BillingPage({
                   ) : (
                     <>
                       <dt className="text-sand-600">{t("billing.slotsNowLabel", locale)}</dt>
-                      <dd className="font-medium text-sand-900 sm:text-right tabular-nums">
+                      <dd className="font-medium text-sand-900 text-right tabular-nums">
                         {slotsReview!.current_quota ?? assets.billable}
                       </dd>
                       <dt className="text-sand-600">{t("billing.slotsNewLabel", locale)}</dt>
-                      <dd className="font-semibold text-sand-900 sm:text-right tabular-nums">
+                      <dd className="font-semibold text-sand-900 text-right tabular-nums">
                         {slotsReview!.new_quota}
                       </dd>
                     </>
@@ -570,7 +559,7 @@ export default async function BillingPage({
                       "nothing today" is the reassurance somebody is looking for, and an
                       absent line is not an answer. */}
                   <dt className="font-semibold text-sand-900">{t("billing.quoteNowLine", locale)}</dt>
-                  <dd className="font-semibold tabular-nums text-sand-900 sm:text-right">
+                  <dd className="font-semibold tabular-nums text-sand-900 text-right">
                     {q.charge_now_cents > 0
                       ? rands(q.charge_now_cents)
                       : t("billing.quoteNoCharge", locale)}
@@ -579,7 +568,7 @@ export default async function BillingPage({
                   {planReview && planReview.new_period_cents > 0 ? (
                     <>
                       <dt className="text-sand-600">{t("billing.quoteThenLine", locale)}</dt>
-                      <dd className="tabular-nums text-sand-900 sm:text-right">
+                      <dd className="tabular-nums text-sand-900 text-right">
                         {rands(planReview.new_period_cents)}
                       </dd>
                     </>
@@ -588,7 +577,7 @@ export default async function BillingPage({
                   {q.effective_on ? (
                     <>
                       <dt className="text-sand-600">{t("billing.quoteEffective", locale).replace("{date}", "")}</dt>
-                      <dd className="text-sand-900 sm:text-right">
+                      <dd className="text-sand-900 text-right">
                         {shortDate(q.effective_on, locale)}
                       </dd>
                     </>
@@ -661,6 +650,8 @@ export default async function BillingPage({
               ? rands(charge.cents)
               : t(charge.kind === "checking" ? "billing.statChecking" : "billing.statNone", locale)
           }
+          // "None" or "Checking" is a word, and set at number size it read as a figure.
+          valueKind={charge.kind === "next" || charge.kind === "owed" ? "number" : "text"}
           tone={charge.tone}
           // "When" is half the question, so it is read at body size rather than as a
           // footnote.
@@ -708,6 +699,7 @@ export default async function BillingPage({
         <Stat
           label={t("billing.statCard", locale)}
           value={card ? `···· ${card.last4 ?? "····"}` : t("billing.statNone", locale)}
+          valueKind="text"
           tone={cardTile.tone}
           delta={cardWhen}
         />
@@ -760,29 +752,25 @@ export default async function BillingPage({
         <CardHeader>
           <CardTitle>{t("billing.planTitle", locale)}</CardTitle>
         </CardHeader>
-        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          <dt className="text-sand-600">{t("billing.planField", locale)}</dt>
-          <dd className="font-medium text-sand-900 sm:text-right">
-            {t(`plan.${diverged && farm ? farm.plan : commercialPlan}`, locale)}
-          </dd>
-
-          <dt className="text-sand-600">{t("billing.periodField", locale)}</dt>
-          <dd className="font-medium text-sand-900 sm:text-right">{t(`billingPeriod.${period}`, locale)}</dd>
-
+        {/* Fact rows with dividers: as a bare two-column dl, a phone stacked label and
+            value into four look-alike lines ("Plan / Complete / Billed / Annual"). */}
+        <FactList>
+          <Fact label={t("billing.planField", locale)} value={t(`plan.${diverged && farm ? farm.plan : commercialPlan}`, locale)} />
+          <Fact label={t("billing.periodField", locale)} value={t(`billingPeriod.${period}`, locale)} />
           {sub ? (
-            <>
-              <dt className="text-sand-600">{t("billing.statusField", locale)}</dt>
-              <dd className="sm:text-right">
+            <Fact
+              label={t("billing.statusField", locale)}
+              value={
                 <StatusBadge
                   label={enumLabel("billingSubStatus", sub.status, locale)}
                   tone={billingLook(SUBSCRIPTION_LOOK, sub.status).tone}
                   shape={billingLook(SUBSCRIPTION_LOOK, sub.status).shape}
                   size="md"
                 />
-              </dd>
-            </>
+              }
+            />
           ) : null}
-        </dl>
+        </FactList>
 
         {diverged && sub ? (
           <p className="mt-3 rounded-lg bg-sand-50 px-3 py-2.5 text-sm text-sand-700">
@@ -995,9 +983,9 @@ export default async function BillingPage({
           <>
             {/* Whenever this total is the next charge, it heads the summary tiles at the
                 top; this card shows its working. */}
-            <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm">
               <dt className="text-sand-600">{t("billing.perVehicle", locale)}</dt>
-              <dd className="tabular-nums text-sand-900 sm:text-right">
+              <dd className="tabular-nums text-sand-900 text-right">
                 {rands(estimate.perVehicleInclCents)}
               </dd>
 
@@ -1010,7 +998,7 @@ export default async function BillingPage({
                   String(estimate.assetCount),
                 )}
               </dt>
-              <dd className="tabular-nums text-sand-900 sm:text-right">
+              <dd className="tabular-nums text-sand-900 text-right">
                 {rands(estimate.perVehicleInclCents * estimate.assetCount)}
               </dd>
 
@@ -1019,7 +1007,7 @@ export default async function BillingPage({
                   <dt className="text-sand-600">
                     {t("billing.timesMonths", locale).replace("{n}", String(estimate.monthsCharged))}
                   </dt>
-                  <dd className="tabular-nums text-sand-900 sm:text-right">
+                  <dd className="tabular-nums text-sand-900 text-right">
                     {/* The running total BEFORE any deal. It used to read the final total,
                         which was the same number until a discount existed and then quietly
                         stopped being the product of the two lines above it. */}
@@ -1039,7 +1027,7 @@ export default async function BillingPage({
                       ? t("billing.discountNamed", locale).replace("{label}", estimate.discountLabel)
                       : t("billing.discount", locale)}
                   </dt>
-                  <dd className="tabular-nums text-callout-ok-ink sm:text-right">
+                  <dd className="tabular-nums text-callout-ok-ink text-right">
                     −{rands(estimate.discountCents)}
                   </dd>
                 </>
@@ -1050,18 +1038,18 @@ export default async function BillingPage({
               {showsVat(vatRegistered, estimate.vatRateBps) ? (
                 <>
                   <dt className="text-sand-600">{t("billing.subtotal", locale)}</dt>
-                  <dd className="tabular-nums text-sand-900 sm:text-right">
+                  <dd className="tabular-nums text-sand-900 text-right">
                     {rands(estimate.subtotalExVatCents)}
                   </dd>
                   <dt className="text-sand-600">
                     {t("billing.vat", locale).replace("{rate}", vatPercent(estimate.vatRateBps))}
                   </dt>
-                  <dd className="tabular-nums text-sand-900 sm:text-right">{rands(estimate.vatCents)}</dd>
+                  <dd className="tabular-nums text-sand-900 text-right">{rands(estimate.vatCents)}</dd>
                 </>
               ) : null}
 
               <dt className="font-semibold text-sand-900">{t("billing.total", locale)}</dt>
-              <dd className="font-semibold tabular-nums text-sand-900 sm:text-right">
+              <dd className="font-semibold tabular-nums text-sand-900 text-right">
                 {rands(estimate.totalInclCents)}
               </dd>
             </dl>
@@ -1485,6 +1473,6 @@ export default async function BillingPage({
             : t("billing.helpNoEmail", locale)}
         </p>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

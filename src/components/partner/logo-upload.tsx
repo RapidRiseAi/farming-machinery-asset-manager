@@ -18,15 +18,22 @@ import { uploadPartnerLogo } from "@/app/(app)/contractor/settings/actions";
  * through, re-encoding a vector logo as JPEG is exactly the wrong thing to do to it.
  * Either way the result is ferried as a base64 data URL through a form field, the same
  * way the add-vehicle photo travels, so there is one upload story in this codebase.
+ *
+ * `bare` drops the Card so the logo can be the first row of the "Your look" card on
+ * /contractor/settings, beside the colours it is judged with, instead of a card of its
+ * own stranded between the document design and the business details.
  */
 export function LogoUpload({
   locale,
   currentUrl,
   removeAction,
+  bare = false,
 }: {
   locale: Lang;
   currentUrl: string | null;
   removeAction: ReactNode;
+  /** Render without a Card, as a row inside another card. */
+  bare?: boolean;
 }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,22 +59,26 @@ export function LogoUpload({
 
   const shown = preview ?? currentUrl;
 
-  return (
-    <Card>
-      <CardHeader><CardTitle>{t("partnerSettings.logo", locale)}</CardTitle></CardHeader>
-      <p className="mb-3 text-sm text-sand-500">{t("partnerSettings.logoHint", locale)}</p>
-
+  const body = (
+    <>
       <div className="flex flex-wrap items-center gap-4">
         <Photo
           src={shown}
           alt={t("partnerSettings.logoAlt", locale)}
           size="thumb"
           priority
-          className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-sand-200"
+          className={`flex shrink-0 items-center justify-center rounded-xl border border-sand-200 ${bare ? "h-16 w-16" : "h-20 w-20"}`}
           imgClassName="object-contain p-1"
           placeholder={<span className="px-1 text-center text-sm text-sand-500">{t("partnerSettings.noLogo", locale)}</span>}
         />
-        <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {bare ? (
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-sand-900">{t("partnerSettings.logo", locale)}</p>
+              <p className="text-xs text-sand-500">{t("partnerSettings.logoHint", locale)}</p>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
           {/* Visually replaced by the button below, but a screen reader still lands on
               it, so it carries its own name rather than being an unlabelled control. */}
           <input
@@ -93,11 +104,22 @@ export function LogoUpload({
           ) : (
             removeAction
           )}
+          </div>
         </div>
       </div>
 
       {busy ? <p className="mt-2 text-sm text-sand-500">{t("partnerSettings.logoWorking", locale)}</p> : null}
       {error ? <p className="mt-2 text-sm text-status-overdue" role="alert">{error}</p> : null}
+    </>
+  );
+
+  if (bare) return <div className="border-b border-sand-100 pb-3">{body}</div>;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>{t("partnerSettings.logo", locale)}</CardTitle></CardHeader>
+      <p className="mb-3 text-sm text-sand-500">{t("partnerSettings.logoHint", locale)}</p>
+      {body}
     </Card>
   );
 }

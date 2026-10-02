@@ -7,7 +7,10 @@ import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { supplierPositions, EMPTY_POSITION, type Supplier } from "@/lib/suppliers";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { errorMessage } from "@/lib/errors";
+import { num } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
@@ -57,14 +60,14 @@ export default async function SuppliersPage({
   const gate = await checkWorkshopEntitlement("financials", profile);
   if (!gate.allowed) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <PageContainer>
         <UpgradeNotice
           feature="financials"
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -103,46 +106,46 @@ export default async function SuppliersPage({
   const activeCount = suppliers.filter((s) => s.active).length;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("supplier.title", locale)}</h1>
-          <p className="text-sm text-sand-600">{t("supplier.lead", locale)}</p>
-        </div>
-        {/* Add one. Name is the only thing insisted on; everything else is what the
-            workshop happens to know today, and demanding a VAT number to file a supplier
-            is how a screen stops being used.
+    <PageContainer>
+      <PageHeader
+        title={t("supplier.title", locale)}
+        lead={t("supplier.lead", locale)}
+        actions={
+          /* Add one. Name is the only thing insisted on; everything else is what the
+             workshop happens to know today, and demanding a VAT number to file a supplier
+             is how a screen stops being used.
 
-            It was a card of nine fields sitting permanently between the totals and the
-            list, so the page opened on a blank form rather than on the suppliers. */}
-        <DialogForm
-          trigger={t("supplier.addTitle", locale)}
-          triggerIcon={<PlusIcon />}
-          title={t("supplier.addTitle", locale)}
-          closeLabel={closeLabel}
-        >
-          <form action={createSupplier}>
-            <DialogFields>
-              <TextField name="name" label={t("supplier.name", locale)} required />
-              <TextField name="contact_person" label={t("supplier.contact", locale)} hint={t("supplier.contactHint", locale)} />
-              <TextField name="phone" type="tel" label={t("supplier.phone", locale)} />
-              <TextField name="email" type="email" label={t("supplier.email", locale)} />
-              <TextField name="vat_number" label={t("supplier.vatNumber", locale)} hint={t("supplier.vatNumberHint", locale)} />
-              <TextField name="account_number" label={t("supplier.accountNumber", locale)} hint={t("supplier.accountNumberHint", locale)} />
-              <Field label={t("supplier.terms", locale)} htmlFor="new_terms" hint={t("supplier.termsHint", locale)}>
-                <Input id="new_terms" name="payment_terms_days" inputMode="numeric" />
-              </Field>
-              <TextField name="address" label={t("supplier.address", locale)} />
-              <div className="sm:col-span-2">
-                <TextareaField name="notes" label={t("supplier.notes", locale)} rows={2} />
-              </div>
-            </DialogFields>
-            <DialogActions cancelLabel={cancelLabel}>
-              <SubmitButton>{t("supplier.save", locale)}</SubmitButton>
-            </DialogActions>
-          </form>
-        </DialogForm>
-      </div>
+             It was a card of nine fields sitting permanently between the totals and the
+             list, so the page opened on a blank form rather than on the suppliers. */
+          <DialogForm
+            trigger={t("supplier.addTitle", locale)}
+            triggerIcon={<PlusIcon />}
+            title={t("supplier.addTitle", locale)}
+            closeLabel={closeLabel}
+          >
+            <form action={createSupplier}>
+              <DialogFields>
+                <TextField name="name" label={t("supplier.name", locale)} required />
+                <TextField name="contact_person" label={t("supplier.contact", locale)} hint={t("supplier.contactHint", locale)} />
+                <TextField name="phone" type="tel" label={t("supplier.phone", locale)} />
+                <TextField name="email" type="email" label={t("supplier.email", locale)} />
+                <TextField name="vat_number" label={t("supplier.vatNumber", locale)} hint={t("supplier.vatNumberHint", locale)} />
+                <TextField name="account_number" label={t("supplier.accountNumber", locale)} hint={t("supplier.accountNumberHint", locale)} />
+                <Field label={t("supplier.terms", locale)} htmlFor="new_terms" hint={t("supplier.termsHint", locale)}>
+                  <Input id="new_terms" name="payment_terms_days" inputMode="numeric" />
+                </Field>
+                <TextField name="address" label={t("supplier.address", locale)} />
+                <div className="sm:col-span-2">
+                  <TextareaField name="notes" label={t("supplier.notes", locale)} rows={2} />
+                </div>
+              </DialogFields>
+              <DialogActions cancelLabel={cancelLabel}>
+                <SubmitButton>{t("supplier.save", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        }
+      />
 
       <Flash
         tone="error"
@@ -153,26 +156,33 @@ export default async function SuppliersPage({
               ? t("supplier.errNeedName", locale)
               : sp.error === "not-found"
                 ? t("supplier.errNotFound", locale)
-                : sp.error
+                : errorMessage(sp.error, locale)
         }
       />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
       <Flash tone="success" message={sp.deleted ? t("supplier.deletedFlash", locale) : undefined} />
 
       {suppliers.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label={t("supplier.statCount", locale)} value={String(activeCount)} />
+        // What is owed leads. The unfiled count is a to-do, so it shows only while there
+        // is something to file; a permanent "0" tile was a third of the row saying nothing.
+        <StatGrid columns={unfiledCount > 0 ? 3 : 2}>
           <Stat
             label={t("supplier.statOwed", locale)}
             value={rands(owedTotal)}
             tone={owedTotal > 0 ? "due" : "default"}
+            size="md"
           />
-          <Stat
-            label={t("supplier.statUnfiled", locale)}
-            value={String(unfiledCount)}
-            delta={unfiledCount > 0 ? t("supplier.statUnfiledHint", locale) : undefined}
-          />
-        </div>
+          <Stat label={t("supplier.statCount", locale)} value={num(activeCount, 0)} size="md" />
+          {unfiledCount > 0 ? (
+            <Stat
+              label={t("supplier.statUnfiled", locale)}
+              value={num(unfiledCount, 0)}
+              tone="due"
+              size="md"
+              delta={t("supplier.statUnfiledHint", locale)}
+            />
+          ) : null}
+        </StatGrid>
       ) : null}
 
       <Card>
@@ -227,14 +237,6 @@ export default async function SuppliersPage({
                       <p className="text-xs text-sand-500">
                         {pos.invoices} {t("supplier.invoicesSuffix", locale)} · {rands(pos.spent_cents)}
                       </p>
-                      {/* Named in full as well as on the business name above: "open the
-                          account" is the action, and a bare name does not look like one. */}
-                      <Link
-                        href={`/suppliers/${row.id}`}
-                        className="focus-ring inline-flex min-h-[2.75rem] items-center rounded text-sm font-medium text-brand-ink underline-offset-2 hover:underline sm:min-h-0"
-                      >
-                        {t("supplier.openAccount", locale)}
-                      </Link>
                     </div>
                   </div>
 
@@ -246,7 +248,15 @@ export default async function SuppliersPage({
                     form to the browser in order to keep it collapsed. A dialog renders
                     nothing until it is opened.
                   */}
-                  <div className="flex">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Named in full as well as on the business name above: "open the
+                        account" is the action, and a bare name does not look like one. */}
+                    <Link
+                      href={`/suppliers/${row.id}`}
+                      className="focus-ring inline-flex min-h-[48px] items-center rounded text-sm font-medium text-brand-ink underline-offset-2 hover:underline sm:min-h-[40px]"
+                    >
+                      {t("supplier.openAccount", locale)}
+                    </Link>
                     <ActionMenu
                       title={row.name}
                       label={t("common.actions", locale)}
@@ -340,6 +350,6 @@ export default async function SuppliersPage({
       {unfiledCount > 0 ? (
         <p className="text-sm text-sand-600">{t("supplier.unfiledNote", locale)}</p>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

@@ -9,10 +9,12 @@ import { meterReading, shortDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { DateText } from "@/components/ui/date-text";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon, TrashIcon, LockIcon, SquareIcon, CheckIcon } from "@/components/ui/icons";
+import { TrashIcon, LockIcon, SquareIcon, CheckIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { JobStatus } from "@/components/ui/status";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -122,18 +124,18 @@ export default async function JobCardDetail({ params, searchParams }: {
   const canMedia = canWork || canInvoice;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <PageContainer>
       <IntakeAcknowledgement actorId={profile.id} />
-      <Link href="/jobcards" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500"><ChevronLeftIcon />{t("jobcards.back", locale)}</Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-sand-500">{t("jobcards.workflow.jobCard", locale)} #{jc.id.slice(0, 8)}</p>
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{machine?.name ?? t("jobcards.title", locale)}</h1>
-          <div className="mt-2 flex flex-wrap gap-2"><Badge tone="neutral">{t(`jobType.${jc.type}`, locale)}</Badge><Badge tone="neutral">{t(external ? "jobcards.workflow.external" : "jobcards.workflow.internal", locale)}</Badge><JobStatus value={jc.status} locale={locale} /></div>
-          <Link href={`/machines/${jc.machine_id}`} className="focus-ring mt-2 inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink hover:underline">{t("jobcards.openMachine", locale)} →</Link>
-        </div>
-        <a href={`/jobcards/${id}/pdf`} className={buttonVariants({ variant: "secondary" })}>{t("common.print", locale)}</a>
-      </div>
+      <PageHeader
+        back={{ href: "/jobcards", label: t("jobcards.back", locale) }}
+        title={machine?.name ?? t("jobcards.title", locale)}
+        meta={<>{t("jobcards.workflow.jobCard", locale)} #{jc.id.slice(0, 8)}</>}
+        badge={<><Badge tone="neutral">{t(`jobType.${jc.type}`, locale)}</Badge><Badge tone="neutral">{t(external ? "jobcards.workflow.external" : "jobcards.workflow.internal", locale)}</Badge><JobStatus value={jc.status} locale={locale} /></>}
+        actions={<>
+          <Link href={`/machines/${jc.machine_id}`} className={buttonVariants({ variant: "secondary" })}>{t("jobcards.openMachine", locale)}</Link>
+          <a href={`/jobcards/${id}/pdf`} className={buttonVariants({ variant: "secondary" })}>{t("common.print", locale)}</a>
+        </>}
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="error" message={loadError ? t("jobcards.workflow.loadError", locale) : undefined} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
@@ -152,7 +154,7 @@ export default async function JobCardDetail({ params, searchParams }: {
 
       <Card>
         <CardHeader action={canWork ? editDialog("intake") : undefined}><CardTitle>{t("jobcards.workflow.intake", locale)}</CardTitle></CardHeader>
-        <p className="text-sm text-sand-500">{t("jobcards.cameIn", locale)}: {jc.date_in ?? "-"}</p>
+        <p className="text-sm text-sand-500">{t("jobcards.cameIn", locale)}: <DateText value={jc.date_in} locale={locale} format="day" /></p>
         <p className="mt-2 whitespace-pre-wrap text-sm text-sand-900">{jc.reported_problem || t("jobcards.workflow.noProblem", locale)}</p>
         {!external ? <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-sand-100 pt-3"><p className="text-sm text-sand-600">{t("jobcards.workflow.assignedWorker", locale)}: {assignee ?? t("jobcards.workflow.unassigned", locale)}</p>{canWork && canApprove ? <DialogForm trigger={t("jobcards.workflow.assignWorker", locale)} triggerVariant="secondary" triggerSize="sm" title={t("jobcards.workflow.assignWorker", locale)} closeLabel={closeLabel} size="md"><form action={assignJobWorker} className="flex flex-col gap-4"><input type="hidden" name="id" value={id} /><input type="hidden" name="updated_at" value={jc.updated_at} /><Field label={t("jobcards.workflow.assignedWorker", locale)} htmlFor="job-assignee"><Select id="job-assignee" name="mechanic_user_id" defaultValue={jc.mechanic_user_id ?? ""}><option value="">{t("jobcards.workflow.unassigned", locale)}</option>{team.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</Select></Field><DialogActions cancelLabel={cancelLabel}><SubmitButton variant="primary">{t("jobcards.saveNow", locale)}</SubmitButton></DialogActions></form></DialogForm> : null}</div> : null}
       </Card>
@@ -201,6 +203,6 @@ export default async function JobCardDetail({ params, searchParams }: {
         {canMedia ? <DialogForm trigger={t("jobcards.workflow.addDocument", locale)} title={t("jobcards.workflow.addDocument", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md"><JobCardMedia actorId={profile.id} jobCardId={id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} /></DialogForm> : null}
       </Disclosure>
       <WarrantyPanel jobCardId={id} machineId={jc.machine_id} locale={locale} canManage={canApprove} />
-    </div>
+    </PageContainer>
   );
 }

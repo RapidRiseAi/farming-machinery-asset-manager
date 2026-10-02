@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { DateText } from "@/components/ui/date-text";
 import { notFound } from "next/navigation";
 import { requireProfile, effectiveFarmRole, checkWorkshopEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -23,14 +25,14 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { DialogActions, DialogForm } from "@/components/ui/dialog-form";
 import { Flash } from "@/components/ui/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import {
-  ChevronLeftIcon, PhoneIcon, ChatIcon, MailIcon, JobCardsIcon, MachinesIcon,
+  PhoneIcon, ChatIcon, MailIcon, JobCardsIcon, MachinesIcon,
 } from "@/components/ui/icons";
 import { WorkStatus, PriorityStatus } from "@/components/ui/status";
-import { relativeDate } from "@/lib/format";
 import {
   updateWorkRequestStatus, addWorkRequestNote, setWorkRequestQuote,
   setWorkRequestInvoice, convertToJobCard, assignWorkRequestProvider,
@@ -62,6 +64,8 @@ export default async function WorkRequestDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const locale = profile.lang;
+  const closeLabel = t("ui.close", locale);
+  const cancelLabel = t("common.cancel", locale);
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -130,36 +134,22 @@ export default async function WorkRequestDetailPage({
       : ["accepted", "in_progress"].includes(wr.status) ? "work.providerWorkHint" : "work.reviewHint";
 
   return (
-    <div className="flex flex-col gap-4">
+    <PageContainer size="wide">
       <IntakeAcknowledgement actorId={profile.id} />
-      <Link href="/work" className="focus-ring inline-flex w-fit items-center gap-1 rounded-md text-sm text-sand-500">
-        <ChevronLeftIcon className="text-base" />
-        {t("work.title", locale)}
-      </Link>
+      <PageHeader
+        back={{ href: "/work", label: t("work.title", locale) }}
+        title={wr.title || workKindLabel(wr.kind, locale)}
+        badge={<><WorkStatus value={wr.status} locale={locale} size="md" />{wr.priority !== "normal" ? <Badge tone={workPriorityTone(wr.priority)}>{workPriorityLabel(wr.priority, locale)}</Badge> : null}</>}
+        meta={<>{workKindLabel(wr.kind, locale)} · {t("work.created", locale)} <DateText value={wr.created_at} locale={locale} /></>}
+        lead={wr.description || undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
 
-      {/* Header: request + status */}
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-ink">
-                {wr.title || workKindLabel(wr.kind, locale)}
-              </h1>
-              <WorkStatus value={wr.status} locale={locale} size="md" />
-              {wr.priority !== "normal" ? <Badge tone={workPriorityTone(wr.priority)}>{workPriorityLabel(wr.priority, locale)}</Badge> : null}
-            </div>
-            <p className="mt-1 text-sm text-sand-500">
-              {workKindLabel(wr.kind, locale)} · {t("work.created", locale)} {relativeDate(wr.created_at, locale)}
-            </p>
-            {wr.description ? <p className="mt-2 text-sm text-sand-700">{wr.description}</p> : null}
-          </div>
-        </div>
-
         {/* Lifecycle stepper */}
-        <div className="mt-4 overflow-x-auto">
+        <div className="overflow-x-auto">
           <ol className="flex min-w-max items-center gap-1 text-xs">
             {WORK_STATUSES.map((st, i) => {
               const done = i < curStep;
@@ -229,13 +219,17 @@ export default async function WorkRequestDetailPage({
                 </div>
               ) : null}
               {/* Progress note (no status change) */}
-              <form action={addWorkRequestNote} className="mt-3 flex flex-wrap items-end gap-2 border-t border-sand-100 pt-3">
-                <input type="hidden" name="id" value={wr.id} />
-                <Field label={t("work.addNote", locale)} htmlFor="progress_note" className="flex-1">
-                  <Input id="progress_note" name="note" placeholder={t("work.notePlaceholder", locale)} />
-                </Field>
-                <SubmitButton variant="secondary" size="sm">{t("work.addNote", locale)}</SubmitButton>
-              </form>
+              <DialogForm trigger={t("work.addNote", locale)} title={t("work.addNote", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+                <form action={addWorkRequestNote} className="flex flex-col gap-3">
+                  <input type="hidden" name="id" value={wr.id} />
+                  <Field label={t("work.addNote", locale)} htmlFor="progress_note">
+                    <Input id="progress_note" name="note" placeholder={t("work.notePlaceholder", locale)} required />
+                  </Field>
+                  <DialogActions cancelLabel={cancelLabel}>
+                    <SubmitButton variant="primary">{t("work.addNote", locale)}</SubmitButton>
+                  </DialogActions>
+                </form>
+              </DialogForm>
             </Card>
           ) : null}
 
@@ -273,19 +267,22 @@ export default async function WorkRequestDetailPage({
                   <p className="mt-0.5 text-lg font-bold tabular-nums text-sand-900">
                     {wr.quote_amount_cents != null ? rands(wr.quote_amount_cents) : "-"}
                   </p>
-                  {amountKinds.includes("quote") ? <details className="mt-2">
-                    <summary className="focus-ring cursor-pointer rounded text-sm font-medium text-brand-ink">{t("work.recordIssuedQuote", locale)}</summary>
-                    <form action={setWorkRequestQuote} className="mt-2 flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="id" value={wr.id} />
-                    <Field label={t("work.quoteAmountLabel", locale)} htmlFor="quote_amount" hint={t("work.amountHint", locale)}>
-                      <Input id="quote_amount" name="amount" inputMode="decimal" required className="w-36" />
-                    </Field>
-                    <label className="flex items-center gap-1 text-xs text-sand-600">
-                      <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
-                    </label>
-                    <SubmitButton variant="secondary" size="sm">{t("work.recordQuote", locale)}</SubmitButton>
-                  </form>
-                  </details> : null}
+                  {amountKinds.includes("quote") ? <div className="mt-2">
+                    <DialogForm trigger={t("work.recordIssuedQuote", locale)} title={t("work.recordIssuedQuote", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+                      <form action={setWorkRequestQuote} className="flex flex-col gap-3">
+                        <input type="hidden" name="id" value={wr.id} />
+                        <Field label={t("work.quoteAmountLabel", locale)} htmlFor="quote_amount" hint={t("work.amountHint", locale)}>
+                          <Input id="quote_amount" name="amount" inputMode="decimal" required />
+                        </Field>
+                        <label className="flex min-h-[44px] items-center gap-2 text-sm text-sand-600">
+                          <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
+                        </label>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("work.recordQuote", locale)}</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+                  </div> : null}
                 </div>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("work.invoice", locale)}</p>
@@ -293,35 +290,39 @@ export default async function WorkRequestDetailPage({
                     {wr.invoice_amount_cents != null ? rands(wr.invoice_amount_cents) : "-"}
                   </p>
                   <p className="text-xs text-sand-400">{t("work.invoiceToTco", locale)}</p>
-                  {amountKinds.includes("invoice") ? <details className="mt-2">
-                    <summary className="focus-ring cursor-pointer rounded text-sm font-medium text-brand-ink">{t("work.recordIssuedInvoice", locale)}</summary>
-                    <p className="mt-2 text-xs text-sand-500">{t("work.zeroInvoiceHint", locale)}</p>
-                    <form action={setWorkRequestInvoice} className="mt-2 flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="id" value={wr.id} />
-                    <Field label={t("work.invoiceAmountLabel", locale)} htmlFor="invoice_amount" hint={t("work.amountHint", locale)}>
-                      <Input id="invoice_amount" name="amount" inputMode="decimal" required className="w-36" />
-                    </Field>
-                    <label className="flex items-center gap-1 text-xs text-sand-600">
-                      <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
-                    </label>
-                    <SubmitButton variant="primary" size="sm">{t("work.recordInvoice", locale)}</SubmitButton>
-                  </form>
-                  </details> : null}
+                  {amountKinds.includes("invoice") ? <div className="mt-2">
+                    <DialogForm trigger={t("work.recordIssuedInvoice", locale)} title={t("work.recordIssuedInvoice", locale)} description={t("work.zeroInvoiceHint", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+                      <form action={setWorkRequestInvoice} className="flex flex-col gap-3">
+                        <input type="hidden" name="id" value={wr.id} />
+                        <Field label={t("work.invoiceAmountLabel", locale)} htmlFor="invoice_amount" hint={t("work.amountHint", locale)}>
+                          <Input id="invoice_amount" name="amount" inputMode="decimal" required />
+                        </Field>
+                        <label className="flex min-h-[44px] items-center gap-2 text-sm text-sand-600">
+                          <input type="checkbox" name="incl_vat" value="1" className="h-4 w-4 rounded border-sand-300" /> {t("work.inclVat", locale)}
+                        </label>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("work.recordInvoice", locale)}</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+                  </div> : null}
                 </div>
               </div>
               {wr.workshop_id && (canApprove || isProvider) && ["requested", "viewed", "quoted", "completed", "invoiced"].includes(wr.status) ? (
-                <details className="mt-4 border-t border-sand-100 pt-3">
-                  <summary className="focus-ring mb-3 cursor-pointer rounded text-sm font-medium text-sand-600">{t("work.fileSupplierDocument", locale)}</summary>
-                  <UploadDocument locale={locale} actorId={profile.id} isPartner={isProvider}
-                    parties={[{ id: wr.workshop_id, name: workshop?.name ?? "" }]}
-                    work={{ id: wr.id, farmId: wr.farm_id, machineId: wr.machine_id, workshopId: wr.workshop_id,
-                      kind: ["completed", "invoiced"].includes(wr.status) ? "invoice" : "quote" }} />
-                </details>
+                <div className="mt-4 border-t border-sand-100 pt-3">
+                  <DialogForm trigger={t("work.fileSupplierDocument", locale)} title={t("work.fileSupplierDocument", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel}>
+                    <UploadDocument locale={locale} actorId={profile.id} isPartner={isProvider}
+                      parties={[{ id: wr.workshop_id, name: workshop?.name ?? "" }]}
+                      work={{ id: wr.id, farmId: wr.farm_id, machineId: wr.machine_id, workshopId: wr.workshop_id,
+                        kind: ["completed", "invoiced"].includes(wr.status) ? "invoice" : "quote" }} />
+                  </DialogForm>
+                </div>
               ) : null}
-              {!isClosed ? <details className="mt-4 border-t border-sand-100 pt-3">
-                <summary className="focus-ring mb-2 cursor-pointer rounded text-sm font-medium text-sand-600">{t("work.uploadProof", locale)}</summary>
-                <WorkRequestMedia workRequestId={wr.id} locale={locale} allowedKinds={["photo"]} />
-              </details> : null}
+              {!isClosed ? <div className="mt-4 border-t border-sand-100 pt-3">
+                <DialogForm trigger={t("work.uploadProof", locale)} title={t("work.uploadProof", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+                  <WorkRequestMedia workRequestId={wr.id} locale={locale} allowedKinds={["photo"]} />
+                </DialogForm>
+              </div> : null}
             </Card>
           ) : null}
 
@@ -343,7 +344,7 @@ export default async function WorkRequestDetailPage({
                               <span className="text-sm font-medium text-brand-ink">{t(`attachmentKind.${a.kind}`, locale)}</span>
                             )}
                           </div>
-                          <p className="px-2 py-1 text-xs text-sand-500">{t(`attachmentKind.${a.kind}`, locale)} · {a.created_at.slice(0, 10)}</p>
+                          <p className="px-2 py-1 text-xs text-sand-500">{t(`attachmentKind.${a.kind}`, locale)} · <DateText value={a.created_at} locale={locale} format="day" /></p>
                         </a>
                       ) : (
                         <div className="p-2 text-xs text-sand-400">{t(`attachmentKind.${a.kind}`, locale)}</div>
@@ -372,7 +373,7 @@ export default async function WorkRequestDetailPage({
                             ? `${workStatusLabel(e.from_status, locale)} → ${workStatusLabel(e.to_status, locale)}`
                             : workStatusLabel(e.to_status, locale)}
                         </span>
-                        <span className="shrink-0 text-xs tabular-nums text-sand-400">{e.created_at.slice(0, 10)}</span>
+                        <DateText value={e.created_at} locale={locale} format="day" className="shrink-0 text-xs tabular-nums text-sand-400" />
                       </div>
                       {e.note ? <p className="text-sm text-sand-600">{e.note}</p> : null}
                       {e.by_user ? <p className="text-xs text-sand-400">{userName.get(e.by_user) ?? ""}</p> : null}
@@ -418,15 +419,21 @@ export default async function WorkRequestDetailPage({
               <>
                 <p className="text-sm text-sand-500">{t("work.unassigned", locale)}</p>
                 {canApprove && wr.status === "requested" && providers.length ? (
-                  <form action={assignWorkRequestProvider} className="mt-3 flex flex-col gap-2">
-                    <input type="hidden" name="id" value={wr.id} />
-                    <Field label={t("work.contractor", locale)} htmlFor="assign_provider">
-                      <Select id="assign_provider" name="workshop_id" required>
-                        {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-                      </Select>
-                    </Field>
-                    <SubmitButton variant="secondary" size="sm">{t("work.assignProvider", locale)}</SubmitButton>
-                  </form>
+                  <div className="mt-3">
+                    <DialogForm trigger={t("work.assignProvider", locale)} title={t("work.assignProvider", locale)} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
+                      <form action={assignWorkRequestProvider} className="flex flex-col gap-3">
+                        <input type="hidden" name="id" value={wr.id} />
+                        <Field label={t("work.contractor", locale)} htmlFor="assign_provider">
+                          <Select id="assign_provider" name="workshop_id" required>
+                            {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+                          </Select>
+                        </Field>
+                        <DialogActions cancelLabel={cancelLabel}>
+                          <SubmitButton variant="primary">{t("work.assignProvider", locale)}</SubmitButton>
+                        </DialogActions>
+                      </form>
+                    </DialogForm>
+                  </div>
                 ) : null}
               </>
             )}
@@ -455,6 +462,6 @@ export default async function WorkRequestDetailPage({
           </Card>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

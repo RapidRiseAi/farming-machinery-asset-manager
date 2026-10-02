@@ -71,6 +71,39 @@ export async function markInboxRead(formData: FormData) {
   redirect("/inbox");
 }
 
+/**
+ * Open one alert from the inbox feed: mark it read, then go where it points.
+ *
+ * The feed used to put a "Read" button on every row beside the link, so opening an alert
+ * left it unread and marking it read was a second tap. The destination is worked out here
+ * from the stored row, never from the form, and only a same-origin path is followed.
+ */
+export async function openInboxAlert(formData: FormData) {
+  const profile = await requireRole([...OWNERS]);
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("notifications")
+    .select("template, payload")
+    .eq("id", id)
+    .eq("user_id", profile.id)
+    .maybeSingle();
+  const row = data as { template: string; payload: Record<string, unknown> | null } | null;
+  if (!row) redirect("/inbox");
+  await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", profile.id)
+    .is("read_at", null);
+  revalidatePath("/inbox");
+  // Imported here rather than at the top so this addition stays clear of the import
+  // block another in-flight change rewrites.
+  const { notificationUrl } = await import("@/lib/notifications/format");
+  const href = notificationUrl(row.template, row.payload ?? {});
+  redirect(href.startsWith("/") && !href.startsWith("//") && !href.includes("\\") ? href : "/inbox");
+}
+
 /** Mark every one of the caller's queued alerts read. */
 export async function markAllInboxRead() {
   const profile = await requireRole([...OWNERS]);

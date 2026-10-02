@@ -177,8 +177,10 @@ export function Overlay({
 
   return createPortal(
     <div
+      // `print:hidden`: an open sheet or menu is never part of the page on paper, so
+      // window.print() with one open prints the page behind it.
       className={cn(
-        "fixed inset-0 z-50 flex animate-fade-in",
+        "fixed inset-0 z-50 flex animate-fade-in print:hidden",
         align === "center" && "items-center justify-center p-4",
         align === "bottom" && "items-end justify-center",
         align === "responsive" && "items-end justify-center sm:items-center sm:p-4",

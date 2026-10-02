@@ -78,7 +78,9 @@ export async function resolveFault(formData: FormData) {
     resolved_at: new Date().toISOString(),
   });
   revalidatePath("/faults");
-  redirect("/faults?saved=1");
+  revalidatePath("/driver");
+  // A specific outcome word, so the page says what changed rather than "Saved.".
+  redirect("/faults?saved=resolved");
 }
 
 // == Fault lifecycle transitions (FR-7.3): Open → Acknowledged → In progress ==
@@ -90,7 +92,7 @@ export async function acknowledgeFault(formData: FormData) {
   if (!id) redirect("/faults?error=missing-id");
   await updateFaultStatus(id, "acknowledged", LIFECYCLE_ROLES);
   revalidatePath("/faults");
-  redirect("/faults?saved=1");
+  redirect("/faults?saved=acknowledged");
 }
 
 /** Move a fault to `in_progress` (work started). */
@@ -99,7 +101,7 @@ export async function startFault(formData: FormData) {
   if (!id) redirect("/faults?error=missing-id");
   await updateFaultStatus(id, "in_progress", LIFECYCLE_ROLES);
   revalidatePath("/faults");
-  redirect("/faults?saved=1");
+  redirect("/faults?saved=started");
 }
 
 /** Assign (or clear) the fault's owner. A blank/unknown id clears the assignee;
@@ -128,5 +130,5 @@ export async function assignFault(formData: FormData) {
     .maybeSingle();
   if (error || !data) redirect("/faults?error=save-failed");
   revalidatePath("/faults");
-  redirect("/faults?saved=1");
+  redirect("/faults?saved=assigned");
 }

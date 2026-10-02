@@ -3,7 +3,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { relativeDate } from "@/lib/format";
 import { resolveFault, acknowledgeFault, startFault, assignFault } from "./actions";
 import { NewJobCard } from "@/app/(app)/jobcards/new-job-card";
@@ -17,20 +17,29 @@ import { FaultsIcon, PlusIcon } from "@/components/ui/icons";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Field } from "@/components/ui/field";
-import { UrgencyStatus, FaultStatus } from "@/components/ui/status";
+import { UrgencyStatus, FaultStatus, JobStatus } from "@/components/ui/status";
+import { buttonVariants } from "@/components/ui/button";
+import { menuItemClass } from "@/components/ui/menu-item";
+import { Disclosure } from "@/components/ui/disclosure";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { filterState } from "@/components/ui/filter-state";
+import { FilteredEmpty } from "@/components/ui/empty-state";
+import { ReportFaultDialog } from "@/components/report-fault-dialog";
+import { num } from "@/lib/format";
 
 type Fault = {
   id: string; machine_id: string; farm_id: string; description: string | null;
   category: string | null; urgency: string | null; status: string;
   created_at: string; reporter_name: string | null; job_card_id: string | null;
   assigned_to: string | null; lat: number | null; lng: number | null;
+  resolved_at: string | null;
 };
 type Attach = { id: string; parent_id: string; kind: string; storage_path: string | null };
 
 export default async function FaultsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; page?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; page?: string; assigned?: string; machine?: string; report?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
@@ -39,9 +48,13 @@ export default async function FaultsPage({
 
   const farmId = await currentFarmId(profile);
   const page = Math.min(10000, Math.max(1, Math.floor(Number(sp.page) || 1)));
-  const columns = "id, machine_id, farm_id, description, category, urgency, status, created_at, reporter_name, job_card_id, assigned_to, lat, lng";
+  const columns = "id, machine_id, farm_id, description, category, urgency, status, created_at, reporter_name, job_card_id, assigned_to, lat, lng, resolved_at";
+  // "Who has it": mine, or nobody's yet. One single-choice URL param, like /jobcards.
+  const assigned = sp.assigned === "mine" || sp.assigned === "nobody" ? sp.assigned : undefined;
   const faultQuery = () => {
-    const query = supabase.from("faults").select(columns, { count: "exact" }).is("deleted_at", null);
+    let query = supabase.from("faults").select(columns, { count: "exact" }).is("deleted_at", null);
+    if (assigned === "mine") query = query.eq("assigned_to", profile.id);
+    if (assigned === "nobody") query = query.is("assigned_to", null);
     return farmId ? query.eq("farm_id", farmId) : query;
   };
   // PostgreSQL enum order is not lifecycle priority. Never let resolved history
@@ -115,84 +128,139 @@ export default async function FaultsPage({
     return role && (["rr_admin", "owner", "manager", "mechanic"].includes(role) || (role === "operator" && m.assigned_operator_id === profile.id));
   });
   const canReport = reportMachines.length > 0;
+  const defaultMachineId = reportMachines.some((m) => m.id === sp.machine) ? sp.machine : undefined;
+  // Only people who can be given a fault get the "Who has it" filter; a driver is never assigned one.
+  const canTriage = [...roles.values()].some((r) => ["rr_admin", "owner", "manager", "mechanic", "workshop"].includes(r ?? ""));
+
+  // A fault already in a job links to its job card, with the card's own status. Read
+  // through the visibility view, so a card this person may not open is never linked.
+  const jobIds = [...new Set(faults.map((f) => f.job_card_id).filter((v): v is string => !!v))];
+  const { data: jcData } = jobIds.length
+    ? await supabase.from("job_cards_visible").select("id, status").in("id", jobIds).is("deleted_at", null)
+    : { data: [] };
+  const jobStatus = new Map(((jcData as { id: string; status: string }[] | null) ?? []).map((j) => [j.id, j.status]));
+
+  const search = new URLSearchParams(
+    Object.entries({ assigned }).filter((e): e is [string, string] => !!e[1]),
+  ).toString();
+  const filterGroups = [
+    {
+      paramName: "assigned",
+      label: t("faults.assignedFilter", locale),
+      current: assigned,
+      options: [
+        { value: "", label: t("filters.all", locale) },
+        { value: "mine", label: t("faults.mine", locale) },
+        { value: "nobody", label: t("faults.unassigned", locale) },
+      ],
+    },
+  ];
+  const filtered = filterState("/faults", search, filterGroups, { pageParam: "page" });
+  const pageHref = (n: number) => `/faults?${search ? `${search}&` : ""}page=${n}`;
+  const SAVED: Record<string, string> = {
+    resolved: "faults.savedResolved",
+    acknowledged: "faults.savedAcknowledged",
+    started: "faults.savedStarted",
+    assigned: "faults.savedAssigned",
+  };
+  const savedMessage = sp.saved ? t(SAVED[sp.saved] ?? "ui.saved", locale) : undefined;
 
   const openFaults = faults.filter((f) => f.status !== "resolved");
   const resolvedFaults = faults.filter((f) => f.status === "resolved");
   const openCount = activeResult.count ?? openFaults.length;
   const resolvedCount = historyResult.count ?? resolvedFaults.length;
   const stoppedCount = openFaults.filter((f) => f.urgency === "stopped").length;
-  const lastResolved = [...resolvedFaults].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+  const sortedAt = (f: Fault) => f.resolved_at ?? f.created_at;
+  // "Sorted Today" reads wrong mid-sentence; a plain date starts with a digit and is unchanged.
+  const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+  const lastResolved = [...resolvedFaults].sort((a, b) => sortedAt(b).localeCompare(sortedAt(a)))[0] ?? null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">
-          {t("faults.titleNew", locale)}
-        </h1>
-          <PageInfoButton infoKey="faults" locale={locale} />
-          {/*
-            Reporting a fault is what an operator opens this screen to do, so it stays
-            the prominent action, but as a button rather than a permanently expanded
-            capture card with a machine picker, a photo control and a voice recorder.
-            `FaultCapture` navigates on success (`window.location`), so the dialog
-            closing is not something it has to be told about.
-          */}
-          {canReport && machines.length > 0 ? (
-            <DialogForm
-              trigger={t("faults.report", locale)}
+    <PageContainer size="wide">
+      {/*
+        Reporting a fault is what an operator opens this screen to do, so it stays the
+        one filled action, in a dialog rather than a permanently expanded capture card.
+        Below `lg` the tab bar already carries "Report a fault" (`/faults?report=1`,
+        which opens this same dialog), so the page does not repeat it as a second
+        green button there.
+      */}
+      <PageHeader
+        title={t("faults.titleNew", locale)}
+        infoKey="faults"
+        locale={locale}
+        meta={
+          <>
+            {stoppedCount > 0 ? (
+              <>
+                <span className="font-medium text-status-overdue">
+                  {stoppedCount === 1
+                    ? t("faults.oneStandingStill", locale)
+                    : t("faults.standingStill", locale).replace("{n}", num(stoppedCount))}
+                </span>
+                {" · "}
+              </>
+            ) : null}
+            {t("faults.openCount", locale).replace("{n}", num(openCount))} · {t("faults.sortedCount", locale).replace("{n}", num(resolvedCount))}
+          </>
+        }
+        actions={
+          canReport && machines.length > 0 ? (
+            <ReportFaultDialog
+              machines={reportMachines.map((m) => ({ id: m.id, name: m.name }))}
+              defaultMachineId={defaultMachineId}
+              redirectTo="/faults?saved=1"
+              locale={locale}
+              openParam="report"
               triggerIcon={<PlusIcon />}
-              title={t("faults.report", locale)}
-              closeLabel={t("ui.close", locale)}
-            >
-              <FaultCapture
-                endpoint="/api/faults"
-                machines={reportMachines.map((m) => ({ id: m.id, name: m.name }))}
-                redirectTo="/faults?saved=1"
-                locale={locale}
-                variant="app"
-              />
-            </DialogForm>
-          ) : null}
-        </div>
-        <p className="mt-1 text-sm text-sand-500">
-          {stoppedCount > 0 ? (
-            <span className="font-medium text-status-overdue">
-              {stoppedCount === 1
-                ? t("faults.oneStandingStill", locale)
-                : t("faults.standingStill", locale).replace("{n}", String(stoppedCount))}
-            </span>
-          ) : null}
-          {stoppedCount > 0 ? " · " : ""}
-          {t("faults.stillOpen", locale)} {openCount} · {t("faults.sortedOut", locale)} {resolvedCount}
-        </p>
-      </div>
+              triggerClassName="hidden lg:inline-flex"
+            />
+          ) : null
+        }
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={savedMessage} />
 
-
-      {openCount === 0 ? (
-        <AllClear
-          icon={<FaultsIcon />}
-          title={t("faults.nothingBrokenTitle", locale)}
-          hint={
-            lastResolved
-              ? `${t("faults.nothingBrokenHint", locale)} ${t("faults.lastSorted", locale).replace("{when}", relativeDate(lastResolved.created_at, locale))}`
-              : t("faults.nothingBrokenHint", locale)
-          }
+      {canTriage ? (
+        <FilterBar
+          path="/faults"
+          search={search}
+          groups={filterGroups}
+          filtersLabel={t("filters.filters", locale)}
+          clearLabel={t("filters.clearAll", locale)}
+          rememberKey="faults"
         />
       ) : null}
 
-      {faults.length === 0 ? null : (
+      {openCount === 0 ? (
+        <FilteredEmpty
+          filtered={filtered.active}
+          clearHref={filtered.clearHref}
+          title={t("empty.noMatchTitle", locale)}
+          hint={t("empty.noMatchHint", locale)}
+          clearLabel={t("empty.clearFilters", locale)}
+        >
+          <AllClear
+            icon={<FaultsIcon />}
+            title={t("faults.nothingBrokenTitle", locale)}
+            hint={
+              lastResolved
+                ? `${t("faults.nothingBrokenHint", locale)} ${t("faults.lastSorted", locale).replace("{when}", relativeDate(sortedAt(lastResolved), locale))}`
+                : t("faults.nothingBrokenHint", locale)
+            }
+          />
+        </FilteredEmpty>
+      ) : null}
+
+      {openFaults.length === 0 ? null : (
         <ul className="flex flex-col gap-2">
-          {faults.map((f) => {
+          {openFaults.map((f) => {
             const role = roles.get(f.farm_id) ?? "";
             const canJob = ["rr_admin", "owner", "manager", "mechanic", "workshop"].includes(role);
             const canResolve = ["rr_admin", "owner", "manager", "mechanic"].includes(role);
             const media = signed.get(f.id) ?? [];
             const resolved = f.status === "resolved";
             return (
-              <li key={f.id}>
+              <li key={f.id} id={`fault-${f.id}`} className="scroll-mt-24">
                 <Card className={resolved ? "opacity-70" : undefined}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -207,11 +275,18 @@ export default async function FaultsPage({
                                 .replace("{when}", relativeDate(f.created_at, locale))
                             : relativeDate(f.created_at, locale)}
                         </span>
-                        <span className={f.assigned_to ? "" : "font-medium text-status-due"}>
-                          {f.assigned_to
-                            ? `${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "-"}`
-                            : t("faults.nobodyLooking", locale)}
-                        </span>
+                        {/* Who has it. A fault in a job says where the work is instead of
+                            "nobody looking", which contradicted its own "In job" badge. */}
+                        {f.job_card_id && jobStatus.has(f.job_card_id) ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            {t("work.jobCard", locale)}
+                            <JobStatus value={jobStatus.get(f.job_card_id)} locale={locale} />
+                          </span>
+                        ) : f.assigned_to ? (
+                          <span>{`${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "-"}`}</span>
+                        ) : !resolved && !f.job_card_id ? (
+                          <span className="font-medium text-status-due">{t("faults.nobodyLooking", locale)}</span>
+                        ) : null}
                       </p>
                       {f.lat != null && f.lng != null ? (
                         <a
@@ -224,7 +299,7 @@ export default async function FaultsPage({
                         </a>
                       ) : null}
                     </div>
-                    {f.urgency ? <UrgencyStatus value={f.urgency} locale={locale} className="shrink-0" /> : null}
+                    {f.urgency && !resolved ? <UrgencyStatus value={f.urgency} locale={locale} className="shrink-0" /> : null}
                   </div>
 
                   {media.length > 0 ? (
@@ -257,17 +332,23 @@ export default async function FaultsPage({
                   {f.job_card_id ? <Link href={`/jobcards/${f.job_card_id}`} className="focus-ring mt-3 inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink underline">{t("jobcards.workflow.openJob", locale)}</Link> : null}
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {f.job_card_id && jobStatus.has(f.job_card_id) ? (
+                        <Link href={`/jobcards/${f.job_card_id}`} className={buttonVariants({ variant: "secondary" })}>
+                          {t("work.openJobCard", locale)}
+                        </Link>
+                      ) : null}
                       {/*
                         One green action per row, kept on the row. Everything else moved
                         behind it: acknowledge, start, assign and resolve were four more
                         `<form>`s on every row, and the assign form carried a `<Select>`
                         listing every active user on the farm, so eight open faults put
                         forty controls and eight copies of the staff list on one screen.
-                        The primary action stays visible because a quiet screen with
-                        nothing obvious on it is the failure the green button fixed.
+                        The job-card action stays visible; per-row actions use the same
+                        secondary styling as the rest of the list.
                       */}
                       {canJob && !f.job_card_id && !requestByFault.has(f.id) ? (
                         <NewJobCard
+                          triggerVariant="secondary" triggerSize="sm"
                           actorId={profile.id}
                           machines={[{ id: f.machine_id, farm_id: f.farm_id, name: nameById[f.machine_id] ?? "-", allowExternal: ["owner", "manager", "rr_admin"].includes(roles.get(f.farm_id) ?? "") }]}
                           contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} sourceFault={f}
@@ -281,6 +362,11 @@ export default async function FaultsPage({
                           label={t("common.actions", locale)}
                           closeLabel={t("ui.close", locale)}
                         >
+                          {f.job_card_id && jobStatus.has(f.job_card_id) ? (
+                            <Link href={`/jobcards/${f.job_card_id}`} className={menuItemClass()}>
+                              {t("work.openJobCard", locale)}
+                            </Link>
+                          ) : null}
                           {canJob && f.status === "open" ? (
                             <form action={acknowledgeFault}>
                               <input type="hidden" name="id" value={f.id} />
@@ -342,10 +428,44 @@ export default async function FaultsPage({
       )}
       {page > 1 || openCount > page * 50 ? (
         <nav aria-label={t("faults.pages", locale)} className="flex items-center justify-between gap-3">
-          {page > 1 ? <Link className="focus-ring rounded px-3 py-2 underline" href={`/faults?page=${page - 1}`}>{t("faults.previousPage", locale)}</Link> : <span />}
-          {openCount > page * 50 ? <Link className="focus-ring rounded px-3 py-2 underline" href={`/faults?page=${page + 1}`}>{t("faults.nextPage", locale)}</Link> : null}
+          {page > 1 ? <Link className="focus-ring inline-flex min-h-[48px] items-center rounded px-3 underline" href={pageHref(page - 1)}>{t("faults.previousPage", locale)}</Link> : <span />}
+          {openCount > page * 50 ? <Link className="focus-ring inline-flex min-h-[48px] items-center rounded px-3 underline" href={pageHref(page + 1)}>{t("faults.nextPage", locale)}</Link> : null}
         </nav>
       ) : null}
-    </div>
+
+      {/* History to read, not work to do: collapsed under the active list. */}
+      {resolvedFaults.length > 0 ? (
+        <Disclosure summary={t("faults.sortedOut", locale)} meta={num(resolvedCount)}>
+          <ul className="flex flex-col divide-y divide-sand-100">
+            {resolvedFaults.map((f) => (
+              <li key={f.id} id={`fault-${f.id}`} className="scroll-mt-24 py-3 first:pt-0">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sand-900">{nameById[f.machine_id] ?? "-"}</p>
+                    {f.description ? <p className="mt-0.5 break-words text-sm text-sand-700">{f.description}</p> : null}
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sand-500">
+                      <FaultStatus value={f.status} locale={locale} />
+                      <span>{t("faults.sortedWhen", locale).replace("{when}", lowerFirst(relativeDate(sortedAt(f), locale)))}</span>
+                      {f.assigned_to ? <span>{`${t("faults.assignedTo", locale)} ${userName.get(f.assigned_to) ?? "-"}`}</span> : null}
+                    </p>
+                  </div>
+                  {f.job_card_id && jobStatus.has(f.job_card_id) ? (
+                    <Link
+                      href={`/jobcards/${f.job_card_id}`}
+                      className="focus-ring inline-flex min-h-[48px] items-center rounded px-1 text-sm font-medium text-brand-ink underline sm:min-h-[36px]"
+                    >
+                      {t("work.openJobCard", locale)}
+                    </Link>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {resolvedCount > resolvedFaults.length ? (
+            <p className="mt-2 text-xs text-sand-500">{t("faults.historyLatest", locale).replace("{n}", num(resolvedFaults.length))}</p>
+          ) : null}
+        </Disclosure>
+      ) : null}
+    </PageContainer>
   );
 }

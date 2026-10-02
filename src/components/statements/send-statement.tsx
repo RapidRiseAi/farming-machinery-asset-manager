@@ -6,16 +6,21 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { DialogForm, DialogFields, useDialogForm } from "@/components/ui/dialog-form";
+import { SendIcon } from "@/components/ui/icons";
 
 /**
- * Send this statement to the customer.
+ * Emailing the statement to the customer, the last step of the monthly-account workflow.
  *
- * Sits beside the PDF and spreadsheet buttons rather than in a card of its own: the three
- * are the same decision, what do I do with this statement, and separating the one that
- * matters most for a monthly account would be odd.
+ * It used to unfold its two fields into the page header, between the download buttons,
+ * which pushed the whole statement down and looked like part of the header. Now it is a
+ * dialog like every other capture here. It posts with `fetch` rather than a server action
+ * because the result (sent to which address, or why not) is shown in the dialog itself:
+ * the reader stays on the statement they are looking at, and a failure reads next to the
+ * address that caused it.
  *
- * A client component because the useful outcome is "it went to this address" or "it
- * bounced, and this is why", which reads better in place than as a flash after a redirect.
+ * The fields live in `SendFields`, inside the dialog, so they mount fresh each time: a
+ * second statement does not open on the first one's "sent" line.
  */
 export function SendStatement({
   party,
@@ -30,7 +35,33 @@ export function SendStatement({
   defaultEmail: string;
   locale: Lang;
 }) {
-  const [open, setOpen] = useState(false);
+  return (
+    <DialogForm
+      trigger={t("statement.send", locale)}
+      triggerIcon={<SendIcon />}
+      triggerSize="sm"
+      title={t("statement.send", locale)}
+      closeLabel={t("ui.close", locale)}
+    >
+      <SendFields party={party} from={from} to={to} defaultEmail={defaultEmail} locale={locale} />
+    </DialogForm>
+  );
+}
+
+function SendFields({
+  party,
+  from,
+  to,
+  defaultEmail,
+  locale,
+}: {
+  party: string;
+  from: string;
+  to: string;
+  defaultEmail: string;
+  locale: Lang;
+}) {
+  const { close } = useDialogForm();
   const [email, setEmail] = useState(defaultEmail);
   const [message, setMessage] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -65,17 +96,14 @@ export function SendStatement({
     }
   }
 
-  if (!open) {
-    return (
-      <Button type="button" variant="primary" size="sm" onClick={() => setOpen(true)}>
-        {t("statement.send", locale)}
-      </Button>
-    );
-  }
-
   return (
-    <div className="w-full rounded-xl border border-sand-200 bg-surface p-4">
-      <div className="flex flex-col gap-3 sm:max-w-md">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void send();
+      }}
+    >
+      <DialogFields columns={1}>
         <Field label={t("email.to", locale)} htmlFor="stmt-email">
           <Input
             id="stmt-email"
@@ -83,26 +111,31 @@ export function SendStatement({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            required
           />
         </Field>
         <Field label={t("email.message", locale)} hint={t("statement.sendHint", locale)} htmlFor="stmt-msg">
           <Textarea id="stmt-msg" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} />
         </Field>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={send} disabled={state === "sending" || !email}>
+        <div aria-live="polite">
+          {state === "sent" ? (
+            <p className="text-sm font-medium text-status-ok">
+              {t("email.wentTo", locale).replace("{to}", detail ?? email)}
+            </p>
+          ) : null}
+          {state === "error" ? <p className="text-sm font-medium text-status-overdue">{detail}</p> : null}
+        </div>
+      </DialogFields>
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={close}>
+          {state === "sent" ? t("ui.close", locale) : t("common.cancel", locale)}
+        </Button>
+        {state === "sent" ? null : (
+          <Button type="submit" disabled={state === "sending" || !email}>
             {state === "sending" ? t("email.sending", locale) : t("statement.sendNow", locale)}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-            {t("common.cancel", locale)}
-          </Button>
-        </div>
-        {state === "sent" ? (
-          <p className="text-sm font-medium text-status-ok">
-            {t("email.wentTo", locale).replace("{to}", detail ?? email)}
-          </p>
-        ) : null}
-        {state === "error" ? <p className="text-sm font-medium text-status-bad">{detail}</p> : null}
+        )}
       </div>
-    </div>
+    </form>
   );
 }

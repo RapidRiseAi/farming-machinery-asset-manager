@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -6,9 +5,10 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { PrintButton } from "@/components/print-button";
-import { ConfirmForm } from "@/components/confirm-form";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Flash } from "@/components/ui/flash";
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { BackLink, PageContainer } from "@/components/ui/page-header";
 import { reissueQr } from "../qr-actions";
 
 export default async function MachineQrPage({
@@ -41,13 +41,8 @@ export default async function MachineQrPage({
   const canReissue = profile.role === "owner" || profile.role === "manager" || profile.role === "rr_admin";
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-4">
-      <div className="w-full print:hidden">
-        <Link href={`/machines/${id}`} className="focus-ring inline-flex items-center gap-1 rounded-md text-sm text-sand-500">
-          <ChevronLeftIcon className="text-base" />
-          {machine.name}
-        </Link>
-      </div>
+    <PageContainer size="narrow">
+      <BackLink href={`/machines/${id}`} label={machine.name} className="-mb-2 -mt-2 print:hidden" />
 
       {sp.reissued ? (
         <Flash tone="success" message={t("qr.reissued", locale)} className="w-full print:hidden" />
@@ -63,28 +58,35 @@ export default async function MachineQrPage({
         <p className="mt-2 break-all text-xs text-sand-400">{url}</p>
       </div>
 
-      <PrintButton label={t("qr.print", locale)} />
-      {!site ? (
-        <p className="text-xs text-status-due">
-          Set NEXT_PUBLIC_SITE_URL so the QR points at your production URL.
-        </p>
-      ) : null}
+      <div className="flex flex-col items-center gap-2 print:hidden">
+        <PrintButton label={t("qr.print", locale)} />
+        {!site ? <p className="text-sm text-status-due">{t("qr.siteUrlMissing", locale)}</p> : null}
+      </div>
 
-      {/* Re-issue / replace the QR (FR-9.4), lost, damaged, or possibly-copied sticker. */}
+      {/* Re-issue / replace the QR (FR-9.4), lost, damaged, or possibly-copied sticker.
+          Shut until somebody needs it: it is rare, and it kills the printed sticker at once,
+          so it is a quiet button behind a question, and the confirmation names what breaks
+          (it was a filled red button at rest gated by the browser's own confirm()). */}
       {canReissue ? (
-        <div className="w-full rounded-2xl border border-sand-200 bg-sand-50 p-5 print:hidden">
-          <h2 className="text-base font-semibold text-sand-900">{t("qr.reissueTitle", locale)}</h2>
-          <p className="mt-1 text-sm text-sand-600">{t("qr.reissueDesc", locale)}</p>
-          <ConfirmForm
-            action={reissueQr}
-            message={t("qr.reissueConfirm", locale)}
-            label={t("qr.reissueBtn", locale)}
-            className="mt-3"
-          >
-            <input type="hidden" name="machine_id" value={id} />
-          </ConfirmForm>
-        </div>
+        <Disclosure summary={t("qr.reissueTitle", locale)} className="print:hidden">
+          <p className="text-sm text-sand-600">{t("qr.reissueDesc", locale)}</p>
+          <div className="mt-3 flex">
+            <ConfirmDialog
+              action={reissueQr}
+              triggerVariant="secondary"
+              triggerLabel={t("qr.reissueBtn", locale)}
+              title={t("confirm.reissueQrTitle", locale).replace("{machine}", machine.name)}
+              consequencesTitle={t("confirm.whatHappens", locale)}
+              consequences={[t("confirm.reissueQrEffect1", locale), t("confirm.reissueQrEffect2", locale)]}
+              confirmLabel={t("qr.reissueBtn", locale)}
+              cancelLabel={t("confirm.keepIt", locale)}
+              closeLabel={t("ui.close", locale)}
+            >
+              <input type="hidden" name="machine_id" value={id} />
+            </ConfirmDialog>
+          </div>
+        </Disclosure>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

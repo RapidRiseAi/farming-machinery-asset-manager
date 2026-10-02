@@ -11,19 +11,22 @@ import {
   type UserPermission,
 } from "@/lib/permissions";
 import { t } from "@/lib/i18n";
-import { PageInfoButton } from "@/components/ui/page-info-button";
-import { inviteUser, setUserActive, erasePerson, setUserPermission } from "./actions";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { inviteUser, setUserActive, erasePerson, setUserPermissions } from "./actions";
+import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge, StatusBadge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
+import { ActionMenu } from "@/components/ui/action-menu";
+import { Disclosure } from "@/components/ui/disclosure";
+import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { menuItemClass } from "@/components/ui/menu-item";
+import { ChevronRightIcon, DownloadIcon, KeyIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { roleLabel } from "@/lib/format";
 
@@ -47,6 +50,9 @@ function personLabel(u: TeamUser): string {
   return u.name.trim() || u.email?.trim() || u.id.slice(0, 8);
 }
 
+/** Owner first, then down the farm: who runs it before who drives for it. */
+const ROLE_ORDER: Record<TeamUser["role"], number> = { owner: 0, manager: 1, mechanic: 2, operator: 3 };
+
 export default async function TeamPage({
   searchParams,
 }: {
@@ -65,7 +71,7 @@ export default async function TeamPage({
   if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
 
   const supabase = await createClient();
-  const [{ data: primaryData }, { data: membershipData }, { data: grantData }] = await Promise.all([
+  const [{ data: primaryData }, { data: membershipData }, { data: grantData }, { data: farmData }] = await Promise.all([
     supabase
       .from("users")
       .select("id")
@@ -81,7 +87,13 @@ export default async function TeamPage({
       .select("user_id, permission")
       .eq("farm_id", farmId)
       .is("deleted_at", null),
+    supabase.from("farms").select("settings").eq("id", farmId).maybeSingle(),
   ]);
+
+  // The farm's "language for new people" (/settings). Read the way lib/settings.ts
+  // stores it: anything but "en" is Afrikaans, which is also what /settings shows unset.
+  const farmSettings = ((farmData as { settings?: Record<string, unknown> } | null)?.settings ?? {});
+  const inviteLanguage = farmSettings.default_language === "en" ? "en" : "af";
 
   const primaryIds = new Set(((primaryData ?? []) as { id: string }[]).map((row) => row.id));
   const memberships = (membershipData ?? []) as {
@@ -144,16 +156,72 @@ export default async function TeamPage({
       };
     })
     .filter((row): row is TeamUser => row != null)
-    .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
+    .sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || a.name.localeCompare(b.name));
+
+  const success = sp.invited
+    ? t("team.invited", locale)
+    : sp.erased
+      ? t("privacy.erased", locale)
+      : sp.permissionSaved
+        ? t("permissions.saved", locale)
+        : sp.saved === "deactivated"
+          ? t("team.deactivatedFlash", locale)
+          : sp.saved === "activated"
+            ? t("team.activatedFlash", locale)
+            : sp.saved
+              ? t("ui.saved", locale)
+              : undefined;
+
+  // Inviting somebody is a card of four fields that was open on a page whose job is
+  // to show you who is on the farm and what they may do.
+  const invite = canManage ? (
+    <DialogForm
+      trigger={t("team.invite", locale)}
+      triggerIcon={<PlusIcon />}
+      title={t("team.invite", locale)}
+      closeLabel={closeLabel}
+    >
+      <form action={inviteUser}>
+        <input type="hidden" name="back" value="/team" />
+        <DialogFields>
+          <Field label={t("team.name", locale)} htmlFor="inv-name" required>
+            <Input id="inv-name" name="name" required />
+          </Field>
+          <Field label={t("team.email", locale)} htmlFor="inv-email" required>
+            <Input id="inv-email" name="email" type="email" required />
+          </Field>
+          <Field label={t("team.role", locale)} htmlFor="inv-role">
+            <Select id="inv-role" name="role" defaultValue="operator">
+              <option value="manager">{t("team.roleManager", locale)}</option>
+              <option value="mechanic">{t("team.roleMechanic", locale)}</option>
+              <option value="operator">{t("team.roleOperator", locale)}</option>
+            </Select>
+          </Field>
+          <Field label={t("team.language", locale)} htmlFor="inv-lang" hint={t("team.inviteLanguageHint", locale)}>
+            <Select id="inv-lang" name="language" defaultValue={inviteLanguage}>
+              <option value="af">{t("settings.afrikaans", locale)}</option>
+              <option value="en">{t("settings.english", locale)}</option>
+            </Select>
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("team.inviteBtn", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{t("team.title", locale)}</h1>
-          <PageInfoButton infoKey="team" locale={locale} />
-        </div>
+    <PageContainer>
+      <PageHeader
+        title={t("team.title", locale)}
+        lead={t("team.subtitle", locale)}
+        infoKey="team"
+        locale={locale}
+        actions={invite}
+      />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.invited ? t("team.invited", locale) : sp.erased ? t("privacy.erased", locale) : sp.permissionSaved ? t("permissions.saved", locale) : sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={success} />
 
       {/* Two different questions about the same people: who may sign in (this page), and
           who may legally drive (that one). Linked rather than merged because a farm opens
@@ -161,7 +229,7 @@ export default async function TeamPage({
           loaded or an AARTO notice lands. */}
       <Link
         href="/team/licences"
-        className="flex items-center justify-between gap-3 rounded-2xl border border-sand-200 bg-surface p-4 shadow-xs sm:p-5"
+        className="focus-ring flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-sand-200 bg-surface p-4 shadow-xs sm:p-5"
       >
         <span className="min-w-0">
           <span className="block font-semibold text-ink">{t("credentials.teamLink", locale)}</span>
@@ -172,47 +240,13 @@ export default async function TeamPage({
         <ChevronRightIcon className="shrink-0 text-sand-400" />
       </Link>
 
-      {/* Inviting somebody is a card of four fields that was open on a page whose job is
-          to show you who is on the farm and what they may do. */}
-      {canManage ? (
-        <div className="flex">
-          <DialogForm
-            trigger={t("team.invite", locale)}
-            triggerIcon={<PlusIcon />}
-            title={t("team.invite", locale)}
-            closeLabel={closeLabel}
-          >
-            <form action={inviteUser}>
-              <input type="hidden" name="back" value="/team" />
-              <DialogFields>
-                <Field label={t("team.name", locale)} htmlFor="inv-name" required>
-                  <Input id="inv-name" name="name" required />
-                </Field>
-                <Field label={t("team.email", locale)} htmlFor="inv-email" required>
-                  <Input id="inv-email" name="email" type="email" required />
-                </Field>
-                <Field label={t("team.role", locale)} htmlFor="inv-role">
-                  <Select id="inv-role" name="role" defaultValue="operator">
-                    <option value="manager">{t("team.roleManager", locale)}</option>
-                    <option value="mechanic">{t("team.roleMechanic", locale)}</option>
-                    <option value="operator">{t("team.roleOperator", locale)}</option>
-                  </Select>
-                </Field>
-                <Field label={t("team.language", locale)} htmlFor="inv-lang">
-                  <Select id="inv-lang" name="language" defaultValue="af">
-                    <option value="af">{t("settings.afrikaans", locale)}</option>
-                    <option value="en">{t("settings.english", locale)}</option>
-                  </Select>
-                </Field>
-              </DialogFields>
-              <DialogActions cancelLabel={cancelLabel}>
-                <SubmitButton variant="primary">{t("team.inviteBtn", locale)}</SubmitButton>
-              </DialogActions>
-            </form>
-          </DialogForm>
-        </div>
-      ) : null}
-
+      {/*
+        One row per person: who they are and their role. Only the exceptions are said
+        (an extra permission, a login that is off), because "Active: Yes" on every row and
+        three permission lines under every name told the reader nothing they needed. What
+        a person may do, export, turning a login off and erasure are behind the row's own
+        actions, titled with the person.
+      */}
       <Card flush>
         {users.length === 0 ? (
           <p className="p-4 text-sm text-sand-500">{t("team.empty", locale)}</p>
@@ -223,91 +257,124 @@ export default async function TeamPage({
                 <Th>{t("team.name", locale)}</Th>
                 <Th>{t("team.role", locale)}</Th>
                 <Th>{t("team.email", locale)}</Th>
-                <Th>{t("team.active", locale)}</Th>
-                <Th>{t("permissions.title", locale)}</Th>
                 {canManage ? <Th /> : null}
               </Tr>
             </Thead>
             <Tbody>
-              {users.map((u) => (
-                <Tr key={u.id}>
-                  <Td label={t("team.name", locale)} className="font-medium text-sand-900">
-                    {u.name}
-                    {u.id === profile.id ? <span className="ml-1 text-xs text-sand-400">({t("team.you", locale)})</span> : null}
-                    {!u.isPrimaryMember ? (
-                      <span className="mt-0.5 block text-xs font-normal text-sand-500">
-                        {t("team.secondaryMember", locale)}
-                      </span>
-                    ) : null}
-                  </Td>
-                  <Td label={t("team.role", locale)}><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
-                  <Td label={t("team.email", locale)} className="text-sand-500">{u.email ?? "-"}</Td>
-                  <Td label={t("team.active", locale)}>{u.active ? <Badge tone="ok">{t("common.yes", locale)}</Badge> : <Badge tone="danger">{t("common.no", locale)}</Badge>}</Td>
-                  <Td label={t("permissions.title", locale)}>
-                    <div className="flex min-w-56 flex-col gap-2 py-1">
-                      {USER_PERMISSIONS.map((permission) => {
-                        const baseline = roleHasBaselinePermission(u.role, permission);
-                        const granted = u.grants.has(permission);
-                        return (
-                          <div key={permission} className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs font-medium text-sand-700">
-                              {t(`permissions.${permission}`, locale)}
-                            </span>
-                            {baseline ? (
-                              <Badge tone="neutral">{t("permissions.inRole", locale)}</Badge>
-                            ) : granted ? (
-                              <Badge tone="ok">{t("permissions.extra", locale)}</Badge>
-                            ) : null}
-                            {!baseline && u.id !== profile.id && u.active ? (
-                              <form action={setUserPermission} className="ml-auto">
+              {users.map((u) => {
+                const label = personLabel(u);
+                const isMe = u.id === profile.id;
+                const extras = USER_PERMISSIONS.filter(
+                  (permission) => u.grants.has(permission) && !roleHasBaselinePermission(u.role, permission),
+                );
+                return (
+                  <Tr key={u.id}>
+                    <Td label={t("team.name", locale)} className="font-medium text-sand-900">
+                      <span className="break-words">{u.name}</span>
+                      {isMe ? <span className="ml-1 text-xs font-normal text-sand-500">({t("team.you", locale)})</span> : null}
+                      {!u.active ? (
+                        <StatusBadge
+                          label={t("team.deactivated", locale)}
+                          tone="neutral"
+                          shape="square"
+                          className="ml-2 align-middle"
+                        />
+                      ) : null}
+                      {!u.isPrimaryMember ? (
+                        <span className="mt-0.5 block text-xs font-normal text-sand-500">
+                          {t("team.secondaryMember", locale)}
+                        </span>
+                      ) : null}
+                      {extras.length > 0 ? (
+                        <span className="mt-0.5 block text-xs font-normal text-sand-600">
+                          {t("permissions.extraList", locale).replace(
+                            "{list}",
+                            extras.map((permission) => t(`permissions.${permission}`, locale)).join(", "),
+                          )}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td label={t("team.role", locale)}><Badge tone="neutral">{roleLabel(u.role, locale)}</Badge></Td>
+                    <Td label={t("team.email", locale)} className="break-all text-sand-500">{u.email ?? "-"}</Td>
+                    {canManage ? (
+                      <Td className="text-right">
+                        <ActionMenu title={label} label={t("common.actions", locale)} closeLabel={closeLabel}>
+                          {!isMe && u.active ? (
+                            <DialogForm
+                              triggerLook="menuItem"
+                              trigger={t("permissions.menuItem", locale)}
+                              triggerIcon={<KeyIcon className="text-base" />}
+                              title={t("permissions.dialogTitle", locale).replace("{name}", label)}
+                              description={t("permissions.dialogHint", locale)}
+                              closeLabel={closeLabel}
+                              size="md"
+                            >
+                              <form action={setUserPermissions}>
                                 <input type="hidden" name="user_id" value={u.id} />
-                                <input type="hidden" name="permission" value={permission} />
-                                <input type="hidden" name="enabled" value={granted ? "false" : "true"} />
                                 <input type="hidden" name="back" value="/team" />
-                                <Button type="submit" variant="ghost" size="sm">
-                                  {granted ? t("permissions.remove", locale) : t("permissions.add", locale)}
-                                </Button>
+                                <DialogFields columns={1} className="gap-1">
+                                  {USER_PERMISSIONS.map((permission) => {
+                                    const baseline = roleHasBaselinePermission(u.role, permission);
+                                    return (
+                                      <Checkbox
+                                        key={permission}
+                                        id={`perm_${u.id}_${permission}`}
+                                        name={permission}
+                                        defaultChecked={baseline || u.grants.has(permission)}
+                                        disabled={baseline}
+                                        label={t(`permissions.${permission}`, locale)}
+                                        hint={baseline ? t("permissions.inRole", locale) : undefined}
+                                      />
+                                    );
+                                  })}
+                                </DialogFields>
+                                <DialogActions cancelLabel={cancelLabel}>
+                                  <SubmitButton variant="primary">{t("permissions.save", locale)}</SubmitButton>
+                                </DialogActions>
                               </form>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Td>
-                  {canManage ? (
-                    <Td className="text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        <a
-                          href={`/team/export?user=${u.id}`}
-                          className={buttonVariants({ variant: "ghost", size: "sm" })}
-                        >
-                          {t("privacy.export", locale)}
-                        </a>
-                        {u.id !== profile.id && u.isPrimaryMember ? (
-                          <>
-                            <form action={setUserActive}>
+                            </DialogForm>
+                          ) : null}
+
+                          <a href={`/team/export?user=${u.id}`} className={menuItemClass()}>
+                            <DownloadIcon className="shrink-0 text-base" />
+                            {t("privacy.export", locale)}
+                          </a>
+
+                          {!isMe && u.isPrimaryMember ? (
+                            <ConfirmDialog
+                              action={setUserActive}
+                              triggerLook="menuItem"
+                              triggerLabel={u.active ? t("team.deactivate", locale) : t("team.activate", locale)}
+                              title={(u.active ? t("team.deactivateTitle", locale) : t("team.activateTitle", locale)).replace("{name}", label)}
+                              intro={u.active ? t("team.deactivateBody", locale) : t("team.activateBody", locale)}
+                              footnote={u.active ? t("team.deactivateFootnote", locale) : undefined}
+                              confirmLabel={u.active ? t("team.deactivate", locale) : t("team.activate", locale)}
+                              cancelLabel={cancelLabel}
+                              closeLabel={closeLabel}
+                              tone={u.active ? "danger" : "brand"}
+                            >
                               <input type="hidden" name="id" value={u.id} />
                               <input type="hidden" name="active" value={u.active ? "false" : "true"} />
                               <input type="hidden" name="back" value="/team" />
-                              <Button type="submit" variant="ghost" size="sm">{u.active ? t("team.deactivate", locale) : t("team.activate", locale)}</Button>
-                            </form>
-                            {/*
-                              Audit bug 4: POPIA erasure permanently anonymises a person
-                              and bans their login for a hundred years, and it rendered
-                              as a ghost link behind a browser confirm(). It now states
-                              exactly what happens, points at the reversible option, and
-                              will not unlock until their name is typed. `erasePerson`,
-                              the guarded RPC and the auth scrub are untouched.
-                            */}
+                            </ConfirmDialog>
+                          ) : null}
+
+                          {/*
+                            Audit bug 4: POPIA erasure permanently anonymises a person
+                            and bans their login for a hundred years, and it rendered
+                            as a ghost link behind a browser confirm(). It now states
+                            exactly what happens, points at the reversible option, and
+                            will not unlock until their name is typed. `erasePerson`,
+                            the guarded RPC and the auth scrub are untouched.
+                          */}
+                          {!isMe && u.isPrimaryMember ? (
                             <ConfirmDialog
                               action={erasePerson}
-                              triggerVariant="ghost"
-                              triggerSize="sm"
+                              triggerLook="menuItem"
                               triggerIcon={<TrashIcon />}
                               triggerLabel={t("privacy.erase", locale)}
-                              triggerClassName="text-status-overdue hover:bg-callout-danger-bg"
-                              title={t("privacy.eraseTitle", locale).replace("{name}", personLabel(u))}
-                              intro={t("privacy.eraseIntro", locale).replace("{name}", personLabel(u).split(" ")[0])}
+                              title={t("privacy.eraseTitle", locale).replace("{name}", label)}
+                              intro={t("privacy.eraseIntro", locale).replace("{name}", label.split(" ")[0])}
                               consequencesTitle={t("privacy.eraseWhatHappens", locale)}
                               consequences={[
                                 t("privacy.eraseEffect1", locale),
@@ -315,40 +382,41 @@ export default async function TeamPage({
                                 t("privacy.eraseEffect3", locale),
                                 t("privacy.retentionNote", locale),
                               ]}
-                              typeToConfirm={personLabel(u)}
-                              typeToConfirmLabel={t("privacy.eraseTypeLabel", locale).replace("{name}", personLabel(u))}
+                              typeToConfirm={label}
+                              typeToConfirmLabel={t("privacy.eraseTypeLabel", locale).replace("{name}", label)}
                               typeToConfirmPlaceholder={t("privacy.eraseTypePlaceholder", locale)}
-                              confirmLabel={t("privacy.eraseConfirmCta", locale).replace("{name}", personLabel(u))}
+                              confirmLabel={t("privacy.eraseConfirmCta", locale).replace("{name}", label)}
                               cancelLabel={t("privacy.eraseCancel", locale)}
-                              closeLabel={t("ui.close", locale)}
+                              closeLabel={closeLabel}
                               footnote={t("privacy.eraseReversibleHint", locale)}
                             >
                               <input type="hidden" name="id" value={u.id} />
                               <input type="hidden" name="back" value="/team" />
                             </ConfirmDialog>
-                          </>
-                        ) : !u.isPrimaryMember ? (
-                          <span className="text-xs text-sand-500">{t("team.primaryFarmControls", locale)}</span>
-                        ) : null}
-                      </div>
-                    </Td>
-                  ) : null}
-                </Tr>
-              ))}
+                          ) : null}
+
+                          {!u.isPrimaryMember ? (
+                            <p className="px-1 pt-1 text-sm text-sand-500">{t("team.primaryFarmControls", locale)}</p>
+                          ) : null}
+                        </ActionMenu>
+                      </Td>
+                    ) : null}
+                  </Tr>
+                );
+              })}
             </Tbody>
           </Table>
         )}
       </Card>
 
       {canManage ? (
-        <Card>
-          <CardHeader><CardTitle>{t("privacy.title", locale)}</CardTitle></CardHeader>
+        <Disclosure summary={t("privacy.title", locale)}>
           <div className="flex flex-col gap-2 text-sm text-sand-600">
             <p>{t("privacy.intro", locale)}</p>
             <p className="text-sand-500">{t("privacy.retentionNote", locale)}</p>
           </div>
-        </Card>
+        </Disclosure>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }
