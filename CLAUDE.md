@@ -52,28 +52,23 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Local integration, 2026-10-02:** main combines the job-card workflow rework
-(`91db552`) and the second UI pass (`1d5585c`), with their shared screens reconciled.
-These changes have not been pushed or deployed. The three new migrations listed in
-[`docs/JOB_CARD_WORKFLOW.md`](docs/JOB_CARD_WORKFLOW.md) must be applied before release.
-Combined browser acceptance is outstanding; the available browser connection could not
-be established. See the latest build-log entry for local validation.
+**Phase: live in production on Vercel (`main`).** `origin/main` is at `38ea421`
+(2026-10-02): the job-card workflow rework (`91db552`), the second UI pass (`1d5585c`),
+their merge (`c978f9a`), migration probes (`5d307ed`) and the calmer job-card and
+work-request screens (`38ea421`). Vercel Production reported Ready for that SHA, the alias
+serves a byte-identical CSS bundle, both CI jobs passed (App quality gates + build, RLS
+isolation tests), and `ui:check` passes against the live URL (11 dialog routes, 53 routes
+at 360px and 1024px). Saving through forms and the job-card workflow end to end have NOT
+been exercised on the live site by a browser.
 
-**Last recorded production verification (historical):** at `c901d37`, both CI jobs passed
-(App quality gates + build, RLS isolation tests), and the Vercel Production deployment
-reported success. The live site was verified at
-`https://farming-machinery-asset-manager.vercel.app`: 22 pages and 9 RLS writes as a
-signed-in owner. Every one of the 184 migrations is applied to the live database
-(`node scripts/apply_pending.mjs --dry`). Billing is live and has taken a real payment.
-Email sends and is confirmed `delivered` by Resend.
-
-**Keep schema and app compatible during release.** The earlier deployed schema and app
-were verified together; the new local migrations above remain pending release.
-They came apart for a few hours on 21/09/2026 while the
-migrations were applied ahead of the push, which is the window
-`supabase/tests/deploy_compatibility.sql` exists for: it pins every call shape the DEPLOYED
-build makes, so a migration that drops a function signature is caught before it breaks the
-live site. Run it before applying anything ahead of a deploy again.
+**Schema and app are level.** All 187 migrations are applied to the live database; the
+three job-card migrations went in on 2026-10-02 immediately before the push, and every
+probe answers true (`node scripts/apply_pending.mjs --dry` reports nothing pending).
+Billing is live and has taken a real payment; email sends via Resend.
+`supabase/tests/deploy_compatibility.sql` pins every call shape the DEPLOYED build makes,
+so a migration that drops a function signature is caught before it breaks the live site.
+Run `node scripts/migrate_check.mjs --suite` (plain `db:check` does not run the SQL
+suites) before applying anything ahead of a deploy.
 
 **The product has been clicked through.** `node scripts/click_through.mjs` signs in as a
 throwaway owner, walks twenty-two screens and writes through RLS. It needs the app running
@@ -187,6 +182,11 @@ will bite again.
   it is where a layout only ever seen at 1280 shows its seams. A `<Table stacked>` is
   cards below `lg` and a real table above it, and shipping it without the scroll wrapper
   pushed `/team` to 1112px on a 13-inch laptop.
+- **A migration without a probe in `scripts/apply_pending.mjs` is skipped as "assumed
+  applied".** The three job-card migrations had none, so the dry run said "Nothing pending"
+  against a live database that had none of their objects, and the release would have shipped
+  a build reading columns that did not exist. Every new migration gets a probe naming an
+  object only it creates; confirm `--dry` lists it before applying or pushing.
 - **A gate run on one English, near-empty fixture is a claim about that fixture.** `ui:check`
   passed all 53 routes at 360px while six pages rendered zoomed out for the demo personas:
   every Afrikaans page (the bell label "Kennisgewings" could not shrink), `/incidents` with

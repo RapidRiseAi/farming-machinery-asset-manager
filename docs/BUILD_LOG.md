@@ -4234,3 +4234,70 @@ not claimed as combined verification. PGlite uses auth stubs and a digest substi
 so it does not establish hosted Auth/Storage behavior. The three new job-card migrations
 must be applied in order before releasing this app. Existing unrelated open items in
 the preceding entries remain open.
+
+
+## 2026-10-02 - Released the job-card workflow, then gave its screens the calm treatment
+
+### The release, and the trap in it
+
+Codex merged its job-card workflow rework (`91db552`) with the second UI pass
+(`1d5585c`) at `c978f9a`. Before pushing, the three new migrations had to reach the live
+database, and `node scripts/apply_pending.mjs --dry` said **"Nothing pending"**. A read-only
+probe of the live database said otherwise: no `update_work_request`, no
+`job_card_line_receipts`, no `job_cards.work_mode` or intake columns. The script skips any
+migration without a PROBE as "assumed applied", and none of the three had one. Following
+the normal order would have shipped a build that reads those columns (the faults page
+selects `work_requests.created_from_fault_id`) against a schema without them.
+
+`5d307ed` adds a probe per migration. Verified first, on a fresh database: all 187
+migrations apply, and `node scripts/migrate_check.mjs --suite` passes all 29 SQL suites
+including `deploy_compatibility.sql` (plain `pnpm db:check` applies migrations but does not
+run the suites). Then, back to back: migrations applied to live (every probe true), pushed,
+Vercel Ready for the SHA, alias CSS byte-identical to the local build, CI green.
+
+### The job-card screens
+
+Asked for afterwards: keep the workflow, make the screens as simple as the rest. Measured
+before with the demo personas (owner, Afrikaans mechanic, contractor): a job card opened
+with three badges, two full-width buttons, a "Next step" card of explanatory paragraphs
+and eight numbered cards, most of them a column of "-". The work request titled itself
+"Repair", scrolled an eight-chip status strip sideways on a phone and nested the vehicle
+in a card; the work list printed ISO dates and showed a contractor their own business
+name on every card.
+
+`38ea421`, presentation only (the actions, permissions, version checks, drafts and
+receipts are untouched):
+
+- One status panel per job and request: a `Stepper` (current step in gold), one sentence
+  for this person's next move, and the buttons that matter. Before completion a short
+  checklist names what is missing, with a button beside each item that opens the right
+  dialog; the rules for what blocks completion are unchanged.
+- Sections appear by stage (work, parts and handover once work starts); values are
+  stated, never dashed; line actions sit in one menu per line; the More menu sits on the
+  title row through PageHeader's new `menu` slot.
+- Creation asks machine first, then "who will do the work" as three visible choices, then
+  the job type as chips; "Discard draft" only appears when there is a draft.
+- Lists group open work first and fold finished work away; a contractor sees the client
+  farm; dates are words. The unused clickable-row component went with the table.
+
+### Loose ends closed
+
+- `ui_check.mjs` set its session cookie on "localhost" whatever `--base` said, so a run
+  against the live site measured the login page on every route (2 inputs, 0 dialogs) and
+  looked exactly like a regression. The cookie now follows the host, and each navigation
+  waits for a document body. It now passes against production.
+- CLAUDE.md "Current state" said the release was local and its migrations pending; it now
+  names `38ea421`. `docs/JOB_CARD_WORKFLOW.md` gained a line superseding its "not deployed".
+- The `ui-pass-2` worktree and branch were removed after confirming the branch was merged.
+
+### Gates
+
+typecheck, lint, tests, i18n parity and keys, errors, design lint, dashes, build (shared
+first-load JS 103 kB), `migrate_check --suite` (29/29), ui:check locally and against the
+live URL (11 dialog routes, 53 routes at 360px and 1024px), CI green on `5d307ed` and
+`38ea421`.
+
+**Left undone.** No browser has saved through a form on the live site since this release:
+the job-card workflow end to end, line entry, kits, media and supplier invoices are
+verified by the SQL suites and unit tests, not by a person pressing Save. The job-card
+media and supplier-document dialogs keep their hand-rolled labels (unchanged here).

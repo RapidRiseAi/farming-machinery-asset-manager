@@ -2,6 +2,8 @@
 
 Implementation review: 1 October 2026, including a final pass against the original farmer/fleet-owner request. These changes are local; the three new migrations and application changes have not been deployed.
 
+**Released 2 October 2026.** The three migrations below were applied to the live database and the application deployed (`5d307ed`); the job-card and work-request screens were then simplified without changing this workflow (`38ea421`). Notes below that say these changes are local or undeployed are historical.
+
 ## Choose who does the work first
 
 The job-card list, asset page and fault page use the same creation form. Ask for the asset, who will do the work, the work type and the problem. Collect diagnosis, parts, labour and handover information later, when those details are known.
