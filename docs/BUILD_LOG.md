@@ -4466,3 +4466,19 @@ ui:check (53 routes at 360px and 1024px).
 **Left undone.** Not on a real phone; synthetic speech is cleaner than a farm, so expect
 lower numbers on real recordings, and record some. The migration must be applied before
 release. DPAs for Microsoft and OpenAI through the gateway are not on file.
+
+### Released
+
+`20261003090000` was applied to the live database first (its probe and every other answered
+true), then `2fbbd2f` was pushed. Vercel Production reported Ready for that SHA and CI
+passed. On the live site the AI hearing route answers 403 signed out and 403
+`consent_required` signed in without v2 consent; `voice:check` passes 39/39 and `ui:check`
+passes.
+
+`voice:check` first timed out against production, and the cause applies to real people
+too: the server renders the Talk buttons ready to tap, and React attached to them only
+seconds later (within 4 s on a desktop connection). The check tapped inside that gap and
+the tap did nothing. It now waits for React to attach before it taps. Any server-rendered
+button behaves this way until its script runs, so a farmer on a slow phone connection can
+lose a first tap on any page; measure it on a phone before deciding whether to show
+buttons as not yet ready.

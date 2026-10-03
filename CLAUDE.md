@@ -53,18 +53,21 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: live in production on Vercel (`main`).** `origin/main` is at `38ea421`
-(2026-10-02): the job-card workflow rework (`91db552`), the second UI pass (`1d5585c`),
-their merge (`c978f9a`), migration probes (`5d307ed`) and the calmer job-card and
-work-request screens (`38ea421`). Vercel Production reported Ready for that SHA, the alias
-serves a byte-identical CSS bundle, both CI jobs passed (App quality gates + build, RLS
-isolation tests), and `ui:check` passes against the live URL (11 dialog routes, 53 routes
-at 360px and 1024px). Saving through forms and the job-card workflow end to end have NOT
-been exercised on the live site by a browser.
+**Phase: live in production on Vercel (`main`).** The app code in production is `2fbbd2f`
+(2026-10-03): hands-free voice and mixed Afrikaans/English hearing (BUILD_LOG, 2026-10-02
+and 2026-10-03), on top of the job-card rework and second UI pass released on 2026-10-02
+(`38ea421`). Vercel Production reported Ready for that SHA, both CI jobs passed (App
+quality gates + build, RLS isolation tests), and against the live URL `voice:check` passes
+39/39 (Azure faked in the browser) and `ui:check` passes (dialogs, 53 routes at 360px and
+1024px). The AI hearing route answers 403 to anyone without the v2 audio consent, as it
+should; no real recording has gone through it on the live site, and no phone has run
+hands-free yet. Saving through forms and the job-card workflow end to end have NOT been
+exercised on the live site by a browser.
 
-**Schema and app are level.** All 187 migrations are applied to the live database; the
-three job-card migrations went in on 2026-10-02 immediately before the push, and every
-probe answers true (`node scripts/apply_pending.mjs --dry` reports nothing pending).
+**Schema and app are level.** All 188 migrations are applied to the live database; the
+voice audio-consent migration (`20261003090000`) went in on 2026-10-03 immediately before
+the push, and every probe answers true (`node scripts/apply_pending.mjs --dry` reports
+nothing pending).
 Billing is live and has taken a real payment; email sends via Resend.
 `supabase/tests/deploy_compatibility.sql` pins every call shape the DEPLOYED build makes,
 so a migration that drops a function signature is caught before it breaks the live site.
