@@ -13,6 +13,21 @@ export const assistantTurnRequestSchema = z
     voiceCaptureId: z.uuid().optional(),
     supersedesVoiceCaptureIds: z.array(z.uuid()).min(1).max(5).optional(),
     sttConfidence: z.number().min(0).max(1).optional(),
+    /**
+     * The same utterance as other recognisers heard it (a second pass in the other
+     * language, an AI transcriber). Never shown or stored as what was said; the server
+     * uses them only to find the intent and the machine. See routing.ts.
+     */
+    alternatives: z
+      .array(
+        z.object({
+          text: z.string().trim().min(1).max(2000),
+          locale: z.enum(["en-ZA", "af-ZA"]),
+          source: z.enum(["recogniser", "second-pass", "ai"]),
+        }),
+      )
+      .max(4)
+      .optional(),
     clarification: z
       .object({
         interactionId: z.uuid(),
@@ -28,6 +43,13 @@ export const assistantTurnRequestSchema = z
       .optional(),
   })
   .superRefine((value, context) => {
+    if (value.alternatives?.length && value.channel !== "voice") {
+      context.addIssue({
+        code: "custom",
+        path: ["alternatives"],
+        message: "Only a spoken request has other hearings of it.",
+      });
+    }
     if (value.supersedesVoiceCaptureIds && value.channel !== "voice") {
       context.addIssue({
         code: "custom",

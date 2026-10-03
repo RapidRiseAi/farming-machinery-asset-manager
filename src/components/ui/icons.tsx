@@ -347,6 +347,15 @@ export const StopIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Hands-free voice mode: talk, and hear the answer. */
+export const HeadsetIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 16v-4a8 8 0 0 1 16 0v4" />
+    <rect x="3" y="14" width="4" height="6" rx="1.5" />
+    <rect x="17" y="14" width="4" height="6" rx="1.5" />
+  </Svg>
+);
+
 export const PinIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M12 21s6.5-6.1 6.5-10.5a6.5 6.5 0 0 0-13 0C5.5 14.9 12 21 12 21z" />

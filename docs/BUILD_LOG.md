@@ -4301,3 +4301,168 @@ live URL (11 dialog routes, 53 routes at 360px and 1024px), CI green on `5d307ed
 the job-card workflow end to end, line entry, kits, media and supplier invoices are
 verified by the SQL suites and unit tests, not by a person pressing Save. The job-card
 media and supplier-document dialogs keep their hand-rolled labels (unchanged here).
+
+
+## 2026-10-02 - Voice: mixed Afrikaans and English, and a hands-free mode that answers aloud
+
+### Mixed sentences
+
+Asked for: "what is the status of the rooi bakkies repairs" should just work. Azure's
+recogniser identifies ONE language per spoken segment (continuous language ID over af-ZA
+and en-ZA), so a mostly English sentence goes to the English model and "rooi bakkie" comes
+back as "roy backie". Azure's in-sentence code-switching mode was checked and ruled out:
+its 25 languages include neither Afrikaans nor en-ZA, the JS SDK does not support it, and
+it takes no phrase list. So the fix is where it matters, finding the MACHINE however the
+words come back, all in code we own:
+
+- `src/lib/assistant/spoken-forms.ts`, new. `soundKey` folds a phrase to roughly how it
+  sounds ("rooi bakkie", "roy backie" and "roy bucky" fold to one key);
+  `crossLanguageVariants` swaps colour and machine-type words (wit/white,
+  trekker/tractor, bakkie/pickup); `shortSpokenForms` derives "rooi bakkie" and "red
+  bakkie" from a name like "Rooi Toyota Hilux Bakkie".
+- `matchMachine` also scores those forms, at a 5% discount below a literal match. The
+  thresholds and the ambiguity rule are unchanged, so two red bakkies still make the
+  assistant ask, and a match is still only a suggestion behind the confirmation card.
+- The phrase list biases the English model, the one that mishears. It now leads with
+  the code-switch words (bakkie, trekker, rooi, wit, band, olie, remme...) and carries
+  each machine's short spoken forms, still within Azure's 500.
+
+Nine new tests: the exact sentence and its misheard form, both directions of
+translation, an Afrikaans colour against an English name, the two-red-bakkies
+ambiguity, and that ordinary matches did not move. Mutation-tested: zeroing the sound
+discount or emptying the variants fails them.
+
+### Hands-free
+
+Decided with the user: build it now on the existing Azure account, and a change is read
+back aloud but saved only by a tap; no spoken "ja" saves anything. "Talk hands-free"
+swaps the typing row for a panel that listens, sends when the person pauses (1.3 s after
+Azure closes the last phrase, or at once on "Done, answer now"), speaks the reply, and
+listens again.
+
+- A one-field question is answered by voice, asked once more if the answer has no
+  number in it. A several-field form, a consent prompt or any error ends the loop with
+  the reason on screen. Eight seconds of silence pauses it rather than holding a live
+  mic. Interrupt talks over a reply; a tap on Confirm or Do not save during the
+  read-back acts at once; the screen wake lock is held while it runs, because nobody is
+  touching the phone.
+- Phones play only audio that a tap started, and a reply arrives seconds after the tap.
+  `unlockAudio()` starts one silent Web Audio frame inside the tap; replies are then
+  synthesised to memory (`SpeechSynthesizer(config, null)`) and played through that
+  context. A new `playback_blocked` speech error names the case where a phone refuses
+  anyway. Read aloud outside hands-free is unchanged.
+- Every step of the loop continues after an await that began renders earlier, so it is
+  gated on a voice session number, never on `phase` or `turn` from its closure.
+
+### How it was verified without Azure
+
+`.env.local` holds placeholders for the speech and LLM settings, so speech cannot start
+here. `scripts/voice_check.mjs` (`pnpm voice:check`) drives the production build in
+headless Chrome: real Speech SDK, Chrome's fake microphone, real clicks. Azure's two
+websockets and the three assistant routes are stood in by an injected script that speaks
+the SDK's wire protocol, so nothing reaches the LLM or the database. 35 checks pass. Its
+first runs found two bugs, both fixed before this entry: Stop pressed while the last
+words were being finished left the whole screen disabled on "Thinking", and Confirm was
+greyed out for the length of the read-back.
+
+### Gates
+
+typecheck, lint, tests (476), i18n parity (5,483 keys per language) and keys, errors,
+design lint, dashes, build, ui:check against the local build (11 dialog routes, 53
+routes at 360px and 1024px), voice:check (35/35). No migrations.
+
+**Left undone.** Nothing has run on a real phone: whether iOS Safari plays the replies,
+and returns sound to the speaker once the mic closes, and how well Azure really hears
+mixed sentences, need a person on the live site. A second transcriber
+(gpt-4o-transcribe, not offered in South Africa North) is worth a trial only if real
+recordings show the matching is not enough.
+
+
+## 2026-10-03 - Mixed Afrikaans and English, measured on real recognisers, fixed in three layers
+
+### What was measured
+
+Asked for: transcription that holds up when someone says an Afrikaans name in an English
+sentence. Azure's own docs settle the cause: continuous language ID "doesn't support
+changing languages within the same sentence". So the work began with numbers, not a
+provider. 45 requests about a fleet with Afrikaans-coined names ("Ou Blou", "Oom Piet se
+Trok", "Spuitwa") were synthesised four ways (English South African voice, bilingual voice
+saying the names natively, Afrikaans voice, mixed grammar), each clean and with engine
+noise: 90 clips. Every transcript was scored with the app's own matcher and parser.
+
+Right machine, of 90 (wrong picks in brackets):
+
+| Hearing | Right |
+|---|---|
+| Azure as the app ran it (auto language + phrase list), old matcher | 43% |
+| the same, new matcher | 54% (1%) |
+| Azure fixed-English and fixed-Afrikaans passes, merged | 73% (1%) |
+| MAI-Transcribe-2 with the farm's names as a phrase list | 96% (0%) |
+| gpt-4o-transcribe with the names in its prompt | 96% (0%) |
+| Gemini 3.5 Transcribe, VERBATIM + vocabulary (old matcher) | 82% (4%) |
+| MAI + gpt-4o, each weighed against the other | 99% (0%) |
+
+All rows are scored with the final matcher and parser except where marked; the AI rows
+were 89% and 90% before the parser learned spoken numbers and the matcher's fixes.
+
+Findings that shaped the build: under continuous language ID the phrase list had no
+visible effect; Azure's Afrikaans model hears Afrikaans names even inside English
+sentences and garbles the English, the English model the reverse; without vocabulary every
+AI model failed the names (Gemini heard "un petit essai", MAI decided it was German).
+Research (3 providers' docs, two fact-check passes) found no vendor publishing
+Afrikaans-English mixing accuracy; the methods literature backs a per-farm phonetic
+matcher first, a second hearing next, and an opt-in AI pass with the matcher as authority.
+
+### What was built
+
+- Matcher (`normalize.ts`, `spoken-forms.ts`): a label several machines share cannot
+  outvote one machine's own name (two John Deeres no longer tie on "6155"); a label carried
+  only by its type word names nothing ("the tractor" asks instead of picking Groot Trekker,
+  a regression the first pass had introduced); a colour that describes the vehicle vetoes a
+  contradicting machine, while "white smoke" does not; derived spellings rank below real
+  names; articles, descriptors and possessives translate ("the old Massey", "Uncle Piet's
+  truck"); Azure's "oompiet.se" and sentence-final full stops no longer glue words. Caches
+  took 300-machine matching from 586 ms to 51 ms.
+- Parser (`parser.ts`, `numbers.ts`, `local-read.ts`, `spoken-clarification.ts`): fault
+  words in both languages (flat, pap, stukkend, check engine light); "check engine light"
+  no longer routes a report to a fault list; "serviced" is a finished service; "500 hour
+  service" is not the reading; "uur"; a reading after a comma; spoken numbers in both
+  languages ("drie duisend vier honderd en vyftig") without turning "een van die trekkers"
+  into one; the symptom after "problem with X," is kept; "die X se" counts as naming a
+  machine; "Yeah" and "Nee, dit staan" answer the urgency question.
+- Hearings: the browser records the clip Azure is transcribing (one microphone; Azure gets
+  a clone because the SDK stops the tracks it is handed). When the live transcript already
+  carries an intent and one confident machine it goes at once; otherwise the clip is heard
+  again by Azure in the other fixed language, and, with audio consent, by MAI-Transcribe-2
+  and gpt-4o-transcribe through the AI Gateway (`/api/assistant/transcribe`), each with a
+  deadline. The server weighs every hearing (`routing.ts`): intent from the first that has
+  one, machine from the most confident, a confident rival makes it a question.
+- Consent v2 (`20261003090000`): `voice-ai-v2` covers the recording and machine names.
+  Opting in still stamps v1, because the old build is live while migrations are applied;
+  only an explicit extension of active consent reaches v2. New allow text, an upgrade
+  line for v1 holders, a privacy line that says where audio goes. `docs/POPIA.md` updated.
+
+### Verification
+
+Gates (on these changes alone, in an isolated worktree, because another session was
+building driver activity in the shared tree): typecheck, lint, 502 tests, i18n parity and
+keys, errors, design lint, dashes; all 29 SQL suites on PGlite with 188 migrations,
+including new consent-v2 checks; build; voice:check (39/39, including a new re-hearing
+scenario, which caught the clip being decoded on every turn instead of only hard ones);
+ui:check (53 routes at 360px and 1024px).
+
+### Found on the way, for the founder
+
+- The Azure Speech resource refuses parallel recognitions (free-tier behaviour): two people
+  talking at once collide. Move it to S0.
+- The AI Gateway team is on the free tier: 5 requests per minute per model, and Gemini
+  language models refused. Production AI transcription needs credits.
+- Vercel is on Hobby: zero-data-retention routing is refused, and Hobby is for
+  non-commercial use. `ASSISTANT_TRANSCRIBE_ZDR=1` turns ZDR on after an upgrade.
+- `vercel env pull` returns `[SENSITIVE]` for Sensitive variables, which is why
+  `.env.local` holds placeholders. Real tests used the live speech-token route and a pulled
+  development OIDC token instead, both from a scratch folder, deleted afterwards.
+
+**Left undone.** Not on a real phone; synthetic speech is cleaner than a farm, so expect
+lower numbers on real recordings, and record some. The migration must be applied before
+release. DPAs for Microsoft and OpenAI through the gateway are not on file.

@@ -277,12 +277,15 @@ test("a machine chosen in a clarification is answered, not asked about again", a
     },
   });
   const scope = { supabase: neverQuery, farmId: "farm", role: "owner" as const, machines: [groen, stroper, planter] } as never;
-  const request = { kind: "service_attention", machineQuery: "Groen John Deere" } as const;
+  const request = { kind: "service_attention", machineQuery: "John Deere" } as const;
 
-  // The premise of the bug: the chosen machine's own name is still ambiguous
-  // across the fleet, because the other two machines share its make.
+  // The premise of the bug: what was said is ambiguous across the fleet, because all
+  // three machines share the make. (The full name "Groen John Deere" no longer is: a
+  // label several machines share cannot outvote one machine's own name.)
   const whole = await answerLocalRead(request, scope, "en-ZA");
-  assert.ok((whole.machineOptions?.length ?? 0) >= 2, "the name alone is ambiguous across the fleet");
+  assert.ok((whole.machineOptions?.length ?? 0) >= 2, "the make alone is ambiguous across the fleet");
+  const named = await answerLocalRead({ ...request, machineQuery: "Groen John Deere" }, scope, "en-ZA");
+  assert.equal(named.machineId, groen.id, "the full name resolves on its own");
 
   const chosen = scopeForChosenMachine(scope, groen.id);
   assert.ok(chosen);

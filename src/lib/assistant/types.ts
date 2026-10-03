@@ -136,7 +136,15 @@ export type AssistantTurnRequest = {
   /** Earlier voice captures made non-actionable when this corrected/retried text is submitted. */
   supersedesVoiceCaptureIds?: string[];
   sttConfidence?: number;
+  /** Other hearings of the same utterance; used to find the intent and machine, never shown. */
+  alternatives?: AssistantHearing[];
   clarification?: AssistantClarification;
+};
+
+export type AssistantHearing = {
+  text: string;
+  locale: AssistantLocale;
+  source: "recogniser" | "second-pass" | "ai";
 };
 
 export type ConfirmationProposal = {

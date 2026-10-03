@@ -8,6 +8,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { checkEntitlement, currentFarmId, effectiveFarmRole, getFarmPlan } from "@/lib/auth";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import { loadAssistantThread } from "@/lib/assistant/history";
+import { allowsAudioTranscription } from "@/lib/assistant/transcription";
 import { planAllows } from "@/lib/entitlements";
 import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
@@ -76,6 +77,7 @@ export default async function AssistantPage() {
       initialSpeechLanguage={profile.language === "af" ? "af-ZA" : "en-ZA"}
       machines={machines}
       initialAiConsent={profile.ai_processing_opt_in}
+      initialAudioConsent={allowsAudioTranscription(profile)}
       initialThread={initialThread}
       infoButton={<PageInfoButton infoKey="assistant" locale={locale} />}
       capabilities={{

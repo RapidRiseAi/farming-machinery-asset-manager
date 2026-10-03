@@ -1,8 +1,12 @@
 import { normalizeAssistantText } from "./normalize";
+import { replaceNumberWords } from "./numbers";
 import { todayInSouthAfrica } from "./date";
 import type { AssistantClarification, AssistantField } from "./types";
 
-function spokenNumber(value: string): number | null {
+function spokenNumber(answer: string): number | null {
+  // "Three thousand four hundred and fifty" / "drie duisend vier honderd en vyftig":
+  // the reading said in words rather than digits.
+  const value = /\d/.test(answer) ? answer : replaceNumberWords(normalizeAssistantText(answer));
   const matches = [...value.matchAll(/\b(\d{1,3}(?:[ ,.']\d{3})+|\d+(?:[.,]\d+)?)\b/g)];
   const raw = matches.at(-1)?.[1];
   if (!raw) return null;
@@ -28,11 +32,13 @@ export function clarificationFromSpeech(
     clarification.reading = reading;
   } else if (field.name === "urgency") {
     const normalized = normalizeAssistantText(value);
-    if (/\b(stopped|cannot work|cant work|out of service|gestop|staan stil|kan nie werk)\b/.test(normalized)) {
+    // The question is "can the machine still operate safely?", so a bare "no" / "nee"
+    // means it has stopped, and "dit staan" (it is standing) says the same.
+    if (/\b(stopped|cannot work|cant work|can't work|out of service|standing|dead|no|nope|gestop|staan stil|staan|kan nie werk|nee)\b/.test(normalized)) {
       clarification.urgency = "stopped";
     } else if (/\b(limited|limping|reduced|sukkel|beperk)\b/.test(normalized)) {
       clarification.urgency = "limping";
-    } else if (/\b(yes|can still work|still works|safe|ja|kan nog werk|werk nog)\b/.test(normalized)) {
+    } else if (/\b(yes|yeah|yep|can still work|still works|safe|ja|jip|jep|kan nog werk|werk nog)\b/.test(normalized)) {
       clarification.urgency = "can_work";
     } else {
       return null;

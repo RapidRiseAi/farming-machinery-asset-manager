@@ -1,6 +1,41 @@
 import type { AssistantLocale, AssistantMachine } from "./types";
+import { shortSpokenForms } from "./spoken-forms";
 
 export type AssistantSpeechVoice = "willem" | "ollie";
+
+/**
+ * Afrikaans words people drop into an English sentence ("the rooi bakkie's tyre"),
+ * and their English counterparts. The phrase list only applies to the English model,
+ * which is exactly the model that mishears them, so these are its warning.
+ */
+const CODE_SWITCH_WORDS = [
+  "bakkie",
+  "bakkies",
+  "trekker",
+  "trekkers",
+  "stroper",
+  "vragmotor",
+  "trok",
+  "sleepwa",
+  "sproeier",
+  "voorlaaier",
+  "rooi",
+  "wit",
+  "groen",
+  "blou",
+  "swart",
+  "geel",
+  "grys",
+  "band",
+  "bande",
+  "olie",
+  "remme",
+  "koppelaar",
+  "ratkas",
+  "stukkend",
+  "werkswinkel",
+  "plaas",
+] as const;
 
 const BILINGUAL_DOMAIN_PHRASES = [
   "broken window",
@@ -42,8 +77,9 @@ export function speechVocabulary(machines: readonly AssistantMachine[]): string[
   const phrases: string[] = [];
   // Reserve the front of Azure's 500-phrase allowance for the small bilingual
   // operations vocabulary so a large fleet cannot push these terms out.
-  for (const phrase of BILINGUAL_DOMAIN_PHRASES) {
+  for (const phrase of [...BILINGUAL_DOMAIN_PHRASES, ...CODE_SWITCH_WORDS]) {
     const key = phrase.toLocaleLowerCase("en-ZA");
+    if (seen.has(key)) continue;
     seen.add(key);
     phrases.push(phrase);
   }
@@ -54,6 +90,9 @@ export function speechVocabulary(machines: readonly AssistantMachine[]): string[
       machine.model,
       machine.make && machine.model ? `${machine.make} ${machine.model}` : null,
       ...machine.aliases,
+      // The way people actually say it: "rooi bakkie", "red bakkie".
+      ...shortSpokenForms(machine.name),
+      ...machine.aliases.flatMap(shortSpokenForms),
     ];
     for (const candidate of candidates) {
       const value = candidate?.trim().replace(/\s+/g, " ");

@@ -248,7 +248,7 @@ export async function listOfflineCaptures(contextKey: string): Promise<OfflineVo
   });
 }
 
-function preferredMimeType(): string {
+export function preferredMimeType(): string {
   const candidates = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
@@ -365,10 +365,15 @@ function encodePcmWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
 }
 
 /** Decode the local MediaRecorder format and resample it to Azure-friendly 16 kHz WAV. */
-export async function offlineCaptureToWav(capture: OfflineVoiceCapture): Promise<File> {
+export function offlineCaptureToWav(capture: OfflineVoiceCapture): Promise<File> {
+  return recordingToWav(capture.audio, `${capture.id}.wav`);
+}
+
+/** The recorder's compressed clip (webm/opus, mp4/aac) as 16 kHz mono WAV, the format every recogniser takes. */
+export async function recordingToWav(audio: Blob, name: string): Promise<File> {
   const context = new AudioContext();
   try {
-    const decoded = await context.decodeAudioData(await capture.audio.arrayBuffer());
+    const decoded = await context.decodeAudioData(await audio.arrayBuffer());
     const frames = Math.max(1, Math.ceil(decoded.duration * 16_000));
     const offline = new OfflineAudioContext(1, frames, 16_000);
     const source = offline.createBufferSource();
@@ -377,7 +382,7 @@ export async function offlineCaptureToWav(capture: OfflineVoiceCapture): Promise
     source.start(0);
     const rendered = await offline.startRendering();
     const wav = encodePcmWav(rendered.getChannelData(0), rendered.sampleRate);
-    return new File([wav], `${capture.id}.wav`, { type: "audio/wav" });
+    return new File([wav], name, { type: "audio/wav" });
   } finally {
     await context.close().catch(() => undefined);
   }

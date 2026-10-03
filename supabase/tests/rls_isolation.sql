@@ -7275,6 +7275,49 @@ do $$ declare blocked boolean := false; begin
   if not blocked then raise exception 'H1 CONSENT FAIL: owner opted in another person'; end if;
 end $$;
 
+-- Consent v2 (20261003090000): active v1 consent may be extended to the recording and
+-- machine names, and only that. Run inside a block that rolls itself back, because the
+-- checks further down expect this subject to stay on v1.
+do $$ declare r record; before timestamptz; upgraded boolean := false; kept boolean := false;
+  stranger_blocked boolean := false; unconsented_kept boolean := false; begin
+  perform _t_login('7a100000-0000-0000-0000-000000000002');
+  select ai_processing_opted_in_at into before from users where id = '7a100000-0000-0000-0000-000000000002';
+  begin
+    update users set ai_processing_consent_version = 'voice-ai-v9'
+     where id = '7a100000-0000-0000-0000-000000000002';
+    select ai_processing_consent_version into r from users where id = '7a100000-0000-0000-0000-000000000002';
+    kept := r.ai_processing_consent_version = 'voice-ai-v1';
+
+    update users set ai_processing_consent_version = 'voice-ai-v2'
+     where id = '7a100000-0000-0000-0000-000000000002';
+    select ai_processing_opt_in, ai_processing_opted_in_at, ai_processing_consent_version, ai_processing_withdrawn_at
+      into r from users where id = '7a100000-0000-0000-0000-000000000002';
+    upgraded := r.ai_processing_opt_in and r.ai_processing_consent_version = 'voice-ai-v2'
+      and r.ai_processing_opted_in_at >= before and r.ai_processing_withdrawn_at is null;
+
+    perform _t_login('7a100000-0000-0000-0000-000000000001');
+    begin
+      update users set ai_processing_consent_version = 'voice-ai-v2'
+       where id = '7a100000-0000-0000-0000-000000000003';
+    exception when insufficient_privilege then stranger_blocked := true;
+    end;
+
+    perform _t_login('7a100000-0000-0000-0000-000000000003');
+    update users set ai_processing_consent_version = 'voice-ai-v2'
+     where id = '7a100000-0000-0000-0000-000000000003';
+    select ai_processing_opt_in, ai_processing_consent_version into r
+      from users where id = '7a100000-0000-0000-0000-000000000003';
+    unconsented_kept := not r.ai_processing_opt_in and r.ai_processing_consent_version is null;
+
+    raise exception 'roll back the v2 checks';
+  exception when raise_exception then null;
+  end;
+  if not kept then raise exception 'H1 CONSENT FAIL: a client rewrote active consent to an unknown version'; end if;
+  if not upgraded then raise exception 'H1 CONSENT FAIL: active v1 consent could not be extended to v2'; end if;
+  if not stranger_blocked then raise exception 'H1 CONSENT FAIL: owner extended another person''s consent'; end if;
+  if not unconsented_kept then raise exception 'H1 CONSENT FAIL: v2 was granted without opting in'; end if;
+end $$;
+
 -- The farm owner curates aliases; normalization closes spacing/case duplicates and
 -- the composite FK rejects a machine from a different farm.
 do $$ declare blocked boolean := false; begin

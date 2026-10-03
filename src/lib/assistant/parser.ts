@@ -1,15 +1,23 @@
 import { normalizeAssistantText } from "./normalize";
+import { replaceNumberWords } from "./numbers";
 import { todayInSouthAfrica } from "./date";
 import { SERVICE_DUE_CUE } from "./cues";
 import type { AssistantDraft, AssistantIntent, AssistantLocale, AssistantUrgency } from "./types";
 
-const FAULT_WORDS = /\b(problem|fault|issue|leak|leaking|broken|noise|defect|probleem|fout|lek|lekking|gebreek|geraas|defek)\b/;
-const READING_WORDS = /\b(reading|hours?|hrs?|engine hours?|odometer|kilomet(?:er|re)s?|km|lesing|ure|enjinure|kilometer)\b/;
+// Symptoms in both languages, because people report them in whichever comes first:
+// "Bles se band is pap", "the check engine light is on". Each missing word sent a plain
+// fault report to the optional AI path, which means a consent prompt or a cross-border call.
+const FAULT_WORDS = /\b(problem|fault|issue|leak|leaking|leaks|broken|noise|defect|flat|puncture|punctured|dead|smoke|smoking|overheating|probleem|fout|lek|lekking|gebreek|geraas|defek|pap|stukkend|dood|rook|oorverhit)\b|\bcheck engine (?:light|lamp)\b/;
+const READING_WORDS = /\b(reading|hours?|hrs?|engine hours?|odometer|kilomet(?:er|re)s?|km|lesing|ure|uur|enjinure|kilometer)\b/;
 const SERVICE_WORDS = /\b(service|serviced|maintenance|diens|gediens|onderhoud)\b/;
 const COMPLETED_WORDS = /\b(done|completed|finished|logged|gedoen|voltooi|afgehandel|aangeteken|klaar)\b/;
+/** "We serviced the spuitwa today" reports a finished service even without "done". */
+const PAST_SERVICE = /\b(serviced|gediens)\b/;
 
 const NUMBER_SOURCE = String.raw`\d{1,3}(?:[ ,.]\d{3})+|\d+(?:[.,]\d+)?`;
-const MEASUREMENT_UNIT_SOURCE = String.raw`(?:engine\s+hours?|hours?|hrs?|enjinure|ure|kilomet(?:er|re)s?|kilometer|km)`;
+const MEASUREMENT_UNIT_SOURCE = String.raw`(?:engine\s+hours?|hours?|hrs?|enjinure|ure|uur|kilomet(?:er|re)s?|kilometer|km)`;
+/** "the 500 hour service" names the service interval, not the meter reading. */
+const INTERVAL_FOLLOWS = String.raw`(?!\s*(?:service|diens|interval|inspection|inspeksie))`;
 const METER_LABEL_SOURCE = String.raw`(?:odometer|meter\s+reading|reading|lesing)`;
 
 function parseMeterNumber(raw: string): number | null {
@@ -52,7 +60,7 @@ function extractMeterReading(text: string): number | null {
     },
     {
       priority: 2,
-      expression: new RegExp(String.raw`\b(${NUMBER_SOURCE})\s*(?:-\s*)?${MEASUREMENT_UNIT_SOURCE}\b`, "g"),
+      expression: new RegExp(String.raw`\b(${NUMBER_SOURCE})\s*(?:-\s*)?${MEASUREMENT_UNIT_SOURCE}\b${INTERVAL_FOLLOWS}`, "g"),
     },
     {
       priority: 2,
@@ -74,7 +82,7 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
   const asks = questionStart || /\b(when|what|how|is|show|tell|wanneer|wat|hoe|wys|vertel)\b/.test(text) || text.endsWith("?");
   const explicitRead = questionStart || /\b(show|list|which|what|when|tell me|see|view|history|current|wys|toon|lys|watter|wat|wanneer|vertel|sien|bekyk|geskiedenis|huidige)\b/.test(text) || text.endsWith("?");
   const readingWrite = /\b(log|record|set|capture|add|aanteken|teken|stel|registreer|voeg)\b/.test(text);
-  if (SERVICE_WORDS.test(text) && COMPLETED_WORDS.test(text)) {
+  if (SERVICE_WORDS.test(text) && (COMPLETED_WORDS.test(text) || PAST_SERVICE.test(text))) {
     // A question about completed service history is a read, never a new service entry.
     // The local read router handles common forms without using an AI provider.
     if (explicitRead) return { intent: null, confidence: 0.85 };
@@ -129,6 +137,14 @@ function extractFaultDescription(input: string): string | null {
     .replace(/\s+(?:rap?porteer|aanmeld|meld)\s*$/iu, "")
     .trim();
 
+  // "a problem with Bles, it has a flat tyre": the machine reference ends at the comma
+  // and the symptom follows it, often in the other language. Without this the whole tail
+  // read as the machine reference and the user was asked "What is the problem?" again.
+  const afterReference = value.match(
+    /^(?:(?:a|an|the|'?n|die)\s+)?(?:problem|fault|issue|probleem|fout)\s+(?:on|with|for|at|op|aan|by|vir|met)\s+[^,;:]+[,;:]\s*(.+)$/iu,
+  );
+  if (afterReference?.[1]?.trim()) return afterReference[1].trim();
+
   const normalized = normalizeAssistantText(value)
     .replace(/^(?:a|an|the|'?n|die)\s+/, "")
     .trim();
@@ -152,10 +168,25 @@ function inferCategory(text: string): string | null {
   return null;
 }
 
+/**
+ * "Log the hours for die groot trekker, 5320.": a reading said after the name with no
+ * unit beside it. Taken only after a comma at the very end, so a model number at the end
+ * of a name ("the Massey 290") is never read as hours.
+ */
+function trailingReading(input: string): number | null {
+  const match = input.trim().match(/,\s*(\d{1,3}(?:[ ,.]\d{3})+|\d+(?:[.,]\d+)?)\s*[.!]?$/);
+  return match ? parseMeterNumber(match[1]) : null;
+}
+
 export function parseDeterministic(input: string, _locale: AssistantLocale): AssistantDraft {
   const normalized = normalizeAssistantText(input);
   const { intent, confidence } = inferIntent(normalized);
-  const reading = intent === "log_reading" || intent === "log_service" ? extractMeterReading(normalized) : null;
+  // Spoken quantities ("four thousand three hundred", "drie duisend ...") become digits
+  // for the reading only; intent cues stay on the words as said.
+  const withDigits = replaceNumberWords(normalized);
+  const reading = intent === "log_reading" || intent === "log_service"
+    ? extractMeterReading(withDigits) ?? (intent === "log_reading" ? trailingReading(input) : null)
+    : null;
 
   return {
     intent,

@@ -20,6 +20,7 @@ pnpm lint               # next lint
 pnpm db:test            # apply migrations + run RLS isolation tests on local Postgres
 pnpm db:check           # the same on PGlite when there is no psql; --suite runs them all
 pnpm ui:check           # drive Chrome over CDP: do the screens' dialogs actually work?
+pnpm voice:check        # hands-free voice mode end to end, with Azure stood in at the websocket
 ```
 `pnpm db:test` runs `supabase/tests/run.sh`: it (re)creates a local test DB, loads the
 Supabase auth shim, applies every migration in order, then runs the RLS isolation suite.
@@ -80,6 +81,14 @@ migration number (`0481`), commit (`bcbd39c`) or feature code (`F14`). Per-featu
 lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.md).
 
 ### Open, founder only
+- **AI transcription for mixed Afrikaans/English is built but needs the founder.**
+  Migration `20261003090000` (consent v2) must be applied before the release that carries
+  it. The AI Gateway team is on the free tier (5 requests a minute per model): add
+  credits. Sign DPAs for Microsoft and OpenAI through the gateway. Vercel Hobby refuses
+  zero-data-retention routing and is for non-commercial use; after an upgrade set
+  `ASSISTANT_TRANSCRIBE_ZDR=1`.
+- **The Azure Speech resource refuses parallel recognitions**, so two people talking at
+  once collide (seen as "number of parallel requests exceeded"). Move it to S0.
 - **`lapsed_grace_days` is live at 30 and it will close accounts.** Needs a decision, not a default.
 - **`src/lib/legal.ts` needs a lawyer's read**, then bump `TERMS_VERSION`.
 - **Confirm `NEXT_PUBLIC_SITE_URL` is set in Vercel Production.** Every checkout callback is
@@ -93,6 +102,10 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   `docs/FEATURE_GAP_REVIEW_2026-09-19.md`.
 
 ### Open, needs a browser or a throwaway farm
+- **Hands-free voice mode has never run on a real phone.** `pnpm voice:check` proves the
+  loop in Chrome against a stand-in Azure. Whether iOS Safari plays the replies (the audio
+  unlock) and returns sound to the speaker after the mic closes, and how well Azure really
+  hears mixed Afrikaans and English, need a person on the live site.
 - **The service worker stops pages hydrating after about eight hard loads in one tab.**
   The page renders correctly and React attaches to nothing: buttons visible, enabled,
   clicks do nothing, no console error, no error boundary. Reproduced on pages nobody had
@@ -182,6 +195,13 @@ will bite again.
   it is where a layout only ever seen at 1280 shows its seams. A `<Table stacked>` is
   cards below `lg` and a real table above it, and shipping it without the scroll wrapper
   pushed `/team` to 1112px on a 13-inch laptop.
+- **Speech cannot start from this machine, and `vercel env pull` will not fix it.**
+  `AZURE_SPEECH_*` and `LLM_MODEL` are Vercel *Sensitive* variables: a pull writes
+  `[SENSITIVE]`, which is where `.env.local`'s placeholders came from. Do not chase a local
+  voice failure as a code bug. `pnpm voice:check` stands in for Azure; for REAL
+  recognition, sign in as the click-through owner and take a token from the live
+  `/api/assistant/speech-token`, and use a pulled development `VERCEL_OIDC_TOKEN` (12 hours)
+  for the AI Gateway, from a scratch folder, never the repo.
 - **A migration without a probe in `scripts/apply_pending.mjs` is skipped as "assumed
   applied".** The three job-card migrations had none, so the dry run said "Nothing pending"
   against a live database that had none of their objects, and the release would have shipped

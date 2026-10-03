@@ -14,9 +14,10 @@ import { assistantTurnRequestSchema } from "@/lib/assistant/request-schema";
 import type { ParsedAssistantTurnRequest } from "@/lib/assistant/request-schema";
 import {
   isAssistantWriteIntent,
+  matchAcrossHypotheses,
   matchAssistantMachine,
   machinesForAssistantDraft,
-  planAssistantRoute,
+  planAcrossHypotheses,
   readOnlyWriteTarget,
 } from "@/lib/assistant/routing";
 import {
@@ -97,6 +98,11 @@ export async function POST(request: Request) {
   const parsedBody = assistantTurnRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsedBody.success) return json({ kind: "error", code: "bad_request", message: "Check the command and try again." }, 400);
   const body = parsedBody.data;
+  // Other hearings of a spoken request (see routing.ts matchAcrossHypotheses). A
+  // clarification answers one question about an exchange already resolved, so they
+  // play no part in it.
+  const hearings = body.clarification ? [] : (body.alternatives ?? []);
+  const hearingTexts = hearings.map((hearing) => hearing.text);
 
   const context = await getAssistantContext();
   if (!context) {
@@ -320,10 +326,18 @@ export async function POST(request: Request) {
         });
       }
 
-      const routePlan = planAssistantRoute(body.input, body.locale);
+      const { plan: routePlan } = planAcrossHypotheses(body.input, body.locale, hearings);
       draft = routePlan.draft;
       if (routePlan.kind === "local") {
-        const answer = await answerLocalRead(routePlan.request, readScope, body.locale);
+        // The shown transcript can garble a name that another hearing got right ("Ruby
+        // Bakkies" / "rooi bakkie"): answer about the machine the hearings agree on.
+        let localScope = readScope;
+        const spokenName = "machineQuery" in routePlan.request ? routePlan.request.machineQuery : undefined;
+        if (hearings.length && spokenName && !matchMachine(spokenName, machines).machine) {
+          const agreed = matchAcrossHypotheses([spokenName, ...hearingTexts], machines);
+          if (agreed.machine) localScope = scopeForChosenMachine(readScope, agreed.machine.id) ?? readScope;
+        }
+        const answer = await answerLocalRead(routePlan.request, localScope, body.locale);
         if (answer.machineOptions?.length) {
           draft = { ...draft, localReadRequest: routePlan.request };
           interactionId = await createInteraction({
@@ -555,7 +569,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const readOnlyTarget = readOnlyWriteTarget(draft, body.input, machines, writableMachines);
+    const readOnlyTarget = readOnlyWriteTarget(draft, body.input, machines, writableMachines, hearingTexts);
     if (readOnlyTarget || (isAssistantWriteIntent(draft.intent) && writableMachines.length === 0)) {
       if (interactionId) {
         await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
@@ -588,7 +602,7 @@ export async function POST(request: Request) {
     }
 
     const intentMachines = machinesForAssistantDraft(draft, machines, writableMachines);
-    const match = matchAssistantMachine(draft, body.input, machines, writableMachines);
+    const match = matchAssistantMachine(draft, body.input, machines, writableMachines, hearingTexts);
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
 

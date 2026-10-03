@@ -108,7 +108,10 @@ export function parseLocalReadRequest(input: string): LocalReadRequest | null {
     if (/\b(quote|quotes|quotation|invoice|invoices|document|documents|kwotasie|kwotasies|faktuur|fakture|dokument|dokumente)\b/.test(text)) return { kind: "navigation", navigation: "documents" };
   }
 
-  const isRead = READ_CUE.test(text) || QUESTION_START.test(text) || TERSE_READ.test(text) || input.trim().endsWith("?");
+  // "check engine light" is a symptom, not a request to check something: inside an
+  // Afrikaans fault report it turned "die check engine light is aan" into a fault LIST read.
+  const cueText = text.replace(/\bcheck engine (?:light|lamp)\b/g, " ");
+  const isRead = READ_CUE.test(cueText) || QUESTION_START.test(cueText) || TERSE_READ.test(cueText) || input.trim().endsWith("?");
   // In Afrikaans, lifecycle status reads naturally use the infinitive inside a
   // relative clause ("fakture wat betaal is"). Remove only that subordinate
   // status wording before looking for an action verb; "wys en betaal" remains
@@ -300,7 +303,11 @@ function amount(cents: number | null, locale: AssistantLocale): string | null {
 
 function hasExplicitMachineQualifier(input: string, kind: LocalReadRequest["kind"]): boolean {
   const text = normalizeAssistantText(input);
-  const match = text.match(/\b(?:on|for|of|about|with|op|vir|van|oor|met)\s+(?:(?:the|die|my|'?n)\s+)?([^?.!,]+)\s*$/);
+  // "...op die Hilux" names a machine at the end; Afrikaans also names it up front with a
+  // possessive, "wanneer is die Hilux se volgende diens?". Without the second form an
+  // unrecognised name quietly got an answer about the WHOLE fleet.
+  const match = text.match(/\b(?:on|for|of|about|with|op|vir|van|oor|met)\s+(?:(?:the|die|my|'?n)\s+)?([^?.!,]+)\s*$/)
+    ?? text.match(/\b(?:die|the)\s+([a-z0-9][^?.!,]*?)\s+se\b/);
   if (!match) return false;
   const tail = match[1].trim();
   if (!tail || /^(?:all|my|the|die)?\s*(?:fleet|machines?|assets?|service|services|faults?|job\s*cards?|work\s*requests?|quotes?|invoices?|documents?|vloot|masjiene?|bates?|diens|dienste|foute?|werkkaarte?|werkversoeke?|kwotasies?|fakture?|dokumente?)$/.test(tail)) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { ClipRecorder } from "./clip-recorder";
+
 type SpeechSdk = typeof import("microsoft-cognitiveservices-speech-sdk");
 type AudioConfig = import("microsoft-cognitiveservices-speech-sdk").AudioConfig;
 type SpeechConfig = import("microsoft-cognitiveservices-speech-sdk").SpeechConfig;
@@ -23,6 +25,7 @@ const FILE_RECOGNITION_START_TIMEOUT_MS = 15_000;
 // A 60-second recording needs a little wall-clock headroom for upload and finalization.
 const FILE_RECOGNITION_TIMEOUT_MS = 75_000;
 const SYNTHESIS_TIMEOUT_MS = 120_000;
+const CONTEXT_RESUME_TIMEOUT_MS = 3_000;
 const MAX_PHRASES = 500;
 const MAX_PHRASE_LENGTH = 120;
 const MAX_SPEECH_TEXT_LENGTH = 8_000;
@@ -50,6 +53,7 @@ export type SpeechClientErrorCode =
   | "timeout"
   | "service_unavailable"
   | "token_unavailable"
+  | "playback_blocked"
   | "cancelled"
   | "unknown";
 
@@ -110,6 +114,10 @@ const ERROR_INFO = {
     message: "A secure speech session could not be started.",
     retryable: true,
   },
+  playback_blocked: {
+    message: "The browser blocked the sound.",
+    retryable: true,
+  },
   cancelled: {
     message: "The speech operation was cancelled.",
     retryable: true,
@@ -156,6 +164,11 @@ export interface SpeechRecognitionOptions {
   phrases?: readonly string[];
   /** Azure accepts 0-2. Defaults to 1.5. */
   phraseWeight?: number;
+  /**
+   * Also record the microphone stream Azure is transcribing, so the same words can be
+   * heard again after the turn (see `takeLastClip`). Microphone input only.
+   */
+  captureClip?: boolean;
   onPartial?: (transcript: SpeechTranscript) => void;
   onFinal?: (transcript: SpeechTranscript) => void;
   onNoMatch?: () => void;
@@ -173,8 +186,24 @@ export interface SpeechClient {
   stopRecognition(): Promise<void>;
   /** Transcribe a local WAV capture of up to 60 seconds after reconnecting. */
   recognizeFile(file: File, options: SpeechRecognitionOptions): Promise<string>;
+  /**
+   * The clip recorded by the last `captureClip` recognition, as 16 kHz WAV, once that
+   * recognition has stopped; null if there is none. Handed over once.
+   */
+  takeLastClip(): Promise<File | null>;
+  /** Drop the last clip without decoding it: the turn did not need a second hearing. */
+  discardLastClip(): void;
   speak(text: string, options: SpeechSynthesisOptions): Promise<void>;
   stopSpeaking(): Promise<void>;
+  /**
+   * Call SYNCHRONOUSLY inside a tap, before any await (hands-free voice mode).
+   *
+   * Phone browsers, iOS Safari above all, refuse to start audio that a tap did not
+   * start. A spoken reply arrives after a network round trip, long after the tap, so
+   * each reply's own audio element is blocked. This unlocks ONE Web Audio channel
+   * while the tap is still live; every later reply plays through it instead.
+   */
+  unlockAudio(): void;
   dispose(): Promise<void>;
 }
 
@@ -194,6 +223,9 @@ interface RecognitionOperation {
   closed: boolean;
   errorReported: boolean;
   source: "microphone" | "file";
+  /** The microphone this operation opened itself (captureClip), stopped when it closes. */
+  mic?: MediaStream;
+  clip?: ClipRecorder | null;
   fileSettlement?: {
     settle: (error?: SpeechClientError) => void;
     timeoutId?: ReturnType<typeof setTimeout>;
@@ -214,6 +246,17 @@ interface SynthesisOperation {
   timeoutId?: ReturnType<typeof setTimeout>;
   audioElement?: HTMLAudioElement;
   audioErrorHandler?: () => void;
+}
+
+/** A reply synthesized to memory and played through the unlocked Web Audio channel. */
+interface ContextPlayback {
+  synthesizer: SpeechSynthesizer;
+  speechConfig: SpeechConfig;
+  source?: AudioBufferSourceNode;
+  resolve: () => void;
+  reject: (error: SpeechClientError) => void;
+  settled: boolean;
+  timeoutId?: ReturnType<typeof setTimeout>;
 }
 
 interface CallbackClosable {
@@ -546,6 +589,39 @@ class AzureBrowserSpeechClient implements SpeechClient {
     | undefined;
   private synthesisOperation: SynthesisOperation | undefined;
   private synthesisGeneration = 0;
+  private audioContext: AudioContext | undefined;
+  private contextPlayback: ContextPlayback | undefined;
+  private lastClip: ClipRecorder | undefined;
+
+  takeLastClip(): Promise<File | null> {
+    const clip = this.lastClip;
+    this.lastClip = undefined;
+    return clip ? clip.wav() : Promise.resolve(null);
+  }
+
+  discardLastClip(): void {
+    this.lastClip?.cancel();
+    this.lastClip = undefined;
+  }
+
+  unlockAudio(): void {
+    if (this.disposed || typeof window === "undefined") return;
+    try {
+      const Context = window.AudioContext
+        ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Context) return;
+      if (!this.audioContext || this.audioContext.state === "closed") this.audioContext = new Context();
+      const context = this.audioContext;
+      void context.resume().catch(() => undefined);
+      // One silent frame started inside the tap is what lets later replies play.
+      const silent = context.createBufferSource();
+      silent.buffer = context.createBuffer(1, 1, 22_050);
+      silent.connect(context.destination);
+      silent.start(0);
+    } catch {
+      // No Web Audio: replies fall back to their own audio element, as before.
+    }
+  }
 
   async startRecognition(options: SpeechRecognitionOptions): Promise<void> {
     this.assertActive();
@@ -819,6 +895,11 @@ class AzureBrowserSpeechClient implements SpeechClient {
       throw new SpeechClientError("cancelled");
     }
 
+    // Hands-free voice mode unlocked a Web Audio channel inside a tap: play through it.
+    if (this.audioContext && this.audioContext.state !== "closed") {
+      return this.speakThroughContext(sdk, token, options.voice, cleanedText, generation);
+    }
+
     const voice = VOICES[options.voice];
     let speechConfig: SpeechConfig | undefined;
     let audioConfig: AudioConfig | undefined;
@@ -895,10 +976,11 @@ class AzureBrowserSpeechClient implements SpeechClient {
           // SpeakerAudioDestination does not expose its internal play() rejection.
           // Calling it here mirrors the SDK call and lets us report autoplay blocks.
           const playback = audioElement.play();
-          void playback.catch(() => {
+          void playback.catch((error: unknown) => {
+            const blocked = error instanceof DOMException && error.name === "NotAllowedError";
             void this.finishSynthesis(
               operation,
-              new SpeechClientError("service_unavailable"),
+              new SpeechClientError(blocked ? "playback_blocked" : "service_unavailable"),
             );
           });
         } catch {
@@ -969,6 +1051,12 @@ class AzureBrowserSpeechClient implements SpeechClient {
       this.stopActiveSynthesis(new SpeechClientError("cancelled")),
     ]);
 
+    const context = this.audioContext;
+    this.audioContext = undefined;
+    if (context && context.state !== "closed") void context.close().catch(() => undefined);
+    this.lastClip?.cancel();
+    this.lastClip = undefined;
+
     this.cachedToken = undefined;
     this.tokenRequest = undefined;
     this.tokenAbort = undefined;
@@ -982,6 +1070,10 @@ class AzureBrowserSpeechClient implements SpeechClient {
     let audioConfig: AudioConfig | undefined;
     let recognizer: SpeechRecognizer | undefined;
     let operation: RecognitionOperation | undefined;
+    let mic: MediaStream | undefined;
+    let clip: ClipRecorder | null = null;
+    // A new turn's words are not the last turn's: never hand over a stale clip.
+    this.lastClip = undefined;
 
     try {
       await this.stopSpeaking();
@@ -1014,7 +1106,17 @@ class AzureBrowserSpeechClient implements SpeechClient {
       );
       speechConfig.outputFormat = sdk.OutputFormat.Detailed;
 
-      audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      if (options.captureClip) {
+        // One microphone for both: Azure gets a clone, because the SDK stops the tracks of
+        // the stream it is given when it closes, and the recorder keeps the original.
+        mic = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        clip = ClipRecorder.start(mic);
+        audioConfig = sdk.AudioConfig.fromStreamInput(mic.clone());
+      } else {
+        audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      }
       recognizer = createRecognizer(sdk, speechConfig, audioConfig, options);
       operation = {
         recognizer,
@@ -1026,6 +1128,8 @@ class AzureBrowserSpeechClient implements SpeechClient {
         closed: false,
         errorReported: false,
         source: "microphone",
+        mic,
+        clip,
       };
       this.recognitionOperation = operation;
 
@@ -1107,6 +1211,8 @@ class AzureBrowserSpeechClient implements SpeechClient {
         await this.closeRecognitionOperation(operation);
         this.setRecognitionState(operation, "stopped");
       } else {
+        clip?.cancel();
+        mic?.getTracks().forEach((track) => track.stop());
         await closeAsync(recognizer);
         closeSync(audioConfig);
         closeSync(speechConfig);
@@ -1181,6 +1287,12 @@ class AzureBrowserSpeechClient implements SpeechClient {
     await closeAsync(operation.recognizer);
     closeSync(operation.audioConfig);
     closeSync(operation.speechConfig);
+    // Stop the recorder before the microphone, so its last chunk is flushed.
+    if (operation.clip) {
+      operation.clip.finish();
+      this.lastClip = operation.clip;
+    }
+    operation.mic?.getTracks().forEach((track) => track.stop());
 
     if (this.recognitionOperation === operation) {
       this.recognitionOperation = undefined;
@@ -1276,6 +1388,141 @@ class AzureBrowserSpeechClient implements SpeechClient {
   private async stopActiveSynthesis(error: SpeechClientError): Promise<void> {
     const operation = this.synthesisOperation;
     if (operation) await this.finishSynthesis(operation, error);
+    const playback = this.contextPlayback;
+    if (playback) await this.finishContextPlayback(playback, error);
+  }
+
+  /**
+   * Synthesize the whole reply to memory, then play it through the unlocked channel.
+   * Replies are a sentence or three, so waiting for the full audio costs well under a
+   * second and buys playback that a phone will not block.
+   */
+  private speakThroughContext(
+    sdk: SpeechSdk,
+    token: SpeechToken,
+    voiceName: SpeechVoice,
+    text: string,
+    generation: number,
+  ): Promise<void> {
+    const context = this.audioContext;
+    if (!context) return Promise.reject(new SpeechClientError("service_unavailable"));
+    const voice = VOICES[voiceName];
+    let speechConfig: SpeechConfig | undefined;
+    let synthesizer: SpeechSynthesizer | undefined;
+    try {
+      speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token.token, token.region);
+      speechConfig.speechSynthesisLanguage = voice.locale;
+      speechConfig.speechSynthesisVoiceName = voice.name;
+      speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3;
+      synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
+    } catch (error) {
+      void closeAsync(synthesizer);
+      closeSync(speechConfig);
+      return Promise.reject(sanitizeUnknownError(error));
+    }
+    const config = speechConfig;
+    const synth = synthesizer;
+
+    return new Promise<void>((resolve, reject) => {
+      const playback: ContextPlayback = { synthesizer: synth, speechConfig: config, resolve, reject, settled: false };
+      this.contextPlayback = playback;
+      playback.timeoutId = setTimeout(() => {
+        void this.finishContextPlayback(playback, new SpeechClientError("timeout"));
+      }, SYNTHESIS_TIMEOUT_MS);
+
+      try {
+        synth.speakTextAsync(
+          speechOnlyText(text, voiceName),
+          (result) => {
+            if (playback.settled) return;
+            if (result.reason !== sdk.ResultReason.SynthesizingAudioCompleted) {
+              const details = sdk.CancellationDetails.fromResult(result);
+              const error = cancellationError(sdk, details.ErrorCode);
+              if (error.code === "authentication_failed") this.cachedToken = undefined;
+              void this.finishContextPlayback(playback, error);
+              return;
+            }
+            void this.playOnContext(context, playback, result.audioData, generation);
+          },
+          (error) => {
+            const sanitized = sanitizeUnknownError(error);
+            if (sanitized.code === "authentication_failed") this.cachedToken = undefined;
+            void this.finishContextPlayback(playback, sanitized);
+          },
+        );
+      } catch (error) {
+        void this.finishContextPlayback(playback, sanitizeUnknownError(error));
+      }
+    });
+  }
+
+  private async playOnContext(
+    context: AudioContext,
+    playback: ContextPlayback,
+    audioData: ArrayBuffer,
+    generation: number,
+  ): Promise<void> {
+    try {
+      // iOS suspends the context when the phone locks or another app takes audio, and a
+      // resume() it will not allow stays pending rather than failing: bound the wait.
+      if (context.state !== "running") {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          context.resume().catch(() => undefined),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, CONTEXT_RESUME_TIMEOUT_MS);
+          }),
+        ]);
+        clearTimeout(timer);
+      }
+      if (context.state !== "running") throw new SpeechClientError("playback_blocked");
+      const buffer = await context.decodeAudioData(audioData.slice(0));
+      if (playback.settled) return;
+      if (this.disposed || generation !== this.synthesisGeneration) {
+        await this.finishContextPlayback(playback, new SpeechClientError("cancelled"));
+        return;
+      }
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      source.onended = () => {
+        void this.finishContextPlayback(playback);
+      };
+      playback.source = source;
+      source.start();
+    } catch (error) {
+      await this.finishContextPlayback(
+        playback,
+        error instanceof SpeechClientError ? error : new SpeechClientError("service_unavailable"),
+      );
+    }
+  }
+
+  private async finishContextPlayback(playback: ContextPlayback, error?: SpeechClientError): Promise<void> {
+    if (playback.settled) return;
+    playback.settled = true;
+    if (this.contextPlayback === playback) this.contextPlayback = undefined;
+    if (playback.timeoutId) {
+      clearTimeout(playback.timeoutId);
+      playback.timeoutId = undefined;
+    }
+    if (playback.source) {
+      playback.source.onended = null;
+      try {
+        playback.source.stop();
+      } catch {
+        // Already finished playing.
+      }
+      try {
+        playback.source.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+    }
+    await closeAsync(playback.synthesizer);
+    closeSync(playback.speechConfig);
+    if (error) playback.reject(error);
+    else playback.resolve();
   }
 
   private async getSpeechToken(): Promise<SpeechToken> {

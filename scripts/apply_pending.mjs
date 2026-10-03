@@ -86,6 +86,10 @@ const PROBES = {
   "20261001062931":
     "select to_regprocedure('public.create_job_card_intake(uuid,jsonb)') is not null" +
     "   and to_regprocedure('public.create_work_request_intake(uuid,jsonb)') is not null",
+  // Replaces a function rather than creating an object, so the probe reads its body for
+  // the v1-to-v2 upgrade branch only this migration adds.
+  "20261003090000":
+    "select pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%voice-ai-v2%'",
 };
 
 const url = readEnv("DATABASE_URL");

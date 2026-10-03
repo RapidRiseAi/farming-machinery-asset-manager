@@ -51,6 +51,7 @@ crop/livestock/labour records.
 | Reminders & alerts (service-due, expiry, fuel anomaly) | `users` contact + prefs | Consent / legitimate interest |
 | WhatsApp messaging *(deferred)* | `phone`, `whatsapp_opt_in` | **Explicit opt-in consent**, timestamped |
 | Optional cross-border AI for unresolved voice intent *(implemented; production enablement pending)* | difficult transcript text, locale and current date | **Explicit consent + a signed DPA** (see §5) |
+| Optional AI transcription of a hard voice request *(implemented 2026-10-03; needs migration `20261003090000` and DPAs)* | the request's recording and the farm's machine names and aliases | **Explicit consent `voice-ai-v2` + signed DPAs** (see §5) |
 | Security, audit & dispute resolution | `audit_log` | Legal obligation / legitimate interest |
 | **Where a change came from** (FR-1.4) | `audit_log.ip` + coarse geo + user agent | **Legitimate interest** (§11(1)(f)) in answering "who approved this, and was that really them". The interest is the data subject's too: the owner disputing a change and the employee wrongly accused both need it. See §5.2 for the minimisation that balances it. |
 
@@ -160,6 +161,20 @@ processor.** Voice AI now uses two deliberately separate paths:
   must first stamp active, unwithdrawn `voice-ai-v1` consent on a private interaction
   row. Users can withdraw that consent; Azure Speech and deterministic parsing continue
   to work without it.
+- **AI transcription (consent `voice-ai-v2`, 2026-10-03).** Mixed Afrikaans/English speech
+  defeats Azure's one-language-per-segment recognition. For a request the live transcript
+  cannot resolve, and only for a person whose active consent is `voice-ai-v2`, the browser
+  posts the clip it recorded to `/api/assistant/transcribe`, which sends it with the farm's
+  machine names and aliases (as vocabulary) through Vercel AI Gateway to MAI-Transcribe-2
+  (Microsoft, served by Azure outside South Africa) and gpt-4o-transcribe (OpenAI). The
+  route re-checks consent from the database on every request, stores neither the clip nor
+  its transcripts, and logs only which models answered and how fast. v1 holders keep
+  text-only AI help and are offered the upgrade; opting in still stamps v1, and only an
+  explicit extension of active consent can reach v2 (see the migration for why).
+  Zero-data-retention routing is available only on Vercel Pro/Enterprise and is switched on
+  with `ASSISTANT_TRANSCRIBE_ZDR=1`.
+- Everyone else, and every request the live transcript already resolves, stays in South
+  Africa North: a hard request is heard a second time by Azure in the other fixed language.
 
 The raw live recording is not retained by FleetWise. When offline, raw audio remains in
 that signed-in farm context's browser IndexedDB, is uploaded to Azure only after an
@@ -291,7 +306,9 @@ Supabase logs support scoping the incident.
 - [ ] Confirm all Storage buckets are **private** (they are, by migration `0200`) and only served via signed URLs.
 - [ ] Keep a signed **DPA with Supabase** on file; before production Voice AI, add Azure,
       Vercel AI Gateway and the selected model provider to the processor/DPA register.
-- [ ] Confirm the Voice AI consent wording/version (`voice-ai-v1`), withdrawal path,
+      AI transcription adds Microsoft (MAI-Transcribe-2) and OpenAI (gpt-4o-transcribe)
+      through the gateway; decide whether to require zero data retention (Vercel Pro).
+- [ ] Confirm the Voice AI consent wording/versions (`voice-ai-v1`, and `voice-ai-v2` for audio), withdrawal path,
       seven-day offline-audio expiry and data-subject export/erasure flow on real devices.
 - [ ] Publish a customer-facing **privacy notice** (purposes, rights, contact) derived from §1-§5.
 - [ ] Nominate an **Information Officer** (POPIA §55) and register with the Regulator.

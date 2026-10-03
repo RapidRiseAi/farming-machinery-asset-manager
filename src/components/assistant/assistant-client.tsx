@@ -24,7 +24,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
 import { Input } from "@/components/ui/input";
-import { MicIcon, StopIcon, SendIcon } from "@/components/ui/icons";
+import { HeadsetIcon, MicIcon, StopIcon, SendIcon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
@@ -32,14 +32,16 @@ import { StatusBadge, type StatusBadgeProps } from "@/components/ui/badge";
 import { dateTime } from "@/lib/format";
 import { groupThread } from "@/lib/assistant/thread";
 import type { ThreadEntry, ThreadStatus } from "@/lib/assistant/thread";
-import { t, type Lang } from "@/lib/i18n";
+import { langOf, t, toneOf, type Lang } from "@/lib/i18n";
 import type {
   AssistantClarification,
   AssistantConfirmResponse,
   AssistantMachine,
   AssistantTurnRequest,
   AssistantTurnResponse,
+  AssistantHearing,
   AssistantLocale,
+  ConfirmationProposal,
 } from "@/lib/assistant/types";
 import {
   freshVoiceRetryFor,
@@ -47,6 +49,9 @@ import {
   type PendingAssistantTranscript,
 } from "@/lib/assistant/voice-retry";
 import { recognitionLocales, speechVocabulary, voiceForLocale } from "@/lib/assistant/speech-plan";
+import { matchMachine } from "@/lib/assistant/normalize";
+import { planAssistantRoute } from "@/lib/assistant/routing";
+import { AUDIO_CONSENT_VERSION } from "@/lib/assistant/transcription";
 import { clarificationFromSpeech } from "@/lib/assistant/spoken-clarification";
 
 type Phase =
@@ -70,6 +75,22 @@ type Capabilities = {
 type Completion = { message: string; href?: string };
 type ClarifyTurn = Extract<AssistantTurnResponse, { kind: "clarify" }>;
 const ASSISTANT_TURN_TIMEOUT_MS = 30_000;
+/**
+ * Hands-free turn taking. Azure closes a phrase after a short silence; this is the
+ * FURTHER quiet that means the person has finished, rather than paused for breath in
+ * "log... 4300 hours on the... green tractor". Shorter answers sooner and cuts more
+ * people off mid-sentence; "Done, answer now" skips the wait for anyone in a hurry.
+ */
+const VOICE_SETTLE_MS = 1_300;
+/** Nothing at all said this long after listening starts: pause rather than keep a live mic. */
+const VOICE_FIRST_WORDS_MS = 8_000;
+/** A machine match this good, from the live transcript alone, is sent without a second hearing. */
+const CONFIDENT_MATCH = 0.75;
+/** Below this, a read names no machine at all: a fleet question, not a garbled name. */
+const NO_MACHINE_NAMED = 0.45;
+/** Azure re-hearing a short clip took about 1 s in testing; the AI models 2.5 to 6.5 s. */
+const SECOND_HEARING_DEADLINE_MS = 6_000;
+const AI_HEARING_DEADLINE_MS = 6_500;
 
 function responseError(value: unknown, locale: Lang): AssistantTurnResponse {
   if (value && typeof value === "object" && "kind" in value) return value as AssistantTurnResponse;
@@ -140,12 +161,39 @@ function phaseLabel(phase: Phase, locale: Lang): string {
   }
 }
 
+/** The hands-free panel's one line of status. */
+function voicePhaseLabel(phase: Phase, waitingForTap: boolean, locale: Lang): string {
+  switch (phase) {
+    case "requesting_permission":
+      return t("assistant.requestingMic", locale);
+    case "listening":
+      return t("assistant.voice.listening", locale);
+    case "stopping":
+    case "interpreting":
+      return t("assistant.voice.thinking", locale);
+    case "speaking":
+      return t("assistant.voice.speaking", locale);
+    case "committing":
+      return t("assistant.voice.saving", locale);
+    case "error":
+      return t("assistant.needsAttention", locale);
+    default:
+      return waitingForTap ? t("assistant.voice.waitingForTap", locale) : t("assistant.ready", locale);
+  }
+}
+
+/** A proposal as one spoken passage: what will be saved, then every fact, in order. */
+function proposalReadBack(proposal: ConfirmationProposal): string {
+  return [proposal.title, ...proposal.facts.map((fact) => `${fact.label}: ${fact.value}`)].join(". ");
+}
+
 export function AssistantClient({
   locale,
   offlineContextKey,
   initialSpeechLanguage,
   machines,
   initialAiConsent,
+  initialAudioConsent,
   capabilities,
   initialThread,
   infoButton,
@@ -155,6 +203,8 @@ export function AssistantClient({
   initialSpeechLanguage: AssistantLocale;
   machines: AssistantMachine[];
   initialAiConsent: boolean;
+  /** Active consent covers the recording and machine names (voice-ai-v2): the AI hearing runs. */
+  initialAudioConsent: boolean;
   capabilities: Capabilities;
   /** Past exchanges on this farm, oldest first, read through RLS by the page. */
   initialThread: ThreadEntry[];
@@ -175,6 +225,7 @@ export function AssistantClient({
   const [error, setError] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [aiConsent, setAiConsent] = useState(initialAiConsent);
+  const [audioConsent, setAudioConsent] = useState(initialAudioConsent);
   const [consentUpdating, setConsentUpdating] = useState(false);
   const [online, setOnline] = useState(true);
   const [offlineCaptures, setOfflineCaptures] = useState<OfflineVoiceCapture[]>([]);
@@ -206,6 +257,22 @@ export function AssistantClient({
   const resultRegionRef = useRef<HTMLHeadingElement | null>(null);
   const operationRef = useRef(0);
   const mountedRef = useRef(true);
+
+  // == Hands-free voice mode ================================================
+  // A loop of listen, answer aloud, listen again. Every step continues after an
+  // await that began renders ago, so the loop never trusts `phase` or `turn` from
+  // its closure: it carries a session number, and stopping (or stopping and
+  // starting again) bumps the number so every orphaned continuation goes quiet.
+  const [voiceMode, setVoiceMode] = useState(false);
+  /** Why hands-free paused on its own, shown until the next request. */
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const voiceModeRef = useRef(false);
+  const voiceSessionRef = useRef(0);
+  const voiceSettleTimerRef = useRef<number | null>(null);
+  const voiceFirstWordsTimerRef = useRef<number | null>(null);
+  /** Times the current spoken follow-up was not an answer; asked again once, then typed. */
+  const voiceRetryRef = useRef(0);
+  const finishVoiceTurnRef = useRef<(operation: number) => Promise<void>>(async () => undefined);
 
   // == The thread =========================================================
   // Past exchanges. The LIVE exchange is not in here: it keeps rendering as the
@@ -257,6 +324,12 @@ export function AssistantClient({
         window.clearTimeout(liveRecordingTimerRef.current);
         liveRecordingTimerRef.current = null;
       }
+      voiceModeRef.current = false;
+      voiceSessionRef.current += 1;
+      for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+        if (timer.current !== null) window.clearTimeout(timer.current);
+        timer.current = null;
+      }
       const client = speechRef.current;
       speechRef.current = null;
       offlineRecorderRef.current?.cancel();
@@ -297,6 +370,14 @@ export function AssistantClient({
       window.clearTimeout(liveRecordingTimerRef.current);
       liveRecordingTimerRef.current = null;
     }
+    voiceModeRef.current = false;
+    voiceSessionRef.current += 1;
+    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    setVoiceMode(false);
+    setVoiceNotice(null);
     offlineRecorderRef.current?.cancel();
     offlineRecorderRef.current = null;
     recordingOfflineRef.current = false;
@@ -310,6 +391,7 @@ export function AssistantClient({
     commitInFlightRef.current = false;
     speechInFlightRef.current = false;
     setAiConsent(initialAiConsent);
+    setAudioConsent(initialAudioConsent);
     setSpeechLanguage(initialSpeechLanguage);
     setTurn(null);
     setPendingTranscript(null);
@@ -343,7 +425,7 @@ export function AssistantClient({
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
     };
-  }, [initialAiConsent, initialSpeechLanguage, offlineContextKey]);
+  }, [initialAiConsent, initialAudioConsent, initialSpeechLanguage, offlineContextKey]);
 
   useEffect(() => {
     if (turn || completion || error) {
@@ -352,6 +434,35 @@ export function AssistantClient({
     }
     return undefined;
   }, [turn, completion, error]);
+
+  /**
+   * Hands-free means nobody touches the screen, so without this the phone locks
+   * mid-conversation and takes the microphone with it. Held only while hands-free is
+   * on; the browser drops it whenever the page is hidden, so it is taken again on return.
+   */
+  useEffect(() => {
+    if (!voiceMode || !("wakeLock" in navigator)) return;
+    let sentinel: WakeLockSentinel | null = null;
+    let active = true;
+    const hold = async () => {
+      if (document.visibilityState !== "visible" || (sentinel && !sentinel.released)) return;
+      try {
+        const next = await navigator.wakeLock.request("screen");
+        if (active) sentinel = next;
+        else void next.release().catch(() => undefined);
+      } catch {
+        // Refused (low battery, an embedding frame): the phone may sleep, nothing worse.
+      }
+    };
+    void hold();
+    const onVisibility = () => void hold();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", onVisibility);
+      void sentinel?.release().catch(() => undefined);
+    };
+  }, [voiceMode]);
 
   useEffect(() => {
     if (turn?.kind !== "clarify") return;
@@ -443,15 +554,17 @@ export function AssistantClient({
     setTurn({ kind: "confirm", conversationId: entry.id, proposal: entry.proposal });
   };
 
+  /** Resolves to the reply it showed, or null when there was none to act on (failure, superseded). */
   const submitRequest = useCallback(
-    async (requestBody: AssistantTurnRequest) => {
-      if (requestAbortRef.current) return false;
+    async (requestBody: AssistantTurnRequest): Promise<AssistantTurnResponse | null> => {
+      if (requestAbortRef.current) return null;
+      setVoiceNotice(null);
       const retryTranscript = requestBody.clarification ? null : pendingTranscriptFor(requestBody);
       if (!navigator.onLine) {
         if (retryTranscript) setPendingTranscript(retryTranscript);
         setPhase("error");
         setError(t("assistant.offlineTyped", locale));
-        return false;
+        return null;
       }
       const controller = new AbortController();
       let timedOut = false;
@@ -486,22 +599,22 @@ export function AssistantClient({
           signal: controller.signal,
         });
         const next = responseError(await response.json().catch(() => null), locale);
-        if (!mountedRef.current || operation !== operationRef.current) return false;
+        if (!mountedRef.current || operation !== operationRef.current) return null;
         setTurn(next);
         if (!response.ok || next.kind === "error") {
           if (retryTranscript) setPendingTranscript(freshVoiceRetryFor(requestBody) ?? retryTranscript);
           setError(next.kind === "error" ? next.message : t("assistant.serviceUnavailable", locale));
           setPhase("error");
-          return false;
+          return null;
         }
         setPhase("idle");
-        return true;
+        return next;
       } catch {
-        if (!mountedRef.current || operation !== operationRef.current) return false;
+        if (!mountedRef.current || operation !== operationRef.current) return null;
         if (retryTranscript) setPendingTranscript(freshVoiceRetryFor(requestBody) ?? retryTranscript);
         setError(t(timedOut ? "assistant.requestTimedOut" : "assistant.serviceUnavailable", locale));
         setPhase("error");
-        return false;
+        return null;
       } finally {
         window.clearTimeout(timeout);
         if (requestAbortRef.current === controller) requestAbortRef.current = null;
@@ -648,14 +761,51 @@ export function AssistantClient({
     return true;
   };
 
-  const startListening = async () => {
-    if (recordingRequestedRef.current || (phase !== "idle" && phase !== "error")) return;
+  /** A hands-free continuation may act only while ITS session is still the live one. */
+  const voiceSessionIsLive = (session: number) =>
+    mountedRef.current && voiceModeRef.current && session === voiceSessionRef.current;
+
+  const clearVoiceTimers = () => {
+    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  /**
+   * Leaves hands-free. What is on screen stays: a confirmation card still waits for
+   * its tap and an answer can still be read. Only the loop stops.
+   */
+  const endVoiceMode = (notice: string | null = null) => {
+    voiceModeRef.current = false;
+    voiceSessionRef.current += 1;
+    clearVoiceTimers();
+    setVoiceMode(false);
+    setVoiceNotice(notice);
+  };
+
+  /**
+   * `voiceSession` marks a hands-free turn. It starts from a callback that closed over
+   * an earlier render, so it is gated on its session rather than on a stale `phase`,
+   * and the clarification it answers is handed in rather than read from a stale `turn`.
+   */
+  const startListening = async (options: { voiceSession?: number; followUp?: ClarifyTurn | null } = {}) => {
+    const { voiceSession } = options;
+    const voice = voiceSession !== undefined;
+    if (recordingRequestedRef.current) return;
+    if (voiceSession !== undefined ? !voiceSessionIsLive(voiceSession) : phase !== "idle" && phase !== "error") return;
+    if (voice && !navigator.onLine) {
+      endVoiceMode(t("assistant.voice.offline", locale));
+      return;
+    }
     recordingRequestedRef.current = true;
     const operation = ++operationRef.current;
-    const spokenFollowUp = navigator.onLine && turn?.kind === "clarify" && turn.fields.length === 1 && lastRequestRef.current
-      ? { turn, field: turn.fields[0], request: lastRequestRef.current }
+    const followUp = voice ? options.followUp ?? null : turn?.kind === "clarify" ? turn : null;
+    const spokenFollowUp = navigator.onLine && followUp && followUp.fields.length === 1 && lastRequestRef.current
+      ? { turn: followUp, field: followUp.fields[0], request: lastRequestRef.current }
       : null;
     spokenClarificationRef.current = spokenFollowUp;
+    setVoiceNotice(null);
     setError(null);
     if (!spokenFollowUp) setTurn(null);
     setCompletion(null);
@@ -699,12 +849,16 @@ export function AssistantClient({
         locale: speechLanguage,
         autoDetectLocales: recognitionLocales(speechLanguage),
         phrases: machineVocabulary,
+        // Kept in memory for this turn only, in case the words need hearing again.
+        captureClip: true,
         onPartial: (result) => {
           if (!mountedRef.current || operation !== operationRef.current) return;
           const prefix = finalSegmentsRef.current.join(" ");
           const value = `${prefix}${prefix ? " " : ""}${result.text}`.trim();
           transcriptRef.current = value;
           setTranscript(value);
+          // Still talking: neither "said nothing" nor "finished".
+          if (voice) clearVoiceTimers();
         },
         onFinal: (result) => {
           if (!mountedRef.current || operation !== operationRef.current) return;
@@ -719,8 +873,20 @@ export function AssistantClient({
           const value = finalSegmentsRef.current.join(" ").trim();
           transcriptRef.current = value;
           setTranscript(value);
+          // Not once the turn is already finishing: a phrase Azure closes during the
+          // stop still joins the transcript, but must not arm a second finish.
+          if (voiceSession !== undefined && voiceSessionIsLive(voiceSession) && recordingRequestedRef.current) {
+            clearVoiceTimers();
+            voiceSettleTimerRef.current = window.setTimeout(() => {
+              voiceSettleTimerRef.current = null;
+              void finishVoiceTurnRef.current(operation);
+            }, VOICE_SETTLE_MS);
+          }
         },
         onNoMatch: () => {
+          // In a cab, engine noise is a no-match every few seconds. Hands-free ignores
+          // it and lets the first-words timer decide whether anything was said.
+          if (voice) return;
           if (mountedRef.current && operation === operationRef.current) {
             setError(t("assistant.noSpeech", locale));
           }
@@ -731,6 +897,7 @@ export function AssistantClient({
             window.clearTimeout(liveRecordingTimerRef.current);
             liveRecordingTimerRef.current = null;
           }
+          if (voice) endVoiceMode();
           setError(speechErrorMessage(speechError, locale));
           recordingRequestedRef.current = false;
           setPhase("error");
@@ -741,10 +908,18 @@ export function AssistantClient({
           }
         },
       });
-      if (mountedRef.current && operation === operationRef.current) {
+      // A hands-free stop can land while the recogniser is still starting; it arms nothing then.
+      const stillWanted = voiceSession === undefined || voiceSessionIsLive(voiceSession);
+      if (mountedRef.current && operation === operationRef.current && stillWanted) {
         liveRecordingTimerRef.current = window.setTimeout(() => {
-          void stopListeningRef.current();
+          void (voice ? finishVoiceTurnRef.current(operation) : stopListeningRef.current());
         }, MAX_OFFLINE_RECORDING_MS);
+        if (voice && !transcriptRef.current) {
+          voiceFirstWordsTimerRef.current = window.setTimeout(() => {
+            voiceFirstWordsTimerRef.current = null;
+            void finishVoiceTurnRef.current(operation);
+          }, VOICE_FIRST_WORDS_MS);
+        }
       }
     } catch (caught) {
       if (!mountedRef.current || operation !== operationRef.current) return;
@@ -753,12 +928,116 @@ export function AssistantClient({
         window.clearTimeout(liveRecordingTimerRef.current);
         liveRecordingTimerRef.current = null;
       }
+      if (voice) endVoiceMode();
       const message = caught instanceof SpeechClientError
         ? speechErrorMessage(caught, locale)
         : t("assistant.recognitionFailed", locale);
       setError(message);
       setPhase("error");
     }
+  };
+
+  /** What the live recogniser heard, as a voice request ready to send. */
+  const heardTranscript = (): PendingAssistantTranscript => ({
+    locale: speechLanguage,
+    channel: "voice",
+    voiceCaptureId: captureIdRef.current ?? crypto.randomUUID(),
+    sttConfidence: confidenceWeightRef.current > 0
+      ? confidenceTotalRef.current / confidenceWeightRef.current
+      : undefined,
+  });
+
+  /**
+   * Whether the live transcript can carry the request on its own: an intent and one
+   * confident machine, or a fleet question that names none. Then it goes at once, with
+   * no added wait; only the hard turns are heard again (see `gatherHearings`).
+   */
+  const liveTranscriptResolves = (text: string): boolean => {
+    const plan = planAssistantRoute(text, speechLanguage);
+    if (plan.kind === "optional_ai") return false;
+    const match = matchMachine(text, machines);
+    if (match.machine && !match.ambiguous && match.score >= CONFIDENT_MATCH) return true;
+    // A garbled name ("the Spitfire" for Spuitwa) also scores low, so a weak match alone
+    // is not "no machine named": the sentence must not point at one either.
+    const lower = text.toLocaleLowerCase("en-ZA");
+    const pointsAtMachine = /\b(?:of|on|for|about|with|op|vir|van|oor|met)\s+(?:the|die)\s+\S/.test(lower)
+      || /\b(?:die|the)\s+\S+(?:\s+\S+)?\s+se\b/.test(lower);
+    return plan.kind === "local" && !match.ambiguous && match.score < NO_MACHINE_NAMED && !pointsAtMachine;
+  };
+
+  const fetchAiHearings = async (clip: File, signal: AbortSignal): Promise<string[]> => {
+    try {
+      const response = await fetch("/api/assistant/transcribe", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "audio/wav" },
+        body: clip,
+        signal,
+      });
+      if (!response.ok) return [];
+      const body = (await response.json().catch(() => null)) as { hearings?: Array<{ text?: unknown }> } | null;
+      return (body?.hearings ?? [])
+        .map((hearing) => (typeof hearing.text === "string" ? hearing.text.trim() : ""))
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  /**
+   * Hears a hard turn again from the clip recorded alongside the live transcript: Azure
+   * in the other fixed language, in South Africa North, for everyone; and with audio
+   * consent, the AI transcribers told the farm's machine names. Each language model keeps
+   * what the other loses, and the server weighs every hearing (routing.ts). With an AI
+   * hearing, that becomes the transcript shown, because it measured far closer to what
+   * was said. Every source has a deadline, so a slow one never holds the turn up.
+   */
+  const gatherHearings = async (
+    live: string,
+    operation: number,
+  ): Promise<{ input: string; alternatives: AssistantHearing[] }> => {
+    const plain = { input: live, alternatives: [] as AssistantHearing[] };
+    // Decide first: decoding the clip costs a phone real work, and an easy turn needs none.
+    if (!navigator.onLine || liveTranscriptResolves(live)) {
+      getSpeech().discardLastClip();
+      return plain;
+    }
+    const clip = await getSpeech().takeLastClip();
+    if (!clip || operation !== operationRef.current) return plain;
+
+    const otherLocale: AssistantLocale = speechLanguage === "af-ZA" ? "en-ZA" : "af-ZA";
+    const controller = new AbortController();
+    const deadline = <T,>(work: Promise<T>, ms: number, fallback: T) =>
+      Promise.race([work, new Promise<T>((resolve) => window.setTimeout(() => resolve(fallback), ms))]);
+    const [second, ai] = await Promise.all([
+      deadline(
+        getSpeech()
+          .recognizeFile(clip, {
+            locale: otherLocale,
+            autoDetectLocales: [otherLocale],
+            phrases: otherLocale === "en-ZA" ? machineVocabulary : undefined,
+          })
+          .catch(() => ""),
+        SECOND_HEARING_DEADLINE_MS,
+        "",
+      ),
+      audioConsent
+        ? deadline(fetchAiHearings(clip, controller.signal), AI_HEARING_DEADLINE_MS, [] as string[])
+        : Promise.resolve([] as string[]),
+    ]);
+    controller.abort();
+    if (operation !== operationRef.current) return plain;
+
+    const alternatives: AssistantHearing[] = [];
+    let input = live;
+    if (ai.length) {
+      input = ai[0];
+      for (const text of ai.slice(1)) alternatives.push({ text, locale: speechLanguage, source: "ai" });
+      alternatives.push({ text: live, locale: speechLanguage, source: "recogniser" });
+    }
+    if (second.trim()) alternatives.push({ text: second.trim(), locale: otherLocale, source: "second-pass" });
+    return { input, alternatives: alternatives.slice(0, 4) };
   };
 
   const stopListening = async () => {
@@ -784,14 +1063,14 @@ export function AssistantClient({
         setPhase("error");
         return;
       }
-      setPendingTranscript({
-        locale: speechLanguage,
-        channel: "voice",
-        voiceCaptureId: captureIdRef.current ?? crypto.randomUUID(),
-        sttConfidence: confidenceWeightRef.current > 0
-          ? confidenceTotalRef.current / confidenceWeightRef.current
-          : undefined,
-      });
+      const operation = operationRef.current;
+      const heard = await gatherHearings(input, operation);
+      if (!mountedRef.current || operation !== operationRef.current) return;
+      if (heard.input !== input) {
+        transcriptRef.current = heard.input;
+        setTranscript(heard.input);
+      }
+      setPendingTranscript({ ...heardTranscript(), alternatives: heard.alternatives.length ? heard.alternatives : undefined });
       lastRequestRef.current = null;
       setPhase("idle");
     } catch {
@@ -800,6 +1079,207 @@ export function AssistantClient({
     }
   };
   stopListeningRef.current = stopListening;
+
+  /**
+   * Speaks one hands-free reply. True means carry on: it finished, or was talked
+   * over. False means the sound failed, and the loop has stopped with the reason on
+   * screen.
+   */
+  const speakInVoiceMode = async (text: string, session: number): Promise<boolean> => {
+    if (!voiceSessionIsLive(session)) return false;
+    if (!text.trim()) return true;
+    const operation = ++operationRef.current;
+    speechInFlightRef.current = true;
+    setPhase("speaking");
+    try {
+      await getSpeech().speak(text, { voice: voiceForLocale(lastRequestRef.current?.locale ?? speechLanguage) });
+      return true;
+    } catch (caught) {
+      if (caught instanceof SpeechClientError && caught.code === "cancelled") return true;
+      if (mountedRef.current && operation === operationRef.current && voiceSessionIsLive(session)) {
+        endVoiceMode();
+        setError(caught instanceof SpeechClientError ? speechErrorMessage(caught, locale) : t("assistant.speechFailed", locale));
+        setPhase("error");
+      }
+      return false;
+    } finally {
+      speechInFlightRef.current = false;
+      if (mountedRef.current && operation === operationRef.current) {
+        setPhase((current) => (current === "speaking" ? "idle" : current));
+      }
+    }
+  };
+
+  const speakThenListen = async (text: string, session: number, followUp: ClarifyTurn | null) => {
+    if ((await speakInVoiceMode(text, session)) && voiceSessionIsLive(session)) {
+      await startListening({ voiceSession: session, followUp });
+    }
+  };
+
+  /** What hands-free does with each kind of reply. */
+  const afterVoiceResponse = async (next: AssistantTurnResponse | null, session: number) => {
+    if (!voiceSessionIsLive(session)) return;
+    voiceRetryRef.current = 0;
+    if (!next || next.kind === "error") {
+      // The failure is on screen. A loop that talks over it, or listens past it, helps nobody.
+      endVoiceMode();
+      return;
+    }
+    if (next.kind === "answer") {
+      await speakThenListen(next.speakText ?? next.message, session, null);
+      return;
+    }
+    if (next.kind === "clarify") {
+      if (next.fields.length === 1) {
+        await speakThenListen(next.question, session, next);
+        return;
+      }
+      // Several things to fill in is a form, and a form is for fingers.
+      await speakInVoiceMode(next.question, session);
+      if (voiceSessionIsLive(session)) endVoiceMode(t("assistant.voice.formPaused", locale));
+      return;
+    }
+    if (next.kind === "confirm") {
+      // Read it back, then wait: only a tap saves, and confirmProposal resumes the loop.
+      // The closing prompt is in the language the reply was spoken in, not the screen's.
+      const spoken = langOf((lastRequestRef.current?.locale ?? speechLanguage) === "af-ZA" ? "af" : "en", toneOf(locale));
+      await speakInVoiceMode(
+        `${proposalReadBack(next.proposal)}. ${t("assistant.voice.tapToConfirmSpoken", spoken)}`,
+        session,
+      );
+      return;
+    }
+    // needs_consent: permission to use AI is given in writing, on screen.
+    endVoiceMode();
+  };
+
+  /**
+   * Ends a hands-free turn: what was heard goes straight to the assistant, with no
+   * editing step. That is safe because nothing is saved from here: a change comes
+   * back as the confirmation card, and only a tap on it saves.
+   */
+  const finishVoiceTurn = async (operation: number) => {
+    const session = voiceSessionRef.current;
+    if (!voiceSessionIsLive(session) || operation !== operationRef.current || !recordingRequestedRef.current) return;
+    clearVoiceTimers();
+    if (liveRecordingTimerRef.current !== null) {
+      window.clearTimeout(liveRecordingTimerRef.current);
+      liveRecordingTimerRef.current = null;
+    }
+    recordingRequestedRef.current = false;
+    setPhase("stopping");
+    await getSpeech().stopRecognition().catch(() => undefined);
+    if (!mountedRef.current || operation !== operationRef.current) return;
+    if (!voiceSessionIsLive(session)) {
+      // Stopped while the last words were being finished: keep them, as Stop does,
+      // and hand the screen back. Returning here without that left it on "Thinking".
+      if (transcriptRef.current.trim()) {
+        setPendingTranscript(heardTranscript());
+        lastRequestRef.current = null;
+      }
+      setPhase("idle");
+      return;
+    }
+    const live = transcriptRef.current.trim();
+    if (!live) {
+      endVoiceMode(t("assistant.voice.noSpeechPaused", locale));
+      setPhase("idle");
+      return;
+    }
+    const spokenFollowUp = spokenClarificationRef.current;
+    // A spoken number or yes/no is heard well enough; a machine name is exactly what goes
+    // wrong, so an answer to "which machine?" is heard again like a fresh request.
+    const gathered = !spokenFollowUp || spokenFollowUp.field.name === "machineId"
+      ? await gatherHearings(live, operation)
+      : { input: live, alternatives: [] as AssistantHearing[] };
+    if (!mountedRef.current || operation !== operationRef.current) return;
+    const input = gathered.input;
+    if (input !== live) {
+      transcriptRef.current = input;
+      setTranscript(input);
+    }
+    const heard = { ...heardTranscript(), alternatives: gathered.alternatives.length ? gathered.alternatives : undefined };
+    if (!voiceSessionIsLive(session)) {
+      // Stopped while the words were being heard again: keep them, as Stop does.
+      setPendingTranscript(heard);
+      lastRequestRef.current = null;
+      setPhase("idle");
+      return;
+    }
+    let request: AssistantTurnRequest = { ...heard, input };
+    if (spokenFollowUp) {
+      const clarification = clarificationFromSpeech(spokenFollowUp.turn.conversationId, spokenFollowUp.field, input);
+      if (!clarification) {
+        // Not an answer to what was asked: a reading with no number in it, say. The
+        // question is still on screen. Ask it once more, then leave it to the keyboard.
+        if (voiceRetryRef.current < 1) {
+          voiceRetryRef.current += 1;
+          await speakThenListen(spokenFollowUp.turn.question, session, spokenFollowUp.turn);
+          return;
+        }
+        endVoiceMode();
+        setError(t("assistant.fillRequired", locale));
+        setPhase("error");
+        return;
+      }
+      request = { ...spokenFollowUp.request, ...heard, input, clarification };
+      delete request.supersedesVoiceCaptureIds;
+      spokenClarificationRef.current = null;
+    }
+    const next = await submitRequest(request);
+    await afterVoiceResponse(next, session);
+  };
+  finishVoiceTurnRef.current = finishVoiceTurn;
+
+  const startVoiceMode = () => {
+    if (voiceModeRef.current || recordingRequestedRef.current || !navigator.onLine) return;
+    if (phase !== "idle" && phase !== "error") return;
+    // Synchronously, inside this tap and before any await: a phone plays only sound a
+    // tap started, and every spoken reply arrives long after the tap.
+    getSpeech().unlockAudio();
+    voiceModeRef.current = true;
+    voiceRetryRef.current = 0;
+    const session = ++voiceSessionRef.current;
+    setVoiceMode(true);
+    setVoiceNotice(null);
+    void startListening({ voiceSession: session, followUp: turn?.kind === "clarify" ? turn : null });
+  };
+
+  /** "Done, answer now": skip the quiet wait. */
+  const sendVoiceNow = () => {
+    if (!voiceModeRef.current || phase !== "listening") return;
+    void finishVoiceTurn(operationRef.current);
+  };
+
+  /** Talk over the answer: stop speaking, and listen now. */
+  const interruptVoice = () => {
+    if (!voiceModeRef.current || phase !== "speaking") return;
+    void getSpeech().stopSpeaking();
+  };
+
+  /** The panel's Stop. Anything already heard stays as an editable transcript, as with the microphone. */
+  const stopVoiceMode = async () => {
+    if (!voiceModeRef.current) return;
+    endVoiceMode();
+    if (recordingRequestedRef.current) {
+      recordingRequestedRef.current = false;
+      if (liveRecordingTimerRef.current !== null) {
+        window.clearTimeout(liveRecordingTimerRef.current);
+        liveRecordingTimerRef.current = null;
+      }
+      const operation = operationRef.current;
+      setPhase("stopping");
+      await getSpeech().stopRecognition().catch(() => undefined);
+      if (!mountedRef.current || operation !== operationRef.current) return;
+      if (transcriptRef.current.trim()) {
+        setPendingTranscript(heardTranscript());
+        lastRequestRef.current = null;
+      }
+      setPhase("idle");
+      return;
+    }
+    if (speechInFlightRef.current) await getSpeech().stopSpeaking().catch(() => undefined);
+  };
 
   const submitTyped = async () => {
     const input = typedInput.trim();
@@ -892,11 +1372,16 @@ export function AssistantClient({
   };
 
   const confirmProposal = async (action: "confirm" | "reject") => {
-    if (commitInFlightRef.current || turn?.kind !== "confirm" || (phase !== "idle" && phase !== "error")) return;
+    // Hands-free reads the change back before the tap. A tap during that means the
+    // person has read enough: it stops the voice and goes ahead, never waits it out.
+    const tapOverReadBack = voiceModeRef.current && phase === "speaking";
+    if (commitInFlightRef.current || turn?.kind !== "confirm") return;
+    if (phase !== "idle" && phase !== "error" && !tapOverReadBack) return;
     commitInFlightRef.current = true;
     const operation = ++operationRef.current;
     setPhase("committing");
     setError(null);
+    if (tapOverReadBack) await getSpeech().stopSpeaking().catch(() => undefined);
     try {
       const response = await fetch("/api/assistant/confirm", {
         method: "POST",
@@ -917,6 +1402,8 @@ export function AssistantClient({
       setTurn(null);
       setCompletion({ message: result.message, href: result.href === "/assistant" ? undefined : result.href });
       setPhase("idle");
+      // Hands-free: say what happened, then listen for the next thing.
+      if (voiceModeRef.current) void speakThenListen(result.message, voiceSessionRef.current, null);
     } catch {
       if (!mountedRef.current || operation !== operationRef.current) return;
       setError(t("assistant.saveFailed", locale));
@@ -926,6 +1413,11 @@ export function AssistantClient({
     }
   };
 
+  /**
+   * Every allow on this screen is given against the v2 wording (the recording and the
+   * farm's machine names, as well as transcript text), so it asks for the audio consent
+   * too. What the database actually recorded decides whether the AI hearing runs.
+   */
   const updateAiConsent = async (allow: boolean) => {
     if (commitInFlightRef.current || (phase !== "idle" && phase !== "error")) return;
     commitInFlightRef.current = true;
@@ -939,11 +1431,15 @@ export function AssistantClient({
         credentials: "same-origin",
         cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ allow }),
+        body: JSON.stringify({ allow, audio: allow }),
       });
       if (!response.ok) throw new Error("consent_failed");
+      const recorded = (await response.json().catch(() => null)) as
+        | { ai_processing_opt_in?: boolean; ai_processing_consent_version?: string | null }
+        | null;
       if (!mountedRef.current || operation !== operationRef.current) return;
       setAiConsent(allow);
+      setAudioConsent(Boolean(allow && recorded?.ai_processing_opt_in && recorded.ai_processing_consent_version === AUDIO_CONSENT_VERSION));
       if (!allow) {
         lastRequestRef.current = null;
         setTurn(null);
@@ -999,6 +1495,7 @@ export function AssistantClient({
     operationRef.current += 1;
     requestAbortRef.current?.abort();
     requestAbortRef.current = null;
+    endVoiceMode();
     setPhase("stopping");
     if (offlineRecordingTimerRef.current !== null) {
       window.clearTimeout(offlineRecordingTimerRef.current);
@@ -1051,6 +1548,8 @@ export function AssistantClient({
 
   const isListening = phase === "listening" || phase === "requesting_permission";
   const isBusy = ["stopping", "interpreting", "committing", "speaking"].includes(phase);
+  /** Hands-free is reading a change back: its card's two buttons stay live (see confirmProposal). */
+  const readingBack = voiceMode && phase === "speaking" && turn?.kind === "confirm";
   // The live exchange's id, hidden from the thread while it is live so the same
   // exchange never shows twice, for instance a pending proposal being reviewed.
   const liveId =
@@ -1087,9 +1586,7 @@ export function AssistantClient({
   }, [visibleThread.length]);
   const answerText = turn?.kind === "answer" ? turn.message : completion?.message;
   const answerSpeechText = turn?.kind === "answer" ? (turn.speakText ?? turn.message) : completion?.message;
-  const confirmationSpeechText = turn?.kind === "confirm"
-    ? [turn.proposal.title, ...turn.proposal.facts.map((fact) => `${fact.label}: ${fact.value}`)].join(". ")
-    : null;
+  const confirmationSpeechText = turn?.kind === "confirm" ? proposalReadBack(turn.proposal) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
@@ -1107,7 +1604,7 @@ export function AssistantClient({
           <button
             key={language}
             type="button"
-            disabled={isListening || isBusy}
+            disabled={isListening || isBusy || voiceMode}
             aria-pressed={speechLanguage === language}
             onClick={() => {
               operationRef.current += 1;
@@ -1145,7 +1642,7 @@ export function AssistantClient({
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
-              disabled={!online || isBusy || offlineProcessing}
+              disabled={!online || isBusy || offlineProcessing || voiceMode}
               loading={offlineProcessing}
               onClick={() => void processOfflineCapture(offlineCaptures[0])}
             >
@@ -1153,14 +1650,14 @@ export function AssistantClient({
             </Button>
             <Button
               variant="ghost"
-              disabled={isBusy || offlineProcessing}
+              disabled={isBusy || offlineProcessing || voiceMode}
               onClick={() => void removeOfflineCaptures(offlineCaptures[0])}
             >
               {t("assistant.offlineDiscard", locale)}
             </Button>
             <Button
               variant="ghost"
-              disabled={isBusy || offlineProcessing}
+              disabled={isBusy || offlineProcessing || voiceMode}
               onClick={() => void removeOfflineCaptures()}
             >
               {t("assistant.offlineClearAll", locale)}
@@ -1342,8 +1839,8 @@ export function AssistantClient({
             ))}
           </dl>
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="secondary" disabled={isBusy} onClick={() => void confirmProposal("reject")}>{t("assistant.doNotSave", locale)}</Button>
-            <Button loading={phase === "committing"} disabled={isBusy && phase !== "committing"} onClick={() => void confirmProposal("confirm")}>{t("assistant.confirmSave", locale)}</Button>
+            <Button variant="secondary" disabled={isBusy && !readingBack} onClick={() => void confirmProposal("reject")}>{t("assistant.doNotSave", locale)}</Button>
+            <Button loading={phase === "committing"} disabled={isBusy && phase !== "committing" && !readingBack} onClick={() => void confirmProposal("confirm")}>{t("assistant.confirmSave", locale)}</Button>
           </div>
         </Card>
       ) : null}
@@ -1380,8 +1877,9 @@ export function AssistantClient({
       ) : null}
 
       {/* Starters, shown only while there is nothing to read yet, the same
-          reason a chat app hides its suggestions after the first message. */}
-      {!turn && !transcript && !completion && visibleThread.length === 0 ? (
+          reason a chat app hides its suggestions after the first message. They
+          fill the typing box, which hands-free hides, so they step aside too. */}
+      {!turn && !transcript && !completion && visibleThread.length === 0 && !voiceMode ? (
       <Card>
         <CardTitle>{t("assistant.examplesTitle", locale)}</CardTitle>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -1416,116 +1914,182 @@ export function AssistantClient({
           thread's own scroll region ends directly above it, the arrangement a
           chat uses, and nothing is covered. */}
       <Card className="shadow-soft">
-        <div
-          aria-live="polite"
-          aria-atomic="true"
-          className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
-        >
-          <span className="text-sm font-semibold text-ink">{phaseLabel(phase, locale)}</span>
-          <span className="text-xs text-ink-muted">
-            {online ? t("assistant.audioPrivacy", locale) : t("assistant.offlinePrivacy", locale)}
-          </span>
-        </div>
-
-        {/* What was heard, editable before it is acted on. This is the product's
-            real safeguard and it stays exactly where the sending happens. */}
-        {transcript ? (
-          <div className="mb-3 border-b border-edge-soft pb-3">
-            <Field
-              label={t("assistant.transcriptLabel", locale)}
-              htmlFor="assistant-transcript"
-              hint={t("assistant.transcriptHint", locale)}
-            >
-              <Textarea
-                id="assistant-transcript"
-                rows={3}
-                value={transcript}
-                disabled={isListening || isBusy}
-                onChange={(event) => updateTranscript(event.target.value)}
-              />
-            </Field>
-            {pendingTranscript ? (
-              <Button
-                className="mt-3"
-                loading={phase === "interpreting"}
-                disabled={!transcript.trim() || (phase !== "idle" && phase !== "error")}
-                onClick={() => void interpretTranscript()}
+        {voiceMode ? (
+          /* == Hands-free =====================================================
+             Replaces the typing row while it runs: one status line, what was
+             heard, and the controls a gloved thumb needs. The confirmation card
+             above it is untouched, and its tap is still the only way to save. */
+          <div className="flex flex-col gap-4">
+            <div aria-live="polite" aria-atomic="true" className="flex items-center gap-3">
+              <span
+                aria-hidden
+                className={cn(
+                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl transition-colors",
+                  phase === "listening"
+                    ? "animate-pulse bg-status-overdue text-white"
+                    : phase === "speaking"
+                      ? "bg-brand-600 text-white"
+                      : "bg-surface-sunken text-ink-muted",
+                )}
               >
-                {t("assistant.interpretTranscript", locale)}
-              </Button>
+                {phase === "speaking" ? <HeadsetIcon /> : <MicIcon />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-ink">
+                  {voicePhaseLabel(phase, turn?.kind === "confirm", locale)}
+                </p>
+                <p className="text-xs text-ink-muted">{audioConsent ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}</p>
+              </div>
+            </div>
+            {transcript ? (
+              <p className="whitespace-pre-wrap rounded-xl bg-surface-sunken/60 px-4 py-3 text-base leading-7 text-ink">
+                <span className="sr-only">{t("assistant.voice.heard", locale)}: </span>
+                {transcript}
+              </p>
             ) : null}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button size="lg" variant="secondary" onClick={() => void stopVoiceMode()}>
+                <StopIcon aria-hidden />
+                {t("assistant.voice.stop", locale)}
+              </Button>
+              {phase === "listening" && transcript ? (
+                <Button size="lg" onClick={sendVoiceNow}>
+                  {t("assistant.voice.sendNow", locale)}
+                </Button>
+              ) : null}
+              {phase === "speaking" ? (
+                <Button size="lg" onClick={interruptVoice}>
+                  <MicIcon aria-hidden />
+                  {t("assistant.voice.interrupt", locale)}
+                </Button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <>
+            <div
+              aria-live="polite"
+              aria-atomic="true"
+              className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+            >
+              <span className="text-sm font-semibold text-ink">{phaseLabel(phase, locale)}</span>
+              <span className="text-xs text-ink-muted">
+                {!online ? t("assistant.offlinePrivacy", locale) : audioConsent ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}
+              </span>
+              {voiceNotice ? <span className="basis-full text-sm text-ink">{voiceNotice}</span> : null}
+            </div>
 
-        <div className="flex items-end gap-2">
-          <label htmlFor="assistant-typed" className="sr-only">
-            {t("assistant.typeLabel", locale)}
-          </label>
-          <Textarea
-            id="assistant-typed"
-            rows={2}
-            className="flex-1"
-            value={typedInput}
-            placeholder={t("assistant.typePlaceholder", locale)}
-            disabled={isBusy || isListening}
-            onChange={(event) => setTypedInput(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter sends and Shift+Enter breaks the line, which is what every
-              // assistant does. Ctrl/⌘+Enter is kept because it already worked
-              // and somebody may have learned it. `isComposing` guards an IME:
-              // committing a candidate with Enter must not send the message.
-              if (event.nativeEvent.isComposing) return;
-              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault();
-                void submitTyped();
-                return;
-              }
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void submitTyped();
-              }
-            }}
-          />
+            {/* What was heard, editable before it is acted on. This is the product's
+                real safeguard and it stays exactly where the sending happens. */}
+            {transcript ? (
+              <div className="mb-3 border-b border-edge-soft pb-3">
+                <Field
+                  label={t("assistant.transcriptLabel", locale)}
+                  htmlFor="assistant-transcript"
+                  hint={t("assistant.transcriptHint", locale)}
+                >
+                  <Textarea
+                    id="assistant-transcript"
+                    rows={3}
+                    value={transcript}
+                    disabled={isListening || isBusy}
+                    onChange={(event) => updateTranscript(event.target.value)}
+                  />
+                </Field>
+                {pendingTranscript ? (
+                  <Button
+                    className="mt-3"
+                    loading={phase === "interpreting"}
+                    disabled={!transcript.trim() || (phase !== "idle" && phase !== "error")}
+                    onClick={() => void interpretTranscript()}
+                  >
+                    {t("assistant.interpretTranscript", locale)}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
 
-          <button
-            type="button"
-            aria-label={isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-            aria-pressed={isListening}
-            disabled={isBusy}
-            onClick={() => void (isListening ? stopListening() : startListening())}
-            className={cn(
-              // Round and icon-only where the row is tight; from sm up it says what it does.
-              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center gap-2 rounded-full text-2xl text-white shadow-xs transition-colors sm:w-auto sm:px-5",
-              isListening
-                ? "animate-pulse bg-status-overdue hover:bg-danger-600"
-                : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
-              isBusy && "cursor-not-allowed opacity-50",
-            )}
-          >
-            {isListening ? <StopIcon /> : <MicIcon />}
-            <span className="hidden text-sm font-semibold sm:inline">
-              {isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-            </span>
-          </button>
+            <div className="flex items-end gap-2">
+              <label htmlFor="assistant-typed" className="sr-only">
+                {t("assistant.typeLabel", locale)}
+              </label>
+              <Textarea
+                id="assistant-typed"
+                rows={2}
+                className="flex-1"
+                value={typedInput}
+                placeholder={t("assistant.typePlaceholder", locale)}
+                disabled={isBusy || isListening}
+                onChange={(event) => setTypedInput(event.target.value)}
+                onKeyDown={(event) => {
+                  // Enter sends and Shift+Enter breaks the line, which is what every
+                  // assistant does. Ctrl/⌘+Enter is kept because it already worked
+                  // and somebody may have learned it. `isComposing` guards an IME:
+                  // committing a candidate with Enter must not send the message.
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    void submitTyped();
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void submitTyped();
+                  }
+                }}
+              />
 
-          <button
-            type="button"
-            aria-label={t("assistant.sendTranscript", locale)}
-            disabled={!typedInput.trim() || (phase !== "idle" && phase !== "error")}
-            onClick={() => void submitTyped()}
-            className={cn(
-              "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl transition-colors",
-              typedInput.trim() && (phase === "idle" || phase === "error")
-                ? "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800"
-                : "bg-surface-sunken text-ink-subtle",
-              "disabled:cursor-not-allowed",
-            )}
-          >
-            <SendIcon />
-          </button>
-        </div>
+              <button
+                type="button"
+                aria-label={isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
+                aria-pressed={isListening}
+                disabled={isBusy}
+                onClick={() => void (isListening ? stopListening() : startListening())}
+                className={cn(
+                  // Round and icon-only where the row is tight; from sm up it says what it does.
+                  "focus-ring flex h-14 w-14 shrink-0 items-center justify-center gap-2 rounded-full text-2xl text-white shadow-xs transition-colors sm:w-auto sm:px-5",
+                  isListening
+                    ? "animate-pulse bg-status-overdue hover:bg-danger-600"
+                    : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
+                  isBusy && "cursor-not-allowed opacity-50",
+                )}
+              >
+                {isListening ? <StopIcon /> : <MicIcon />}
+                <span className="hidden text-sm font-semibold sm:inline">
+                  {isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
+                </span>
+              </button>
 
-        {infoButton ? null : <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>}
+              <button
+                type="button"
+                aria-label={t("assistant.sendTranscript", locale)}
+                disabled={!typedInput.trim() || (phase !== "idle" && phase !== "error")}
+                onClick={() => void submitTyped()}
+                className={cn(
+                  "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl transition-colors",
+                  typedInput.trim() && (phase === "idle" || phase === "error")
+                    ? "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800"
+                    : "bg-surface-sunken text-ink-subtle",
+                  "disabled:cursor-not-allowed",
+                )}
+              >
+                <SendIcon />
+              </button>
+            </div>
+
+            {/* The way in to hands-free: secondary, because the microphone beside the
+                box is still the everyday way to talk. */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Button size="sm" variant="secondary" disabled={!online || isBusy || isListening} onClick={startVoiceMode}>
+                <HeadsetIcon aria-hidden className="text-base" />
+                {t("assistant.voice.start", locale)}
+              </Button>
+              <p className="text-xs leading-5 text-ink-muted">{t("assistant.voice.startHint", locale)}</p>
+            </div>
+
+            {infoButton ? null : <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>}
+          </>
+        )}
 
         {/* Always present, not folded into the starters: the ordinary screens
             are the fallback when the assistant cannot help, and withdrawing AI
@@ -1544,16 +2108,36 @@ export function AssistantClient({
           </p>
           {aiConsent ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-xs leading-5 text-ink-muted">{t("assistant.aiConsentActive", locale)}</p>
-              <Button
-                size="sm"
-                variant="ghost"
-                loading={consentUpdating}
-                disabled={isBusy && !consentUpdating}
-                onClick={() => void updateAiConsent(false)}
-              >
-                {t("assistant.consentWithdraw", locale)}
-              </Button>
+              <p className="text-xs leading-5 text-ink-muted">
+                {audioConsent ? t("assistant.audioConsentActive", locale) : t("assistant.aiConsentActive", locale)}
+              </p>
+              {/* Given before the AI could hear the recording: offer the wider consent once
+                  here, in the same calm place, rather than interrupting a request. */}
+              {audioConsent ? null : (
+                <p className="text-xs leading-5 text-ink-muted">{t("assistant.audioUpgradeBody", locale)}</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {audioConsent ? null : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={consentUpdating}
+                    disabled={isBusy && !consentUpdating}
+                    onClick={() => void updateAiConsent(true)}
+                  >
+                    {t("assistant.audioUpgradeAllow", locale)}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  loading={consentUpdating}
+                  disabled={isBusy && !consentUpdating}
+                  onClick={() => void updateAiConsent(false)}
+                >
+                  {t("assistant.consentWithdraw", locale)}
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
