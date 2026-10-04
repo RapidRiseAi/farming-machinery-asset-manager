@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import { memberQr } from "@/lib/member-qr";
+import { getProfile } from "@/lib/auth";
+import { sameOrigin } from "@/lib/security/same-origin";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { rememberName } from "@/app/(public)/m/[token]/remembered-name";
@@ -21,11 +25,12 @@ function geoFields(form: FormData): { lat?: number; lng?: number } {
 }
 
 /**
- * Anonymous fault report from the public QR page (Scope §4.5). The per-machine
- * token is the ONLY credential, this route runs as the service role and does all
- * DB/Storage work server-side, so the public page never touches the DB directly.
+ * Member-only fault reporting from a vehicle QR. The database command derives the
+ * reporter from the session and checks farm membership inside the write transaction.
+ * A service client uploads media only after that authenticated capture succeeds.
  */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(contentLength) && contentLength > 20 * 1024 * 1024) {
     return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
@@ -38,11 +43,15 @@ export async function POST(request: Request) {
   }
 
   const token = String(form.get("token") ?? "");
+  const clientId=String(form.get("client_id")??"");
+  if(clientId&&!UUID_PATTERN.test(clientId)) return NextResponse.json({error:"invalid_fault"},{status:400});
+  if (!await memberQr(token)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const profile = await getProfile();
   const description = String(form.get("description") ?? "").trim();
   const urgencyRaw = String(form.get("urgency") ?? "can_work");
   const urgency = URGENCIES.includes(urgencyRaw) ? urgencyRaw : "can_work";
   const category = String(form.get("category") ?? "").trim() || null;
-  const reporter = String(form.get("name") ?? "").trim() || null;
+  const reporter = profile?.name ?? null;
   if (!UUID_PATTERN.test(token)) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (
     !description ||
@@ -60,7 +69,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unavailable" }, { status: 503 });
   }
   const coords = geoFields(form);
-  const { data, error } = await svc.rpc("record_public_qr_fault", {
+  const db=await createClient();
+  const { data, error } = await db.rpc("record_member_qr", {p_token:token,p_kind:"fault",p_client:clientId||null,p_fields:{
     p_token: token,
     p_description: description,
     p_urgency: urgency,
@@ -68,7 +78,7 @@ export async function POST(request: Request) {
     p_reporter: reporter,
     p_lat: coords.lat ?? null,
     p_lng: coords.lng ?? null,
-  });
+  }});
   if (error) {
     console.error("[public-qr] fault capture RPC failed", { code: error.code });
     return NextResponse.json({ error: "unavailable" }, { status: 503 });
@@ -80,7 +90,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: code }, { status });
   }
 
-  const media = await uploadFaultMedia(svc, form, result.farm_id, result.fault_id, null);
+  const media = await uploadFaultMedia(svc, form, result.farm_id, result.fault_id, profile?.id ?? null,clientId||undefined);
   // Only after the fault was recorded, as the kiosk's reading and fuel actions do: the
   // phone remembers who reported it, and a cleared name field forgets it.
   await rememberName(reporter);

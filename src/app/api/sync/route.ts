@@ -17,6 +17,8 @@ export async function POST(request: Request) {
   const parsed = parseSyncEnvelope(form);
   if (!parsed) return NextResponse.json({ error: "bad_mutation" }, { status: 400 });
   const { scope, type, clientId, clientTs, fields, actorId } = parsed;
+  // Old anonymous drafts cannot establish who captured them. Keep them for review.
+  if (scope === "public") return NextResponse.json({ error: "capture_needs_review" }, { status: 409 });
   if (scope === "app" && !sameOrigin(request)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

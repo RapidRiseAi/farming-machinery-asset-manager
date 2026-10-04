@@ -179,6 +179,7 @@ export default async function DriverHomePage({
         locale={locale}
       />
 
+      <Link href="/driver/activity" className={buttonVariants({variant:"primary",size:"lg",fullWidth:true})}>{t("driving.title",locale)}</Link>
       {machines.length > 0 ? (
         <section id="assigned-machines" aria-labelledby="driver-machines" className="scroll-mt-24">
           <h2 id="driver-machines" className="text-lg font-bold text-sand-900">{t("driver.whichMachine", locale)}</h2>

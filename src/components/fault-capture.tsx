@@ -134,6 +134,7 @@ export function FaultCapture({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const pendingRef = useRef<QueuedMutation | null>(null);
+  const qrAttempt = useRef<{key:string;id:string}|null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const doneRef = useRef<HTMLHeadingElement | null>(null);
   // The text a chip last wrote, so a second chip can replace it without ever
@@ -254,13 +255,31 @@ export function FaultCapture({
     }
     const reportedMachine = isApp ? machineName(machineId) : "";
 
+    // QR capture now requires a live farm-member session. Do not queue anonymous drafts.
+    if (variant === "public") {
+      try {
+        const form = new FormData();
+        const key=JSON.stringify(fields);
+        if(qrAttempt.current?.key!==key) qrAttempt.current={key,id:crypto.randomUUID()};
+        form.set("client_id",qrAttempt.current.id);
+        Object.entries(fields).forEach(([key,value])=>form.set(key,value));
+        if (compressedPhoto) form.set("photo",compressedPhoto,"photo.jpg");
+        if (voice) form.set("voice",voice,"voice.webm");
+        const response = await fetch("/api/public/fault",{method:"POST",body:form});
+        const result=await response.json();
+        if (!response.ok || result.media_saved===false) throw new Error("capture_failed");
+        window.location.href=redirectTo;
+      } catch { setError(t("faults.error",locale)); setBusy(false); }
+      return;
+    }
+
     let mutation: QueuedMutation;
     try {
       mutation = pendingRef.current && JSON.stringify(pendingRef.current.fields) === JSON.stringify(fields)
         ? { ...pendingRef.current, photo: compressedPhoto, voice: voice ?? undefined }
         : await prepareMutation({
         type: "report_fault",
-        scope: variant === "public" ? "public" : "app",
+        scope: "app",
         fields,
         photo: compressedPhoto,
         voice: voice ?? undefined,
@@ -446,13 +465,10 @@ export function FaultCapture({
 
       {variant === "public" ? (
         <Field
-          label={`${t("faults.yourName", locale)} (${t("faults.optional", locale)})`}
+          label={t("driving.signedInAs", locale)}
           htmlFor="fault-name"
-          // Says where a prefilled name came from, so a borrowed phone is corrected
-          // rather than credited to the wrong person.
-          hint={defaultName ? t("qr.yourNameRemembered", locale) : undefined}
         >
-          <Input id="fault-name" name="name" autoComplete="name" maxLength={200} defaultValue={defaultName} />
+          <Input id="fault-name" name="name" autoComplete="name" maxLength={200} defaultValue={defaultName} readOnly />
         </Field>
       ) : null}
 

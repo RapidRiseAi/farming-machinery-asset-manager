@@ -9,7 +9,7 @@
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/*, mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v3";
+const VERSION = "fleetwise-v4-member-qr";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -93,6 +93,7 @@ const APP_FALLBACKS = ["/dashboard", "/driver", "/contractor", "/machines"];
 async function warmPaths(paths) {
   const cache = await caches.open(DATA_CACHE);
   for (const path of paths) {
+    if (requiresLiveAccess(new URL(path, self.location.origin).pathname)) continue;
     try {
       /*
        * Always re-fetch rather than skipping what is already held. Cache Storage is
@@ -192,6 +193,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // same-origin only
   if (url.pathname.startsWith("/api/")) return; // dynamic; network only
   if (url.pathname.startsWith("/auth/")) return; // auth flows; network only
+  if (requiresLiveAccess(url.pathname)) return;
 
   if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg") {
     event.respondWith(cacheFirst(request, SHELL_CACHE));
@@ -203,6 +205,11 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(staleWhileRevalidate(request, DATA_CACHE));
 });
+
+// QR permissions, driver locations and integration credentials must be checked online.
+function requiresLiveAccess(path) {
+  return path.startsWith("/m/") || path.startsWith("/driver/activity") || path.startsWith("/admin/driver-integrations");
+}
 
 /*
  * Web Push (F6). Additive, the offline strategy above is untouched. Payloads are the

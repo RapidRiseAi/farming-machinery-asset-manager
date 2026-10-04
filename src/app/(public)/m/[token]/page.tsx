@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { memberQr } from "@/lib/member-qr";
+import { getProfile } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { Photo } from "@/components/ui/photo";
 import { createServiceClient } from "@/lib/supabase/service";
 import { t } from "@/lib/i18n";
@@ -7,7 +10,6 @@ import { APP_NAME } from "@/lib/env";
 import { meterReading, relativeDate } from "@/lib/format";
 import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher";
 import { FaultCapture } from "@/components/fault-capture";
-import { OfflineForm } from "@/components/offline/offline-form";
 import { FUEL_ACTIVITIES, activityLabel } from "@/lib/fuel";
 import { isPlan, planAllows } from "@/lib/entitlements";
 import { Field } from "@/components/ui/field";
@@ -17,9 +19,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { MachinesIcon, CheckIcon, WarningIcon } from "@/components/ui/icons";
 import { QrChooser, type QrTask } from "./qr-chooser";
 import { submitReading, submitFuel } from "./actions";
-import { freshSent, readRememberedName, sentHref } from "./remembered-name";
+import { freshSent, sentHref } from "./remembered-name";
 
-// Ultra-light public page (Scope §4.2): no auth, minimal payload. Always dynamic.
+// Public branded gate; vehicle content requires current farm membership. Always dynamic.
 export const dynamic = "force-dynamic";
 
 type PublicMachine = {
@@ -134,11 +136,23 @@ export default async function PublicMachinePage({
 }) {
   const { token } = await params;
   const sp = await searchParams;
+  const locale = await deviceLocale();
+  const member = await memberQr(token);
+  if (!member) return (
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
+      <p className="text-sm font-semibold text-brand-ink">{APP_NAME}</p>
+      <h1 className="text-3xl font-bold">{t("driving.qrWelcome", locale)}</h1>
+      <p className="text-ink-muted">{t("driving.qrPrivate", locale)}</p>
+      <Link className={SUBMIT_CLASS} href={`/login?next=${encodeURIComponent(`/m/${token}`)}`}>{t("driving.login", locale)}</Link>
+      <Link className={SUBMIT_CLASS} href="/signup">{t("driving.signup", locale)}</Link>
+      <p className="text-sm text-ink-muted">{t("driving.inviteHint", locale)}</p>
+      <Link className={SUBMIT_CLASS} href="/">{t("driving.visit", locale)}</Link>
+    </main>
+  );
   const lookup = await getMachine(token);
   // Nobody is signed in here, so there is no `users.language` to read, the device
   // decides (cookie → Accept-Language → English). Reads a cookie and a header only:
   // the zero-anon-DB property of this route is untouched. Audit bug 2.
-  const locale = await deviceLocale();
 
   if (lookup.status === "unavailable") {
     return (
@@ -250,13 +264,14 @@ export default async function PublicMachinePage({
     );
   }
 
-  const [photoUrl, rememberedName] = await Promise.all([
+  const db=await createClient();
+  const [photoUrl, profile, visible] = await Promise.all([
     getPhotoUrl(machine.primary_attachment_id),
-    readRememberedName(),
+    getProfile(),
+    db.from("machines").select("id").eq("id",member.id).maybeSingle(),
   ]);
-  // Filled in from this phone's last capture; the hint says so, so a borrowed phone
-  // is corrected rather than credited to the wrong person.
-  const nameHint = rememberedName ? t("qr.yourNameRemembered", locale) : t("qr.yourNameHint", locale);
+  const rememberedName=profile?.name;
+  const nameHint = t("driving.signedInAs",locale);
 
   // Only surface the fuel quick-action when the farm's plan unlocks fuel (the server
   // action enforces this too, this just hides the UI on under-plan farms).
@@ -350,7 +365,7 @@ export default async function PublicMachinePage({
             />
           ),
           reading: metered ? (
-            <OfflineForm action={submitReading} type="log_reading" scope="public" locale={locale} className="flex flex-col gap-4">
+            <form action={submitReading} className="flex flex-col gap-4">
               <input type="hidden" name="token" value={token} />
               {/* Every field has a real label that stays put, there was not one
                   `<label>` on this page, and a placeholder disappears the moment you
@@ -374,12 +389,13 @@ export default async function PublicMachinePage({
                   autoComplete="name"
                   maxLength={200}
                   defaultValue={rememberedName ?? undefined}
+                  readOnly
                 />
               </Field>
               <button type="submit" className={SUBMIT_CLASS}>
                 {t("qr.logReading", locale)}
               </button>
-            </OfflineForm>
+            </form>
           ) : null,
           fuel: fuelAllowed ? (
             <form action={submitFuel} className="flex flex-col gap-4">
@@ -427,6 +443,7 @@ export default async function PublicMachinePage({
                   autoComplete="name"
                   maxLength={200}
                   defaultValue={rememberedName ?? undefined}
+                  readOnly
                 />
               </Field>
               <button type="submit" className={SUBMIT_CLASS}>
@@ -437,11 +454,21 @@ export default async function PublicMachinePage({
         }}
       />
 
+      <nav className="grid gap-3" aria-label={t("driving.quickActions", locale)}>
+        <Link className={SUBMIT_CLASS} href={`/driver/activity?farm=${member.farm_id}&machine=${member.id}`}>{t("driving.title", locale)}</Link>
+        {visible.data && <>
+          <Link className={SUBMIT_CLASS} href={`/machines/${member.id}`}>{t("driving.vehicleDetails", locale)}</Link>
+          <Link className={SUBMIT_CLASS} href={`/machines/${member.id}?tab=servicing`}>{t("machine.tabServicing", locale)}</Link>
+          <Link className={SUBMIT_CLASS} href={`/machines/${member.id}/checklists/new`}>{t("driving.inspection", locale)}</Link>
+          <Link className={SUBMIT_CLASS} href={`/machines/${member.id}?tab=papers`}>{t("machine.tabPapers", locale)}</Link>
+        </>}
+      </nav>
+
       <Link
-        href="/login"
+        href="/account"
         className="focus-ring mx-auto mb-6 inline-flex min-h-[48px] items-center justify-center rounded-lg px-3 text-center text-sm font-medium text-sand-500"
       >
-        {t("qr.workHere", locale)}
+        {t("account.title", locale)}
       </Link>
     </main>
   );

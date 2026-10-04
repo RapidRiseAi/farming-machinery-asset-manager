@@ -110,6 +110,7 @@ export default async function AdminFarmsPage({
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? t("admin.farmCreated", locale) : undefined} />
+      <Link className="underline" href="/admin/driver-integrations">{t("driving.integrations",locale)}</Link>
 
       {farms.length === 0 ? (
         <EmptyState title="No farms yet" hint="Create the first one with New farm." />

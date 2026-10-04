@@ -5,6 +5,14 @@
 
 ## 1. Vision & Positioning
 
+**Founder amendment, 3 October 2026:** driver sessions, arrivals/departures, stop
+durations and manager-assisted capture are now in scope. Vehicle QR access requires
+authentication and active farm membership; strangers receive Fleetwise login/signup
+and marketing options. Hardware integrations are a separately quoted service that
+Fleetwise staff configure and manually activate, never farm self-service. See
+[Driver activity](DRIVER_ACTIVITY.md). This supersedes the no-login QR statements
+and tracking exclusion later in the original v1 document.
+
 A simple, cloud-based machinery and vehicle management platform for South African farms, sold as the first module of a growing farm operations system. It gives farmers a complete, always-current picture of every machine they own: what it costs, when it needs service, what's broken, who fixed it, and where the money is going.
 
 **The core insight that shapes the whole design:** systems like this die when nobody enters data. So the platform is built around an asymmetry, **mechanics and workshops enter most of the data** (job cards, services, parts, costs) as a natural part of doing their job, **workers capture small events in seconds** (faults, hours, fuel) by scanning a QR code, and **farmers mostly consume** (dashboards, WhatsApp alerts, reports). The farmer should get value even if he personally never types anything.

@@ -165,4 +165,6 @@ pg "$DB" < "$ROOT/supabase/tests/jobcard_intake.sql"
 echo "==> running received supplier invoice tests"
 pg "$DB" < "$ROOT/supabase/tests/jobcard_received_invoice.sql"
 
+echo "==> running driver activity and managed integration tests"
+pg "$DB" < "$ROOT/supabase/tests/driving_activity.sql"
 echo "==> OK"

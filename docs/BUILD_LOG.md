@@ -4483,6 +4483,56 @@ button behaves this way until its script runs, so a farmer on a slow phone conne
 lose a first tap on any page; measure it on a phone before deciding whether to show
 buttons as not yet ready.
 
+## 2026-10-03 - Driver activity, member QR and quoted hardware activation
+
+### Changes
+
+- Added driver sessions, manual start/arrival/departure/finish, named stops, optional
+  phone coordinates and stop durations. Account, driver home and individual team
+  profiles link to activity; managers can capture on behalf of employees with SAST
+  event times. Event time, recording time, actor and source are distinct.
+- Database guards enforce one active vehicle per driver and one driver per vehicle,
+  farm membership, valid transitions, chronological events and immutable event history.
+  Equal hardware timestamps retain their sequence. Current and past sessions are
+  separated; employee/vehicle filters apply to both. Stop summaries are not truncated
+  by PostgREST row limits; the timeline explicitly shows the latest 50 updates.
+- QR codes now resolve through active farm membership. Guests/nonmembers receive a
+  branded login/signup/marketing gate. Authorized members get capture, driver activity
+  and permission-scoped maintenance/inspection/paperwork actions. Captures derive
+  identity inside the transaction; fault retries use receipts and stable media IDs.
+  Login retains the scanned return path. Anonymous offline drafts require review.
+  QR/activity/integration pages bypass the service worker cache; its version was bumped.
+- Following the founder's clarification, hardware connections are a separately quoted
+  service: only Fleetwise rr_admin staff can provision, map IDs, rotate tokens or
+  activate them, and activation requires a quote reference. Farms see status and can
+  request a quote. Added a common authenticated event endpoint with duplicate-delivery
+  handling for future provider adapters. No brand adapter is claimed to exist.
+- Documented the scope amendment, operating workflow, adapter contract and release
+  steps in docs/DRIVER_ACTIVITY.md. Preserved the other session's voice work.
+
+### Verification
+
+- All 189 migrations apply to throwaway PGlite; all 30 SQL suites passed. The driver
+  suite was also rerun after the final same-timestamp sequencing change and passed.
+  Tests cover isolation, impersonation, revoked membership, QR actor attribution,
+  transition conflicts, duplicate/payload-changing retries, device mapping and the
+  staff-only paid-feature boundary. Added the suite to the real-Postgres CI runner.
+- 505 application tests passed, including stop duration and equal-timestamp cases.
+- Typecheck, lint, bilingual key parity/coverage, error coverage, design/contrast lint,
+  dash checks and git diff --check passed. Final production build passed in an isolated
+  copy at C:/projects/.fleetwise-driver-review, preserving the shared .next directory.
+- Local production HTTP checks passed for the guest QR gate, retained login path,
+  protected-route redirects and unauthenticated QR/integration refusals.
+
+### Release status and remaining verification
+
+Migration 20261003142805_driver_activity_and_secure_qr.sql is LOCAL ONLY. No production
+schema change, deployment, email or hardware activation was performed. Apply the
+migration before deploying the app, and invite workers who used anonymous QR capture.
+The Browser plugin reported no connected browser, so signed-in browser/phone flows
+were not exercised. Provider-specific adapters and real-device commissioning remain
+part of the quoted integration work, after the provider and API are known.
+
 ## 2026-10-04 - Buttons load until they work
 
 Asked for: "make sure the buttons work", then "make the buttons load until they work". On

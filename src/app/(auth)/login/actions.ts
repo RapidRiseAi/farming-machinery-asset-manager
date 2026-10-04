@@ -6,24 +6,27 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { syncLocaleOnSignIn } from "@/lib/locale-sync";
 import { siteUrl } from "@/lib/env";
+import { safePath } from "@/lib/safe-path";
 
 export async function signInWithPassword(formData: FormData) {
+  const next=safePath(String(formData.get("next")??""),"/home");
+  const loginError=(code:string)=>`/login?error=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`;
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   // The password box is no longer `required` in HTML, because the same form now
   // also submits to the magic-link action, which does not want one. So the check
   // moves here, where it belonged anyway, since HTML validation is a courtesy
   // and not a guarantee.
-  if (!email) redirect("/login?error=need-email");
-  if (!password) redirect("/login?error=need-password");
+  if (!email) redirect(loginError("need-email"));
+  if (!password) redirect(loginError("need-password"));
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(loginError(error.message));
   // Honour a language chosen on the login screen instead of silently discarding it.
   await syncLocaleOnSignIn();
   revalidatePath("/", "layout");
   // /home dispatches by role, a driver must not land on the owner's money page.
-  redirect("/home");
+  redirect(safePath(String(formData.get("next") ?? ""), "/home"));
 }
 
 /**
@@ -56,8 +59,9 @@ export async function sendPasswordReset(formData: FormData) {
 }
 
 export async function signInWithMagicLink(formData: FormData) {
+  const next=safePath(String(formData.get("next")??""),"/home");
   const email = String(formData.get("email") ?? "").trim();
-  if (!email) redirect("/login?error=need-email");
+  if (!email) redirect(`/login?error=need-email&next=${encodeURIComponent(next)}`);
   const supabase = await createClient();
   const origin =
     (await headers()).get("origin") ??
@@ -65,8 +69,8 @@ export async function signInWithMagicLink(formData: FormData) {
     "";
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=/home` },
+    options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safePath(String(formData.get("next") ?? ""), "/home"))}` },
   });
-  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  redirect("/login?sent=1");
+  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
+  redirect(`/login?sent=1&next=${encodeURIComponent(next)}`);
 }

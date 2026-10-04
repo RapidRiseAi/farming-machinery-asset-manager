@@ -1,9 +1,11 @@
 "use server";
 
+import { memberQr } from "@/lib/member-qr";
+
 import { redirect } from "next/navigation";
 import { FUEL_ACTIVITIES } from "@/lib/fuel";
 import { parseRandsToCents } from "@/lib/money";
-import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
 import { rememberName, sentHref } from "./remembered-name";
 
 type QrCaptureError =
@@ -42,8 +44,9 @@ async function runCapture(
   args: Record<string, unknown>,
 ): Promise<QrCaptureError | null> {
   try {
-    const svc = createServiceClient();
-    const { data, error } = await svc.rpc(rpc, args);
+    if (!await memberQr(String(args.p_token ?? ""))) return "not_found";
+    const svc = await createClient();
+    const { data, error } = await svc.rpc("record_member_qr", {p_token:args.p_token,p_kind:rpc==="record_public_qr_reading"?"reading":"fuel",p_fields:args});
     if (error) {
       // Keep database details in server logs; the public page receives no raw SQL text.
       console.error("[public-qr] capture RPC failed", { rpc, code: error.code });
@@ -67,7 +70,7 @@ async function runCapture(
   }
 }
 
-/** Anonymous meter reading via QR, resolved and committed atomically in Postgres. */
+/** Member QR reading, resolved and committed atomically in Postgres. */
 export async function submitReading(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
   const readingRaw = String(formData.get("reading") ?? "").trim();
@@ -99,7 +102,7 @@ export async function submitReading(formData: FormData) {
   redirect(sentHref(token, "reading"));
 }
 
-/** Anonymous fuel draw via QR, including tank resolution and usage attribution. */
+/** Member QR fuel draw, including tank resolution and usage attribution. */
 export async function submitFuel(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
   const litresRaw = String(formData.get("litres") ?? "").trim();

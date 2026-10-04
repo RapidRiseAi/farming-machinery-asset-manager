@@ -37,6 +37,7 @@ export default async function LoginPage({
     email?: string;
     /** A password-reset email has been sent, or would have been, if the address exists. */
     reset?: string;
+    next?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -106,6 +107,7 @@ export default async function LoginPage({
 
       <div className="mt-5 rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
         <LoginForm
+          next={sp.next}
           error={errorMessage}
           sent={sp.sent}
           locale={locale}

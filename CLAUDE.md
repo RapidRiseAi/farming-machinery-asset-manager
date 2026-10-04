@@ -37,8 +37,9 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 - **History is structural:** soft delete (`deleted_at`/`deleted_by`), append-only `audit_log` (trigger),
   job cards lock after approval (trigger blocks edits; history via audit diffs).
 - **Public QR flow has ZERO anon DB access.** QR encodes an unguessable per-machine `public_token`;
-  submissions go through service-role server routes that validate the token.
-- **Auth (v1):** email (password + magic-link) + email invites; workers use the no-login QR page.
+  the new member QR flow checks active farm membership for reads and inside capture transactions.
+  Guests see only a Fleetwise login/signup/marketing gate. See `docs/DRIVER_ACTIVITY.md` for release status.
+- **Auth:** email (password + magic-link) + email invites; the new QR workflow requires driver accounts.
   Phone/WhatsApp/SMS auth deferred (WhatsApp Stage 2).
 - **i18n from day one:** all UI strings in `src/lib/i18n/en.json` (filled) + `af.json` (keys ready for
   the Week 3 Afrikaans pass). Minimal `t()` helper, no heavy i18n lib (bundle size).
@@ -51,6 +52,8 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
   ceiling on how many form controls a converted screen may show at rest.
 - **Out of scope for v1** (Scope §13) is a hard NO: GPS/telemetry, anomaly ML, parts inventory,
   invoicing/accounting, crop/livestock/labour, store apps, full offline sync, >2 languages.
+  Founder amendments supersede that original boundary: driver activity and staff-activated,
+  separately quoted tracking integrations are approved in `docs/DRIVER_ACTIVITY.md`.
 
 ## Current state
 

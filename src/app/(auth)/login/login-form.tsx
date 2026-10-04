@@ -13,6 +13,7 @@ export function LoginForm({
   sent,
   locale,
   defaultEmail,
+  next,
 }: {
   error?: string;
   sent?: string;
@@ -24,6 +25,7 @@ export function LoginForm({
    * five-second recovery and giving up.
    */
   defaultEmail?: string;
+  next?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -46,6 +48,7 @@ export function LoginForm({
         vanishes the moment you type, which fails exactly the people this product is for.
       */}
       <form action={signInWithPassword} className="flex flex-col gap-4">
+        <input type="hidden" name="next" value={next ?? "/home"} />
         <Field label={t("auth.email", locale)} htmlFor="signin-email">
           <Input
             id="signin-email"

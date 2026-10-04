@@ -222,6 +222,7 @@ export default async function TeamPage({
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={success} />
+      <Link className="underline" href="/driver/activity">{t("driving.title",locale)}</Link>
 
       {/* Two different questions about the same people: who may sign in (this page), and
           who may legally drive (that one). Linked rather than merged because a farm opens
@@ -271,6 +272,7 @@ export default async function TeamPage({
                   <Tr key={u.id}>
                     <Td label={t("team.name", locale)} className="font-medium text-sand-900">
                       <span className="break-words">{u.name}</span>
+                      <Link className="ml-2 text-sm underline" href={`/driver/activity?driver=${u.id}`}>{t("driving.title",locale)}</Link>
                       {isMe ? <span className="ml-1 text-xs font-normal text-sand-500">({t("team.you", locale)})</span> : null}
                       {!u.active ? (
                         <StatusBadge

@@ -46,6 +46,7 @@ const FALLBACK = "errors.generic";
  * action is converted to emit a slug.
  */
 const CODE_KEYS: Record<string, string> = {
+  "driving-invalid": "driving.error",
 
   "work-transition": "errors.workTransition",
   "work-changed": "errors.workChanged",
