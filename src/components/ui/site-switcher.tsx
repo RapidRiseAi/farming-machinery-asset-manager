@@ -34,6 +34,9 @@ export function SiteSwitcher({
         name="farm_id"
         aria-label={label}
         defaultValue={current}
+        // Switching IS the onChange, so it waits for the page to work (boot-guard.ts):
+        // picked earlier, the select would show the new farm over the old farm's data.
+        data-needs-js=""
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
         className="focus-ring min-h-[48px] w-full truncate rounded-lg border border-sand-200 bg-sand-50 px-2.5 text-sm font-medium text-sand-800 hover:bg-sand-100 sm:min-h-[40px]"
       >

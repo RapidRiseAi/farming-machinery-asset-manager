@@ -153,9 +153,11 @@ const waitFor = async (label, expression, timeout = 15_000) => {
 };
 const text = () => evaluate("document.body?.innerText ?? \"\"");
 const has = (s) => `(document.body?.innerText ?? "").includes(${JSON.stringify(s)})`;
-// Ready means enabled AND hydrated: the server renders the button before React attaches
-// to it, and on the live site that gap is seconds. A tap inside it does nothing at all.
-const buttonExpr = (label) => `[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === ${JSON.stringify(label)} && !b.disabled && Object.keys(b).some((k) => k.startsWith("__react")))`;
+// Ready means the page has finished starting, and the button is enabled AND hydrated. The
+// server renders the button before React attaches to it, and on the live site that gap is
+// seconds; while <html> carries `data-booting` the page holds every tap on a control
+// (src/components/ui/boot-guard.ts), so a click then is deliberately ignored.
+const buttonExpr = (label) => `(!document.documentElement.hasAttribute("data-booting") && [...document.querySelectorAll("button")].find((b) => b.innerText.trim() === ${JSON.stringify(label)} && !b.disabled && Object.keys(b).some((k) => k.startsWith("__react"))))`;
 async function click(label) {
   // A disabled button means work is still settling: wait for it, never click through.
   await waitFor(`enabled "${label}"`, `Boolean(${buttonExpr(label)})`, 10_000).catch(async (e) => {

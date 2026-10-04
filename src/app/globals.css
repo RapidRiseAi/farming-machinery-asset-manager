@@ -309,6 +309,67 @@ a {
   touch-action: manipulation;
 }
 
+/* Buttons load until they work. While the page is starting (`data-booting` on <html>,
+   set before paint by BOOT_GUARD in src/components/ui/boot-guard.ts), every control that
+   needs JavaScript pulses, and the guard holds taps on the ones not yet attached. Links
+   are skipped unless they opt in with data-needs-js. The selector list must equal
+   BOOT_CONTROL_SELECTORS exactly; boot-guard.test.ts checks both copies here.
+   The 250ms delay means a page that is ready quickly shows nothing at all, and animating
+   opacity alone means nothing moves when the pulse stops. */
+html[data-booting]
+  :is(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], [role="option"], [role="checkbox"], [role="radio"], input[type="checkbox"], input[type="radio"], input[type="submit"], input[type="button"], input[type="reset"], [data-needs-js]):not(:disabled):not(a[href]:not([data-needs-js])) {
+  cursor: progress;
+  animation: fw-boot-pulse 1.2s ease-in-out 250ms infinite;
+}
+
+/* The reduced-motion rule in the base layer cuts every animation to one near-instant run,
+   which would end the pulse before it showed. Swap it for a single step to a dimmed look
+   that holds, still after the delay. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-booting]
+    :is(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], [role="option"], [role="checkbox"], [role="radio"], input[type="checkbox"], input[type="radio"], input[type="submit"], input[type="button"], input[type="reset"], [data-needs-js]):not(:disabled):not(a[href]:not([data-needs-js])) {
+    animation-name: fw-boot-dim;
+    animation-fill-mode: forwards;
+  }
+}
+
+/* A select that acts in its onChange opens natively on press, which a click guard cannot
+   stop, so it takes no presses at all until the page works. */
+html[data-booting] select[data-needs-js]:not(:disabled) {
+  pointer-events: none;
+}
+
+/* A chip that is a label around a visually hidden radio or checkbox: the guard holds the
+   input's click, and this draws the busy look on the part a person actually sees. */
+html[data-booting] label:has(> input[type="radio"]:not(:disabled)),
+html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
+  cursor: progress;
+  animation: fw-boot-pulse 1.2s ease-in-out 250ms infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-booting] label:has(> input[type="radio"]:not(:disabled)),
+  html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
+    animation-name: fw-boot-dim;
+    animation-fill-mode: forwards;
+  }
+}
+
+@keyframes fw-boot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes fw-boot-dim {
+  to {
+    opacity: 0.55;
+  }
+}
+
 /* Print: drop the app chrome (sidebar, headers, tab bar) so a printed report or
    QR sheet is just the content. Pages hide their own controls with `print:hidden`. */
 @media print {

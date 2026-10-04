@@ -19,7 +19,8 @@
     "errors:check": "node scripts/error_coverage.mjs",
     "dashes:check": "node scripts/dash_sweep.mjs --check",
     "ui:check": "node scripts/ui_check.mjs",
-    "voice:check": "node scripts/voice_check.mjs"
+    "voice:check": "node scripts/voice_check.mjs",
+    "ready:check": "node scripts/ready_check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

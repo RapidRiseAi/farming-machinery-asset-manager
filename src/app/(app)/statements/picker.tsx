@@ -54,6 +54,7 @@ export function StatementPicker({
             id="party"
             name="party"
             defaultValue={selected}
+            data-needs-js=""
             onChange={(e) => go({ party: e.target.value })}
           >
             {parties.map((p) => (

@@ -221,6 +221,9 @@ export function FilterBar({
             <Link
               key={g.paramName}
               href={hrefWith({ [g.paramName]: "" })}
+              // Followed natively before the page works, the remembered filters would be
+              // restored on arrival and undo the removal (boot-guard.ts holds it instead).
+              data-needs-js=""
               className="focus-ring inline-flex min-h-[48px] min-w-0 items-center gap-1.5 rounded-full border border-sand-300 bg-surface px-3 text-sm font-medium text-sand-800 hover:bg-sand-50 sm:min-h-[36px]"
             >
               <span className="text-sand-500">{g.label}:</span>
@@ -230,6 +233,7 @@ export function FilterBar({
           ))}
           <Link
             href={clearAllHref}
+            data-needs-js=""
             onClick={() => {
               if (rememberKey) writeStored(rememberKey, null);
             }}

@@ -21,6 +21,7 @@ pnpm db:test            # apply migrations + run RLS isolation tests on local Po
 pnpm db:check           # the same on PGlite when there is no psql; --suite runs them all
 pnpm ui:check           # drive Chrome over CDP: do the screens' dialogs actually work?
 pnpm voice:check        # hands-free voice mode end to end, with Azure stood in at the websocket
+pnpm ready:check        # throttled phone: pages arrive marked as starting, hold taps, let go once they work
 ```
 `pnpm db:test` runs `supabase/tests/run.sh`: it (re)creates a local test DB, loads the
 Supabase auth shim, applies every migration in order, then runs the RLS isolation suite.
@@ -180,6 +181,19 @@ will bite again.
   reason and must never be re-exported from `action-menu.tsx` again. The nasty part: the
   same bad import on `/incidents` passed every gate, because its one call sits behind
   `r.job_card_id` and the test farm's incident has no job card.
+- **An enabled button is not a working button until the page has started.** The server
+  renders every control looking ready and React attaches seconds later on a phone; a tap in
+  between used to vanish. `src/components/ui/boot-guard.ts` puts `data-booting` on `<html>`
+  before paint, which pulses every JS-dependent control and holds taps on the ones React has
+  not attached yet, plus native submits of forms it does not own yet (GET forms and links go
+  through); `<BootReady/>` takes it off once the document has fully arrived AND every control
+  the server sent is attached (then a 4 s cap, 12 s overall, active time only), and the guard
+  lets go by itself if React never starts. Browser checks wait for the mark to clear before
+  tapping, and `pnpm ready:check` proves the whole thing on a throttled phone. A native
+  control whose real behaviour is JavaScript (a select that acts in onChange, a link whose
+  onClick must run) opts in with `data-needs-js`. A new kind of clickable control (a new
+  `role`) goes into `BOOT_CONTROL_SELECTORS` AND its copy in `globals.css`; a test keeps the
+  two equal.
 - **A dialog that saves and closes needs `DialogActions`.** Server actions here end in
   `redirect()`, which is a soft navigation: the client component keeps its state, so a
   hand-rolled dialog stays open over the row it just wrote. `DialogActions` watches

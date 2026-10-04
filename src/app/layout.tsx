@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
+import { BOOT_GUARD } from "@/components/ui/boot-guard";
+import { BootReady } from "@/components/ui/boot-ready";
 import { RouteProgress } from "@/components/ui/route-progress";
 import { deviceLocale } from "@/lib/locale";
 import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
@@ -63,6 +65,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        {/* Buttons load until they work: marks the page as starting before first paint
+            and holds taps on controls until <BootReady/> sees them attached. First, so
+            nothing paints or listens before it. See boot-guard.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_GUARD }} />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         {/* Text size on this device (Your account and preferences), same no-flash
             treatment as the theme: stamped before paint, read by globals.css. */}
@@ -76,6 +82,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <RouteProgress />
         {children}
         <ServiceWorkerRegister />
+        <BootReady />
       </body>
     </html>
   );

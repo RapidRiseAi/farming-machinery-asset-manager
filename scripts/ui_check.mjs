@@ -459,7 +459,14 @@ for (const route of routes) {
      * reported "the first dialog trigger opened nothing" on `/machines/[id]`, whose
      * first-load JS is 351 kB, while the same click by hand always worked. Waiting for
      * `readyState === "complete"` does not mean hydrated.
+     *
+     * The page now says when it is ready: it arrives with `data-booting` on <html> and
+     * holds taps on controls until they work (src/components/ui/boot-guard.ts). Wait for
+     * that first, so the retries below are left for genuine misses.
      */
+    for (let i = 0; i < 200 && (await evaluate("document.documentElement.hasAttribute('data-booting')")); i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await evaluate(`(() => {
         const main = document.querySelector('main') ?? document.body;

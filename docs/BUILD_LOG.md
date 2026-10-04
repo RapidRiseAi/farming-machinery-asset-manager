@@ -4482,3 +4482,52 @@ the tap did nothing. It now waits for React to attach before it taps. Any server
 button behaves this way until its script runs, so a farmer on a slow phone connection can
 lose a first tap on any page; measure it on a phone before deciding whether to show
 buttons as not yet ready.
+
+## 2026-10-04 - Buttons load until they work
+
+Asked for: "make sure the buttons work", then "make the buttons load until they work". On
+the live site every page arrived with its buttons drawn and React attached to them only
+later; a tap in that gap vanished (it is what timed voice_check out against production).
+
+### What was built
+
+- `src/components/ui/boot-guard.ts`: an inline script, first in the root layout's head,
+  puts `data-booting` on `<html>` before paint. While it is there every control that needs
+  JavaScript pulses (opacity only, after 250 ms so a fast page shows nothing; a still dimmed
+  look under reduced motion, which the base layer would otherwise cut to nothing), and a
+  capture-phase listener holds taps on controls React has not attached yet and native
+  submits of forms it does not own yet. Controls already attached, links, native
+  `<details>` and `<select>`, and forms with an explicit `method="get"` go straight through.
+  `data-needs-js` opts in anything native whose real behaviour is JavaScript: the farm
+  switcher, the statements picker, FilterBar's Clear and pill links.
+- `<BootReady/>` takes the mark off once the document has fully arrived and every control
+  the server sent is attached; caps of 4 s after that and 12 s overall count active time
+  only. If React never starts at all, the guard lets go by itself (15 s after load, 30 s
+  absolute) so pages that work without JavaScript keep working.
+- `pnpm ready:check` (new): a throttled phone (CPU 6x, 150 ms, 200 KB/s, service worker
+  bypassed) on 8 routes. Asserts the page arrives marked; a tap on an unattached control,
+  and on /login a typed email plus Enter and a tap on Sign in, are held (proved by a probe
+  that sees the event never got past the guard); the mark clears only once every control
+  works, within 30 ms of that; nothing appears unattached for 1.5 s after.
+- ui_check and voice_check wait for the mark before tapping.
+
+### Found on the way
+
+The first version released the mark when the root layout committed. ready_check caught it
+on the machine pages, which stream late: the mark came off 0.4 s and 1.4 s before their
+content arrived. Two independent reviewers then found six real defects in the next
+version, all fixed and pinned by tests: a submit from a form React already owned (the farm
+switcher's requestSubmit) was blocked, so switching farm could silently do nothing;
+working controls were held with the rest; nothing released the page if the JavaScript
+never loaded; `<details>` and GET search forms that work natively were held; time frozen in
+the background counted toward the cap; and ready_check could pass with the guard removed.
+
+**Not fixed, reported:** on /login, Enter in the email or password field triggers
+"Forgot?" (the first submit button in the form) and sends a password reset instead of
+signing in. `src/app/(auth)/login/login-form.tsx` is another session's in-flight file, so
+it was left alone.
+
+### Verification
+Unit tests 518 (16 for the guard; six deliberate mutations of it were each caught);
+typecheck, lint, i18n, errors, design lint, dashes; build; on the local production build
+ready_check passes on all 8 routes, voice_check 39/39, ui_check passes.
