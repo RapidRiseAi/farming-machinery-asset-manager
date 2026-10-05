@@ -57,21 +57,29 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Phase: live in production on Vercel (`main`).** The app code in production is `2fbbd2f`
-(2026-10-03): hands-free voice and mixed Afrikaans/English hearing (BUILD_LOG, 2026-10-02
-and 2026-10-03), on top of the job-card rework and second UI pass released on 2026-10-02
-(`38ea421`). Vercel Production reported Ready for that SHA, both CI jobs passed (App
-quality gates + build, RLS isolation tests), and against the live URL `voice:check` passes
-39/39 (Azure faked in the browser) and `ui:check` passes (dialogs, 53 routes at 360px and
-1024px). The AI hearing route answers 403 to anyone without the v2 audio consent, as it
-should; no real recording has gone through it on the live site, and no phone has run
-hands-free yet. Saving through forms and the job-card workflow end to end have NOT been
-exercised on the live site by a browser.
+**Phase: live in production on Vercel (`main`).** The app code in production is `240578d`
+(2026-10-05): AI and voice usage release A (`f3ddce2`: every paid AI call and stretch of
+voice held and settled into a per-farm, per-person ledger; owner limits; AI on by default
+behind a notice; a farm's own OpenAI key called at OpenAI directly; failure detection;
+`docs/AI_USAGE.md`), Codex's driver activity, member QR and quoted hardware activation
+(`849725c`, `docs/DRIVER_ACTIVITY.md`), and release fixes (`240578d`: Enter on /login signs
+in instead of sending a reset email; the driver migration's probe), on top of "buttons load
+until they work" (`d9f701f`). Vercel Production reported Ready for that SHA and CI passed.
+Against the live URL: `ready:check` passes on every page (taps held until React is attached,
+/login included), `voice:check` 43/43 (Azure faked), `ui:check` passes (12 dialog screens
+including /settings/ai; 55 routes at 360px and 1024px including /driver/activity),
+`scripts/check_driver_http.mjs` passes, Enter on /login signs in, and the real speech-token
+path behaves (no app version: 409 and no hold; the current app: a token with its voice
+session; a zero final report settles it at R0, a second report gets 410). NOT exercised on
+the live site: a real AI hearing or AI answer (Gateway credit), a farm linking its own key
+(`AI_KEY_SECRET` unset), invoicing (release B), hands-free on a phone, driver activity that
+writes (start, arrive, depart, finish) and member QR capture on a phone, and saving through
+forms end to end.
 
-**Schema and app are level.** All 188 migrations are applied to the live database; the
-voice audio-consent migration (`20261003090000`) went in on 2026-10-03 immediately before
-the push, and every probe answers true (`node scripts/apply_pending.mjs --dry` reports
-nothing pending).
+**Schema and app are level.** All 191 migrations are applied to the live database; the
+three of this release (`20261003142805`, `20261004095000`, `20261004100000`) went in on
+2026-10-05 immediately before the push, and every probe answers true
+(`node scripts/apply_pending.mjs --dry` reports nothing pending).
 Billing is live and has taken a real payment; email sends via Resend.
 `supabase/tests/deploy_compatibility.sql` pins every call shape the DEPLOYED build makes,
 so a migration that drops a function signature is caught before it breaks the live site.
@@ -92,9 +100,15 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   Before real users join: sign the data agreements with Vercel, Microsoft and OpenAI (the
   basis is service necessity, so the transfer rests on them); ship release B so usage is
   actually charged; set `AI_KEY_SECRET` (32 random bytes, base64, Sensitive) before any farm
-  links a key; optionally `AI_ALERT_EMAIL`. The AI Gateway is on the free tier (5 requests a
-  minute per model): add credits. Vercel Hobby refuses zero-data-retention routing and is
-  for non-commercial use; after an upgrade set `ASSISTANT_TRANSCRIBE_ZDR=1`.
+  links a key, the SAME value on every deployment that shares the database (a Preview with
+  its own refuses every farm's key); optionally `AI_ALERT_EMAIL`. The AI Gateway is on the
+  free tier (5 requests a minute per model): add credits. Vercel Hobby refuses
+  zero-data-retention routing and is for non-commercial use; after an upgrade set
+  `ASSISTANT_TRANSCRIBE_ZDR=1`. A rollback past `240578d` is not clean once people have
+  seen the AI notice: roll forward (docs/AI_USAGE.md, "Releasing and rolling back").
+- **Drivers now need accounts** (Codex's release, `docs/DRIVER_ACTIVITY.md`): a QR scan by
+  a guest shows a login gate, not anonymous capture. Invite anyone who used anonymous QR
+  capture. Hardware tracking is a quoted, staff-activated service; no provider is connected.
 - **The Azure Speech resource refuses parallel recognitions**, so two people talking at
   once collide (seen as "number of parallel requests exceeded"). Move it to S0.
 - **`lapsed_grace_days` is live at 30 and it will close accounts.** Needs a decision, not a default.
