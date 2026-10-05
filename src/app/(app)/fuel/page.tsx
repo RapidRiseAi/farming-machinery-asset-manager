@@ -48,6 +48,16 @@ type Issue = {
   anomaly_notified_at: string | null; driver_name: string | null; by_user: string | null;
 };
 type Op = { id: string; name: string };
+/** One row of `public.fuel_tank_balances`: litres only, counted from every row. */
+type TankBalance = {
+  tank_id: string;
+  delivered_litres: number;
+  issued_litres: number;
+  balance_litres: number;
+  dipped_on: string | null;
+  dip_litres: number | null;
+  book_at_dip_litres: number | null;
+};
 
 /** A tank below this share of its capacity says so in words. */
 const LOW_TANK_PCT = 15;
@@ -89,24 +99,22 @@ export default async function FuelPage({
   const costsVisible = farmId ? await canViewFarmCosts(supabase, farmId) : profile.role === "rr_admin";
   const byFarm = <Q,>(q: Q): Q => farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
 
-  const [tankRes, machineRes, delRes, issRes, opRes, dipRes] = await Promise.all([
+  const [tankRes, machineRes, delRes, issRes, opRes, balRes] = await Promise.all([
     byFarm(supabase.from("fuel_tanks").select("id, name, capacity_l").is("deleted_at", null).order("name")),
     byFarm(supabase.from("machines").select("id, name, meter_type, status, current_reading, current_reading_date").is("deleted_at", null).order("name")),
     byFarm(supabase.from("fuel_deliveries_visible").select("id, tank_id, date, litres, price_per_l_cents, supplier, invoice_no").is("deleted_at", null).order("date", { ascending: false }).limit(400)),
     byFarm(supabase.from("fuel_issues_visible").select("id, tank_id, machine_id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at, driver_name, by_user").is("deleted_at", null).order("date", { ascending: false }).limit(600)),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
-    byFarm(supabase.from("fuel_dips").select("id, tank_id, dipped_on, litres").is("deleted_at", null)
-      .order("dipped_on", { ascending: false }).order("created_at", { ascending: false }).limit(200)),
+    // The tank cards, counted in the database from every delivery and draw (20261005122000).
+    // The two lists above are capped, and for an operator the draws are only their own
+    // machines', so a balance summed from them was short of rows or simply wrong.
+    supabase.rpc("fuel_tank_balances", { p_farm: farmId }),
   ]);
 
   const tanks = (tankRes.data as Tank[] | null) ?? [];
-  // The latest measurement per tank. The variance against the book balance ON THAT DATE is
-  // what catches a leak or a draw nobody logged; comparing against today would count every
-  // draw made since as a discrepancy.
-  type Dip = { id: string; tank_id: string; dipped_on: string; litres: number | null };
-  const dips = (dipRes.data as Dip[] | null) ?? [];
-  const latestDip = new Map<string, Dip>();
-  for (const d of dips) if (!latestDip.has(d.tank_id)) latestDip.set(d.tank_id, d);
+  // A failed read must not draw every tank as empty: "0 L" is an answer, and a wrong one.
+  if (balRes.error) throw new Error("Tank balances are temporarily unavailable.");
+  const balByTank = new Map(((balRes.data as TankBalance[] | null) ?? []).map((b) => [b.tank_id, b]));
   const machinesAll = (machineRes.data as Machine[] | null) ?? [];
   const machines = machinesAll.filter((m) => m.status !== "retired" && m.status !== "sold");
   const deliveries = (delRes.data as Delivery[] | null) ?? [];
@@ -167,11 +175,6 @@ export default async function FuelPage({
   const monthIn = deliveries.filter((d) => inMonth(d.date)).reduce((a, d) => a + (d.litres ?? 0), 0);
   const myMonthOut = monthIssues.filter((i) => i.by_user === profile.id).reduce((a, i) => a + (i.litres ?? 0), 0);
 
-  // Per-tank balance (deliveries minus draws).
-  const balByTank = new Map<string, { delivered: number; issued: number }>();
-  for (const tk of tanks) balByTank.set(tk.id, { delivered: 0, issued: 0 });
-  for (const d of deliveries) { const b = balByTank.get(d.tank_id); if (b) b.delivered += d.litres ?? 0; }
-  for (const i of issues) { const b = balByTank.get(i.tank_id); if (b) b.issued += i.litres ?? 0; }
 
   // Per-machine consumption (interval method), machines with any metered draws.
   const issuesByMachine = new Map<string, FuelIssueRow[]>();
@@ -422,28 +425,25 @@ export default async function FuelPage({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {tanks.map((tk) => {
-                const b = balByTank.get(tk.id) ?? { delivered: 0, issued: 0 };
-                const bal = b.delivered - b.issued;
+                const b = balByTank.get(tk.id);
+                const delivered = Number(b?.delivered_litres ?? 0);
+                const issued = Number(b?.issued_litres ?? 0);
+                const bal = Number(b?.balance_litres ?? 0);
                 const cap = tk.capacity_l && tk.capacity_l > 0 ? tk.capacity_l : null;
                 const pct = cap ? Math.round((Math.max(0, bal) / cap) * 100) : null;
                 const low = pct != null && pct < LOW_TANK_PCT;
 
-                // The stick in the tank, against what the books said on that day. A short
-                // measurement is diesel that left without a draw being logged: a leak, or
-                // somebody's jerrycan. It is reported, never adjusted away.
-                const dip = latestDip.get(tk.id);
+                // The stick in the tank, against what the books said on THAT day: comparing
+                // with today would count every draw since as missing. A short measurement is
+                // diesel that left without a draw being logged: a leak, or somebody's
+                // jerrycan. It is reported, never adjusted away.
+                const dippedOn = b?.dipped_on ?? null;
                 let dipFact: { value: string; short: boolean; variance: string } | null = null;
-                if (dip && dip.litres != null) {
-                  const book = deliveries
-                    .filter((d) => d.tank_id === tk.id && d.date <= dip.dipped_on)
-                    .reduce((a, d) => a + (d.litres ?? 0), 0)
-                    - issues
-                      .filter((i) => i.tank_id === tk.id && i.date <= dip.dipped_on)
-                      .reduce((a, i) => a + (i.litres ?? 0), 0);
-                  const variance = dip.litres - book;
+                if (dippedOn && b?.dip_litres != null && b.book_at_dip_litres != null) {
+                  const variance = Number(b.dip_litres) - Number(b.book_at_dip_litres);
                   const short = variance < -0.5;
                   dipFact = {
-                    value: litres(dip.litres),
+                    value: litres(Number(b.dip_litres)),
                     short,
                     variance: t(short ? "fuel.varianceShort" : "fuel.variance", locale)
                       .replace("{n}", num(Math.abs(variance), 0)),
@@ -481,11 +481,11 @@ export default async function FuelPage({
                       </div>
                     ) : null}
                     <FactList className="mt-3 border-t border-sand-100">
-                      <Fact label={t("fuel.delivered", locale)} value={<span className="tabular-nums">{litres(b.delivered)}</span>} />
-                      <Fact label={t("fuel.issued", locale)} value={<span className="tabular-nums">{litres(b.issued)}</span>} />
-                      {dip && dipFact ? (
+                      <Fact label={t("fuel.delivered", locale)} value={<span className="tabular-nums">{litres(delivered)}</span>} />
+                      <Fact label={t("fuel.issued", locale)} value={<span className="tabular-nums">{litres(issued)}</span>} />
+                      {dippedOn && dipFact ? (
                         <Fact
-                          label={t("fuel.dipOn", locale).replace("{date}", shortDate(dip.dipped_on, locale))}
+                          label={t("fuel.dipOn", locale).replace("{date}", shortDate(dippedOn, locale))}
                           value={<span className="tabular-nums">{dipFact.value}</span>}
                           hint={
                             dipFact.short ? (

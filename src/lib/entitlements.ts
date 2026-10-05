@@ -39,7 +39,8 @@ export const FEATURE_MIN_PLAN = {
   aarto: "complete",
   voice_ai: "complete",
   multi_site: "complete",
-  whatsapp: "complete",
+  // No `whatsapp`: WhatsApp alerts are not built, and every key here is a tick in the
+  // sign-up comparison. It comes back when the alerts do (20261005121000 dropped its twin).
   api_access: "done_for_you",
 } as const satisfies Record<string, Plan>;
 

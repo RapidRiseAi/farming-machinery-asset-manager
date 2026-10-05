@@ -28,6 +28,10 @@ create table if not exists auth.users (
   id    uuid primary key,
   email text
 );
+-- Real Supabase columns that public.team_invite_existing reads: a banned or soft-deleted
+-- login is never invited onto a farm.
+alter table auth.users add column if not exists banned_until timestamptz;
+alter table auth.users add column if not exists deleted_at timestamptz;
 grant usage on schema auth to anon, authenticated, service_role;
 grant select on auth.users to authenticated, service_role;
 

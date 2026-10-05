@@ -375,6 +375,9 @@ const CODE_KEYS: Record<string, string> = {
 
   // == Team invites ==========================================================
   "email-name-and-role-required": "errors.needInvite",
+  "invite-refused": "errors.inviteRefused",
+  "invite-switched-off": "errors.inviteSwitchedOff",
+  "invite-failed": "errors.inviteFailed",
 
   // == Auth ==================================================================
   "need-password": "errors.needPassword",

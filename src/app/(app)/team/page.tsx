@@ -158,7 +158,17 @@ export default async function TeamPage({
     .filter((row): row is TeamUser => row != null)
     .sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || a.name.localeCompare(b.name));
 
-  const success = sp.invited
+  // `noemail`: they are on the team, but the sign-in email did not go. A warning, not a
+  // success, because the owner may need to tell the person themselves.
+  const warning =
+    sp.invited === "noemail"
+      ? t("team.invitedNoEmail", locale).replace("{magicLink}", () => t("auth.magicLink", locale))
+      : undefined;
+  const success = sp.invited === "noemail"
+    ? undefined
+    : sp.invited === "again"
+    ? t("team.invitedAgain", locale)
+    : sp.invited
     ? t("team.invited", locale)
     : sp.erased
       ? t("privacy.erased", locale)
@@ -179,6 +189,7 @@ export default async function TeamPage({
       trigger={t("team.invite", locale)}
       triggerIcon={<PlusIcon />}
       title={t("team.invite", locale)}
+      description={t("team.inviteHint", locale)}
       closeLabel={closeLabel}
     >
       <form action={inviteUser}>
@@ -221,6 +232,7 @@ export default async function TeamPage({
         actions={invite}
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      <Flash tone="warning" message={warning} />
       <Flash tone="success" message={success} />
       <Link className="underline" href="/driver/activity">{t("driving.title",locale)}</Link>
 

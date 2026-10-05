@@ -13,6 +13,8 @@ import {
   type UserPermission,
 } from "@/lib/permissions";
 import { safePath } from "@/lib/safe-path";
+import { sendInviteEmail } from "@/lib/email/invite";
+import { APP_NAME } from "@/lib/env";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
 const ALL_ROLES = ["owner", "manager", "mechanic", "operator", "workshop", "rr_admin"];
@@ -27,11 +29,30 @@ async function requireTeamManager() {
   return { profile, farmId: state.farmId };
 }
 
+/** What `public.team_invite_existing` decided. See that migration (20261005120000). */
+type InviteDecision = {
+  outcome: "none" | "created" | "already" | "switched_off" | "added" | "moved" | "refused";
+  user_id?: string;
+  name?: string;
+  language?: string;
+};
+
+/** Supabase's "this address already has a login", by code where it sends one. */
+function alreadyRegistered(error: { code?: string; message?: string }): boolean {
+  return error.code === "email_exists" || /already (been )?registered|already exists/i.test(error.message ?? "");
+}
+
 /**
- * Invite a user: creates a confirmed auth user (service-role Auth admin) and their
- * profile row. The person signs in via the magic-link on /login. RR admin may invite
- * any role to any farm/workshop; a farm owner/manager may invite farm roles to their
- * own farm.
+ * Invite somebody to this farm and email them a button that signs them in.
+ *
+ * The database decides what the address means (team_invite_existing, 20261005120000):
+ * a brand-new person, somebody already here, somebody on another farm who is added, or
+ * somebody whose own farm was an unpaid sign-up and who moves here. A brand-new person
+ * gets a login first and the question is asked again, so the profile and membership are
+ * only ever written in that one function, under its per-address lock.
+ *
+ * The email is sent last and is allowed to fail: they are on the team either way, the
+ * owner is told it did not go, and the sign-in page can always send a link.
  */
 export async function inviteUser(formData: FormData) {
   const { profile: inviter, farmId } = await requireTeamManager();
@@ -44,44 +65,51 @@ export async function inviteUser(formData: FormData) {
 
   if (!FARM_ROLES.includes(role)) redirect(`${back}?error=You+can+invite+manager/mechanic/operator+only`);
   if (!ALL_ROLES.includes(role) || !email || !name) redirect(`${back}?error=Email,+name+and+role+required`);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?error=need-email`);
 
   const svc = createServiceClient();
-  const { data: created, error: cErr } = await svc.auth.admin.createUser({
-    email,
-    email_confirm: true,
-    user_metadata: { name },
-  });
-  if (cErr || !created?.user) redirect(`${back}?error=${encodeURIComponent(cErr?.message ?? "Could not create user")}`);
+  const decide = async (): Promise<InviteDecision> => {
+    const { data, error } = await svc.rpc("team_invite_existing", {
+      p_farm: farmId,
+      p_actor: inviter.id,
+      p_email: email,
+      p_role: role,
+      p_name: name,
+      p_language: language,
+    });
+    if (error) redirect(`${back}?error=${error.code === "42501" ? "forbidden" : "invite-failed"}`);
+    return data as InviteDecision;
+  };
 
-  const { error: pErr } = await svc.from("users").insert({
-    id: created.user.id,
-    farm_id: farmId,
-    workshop_id: null,
-    role,
-    name,
-    email,
-    language,
-    active: true,
-  });
-  if (pErr) redirect(`${back}?error=${encodeURIComponent(pErr.message)}`);
+  let decision = await decide();
+  if (decision.outcome === "none") {
+    const { error } = await svc.auth.admin.createUser({ email, email_confirm: true, user_metadata: { name } });
+    // A second invite for the same address can make the login between the two calls.
+    // Asking again finds it either way.
+    if (error && !alreadyRegistered(error)) {
+      redirect(`${back}?error=${error.code === "email_address_invalid" ? "need-email" : "invite-failed"}`);
+    }
+    decision = await decide();
+  }
 
-  // 0340 backfilled memberships once at migration time. New users need their primary
-  // membership written here so selected-farm role lookups have the same authoritative row.
-  const { error: mErr } = await svc.from("user_farm_memberships").upsert(
-    {
-      user_id: created.user.id,
-      farm_id: farmId,
-      role,
-      active: true,
-      deleted_at: null,
-      deleted_by: null,
-    },
-    { onConflict: "user_id,farm_id" },
-  );
-  if (mErr) redirect(`${back}?error=${encodeURIComponent(mErr.message)}`);
+  if (decision.outcome === "refused") redirect(`${back}?error=invite-refused`);
+  if (decision.outcome === "switched_off") redirect(`${back}?error=invite-switched-off`);
+  if (decision.outcome === "none") redirect(`${back}?error=invite-failed`);
+
+  const { data: farm } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
+  const sent = await sendInviteEmail(svc, {
+    email,
+    name: decision.name ?? name,
+    farmId,
+    farmName: (farm as { name?: string } | null)?.name ?? APP_NAME,
+    inviterName: inviter.name,
+    // Their own language when they already have a profile; the form's for a new person.
+    locale: decision.language === "af" ? "af" : "en",
+  });
+  if (!sent.ok) console.error(`[team] invite email not sent: ${sent.reason}${sent.detail ? ` (${sent.detail})` : ""}`);
 
   revalidatePath(back);
-  redirect(`${back}?invited=1`);
+  redirect(`${back}?invited=${!sent.ok ? "noemail" : decision.outcome === "already" ? "again" : "1"}`);
 }
 
 /**

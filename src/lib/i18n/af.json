@@ -1006,7 +1006,6 @@
       "aarto": "bestuurder- en AARTO-rekords",
       "voice_ai": "die stemassistent",
       "multi_site": "veelvuldige plekke",
-      "whatsapp": "WhatsApp-kennisgewings",
       "api_access": "API-toegang",
       "financials": "Om die boeke te hou"
     },
@@ -1273,7 +1272,7 @@
   "team": {
     "title": "Span",
     "invite": "Nooi 'n werker",
-    "invited": "Genooi. Hulle teken in met die towerskakel op die aanmeldbladsy.",
+    "invited": "Genooi. Ons het vir hulle 'n knoppie per e-pos gestuur om aan te meld.",
     "name": "Naam",
     "email": "E-pos",
     "role": "Rol",
@@ -1298,7 +1297,10 @@
     "deactivateFootnote": "Jy kan dit enige tyd weer aanskakel.",
     "activateTitle": "Laat {name} weer aanmeld?",
     "activateBody": "Hulle kan weer aanmeld, met dieselfde rol as voorheen.",
-    "inviteLanguageHint": "Begin op jou plaas se taal vir nuwe mense. Hulle kan dit later verander."
+    "inviteLanguageHint": "Begin op jou plaas se taal vir nuwe mense. Hulle kan dit later verander.",
+    "invitedAgain": "Hulle is reeds in jou span. Ons het vir hulle 'n nuwe knoppie per e-pos gestuur om aan te meld.",
+    "invitedNoEmail": "Hulle is in jou span, maar ons kon hulle nie e-pos nie. Hulle kan op die aanmeldbladsy aanmeld met “{magicLink}”.",
+    "inviteHint": "Ons e-pos vir hulle 'n knoppie om aan te meld. Hulle het nie 'n wagwoord nodig nie."
   },
   "permissions": {
     "title": "Ekstra toegang",
@@ -5200,7 +5202,10 @@
     "jobMeterDecreased": "Hierdie lesing is laer as die bate se huidige lesing. Kontroleer die voltooiingsdatum en meterlesing; teken 'n metervervanging afsonderlik aan indien nodig.",
     "intakeChanged": "Hierdie konsep is reeds met ander besonderhede gestoor. Maak die gestoorde werk oop voordat jy 'n nuwe konsep begin.",
     "documentNumberRequired": "Voer die verskaffer se dokumentnommer in (hoogstens 120 karakters).",
-    "documentNumberUsed": "Hierdie verskaffer se dokumentnommer is reeds aangeteken. Maak die bestaande dokument oop."
+    "documentNumberUsed": "Hierdie verskaffer se dokumentnommer is reeds aangeteken. Maak die bestaande dokument oop.",
+    "inviteRefused": "Daardie adres kan nie by 'n plaasspan aansluit nie. Gebruik 'n ander e-posadres.",
+    "inviteSwitchedOff": "Hulle is reeds in jou span, maar hul aanmelding is af. Maak die kieslys langs hul naam oop en kies Aktiveer, en nooi hulle dan weer vir 'n nuwe aanmeld-e-pos.",
+    "inviteFailed": "Ons kon hulle nie nooi nie. Probeer asseblief weer."
   },
   "billing": {
     "title": "Rekening",
@@ -5690,7 +5695,6 @@
       "aarto": "Verkeersboetes en AARTO",
       "voice_ai": "Stemopname en plaasassistent",
       "multi_site": "Meer as een plaas of depot",
-      "whatsapp": "WhatsApp-waarskuwings",
       "api_access": "API-toegang vir jou eie stelsels"
     },
     "compareFeature": "Kenmerk",
@@ -6137,5 +6141,25 @@
     },
     "signedInAs": "Aangemeld as",
     "past": "Vorige bestuursessies"
+  },
+  "inviteEmail": {
+    "subject": "{inviter} het jou by {farm} op {app} gevoeg",
+    "subjectNoInviter": "Jy is by {farm} op {app} gevoeg",
+    "greeting": "Hallo {name},",
+    "greetingNoName": "Hallo,",
+    "body": "{inviter} het jou by die span van {farm} op {app} gevoeg, waar die plaas rekord hou van sy masjiene, dienste en brandstof.",
+    "bodyNoInviter": "Jy is by die span van {farm} op {app} gevoeg, waar die plaas rekord hou van sy masjiene, dienste en brandstof.",
+    "howTo": "Druk die knoppie om aan te meld. Jy het nie 'n wagwoord nodig nie.",
+    "button": "Meld aan by {app}",
+    "fallback": "Die knoppie werk een keer. As dit nie meer werk nie, maak {login} oop en kies “{magicLink}” met hierdie e-posadres.",
+    "ignore": "As jy dit nie verwag het nie, kan jy hierdie e-pos ignoreer."
+  },
+  "authConfirm": {
+    "title": "Meld aan by {app}",
+    "body": "Druk die knoppie om klaar aan te meld. Die skakel werk een keer.",
+    "button": "Gaan voort na {app}",
+    "pending": "Besig om aan te meld…",
+    "broken": "Hierdie aanmeldskakel is onvolledig. Vra vir 'n nuwe een op die aanmeldbladsy.",
+    "toLogin": "Gaan na aanmelding"
   }
 }

@@ -107,7 +107,8 @@ begin
        and p.proname in (
          'set_notification_prefs', 'billing_create_pending_signup',
          'record_checklist_defects', 'billing_check_promo_code',
-         'billing_take_promo_code', 'farm_book_values')
+         'billing_take_promo_code', 'farm_book_values',
+         'team_invite_existing', 'fuel_tank_balances')
      group by p.proname having count(*) > 1
   loop
     raise exception 'DEPLOY COMPAT FAIL: % has % overloads; PostgREST resolves by name',

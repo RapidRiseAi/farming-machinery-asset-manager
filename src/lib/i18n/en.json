@@ -1006,7 +1006,6 @@
       "aarto": "driver & AARTO records",
       "voice_ai": "the voice assistant",
       "multi_site": "multi-site",
-      "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
       "financials": "Running the books"
     },
@@ -1273,7 +1272,7 @@
   "team": {
     "title": "Team",
     "invite": "Invite a worker",
-    "invited": "Invited. They sign in with the magic link on the login page.",
+    "invited": "Invited. We emailed them a button to sign in.",
     "name": "Name",
     "email": "Email",
     "role": "Role",
@@ -1298,7 +1297,10 @@
     "deactivateFootnote": "You can turn it back on at any time.",
     "activateTitle": "Let {name} sign in again?",
     "activateBody": "They can sign in again, with the same role as before.",
-    "inviteLanguageHint": "Starts on your farm's language for new people. They can change it later."
+    "inviteLanguageHint": "Starts on your farm's language for new people. They can change it later.",
+    "invitedAgain": "They are already on your team. We emailed them a new button to sign in.",
+    "invitedNoEmail": "They are on your team, but we could not email them. They can sign in on the sign-in page with “{magicLink}”.",
+    "inviteHint": "We email them a button to sign in. They do not need a password."
   },
   "permissions": {
     "title": "Extra access",
@@ -5200,7 +5202,10 @@
     "jobMeterDecreased": "This reading is below the asset's current reading. Check the completion date and meter reading; record a meter replacement separately if needed.",
     "intakeChanged": "This draft was already saved with different details. Open the saved work before starting a new draft.",
     "documentNumberRequired": "Enter the supplier's document number (up to 120 characters).",
-    "documentNumberUsed": "This supplier document number is already recorded. Open the existing document instead."
+    "documentNumberUsed": "This supplier document number is already recorded. Open the existing document instead.",
+    "inviteRefused": "That address cannot join a farm team. Use a different email address.",
+    "inviteSwitchedOff": "They are already on your team, but their login is off. Open the menu next to their name and choose Activate, then invite them again for a new sign-in email.",
+    "inviteFailed": "We could not invite them. Please try again."
   },
   "billing": {
     "title": "Billing",
@@ -5690,7 +5695,6 @@
       "aarto": "Traffic fines and AARTO",
       "voice_ai": "Voice capture and farm assistant",
       "multi_site": "More than one farm or depot",
-      "whatsapp": "WhatsApp alerts",
       "api_access": "API access for your own systems"
     },
     "compareFeature": "Feature",
@@ -6137,5 +6141,25 @@
     },
     "signedInAs": "Signed in as",
     "past": "Past driving sessions"
+  },
+  "inviteEmail": {
+    "subject": "{inviter} added you to {farm} on {app}",
+    "subjectNoInviter": "You have been added to {farm} on {app}",
+    "greeting": "Hello {name},",
+    "greetingNoName": "Hello,",
+    "body": "{inviter} added you to the {farm} team on {app}, where the farm keeps track of its machines, services and fuel.",
+    "bodyNoInviter": "You have been added to the {farm} team on {app}, where the farm keeps track of its machines, services and fuel.",
+    "howTo": "Press the button to sign in. You do not need a password.",
+    "button": "Sign in to {app}",
+    "fallback": "The button works once. If it no longer works, open {login} and choose “{magicLink}” with this email address.",
+    "ignore": "If you were not expecting this, you can ignore this email."
+  },
+  "authConfirm": {
+    "title": "Sign in to {app}",
+    "body": "Press the button to finish signing in. The link works once.",
+    "button": "Continue to {app}",
+    "pending": "Signing in…",
+    "broken": "This sign-in link is incomplete. Ask for a new one on the sign-in page.",
+    "toLogin": "Go to sign in"
   }
 }
