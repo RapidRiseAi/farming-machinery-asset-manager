@@ -90,6 +90,10 @@ const PROBES = {
   // the v1-to-v2 upgrade branch only this migration adds.
   "20261003090000":
     "select pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%voice-ai-v2%'",
+  // Driver activity and the member QR (Codex, 2026-10-03): its first table, its last
+  // function and its receipts table, so a half-applied file can never read as done.
+  "20261003142805":
+    "select to_regclass('public.driving_sessions') is not null and to_regprocedure('public.driving_session_details(uuid[])') is not null and to_regclass('public.member_qr_receipts') is not null",
   // The AI notice and the ledger. Each probe names something only the FINAL version of
   // its file has (the trigger's notice-evidence branch; the voice session's source column
   // and the hidden cost columns), so a draft applied somewhere can never read as done.

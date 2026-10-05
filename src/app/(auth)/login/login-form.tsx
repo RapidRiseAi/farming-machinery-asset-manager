@@ -49,6 +49,12 @@ export function LoginForm({
       */}
       <form action={signInWithPassword} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next ?? "/home"} />
+        {/* Enter in a field submits through the form's FIRST submit button, and "Forgot?"
+            below comes before "Sign in" on the page: Enter sent a reset email instead of
+            signing in. This invisible button is first, so Enter signs in. */}
+        <button type="submit" tabIndex={-1} aria-hidden="true" className="sr-only" data-default-submit="">
+          {t("auth.signIn", locale)}
+        </button>
         <Field label={t("auth.email", locale)} htmlFor="signin-email">
           <Input
             id="signin-email"

@@ -260,7 +260,7 @@ async function checkRoute(path, { enterTest = false } = {}) {
       if (enterTest) {
         if (await pressEnterInEmail()) actions += ", typed an email and pressed Enter";
         else note(path, "no email field in a form to press Enter in");
-        const submit = await evaluate(`(() => { const b = [...document.querySelectorAll('form button[type=submit], form button:not([type])')].find((el) => /sign in|meld aan/i.test(el.innerText)); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+        const submit = await evaluate(`(() => { const b = [...document.querySelectorAll('form button[type=submit], form button:not([type])')].find((el) => !el.hasAttribute('data-default-submit') && /sign in|meld aan/i.test(el.innerText)); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
         if (submit) { await tap(submit); actions += ", tapped Sign in"; }
       }
       await sleep(700);
