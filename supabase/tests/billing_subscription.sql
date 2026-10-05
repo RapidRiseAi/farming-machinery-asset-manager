@@ -1328,7 +1328,11 @@ declare
     -- could not defend itself, because under the service client auth.uid() is null and an
     -- is_rr_admin() check inside would refuse the one caller that is allowed. The rr_admin
     -- check lives in the action, and this grant is what makes the action the only way in.
-    'billing_take_promo_code','billing_set_subscription_discount','billing_check_promo_code'];
+    'billing_take_promo_code','billing_set_subscription_discount','billing_check_promo_code',
+    -- Team invites (20261005120000). Reads billing_payments, never writes billing, to tell
+    -- a sign-up that never paid (whose people move to the inviting farm) from a farm that
+    -- has. Service role only: it writes profiles and memberships for the team action.
+    'team_invite_existing'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
