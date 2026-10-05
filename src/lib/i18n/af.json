@@ -1006,6 +1006,7 @@
       "aarto": "bestuurder- en AARTO-rekords",
       "voice_ai": "die stemassistent",
       "multi_site": "veelvuldige plekke",
+      "whatsapp": "WhatsApp-kennisgewings",
       "api_access": "API-toegang",
       "financials": "Om die boeke te hou"
     },
@@ -5695,6 +5696,7 @@
       "aarto": "Verkeersboetes en AARTO",
       "voice_ai": "Stemopname en plaasassistent",
       "multi_site": "Meer as een plaas of depot",
+      "whatsapp": "WhatsApp-waarskuwings",
       "api_access": "API-toegang vir jou eie stelsels"
     },
     "compareFeature": "Kenmerk",

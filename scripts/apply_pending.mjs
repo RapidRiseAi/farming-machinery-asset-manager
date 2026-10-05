@@ -106,9 +106,6 @@ const PROBES = {
   // switched-off branch the final version has, under the same CASE guard.
   "20261005120000":
     "select case when to_regprocedure('public.team_invite_existing(uuid,uuid,text,text,text,text)') is null then false else pg_get_functiondef('public.team_invite_existing(uuid,uuid,text,text,text,text)'::regprocedure) like '%They stay off there.%' end",
-  // Replaces a function, so the probe reads its body: done once 'whatsapp' is gone from it.
-  "20261005121000":
-    "select pg_get_functiondef('app.feature_min_rank(text)'::regprocedure) not like '%whatsapp%'",
   // Tank balances in SQL: the function, with the dip column only the final version returns.
   "20261005122000":
     "select case when to_regprocedure('public.fuel_tank_balances(uuid)') is null then false else pg_get_function_result('public.fuel_tank_balances(uuid)'::regprocedure) like '%book_at_dip_litres%' end",

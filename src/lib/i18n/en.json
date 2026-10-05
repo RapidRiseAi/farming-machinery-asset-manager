@@ -1006,6 +1006,7 @@
       "aarto": "driver & AARTO records",
       "voice_ai": "the voice assistant",
       "multi_site": "multi-site",
+      "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
       "financials": "Running the books"
     },
@@ -5695,6 +5696,7 @@
       "aarto": "Traffic fines and AARTO",
       "voice_ai": "Voice capture and farm assistant",
       "multi_site": "More than one farm or depot",
+      "whatsapp": "WhatsApp alerts",
       "api_access": "API access for your own systems"
     },
     "compareFeature": "Feature",
