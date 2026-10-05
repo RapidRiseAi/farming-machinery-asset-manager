@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
 import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
-import { configuredLlmModel, runAssistantAgent } from "@/lib/assistant/llm";
+import { AssistantAgentInvalidOutput, configuredLlmModel, LLM_MAX_OUTPUT_TOKENS, runAssistantAgent } from "@/lib/assistant/llm";
+import { aiHelpOn } from "@/lib/assistant/transcription";
+import { loadFarmOpenAiKey, markFarmKeyFailed, type FarmKey } from "@/lib/ai-usage/farm-key";
+import { gatewayOptions } from "@/lib/ai-usage/gateway-options";
+import { answerHoldUnits } from "@/lib/ai-usage/hold-units";
+import { holdBudget, settleHold, type Attempt, type HoldRefusal } from "@/lib/ai-usage/ledger";
+import { farmOpenAi, openAiModelId, OWN_KEY_RESPONSE_OPTIONS } from "@/lib/ai-usage/openai-direct";
+import { createServiceClient } from "@/lib/supabase/service";
+import { classifyAiFailure } from "@/lib/ai-usage/outcome";
+import { aiErrorForLog } from "@/lib/ai-usage/safe-log";
 import {
   answerLocalRead, scopeForChosenMachine,
   isLocalReadRequest,
@@ -30,7 +39,7 @@ import {
   updateInteractionDraft,
   updateVoiceCapture,
 } from "@/lib/assistant/store";
-import type { AssistantDraft, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
+import type { AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,6 +49,60 @@ function json(body: AssistantTurnResponse, status = 200) {
     status,
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
+}
+
+/** The system prompt and date line, counted into the input-token hold for an AI answer. */
+const AGENT_PROMPT_CHARS = 2_600;
+
+/**
+ * The model an answer on a farm's own key runs on. The key is an OpenAI key, so only an
+ * OpenAI model can use it: anything else configured falls back to gpt-5-mini rather than
+ * running on the platform's account while the ledger says the farm paid.
+ */
+function ownKeyLlmModel(): string {
+  const configured = process.env.ASSISTANT_BYOK_LLM_MODEL?.trim();
+  return configured && openAiModelId(configured) ? configured : "openai/gpt-5-mini";
+}
+
+function aiUnavailable(locale: AssistantLocale): AssistantTurnResponse {
+  return {
+    kind: "error",
+    code: "ai_unavailable",
+    message: locale === "af-ZA"
+      ? "AI-hulp is tydelik nie beskikbaar nie. Tik ’n eenvoudiger opdrag of gebruik die gewone vorm."
+      : "AI help is temporarily unavailable. Type a simpler command or use the normal form.",
+  };
+}
+
+/**
+ * AI did not run because of a limit or a switch: a plain answer, not a failure, so the
+ * turn still ends calmly and the free paths (typing, the normal forms) stay in reach.
+ */
+function aiPaused(reason: Exclude<HoldRefusal, "not_member" | "unavailable" | "voice_off" | "token_rate">, locale: AssistantLocale): AssistantTurnResponse {
+  const af = locale === "af-ZA";
+  const message = {
+    farm_limit: af
+      ? "AI en stem is gepouseer: jou plaas het sy maandelikse limiet bereik. Tik en die gewone vorms werk steeds."
+      : "AI and voice are paused: your farm has reached its monthly limit. Typing and the normal forms still work.",
+    member_limit: af
+      ? "Jy het jou AI-limiet vir hierdie maand bereik. Tik en die gewone vorms werk steeds."
+      : "You have reached your AI limit for this month. Typing and the normal forms still work.",
+    ai_off: af
+      ? "AI-hulp is vir hierdie plaas afgeskakel. Tik en die gewone vorms werk steeds."
+      : "AI help is switched off for this farm. Typing and the normal forms still work.",
+    ai_off_for_you: af
+      ? "AI-hulp is vir jou afgeskakel. Jy kan dit in die assistent weer aanskakel."
+      : "AI help is switched off for you. You can switch it back on in the assistant.",
+    // The current app shows the notice instead of this; an older installed copy has no
+    // notice to show, so it is told how to get one.
+    notice_required: af
+      ? "Lees eers die kennisgewing oor AI-hulp: laai die toep weer as jy dit nie sien nie."
+      : "Read the note about AI help first: reload the app if you do not see it.",
+    own_key_broken: af
+      ? "AI-hulp is gepouseer: die plaas se eie OpenAI-sleutel werk nie. Tik en die gewone vorms werk steeds."
+      : "AI help is paused: the farm's own OpenAI key is not working. Typing and the normal forms still work.",
+  }[reason];
+  return { kind: "error", code: "ai_paused", reason, message };
 }
 
 function mergeClarification(
@@ -391,7 +454,26 @@ export async function POST(request: Request) {
         });
       }
       if (routePlan.kind === "optional_ai") {
-        if (!context.profile.ai_processing_opt_in || !context.profile.ai_processing_consent_version) {
+        // The owner's farm-wide switch first: on a farm with AI switched off there is
+        // nothing for this person to agree to, so no consent card is offered (and no notice
+        // recorded) for it. The hold below checks the switch again.
+        const { data: farmAi, error: farmAiError } = await createServiceClient()
+          .from("farm_ai_settings")
+          .select("ai_enabled")
+          .eq("farm_id", context.farmId)
+          .maybeSingle();
+        if (farmAiError) return json(aiUnavailable(body.locale), 503);
+        if (farmAi?.ai_enabled === false) return json(aiPaused("ai_off", body.locale));
+        // AI help on: the notice seen (nothing leaves the country before), switched on, not
+        // withdrawn. The hold below applies it again with the farm's switch and limits.
+        // Switched on but never shown the notice: an installed copy of an older build, whose
+        // consent card would loop (allow, resubmit, the same card). Only the notice itself,
+        // in the current app, unlocks AI for this person, so say that plainly.
+        if (context.profile.ai_processing_opt_in && !context.profile.ai_processing_withdrawn_at
+            && !context.profile.ai_notice_seen_at) {
+          return json(aiPaused("notice_required", body.locale));
+        }
+        if (!aiHelpOn(context.profile)) {
           interactionId = await createInteraction({
             farmId: context.farmId,
             userId: context.profile.id,
@@ -416,9 +498,49 @@ export async function POST(request: Request) {
                 : "The local rules could not resolve this command. With your permission, the text can be processed by our AI provider outside South Africa.",
           });
         }
+        // Who pays, with which model: a farm's own OpenAI key runs an OpenAI model at OpenAI
+        // directly, on that key (never through the Gateway, which falls back to ours when a
+        // key fails); otherwise the platform's model on ours. Resolved before the permit
+        // row (which records the model) and the hold (which prices it).
+        const farmKey: FarmKey = await loadFarmOpenAiKey(context.farmId);
+        if (farmKey.state === "unavailable") return json(aiUnavailable(body.locale), 503);
+        if (farmKey.state === "broken" && farmKey.fallback === "pause") {
+          return json(aiPaused("own_key_broken", body.locale));
+        }
+        const ownKey = farmKey.state === "active" ? farmKey.key : null;
         let requestedModel: string;
         try {
-          requestedModel = configuredLlmModel();
+          requestedModel = ownKey ? ownKeyLlmModel() : configuredLlmModel();
+        } catch {
+          return json(aiUnavailable(body.locale), 503);
+        }
+        const ownKeyModelId = ownKey ? openAiModelId(requestedModel) : null;
+        const holdUnits = answerHoldUnits(AGENT_PROMPT_CHARS + body.input.length, LLM_MAX_OUTPUT_TOKENS);
+        const hold = await holdBudget({
+          farmId: context.farmId,
+          userId: context.profile.id,
+          feature: "ai_answer",
+          model: requestedModel,
+          units: holdUnits,
+          credential: ownKey ? "farm_openai" : "platform",
+        });
+        if (!hold.ok) {
+          if (hold.reason === "unavailable" || hold.reason === "not_member" || hold.reason === "voice_off" || hold.reason === "token_rate") {
+            return json(aiUnavailable(body.locale), 503);
+          }
+          return json(aiPaused(hold.reason, body.locale));
+        }
+        // Settled exactly once, after the response is sent, so a dropped connection still
+        // writes the row and no later failure can overwrite a paid call with a free one.
+        let settled = false;
+        const settleOnce = (attempts: Attempt[]) => {
+          if (settled) return;
+          settled = true;
+          after(async () => {
+            await settleHold(hold.id, attempts);
+          });
+        };
+        try {
           // This committed row is the consent permit and audit evidence. Its database
           // trigger re-checks live, unwithdrawn consent before any transcript text is
           // sent to the cross-border model provider.
@@ -432,11 +554,13 @@ export async function POST(request: Request) {
             input: body.input,
             draft,
             resultStatus: "proposed",
-            provider: "vercel-ai-gateway",
+            provider: ownKey ? "openai" : "vercel-ai-gateway",
             model: requestedModel,
             consentVersion: context.profile.ai_processing_consent_version,
           });
         } catch (error) {
+          // No call was made: release the hold at zero.
+          settleOnce([{ model: requestedModel, outcome: "cancelled", errorCode: "permit_refused" }]);
           if (errorCode(error) === "42501") {
             const consentInteractionId = await createInteraction({
               farmId: context.farmId,
@@ -476,45 +600,70 @@ export async function POST(request: Request) {
           );
         }
 
+        let agent: Awaited<ReturnType<typeof runAssistantAgent>>;
         try {
-          const agent = await runAssistantAgent({
+          // On the server's own deadline (LLM_AGENT_TIMEOUT_MS), never the browser's
+          // connection: once budget is held the call finishes and is settled, so closing the
+          // page cannot make a paid answer free.
+          agent = await runAssistantAgent({
             text: body.input,
             locale: body.locale,
             model: requestedModel,
-            abortSignal: request.signal,
+            ...(ownKey && ownKeyModelId
+              ? {
+                  languageModel: farmOpenAi(ownKey)(ownKeyModelId),
+                  providerOptions: OWN_KEY_RESPONSE_OPTIONS,
+                }
+              : {
+                  providerOptions: {
+                    gateway: gatewayOptions({
+                      farmId: context.farmId,
+                      userId: null,
+                      feature: "ai_answer",
+                      zeroDataRetention: process.env.ASSISTANT_TRANSCRIBE_ZDR === "1",
+                    }),
+                  },
+                }),
           });
-          tier = 2;
-          provider = "vercel-ai-gateway";
-          model = agent.model;
-          inputTokens = agent.inputTokens;
-          outputTokens = agent.outputTokens;
-          latencyMs = agent.latencyMs;
-          if (agent.kind === "answer") {
-            await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
-              result_status: "answered",
-              confirmation_status: "not_required",
-              response_text: agent.answer,
-              input_tokens: inputTokens,
-              output_tokens: outputTokens,
-              latency_ms: latencyMs,
-              completed_at: new Date().toISOString(),
-            }, expectedInteractionStatus);
-            await updateVoiceCapture(captureId, context.profile.id, { status: "completed" });
-            return json({
-              kind: "answer",
-              conversationId: interactionId,
-              message: agent.answer,
-              speakText: agent.answer,
-              action: navigationAction(agent.navigation, body.locale),
-            });
+        } catch (error) {
+          // Only the model call is classified here; storage after it is not an AI failure.
+          const failure = classifyAiFailure(error, Boolean(ownKey));
+          // Name, type and status only: the error object can carry a farm's own key.
+          console.warn(JSON.stringify({
+            event: "assistant_llm_failed",
+            ...aiErrorForLog(error),
+            outcome: error instanceof AssistantAgentInvalidOutput ? "invalid_output" : failure.outcome,
+          }));
+          if (error instanceof AssistantAgentInvalidOutput) {
+            // The model answered and was paid for, but with nothing usable: its real cost is
+            // recorded, the farm is not billed, and it is not the provider failing.
+            const used = error.usage;
+            const measuredUnits = used.inputTokens !== null || used.outputTokens !== null;
+            settleOnce([{
+              model: used.model,
+              outcome: "failed",
+              errorCode: "invalid_output",
+              charged: true,
+              ...(measuredUnits
+                ? { units: { input_tokens: used.inputTokens ?? undefined, output_tokens: used.outputTokens ?? undefined }, measured: "server" as const }
+                : { units: holdUnits, measured: "estimated" as const }),
+              costUsd: used.costUsd,
+              generationId: used.generationId,
+              latencyMs: used.latencyMs,
+            }]);
+          } else {
+            settleOnce([{
+              model: requestedModel,
+              outcome: failure.outcome,
+              errorCode: failure.code,
+              // Cut off at the deadline after it was sent: the provider probably charged, so
+              // the held units are recorded as its estimated cost (the farm is not billed).
+              ...(failure.outcome === "timeout" ? { units: holdUnits, measured: "estimated" as const } : {}),
+            }]);
           }
-          draft = agent.draft;
-          await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
-            latency_ms: latencyMs,
-          }, expectedInteractionStatus);
-        } catch {
+          if (ownKey && failure.outcome === "key_invalid" && !(error instanceof AssistantAgentInvalidOutput)) {
+            after(() => markFarmKeyFailed(context.farmId, failure.code === "farm_key_quota" ? "farm_key_quota" : "farm_key_refused"));
+          }
           await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
             result_status: "failed",
             response_text: "The optional AI provider did not return a usable interpretation.",
@@ -522,15 +671,50 @@ export async function POST(request: Request) {
             completed_at: new Date().toISOString(),
           }, expectedInteractionStatus).catch(() => undefined);
           await updateVoiceCapture(captureId, context.profile.id, { status: "failed", error_code: "llm_unavailable" });
-          return json(
-            {
-              kind: "error",
-              code: "ai_unavailable",
-              message: body.locale === "af-ZA" ? "AI-hulp is tydelik nie beskikbaar nie. Tik ’n eenvoudiger opdrag of gebruik die gewone vorm." : "AI help is temporarily unavailable. Type a simpler command or use the normal form.",
-            },
-            503,
-          );
+          return json(aiUnavailable(body.locale), 503);
         }
+        settleOnce([{
+          model: agent.model,
+          outcome: "ok",
+          units: { input_tokens: agent.inputTokens ?? undefined, output_tokens: agent.outputTokens ?? undefined },
+          costUsd: agent.costUsd,
+          generationId: agent.generationId,
+          measured: agent.costUsd !== null ? "gateway" : "server",
+          latencyMs: agent.latencyMs,
+        }]);
+        // From here a failure is storage, handled by the route's own catch; the paid call
+        // is already settled as answered.
+        tier = 2;
+        provider = ownKey ? "openai" : "vercel-ai-gateway";
+        model = agent.model;
+        inputTokens = agent.inputTokens;
+        outputTokens = agent.outputTokens;
+        latencyMs = agent.latencyMs;
+        if (agent.kind === "answer") {
+          await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+            result_status: "answered",
+            confirmation_status: "not_required",
+            response_text: agent.answer,
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            latency_ms: latencyMs,
+            completed_at: new Date().toISOString(),
+          }, expectedInteractionStatus);
+          await updateVoiceCapture(captureId, context.profile.id, { status: "completed" });
+          return json({
+            kind: "answer",
+            conversationId: interactionId,
+            message: agent.answer,
+            speakText: agent.answer,
+            action: navigationAction(agent.navigation, body.locale),
+          });
+        }
+        draft = agent.draft;
+        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          latency_ms: latencyMs,
+        }, expectedInteractionStatus);
       }
     }
 

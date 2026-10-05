@@ -178,8 +178,15 @@
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const path = new URL(url, location.href).pathname;
     if (path === "/api/assistant/speech-token") {
-      note("token");
-      return json({ token: `fake-${"t".repeat(40)}`, region: "southafricanorth", expiresAt: Date.now() + 9 * 60_000 });
+      // Every real token comes with the voice session it opened (docs/AI_USAGE.md).
+      const sent = JSON.parse(init?.body ?? "{}");
+      note("token", { clientVersion: sent.clientVersion ?? null });
+      return json({
+        token: `fake-${"t".repeat(40)}`,
+        region: "southafricanorth",
+        expiresAt: Date.now() + 9 * 60_000,
+        session: { sessionId: crypto.randomUUID(), maxAudioMs: 120000, maxCharacters: 1500 },
+      });
     }
     if (path === "/api/assistant/turn") {
       const body = JSON.parse(init?.body ?? "{}");
@@ -195,7 +202,37 @@
       await new Promise((r) => setTimeout(r, 200));
       return json(next);
     }
+    // The AI notice, voice metering and the AI hearing (docs/AI_USAGE.md) are stood in as
+    // well, so a run, against production included, still writes nothing.
+    if (path === "/api/assistant/notice") {
+      const body = JSON.parse(init?.body ?? "{}");
+      note("notice", { keepOn: body.keepOn });
+      return json({ aiOn: Boolean(body.keepOn), withdrawn: false, noticeSeenAt: new Date().toISOString() });
+    }
+    if (path === "/api/assistant/voice-session") {
+      const body = JSON.parse(init?.body ?? "{}");
+      note("voice-session", body);
+      return json({ ok: true, sessionId: crypto.randomUUID(), maxAudioMs: body.maxAudioMs ?? 120000, maxCharacters: body.maxCharacters ?? 1500 });
+    }
+    if (path === "/api/assistant/voice-usage") {
+      note("voice-usage", JSON.parse(init?.body ?? "{}"));
+      return new Response(null, { status: 204 });
+    }
+    if (path === "/api/assistant/transcribe") {
+      note("transcribe");
+      return json({ error: "transcription_unavailable" }, 503);
+    }
     return realFetch(input, init);
+  };
+  // The closing page's last usage report goes by beacon, past fetch: stand that in too.
+  const realBeacon = navigator.sendBeacon?.bind(navigator);
+  navigator.sendBeacon = (url, data) => {
+    if (new URL(String(url), location.href).pathname === "/api/assistant/voice-usage") {
+      const read = data instanceof Blob ? data.text() : Promise.resolve(String(data ?? "{}"));
+      void read.then((body) => note("voice-usage-beacon", JSON.parse(body || "{}"))).catch(() => note("voice-usage-beacon"));
+      return true;
+    }
+    return realBeacon ? realBeacon(url, data) : false;
   };
 
   // == What actually reached the speakers and the microphone ==================

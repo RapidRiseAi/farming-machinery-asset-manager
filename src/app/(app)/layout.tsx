@@ -290,6 +290,8 @@ export default async function AppLayout({
   // server-side; hiding a nav item is not access control.
   const billing: NavItemData = { href: "/billing", label: t("nav.billing", locale), icon: "card" };
   const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "repeat" };
+  // What voice and AI cost against what farms were billed, and what needs a person (docs/AI_USAGE.md).
+  const adminAi: NavItemData = { href: "/admin/ai", label: t("nav.adminAi", locale), icon: "mic" };
   // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
   // Account plus an English-only text subnav inside the page; now they are one group.
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.adminFarms", locale), icon: "admin" };
@@ -337,7 +339,7 @@ export default async function AppLayout({
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
-        ...(isAdmin ? [admin, adminPartners, adminTemplates, adminBilling] : []),
+        ...(isAdmin ? [admin, adminPartners, adminTemplates, adminBilling, adminAi] : []),
         help,
         install,
       ];
@@ -372,7 +374,7 @@ export default async function AppLayout({
       ]
     : [
         ...(isAdmin
-          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: [admin, adminPartners, adminTemplates, adminBilling] }]
+          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: [admin, adminPartners, adminTemplates, adminBilling, adminAi] }]
           : []),
         ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
         {

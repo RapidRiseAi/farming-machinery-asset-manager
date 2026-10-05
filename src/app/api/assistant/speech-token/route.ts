@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentFarmId, effectiveFarmRole, getFarmPlan, getProfile } from "@/lib/auth";
 import { getAzureSpeechProviderEnv } from "@/lib/assistant/provider-env";
 import { planAllows } from "@/lib/entitlements";
+import { openVoiceSession, reportVoiceSession } from "@/lib/ai-usage/ledger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ const RATE_LIMIT_MAX_REQUESTS = 6;
 const RATE_LIMIT_MAX_BUCKETS = 2_000;
 const PROVIDER_TIMEOUT_MS = 8_000;
 const CLIENT_TOKEN_LIFETIME_MS = 9 * 60_000;
+/** The session every token opens (voice-meter.ts asks for the same; the database caps 120 s, 4 000). */
+const TOKEN_SESSION_AUDIO_MS = 120_000;
+const TOKEN_SESSION_CHARACTERS = 1_500;
 
 type RateLimitBucket = {
   count: number;
@@ -145,6 +149,42 @@ export async function POST(request: Request) {
     return jsonError("speech_unavailable", 503);
   }
 
+  // Every token opens a metered voice session first (docs/AI_USAGE.md). The token works
+  // on the whole Speech resource, so this is where voice is held for and where it stops: a
+  // farm whose voice is off or whose month is spent gets no token, and an app that does not
+  // meter its use gets none either. The current app sends its version and adopts the
+  // session; an installed copy of an older build sends nothing and is told to update (it
+  // shows that as "voice could not start" until its service worker brings the new build).
+  const sent = (await request.json().catch(() => null)) as { clientVersion?: unknown } | null;
+  const clientVersion = typeof sent?.clientVersion === "string" && /^[a-z0-9.-]{1,40}$/i.test(sent.clientVersion)
+    ? sent.clientVersion
+    : null;
+  if (!clientVersion) return jsonError("update_required", 409);
+  const session = await openVoiceSession({
+    farmId,
+    userId: profile.id,
+    maxAudioMs: TOKEN_SESSION_AUDIO_MS,
+    maxCharacters: TOKEN_SESSION_CHARACTERS,
+    clientVersion,
+    source: "token",
+  });
+  if (!session.ok) {
+    if (session.reason === "farm_limit" || session.reason === "member_limit") {
+      return NextResponse.json(
+        { error: "ai_limit_reached", scope: session.reason === "farm_limit" ? "farm" : "member" },
+        { status: 402, headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+    if (session.reason === "voice_off") return jsonError("voice_off", 403);
+    if (session.reason === "not_member") return jsonError("forbidden", 403);
+    if (session.reason === "token_rate") return jsonError("rate_limited", 429, { "Retry-After": "600" });
+    return jsonError("speech_unavailable", 503);
+  }
+  // No token after all: close the session at nothing used, rather than leave it to be
+  // billed at its maximum by the nightly sweep.
+  const releaseSession = () =>
+    reportVoiceSession({ sessionId: session.sessionId, userId: profile.id, audioMs: 0, audioFixedMs: 0, characters: 0, final: true });
+
   try {
     const response = await fetch(provider.tokenEndpoint, {
       method: "POST",
@@ -158,20 +198,32 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
 
-    if (!response.ok) return jsonError("speech_unavailable", 502);
+    if (!response.ok) {
+      await releaseSession();
+      return jsonError("speech_unavailable", 502);
+    }
 
     const token = (await response.text()).trim();
-    if (!isUsableProviderToken(token)) return jsonError("speech_unavailable", 502);
+    if (!isUsableProviderToken(token)) {
+      await releaseSession();
+      return jsonError("speech_unavailable", 502);
+    }
 
     return NextResponse.json(
       {
         token,
         region: provider.region,
         expiresAt: new Date(Date.now() + CLIENT_TOKEN_LIFETIME_MS).toISOString(),
+        session: {
+          sessionId: session.sessionId,
+          maxAudioMs: session.maxAudioMs,
+          maxCharacters: session.maxCharacters,
+        },
       },
       { status: 200, headers: PRIVATE_NO_STORE_HEADERS }
     );
   } catch {
+    await releaseSession();
     return jsonError("speech_unavailable", 502);
   }
 }

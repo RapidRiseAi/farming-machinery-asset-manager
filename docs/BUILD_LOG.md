@@ -4531,3 +4531,116 @@ it was left alone.
 Unit tests 518 (16 for the guard; six deliberate mutations of it were each caught);
 typecheck, lint, i18n, errors, design lint, dashes; build; on the local production build
 ready_check passes on all 8 routes, voice_check 39/39, ui_check passes.
+
+## 2026-10-04 - AI and voice usage: metered, limited, on by default (invoicing next)
+
+Asked for: track AI use per farm and per employee, let owners set limits, bill it with the
+monthly bill at no cost to Rapid Rise, let a farm link its own AI subscription, use AI
+only where needed, and detect failures. Founder decisions (decision 10): AI help on by
+default after a notice; billed at provider cost plus a margin; at the limit voice AND AI
+pause; own OpenAI API keys only (a ChatGPT subscription has no API access).
+
+### Measured first
+
+- Prices, read from the sources rather than notes: Azure retail prices API for South Africa
+  North ($1.00 per audio hour, $0.30 enhanced add-on for language ID, neural speech $15 per
+  million characters), the Gateway's public model list (gpt-4o-transcribe token priced at
+  about $0.006 a minute, MAI-Transcribe-2 $0.10 an hour), ECB via frankfurter. Per request
+  Azure voice costs more than the AI hearing.
+- The installed `@ai-sdk/gateway` 4.0.52 has `tags`, `getCredits`, `getSpendReport` and
+  `getGenerationInfo`. Its request-scoped BYOK was the first plan for a farm's own key and
+  was dropped in review (below); `@ai-sdk/openai` 4.0.43 was added instead, chosen because
+  it uses exactly the `@ai-sdk/provider` 4.0.7 and `provider-utils` 5.0.27 that `ai` 7.0.65
+  already has.
+- The 90 saved recordings replayed end to end with the app's own rules: one gpt-4o hearing
+  scores what MAI plus gpt-4o did together (96%, none wrong) at half the calls. The AI
+  hearing is now gpt-4o, with MAI only when it fails or is slow.
+
+### Built (release A)
+
+Two migrations: `20261004095000` (the notice: `users.ai_notice_seen_at`, personal and
+stamped; opting in records `ai-on-default-v1`) and `20261004100000` (the ledger: holds,
+voice sessions, `ai_usage`, farm settings and limits, own keys, prices, rates, health
+events, and the functions that hold, settle, sweep and report). Server: every paid call
+holds budget first and settles after, fails closed when the ledger cannot be reached, and
+records failures too; every Azure token opens a held voice session; a farm's own key goes
+to OpenAI directly; new voice-session, voice-usage and notice routes; the browser reports
+its Azure use against those sessions. Screens:
+`/settings/ai` for owners, `/admin/ai` for Rapid Rise, the notice and paused messages in the
+assistant. Nightly: stale holds and sessions settled, the ECB rate and Gateway prices taken
+within a 25% band (held for a person outside it), credit and failure-rate alerts. Docs:
+`docs/AI_USAGE.md`, POPIA.md, founder decision 10.
+
+### What review changed
+
+The first spec went to two critics before a line was built; 48 findings, three of which would
+have lost money on day one: an invoice's total comes from its header, so an AI line alone
+would never be charged; integer division would have set the margin to zero; and following
+the billing period would have given annual farms a yearly "monthly" limit and let a stale
+period switch the cap off. Also fixed in the design: every unsettled hold counts until
+settled; settlement is idempotent; each paid attempt (including a fallback from a farm's
+own key) takes its own hold; voice is metered against server-held sessions and labelled
+client-bounded rather than claimed exact; the notice is enforced by the database, not the
+screen; and a grant matrix covers every table. Building found two more:
+`app.effective_farm_role` answers only for the signed-in caller (null for the service role
+and for an owner asking about an employee), so the ledger has its own role check; and the
+billing suite's lockdown sweep rightly refused functions that touch billing tables until
+they were declared.
+
+Then the built code went to two reviewers (27 findings) and the fixes to a second round
+(six more, on consent). What would have mattered:
+
+- A farm's own key rode on the Gateway's request-scoped BYOK, which the Gateway documents
+  falls back to the platform's credentials when the key fails: the farm's use on our
+  account, unheld, unbilled and past its owner's "pause". Own keys now go to OpenAI
+  directly, and a key that cannot be read (or `AI_KEY_SECRET` missing) fails closed.
+- Voice metering was voluntary: a client that never opened a session, including every
+  installed copy of the old build, used Azure unmetered and the token gate never closed.
+  Every token now opens a held session, billed in full if it never reports.
+- "Got it" switched AI back on for people who had said no. It now only records that they
+  were told, counts once, and "Switch off" always counts; someone already on under an
+  earlier text is moved to the notice's evidence when they see it.
+- Holds were not upper bounds (gpt-4o-transcribe also bills the prompt and the transcript),
+  so bills were clamped below cost; a R0 "paid" invoice lifted the trial; the 80% and limit
+  notices could be dropped by the caller; a paid answer could be settled a second time as a
+  free failure; a decimal comma read as thousands across every money field ("250,00"
+  became R25 000); owners could read our cost and margin; the admin totals could be cut off
+  at the API's row cap; sessions held budget until night after an app was swiped away.
+- One finding was wrong: the owner page already acted on the selected farm.
+- A third round, on money and on the release itself, found the real limit of browser
+  voice: an Azure token works on the whole Speech resource for about ten minutes whatever
+  its session reports, so a tampered client could take a token and report nothing. Apps
+  that do not meter now get no token, tokens are capped per person in the database, the
+  nightly job flags tokens taken without use reported, and docs/AI_USAGE.md says plainly
+  what remains until release B moves synthesis and clip recognition to the server. It also
+  found: near the limit the meter asked for a new session before releasing its own (voice
+  blocked, the owner told the limit was reached while R0.50 was left); offline recordings
+  were clamped to wall-clock time; an unusable but paid answer and dead support holds were
+  costed at zero; an undecryptable key was never marked; and the migration probes could not
+  tell a draft from the final version. All fixed. A rollback past this release is not clean
+  once people have seen the notice (roll forward; see docs/AI_USAGE.md).
+- A last check of that round found two more: a valid but different `AI_KEY_SECRET` on
+  another deployment sharing the database (a Preview, a local copy) would have marked every
+  farm's key broken, so each sealed value now names its secret by a short id and a mismatch
+  fails closed without marking anything; and the current app dropped a request that had to
+  wait for the notice, which it now sends once the person is told.
+
+### Verification
+
+`ai_usage.sql` (13 blocks: arithmetic, the notice and its evidence, grants, holds,
+settling and unbilled timeouts, limits and the owners' notices, voice sessions and
+shrinking, the sweep, immutability, who reads what, a session per token, the token cap and
+unusable answers, money received); four deliberate mutations of the migration (integer
+margin, no notice check, old holds dropped, an editable ledger) each fail it. All 31 SQL
+suites pass on PGlite together with the driver-activity work, and `ai_usage.sql` joins the
+real-Postgres CI runner. Unit tests for outcomes (OpenAI's 429 `insufficient_quota`
+included), hold sizing, token counts, the strict WAV check, key sealing, gateway options,
+the rand parser and the page's result codes.
+
+### Left for release B (before any real farm is charged)
+
+Invoicing (an AI amount on the invoice header, row stamping by UPDATE ... RETURNING,
+usage-only invoices for farms the generator skips, a per-person appendix snapshotted at
+issue, the renewal notice), margin changes with notice, reconciliation against the Gateway
+spend report and the Azure bill, a daily canary, and server-side Azure synthesis and clip
+recognition.

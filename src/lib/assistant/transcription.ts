@@ -2,9 +2,9 @@ import type { AssistantMachine } from "./types";
 
 /**
  * The AI transcription pass: the recording, plus the farm's own machine names as
- * vocabulary, sent to speech models through the Vercel AI Gateway, for people who
- * allowed it. Measured on 90 recordings of mixed Afrikaans/English farm requests
- * (2026-10-03, scored with the app's own matcher):
+ * vocabulary, sent to speech models through the Vercel AI Gateway. Measured on 90
+ * recordings of mixed Afrikaans/English farm requests (2026-10-03, scored with the app's
+ * own matcher, every clip heard by AI):
  *
  *   Azure as configured before, with the old matcher ................... 43%
  *   the same, with the improved matcher and parser ...................... 54%
@@ -12,28 +12,30 @@ import type { AssistantMachine } from "./types";
  *   gpt-4o-transcribe with the names in its prompt ..................... 96%
  *   both, each hearing weighed against the other ....................... 99%, none wrong
  *
- * Azure stays the live recogniser for everyone; this only adds hearings.
+ * Replayed end to end the way the app runs (only hard turns get an AI hearing, fused with
+ * the two Azure hearings), one gpt-4o hearing scored the same as both models together:
+ * 96%, none wrong, at half the calls. So one model is used, and MAI only when it fails
+ * (docs/AI_USAGE.md). Azure stays the live recogniser for everyone.
  */
 
-/** Consent covering the recording and machine names. `voice-ai-v1` covered transcript text only. */
-export const AUDIO_CONSENT_VERSION = "voice-ai-v2";
-
-type ConsentProfile = {
+type AiHelpProfile = {
   ai_processing_opt_in: boolean | null;
-  ai_processing_consent_version: string | null;
   ai_processing_withdrawn_at?: string | null;
+  ai_notice_seen_at?: string | null;
 };
 
-export function allowsAudioTranscription(profile: ConsentProfile): boolean {
-  return Boolean(
-    profile.ai_processing_opt_in &&
-      !profile.ai_processing_withdrawn_at &&
-      profile.ai_processing_consent_version === AUDIO_CONSENT_VERSION,
-  );
+/**
+ * AI help is on for this person: they have seen the notice (POPIA s18: told before
+ * anything leaves the country), it is on, and they have not switched it off. Any consent
+ * version counts; the notice is what covers the recording. The database's hold applies
+ * the same rule again, and the farm's own switch and limits, on every call.
+ */
+export function aiHelpOn(profile: AiHelpProfile): boolean {
+  return Boolean(profile.ai_notice_seen_at && profile.ai_processing_opt_in && !profile.ai_processing_withdrawn_at);
 }
 
-/** The two that measured best, in the order their hearings are tried: MAI first, for its numbers. */
-const DEFAULT_MODELS = ["microsoft/mai-transcribe-2", "openai/gpt-4o-transcribe"];
+/** The hearing first, then its fallback when the first fails or is slow. */
+const DEFAULT_MODELS = ["openai/gpt-4o-transcribe", "microsoft/mai-transcribe-2"];
 
 /** `ASSISTANT_TRANSCRIBE_MODELS` (comma separated gateway ids) swaps models without a deploy. */
 export function configuredTranscribeModels(raw = process.env.ASSISTANT_TRANSCRIBE_MODELS): string[] {
@@ -82,21 +84,29 @@ export function transcriptionVocabulary(machines: readonly AssistantMachine[], l
  * Each provider takes vocabulary differently; these shapes are the ones the gateway
  * was seen to forward (a wrong key is accepted and silently ignored, or refused).
  */
-type OptionValue = string | boolean | string[] | { [key: string]: string[] };
-export type TranscribeOptions = Record<string, Record<string, OptionValue>>;
+export type TranscribeOptions = Record<string, Record<string, unknown>>;
 
-export function transcribeOptionsFor(model: string, terms: readonly string[], zeroDataRetention: boolean): TranscribeOptions {
+/**
+ * The prompt an OpenAI transcriber is given. It reads as text the speaker might have said
+ * before, so it is phrased as context, and short: whisper-family prompts are cut at about
+ * 224 tokens. Its length also sizes the hearing's budget hold (ai-usage/hold-units.ts).
+ */
+export function openAiTranscribePrompt(terms: readonly string[]): string {
+  const names = terms.join(", ").slice(0, 700);
+  return `South African farm voice note, English and Afrikaans mixed. Machine names and words: ${names}.`;
+}
+
+/**
+ * `gateway`: the options every call on the platform's credential carries
+ * (ai-usage/gateway-options.ts): the tags the monthly reconciliation groups by, and zero
+ * data retention when ASSISTANT_TRANSCRIBE_ZDR=1 (Vercel refuses it on Hobby). A call on a
+ * farm's own OpenAI key goes to OpenAI directly and passes none.
+ */
+export function transcribeOptionsFor(model: string, terms: readonly string[], gateway: Record<string, unknown> = {}): TranscribeOptions {
   const options: TranscribeOptions = {};
-  // Vercel only routes zero-data-retention requests on Pro and Enterprise plans; on
-  // Hobby the request is refused outright, so it is opt-in (ASSISTANT_TRANSCRIBE_ZDR=1).
-  if (zeroDataRetention) options.gateway = { zeroDataRetention: true };
+  if (Object.keys(gateway).length) options.gateway = { ...gateway };
   if (model.startsWith("microsoft/")) options.azure = { phraseList: { phrases: [...terms] } };
   else if (model.startsWith("google/")) options.google = { mode: "VERBATIM", customVocabulary: [...terms] };
-  else if (model.startsWith("openai/")) {
-    // A prompt reads as text the speaker might have said before, so it is phrased as
-    // context, and short: whisper-family prompts are cut at about 224 tokens.
-    const names = terms.join(", ").slice(0, 700);
-    options.openai = { prompt: `South African farm voice note, English and Afrikaans mixed. Machine names and words: ${names}.` };
-  }
+  else if (model.startsWith("openai/")) options.openai = { prompt: openAiTranscribePrompt(terms) };
   return options;
 }

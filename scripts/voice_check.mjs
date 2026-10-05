@@ -15,6 +15,8 @@
  * Stood in, by `voice_check_fake_azure.js`, injected before the page runs:
  *   · Azure's two websockets (recognition and synthesis), speaking the SDK's own wire
  *     protocol from a script: what each listening turn "hears", how long each reply is;
+ *   · `/api/assistant/notice`, `/voice-session`, `/voice-usage` and `/transcribe`, the
+ *     AI notice and the usage meter (docs/AI_USAGE.md), so no hold or ledger row is written;
  *   · `/api/assistant/turn`, `/confirm` and `/speech-token`, so nothing reaches the LLM
  *     or the database, and a run against production writes nothing;
  *   · the screen wake lock, which headless Chrome has no screen for.
@@ -231,6 +233,21 @@ await evaluate(`Object.assign(window.__voiceScript, ${JSON.stringify({
   ],
 })})`);
 
+// == 0. The AI notice comes first, and the microphone waits for it ==
+// An account that has never seen it is told before anything is heard (docs/AI_USAGE.md).
+// The fake answers the notice route, so nothing is written.
+if (await evaluate(has("Got it"))) {
+  const opened = async () => (await events("token")).length + (await events("voice-session")).length;
+  const before = await opened();
+  await click("Talk hands-free");
+  await sleep(600);
+  check("the microphone waits for the AI notice", (await opened()) === before && (await evaluate(has("Got it"))));
+  await click("Got it");
+  await waitFor("the notice to go", `!${has("Got it")}`);
+  const notice = await events("notice");
+  check("Got it keeps AI help on and puts the notice away", notice.length === 1 && notice[0].keepOn === true);
+}
+
 // == 1. A question: heard, answered aloud, then listening again; silence pauses ==
 await click("Talk hands-free");
 await waitFor("listening", has("Listening… just talk"), 15_000);
@@ -267,6 +284,13 @@ check("nothing said for ~8 s pauses rather than holding the mic open", end1 && e
 check("the wake lock is let go when hands-free pauses", (await events("wakelock-release")).length === 1);
 check("the panel is gone and the typing row is back", !(await text()).includes("Stop hands-free") && (await text()).includes("Talk hands-free"));
 await screenshot("paused-no-speech");
+// Metering (docs/AI_USAGE.md): the token request says this app reports its use, and use is
+// reported within seconds of each turn, not left to the nightly sweep's full-session bill.
+const tokens = await events("token");
+check("the token request carries this app's version", tokens.length >= 1 && tokens[0].clientVersion === "voice-3", JSON.stringify(tokens[0] ?? null));
+const reports = [...(await events("voice-usage")), ...(await events("voice-usage-beacon"))];
+const reportedUse = reports.filter((r) => (r.audioMs ?? 0) > 0 || (r.characters ?? 0) > 0);
+check("voice use is reported to the meter soon after a turn", reportedUse.length >= 1, `${reports.length} report(s)`);
 
 // == 2. A change: read back, wait for the tap, never save by voice ==
 await click("Talk hands-free");

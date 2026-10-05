@@ -50,8 +50,8 @@ crop/livestock/labour records.
 | **AARTO driver nomination** (who drove vehicle X on date D) | `usage_logs` | **Legal obligation** (AARTO Act) |
 | Reminders & alerts (service-due, expiry, fuel anomaly) | `users` contact + prefs | Consent / legitimate interest |
 | WhatsApp messaging *(deferred)* | `phone`, `whatsapp_opt_in` | **Explicit opt-in consent**, timestamped |
-| Optional cross-border AI for unresolved voice intent *(implemented; production enablement pending)* | difficult transcript text, locale and current date | **Explicit consent + a signed DPA** (see §5) |
-| Optional AI transcription of a hard voice request *(implemented 2026-10-03; needs migration `20261003090000` and DPAs)* | the request's recording and the farm's machine names and aliases | **Explicit consent `voice-ai-v2` + signed DPAs** (see §5) |
+| AI help for a hard request: the AI hearing and an AI answer *(on by default after the notice, founder decision 10, 2026-10-04)* | the request's recording, transcript text, locale and current date, and the farm's machine names and aliases | **Service necessity (§11(1)(b))**, the person told first by the in-app notice (§18), free to switch it off; cross-border under **signed DPAs** (§72(1)(a), see §5) |
+| AI and voice usage metering and billing (2026-10-04) | per request: the person's id, the feature, units used, cost, outcome and time (`ai_usage`), never the words or audio | **Contract** (billing what the farm used); **legitimate interest** of the farm owner in seeing use by person, money visible to owners only (BILLING.md §10) |
 | Security, audit & dispute resolution | `audit_log` | Legal obligation / legitimate interest |
 | **Where a change came from** (FR-1.4) | `audit_log.ip` + coarse geo + user agent | **Legitimate interest** (§11(1)(f)) in answering "who approved this, and was that really them". The interest is the data subject's too: the owner disputing a change and the employee wrongly accused both need it. See §5.2 for the minimisation that balances it. |
 
@@ -150,31 +150,50 @@ post-restore checklist in [`BACKUP.md`](BACKUP.md).
 
 ## 5. Cross-border processing (founder decision)
 
-Per `docs/FLEETWISE_FOUNDER_DECISIONS.md` (#2): **cross-border AI processing is permitted
-with (a) explicit user consent and (b) a signed Data Processing Agreement (DPA) with each
-processor.** Voice AI now uses two deliberately separate paths:
+Per `docs/FLEETWISE_FOUNDER_DECISIONS.md` decision 10 (2026-10-03, superseding #2): **AI
+help is on by default, the person is told first, and anyone may switch it off.** The basis
+is service necessity, and the transfer outside South Africa rests on **signed Data
+Processing Agreements with Vercel, Microsoft and OpenAI (§72(1)(a)), which must be in place
+before real users join.** Voice and AI use deliberately separate paths:
 
 - Azure Speech STT/TTS runs against the dedicated **South Africa North** resource. The
-  browser receives a short-lived token; the Azure master key never leaves the server.
-- Deterministic Afrikaans/English parsing stays inside FleetWise. Only when it cannot
-  resolve a transcript may the optional Vercel AI Gateway/model path run. The database
-  must first stamp active, unwithdrawn `voice-ai-v1` consent on a private interaction
-  row. Users can withdraw that consent; Azure Speech and deterministic parsing continue
-  to work without it.
-- **AI transcription (consent `voice-ai-v2`, 2026-10-03).** Mixed Afrikaans/English speech
-  defeats Azure's one-language-per-segment recognition. For a request the live transcript
-  cannot resolve, and only for a person whose active consent is `voice-ai-v2`, the browser
-  posts the clip it recorded to `/api/assistant/transcribe`, which sends it with the farm's
-  machine names and aliases (as vocabulary) through Vercel AI Gateway to MAI-Transcribe-2
-  (Microsoft, served by Azure outside South Africa) and gpt-4o-transcribe (OpenAI). The
-  route re-checks consent from the database on every request, stores neither the clip nor
-  its transcripts, and logs only which models answered and how fast. v1 holders keep
-  text-only AI help and are offered the upgrade; opting in still stamps v1, and only an
-  explicit extension of active consent can reach v2 (see the migration for why).
-  Zero-data-retention routing is available only on Vercel Pro/Enterprise and is switched on
+  browser receives a short-lived token; the Azure master key never leaves the server. Every
+  request the live transcript already resolves stays there, and a hard request is first
+  heard again by Azure in the other fixed language.
+- **The notice.** A new profile starts with AI processing off. The assistant shows the
+  notice before the microphone opens; "Got it" keeps AI help on (the default), "Switch off"
+  turns it off. `users.ai_notice_seen_at` records when, can be set only by the person,
+  is stamped by the database and cannot be unset (`20261004095000`). Every AI hold
+  refuses until it is set, so nothing leaves the country before the person has been told.
+  Anyone who agreed only to the earlier text-only consent (`voice-ai-v1`) sees it once.
+  Someone who had switched AI off stays off: the notice tells them so, dismissing it only
+  records that they were told, and switching on is a separate explicit action. "Got it"
+  counts once (a second device still showing the notice switches nothing on); "Switch off"
+  always counts. The evidence names the text actually shown: `ai-on-default-v1` once the
+  notice is seen (also for someone already on under an earlier text), `voice-ai-v1` from the
+  previous build's card. The notice says FleetWise does not keep the recording, that the
+  words are kept in the assistant history like every request, and that the providers may
+  hold what they receive briefly under their own terms (true until zero data retention is
+  switched on).
+- **AI hearing.** For a request the live transcript cannot resolve, the browser posts the
+  clip it recorded to `/api/assistant/transcribe`, which sends it with the farm's machine
+  names and aliases (as vocabulary) through Vercel AI Gateway to gpt-4o-transcribe (OpenAI),
+  and to MAI-Transcribe-2 (Microsoft) only if that fails. Neither the clip nor its
+  transcript is stored; the logs hold model names, timing and an outcome code.
+- **AI answers.** Only when deterministic parsing cannot resolve a transcript: its text,
+  locale and the date go through the Gateway to the configured model. The database first
+  stamps the person's active consent version on a private interaction row.
+- **A farm's own OpenAI key.** When the owner links one, the AI hearing and AI answers run
+  on it at OpenAI directly (not through the Gateway), under the farm's own OpenAI account
+  and terms; an answer asks OpenAI not to store the conversation. The key is sealed
+  (AES-256-GCM) and readable only by the service role.
+- **Usage records** (`ai_usage`) hold who used what, when, at what cost and with what
+  outcome, never the words or the audio. They are money records: kept with the invoices
+  (five years), never edited or deleted; erasure pseudonymises the person's users row and
+  keeps the id, as elsewhere. Owners see cost by person; employees see only their own
+  minutes and requests.
+- Zero-data-retention routing is available only on Vercel Pro/Enterprise and is switched on
   with `ASSISTANT_TRANSCRIBE_ZDR=1`.
-- Everyone else, and every request the live transcript already resolves, stays in South
-  Africa North: a hard request is heard a second time by Azure in the other fixed language.
 
 The raw live recording is not retained by FleetWise. When offline, raw audio remains in
 that signed-in farm context's browser IndexedDB, is uploaded to Azure only after an

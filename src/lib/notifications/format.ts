@@ -275,6 +275,26 @@ export function formatNotification(
         subject: String(p.subject ?? ""),
         hours: String(Math.max(0, Math.round(Number(p.hours_left ?? 0)))),
       });
+    // AI and voice usage (docs/AI_USAGE.md), to the farm's owners: 80% of the monthly
+    // limit, the limit reached (voice and AI now paused), and a linked OpenAI key failing.
+    case "ai_limit_80":
+      return fill("notifications.tplAiLimit80", locale, {
+        spent: rands(Math.round(Number(p.spent_cents ?? 0))),
+        limit: rands(Math.round(Number(p.limit_cents ?? 0))),
+      });
+    case "ai_limit_reached":
+      return fill("notifications.tplAiLimitReached", locale, { limit: rands(Math.round(Number(p.limit_cents ?? 0))) });
+    case "ai_key_failed":
+      return fill(p.fallback === "platform" ? "notifications.tplAiKeyFailedPlatform" : "notifications.tplAiKeyFailedPause", locale, {
+        reason: t(
+          p.reason === "quota"
+            ? "notifications.aiKeyReasonQuota"
+            : p.reason === "unreadable"
+              ? "notifications.aiKeyReasonUnreadable"
+              : "notifications.aiKeyReasonRefused",
+          locale,
+        ),
+      });
     default:
       return template;
   }
@@ -316,6 +336,8 @@ export function notificationTitle(template: string, locale: Lang): string {
                   ? "aarto"
                 : template.startsWith("billing_")
                   ? "billing"
+                : template.startsWith("ai_")
+                  ? "ai"
                   : template;
   return t(`pushTitle.${family}`, locale);
 }
@@ -360,6 +382,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   if (template === "support_ticket_due") return "/admin/support";
   // Every other billing alert is about the same one page, and it is not a machine.
   if (template.startsWith("billing_")) return "/billing";
+  // The limit, the usage by person and the linked key all live on one owner page.
+  if (template.startsWith("ai_")) return "/settings/ai";
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";
 }

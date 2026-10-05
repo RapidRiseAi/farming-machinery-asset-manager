@@ -185,6 +185,12 @@ export type AssistantTurnResponse =
       code: string;
       message: string;
       fallbackHref?: string;
+      /**
+       * With code "ai_paused": why AI did not run (a farm or personal limit, AI switched
+       * off, the farm's own key broken). The message says it in words, and the client
+       * shows it as a calm notice rather than an error: typing still works.
+       */
+      reason?: "farm_limit" | "member_limit" | "ai_off" | "ai_off_for_you" | "notice_required" | "voice_off" | "own_key_broken";
     };
 
 export type AssistantConfirmResponse =

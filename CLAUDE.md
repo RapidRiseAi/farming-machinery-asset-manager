@@ -85,12 +85,13 @@ migration number (`0481`), commit (`bcbd39c`) or feature code (`F14`). Per-featu
 lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.md).
 
 ### Open, founder only
-- **AI transcription for mixed Afrikaans/English is built but needs the founder.**
-  Migration `20261003090000` (consent v2) must be applied before the release that carries
-  it. The AI Gateway team is on the free tier (5 requests a minute per model): add
-  credits. Sign DPAs for Microsoft and OpenAI through the gateway. Vercel Hobby refuses
-  zero-data-retention routing and is for non-commercial use; after an upgrade set
-  `ASSISTANT_TRANSCRIBE_ZDR=1`.
+- **AI help is on by default and metered, but invoicing it is release B** (docs/AI_USAGE.md).
+  Before real users join: sign the data agreements with Vercel, Microsoft and OpenAI (the
+  basis is service necessity, so the transfer rests on them); ship release B so usage is
+  actually charged; set `AI_KEY_SECRET` (32 random bytes, base64, Sensitive) before any farm
+  links a key; optionally `AI_ALERT_EMAIL`. The AI Gateway is on the free tier (5 requests a
+  minute per model): add credits. Vercel Hobby refuses zero-data-retention routing and is
+  for non-commercial use; after an upgrade set `ASSISTANT_TRANSCRIBE_ZDR=1`.
 - **The Azure Speech resource refuses parallel recognitions**, so two people talking at
   once collide (seen as "number of parallel requests exceeded"). Move it to S0.
 - **`lapsed_grace_days` is live at 30 and it will close accounts.** Needs a decision, not a default.
@@ -194,6 +195,26 @@ will bite again.
   onClick must run) opts in with `data-needs-js`. A new kind of clickable control (a new
   `role`) goes into `BOOT_CONTROL_SELECTORS` AND its copy in `globals.css`; a test keeps the
   two equal.
+- **`app.effective_farm_role(user, farm)` answers only for the signed-in caller.** It returns
+  null unless `auth.uid()` is that user, and the service role may not execute it, so a
+  server acting for someone, or an owner asking about an employee, always gets null. The AI
+  ledger has its own `app.ai_member_role` for that reason; do the same rather than loosening it.
+- **Any function that touches a billing table must be declared in `billing_subscription.sql`'s
+  lockdown sweep** (`v_app_fns`), with the grants it checks: none to PUBLIC, anon or
+  `authenticated`, none directly to the service role. The sweep finds undeclared ones by
+  source text, which is how the AI ledger's reads of `billing_settings` were caught.
+- **Never send a farm's own provider key through the AI Gateway's request-scoped BYOK.** The
+  Gateway documents that a request whose own credentials fail "may still fall back to use
+  system credentials" (and zero data retention skips such keys): the farm's use then runs on
+  our account with no hold, no bill and no limit while the ledger says the farm paid. Call
+  the provider directly with its own AI SDK package (`lib/ai-usage/openai-direct.ts`).
+- **An Azure Speech token works on the whole Speech resource, so none is issued without a
+  held voice session.** The speech-token route opens one per token; an app that never
+  reports (an installed copy of an older build) is billed each token's whole session. A
+  check-only gate ("may this farm have voice?") let any client that skipped the meter use
+  Azure unmetered.
+- **OpenAI answers an exhausted account with 429 `insufficient_quota`.** Classify quota
+  (the error body's `type`/`code`) before rate limits, or a farm's dead key reads as a burst.
 - **A dialog that saves and closes needs `DialogActions`.** Server actions here end in
   `redirect()`, which is a soft navigation: the client component keeps its state, so a
   hand-rolled dialog stays open over the row it just wrote. `DialogActions` watches

@@ -1257,6 +1257,11 @@ end $$;
 do $$
 declare
   v_app_fns text[] := array[
+    -- The AI and voice ledger (20261004100000) reads billing_settings (margin, limits, the
+    -- fallback rate) and billing_payments (has the farm ever paid us money). Reached only
+    -- through its service-role public.ai_* wrappers.
+    'ai_fx','ai_farm_has_paid','ai_effective_limit','ai_max_owner_limit',
+    'ai_reserve','ai_settle','ai_settle_stale','ai_open_voice_session',
     'ex_vat_cents','vat_of_incl_cents','billing_force_vat_rate','billing_derive_invoice_totals',
     'billing_freeze_invoice','billing_freeze_invoice_line','billing_freeze_price_version',
     'is_farm_billing_admin','billable_asset_count','capture_billing_asset_snapshots',

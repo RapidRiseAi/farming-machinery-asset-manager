@@ -23,6 +23,7 @@
     "ready:check": "node scripts/ready_check.mjs"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.43",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.48.1",
     "ai": "^7.0.65",

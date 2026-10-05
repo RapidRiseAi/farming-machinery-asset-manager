@@ -59,6 +59,19 @@ if (REMOVE) {
     "billing_invoices", "billing_subscriptions", "notifications", "audit_log",
   ];
   await client.query("begin");
+  // The AI and voice ledger (docs/AI_USAGE.md), children first: a tap on the mic in a
+  // browser check writes holds, a voice session and a ledger row. `ai_usage` is a money
+  // record whose guard refuses DELETE, so for this throwaway farm only, inside this one
+  // transaction, the guard is lifted for exactly that delete and put straight back.
+  const { rows: ledger } = await client.query("select to_regclass('public.ai_usage') is not null as present");
+  if (ledger[0]?.present) {
+    await client.query("alter table public.ai_usage disable trigger ai_usage_guard");
+    await client.query("delete from public.ai_usage where farm_id = $1", [IDS.farm]);
+    await client.query("alter table public.ai_usage enable trigger ai_usage_guard");
+    for (const t of ["ai_voice_sessions", "ai_reservations", "farm_member_ai_limits", "farm_ai_keys", "farm_ai_settings"]) {
+      await client.query(`delete from public.${t} where farm_id = $1`, [IDS.farm]);
+    }
+  }
   for (const t of tables) {
     try {
       await client.query(`delete from public.${t} where farm_id = $1`, [IDS.farm]);

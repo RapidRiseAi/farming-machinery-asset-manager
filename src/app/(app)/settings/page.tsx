@@ -169,6 +169,15 @@ export default async function SettingsPage({
           </Link>
         </p>
       ) : null}
+      {/* What voice and AI cost, and the limit: money, so the owner's alone (BILLING.md 10). */}
+      {profile.role === "owner" ? (
+        <p className="text-sm text-sand-600">
+          {t("aiUsage.settingsLink", locale)}{" "}
+          <Link href="/settings/ai" className="focus-ring rounded font-medium text-brand-ink underline underline-offset-2">
+            {t("aiUsage.title", locale)}
+          </Link>
+        </p>
+      ) : null}
 
       {/* == Money and invoices ================================================ */}
       <section aria-labelledby="settings-money" className="flex flex-col gap-4">

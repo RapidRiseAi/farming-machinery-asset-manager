@@ -51,7 +51,6 @@ import {
 import { recognitionLocales, speechVocabulary, voiceForLocale } from "@/lib/assistant/speech-plan";
 import { matchMachine } from "@/lib/assistant/normalize";
 import { planAssistantRoute } from "@/lib/assistant/routing";
-import { AUDIO_CONSENT_VERSION } from "@/lib/assistant/transcription";
 import { clarificationFromSpeech } from "@/lib/assistant/spoken-clarification";
 
 type Phase =
@@ -193,7 +192,9 @@ export function AssistantClient({
   initialSpeechLanguage,
   machines,
   initialAiConsent,
-  initialAudioConsent,
+  initialNoticeSeen,
+  initialAiWithdrawn,
+  farmAiEnabled,
   capabilities,
   initialThread,
   infoButton,
@@ -202,9 +203,14 @@ export function AssistantClient({
   offlineContextKey: string;
   initialSpeechLanguage: AssistantLocale;
   machines: AssistantMachine[];
+  /** AI help is on for this person (assistant/transcription.ts aiHelpOn): the AI hearing and answers may run. */
   initialAiConsent: boolean;
-  /** Active consent covers the recording and machine names (voice-ai-v2): the AI hearing runs. */
-  initialAudioConsent: boolean;
+  /** The AI notice has been dismissed. Until it is, the microphone waits and the notice shows. */
+  initialNoticeSeen: boolean;
+  /** This person switched AI help off. Their no stands: the notice tells them it is off and offers switching on. */
+  initialAiWithdrawn: boolean;
+  /** The owner's farm-wide AI switch. Off: no notice, no AI hearing, nothing to switch per person. */
+  farmAiEnabled: boolean;
   capabilities: Capabilities;
   /** Past exchanges on this farm, oldest first, read through RLS by the page. */
   initialThread: ThreadEntry[];
@@ -225,7 +231,20 @@ export function AssistantClient({
   const [error, setError] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [aiConsent, setAiConsent] = useState(initialAiConsent);
-  const [audioConsent, setAudioConsent] = useState(initialAudioConsent);
+  const [noticeSeen, setNoticeSeen] = useState(initialNoticeSeen);
+  const [aiWithdrawn, setAiWithdrawn] = useState(initialAiWithdrawn);
+  /** AI did not run because of a limit or a switch: said calmly, not as a failure. */
+  const [pausedNotice, setPausedNotice] = useState<string | null>(null);
+  /** The last request needs AI and waits on the notice: sent as soon as the person is told. */
+  const [noticeWaiting, setNoticeWaiting] = useState(false);
+  // Nothing goes to an AI on a farm whose owner switched AI off, so there is nothing to be
+  // told about yet; elsewhere the notice comes first.
+  const noticeNeeded = farmAiEnabled && !noticeSeen;
+  const aiHelpActive = farmAiEnabled && aiConsent;
+  const noticeNeededRef = useRef(noticeNeeded);
+  useEffect(() => {
+    noticeNeededRef.current = noticeNeeded;
+  }, [noticeNeeded]);
   const [consentUpdating, setConsentUpdating] = useState(false);
   const [online, setOnline] = useState(true);
   const [offlineCaptures, setOfflineCaptures] = useState<OfflineVoiceCapture[]>([]);
@@ -255,6 +274,9 @@ export function AssistantClient({
     request: AssistantTurnRequest;
   } | null>(null);
   const resultRegionRef = useRef<HTMLHeadingElement | null>(null);
+  /** The AI notice card, brought into view when someone reaches for the mic first. */
+  const noticeRef = useRef<HTMLHeadingElement | null>(null);
+  const [noticeSaving, setNoticeSaving] = useState(false);
   const operationRef = useRef(0);
   const mountedRef = useRef(true);
 
@@ -391,7 +413,10 @@ export function AssistantClient({
     commitInFlightRef.current = false;
     speechInFlightRef.current = false;
     setAiConsent(initialAiConsent);
-    setAudioConsent(initialAudioConsent);
+    setNoticeSeen(initialNoticeSeen);
+    setAiWithdrawn(initialAiWithdrawn);
+    setPausedNotice(null);
+    setNoticeWaiting(false);
     setSpeechLanguage(initialSpeechLanguage);
     setTurn(null);
     setPendingTranscript(null);
@@ -425,7 +450,7 @@ export function AssistantClient({
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
     };
-  }, [initialAiConsent, initialAudioConsent, initialSpeechLanguage, offlineContextKey]);
+  }, [initialAiConsent, initialNoticeSeen, initialAiWithdrawn, initialSpeechLanguage, offlineContextKey]);
 
   useEffect(() => {
     if (turn || completion || error) {
@@ -588,6 +613,8 @@ export function AssistantClient({
       lastRequestRef.current = requestBody;
       setPhase("interpreting");
       setError(null);
+      setPausedNotice(null);
+      setNoticeWaiting(false);
       setCompletion(null);
       try {
         const response = await fetch("/api/assistant/turn", {
@@ -600,6 +627,19 @@ export function AssistantClient({
         });
         const next = responseError(await response.json().catch(() => null), locale);
         if (!mountedRef.current || operation !== operationRef.current) return null;
+        if (response.ok && next.kind === "error" && next.code === "ai_paused") {
+          setTurn(null);
+          if (next.reason === "notice_required" && noticeNeededRef.current) {
+            // Waiting on the notice, not paused: the notice is brought into view and this
+            // request is sent the moment the person has been told (acknowledgeNotice).
+            setNoticeWaiting(true);
+          } else {
+            // A limit or a switch, not a failure: said calmly, and typing still works.
+            setPausedNotice(next.message);
+          }
+          setPhase("idle");
+          return null;
+        }
         setTurn(next);
         if (!response.ok || next.kind === "error") {
           if (retryTranscript) setPendingTranscript(freshVoiceRetryFor(requestBody) ?? retryTranscript);
@@ -793,6 +833,13 @@ export function AssistantClient({
     const { voiceSession } = options;
     const voice = voiceSession !== undefined;
     if (recordingRequestedRef.current) return;
+    // Told before anything is heard by an AI (POPIA s18): the notice first, then the
+    // microphone. Offline, a recording stays on the phone until it is sent, so it waits
+    // for nothing (and AI cannot hear it until the notice is seen online).
+    if (noticeNeeded && navigator.onLine) {
+      showNotice();
+      return;
+    }
     if (voiceSession !== undefined ? !voiceSessionIsLive(voiceSession) : phase !== "idle" && phase !== "error") return;
     if (voice && !navigator.onLine) {
       endVoiceMode(t("assistant.voice.offline", locale));
@@ -1022,7 +1069,7 @@ export function AssistantClient({
         SECOND_HEARING_DEADLINE_MS,
         "",
       ),
-      audioConsent
+      aiHelpActive
         ? deadline(fetchAiHearings(clip, controller.signal), AI_HEARING_DEADLINE_MS, [] as string[])
         : Promise.resolve([] as string[]),
     ]);
@@ -1233,6 +1280,10 @@ export function AssistantClient({
 
   const startVoiceMode = () => {
     if (voiceModeRef.current || recordingRequestedRef.current || !navigator.onLine) return;
+    if (noticeNeeded) {
+      showNotice();
+      return;
+    }
     if (phase !== "idle" && phase !== "error") return;
     // Synchronously, inside this tap and before any await: a phone plays only sound a
     // tap started, and every spoken reply arrives long after the tap.
@@ -1413,12 +1464,69 @@ export function AssistantClient({
     }
   };
 
+  const showNotice = () => {
+    noticeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    noticeRef.current?.focus({ preventScroll: true });
+  };
+
+  // A hard request came back needing AI help before the notice was seen: the notice is
+  // where that choice is made, so bring it into view.
+  const waitingForNotice = (turn?.kind === "needs_consent" || noticeWaiting) && noticeNeeded;
+  useEffect(() => {
+    if (!waitingForNotice) return;
+    noticeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    noticeRef.current?.focus({ preventScroll: true });
+  }, [waitingForNotice]);
+
   /**
-   * Every allow on this screen is given against the v2 wording (the recording and the
-   * farm's machine names, as well as transcript text), so it asks for the audio consent
-   * too. What the database actually recorded decides whether the AI hearing runs.
+   * The notice's two buttons (founder decision 10): "Got it" keeps AI help on, "Switch
+   * off" turns it off. Either way the person has now been told, and the database records
+   * it. For someone who had switched AI off, the database only records that they were
+   * told: their no stands, and switching on is the separate, explicit button.
    */
-  const updateAiConsent = async (allow: boolean) => {
+  const acknowledgeNotice = async (keepOn: boolean) => {
+    if (noticeSaving) return;
+    setNoticeSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/assistant/notice", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ keepOn }),
+      });
+      if (!response.ok) throw new Error("notice_failed");
+      const recorded = (await response.json().catch(() => null)) as { aiOn?: boolean; withdrawn?: boolean } | null;
+      if (!mountedRef.current) return;
+      const on = Boolean(recorded?.aiOn);
+      setNoticeSeen(true);
+      setAiConsent(on);
+      setAiWithdrawn(!on && (Boolean(recorded?.withdrawn) || !keepOn));
+      // A hard request was waiting for AI help: with AI on, send it now rather than ask again.
+      const previous = lastRequestRef.current;
+      const waiting = turn?.kind === "needs_consent" || noticeWaiting;
+      setNoticeWaiting(false);
+      if (on && waiting && previous && (phase === "idle" || phase === "error")) {
+        const voiceRetry = freshVoiceRetryFor(previous);
+        await submitRequest({ ...previous, ...(voiceRetry ?? {}), clarification: undefined });
+      } else if (!on && turn?.kind === "needs_consent") {
+        setTurn(null);
+      }
+    } catch {
+      if (mountedRef.current) setError(t("assistant.noticeFailed", locale));
+    } finally {
+      if (mountedRef.current) setNoticeSaving(false);
+    }
+  };
+
+  /**
+   * AI help on or off for this person. `fromNotice`: the switch was pressed under the
+   * notice's own text, so switching on also records that the person was told. Anywhere
+   * else it records that only when the notice was already seen. What the database
+   * recorded decides what the screen shows.
+   */
+  const updateAiConsent = async (allow: boolean, fromNotice = false) => {
     if (commitInFlightRef.current || (phase !== "idle" && phase !== "error")) return;
     commitInFlightRef.current = true;
     const operation = ++operationRef.current;
@@ -1431,15 +1539,19 @@ export function AssistantClient({
         credentials: "same-origin",
         cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ allow, audio: allow }),
+        // `notice` only when the notice's text was on screen (consent/route.ts stamps it
+        // only when asked), never for a switch the person reached without it.
+        body: JSON.stringify({ allow, notice: allow && (fromNotice || noticeSeen) }),
       });
       if (!response.ok) throw new Error("consent_failed");
       const recorded = (await response.json().catch(() => null)) as
         | { ai_processing_opt_in?: boolean; ai_processing_consent_version?: string | null }
         | null;
       if (!mountedRef.current || operation !== operationRef.current) return;
-      setAiConsent(allow);
-      setAudioConsent(Boolean(allow && recorded?.ai_processing_opt_in && recorded.ai_processing_consent_version === AUDIO_CONSENT_VERSION));
+      setAiConsent(Boolean(allow && recorded?.ai_processing_opt_in));
+      setAiWithdrawn(!allow);
+      // Switching on sits under the notice text, so it also counts as having been told.
+      if (allow) setNoticeSeen(true);
       if (!allow) {
         lastRequestRef.current = null;
         setTurn(null);
@@ -1598,6 +1710,46 @@ export function AssistantClient({
           <p className="mt-1 text-sm leading-6 text-sand-600">{t("assistant.lead", locale)}</p>
         )}
       </header>
+
+      {/* AI help is on by default, but nobody is heard by an AI before they have been told
+          (POPIA s18; the server refuses until this is dismissed). Shown once, first. For
+          someone who switched AI off it says so, and switching on is its own button. A
+          hard request waiting for AI help is explained here, not in a second card. */}
+      {noticeNeeded ? (
+        <Card className="border-callout-info-edge bg-callout-info-bg/40">
+          <h2 ref={noticeRef} tabIndex={-1} className="text-base font-semibold text-sand-900">
+            {t(aiWithdrawn ? "assistant.noticeWithdrawnTitle" : "assistant.noticeTitle", locale)}
+          </h2>
+          {turn?.kind === "needs_consent" ? (
+            <p className="mt-2 text-sm leading-6 text-sand-800">{turn.explanation}</p>
+          ) : noticeWaiting ? (
+            <p className="mt-2 text-sm leading-6 text-sand-800">{t("assistant.noticeWaiting", locale)}</p>
+          ) : null}
+          <p className="mt-2 text-sm leading-6 text-sand-700">
+            {t(aiWithdrawn ? "assistant.noticeWithdrawnBody" : "assistant.noticeBody", locale)}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-sand-500">{t("assistant.noticeBilling", locale)}</p>
+          {aiWithdrawn ? (
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" disabled={noticeSaving || consentUpdating} onClick={() => void acknowledgeNotice(false)}>
+                {t("assistant.noticeWithdrawnKeepOff", locale)}
+              </Button>
+              <Button loading={consentUpdating} disabled={noticeSaving || (isBusy && !consentUpdating)} onClick={() => void updateAiConsent(true, true)}>
+                {t("assistant.noticeWithdrawnOn", locale)}
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" disabled={noticeSaving} onClick={() => void acknowledgeNotice(false)}>
+                {t("assistant.noticeOff", locale)}
+              </Button>
+              <Button loading={noticeSaving} onClick={() => void acknowledgeNotice(true)}>
+                {t("assistant.noticeKeep", locale)}
+              </Button>
+            </div>
+          )}
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2 rounded-xl border border-sand-200 bg-sand-50 p-1" aria-label={t("assistant.languageLabel", locale)}>
         {(["af-ZA", "en-ZA"] as const).map((language) => (
@@ -1782,6 +1934,7 @@ export function AssistantClient({
           <Flash tone="error" message={error} />
         </div>
       ) : null}
+      {pausedNotice && !error ? <Flash tone="info" message={pausedNotice} /> : null}
 
       {turn?.kind === "clarify" ? (
         <Card>
@@ -1845,7 +1998,7 @@ export function AssistantClient({
         </Card>
       ) : null}
 
-      {turn?.kind === "needs_consent" ? (
+      {turn?.kind === "needs_consent" && !noticeNeeded && farmAiEnabled ? (
         <Card className="border-callout-info-edge bg-callout-info-bg/40">
           <h2 ref={error ? undefined : resultRegionRef} tabIndex={-1} className="text-base font-semibold text-sand-900">{t("assistant.consentTitle", locale)}</h2>
           <p className="mt-2 text-sm leading-6 text-sand-700">{turn.explanation}</p>
@@ -1938,7 +2091,7 @@ export function AssistantClient({
                 <p className="text-base font-semibold text-ink">
                   {voicePhaseLabel(phase, turn?.kind === "confirm", locale)}
                 </p>
-                <p className="text-xs text-ink-muted">{audioConsent ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}</p>
+                <p className="text-xs text-ink-muted">{aiHelpActive ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}</p>
               </div>
             </div>
             {transcript ? (
@@ -1974,7 +2127,7 @@ export function AssistantClient({
             >
               <span className="text-sm font-semibold text-ink">{phaseLabel(phase, locale)}</span>
               <span className="text-xs text-ink-muted">
-                {!online ? t("assistant.offlinePrivacy", locale) : audioConsent ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}
+                {!online ? t("assistant.offlinePrivacy", locale) : aiHelpActive ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}
               </span>
               {voiceNotice ? <span className="basis-full text-sm text-ink">{voiceNotice}</span> : null}
             </div>
@@ -2106,38 +2259,35 @@ export function AssistantClient({
               {t("nav.machines", locale)}
             </Link>
           </p>
-          {aiConsent ? (
+          {!farmAiEnabled ? (
+            // The owner switched AI off for the farm: nothing for this person to switch.
+            <p className="mt-3 text-xs leading-5 text-ink-muted">{t("assistant.aiHelpFarmOff", locale)}</p>
+          ) : aiConsent ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-xs leading-5 text-ink-muted">
-                {audioConsent ? t("assistant.audioConsentActive", locale) : t("assistant.aiConsentActive", locale)}
-              </p>
-              {/* Given before the AI could hear the recording: offer the wider consent once
-                  here, in the same calm place, rather than interrupting a request. */}
-              {audioConsent ? null : (
-                <p className="text-xs leading-5 text-ink-muted">{t("assistant.audioUpgradeBody", locale)}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {audioConsent ? null : (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={consentUpdating}
-                    disabled={isBusy && !consentUpdating}
-                    onClick={() => void updateAiConsent(true)}
-                  >
-                    {t("assistant.audioUpgradeAllow", locale)}
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  loading={consentUpdating}
-                  disabled={isBusy && !consentUpdating}
-                  onClick={() => void updateAiConsent(false)}
-                >
-                  {t("assistant.consentWithdraw", locale)}
-                </Button>
-              </div>
+              <p className="text-xs leading-5 text-ink-muted">{t("assistant.audioConsentActive", locale)}</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={consentUpdating}
+                disabled={isBusy && !consentUpdating}
+                onClick={() => void updateAiConsent(false)}
+              >
+                {t("assistant.consentWithdraw", locale)}
+              </Button>
+            </div>
+          ) : noticeSeen ? (
+            // Switched off: switching back on stays one calm tap away, never a nag.
+            <div className="mt-3 flex flex-col items-start gap-2">
+              <p className="text-xs leading-5 text-ink-muted">{t("assistant.aiHelpOffBody", locale)}</p>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={consentUpdating}
+                disabled={isBusy && !consentUpdating}
+                onClick={() => void updateAiConsent(true)}
+              >
+                {t("assistant.consentAllow", locale)}
+              </Button>
             </div>
           ) : null}
         </div>

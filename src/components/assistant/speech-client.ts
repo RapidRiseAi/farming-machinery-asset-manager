@@ -1,6 +1,7 @@
 "use client";
 
 import { ClipRecorder } from "./clip-recorder";
+import { clipDurationMs, tokenSession, VOICE_CLIENT_VERSION, VoiceMeter } from "./voice-meter";
 
 type SpeechSdk = typeof import("microsoft-cognitiveservices-speech-sdk");
 type AudioConfig = import("microsoft-cognitiveservices-speech-sdk").AudioConfig;
@@ -18,6 +19,8 @@ const TOKEN_ENDPOINT = "/api/assistant/speech-token";
 const TOKEN_REQUEST_TIMEOUT_MS = 12_000;
 const TOKEN_REFRESH_BUFFER_MS = 30_000;
 const TOKEN_MAX_REUSE_MS = 8.5 * 60_000;
+/** Budget held before each listening turn; a session holds two minutes, so two turns fit. */
+const LIVE_TURN_RESERVE_MS = 60_000;
 const SDK_START_TIMEOUT_MS = 60_000;
 const SDK_STOP_TIMEOUT_MS = 5_000;
 const SDK_CLOSE_TIMEOUT_MS = 2_000;
@@ -54,6 +57,9 @@ export type SpeechClientErrorCode =
   | "service_unavailable"
   | "token_unavailable"
   | "playback_blocked"
+  | "limit_reached"
+  | "personal_limit_reached"
+  | "voice_off"
   | "cancelled"
   | "unknown";
 
@@ -117,6 +123,18 @@ const ERROR_INFO = {
   playback_blocked: {
     message: "The browser blocked the sound.",
     retryable: true,
+  },
+  limit_reached: {
+    message: "Voice and AI are paused: the farm has reached its monthly limit.",
+    retryable: false,
+  },
+  personal_limit_reached: {
+    message: "You have reached your voice and AI limit for this month.",
+    retryable: false,
+  },
+  voice_off: {
+    message: "Voice is switched off for this farm.",
+    retryable: false,
   },
   cancelled: {
     message: "The speech operation was cancelled.",
@@ -231,6 +249,12 @@ interface RecognitionOperation {
     timeoutId?: ReturnType<typeof setTimeout>;
   };
   stopPromise?: Promise<void>;
+  /** When Azure started billing this operation (voice-meter.ts); unset until it started. */
+  meteredFrom?: number;
+  /** A file's known length: Azure bills the whole clip, however long it takes. */
+  meterMs?: number;
+  /** Continuous language ID is billed at the enhanced rate, one fixed language at the base. */
+  meterKind?: "live" | "fixed";
 }
 
 interface SynthesisOperation {
@@ -443,6 +467,21 @@ function cancellationError(
   }
 }
 
+/**
+ * A refused voice request, read from the body as well as the status: the farm's or the
+ * person's monthly limit (402) and voice switched off for the farm (403 "voice_off") each
+ * get their own message, not the generic "could not start". Shared by the token and the
+ * voice-session requests (voice-meter.ts).
+ */
+export async function refusedVoiceError(response: Response): Promise<SpeechClientError> {
+  const body = (await response.json().catch(() => null)) as { error?: unknown; scope?: unknown } | null;
+  if (response.status === 402 && body?.error === "ai_limit_reached") {
+    return new SpeechClientError(body.scope === "member" ? "personal_limit_reached" : "limit_reached");
+  }
+  if (response.status === 403 && body?.error === "voice_off") return new SpeechClientError("voice_off");
+  return tokenResponseError(response.status);
+}
+
 function tokenResponseError(status: number): SpeechClientError {
   if (status === 401 || status === 403) {
     return new SpeechClientError("not_authorized");
@@ -576,6 +615,8 @@ function speechOnlyText(text: string, voice: SpeechVoice): string {
 class AzureBrowserSpeechClient implements SpeechClient {
   private disposed = false;
   private cachedToken: SpeechToken | undefined;
+  /** Every Azure use is held for and reported against a server-side voice session. */
+  private readonly meter = new VoiceMeter(refusedVoiceError);
   private tokenRequest: Promise<SpeechToken> | undefined;
   private tokenAbort: AbortController | undefined;
   private recognitionStart: Promise<void> | undefined;
@@ -592,6 +633,26 @@ class AzureBrowserSpeechClient implements SpeechClient {
   private audioContext: AudioContext | undefined;
   private contextPlayback: ContextPlayback | undefined;
   private lastClip: ClipRecorder | undefined;
+
+  constructor() {
+    // A report sent while recognition is still running (the app hidden, the page closing)
+    // includes it: the use so far is read and its count restarted, so the operation adds
+    // only the rest when it ends.
+    this.meter.setInFlight(() => {
+      const operation = this.recognitionOperation;
+      if (!operation || operation.closed || operation.meteredFrom === undefined) return { liveMs: 0, fixedMs: 0 };
+      let used: number;
+      if (operation.source === "file") {
+        used = operation.meterMs ?? 0;
+        operation.meterMs = 0;
+      } else {
+        const now = performance.now();
+        used = now - operation.meteredFrom;
+        operation.meteredFrom = now;
+      }
+      return operation.meterKind === "fixed" ? { liveMs: 0, fixedMs: used } : { liveMs: used, fixedMs: 0 };
+    });
+  }
 
   takeLastClip(): Promise<File | null> {
     const clip = this.lastClip;
@@ -704,6 +765,9 @@ class AzureBrowserSpeechClient implements SpeechClient {
       ]);
       if (this.recognitionStopRequested) throw new SpeechClientError("cancelled");
       this.assertActive();
+      // Budget for the whole clip before Azure hears any of it (voice-meter.ts).
+      await Promise.race([this.meter.ensure({ audioMs: clipDurationMs(file) }), pendingPromise]);
+      if (this.recognitionStopRequested) throw new SpeechClientError("cancelled");
     } catch (caught) {
       if (this.pendingFileRecognition === pending) {
         this.pendingFileRecognition = undefined;
@@ -733,6 +797,8 @@ class AzureBrowserSpeechClient implements SpeechClient {
         closed: false,
         errorReported: false,
         source: "file",
+        meterMs: clipDurationMs(file),
+        meterKind: (options.autoDetectLocales?.length ?? 0) > 1 ? "live" : "fixed",
       };
       this.recognitionOperation = operation;
       const fileOperation = operation;
@@ -837,6 +903,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
         () => {
           if (fileOperation.closed) return;
           fileOperation.started = true;
+          fileOperation.meteredFrom = performance.now();
           this.setRecognitionState(fileOperation, "listening");
         },
         (error) => settleResult(error),
@@ -894,6 +961,13 @@ class AzureBrowserSpeechClient implements SpeechClient {
     if (this.disposed || generation !== this.synthesisGeneration) {
       throw new SpeechClientError("cancelled");
     }
+    // Budget for the characters before Azure speaks them (voice-meter.ts). Azure bills the
+    // text it is sent, so they count as sent, whichever way they are played.
+    await this.meter.ensure({ characters: cleanedText.length });
+    if (this.disposed || generation !== this.synthesisGeneration) {
+      throw new SpeechClientError("cancelled");
+    }
+    this.meter.addCharacters(cleanedText.length);
 
     // Hands-free voice mode unlocked a Web Audio channel inside a tap: play through it.
     if (this.audioContext && this.audioContext.state !== "closed") {
@@ -1050,6 +1124,9 @@ class AzureBrowserSpeechClient implements SpeechClient {
       this.stopRecognition(),
       this.stopActiveSynthesis(new SpeechClientError("cancelled")),
     ]);
+    // After recognition has stopped, so the turn that was running is in it. The last
+    // report goes by beacon in case the page is going.
+    this.meter.dispose();
 
     const context = this.audioContext;
     this.audioContext = undefined;
@@ -1098,6 +1175,9 @@ class AzureBrowserSpeechClient implements SpeechClient {
         safeInvoke(options.onStateChange, "stopped");
         return;
       }
+      this.assertActive();
+      // Budget for this listening turn before the microphone opens (voice-meter.ts).
+      await this.meter.ensure({ audioMs: LIVE_TURN_RESERVE_MS });
       this.assertActive();
 
       speechConfig = sdk.SpeechConfig.fromAuthorizationToken(
@@ -1189,6 +1269,8 @@ class AzureBrowserSpeechClient implements SpeechClient {
         SDK_START_TIMEOUT_MS,
       );
       operation.started = true;
+      operation.meteredFrom = performance.now();
+      operation.meterKind = "live";
 
       // A cancellation event can close the recognizer before the start callback wins.
       if (operation.closed) return;
@@ -1270,6 +1352,15 @@ class AzureBrowserSpeechClient implements SpeechClient {
   ): Promise<void> {
     if (operation.closed) return;
     operation.closed = true;
+
+    // What Azure billed: a file's whole length, or the time the microphone was streaming.
+    if (operation.meteredFrom !== undefined) {
+      const used = operation.source === "file"
+        ? (operation.meterMs ?? 0)
+        : performance.now() - operation.meteredFrom;
+      if (operation.meterKind === "fixed") this.meter.addFixed(used);
+      else this.meter.addLive(used);
+    }
 
     if (operation.source === "file") {
       operation.fileSettlement?.settle(new SpeechClientError("cancelled"));
@@ -1564,14 +1655,18 @@ class AzureBrowserSpeechClient implements SpeechClient {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: "{}",
+        // The version tells the server this app reports its use (voice-meter.ts).
+        body: JSON.stringify({ clientVersion: VOICE_CLIENT_VERSION }),
         signal: controller.signal,
       });
 
-      if (!response.ok) throw tokenResponseError(response.status);
+      if (!response.ok) throw await refusedVoiceError(response);
 
       const value: unknown = await response.json();
       if (!isRecord(value)) throw new SpeechClientError("token_unavailable");
+      // Every token comes with the voice session it opened: use is reported against it.
+      const held = tokenSession(value);
+      if (held) await this.meter.adopt(held);
 
       const token = typeof value.token === "string" ? value.token.trim() : "";
       const region =

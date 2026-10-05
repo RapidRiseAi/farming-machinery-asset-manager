@@ -62,6 +62,8 @@ export type Profile = {
   ai_processing_opted_in_at: string | null;
   ai_processing_consent_version: string | null;
   ai_processing_withdrawn_at: string | null;
+  /** When the person dismissed the AI notice; AI calls are refused until it is set. */
+  ai_notice_seen_at: string | null;
   active: boolean;
 };
 
@@ -70,7 +72,7 @@ type ProfileRow = Omit<Profile, "lang"> & { language: Locale; tone: Tone };
 const PROFILE_COLUMNS =
   "id, farm_id, workshop_id, role, name, email, language, tone, language_set_at, " +
   "ai_processing_opt_in, ai_processing_opted_in_at, ai_processing_consent_version, " +
-  "ai_processing_withdrawn_at, active";
+  "ai_processing_withdrawn_at, ai_notice_seen_at, active";
 
 /** The authenticated Supabase auth user, or null. */
 export async function getUser(): Promise<User | null> {

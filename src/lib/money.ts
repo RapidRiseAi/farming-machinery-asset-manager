@@ -42,12 +42,31 @@ export function rands(cents: number | null | undefined): string {
 
 /**
  * Parse a user-typed Rand amount to integer cents, WITHOUT float drift.
- * Accepts thousands separators and an optional decimal part ("1,150.5" → 115050).
- * Returns null for blank/invalid input.
+ * Accepts "R", thousands separators and a decimal point or comma ("1,150.5" → 115050,
+ * "1 150,50" → 115050, "250,00" → 25000). Returns null for blank, invalid or ambiguous input.
  */
 export function parseRandsToCents(input: string | null | undefined): number | null {
   if (input == null) return null;
-  const cleaned = String(input).trim().replace(/[\s,]/g, "");
+  // "R250", spaces (also the non-breaking kinds a phone keyboard or a paste brings) and
+  // apostrophes group thousands and are dropped.
+  let cleaned = String(input).trim().replace(/^R\s*/i, "").replace(/[\s  ']/g, "");
+  // A decimal comma is how South Africans write money ("250,00", "1 500,50"): it must
+  // never be read as a thousands separator, which made "250,00" R25 000. With both marks
+  // ("1,500.50", "1.500,50") the last one is the decimal; a lone comma is the decimal
+  // when one or two digits follow it, and groups thousands only in threes ("1,500");
+  // anything else ("1,2345") is ambiguous and refused. A dot alone is the decimal, as before.
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    cleaned = lastComma > lastDot
+      ? cleaned.replace(/\./g, "").replace(",", ".")
+      : cleaned.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    const digits = cleaned.replace(/^-/, "");
+    if (/^\d*,\d{1,2}$/.test(digits)) cleaned = cleaned.replace(",", ".");
+    else if (/^\d{1,3}(,\d{3})+$/.test(digits)) cleaned = cleaned.replace(/,/g, "");
+    else return null;
+  }
   if (cleaned === "") return null;
   if (!/^-?\d*(\.\d*)?$/.test(cleaned) || cleaned === "." || cleaned === "-") return null;
   const neg = cleaned.startsWith("-");

@@ -6,6 +6,13 @@ import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { deliverPush } from "@/lib/push/deliver";
 import { deliverNotificationEmail } from "@/lib/notifications/email-deliver";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
+import {
+  checkGatewayCredits,
+  detectModelFailures,
+  detectVoiceUnderReporting,
+  refreshFxRate,
+  refreshPrices,
+} from "@/lib/ai-usage/nightly";
 
 /**
  * Nightly maintenance cron (Scope §4.3 nightly recompute, §4.7 alerts).
@@ -111,6 +118,24 @@ export async function GET(request: Request) {
 
   // What the schedule has already spoken for (0503). Weekly per item, quiet hours honoured.
   await run("stock_shortfall", "cron_enqueue_stock_shortfall");
+
+  // AI and voice usage (docs/AI_USAGE.md). Close voice sessions the browser never finished
+  // and holds the server never settled; then the day's rate, prices, Gateway credit and
+  // failure rates. Before push delivery, so a health alert can go out the same night.
+  await run("ai_settle_stale", "ai_settle_stale");
+  const step = async (name: string, work: () => Promise<string>): Promise<void> => {
+    try {
+      steps[name] = await work();
+    } catch (err) {
+      steps[name] = `error: ${err instanceof Error ? err.message : "unknown"}`;
+      captureError(err, { where: `cron:${name}` });
+    }
+  };
+  await step("ai_fx_rate", () => refreshFxRate(supabase));
+  await step("ai_prices", () => refreshPrices(supabase));
+  await step("ai_gateway_credits", () => checkGatewayCredits(supabase));
+  await step("ai_failures", () => detectModelFailures(supabase));
+  await step("ai_voice_underreporting", () => detectVoiceUnderReporting(supabase));
 
   // Weekly digest fires only on Mondays in SAST (the caller decides, the SQL just enqueues).
   const sastWeekday = new Intl.DateTimeFormat("en-US", {

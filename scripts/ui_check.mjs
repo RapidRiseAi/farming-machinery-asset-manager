@@ -69,6 +69,9 @@ const ROUTES = [
   // The tone switcher is buttons, not inputs, so this measures 0. The 2 is headroom,
   // not an allowance for a form.
   { path: "/settings", maxControls: 2, minTriggers: 8 },
+  // AI and voice (docs/AI_USAGE.md): the limit, the switches and the key are all dialogs;
+  // the page at rest is figures only.
+  { path: "/settings/ai", maxControls: 0, minTriggers: 3 },
   { path: "/faults", maxControls: 0, minTriggers: 1 },
   { path: "/fuel", maxControls: 2, minTriggers: 1 },
   /*
@@ -252,7 +255,7 @@ const MOBILE_ROUTES = [
   `/machines/${TEST_MACHINE}`, `/machines/${TEST_MACHINE}/qr`,
   `/machines/${TEST_MACHINE}/checklists/new`,
   "/jobcards", `/jobcards/${TEST_JOBCARD}`, "/faults", "/tyres", "/incidents",
-  "/settings", "/settings/api", "/fuel", "/fines", "/parts", "/team",
+  "/settings", "/settings/api", "/settings/ai", "/fuel", "/fines", "/parts", "/team",
   "/team/licences", "/partners", "/suppliers", "/money", "/orders",
   "/expenses", "/recurring-expenses", "/recurring", "/vat", "/accounting",
   "/statements", "/banking", "/banking/import", "/cashflow", "/reports",

@@ -90,6 +90,14 @@ const PROBES = {
   // the v1-to-v2 upgrade branch only this migration adds.
   "20261003090000":
     "select pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%voice-ai-v2%'",
+  // The AI notice and the ledger. Each probe names something only the FINAL version of
+  // its file has (the trigger's notice-evidence branch; the voice session's source column
+  // and the hidden cost columns), so a draft applied somewhere can never read as done.
+  // CASE, because AND does not promise to look at the guard first.
+  "20261004095000":
+    "select case when to_regprocedure('public.ai_notice_ack(boolean)') is null then false else pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%old.ai_notice_seen_at is null and new.ai_notice_seen_at is not null%' end",
+  "20261004100000":
+    "select case when to_regclass('public.ai_usage') is null or to_regprocedure('public.ai_voice_token_window(timestamptz)') is null then false else exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ai_voice_sessions' and column_name = 'source') and not has_column_privilege('authenticated', 'public.ai_usage', 'provider_cost_usd', 'SELECT') end",
 };
 
 const url = readEnv("DATABASE_URL");
