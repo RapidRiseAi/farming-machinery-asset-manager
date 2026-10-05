@@ -126,13 +126,20 @@
       for (let i = 1; i <= words.length; i += 1) {
         at += 160;
         const partial = words.slice(0, i).join(" ").toLowerCase().replace(/[?.!,]/g, "");
-        this.later(at, () => this.emitText("speech.hypothesis", JSON.stringify({
-          Text: partial, Offset: 5_000_000, Duration: i * 2_000_000,
-          PrimaryLanguage: { Language: locale, Confidence: "High" },
-        })));
+        const last = i === words.length;
+        this.later(at, () => {
+          if (last) note("stt-last-word", { index: this.index });
+          this.emitText("speech.hypothesis", JSON.stringify({
+            Text: partial, Offset: 5_000_000, Duration: i * 2_000_000,
+            PrimaryLanguage: { Language: locale, Confidence: "High" },
+          }));
+        });
       }
       at += 450;
       this.phraseDoneAt = Date.now() + at;
+      // noFinal: beside a running engine Azure hears sound, not silence, and never closes
+      // the phrase. The app must still end the turn on its own.
+      if (say.noFinal) return;
       this.later(at, () => {
         note("stt-final", { index: this.index, text: say.text });
         this.emitText("speech.phrase", JSON.stringify({

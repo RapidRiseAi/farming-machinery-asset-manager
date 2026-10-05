@@ -4694,3 +4694,44 @@ usage-only invoices for farms the generator skips, a per-person appendix snapsho
 issue, the renewal notice), margin changes with notice, reconciliation against the Gateway
 spend report and the Azure bill, a daily canary, and server-side Azure synthesis and clip
 recognition.
+
+## 2026-10-05 - AI answers work on the free tier, hands-free ends turns over engine noise, AI and driver pages in the menu
+
+The founder found, on the live site: "AI help is not available"; hands-free still needed
+the Done button and did not transcribe well; the AI usage page could not be found; and
+Codex's driver activity seemed missing.
+
+### What the evidence said
+
+- The ledger showed the founder's turn at 08:14: Azure voice metered, the AI hearing
+  (gpt-4o-transcribe) answered, MAI cancelled as it should be, and the AI answer refused
+  with `gateway_auth`. The Gateway's own message, reproduced with a fresh credential: "Free
+  tier users do not have access to this model" for `openai/gpt-5.4-mini`, the production
+  `LLM_MODEL`; `gpt-5-mini` and `gpt-4.1-mini` are allowed. Every hard request failed.
+- Hands-free ended a turn only on Azure closing a phrase and 1.3 s of quiet; any partial
+  reset it. Beside an engine Azure hears sound, not silence, and may never close the
+  phrase, so the turn waited (27 s of open microphone in the founder's session).
+- /settings/ai was reachable only from a line at the bottom of Settings; driver activity
+  only from links inside the Team, Account and driver pages. Codex's work was live
+  (`/driver/activity` renders in production); it was simply not in the menu.
+
+### Changes
+
+- AI answers fall back to `LLM_FALLBACK_MODEL` (default `openai/gpt-4.1-mini`) when the
+  Gateway refuses the configured model on our account, with a hold of their own; a
+  `gateway_auth` health event opens at once with the Gateway's reason (also from the AI
+  hearing). `openHealthEvent` moved to `lib/ai-usage/health.ts` for both.
+- Hands-free: no NEW words for 2.5 s after something was said ends the turn even when Azure
+  never closes the phrase; a partial that only repeats what was heard no longer counts as
+  more speech. `voice:check` gains the case (a phrase Azure never closes): the turn is sent
+  2.6 s after the last word without Done; with the change removed it would wait 60 s.
+- The menu: "AI and voice" (/settings/ai) beside Billing for owners and Rapid Rise, and
+  "Driver activity" in The Fleet for every role the page admits.
+
+### Verification
+
+Local build against the live database and the real Gateway, with `LLM_MODEL` forced to the
+refused model: a general question was answered through the fallback (the ledger shows the
+refused call at R0 and the fallback billed under a cent), and the health event opened with
+the Gateway's message. `voice:check` 46/46, `ready:check`, `ui:check` (55 routes at 360px
+and 1024px), 543 unit tests, lint, typecheck, the static checks and the build pass.

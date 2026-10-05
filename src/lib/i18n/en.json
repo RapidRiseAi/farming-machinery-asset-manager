@@ -90,7 +90,9 @@
     "adminPartners": "Partner catalogue",
     "adminTemplates": "Templates",
     "moreHasNew": "Something new inside",
-    "adminAi": "AI and voice costs"
+    "adminAi": "AI and voice costs",
+    "aiUsage": "AI and voice",
+    "driverActivity": "Driver activity"
   },
   "assistant": {
     "title": "Voice assistant",

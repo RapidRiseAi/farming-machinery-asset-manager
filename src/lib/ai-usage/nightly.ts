@@ -1,9 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gateway } from "ai";
+import { configuredLlmFallbackModel } from "@/lib/assistant/llm";
 import { configuredTranscribeModels } from "@/lib/assistant/transcription";
-import { emailConfigured, sendEmail } from "@/lib/email/resend";
-import { captureError } from "@/lib/observability";
+import { openHealthEvent, resolveHealthEvents } from "./health";
 
 /**
  * The AI and voice ledger's nightly upkeep (docs/AI_USAGE.md), run by /api/cron/nightly.
@@ -17,52 +17,6 @@ const BAND = 0.25;
 const FX_URL = "https://api.frankfurter.app/latest?from=USD&to=ZAR";
 const MODELS_URL = "https://ai-gateway.vercel.sh/v1/models";
 const FETCH_TIMEOUT_MS = 10_000;
-
-type HealthKind =
-  | "model_failures" | "no_credit" | "gateway_auth" | "low_credit" | "price_pending"
-  | "fx_stale" | "model_unpriced" | "voice_token_failures" | "canary_failed" | "holds_clamped"
-  | "voice_underreported";
-
-/**
- * Opens a health event, once: an open event of the same kind and subject already exists,
- * so a repeat night adds nothing (a partial unique index enforces it). A NEW event alerts
- * the founder: the observability layer always, and email when AI_ALERT_EMAIL is set.
- */
-async function openHealthEvent(
-  supabase: SupabaseClient,
-  kind: HealthKind,
-  subject: string,
-  detail: Record<string, unknown>,
-): Promise<void> {
-  const { data, error } = await supabase
-    .from("ai_health_events")
-    .insert({ kind, subject, detail })
-    .select("id")
-    .maybeSingle();
-  if (error || !data) return; // 23505: already open, already alerted.
-  captureError(new Error(`AI health: ${kind}${subject ? ` (${subject})` : ""}`), {
-    where: "ai_health",
-    extra: { kind, subject, detail: JSON.stringify(detail).slice(0, 500) },
-  });
-  const to = process.env.AI_ALERT_EMAIL?.trim();
-  if (to && emailConfigured()) {
-    const lines = [`FleetWise AI health: ${kind}${subject ? ` for ${subject}` : ""}.`, "", JSON.stringify(detail, null, 2), "", "See /admin/ai."];
-    const sent = await sendEmail({
-      to,
-      from: process.env.EMAIL_FROM || "documents@fleetwise.app",
-      subject: `FleetWise AI: ${kind.replace(/_/g, " ")}`,
-      text: lines.join("\n"),
-      html: `<pre>${lines.join("\n").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] ?? c)}</pre>`,
-    }).catch(() => null);
-    if (sent) await supabase.from("ai_health_events").update({ alerted_at: new Date().toISOString() }).eq("id", data.id);
-  }
-}
-
-async function resolveHealthEvents(supabase: SupabaseClient, kind: HealthKind, subject?: string): Promise<void> {
-  let query = supabase.from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("kind", kind).is("resolved_at", null);
-  if (subject !== undefined) query = query.eq("subject", subject);
-  await query;
-}
 
 const withinBand = (proposed: number, current: number) => current > 0 && Math.abs(proposed / current - 1) <= BAND;
 
@@ -100,7 +54,7 @@ export async function refreshPrices(supabase: SupabaseClient): Promise<string> {
       ...configuredTranscribeModels(),
       process.env.LLM_MODEL?.trim(),
       process.env.ASSISTANT_BYOK_LLM_MODEL?.trim() || "openai/gpt-5-mini",
-      process.env.LLM_FALLBACK_MODEL?.trim(),
+      configuredLlmFallbackModel(process.env.LLM_MODEL?.trim() ?? ""),
     ].filter((model): model is string => Boolean(model)),
   );
   const response = await fetch(MODELS_URL, { cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });

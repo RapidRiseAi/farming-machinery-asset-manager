@@ -126,6 +126,12 @@ runs on the server's deadline, never the browser's connection (closing the page 
 a paid answer free), and the hold is settled exactly once: a storage error after the call
 is the route's own failure, never a second, free settlement. A refusal returns
 `code: "ai_paused"` with the reason, shown as a calm notice, and typing keeps working.
+When the Gateway refuses the configured model outright on the platform's account (no access
+on this plan, an unknown model; seen in production on 2026-10-05, when `LLM_MODEL` named a
+model the free tier refuses and every hard request answered "AI help is unavailable"), the
+answer falls back to `LLM_FALLBACK_MODEL` (default `openai/gpt-4.1-mini`) with a hold of its
+own, and a `gateway_auth` health event opens at once with the Gateway's reason, so the
+founder sees it on `/admin/ai` the same day rather than after a night of failures.
 
 **Gateway options** on every call on the platform's credential: `tags` (`farm:<id>`,
 `feature:<name>`) for the monthly spend report. The person's id is not sent to the Gateway;

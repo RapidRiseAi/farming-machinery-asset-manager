@@ -81,6 +81,13 @@ const ASSISTANT_TURN_TIMEOUT_MS = 30_000;
  * people off mid-sentence; "Done, answer now" skips the wait for anyone in a hurry.
  */
 const VOICE_SETTLE_MS = 1_300;
+/**
+ * No NEW words for this long after something was said: finished, even though Azure has not
+ * closed the phrase. In a cab or beside a tractor Azure hears the engine as sound, not
+ * silence, so it may never close one, and the turn used to wait for the Done button.
+ * Longer than the settle, so an ordinary turn still ends on Azure's own phrase end.
+ */
+const VOICE_QUIET_MS = 2_500;
 /** Nothing at all said this long after listening starts: pause rather than keep a live mic. */
 const VOICE_FIRST_WORDS_MS = 8_000;
 /** A machine match this good, from the live transcript alone, is sent without a second hearing. */
@@ -292,6 +299,7 @@ export function AssistantClient({
   const voiceSessionRef = useRef(0);
   const voiceSettleTimerRef = useRef<number | null>(null);
   const voiceFirstWordsTimerRef = useRef<number | null>(null);
+  const voiceQuietTimerRef = useRef<number | null>(null);
   /** Times the current spoken follow-up was not an answer; asked again once, then typed. */
   const voiceRetryRef = useRef(0);
   const finishVoiceTurnRef = useRef<(operation: number) => Promise<void>>(async () => undefined);
@@ -348,7 +356,7 @@ export function AssistantClient({
       }
       voiceModeRef.current = false;
       voiceSessionRef.current += 1;
-      for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+      for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef, voiceQuietTimerRef]) {
         if (timer.current !== null) window.clearTimeout(timer.current);
         timer.current = null;
       }
@@ -394,7 +402,7 @@ export function AssistantClient({
     }
     voiceModeRef.current = false;
     voiceSessionRef.current += 1;
-    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef, voiceQuietTimerRef]) {
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = null;
     }
@@ -806,7 +814,7 @@ export function AssistantClient({
     mountedRef.current && voiceModeRef.current && session === voiceSessionRef.current;
 
   const clearVoiceTimers = () => {
-    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef]) {
+    for (const timer of [voiceSettleTimerRef, voiceFirstWordsTimerRef, voiceQuietTimerRef]) {
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = null;
     }
@@ -902,10 +910,22 @@ export function AssistantClient({
           if (!mountedRef.current || operation !== operationRef.current) return;
           const prefix = finalSegmentsRef.current.join(" ");
           const value = `${prefix}${prefix ? " " : ""}${result.text}`.trim();
+          const newWords = value !== transcriptRef.current;
           transcriptRef.current = value;
           setTranscript(value);
-          // Still talking: neither "said nothing" nor "finished".
-          if (voice) clearVoiceTimers();
+          // New words: still talking, so neither "said nothing" nor "finished". A partial
+          // that only repeats what was already heard is not more speech.
+          if (voice && newWords) {
+            clearVoiceTimers();
+            // Azure may never close the phrase over engine noise: no new words for
+            // VOICE_QUIET_MS means finished all the same (the Done button is not needed).
+            if (value && voiceSessionIsLive(voiceSession) && recordingRequestedRef.current) {
+              voiceQuietTimerRef.current = window.setTimeout(() => {
+                voiceQuietTimerRef.current = null;
+                void finishVoiceTurnRef.current(operation);
+              }, VOICE_QUIET_MS);
+            }
+          }
         },
         onFinal: (result) => {
           if (!mountedRef.current || operation !== operationRef.current) return;

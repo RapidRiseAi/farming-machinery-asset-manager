@@ -64,6 +64,17 @@ export function configuredLlmModel(): string {
   return model;
 }
 
+/**
+ * The model an AI answer falls back to when the Gateway refuses the configured one
+ * outright, for example "Free tier users do not have access to this model" (seen in
+ * production on 2026-10-05 with LLM_MODEL set to a paid-tier model). `LLM_FALLBACK_MODEL`,
+ * else gpt-4.1-mini, which the free tier accepts; null when it is the same model.
+ */
+export function configuredLlmFallbackModel(primary: string): string | null {
+  const fallback = process.env.LLM_FALLBACK_MODEL?.trim() || "openai/gpt-4.1-mini";
+  return fallback && fallback !== primary ? fallback : null;
+}
+
 export async function runAssistantAgent(input: {
   text: string;
   locale: AssistantLocale;

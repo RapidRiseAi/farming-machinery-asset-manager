@@ -12,6 +12,7 @@ import {
 import { loadFarmOpenAiKey, markFarmKeyFailed } from "@/lib/ai-usage/farm-key";
 import { gatewayCallCost } from "@/lib/ai-usage/gateway-cost";
 import { gatewayOptions } from "@/lib/ai-usage/gateway-options";
+import { reportModelRefused } from "@/lib/ai-usage/health";
 import { hearingHoldUnits } from "@/lib/ai-usage/hold-units";
 import { holdBudget, settleHold, type Attempt, type HoldRefusal } from "@/lib/ai-usage/ledger";
 import { farmOpenAi, openAiModelId, transcriptionResponseBody, transcriptionTokenUnits } from "@/lib/ai-usage/openai-direct";
@@ -202,6 +203,11 @@ export async function POST(request: Request) {
           ...(charged ? { units: held, measured: "estimated" as const } : {}),
           latencyMs: Date.now() - t0,
         };
+        // Every call to a model the Gateway refuses on our account fails until a person
+        // acts (a plan without access, an unknown model): tell the founder now.
+        if (!useOwnKey && !cancelled && (failure.code === "gateway_auth" || failure.code === "model_not_found")) {
+          await reportModelRefused(model, error);
+        }
         const keyFailed = useOwnKey && failure.outcome === "key_invalid";
         if (keyFailed) await markFarmKeyFailed(farmId, failure.code === "farm_key_quota" ? "farm_key_quota" : "farm_key_refused");
         result = { heard: null, refused: null, keyFailed };

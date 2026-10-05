@@ -102,10 +102,19 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   actually charged; set `AI_KEY_SECRET` (32 random bytes, base64, Sensitive) before any farm
   links a key, the SAME value on every deployment that shares the database (a Preview with
   its own refuses every farm's key); optionally `AI_ALERT_EMAIL`. The AI Gateway is on the
-  free tier (5 requests a minute per model): add credits. Vercel Hobby refuses
+  free tier (5 requests a minute per model, $4.85 of free credit on 2026-10-05): add credits.
+  Production's `LLM_MODEL` is `openai/gpt-5.4-mini`, which the free tier REFUSES ("Free tier
+  users do not have access to this model"), so AI answers run on the fallback
+  (`openai/gpt-4.1-mini`) until credit is added or `LLM_MODEL` names a free-tier model; an
+  open `gateway_auth` event on /admin/ai says so. Vercel Hobby refuses
   zero-data-retention routing and is for non-commercial use; after an upgrade set
   `ASSISTANT_TRANSCRIBE_ZDR=1`. A rollback past `240578d` is not clean once people have
   seen the AI notice: roll forward (docs/AI_USAGE.md, "Releasing and rolling back").
+- **Production configuration still missing (read from Vercel on 2026-10-05):** `SENTRY_DSN`
+  (no error monitoring: `captureError` only logs), `AI_KEY_SECRET`, `AI_ALERT_EMAIL`,
+  `SUPPORT_WEBHOOK_URL` and `SUPPORT_WEBHOOK_SECRET`. Push and notification email need an
+  external scheduler calling `/api/push/send` every minute with the cron bearer secret
+  (docs/CRON.md): none is set up, so they go out only in the nightly pass (at most 25).
 - **Drivers now need accounts** (Codex's release, `docs/DRIVER_ACTIVITY.md`): a QR scan by
   a guest shows a login gate, not anonymous capture. Invite anyone who used anonymous QR
   capture. Hardware tracking is a quoted, staff-activated service; no provider is connected.

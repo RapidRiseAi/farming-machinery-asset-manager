@@ -217,6 +217,8 @@ await evaluate(`Object.assign(window.__voiceScript, ${JSON.stringify({
     { text: "What's the status of the desk bucket repairs?" },     // 9: the live recogniser garbles the name
     { text: "Wat se status van die test bakkie repairs?", locale: "af-ZA" }, // 10: the fixed Afrikaans re-hearing
     null,                                                           // 11: listening after the answer, then Stop
+    { text: "Is the test tractor due for a service?", noFinal: true }, // 12: engine noise, the phrase never closes
+    null,                                                           // 13: listening after the answer, then Stop
   ],
   ttsMs: [900, 1500, 700, 6000, 900, 7000, 700, 900],
   turns: [
@@ -226,6 +228,7 @@ await evaluate(`Object.assign(window.__voiceScript, ${JSON.stringify({
       fields: [{ name: "reading", type: "number", label: "Hour meter reading", min: 0, step: 0.1 }] },
     { kind: "confirm", conversationId: "a0000000-0000-4000-8000-000000000003", proposal: PROPOSAL("b0000000-0000-4000-8000-000000000003") },
     { kind: "answer", conversationId: "a0000000-0000-4000-8000-000000000005", message: ANSWER, speakText: ANSWER },
+    { kind: "answer", conversationId: "a0000000-0000-4000-8000-000000000006", message: ANSWER, speakText: ANSWER },
   ],
   confirm: [
     { ok: true, message: "Nothing was saved.", linkedRecordType: "none", linkedRecordId: "", href: "/assistant" },
@@ -385,10 +388,27 @@ await waitFor("listening label", has("Listening… just talk"), 5_000);
 await click("Stop hands-free");
 await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
 
+// == 6. Beside a running engine Azure may never close the phrase: once no new words come,
+// the turn is sent anyway, without anyone pressing Done ==
+await click("Talk hands-free");
+await waitFor("the unclosed turn is sent on its own", "window.__voiceLog.filter((e) => e.ev === 'turn').length >= 6", 20_000);
+log = await voiceLog();
+const lastWord = log.find((e) => e.ev === "stt-last-word" && e.index === 12);
+const quietTurn = log.filter((e) => e.ev === "turn")[5];
+check("Azure never closed that phrase", !log.some((e) => e.ev === "stt-final" && e.index === 12));
+check("a turn whose phrase never closes is still sent, a few seconds after the last word",
+  Boolean(lastWord && quietTurn) && quietTurn.t - lastWord.t >= 2_300 && quietTurn.t - lastWord.t < 5_000,
+  lastWord && quietTurn ? `${quietTurn.t - lastWord.t} ms after the last word` : "no turn");
+check("what was heard goes as the request", quietTurn?.body.input?.toLowerCase().startsWith("is the test tractor due for a service"), JSON.stringify(quietTurn?.body.input));
+await waitFor("listening after that answer", "window.__voiceLog.some((e) => e.ev === 'stt-listening' && e.index === 13)", 12_000);
+await waitFor("listening label", has("Listening… just talk"), 5_000);
+await click("Stop hands-free");
+await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
+
 log = await voiceLog();
 const held = log.filter((e) => e.ev === "wakelock-request").length;
 const let_go = log.filter((e) => e.ev === "wakelock-release").length;
-check("every hands-free session takes the wake lock once and gives it back", held === 5 && let_go === 5, `${held} taken, ${let_go} released`);
+check("every hands-free session takes the wake lock once and gives it back", held === 6 && let_go === 6, `${held} taken, ${let_go} released`);
 const problems = log.filter((e) => ["page-error", "unhandled-rejection"].includes(e.ev));
 check("no page errors or unhandled rejections", problems.length === 0, JSON.stringify(problems));
 if (SHOTS) writeFileSync(join(SHOTS, "voice-log.json"), JSON.stringify(log, null, 1));

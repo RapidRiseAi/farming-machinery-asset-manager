@@ -292,6 +292,14 @@ export default async function AppLayout({
   const adminBilling: NavItemData = { href: "/admin/billing", label: t("nav.adminBilling", locale), icon: "repeat" };
   // What voice and AI cost against what farms were billed, and what needs a person (docs/AI_USAGE.md).
   const adminAi: NavItemData = { href: "/admin/ai", label: t("nav.adminAi", locale), icon: "mic" };
+  // The owner's AI and voice page: this month's use and cost by person, and the limits at
+  // which voice and AI pause (docs/AI_USAGE.md). Beside billing, because it is money; it
+  // was reachable only from a line at the bottom of Settings, where nobody found it.
+  const aiUsage: NavItemData = { href: "/settings/ai", label: t("nav.aiUsage", locale), icon: "mic" };
+  // Driver activity (docs/DRIVER_ACTIVITY.md): start a drive, the stops, finish, and a
+  // manager recording it for someone. Every farm role it admits, from the nav, not only
+  // from links inside other pages.
+  const driverActivity: NavItemData = { href: "/driver/activity", label: t("nav.driverActivity", locale), icon: "pin" };
   // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
   // Account plus an English-only text subnav inside the page; now they are one group.
   const admin: NavItemData = { href: "/admin/farms", label: t("nav.adminFarms", locale), icon: "admin" };
@@ -324,6 +332,7 @@ export default async function AppLayout({
         ...(canUseInbox ? [inbox] : []),
         faults,
         ...(assistantNavVisible ? [assistant] : []),
+        ...(isAdmin ? [] : [driverActivity]),
         work,
         ...(isManagerPlus ? [documents] : []),
         ...(fuelAllowed ? [fuel] : []),
@@ -339,6 +348,7 @@ export default async function AppLayout({
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
+        ...(isOwner || isAdmin ? [aiUsage] : []),
         ...(isAdmin ? [admin, adminPartners, adminTemplates, adminBilling, adminAi] : []),
         help,
         install,
@@ -363,7 +373,7 @@ export default async function AppLayout({
   const groups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, driverActivity, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
@@ -380,7 +390,7 @@ export default async function AppLayout({
         {
           key: "fleet",
           label: t("nav.theFleet", locale),
-          items: [machines, ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+          items: [machines, ...(isAdmin ? [] : [driverActivity]), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
         },
         {
           key: "farm",
@@ -414,8 +424,8 @@ export default async function AppLayout({
     : [
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [settings] : []),
-        ...(isOwner ? [billing] : []),
-        ...(isAdmin ? [billing] : []),
+        ...(isOwner ? [billing, aiUsage] : []),
+        ...(isAdmin ? [billing, aiUsage] : []),
       ];
   const tailRest: NavItemData[] = isWorkshop
     // Parts moved into the contractor's "Workshop" group, beside the job cards it serves.

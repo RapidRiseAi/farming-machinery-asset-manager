@@ -1,10 +1,17 @@
 import { after, NextResponse } from "next/server";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
 import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
-import { AssistantAgentInvalidOutput, configuredLlmModel, LLM_MAX_OUTPUT_TOKENS, runAssistantAgent } from "@/lib/assistant/llm";
+import {
+  AssistantAgentInvalidOutput,
+  configuredLlmFallbackModel,
+  configuredLlmModel,
+  LLM_MAX_OUTPUT_TOKENS,
+  runAssistantAgent,
+} from "@/lib/assistant/llm";
 import { aiHelpOn } from "@/lib/assistant/transcription";
 import { loadFarmOpenAiKey, markFarmKeyFailed, type FarmKey } from "@/lib/ai-usage/farm-key";
 import { gatewayOptions } from "@/lib/ai-usage/gateway-options";
+import { reportModelRefused } from "@/lib/ai-usage/health";
 import { answerHoldUnits } from "@/lib/ai-usage/hold-units";
 import { holdBudget, settleHold, type Attempt, type HoldRefusal } from "@/lib/ai-usage/ledger";
 import { farmOpenAi, openAiModelId, OWN_KEY_RESPONSE_OPTIONS } from "@/lib/ai-usage/openai-direct";
@@ -600,15 +607,14 @@ export async function POST(request: Request) {
           );
         }
 
-        let agent: Awaited<ReturnType<typeof runAssistantAgent>>;
-        try {
-          // On the server's own deadline (LLM_AGENT_TIMEOUT_MS), never the browser's
-          // connection: once budget is held the call finishes and is settled, so closing the
-          // page cannot make a paid answer free.
-          agent = await runAssistantAgent({
+        // One call to a model, on the server's own deadline (LLM_AGENT_TIMEOUT_MS), never the
+        // browser's connection: once budget is held the call finishes and is settled, so
+        // closing the page cannot make a paid answer free.
+        const callModel = (attemptModel: string) =>
+          runAssistantAgent({
             text: body.input,
             locale: body.locale,
-            model: requestedModel,
+            model: attemptModel,
             ...(ownKey && ownKeyModelId
               ? {
                   languageModel: farmOpenAi(ownKey)(ownKeyModelId),
@@ -624,13 +630,21 @@ export async function POST(request: Request) {
                     }),
                   },
                 }),
-          });
-        } catch (error) {
+          }).then(
+            (agent) => ({ ok: true as const, agent }),
+            (error: unknown) => ({ ok: false as const, error }),
+          );
+
+        // A failed attempt: logged, settled on its own hold, a farm key marked if it was
+        // refused. Returns whether the Gateway refused the MODEL itself on our account (no
+        // access on this plan, unknown model), which the fallback below can answer.
+        const settleFailedAttempt = (error: unknown, attemptModel: string, settle: (attempts: Attempt[]) => void) => {
           // Only the model call is classified here; storage after it is not an AI failure.
           const failure = classifyAiFailure(error, Boolean(ownKey));
           // Name, type and status only: the error object can carry a farm's own key.
           console.warn(JSON.stringify({
             event: "assistant_llm_failed",
+            model: attemptModel,
             ...aiErrorForLog(error),
             outcome: error instanceof AssistantAgentInvalidOutput ? "invalid_output" : failure.outcome,
           }));
@@ -639,7 +653,7 @@ export async function POST(request: Request) {
             // recorded, the farm is not billed, and it is not the provider failing.
             const used = error.usage;
             const measuredUnits = used.inputTokens !== null || used.outputTokens !== null;
-            settleOnce([{
+            settle([{
               model: used.model,
               outcome: "failed",
               errorCode: "invalid_output",
@@ -651,19 +665,59 @@ export async function POST(request: Request) {
               generationId: used.generationId,
               latencyMs: used.latencyMs,
             }]);
-          } else {
-            settleOnce([{
-              model: requestedModel,
-              outcome: failure.outcome,
-              errorCode: failure.code,
-              // Cut off at the deadline after it was sent: the provider probably charged, so
-              // the held units are recorded as its estimated cost (the farm is not billed).
-              ...(failure.outcome === "timeout" ? { units: holdUnits, measured: "estimated" as const } : {}),
-            }]);
+            return false;
           }
-          if (ownKey && failure.outcome === "key_invalid" && !(error instanceof AssistantAgentInvalidOutput)) {
+          settle([{
+            model: attemptModel,
+            outcome: failure.outcome,
+            errorCode: failure.code,
+            // Cut off at the deadline after it was sent: the provider probably charged, so
+            // the held units are recorded as its estimated cost (the farm is not billed).
+            ...(failure.outcome === "timeout" ? { units: holdUnits, measured: "estimated" as const } : {}),
+          }]);
+          if (ownKey && failure.outcome === "key_invalid") {
             after(() => markFarmKeyFailed(context.farmId, failure.code === "farm_key_quota" ? "farm_key_quota" : "farm_key_refused"));
           }
+          const modelRefused = !ownKey && (failure.code === "gateway_auth" || failure.code === "model_not_found");
+          // Every call to a refused model fails until a person acts: tell the founder now.
+          if (modelRefused) after(() => reportModelRefused(attemptModel, error));
+          return modelRefused;
+        };
+
+        let attemptModel = requestedModel;
+        let settleAttempt = settleOnce;
+        let attempt = await callModel(attemptModel);
+        if (!attempt.ok && settleFailedAttempt(attempt.error, attemptModel, settleAttempt)) {
+          // The Gateway refused the configured model outright on our account (for example
+          // "Free tier users do not have access to this model"): answer with the fallback
+          // model instead of failing every hard request until someone changes LLM_MODEL.
+          // Its own hold; the refused call is already settled at nothing.
+          const fallbackModel = configuredLlmFallbackModel(requestedModel);
+          if (fallbackModel) {
+            const fallbackHold = await holdBudget({
+              farmId: context.farmId,
+              userId: context.profile.id,
+              feature: "ai_answer",
+              model: fallbackModel,
+              units: holdUnits,
+              credential: "platform",
+            });
+            if (fallbackHold.ok) {
+              let fallbackSettled = false;
+              settleAttempt = (attempts: Attempt[]) => {
+                if (fallbackSettled) return;
+                fallbackSettled = true;
+                after(async () => {
+                  await settleHold(fallbackHold.id, attempts);
+                });
+              };
+              attemptModel = fallbackModel;
+              attempt = await callModel(attemptModel);
+              if (!attempt.ok) settleFailedAttempt(attempt.error, attemptModel, settleAttempt);
+            }
+          }
+        }
+        if (!attempt.ok) {
           await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
             result_status: "failed",
             response_text: "The optional AI provider did not return a usable interpretation.",
@@ -673,7 +727,8 @@ export async function POST(request: Request) {
           await updateVoiceCapture(captureId, context.profile.id, { status: "failed", error_code: "llm_unavailable" });
           return json(aiUnavailable(body.locale), 503);
         }
-        settleOnce([{
+        const agent = attempt.agent;
+        settleAttempt([{
           model: agent.model,
           outcome: "ok",
           units: { input_tokens: agent.inputTokens ?? undefined, output_tokens: agent.outputTokens ?? undefined },

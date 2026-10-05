@@ -90,7 +90,9 @@
     "adminPartners": "Vennootkatalogus",
     "adminTemplates": "Sjablone",
     "moreHasNew": "Iets nuuts hierbinne",
-    "adminAi": "AI- en stemkoste"
+    "adminAi": "AI- en stemkoste",
+    "aiUsage": "AI en stem",
+    "driverActivity": "Bestuurderaktiwiteit"
   },
   "assistant": {
     "title": "Stemassistent",
