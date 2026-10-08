@@ -2,13 +2,17 @@ import "server-only";
 import { after, NextResponse } from "next/server";
 import type { AssistantContext } from "@/lib/assistant/context";
 import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
+import { AssistantAgentInvalidOutput, configuredLlmFallbackModel, configuredLlmModel } from "@/lib/assistant/llm";
 import {
-  AssistantAgentInvalidOutput,
-  configuredLlmFallbackModel,
-  configuredLlmModel,
-  LLM_MAX_OUTPUT_TOKENS,
-  runAssistantAgent,
-} from "@/lib/assistant/llm";
+  FARM_AGENT_MAX_OUTPUT_TOKENS,
+  FARM_AGENT_MAX_STEPS,
+  FARM_AGENT_TOOL_RESULT_CHARS,
+  farmAgentPromptChars,
+  loadFarmAgentContext,
+  runFarmAgent,
+  type FarmAgentContext,
+} from "@/lib/assistant/agent";
+import { todayInSouthAfrica } from "@/lib/assistant/date";
 import { aiHelpOn } from "@/lib/assistant/transcription";
 import { loadFarmOpenAiKey, markFarmKeyFailed, type FarmKey } from "@/lib/ai-usage/farm-key";
 import { gatewayOptions } from "@/lib/ai-usage/gateway-options";
@@ -22,7 +26,6 @@ import { aiErrorForLog } from "@/lib/ai-usage/safe-log";
 import {
   answerLocalRead, scopeForChosenMachine,
   isLocalReadRequest,
-  type AssistantNavigation,
   type LocalReadRequest,
 } from "@/lib/assistant/local-read";
 import { matchMachine, normalizeAssistantText } from "@/lib/assistant/normalize";
@@ -35,6 +38,7 @@ import {
   machinesForAssistantDraft,
   planAcrossHypotheses,
   readOnlyWriteTarget,
+  routeWantsAgent,
 } from "@/lib/assistant/routing";
 import {
   createInteraction,
@@ -46,7 +50,7 @@ import {
   updateInteractionDraft,
   updateVoiceCapture,
 } from "@/lib/assistant/store";
-import type { AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
+import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
 
 
 function json(body: AssistantTurnResponse, status = 200) {
@@ -56,8 +60,6 @@ function json(body: AssistantTurnResponse, status = 200) {
   });
 }
 
-/** The system prompt and date line, counted into the input-token hold for an AI answer. */
-const AGENT_PROMPT_CHARS = 2_600;
 
 /**
  * The model an answer on a farm's own key runs on. The key is an OpenAI key, so only an
@@ -146,7 +148,7 @@ function localized(locale: "en-ZA" | "af-ZA", english: string, afrikaans: string
 }
 
 function navigationAction(
-  destination: AssistantNavigation,
+  destination: AssistantAnswerPage,
   locale: "en-ZA" | "af-ZA",
 ): { href: string; label: string } | undefined {
   const actions = {
@@ -155,6 +157,8 @@ function navigationAction(
     jobcards: { href: "/jobcards", en: "Open job cards", af: "Maak werkkaarte oop" },
     work: { href: "/work", en: "Open work requests", af: "Maak werkversoeke oop" },
     documents: { href: "/documents", en: "Open quotes and invoices", af: "Maak kwotasies en fakture oop" },
+    fuel: { href: "/fuel", en: "Open fuel", af: "Maak brandstof oop" },
+    reports: { href: "/reports", en: "Open reports", af: "Maak verslae oop" },
   } as const;
   if (destination === "none") return undefined;
   const action = actions[destination];
@@ -374,18 +378,20 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
 
       const { plan: routePlan } = planAcrossHypotheses(body.input, body.locale, hearings);
       draft = routePlan.draft;
-      if (routePlan.kind === "local") {
+      // The AI agent only where the free paths cannot answer (routing.ts routeWantsAgent).
+      const agentWanted = routeWantsAgent(routePlan, body.input);
+      const answerLocally = async (request: LocalReadRequest) => {
         // The shown transcript can garble a name that another hearing got right ("Ruby
         // Bakkies" / "rooi bakkie"): answer about the machine the hearings agree on.
         let localScope = readScope;
-        const spokenName = "machineQuery" in routePlan.request ? routePlan.request.machineQuery : undefined;
+        const spokenName = "machineQuery" in request ? request.machineQuery : undefined;
         if (hearings.length && spokenName && !matchMachine(spokenName, machines).machine) {
           const agreed = matchAcrossHypotheses([spokenName, ...hearingTexts], machines);
           if (agreed.machine) localScope = scopeForChosenMachine(readScope, agreed.machine.id) ?? readScope;
         }
-        const answer = await answerLocalRead(routePlan.request, localScope, body.locale);
+        const answer = await answerLocalRead(request, localScope, body.locale);
         if (answer.machineOptions?.length) {
-          draft = { ...draft, localReadRequest: routePlan.request };
+          draft = { ...draft, localReadRequest: request };
           interactionId = await createInteraction({
             farmId: context.farmId,
             userId: context.profile.id,
@@ -435,8 +441,15 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           speakText: answer.speakText,
           action: navigationAction(answer.navigation, body.locale),
         });
-      }
-      if (routePlan.kind === "optional_ai") {
+      };
+      if (routePlan.kind === "local" && !agentWanted) return answerLocally(routePlan.request);
+
+      // The AI turn. It ends in a reply (an answer, a consent card), a draft for the write
+      // pipeline below, or "AI is not available for this turn": then a question the local
+      // paths understood still gets their answer, as it did before the agent existed.
+      type AiOutcome = Response | { draft: AssistantDraft } | { unavailable: Response | null };
+      const hasFallback = routePlan.kind !== "optional_ai";
+      const aiTurn = async (): Promise<AiOutcome> => {
         // The owner's farm-wide switch first: on a farm with AI switched off there is
         // nothing for this person to agree to, so no consent card is offered (and no notice
         // recorded) for it. The hold below checks the switch again.
@@ -445,8 +458,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           .select("ai_enabled")
           .eq("farm_id", context.farmId)
           .maybeSingle();
-        if (farmAiError) return json(aiUnavailable(body.locale), 503);
-        if (farmAi?.ai_enabled === false) return json(aiPaused("ai_off", body.locale));
+        if (farmAiError) return { unavailable: json(aiUnavailable(body.locale), 503) };
+        if (farmAi?.ai_enabled === false) return { unavailable: json(aiPaused("ai_off", body.locale)) };
         // AI help on: the notice seen (nothing leaves the country before), switched on, not
         // withdrawn. The hold below applies it again with the farm's switch and limits.
         // Switched on but never shown the notice: an installed copy of an older build, whose
@@ -454,9 +467,12 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         // in the current app, unlocks AI for this person, so say that plainly.
         if (context.profile.ai_processing_opt_in && !context.profile.ai_processing_withdrawn_at
             && !context.profile.ai_notice_seen_at) {
-          return json(aiPaused("notice_required", body.locale));
+          return { unavailable: json(aiPaused("notice_required", body.locale)) };
         }
         if (!aiHelpOn(context.profile)) {
+          // A question the local paths understood is answered there; the consent card is
+          // for a request nothing else can handle.
+          if (hasFallback) return { unavailable: null };
           interactionId = await createInteraction({
             farmId: context.farmId,
             userId: context.profile.id,
@@ -477,8 +493,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
             conversationId: interactionId,
             explanation:
               body.locale === "af-ZA"
-                ? "Ek kon dit nie met die plaaslike reëls uitwerk nie. Met jou toestemming kan die teks deur ons AI-verskaffer buite Suid-Afrika verwerk word."
-                : "The local rules could not resolve this command. With your permission, the text can be processed by our AI provider outside South Africa.",
+                ? "Die plaaslike reëls kon dit nie beantwoord nie. Met jou toestemming kan AI buite Suid-Afrika die woorde lees, en die plaasrekords wat nodig is om te antwoord."
+                : "The local rules could not answer this. With your permission, AI outside South Africa can read the words, and the farm records needed to answer.",
           });
         }
         // Who pays, with which model: a farm's own OpenAI key runs an OpenAI model at OpenAI
@@ -486,19 +502,33 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         // key fails); otherwise the platform's model on ours. Resolved before the permit
         // row (which records the model) and the hold (which prices it).
         const farmKey: FarmKey = await loadFarmOpenAiKey(context.farmId);
-        if (farmKey.state === "unavailable") return json(aiUnavailable(body.locale), 503);
+        if (farmKey.state === "unavailable") return { unavailable: json(aiUnavailable(body.locale), 503) };
         if (farmKey.state === "broken" && farmKey.fallback === "pause") {
-          return json(aiPaused("own_key_broken", body.locale));
+          return { unavailable: json(aiPaused("own_key_broken", body.locale)) };
         }
         const ownKey = farmKey.state === "active" ? farmKey.key : null;
         let requestedModel: string;
         try {
           requestedModel = ownKey ? ownKeyLlmModel() : configuredLlmModel();
         } catch {
-          return json(aiUnavailable(body.locale), 503);
+          return { unavailable: json(aiUnavailable(body.locale), 503) };
         }
         const ownKeyModelId = ownKey ? openAiModelId(requestedModel) : null;
-        const holdUnits = answerHoldUnits(AGENT_PROMPT_CHARS + body.input.length, LLM_MAX_OUTPUT_TOKENS);
+        // The farm as this person can see it, read before the hold so the hold is sized on
+        // what will actually be sent (agent.ts). Nothing leaves the server until the permit.
+        let agentContext: FarmAgentContext;
+        try {
+          agentContext = await loadFarmAgentContext(context, machines, body.input, todayInSouthAfrica());
+        } catch {
+          return { unavailable: json(aiUnavailable(body.locale), 503) };
+        }
+        // Every step re-sends the prompt and what earlier steps added, so the hold covers
+        // the longest run: every step, the tool results, every step's output ceiling.
+        const holdUnits = answerHoldUnits(
+          farmAgentPromptChars(agentContext, body.input) * FARM_AGENT_MAX_STEPS
+            + FARM_AGENT_TOOL_RESULT_CHARS * (FARM_AGENT_MAX_STEPS - 1),
+          FARM_AGENT_MAX_OUTPUT_TOKENS * FARM_AGENT_MAX_STEPS,
+        );
         const hold = await holdBudget({
           farmId: context.farmId,
           userId: context.profile.id,
@@ -509,9 +539,9 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         });
         if (!hold.ok) {
           if (hold.reason === "unavailable" || hold.reason === "not_member" || hold.reason === "voice_off" || hold.reason === "token_rate") {
-            return json(aiUnavailable(body.locale), 503);
+            return { unavailable: json(aiUnavailable(body.locale), 503) };
           }
-          return json(aiPaused(hold.reason, body.locale));
+          return { unavailable: json(aiPaused(hold.reason, body.locale)) };
         }
         // Settled exactly once, after the response is sent, so a dropped connection still
         // writes the row and no later failure can overwrite a paid call with a free one.
@@ -545,6 +575,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           // No call was made: release the hold at zero.
           settleOnce([{ model: requestedModel, outcome: "cancelled", errorCode: "permit_refused" }]);
           if (errorCode(error) === "42501") {
+            if (hasFallback) return { unavailable: null };
             const consentInteractionId = await createInteraction({
               farmId: context.farmId,
               userId: context.profile.id,
@@ -565,31 +596,23 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
                 conversationId: consentInteractionId,
                 explanation:
                   body.locale === "af-ZA"
-                    ? "Jou AI-toestemming is nie meer aktief nie. Gee weer toestemming as jy wil hê die moeilike teks moet deur ons AI-verskaffer verwerk word."
-                    : "Your AI consent is no longer active. Allow it again if you want difficult text processed by our AI provider.",
+                    ? "Jou AI-toestemming is nie meer aktief nie. Gee weer toestemming as jy wil hê AI moet moeilike versoeke en vrae oor jou plaas se rekords hanteer."
+                    : "Your AI consent is no longer active. Allow it again if you want AI to handle hard requests and questions about your farm's records.",
               });
             }
           }
-          return json(
-            {
-              kind: "error",
-              code: "ai_unavailable",
-              message:
-                body.locale === "af-ZA"
-                  ? "AI-hulp is tydelik nie beskikbaar nie. Tik ’n eenvoudiger opdrag of gebruik die gewone vorm."
-                  : "AI help is temporarily unavailable. Type a simpler command or use the normal form.",
-            },
-            503,
-          );
+          return { unavailable: json(aiUnavailable(body.locale), 503) };
         }
 
-        // One call to a model, on the server's own deadline (LLM_AGENT_TIMEOUT_MS), never the
-        // browser's connection: once budget is held the call finishes and is settled, so
+        // One agent run, on the server's own deadline (FARM_AGENT_TIMEOUT_MS), never the
+        // browser's connection: once budget is held the run finishes and is settled, so
         // closing the page cannot make a paid answer free.
         const callModel = (attemptModel: string) =>
-          runAssistantAgent({
+          runFarmAgent({
             text: body.input,
             locale: body.locale,
+            channel,
+            agent: agentContext,
             model: attemptModel,
             ...(ownKey && ownKeyModelId
               ? {
@@ -701,7 +724,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
             completed_at: new Date().toISOString(),
           }, expectedInteractionStatus).catch(() => undefined);
           await updateVoiceCapture(captureId, context.profile.id, { status: "failed", error_code: "llm_unavailable" });
-          return json(aiUnavailable(body.locale), 503);
+          return { unavailable: json(aiUnavailable(body.locale), 503) };
         }
         const agent = attempt.agent;
         settleAttempt([{
@@ -740,12 +763,33 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
             action: navigationAction(agent.navigation, body.locale),
           });
         }
-        draft = agent.draft;
-        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, agent.draft, {
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           latency_ms: latencyMs,
         }, expectedInteractionStatus);
+        return { draft: agent.draft };
+      };
+
+      if (agentWanted) {
+        const outcome = await aiTurn();
+        if (outcome instanceof Response) return outcome;
+        if ("draft" in outcome) {
+          draft = outcome.draft;
+        } else {
+          // Not available this turn. Whatever the AI path recorded stays as it is; the
+          // local answer is its own interaction, with no AI in it.
+          interactionId = null;
+          tier = 1;
+          provider = null;
+          model = null;
+          inputTokens = null;
+          outputTokens = null;
+          latencyMs = null;
+          if (routePlan.kind === "local") return answerLocally(routePlan.request);
+          if (routePlan.kind === "optional_ai") return outcome.unavailable ?? json(aiUnavailable(body.locale), 503);
+          draft = routePlan.draft;
+        }
       }
     }
 

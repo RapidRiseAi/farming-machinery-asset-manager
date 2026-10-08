@@ -14,6 +14,8 @@ export type AssistantChannel = "typed" | "voice";
 export type AssistantUrgency = "can_work" | "limping" | "stopped";
 
 export type AssistantNavigation = "none" | "machines" | "faults" | "jobcards" | "work" | "documents";
+/** Where an AI answer may link: the local reads pages, plus fuel and reports. */
+export type AssistantAnswerPage = AssistantNavigation | "fuel" | "reports";
 
 export type AssistantDocumentStatus =
   | "draft"
@@ -61,6 +63,8 @@ export type AssistantMachine = {
   name: string;
   make: string | null;
   model: string | null;
+  /** tractor, bakkie, harvester: present when loaded by loadAssistantMachines. */
+  type?: string | null;
   aliases: string[];
   status: string;
   meterType: string;

@@ -103,12 +103,20 @@ const PROBES = {
   "20261004100000":
     "select case when to_regclass('public.ai_usage') is null or to_regprocedure('public.ai_voice_token_window(timestamptz)') is null then false else exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ai_voice_sessions' and column_name = 'source') and not has_column_privilege('authenticated', 'public.ai_usage', 'provider_cost_usd', 'SELECT') end",
   // Team invites for addresses that already have a login. The body is read for the
-  // switched-off branch the final version has, under the same CASE guard.
+  // switched-off branch the final version has. to_regprocedure, never a ::regprocedure
+  // literal: the literal is resolved while the query is planned, so a function that does
+  // not exist yet fails the whole probe instead of reading as not applied.
   "20261005120000":
-    "select case when to_regprocedure('public.team_invite_existing(uuid,uuid,text,text,text,text)') is null then false else pg_get_functiondef('public.team_invite_existing(uuid,uuid,text,text,text,text)'::regprocedure) like '%They stay off there.%' end",
+    "select coalesce(pg_get_functiondef(to_regprocedure('public.team_invite_existing(uuid,uuid,text,text,text,text)')) like '%They stay off there.%', false)",
   // Tank balances in SQL: the function, with the dip column only the final version returns.
   "20261005122000":
-    "select case when to_regprocedure('public.fuel_tank_balances(uuid)') is null then false else pg_get_function_result('public.fuel_tank_balances(uuid)'::regprocedure) like '%book_at_dip_litres%' end",
+    "select coalesce(pg_get_function_result(to_regprocedure('public.fuel_tank_balances(uuid)')) like '%book_at_dip_litres%', false)",
+  // The assistant's farm numbers: the three bounded signatures (by machine or by month).
+  "20261005130000":
+    "select to_regprocedure('public.assistant_fuel_summary(uuid,date,date,text,uuid)') is not null and to_regprocedure('public.assistant_fuel_consumption(uuid,date,date,uuid)') is not null and to_regprocedure('public.assistant_cost_summary(uuid,date,date,text,uuid)') is not null",
+  // The notice that mentions farm records: the trigger stamps v2 once this is applied.
+  "20261008090000":
+    "select pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%ai-on-default-v2%'",
 };
 
 const url = readEnv("DATABASE_URL");

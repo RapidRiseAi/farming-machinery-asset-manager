@@ -7,6 +7,7 @@ import type { AssistantMachine } from "./types";
 type MachineRow = {
   id: string;
   name: string;
+  type: string | null;
   make: string | null;
   model: string | null;
   status: string;
@@ -31,7 +32,7 @@ export async function loadAssistantMachines(
 ): Promise<AssistantMachine[]> {
   let machinesQuery = supabase
     .from("machines")
-    .select("id, name, make, model, status, meter_type, current_reading, current_reading_date")
+    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date")
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .not("status", "in", "(retired,sold)")
@@ -93,6 +94,7 @@ export async function loadAssistantMachines(
     return {
       id: machine.id,
       name: machine.name,
+      type: machine.type,
       make: machine.make,
       model: machine.model,
       aliases: aliases.get(machine.id) ?? [],

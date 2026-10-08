@@ -88,7 +88,7 @@ do $$
 declare v jsonb;
 begin
   v := public.ai_notice_ack(true);
-  if not (v->>'ai_on')::boolean or v->>'notice_seen_at' is null or v->>'consent_version' <> 'ai-on-default-v1' then
+  if not (v->>'ai_on')::boolean or v->>'notice_seen_at' is null or v->>'consent_version' <> 'ai-on-default-v2' then
     raise exception 'AI USAGE FAIL [2]: Got it did not leave AI on with the new evidence: %', v;
   end if;
   update public.users set ai_notice_seen_at = null where id = auth.uid();
@@ -114,8 +114,8 @@ begin
     raise exception 'AI USAGE FAIL [2]: Got it switched AI back on for someone who had switched it off: %', v;
   end if;
   update public.users set ai_processing_opt_in = true where id = auth.uid();
-  if (select ai_processing_consent_version from public.users where id = auth.uid()) is distinct from 'ai-on-default-v1' then
-    raise exception 'AI USAGE FAIL [2]: switching on after the notice was not stamped ai-on-default-v1';
+  if (select ai_processing_consent_version from public.users where id = auth.uid()) is distinct from 'ai-on-default-v2' then
+    raise exception 'AI USAGE FAIL [2]: switching on after the notice was not stamped ai-on-default-v2';
   end if;
   update public.users set ai_processing_opt_in = false where id = auth.uid();
 end $$;
@@ -129,11 +129,11 @@ declare v jsonb;
 begin
   update public.users set ai_processing_opt_in = true where id = auth.uid();
   v := public.ai_notice_ack(true);
-  if not (v->>'ai_on')::boolean or v->>'consent_version' is distinct from 'ai-on-default-v1' then
+  if not (v->>'ai_on')::boolean or v->>'consent_version' is distinct from 'ai-on-default-v2' then
     raise exception 'AI USAGE FAIL [2]: an earlier opt-in kept its old evidence after the notice: %', v;
   end if;
   update public.users set ai_processing_consent_version = 'voice-ai-v2' where id = auth.uid();
-  if (select ai_processing_consent_version from public.users where id = auth.uid()) is distinct from 'ai-on-default-v1' then
+  if (select ai_processing_consent_version from public.users where id = auth.uid()) is distinct from 'ai-on-default-v2' then
     raise exception 'AI USAGE FAIL [2]: the old v2 upgrade replaced the notice''s evidence';
   end if;
   v := public.ai_notice_ack(false);

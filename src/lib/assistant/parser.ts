@@ -112,7 +112,7 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
 }
 
 function inferUrgency(text: string): AssistantUrgency | null {
-  if (/\b(stopped|stop|won't start|cannot work|out of service|gestop|staan stil|wil nie start|kan nie werk)\b/.test(text)) return "stopped";
+  if (/\b(stopped|stop|won't start|won't run|cannot work|can't work|can not work|can't be used|not working|isn't working|doesn't work|won't work|broken down|broke down|out of service|gestop|staan stil|wil nie start|kan nie werk|kan nie meer werk|het gebreek)\b/.test(text)) return "stopped";
   if (/\b(limping|limited|reduced|sukkel|beperk)\b/.test(text)) return "limping";
   if (/\b(can still (?:work|operate)|still works?|safe to use|kan nog werk|werk nog|kan steeds werk)\b/.test(text)) return "can_work";
   return null;

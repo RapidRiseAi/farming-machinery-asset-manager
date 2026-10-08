@@ -310,7 +310,8 @@ function hasExplicitMachineQualifier(input: string, kind: LocalReadRequest["kind
     ?? text.match(/\b(?:die|the)\s+([a-z0-9][^?.!,]*?)\s+se\b/);
   if (!match) return false;
   const tail = match[1].trim();
-  if (!tail || /^(?:all|my|the|die)?\s*(?:fleet|machines?|assets?|service|services|faults?|job\s*cards?|work\s*requests?|quotes?|invoices?|documents?|vloot|masjiene?|bates?|diens|dienste|foute?|werkkaarte?|werkversoeke?|kwotasies?|fakture?|dokumente?)$/.test(tail)) {
+  // "...overdue for a service" names no machine: the article is part of the generic tail.
+  if (!tail || /^(?:all|my|the|die|a|an|'n|their|its|hul|sy)?\s*(?:next\s+|volgende\s+)?(?:fleet|machines?|assets?|service|services|faults?|job\s*cards?|work\s*requests?|quotes?|invoices?|documents?|vloot|masjiene?|bates?|diens|dienste|foute?|werkkaarte?|werkversoeke?|kwotasies?|fakture?|dokumente?)$/.test(tail)) {
     return false;
   }
   if (kind === "financial_documents" && /^(?:inv|quo|invoice|quote|faktuur|kwotasie)[ -]?\d/i.test(tail)) {

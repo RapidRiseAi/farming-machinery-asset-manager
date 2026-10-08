@@ -1,6 +1,7 @@
 import { parseLocalReadRequest, type LocalReadRequest } from "./local-read";
 import { matchMachine, type MachineMatch } from "./normalize";
 import { parseDeterministic } from "./parser";
+import { questionNeedsAgent } from "./topics";
 import type { AssistantDraft, AssistantLocale, AssistantMachine } from "./types";
 
 export type AssistantRoutePlan =
@@ -73,6 +74,21 @@ export function matchAcrossHypotheses(texts: readonly string[], machines: Assist
   for (const result of rivals) options.set(result.machine!.id, result.machine!);
   for (const result of doubters) for (const machine of result.alternatives) options.set(machine.id, machine);
   return { machine: null, score: top.score, ambiguous: true, alternatives: [...options.values()].slice(0, 5) };
+}
+
+/**
+ * Whether a turn goes to the AI agent. Free, instant answers stay free and instant: the
+ * agent is asked only when the question needs what the local paths cannot do (topics.ts:
+ * fuel, money, sums, comparisons, periods, follow-ups), or when nothing local understood
+ * it at all. Writes the parser understood keep their own path: they are confirmed on a
+ * card either way.
+ */
+export function routeWantsAgent(plan: AssistantRoutePlan, input: string): boolean {
+  if (plan.kind === "optional_ai") return true;
+  if (plan.kind === "local") {
+    return !["help", "navigation", "quote_boundary"].includes(plan.request.kind) && questionNeedsAgent(input);
+  }
+  return !isAssistantWriteIntent(plan.draft.intent) && questionNeedsAgent(input);
 }
 
 export function isAssistantWriteIntent(intent: AssistantDraft["intent"]): boolean {
