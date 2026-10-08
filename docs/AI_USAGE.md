@@ -46,7 +46,41 @@ The 90 saved test recordings replayed with the app's own easy/hard rule and serv
 
 So the AI hearing is one call: gpt-4o-transcribe, with MAI started only when gpt-4o fails or
 has not answered in 3 seconds. Same accuracy, half the calls. Only hard turns are heard by
-AI, and the LLM still runs only when deterministic routing fails across every hearing.
+AI, and the LLM runs only when the free paths cannot answer (next section).
+
+## The assistant reads the farm (2026-10-08)
+
+Until this release the AI saw only the words of a hard request, so "what did we spend on
+diesel last month?" got an apology. Now:
+
+- **Free first** (`routing.ts` `routeWantsAgent`, `topics.ts`). Help, navigation and the
+  plain lists the local reads answer ("show open faults", "which machines need a service")
+  cost nothing. The agent is asked only when a question needs fuel or money, a sum, a
+  comparison, a period, a reason or a follow-up, or when nothing local understood it. When
+  AI is off, paused, rate limited or failing, a question the local paths understand still
+  gets their answer, as before.
+- **The agent** (`agent.ts`). One run of `generateText` with tools, at most four steps,
+  temperature 0. The prompt carries a line per machine the person can see, and the numbers
+  for the question's topic AND period, worked out on the server (`questionPeriod`: "this
+  month", "last month", "in August", "vanjaar", "the last 3 months"), so most answers take
+  one model call. Read tools cover fuel, costs, one machine in full, the service plan,
+  faults, job cards, work requests and (roles that may) quotes and invoices.
+- **Numbers from the database** (`20261005130000`). `assistant_fuel_summary`,
+  `assistant_fuel_consumption` (the /fuel interval method) and `assistant_cost_summary` (the
+  cost ledger the reports read) add up on the person's own session, by machine or by month
+  so a result never reaches PostgREST's 1 000-row cap. An operator counts only their own
+  machines' draws; a role that may not see money gets litres and no rand.
+- **It never writes.** `propose_fault_report`, `propose_meter_reading` and
+  `propose_completed_service` stop the run and become the same draft the parser makes; the
+  existing card and tap save it. Diesel put into a machine is not yet a voice command: the
+  agent sends the person to the Fuel page.
+- **Metering.** One hold per run, sized for four steps (prompt, data, tool results, output
+  ceilings); settled once with the run's total tokens and the Gateway cost summed over its
+  steps. Measured on the click-through farm with gpt-4.1-mini: one step, about 2 500 input
+  tokens, about 2 s of model time, about 2.5 cents a question billed.
+- **Consent.** The notice and consent texts say the farm records an answer needs go to the
+  model (only what the person can see). Acknowledgements are stamped `ai-on-default-v2`
+  (`20261008090000`); anyone who acknowledged v1 sees the new notice once.
 
 ## How it is built
 
@@ -211,6 +245,10 @@ that would replace the notice's evidence with an older text.
   switch to turn AI help back on.
 
 ## Not built yet (the next release, before any real farm is charged)
+
+- **Diesel by voice.** "I put 80 litres in the bakkie" as a confirmed fuel draw: a
+  `log_fuel` intent, the 13-key proposal in `apply_assistant_proposal_internal` (accepting
+  the 11-key draft during the release), and a `record_fuel_issue` branch.
 
 - **Invoicing.** Putting the ledger on the monthly Paystack invoice: an AI amount on the
   invoice header (the total is derived from the header, not the lines, so a line alone would

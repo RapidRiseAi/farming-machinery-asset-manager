@@ -276,7 +276,7 @@ export function farmAgentSystemPrompt(input: {
     input.costsVisible
       ? "Money is in rand, ex VAT; write it like R 12 345,60."
       : "This person's role may not see money on this farm: never give or guess a rand amount; litres, hours and counts are fine. If they ask for costs, say their role cannot see costs.",
-    "Litres per hour and per 100 km come only from fuel draws with meter readings; if there is no such figure, say there are not enough metered draws.",
+    "Litres per hour and per 100 km come only from fuel draws with meter readings, and each figure covers the whole period of its block: never split it into months or say it stayed the same. To compare two periods' rates, call fuel_summary once per period. If there is no such figure, say there are not enough metered draws.",
     "To report a fault, save a meter reading or save a completed service, call the matching propose tool with what the person said, and leave out anything they did not say: the app asks for it. The person then confirms on screen; never say anything was saved, sent, changed or deleted.",
     "Anything else that changes records (closing a fault, editing or deleting a record, paying, sending or accepting a document) is done on the page in the app: say which page.",
     "Diesel or fuel put into a machine is a fuel draw, never a meter reading or a service: do not call a propose tool for it. Say that fuel is recorded on the Fuel page (the Fuel button below), and repeat the litres and machine they said so they can enter it there.",
