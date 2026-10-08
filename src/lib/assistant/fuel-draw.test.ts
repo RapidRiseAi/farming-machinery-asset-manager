@@ -117,3 +117,14 @@ test("litres and the tank can be answered aloud", () => {
   assert.equal(clarificationFromSpeech("i", field, "the shed tank")?.tankId, TANKS[1].id);
   assert.equal(clarificationFromSpeech("i", field, "the tank"), null, "two tanks match: ask again");
 });
+
+test("a draw with the litres still to come is understood too, and the app asks for them", () => {
+  for (const said of ["I filled up the white bakkie", "Topped up the bakkie", "Put diesel in the white bakkie", "Ek het die bakkie volgemaak"]) {
+    const draft = parseDeterministic(said, said.startsWith("Ek") ? "af-ZA" : "en-ZA");
+    assert.equal(draft.intent, "log_fuel", said);
+    assert.equal(draft.litres, null, said);
+    assert.equal(routeWantsAgent(planAssistantRoute(said, "en-ZA"), said), false, said);
+  }
+  assert.notEqual(parseDeterministic("Put the bakkie in the shed", "en-ZA").intent, "log_fuel");
+  assert.notEqual(parseDeterministic("When did we last fill up the bakkie?", "en-ZA").intent, "log_fuel");
+});

@@ -27,6 +27,8 @@ const FUEL_WORDS = /\b(diesel|fuel|petrol|brandstof)\b/;
 const FILL_VERBS = /\b(put|filled|fill|topped|top|gave|added|pumped|drew|refuel(?:led|ed)?|gooi|ingegooi|gegooi|volgemaak|getap|ingetap)\b/;
 const LITRES = new RegExp(String.raw`\b(${NUMBER_SOURCE})\s*(?:l|lt|ltr|litres?|liters?|liter)\b`);
 
+const FILLED_UP = /\b(filled up|fill up|filled her up|topped up|top up|refuel(?:led|ed)?|volgemaak|vol gemaak|volgegooi)\b/;
+
 function extractLitres(text: string): number | null {
   const match = text.match(LITRES);
   return match ? parseMeterNumber(match[1]) : null;
@@ -97,6 +99,11 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
   // Before readings: "80 litres at 3450 hours" names a meter too, and it is a draw.
   if (!explicitRead && LITRES.test(replaceNumberWords(text)) && (FUEL_WORDS.test(text) || FILL_VERBS.test(text) || readingWrite)) {
     return { intent: "log_fuel", confidence: 0.9 };
+  }
+  // "I filled up the Massey", "put diesel in the tractor": a draw with the litres still to
+  // come, which the app asks for. Asking it ourselves costs nothing; the AI asked anyway.
+  if (!explicitRead && ((FUEL_WORDS.test(text) && FILL_VERBS.test(text)) || FILLED_UP.test(text))) {
+    return { intent: "log_fuel", confidence: 0.85 };
   }
   if (SERVICE_WORDS.test(text) && (COMPLETED_WORDS.test(text) || PAST_SERVICE.test(text))) {
     // A question about completed service history is a read, never a new service entry.
