@@ -61,6 +61,8 @@ const TERSE_READ = /^(?:my\s+)?(?:fleet|machines?|assets?|faults?|problems?|job\
 function supportedDeterministicWrite(text: string): boolean {
   if (/\b(report|raise|meld|rapporteer)\b/.test(text) && /\b(problem|fault|issue|leak|broken|probleem|fout|lek|gebreek(?:te|de)?)\b/.test(text)) return true;
   if (/\b(log|record|capture|set|aanteken|teken|registreer|stel)\b/.test(text) && /\b(reading|hours?|engine hours?|odometer|kilomet(?:er|re)s?|km|lesing|ure|enjinure|kilometer)\b/.test(text)) return true;
+  // "Log 80 litres of diesel on the tractor": a draw, which the parser makes a proposal.
+  if (/\b(log|record|capture|aanteken|teken|registreer)\b/.test(text) && /\b(litres?|liters?|liter|diesel|fuel|brandstof)\b/.test(text)) return true;
   return /\b(service|maintenance|diens|onderhoud)\b/.test(text) && /\b(done|completed|finished|gedoen|voltooi|afgehandel|klaar)\b/.test(text);
 }
 

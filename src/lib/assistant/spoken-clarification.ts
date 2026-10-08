@@ -30,6 +30,19 @@ export function clarificationFromSpeech(
     const reading = spokenNumber(value);
     if (reading == null) return null;
     clarification.reading = reading;
+  } else if (field.name === "litres") {
+    const litres = spokenNumber(value);
+    if (litres == null || litres <= 0) return null;
+    clarification.litres = litres;
+  } else if (field.name === "tankId" && field.type === "select") {
+    // "The shed tank" / "die skuurtenk": the one option whose name was said.
+    const said = normalizeAssistantText(value);
+    const hits = field.options.filter((option) => {
+      const name = normalizeAssistantText(option.label);
+      return name && (said.includes(name) || name.includes(said));
+    });
+    if (hits.length !== 1) return null;
+    clarification.tankId = hits[0].value;
   } else if (field.name === "urgency") {
     const normalized = normalizeAssistantText(value);
     // The question is "can the machine still operate safely?", so a bare "no" / "nee"

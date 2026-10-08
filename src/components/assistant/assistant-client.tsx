@@ -1436,6 +1436,8 @@ export function AssistantClient({
       else if (field.name === "workPerformed") clarification.workPerformed = raw;
       else if (field.name === "readingDate") clarification.readingDate = raw;
       else if (field.name === "serviceDate") clarification.serviceDate = raw;
+      else if (field.name === "litres") clarification.litres = Number(raw);
+      else if (field.name === "tankId") clarification.tankId = raw;
     }
     const continuation = { ...previous, clarification };
     delete continuation.supersedesVoiceCaptureIds;

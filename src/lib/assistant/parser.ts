@@ -20,6 +20,18 @@ const MEASUREMENT_UNIT_SOURCE = String.raw`(?:engine\s+hours?|hours?|hrs?|enjinu
 const INTERVAL_FOLLOWS = String.raw`(?!\s*(?:service|diens|interval|inspection|inspeksie))`;
 const METER_LABEL_SOURCE = String.raw`(?:odometer|meter\s+reading|reading|lesing)`;
 
+// A diesel draw said as it happens: "I put 80 litres in the bakkie", "gooi 120 liter diesel
+// in die rooi trekker". Litres alone are not enough ("how many litres did we use?" is a
+// read), so a draw needs the litres AND a fuel word or a filling verb, and no question.
+const FUEL_WORDS = /\b(diesel|fuel|petrol|brandstof)\b/;
+const FILL_VERBS = /\b(put|filled|fill|topped|top|gave|added|pumped|drew|refuel(?:led|ed)?|gooi|ingegooi|gegooi|volgemaak|getap|ingetap)\b/;
+const LITRES = new RegExp(String.raw`\b(${NUMBER_SOURCE})\s*(?:l|lt|ltr|litres?|liters?|liter)\b`);
+
+function extractLitres(text: string): number | null {
+  const match = text.match(LITRES);
+  return match ? parseMeterNumber(match[1]) : null;
+}
+
 function parseMeterNumber(raw: string): number | null {
   const compact = raw
     .replace(/[ ,.](?=\d{3}(?:\D|$))/g, "")
@@ -82,6 +94,10 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
   const asks = questionStart || /\b(when|what|how|is|show|tell|wanneer|wat|hoe|wys|vertel)\b/.test(text) || text.endsWith("?");
   const explicitRead = questionStart || /\b(show|list|which|what|when|tell me|see|view|history|current|wys|toon|lys|watter|wat|wanneer|vertel|sien|bekyk|geskiedenis|huidige)\b/.test(text) || text.endsWith("?");
   const readingWrite = /\b(log|record|set|capture|add|aanteken|teken|stel|registreer|voeg)\b/.test(text);
+  // Before readings: "80 litres at 3450 hours" names a meter too, and it is a draw.
+  if (!explicitRead && LITRES.test(replaceNumberWords(text)) && (FUEL_WORDS.test(text) || FILL_VERBS.test(text) || readingWrite)) {
+    return { intent: "log_fuel", confidence: 0.9 };
+  }
   if (SERVICE_WORDS.test(text) && (COMPLETED_WORDS.test(text) || PAST_SERVICE.test(text))) {
     // A question about completed service history is a read, never a new service entry.
     // The local read router handles common forms without using an AI provider.
@@ -186,7 +202,9 @@ export function parseDeterministic(input: string, _locale: AssistantLocale): Ass
   const withDigits = replaceNumberWords(normalized);
   const reading = intent === "log_reading" || intent === "log_service"
     ? extractMeterReading(withDigits) ?? (intent === "log_reading" ? trailingReading(input) : null)
-    : null;
+    : intent === "log_fuel"
+      ? extractMeterReading(withDigits)
+      : null;
 
   return {
     intent,
@@ -198,9 +216,11 @@ export function parseDeterministic(input: string, _locale: AssistantLocale): Ass
     category: intent === "report_fault" ? inferCategory(normalized) : null,
     urgency: intent === "report_fault" ? inferUrgency(normalized) : null,
     reading,
-    readingDate: intent === "log_reading" ? todayInSouthAfrica() : null,
+    readingDate: intent === "log_reading" || intent === "log_fuel" ? todayInSouthAfrica() : null,
     serviceDate: intent === "log_service" ? todayInSouthAfrica() : null,
     workPerformed: intent === "log_service" ? input.trim() || null : null,
     confidence,
+    // Only a draw carries these, so every other draft keeps its eleven keys.
+    ...(intent === "log_fuel" ? { litres: extractLitres(withDigits), tankId: null } : {}),
   };
 }

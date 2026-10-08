@@ -38,6 +38,8 @@ export function missingFields(
   machines: AssistantMachine[],
   locale: AssistantLocale,
   machineOptions?: AssistantMachine[],
+  /** The farm's fuel tanks, for a diesel draw: asked only when there is more than one. */
+  tanks: Array<{ id: string; name: string }> = [],
 ): { question: string; fields: AssistantField[] } | null {
   const fields: AssistantField[] = [];
   // The symptom is the natural first follow-up to a generic request. Entity
@@ -101,6 +103,23 @@ export function missingFields(
       min: 0,
       step: 0.1,
       label: af(locale) ? "Meterlesing tydens die diens" : "Meter reading at service",
+    });
+  }
+  if (draft.intent === "log_fuel" && !(typeof draft.litres === "number" && draft.litres > 0)) {
+    fields.push({
+      name: "litres",
+      type: "number",
+      min: 0.1,
+      step: 0.1,
+      label: af(locale) ? "Hoeveel liter?" : "How many litres?",
+    });
+  }
+  if (draft.intent === "log_fuel" && !draft.tankId && tanks.length > 1) {
+    fields.push({
+      name: "tankId",
+      type: "select",
+      label: af(locale) ? "Uit watter tenk?" : "From which tank?",
+      options: tanks.map((tank) => ({ value: tank.id, label: tank.name })),
     });
   }
   if (draft.intent === "log_service" && !draft.serviceDate) {
@@ -181,6 +200,8 @@ export function proposalFor(
   machine: AssistantMachine,
   locale: AssistantLocale,
   expiresAt: string,
+  /** The tank a diesel draw comes from. */
+  tank?: { name: string } | null,
 ): ConfirmationProposal {
   const facts: Array<{ label: string; value: string }> = [
     { label: af(locale) ? "Masjien" : "Machine", value: machine.name },
@@ -200,6 +221,19 @@ export function proposalFor(
       { label: af(locale) ? "Lesing" : "Reading", value: meter(machine, draft.reading ?? 0) },
       { label: af(locale) ? "Datum" : "Date", value: draft.readingDate ?? "" },
     );
+  } else if (draft.intent === "log_fuel") {
+    title = af(locale) ? "Teken hierdie dieseltrekking aan?" : "Record this diesel draw?";
+    facts.push(
+      {
+        label: af(locale) ? "Liter" : "Litres",
+        value: `${new Intl.NumberFormat(af(locale) ? "af-ZA" : "en-ZA", { maximumFractionDigits: 1 }).format(draft.litres ?? 0)} L`,
+      },
+      { label: af(locale) ? "Tenk" : "Tank", value: tank?.name ?? "" },
+    );
+    if (draft.reading != null) {
+      facts.push({ label: af(locale) ? "Meterlesing" : "Meter reading", value: meter(machine, draft.reading) });
+    }
+    facts.push({ label: af(locale) ? "Datum" : "Date", value: draft.readingDate ?? todayInSouthAfrica() });
   } else {
     title = af(locale) ? "Teken hierdie diens aan?" : "Save this completed service?";
     facts.push(

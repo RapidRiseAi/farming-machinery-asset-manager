@@ -72,8 +72,15 @@ diesel last month?" got an apology. Now:
   machines' draws; a role that may not see money gets litres and no rand.
 - **It never writes.** `propose_fault_report`, `propose_meter_reading` and
   `propose_completed_service` stop the run and become the same draft the parser makes; the
-  existing card and tap save it. Diesel put into a machine is not yet a voice command: the
-  agent sends the person to the Fuel page.
+  existing card and tap save it.
+- **Diesel by voice** (2026-10-09, `20261009090000`). "I put 80 litres in the bakkie",
+  "gooi 90 liter diesel in die bakkie": the parser makes a `log_fuel` draft for nothing
+  (litres plus a fuel word or a filling verb, never a question); otherwise the agent's
+  `propose_fuel_draw`. The tank is the farm's only one, the one named, or the next
+  question; litres are asked when missing. A draft has eleven keys, or thirteen with
+  `litres` and `tankId` (only a draw may give them values), and the confirmed draw goes
+  through `record_fuel_issue`, the Fuel page's writer, with no cost, exactly like a draw
+  typed there without one.
 - **Metering.** One hold per run, sized for four steps (prompt, data, tool results, output
   ceilings); settled once with the run's total tokens and the Gateway cost summed over its
   steps. Measured on the click-through farm with gpt-4.1-mini: one step, about 2 500 input
@@ -246,9 +253,6 @@ that would replace the notice's evidence with an older text.
 
 ## Not built yet (the next release, before any real farm is charged)
 
-- **Diesel by voice.** "I put 80 litres in the bakkie" as a confirmed fuel draw: a
-  `log_fuel` intent, the 13-key proposal in `apply_assistant_proposal_internal` (accepting
-  the 11-key draft during the release), and a `record_fuel_issue` branch.
 
 - **Invoicing.** Putting the ledger on the monthly Paystack invoice: an AI amount on the
   invoice header (the total is derived from the header, not the lines, so a line alone would

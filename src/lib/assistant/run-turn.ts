@@ -126,7 +126,22 @@ function mergeClarification(
     reading: values.reading ?? draft.reading,
     readingDate: values.readingDate ?? draft.readingDate,
     serviceDate: values.serviceDate ?? draft.serviceDate,
+    // A draw's litres and tank; any other draft keeps its eleven keys.
+    ...(draft.intent === "log_fuel"
+      ? { litres: values.litres ?? draft.litres ?? null, tankId: values.tankId ?? draft.tankId ?? null }
+      : {}),
   };
+}
+
+/** A tank named in a request ("from the shed tank"), or null when it is not one clear tank. */
+function matchTank(query: string, tanks: Array<{ id: string; name: string }>): { id: string; name: string } | null {
+  const said = normalizeAssistantText(query);
+  if (!said) return null;
+  const hits = tanks.filter((tank) => {
+    const name = normalizeAssistantText(tank.name);
+    return name && (said.includes(name) || name.includes(said));
+  });
+  return hits.length === 1 ? hits[0] : null;
 }
 
 function roleAllowsIntent(role: string, intent: AssistantDraft["intent"]): boolean {
@@ -135,6 +150,8 @@ function roleAllowsIntent(role: string, intent: AssistantDraft["intent"]): boole
   if (intent === "log_reading" || intent === "log_service") {
     return ["rr_admin", "owner", "manager", "mechanic"].includes(role);
   }
+  // Whoever may draw diesel on the Fuel page: an operator included (record_fuel_issue).
+  if (intent === "log_fuel") return ["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role);
   return false;
 }
 
@@ -241,6 +258,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
   let outputTokens: number | null = null;
   let latencyMs: number | null = null;
   let expectedInteractionStatus: "not_required" | "processing" = "not_required";
+  /** A tank the agent heard named for a diesel draw, resolved against the farm's tanks. */
+  let tankQuery: string | null = null;
 
   try {
     if (body.clarification) {
@@ -447,7 +466,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
       // The AI turn. It ends in a reply (an answer, a consent card), a draft for the write
       // pipeline below, or "AI is not available for this turn": then a question the local
       // paths understood still gets their answer, as it did before the agent existed.
-      type AiOutcome = Response | { draft: AssistantDraft } | { unavailable: Response | null };
+      type AiOutcome = Response | { draft: AssistantDraft; tankQuery?: string | null } | { unavailable: Response | null };
       const hasFallback = routePlan.kind !== "optional_ai";
       const aiTurn = async (): Promise<AiOutcome> => {
         // The owner's farm-wide switch first: on a farm with AI switched off there is
@@ -768,7 +787,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           output_tokens: outputTokens,
           latency_ms: latencyMs,
         }, expectedInteractionStatus);
-        return { draft: agent.draft };
+        return { draft: agent.draft, tankQuery: agent.tankQuery ?? null };
       };
 
       if (agentWanted) {
@@ -776,6 +795,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         if (outcome instanceof Response) return outcome;
         if ("draft" in outcome) {
           draft = outcome.draft;
+          tankQuery = outcome.tankQuery ?? null;
         } else {
           // Not available this turn. Whatever the AI path recorded stays as it is; the
           // local answer is its own interaction, with no AI in it.
@@ -865,7 +885,46 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
 
-    const missing = missingFields(draft, intentMachines, body.locale, match.ambiguous ? match.alternatives : undefined);
+    // A diesel draw comes from a tank: the one already agreed, the one named, or the farm's
+    // only tank. With several and none named, it is the next question.
+    let tanks: Array<{ id: string; name: string }> = [];
+    if (draft.intent === "log_fuel") {
+      const { data: tankRows, error: tankError } = await context.supabase
+        .from("fuel_tanks")
+        .select("id, name")
+        .eq("farm_id", context.farmId)
+        .is("deleted_at", null)
+        .order("name");
+      if (tankError) throw tankError;
+      tanks = (tankRows as Array<{ id: string; name: string }> | null) ?? [];
+      if (!tanks.length) {
+        if (interactionId) {
+          await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+            result_status: "failed",
+            response_text: "The farm has no fuel tank to draw from.",
+            error_code: "no_fuel_tank",
+            completed_at: new Date().toISOString(),
+          }, expectedInteractionStatus).catch(() => undefined);
+        }
+        await updateVoiceCapture(captureId, context.profile.id, { status: "cancelled", error_code: "no_fuel_tank" });
+        return json({
+          kind: "error",
+          code: "no_fuel_tank",
+          message: localized(
+            body.locale,
+            "This farm has no fuel tank yet. Add one on the Fuel page first. Nothing was saved.",
+            "Hierdie plaas het nog nie 'n brandstoftenk nie. Voeg eers een by op die Brandstof-blad. Niks is gestoor nie.",
+          ),
+          fallbackHref: "/fuel",
+        }, 400);
+      }
+      const chosen = tanks.find((tank) => tank.id === draft.tankId)
+        ?? (tankQuery ? matchTank(tankQuery, tanks) : null)
+        ?? (tanks.length === 1 ? tanks[0] : null);
+      draft = { ...draft, litres: draft.litres ?? null, tankId: chosen?.id ?? null };
+    }
+
+    const missing = missingFields(draft, intentMachines, body.locale, match.ambiguous ? match.alternatives : undefined, tanks);
     if (missing) {
       if (interactionId) {
         await updateInteractionDraft(
@@ -971,7 +1030,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     return json({
       kind: "confirm",
       conversationId: interactionId,
-      proposal: proposalFor(interactionId, draft, machine, body.locale, expiresAt),
+      proposal: proposalFor(interactionId, draft, machine, body.locale, expiresAt, tanks.find((tank) => tank.id === draft.tankId) ?? null),
     });
   } catch {
     if (interactionId && expectedInteractionStatus === "processing") {

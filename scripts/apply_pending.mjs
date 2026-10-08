@@ -117,6 +117,9 @@ const PROBES = {
   // The notice that mentions farm records: the trigger stamps v2 once this is applied.
   "20261008090000":
     "select pg_get_functiondef('app.app_users_guard_ai_consent()'::regprocedure) like '%ai-on-default-v2%'",
+  // Diesel by voice: the proposal function with its log_fuel branch (and the hardened check).
+  "20261009090000":
+    "select pg_get_functiondef('public.apply_assistant_proposal_internal(uuid,text)'::regprocedure) like '%v_key_count <> 13%'",
 };
 
 const url = readEnv("DATABASE_URL");

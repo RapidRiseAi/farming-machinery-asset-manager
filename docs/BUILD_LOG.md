@@ -4809,3 +4809,36 @@ Open, to investigate: reproduce by slowing the page's queries.
 After the live run, `/auth/confirm` stopped showing the EN/AF switch (`PublicShell`
 `languageSwitch={false}`): the switch returns to the path without its query, which there
 drops the one-time token; the page speaks the invite's own language.
+
+## 2026-10-09 - Diesel by voice; the machine-page hydration error narrowed down
+
+### Diesel by voice
+
+"I put 80 litres in the bakkie" is now the fourth confirmed assistant command.
+`20261009090000` recreates `apply_assistant_proposal_internal` from its 20260813200621 body
+with a `log_fuel` branch through `record_fuel_issue` (role, plan, tank, machine and meter
+checked again there), a draft of eleven keys or thirteen with `litres` and `tankId`, and
+fuel fields refused on every other kind of record. The parser recognises a draw for nothing;
+the agent has `propose_fuel_draw`; the tank is chosen or asked; the card and a tap save it.
+
+`assistant_fuel_proposal.sql` covers owner and operator draws, a replay, an unassigned
+machine, zero litres, another farm's tank, a future date, a meter on a meterless machine,
+both draft forms of a reading, and fuel fields on a fault. Mutation-tested: and the first
+version of the suite was itself wrong, every "refused" assertion compared a missing `code`
+with `<>`, which is NULL and never fires; a disabled guard passed. They now use
+`is distinct from`, and the branch's own field checks coalesce a missing key to 'missing'
+for the same reason. `rls_isolation.sql` and all 35 suites pass; 568 unit tests.
+
+End to end against the live database on a local build: the spoken draw made the card
+(Test Bakkie, 80 L, Main diesel tank, today), the confirm wrote exactly that draw (then
+removed); "I filled up the Massey" asked for the litres and "70 litres" made the card.
+
+### The machine page's #418
+
+Measured: about one hard load in ten of `/machines/[id]` on production logs React #418 and
+the streaming `$RV` errors, on a fast connection and never throttled (3G, slow 3G). Not
+reproduced locally in 12 dev loads, 15 production-build loads, or 15 with the server in
+UTC. The boot guard (an attribute on <html> and capture listeners) and the page's client
+components (tabs, photos, dialogs, offline form) render nothing from the clock, the window
+or storage. React recovers and the page works. Open: needs the unminified message from a
+Vercel preview (React dev build) to name the element.

@@ -17,7 +17,7 @@ const rpcSuccessSchema = z.object({
   action: z.enum(["confirm", "reject"]),
   status: z.enum(["applied", "rejected"]),
   message: z.string().trim().min(1).max(8000),
-  linkedRecordType: z.enum(["fault", "meter_reading", "job_card", "none"]),
+  linkedRecordType: z.enum(["fault", "meter_reading", "job_card", "fuel_issue", "none"]),
   linkedRecordId: z.uuid(),
   href: z.string().trim().min(1).max(200),
   replayed: z.boolean(),
@@ -77,6 +77,7 @@ function statusFor(code: string): number {
 function safeHref(result: z.infer<typeof rpcSuccessSchema>): string | null {
   if (result.linkedRecordType === "none") return result.href === "/assistant" ? result.href : null;
   if (result.linkedRecordType === "fault") return result.href === "/faults" ? result.href : null;
+  if (result.linkedRecordType === "fuel_issue") return result.href === "/fuel" ? result.href : null;
   if (result.linkedRecordType === "job_card") {
     return result.href === `/jobcards/${result.linkedRecordId}` ? result.href : null;
   }
@@ -155,6 +156,9 @@ export async function confirmAssistantProposal(context: AssistantContext, input:
   } else if (result.data.linkedRecordType === "job_card") {
     revalidatePath(href);
     revalidatePath("/jobcards");
+    revalidatePath("/machines");
+  } else if (result.data.linkedRecordType === "fuel_issue") {
+    revalidatePath("/fuel");
     revalidatePath("/machines");
   }
 

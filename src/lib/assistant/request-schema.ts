@@ -39,6 +39,8 @@ export const assistantTurnRequestSchema = z
         reading: z.number().min(0).optional(),
         readingDate: z.iso.date().optional(),
         serviceDate: z.iso.date().optional(),
+        litres: z.number().positive().max(100000).optional(),
+        tankId: postgresUuidSchema.optional(),
       })
       .optional(),
   })

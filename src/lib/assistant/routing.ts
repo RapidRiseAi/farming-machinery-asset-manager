@@ -92,7 +92,7 @@ export function routeWantsAgent(plan: AssistantRoutePlan, input: string): boolea
 }
 
 export function isAssistantWriteIntent(intent: AssistantDraft["intent"]): boolean {
-  return intent === "report_fault" || intent === "log_reading" || intent === "log_service";
+  return intent === "report_fault" || intent === "log_reading" || intent === "log_service" || intent === "log_fuel";
 }
 
 export function machinesForAssistantDraft(

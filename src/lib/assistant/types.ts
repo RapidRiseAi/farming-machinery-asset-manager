@@ -5,6 +5,7 @@ export const ASSISTANT_INTENTS = [
   "report_fault",
   "log_reading",
   "log_service",
+  "log_fuel",
   "query_asset_status",
   "query_service_due",
 ] as const;
@@ -88,13 +89,19 @@ export type AssistantDraft = {
   serviceDate: string | null;
   workPerformed: string | null;
   confidence: number;
+  /**
+   * A diesel draw's litres and tank (log_fuel only). Absent on every other draft, so those
+   * keep the eleven keys apply_assistant_proposal has always accepted (20261009090000).
+   */
+  litres?: number | null;
+  tankId?: string | null;
   /** Present only while a deterministic read is waiting for a machine clarification. */
   localReadRequest?: AssistantLocalReadRequest;
 };
 
 export type AssistantField =
   | {
-      name: "machineId" | "urgency";
+      name: "machineId" | "urgency" | "tankId";
       type: "select";
       label: string;
       options: Array<{ value: string; label: string }>;
@@ -106,7 +113,7 @@ export type AssistantField =
       value?: string;
     }
   | {
-      name: "reading";
+      name: "reading" | "litres";
       type: "number";
       label: string;
       value?: number;
@@ -130,6 +137,8 @@ export type AssistantClarification = {
   reading?: number;
   readingDate?: string;
   serviceDate?: string;
+  litres?: number;
+  tankId?: string;
 };
 
 export type AssistantTurnRequest = {
