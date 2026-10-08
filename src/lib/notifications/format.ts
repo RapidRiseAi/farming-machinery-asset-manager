@@ -248,9 +248,13 @@ export function formatNotification(
     // The only billing message that arrives BEFORE anything goes wrong (20260918140000).
     // It names the amount and the date, because the job of this sentence is to make the
     // deduction recognisable when it lands on a bank statement three days later.
+    // While AI use is invoiced (20261010090000) the sentence says so, with the use so far:
+    // the invoice carries it beside the plan, and an unexplained extra on the statement is
+    // exactly what this message exists to prevent.
     case "billing_renewal_due":
-      return fill("notifications.tplBillingRenewalDue", locale, {
+      return fill(p.ai_billed === true ? "notifications.tplBillingRenewalDueAi" : "notifications.tplBillingRenewalDue", locale, {
         amount: rands(Number(p.amount_cents ?? 0)),
+        ai: rands(Number(p.ai_cents ?? 0)),
         date: p.due_on ? shortDate(String(p.due_on), locale) : "",
       });
     // == Addressed to Rapid Rise, not to the farm ===========================

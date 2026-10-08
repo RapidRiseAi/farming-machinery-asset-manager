@@ -4842,3 +4842,30 @@ UTC. The boot guard (an attribute on <html> and capture listeners) and the page'
 components (tabs, photos, dialogs, offline form) render nothing from the clock, the window
 or storage. React recovers and the page works. Open: needs the unminified message from a
 Vercel preview (React dev build) to name the element.
+
+## 2026-10-10 - AI and voice use on the invoice (release B)
+
+`20261010090000_ai_usage_invoicing.sql` puts the AI ledger on the FleetWise invoice, and
+ships OFF: nothing is billed until Rapid Rise sets `billing_settings.ai_billing_starts_on`
+on `/admin/ai`. Completed Johannesburg months only, in arrears. The period invoice carries
+every unbilled completed month (`app.billing_attach_ai_usage`, called by the generator while
+the invoice is a draft; rows stamped by UPDATE ... RETURNING). A farm no period invoice
+reaches this month (annual, price on application, grace) gets an AI-only invoice (kind
+`ai_usage`, new cron step after the period invoices) once its use reaches R50 ex VAT; a
+trial or unfinished sign-up never does. The ex-VAT amount is on the header; the derive
+trigger adds VAT at the invoice's rate after the discount; the freeze covers it and the
+per-person snapshot. The invoice and receipt PDFs now itemise plan (list price), discount
+and AI use, which add up to the total (the plan row used to carry the total), and list who
+used the AI. The renewal notice now quotes the discounted plan at the generator's price
+(it quoted list price, and read the active version instead of a grandfathered pin: both
+pre-existing mismatches) and says "plus your AI and voice use (R... so far)".
+
+Measured: `ai_usage_invoicing.sql` (off by default; the founding farm's invoice of plan
+less 20% plus R47,35 of use, months, rows stamped and not, people, the line; the freeze and
+the one-time stamp; VAT at 15% on a hand-written invoice, since the catalogue price is
+zero-rated; AI-only for the annual farm, not the trial, not under the minimum, not a farm
+renewing later this month, once only; carry-forward; a late row neither invoiced twice nor
+burning an invoice number; the notice payload; a future start). Mutation-checked: leaving
+AI out of the total and invoicing a trial each fail it. All 36 SQL suites pass
+(`billing_subscription.sql` registers the new functions in its lockdown sweep), 570 unit
+tests. Sample PDFs rendered in both languages and read.

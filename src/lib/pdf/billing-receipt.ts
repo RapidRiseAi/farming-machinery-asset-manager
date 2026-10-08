@@ -57,6 +57,21 @@ export type BillingReceiptData = {
   vatCents: number;
   totalInclCents: number;
   vatRateBps: number;
+  /** An invoice for AI and voice use alone: no plan line, no vehicles. */
+  aiOnly: boolean;
+  /** What came off the plan, VAT-inclusive, and the deal's name. */
+  discount: { cents: number; label: string | null } | null;
+  /**
+   * AI and voice use on this invoice (20261010090000), VAT-inclusive, with the months it
+   * covers and who used it, frozen when the invoice was raised. Per-person amounts are the
+   * ledger's, ex VAT.
+   */
+  aiUsage: {
+    inclCents: number;
+    from: string;
+    to: string;
+    people: { name: string; voiceSeconds: number; aiRequests: number; billedExVatCents: number }[];
+  } | null;
   /** Frozen at issue: who charged, and under what registration. */
   seller: {
     legalName: string | null;
@@ -190,7 +205,34 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   // the itemisation: what the money bought.
   pdf.heading(t("billingReceipt.whatFor", L));
 
+  // One row per thing paid for, adding up to the total above: the plan at its list price,
+  // what came off it, and the AI and voice use. The plan row used to carry the TOTAL, which
+  // was right while the plan was all there was; with a discount beside it, or AI use after
+  // it, the list price, the deal and the use each need their own line to be checkable.
   const perVehicle = `${rands(d.unitPriceInclCents)} ${t("billingReceipt.perVehicleMonth", L)}`;
+  const rows: string[][] = [];
+  if (!d.aiOnly) {
+    rows.push([
+      `${d.planLabel}, ${perVehicle}`,
+      String(d.assetCount),
+      String(d.monthsCharged),
+      rands(d.unitPriceInclCents * d.assetCount * d.monthsCharged),
+    ]);
+  }
+  if (d.discount) {
+    rows.push([d.discount.label || t("billingReceipt.discount", L), "", "", `-${rands(d.discount.cents)}`]);
+  }
+  if (d.aiUsage) {
+    rows.push([
+      t("billingReceipt.aiUse", L).replace(
+        "{period}",
+        `${shortDate(d.aiUsage.from, L)} - ${shortDate(d.aiUsage.to, L)}`,
+      ),
+      "",
+      "",
+      rands(d.aiUsage.inclCents),
+    ]);
+  }
   pdf.table(
     [
       t("billingReceipt.colDescription", L),
@@ -198,12 +240,7 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
       t("billingReceipt.colMonths", L),
       t("billingReceipt.colAmount", L),
     ],
-    [[
-      `${d.planLabel}, ${perVehicle}`,
-      String(d.assetCount),
-      String(d.monthsCharged),
-      rands(d.totalInclCents),
-    ]],
+    rows,
     [250, 70, 70, 100],
     [false, true, true, true],
   );
@@ -222,6 +259,32 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
       `${t("billingReceipt.vat", L)} (${vatPercent(d.vatRateBps)})`,
       rands(d.vatCents),
     );
+    pdf.gap();
+  }
+
+  // == Who used the AI ========================================================
+  // The owner's AI page shows the running month by person; this is the same view of the
+  // months billed, as frozen on the invoice, so a farm can see whose use it is paying for.
+  if (d.aiUsage && d.aiUsage.people.length > 0) {
+    pdf.hr();
+    pdf.heading(t("billingReceipt.aiByPerson", L));
+    pdf.table(
+      [
+        t("billingReceipt.colPerson", L),
+        t("billingReceipt.colVoiceMinutes", L),
+        t("billingReceipt.colAiRequests", L),
+        t("billingReceipt.colAmount", L),
+      ],
+      d.aiUsage.people.map((person) => [
+        person.name,
+        String(Math.round(person.voiceSeconds / 60)),
+        String(person.aiRequests),
+        rands(Math.round(person.billedExVatCents)),
+      ]),
+      [250, 70, 70, 100],
+      [false, true, true, true],
+    );
+    if (d.vatRateBps > 0) pdf.text(t("billingReceipt.aiByPersonExVat", L), { size: 9 });
     pdf.gap();
   }
 

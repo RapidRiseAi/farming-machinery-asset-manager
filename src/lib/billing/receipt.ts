@@ -94,10 +94,33 @@ type InvoiceRow = {
   bill_to_snapshot: Record<string, unknown> | null;
   due_on: string | null;
   amount_paid_cents: number;
+  kind: string;
+  discount_cents: number;
+  discount_label: string | null;
+  ai_usage_ex_vat_cents: number;
+  ai_usage_incl_cents: number;
+  ai_usage_from: string | null;
+  ai_usage_to: string | null;
+  ai_usage_people: unknown;
 };
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v : null;
+}
+
+/** Who used the AI on this invoice, as frozen when it was raised (20261010090000). */
+function aiPeople(raw: unknown): NonNullable<BillingReceiptData["aiUsage"]>["people"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const r = row as Record<string, unknown>;
+    return [{
+      name: str(r.name) ?? "-",
+      voiceSeconds: Number(r.voice_seconds ?? 0) || 0,
+      aiRequests: Number(r.ai_requests ?? 0) || 0,
+      billedExVatCents: Number(r.billed_cents ?? 0) || 0,
+    }];
+  });
 }
 
 /**
@@ -126,7 +149,8 @@ export async function loadReceipt(
       "id, farm_id, invoice_ref, period_start, period_end, plan, asset_count, " +
         "unit_price_incl_cents, months_charged, subtotal_ex_vat_cents, vat_cents, " +
         "total_incl_cents, vat_rate_bps, seller_snapshot, bill_to_snapshot, " +
-        "due_on, amount_paid_cents",
+        "due_on, amount_paid_cents, kind, discount_cents, discount_label, " +
+        "ai_usage_ex_vat_cents, ai_usage_incl_cents, ai_usage_from, ai_usage_to, ai_usage_people",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -191,6 +215,18 @@ export async function loadReceipt(
     vatCents: inv.vat_cents,
     totalInclCents: inv.total_incl_cents,
     vatRateBps: inv.vat_rate_bps,
+    aiOnly: inv.kind === "ai_usage",
+    discount: Number(inv.discount_cents) > 0
+      ? { cents: Number(inv.discount_cents), label: str(inv.discount_label) }
+      : null,
+    aiUsage: Number(inv.ai_usage_incl_cents) > 0 && inv.ai_usage_from && inv.ai_usage_to
+      ? {
+          inclCents: Number(inv.ai_usage_incl_cents),
+          from: inv.ai_usage_from,
+          to: inv.ai_usage_to,
+          people: aiPeople(inv.ai_usage_people),
+        }
+      : null,
     seller: {
       legalName: str(seller.legal_name),
       tradingName: str(seller.trading_name),
@@ -229,7 +265,8 @@ function receiptBody(d: BillingReceiptData, farmName: string): { html: string; t
       .replace("{period}", period)
       .replace("{ref}", d.invoiceRef),
     "",
-    `${t("billingReceipt.colVehicles", L)}: ${d.assetCount}`,
+    ...(d.aiOnly ? [] : [`${t("billingReceipt.colVehicles", L)}: ${d.assetCount}`]),
+    ...(d.aiUsage ? [`${t("billingReceiptEmail.aiUse", L)}: ${rands(d.aiUsage.inclCents)}`] : []),
     `${t("billingReceipt.totalPaid", L)}: ${amount}`,
     "",
     t("billingReceiptEmail.attached", L),

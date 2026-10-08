@@ -39,6 +39,32 @@ export async function setAiMargin(formData: FormData): Promise<void> {
   done("margin-saved");
 }
 
+/**
+ * When farms start paying for AI and voice use on their invoice (20261010090000), and the
+ * smallest AI-only invoice. An empty date stops billing. A date in the past is refused:
+ * the ledger already holds use from before it, and billing that would be charging farms
+ * for months nobody told them would be charged.
+ */
+export async function setAiInvoicing(formData: FormData): Promise<void> {
+  await requireRrAdmin();
+  const startsRaw = String(formData.get("starts") ?? "").trim();
+  const minimum = Number(String(formData.get("minimum") ?? "").replace(",", "."));
+  if (startsRaw !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(startsRaw)) done("admin-invalid");
+  if (!Number.isFinite(minimum) || minimum < 0 || minimum > 100_000) done("admin-invalid");
+  const service = createServiceClient();
+  const { data: current } = await service.from("billing_settings").select("ai_billing_starts_on").eq("singleton", true).maybeSingle();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  // The date already in force may stay (billing is live and only the minimum is changing);
+  // a new one may not reach back.
+  if (startsRaw !== "" && startsRaw < today && startsRaw !== current?.ai_billing_starts_on) done("invoicing-past");
+  const { error } = await service
+    .from("billing_settings")
+    .update({ ai_billing_starts_on: startsRaw === "" ? null : startsRaw, ai_min_invoice_cents: Math.round(minimum * 100) })
+    .eq("singleton", true);
+  if (error) done("failed");
+  done("invoicing-saved");
+}
+
 export async function setManualFxRate(formData: FormData): Promise<void> {
   await requireRrAdmin();
   const rate = Number(String(formData.get("rate") ?? "").replace(",", "."));

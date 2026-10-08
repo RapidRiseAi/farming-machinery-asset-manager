@@ -120,6 +120,12 @@ const PROBES = {
   // Diesel by voice: the proposal function with its log_fuel branch (and the hardened check).
   "20261009090000":
     "select pg_get_functiondef('public.apply_assistant_proposal_internal(uuid,text)'::regprocedure) like '%v_key_count <> 13%'",
+  // AI use on the invoice: the AI-only generator's cron wrapper, the renewal notice that
+  // carries the AI use, and the derive trigger that adds it to the total.
+  "20261010090000":
+    "select to_regprocedure('public.cron_generate_ai_usage_invoices()') is not null" +
+    " and pg_get_functiondef('app.enqueue_billing_renewal_notices()'::regprocedure) like '%ai_cents%'" +
+    " and pg_get_functiondef('app.billing_derive_invoice_totals()'::regprocedure) like '%+ new.ai_usage_incl_cents%'",
 };
 
 const url = readEnv("DATABASE_URL");

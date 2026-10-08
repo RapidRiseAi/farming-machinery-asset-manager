@@ -14,7 +14,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
-import { acceptHeldPrice, resolveAiHealthEvent, setAiMargin, setManualFxRate } from "./actions";
+import { acceptHeldPrice, resolveAiHealthEvent, setAiInvoicing, setAiMargin, setManualFxRate } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -42,13 +42,15 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
   // The month is summed in the database (ai_admin_month), so it is whole however many
   // rows it has; this page never pulls ledger rows itself.
   const [settingsRes, fxRes, summaryRes, healthRes, pricesRes] = await Promise.all([
-    supabase.from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents").eq("singleton", true).maybeSingle(),
+    supabase.from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents").eq("singleton", true).maybeSingle(),
     supabase.from("fx_rates").select("day, usd_zar, source").order("day", { ascending: false }).limit(1).maybeSingle(),
     supabase.rpc("ai_admin_month", { p_month: month }),
     supabase.from("ai_health_events").select("id, kind, subject, detail, created_at").is("resolved_at", null).order("created_at", { ascending: false }),
     supabase.from("ai_prices").select("model, unit, usd_per_unit, source, effective_from").order("effective_from", { ascending: false }).limit(500),
   ]);
   const marginBps = Number(settingsRes.data?.ai_margin_bps ?? 3000);
+  const billingStarts = (settingsRes.data?.ai_billing_starts_on as string | null | undefined) ?? null;
+  const minInvoiceCents = Number(settingsRes.data?.ai_min_invoice_cents ?? 5000);
   const fx = fxRes.data ? Number(fxRes.data.usd_zar) : null;
   const summary = (summaryRes.data ?? { platform_cost_usd: 0, billed_cents: 0, farms: [] }) as MonthSummary;
   const farms = summary.farms ?? [];
@@ -116,6 +118,40 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
               <DialogFields>
                 <Field label={t("aiUsage.admin.fxField", locale)} htmlFor="ai-fx">
                   <Input id="ai-fx" name="rate" inputMode="decimal" required defaultValue={fx === null ? "" : String(fx)} />
+                </Field>
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <SubmitButton>{t("common.save", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>{t("aiUsage.admin.invoicingTitle", locale)}</CardTitle>
+        <dl className="mt-3 divide-y divide-edge-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <dt className="text-sm text-sand-800">{t("aiUsage.admin.invoicingStarts", locale)}</dt>
+            <dd className="text-sm font-medium">
+              {billingStarts ? shortDate(billingStarts, locale) : t("aiUsage.admin.invoicingOff", locale)}
+            </dd>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <dt className="text-sm text-sand-800">{t("aiUsage.admin.invoicingMinimum", locale)}</dt>
+            <dd className="text-sm font-medium tabular-nums">{rands(minInvoiceCents)}</dd>
+          </div>
+        </dl>
+        <div className="mt-3">
+          <DialogForm trigger={t("aiUsage.admin.changeInvoicing", locale)} title={t("aiUsage.admin.invoicingTitle", locale)}
+            description={t("aiUsage.admin.invoicingHelp", locale)} closeLabel={t("ui.close", locale)} triggerVariant="secondary">
+            <form action={setAiInvoicing}>
+              <DialogFields>
+                <Field label={t("aiUsage.admin.invoicingStartsField", locale)} htmlFor="ai-invoicing-starts">
+                  <Input id="ai-invoicing-starts" name="starts" type="date" defaultValue={billingStarts ?? ""} />
+                </Field>
+                <Field label={t("aiUsage.admin.invoicingMinimumField", locale)} htmlFor="ai-invoicing-minimum">
+                  <Input id="ai-invoicing-minimum" name="minimum" inputMode="decimal" required defaultValue={String(minInvoiceCents / 100)} />
                 </Field>
               </DialogFields>
               <DialogActions cancelLabel={t("common.cancel", locale)}>

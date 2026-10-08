@@ -1301,13 +1301,17 @@ declare
     -- and the derive trigger is its only caller, so it is granted to nobody but the service
     -- role. `billing_take_promo_code` writes a farm's price from a code typed at sign-up,
     -- which is why it locks the code row before taking a place on the offer.
-    'billing_discount_cents','billing_take_promo_code','billing_check_promo_code'];
+    'billing_discount_cents','billing_take_promo_code','billing_check_promo_code',
+    -- AI and voice use on the invoice (20261010090000). They stamp ledger rows and write
+    -- invoices, so they are reached only through the generator and the cron wrapper.
+    'ai_billing_from','ai_unbilled_cents','billing_attach_ai_usage','generate_ai_usage_invoices'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
-    'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices'];
+    'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
+    'cron_generate_ai_usage_invoices'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.

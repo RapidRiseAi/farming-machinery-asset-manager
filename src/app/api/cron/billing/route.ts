@@ -146,6 +146,11 @@ export async function GET(request: Request) {
   // 4 == Raise the period's invoices. Nothing happens with no active price version.
   await run("generate_invoices", BILLING_RPC.cronGenerateInvoices);
 
+  // 4a == AI and voice use for a farm no period invoice reaches this month (an annual
+  // plan, a price on application). AFTER the period invoices, which carry the use of every
+  // farm they reach, and BEFORE the charges, so an AI-only invoice is charged tonight.
+  await run("ai_usage_invoices", BILLING_RPC.cronGenerateAiUsageInvoices);
+
   // 4 == The charges themselves.
   //
   // DRAINED, not run once. `runBillingCharges` takes a bounded slice of the shortlist -

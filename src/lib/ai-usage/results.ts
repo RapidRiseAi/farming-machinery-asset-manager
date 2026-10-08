@@ -26,6 +26,8 @@ export const AI_RESULTS = {
   "key-rate-limited": "error",
   "margin-saved": "success",
   "fx-saved": "success",
+  "invoicing-saved": "success",
+  "invoicing-past": "error",
   "event-resolved": "success",
   "price-accepted": "success",
   "admin-invalid": "error",

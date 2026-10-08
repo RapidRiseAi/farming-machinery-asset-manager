@@ -73,6 +73,9 @@ export const BILLING_RPC = {
   generateInvoices: "billing_generate_invoices",
   captureSnapshots: "cron_capture_billing_snapshots",
   cronGenerateInvoices: "cron_generate_billing_invoices",
+  // AI and voice use billed on its own (20261010090000), for a farm no period invoice will
+  // reach this month. A no-op until billing_settings.ai_billing_starts_on is set.
+  cronGenerateAiUsageInvoices: "cron_generate_ai_usage_invoices",
   applyDowngrades: "cron_apply_billing_downgrades",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",

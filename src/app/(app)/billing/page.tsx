@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { enumLabel, shortDate, vatPercent } from "@/lib/format";
 
@@ -1245,6 +1245,7 @@ export default async function BillingPage({
                       <p className="text-sm text-sand-600">
                         {shortDate(inv.period_start, locale)} - {shortDate(inv.period_end, locale)}
                       </p>
+                      <InvoiceAiNote inv={inv} locale={locale} />
                     </div>
                     <StatusBadge
                       label={enumLabel("billingInvoiceStatus", inv.status, locale)}
@@ -1309,8 +1310,9 @@ export default async function BillingPage({
                       <Td className="font-medium text-sand-900">{inv.invoice_ref}</Td>
                       <Td className="whitespace-nowrap text-sand-600">
                         {shortDate(inv.period_start, locale)} - {shortDate(inv.period_end, locale)}
+                        <InvoiceAiNote inv={inv} locale={locale} />
                       </Td>
-                      <Td className="text-right tabular-nums">{inv.asset_count}</Td>
+                      <Td className="text-right tabular-nums">{inv.kind === "ai_usage" ? "-" : inv.asset_count}</Td>
                       <Td className="text-right tabular-nums">{rands(inv.total_incl_cents)}</Td>
                       <Td>
                         <span className="block tabular-nums text-sand-900">
@@ -1475,4 +1477,23 @@ export default async function BillingPage({
       </Card>
     </PageContainer>
   );
+}
+
+/**
+ * What a history row says about AI and voice use (20261010090000): an invoice for the use
+ * alone names itself, since it has no vehicles and the period is the months of use; a plan
+ * invoice that also carries use says how much of its total that is.
+ */
+function InvoiceAiNote({ inv, locale }: { inv: InvoiceRow; locale: Lang }) {
+  if (inv.kind === "ai_usage") {
+    return <span className="block text-xs text-sand-600">{t("billing.aiUseInvoice", locale)}</span>;
+  }
+  if (Number(inv.ai_usage_incl_cents) > 0) {
+    return (
+      <span className="block text-xs text-sand-600">
+        {t("billing.includesAi", locale).replace("{amount}", rands(Number(inv.ai_usage_incl_cents)))}
+      </span>
+    );
+  }
+  return null;
 }

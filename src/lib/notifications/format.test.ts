@@ -136,3 +136,21 @@ test("a warranty chase names the dealer, the reference and how long it has waite
   // And to the list when an older row has no job card on it.
   assert.equal(notificationUrl("warranty_claim_outstanding", { claim_id: "c-1" }), "/jobcards");
 });
+
+test("the renewal notice says 'plus AI and voice use' only while that use is invoiced", () => {
+  for (const locale of LANGS) {
+    const plain = formatNotification("billing_renewal_due", { due_on: "2026-11-01", amount_cents: 58400 }, locale);
+    assert.ok(plain.includes(shortDate("2026-11-01", locale)), plain);
+    assert.ok(!/\{|AI/.test(plain), `${locale}: ${plain}`);
+
+    const withAi = formatNotification(
+      "billing_renewal_due",
+      { due_on: "2026-11-01", amount_cents: 58400, ai_billed: true, ai_cents: 4735 },
+      locale,
+    );
+    assert.ok(withAi.includes("AI"), `${locale}: ${withAi}`);
+    assert.ok(/47[,.]35/.test(withAi), `${locale}: the AI use so far is in the sentence: ${withAi}`);
+    assert.ok(/584[,.]00/.test(withAi), `${locale}: the plan amount is still there: ${withAi}`);
+    assert.ok(!withAi.includes("{"), `${locale}: no placeholder left: ${withAi}`);
+  }
+});

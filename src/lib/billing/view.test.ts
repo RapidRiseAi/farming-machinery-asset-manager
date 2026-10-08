@@ -428,6 +428,8 @@ function invoice(over: Partial<InvoiceRow> = {}): InvoiceRow {
     amount_paid_cents: 0,
     currency: "ZAR",
     voided_reason: null,
+    kind: "period",
+    ai_usage_incl_cents: 0,
     ...over,
   };
 }

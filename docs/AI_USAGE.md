@@ -237,6 +237,34 @@ forward instead, or ship a hotfix to the previous build that treats `ai-on-defau
 covering the recording. Never let the trigger rewrite `ai-on-default-v1` to `voice-ai-v2`:
 that would replace the notice's evidence with an older text.
 
+**Invoicing** (`20261010090000_ai_usage_invoicing.sql`). Off until Rapid Rise sets
+`billing_settings.ai_billing_starts_on` on `/admin/ai` (a date cannot be in the past; empty
+stops it). From that day:
+
+- **Completed months only**, Johannesburg's calendar month, in arrears. The running month
+  is never billed, so the invoice shows what the owner's page showed for that month.
+- **On the plan invoice.** The nightly generator stamps every unbilled completed month onto
+  the period invoice while it is a draft (`app.billing_attach_ai_usage`): rows by UPDATE ...
+  RETURNING, so what is summed is what was stamped, and `ai_usage_guard` allows one stamp
+  ever. The header carries the ex-VAT amount (`ai_usage_ex_vat_cents`); the derive trigger
+  adds VAT at the invoice's own rate and adds it to the total after the discount (a
+  discount is a price on the plan, not on the provider's bill). A line (sort 10) shows it.
+- **On its own** (kind `ai_usage`, `app.generate_ai_usage_invoices`, a cron step after the
+  period invoices and before the charges) for a farm no period invoice reaches this month:
+  an annual plan, a price on application, grace, a farm past its plan. Only once its
+  unbilled use reaches `ai_min_invoice_cents` (R50 ex VAT by default); less waits. Never a
+  trial or an unfinished sign-up: their use goes on the first invoice. A farm with no
+  subscription row has no card: its use stays on the ledger, visible by farm here.
+- **Who used it** is frozen on the invoice (`ai_usage_people`: name, voice seconds, AI
+  requests, ex-VAT amount) and printed on the invoice and receipt PDFs below the plan,
+  discount and AI rows, which add up to the total. A voided invoice keeps its rows: voiding
+  forgives that use.
+- **The renewal notice** quotes the discounted plan (it quoted the list price) at the price
+  the generator will use (it read the active version, not a grandfathered pin), and while
+  AI use is invoiced says "plus your AI and voice use (R... so far)".
+
+`supabase/tests/ai_usage_invoicing.sql` covers all of this, mutation-checked.
+
 ## Screens
 
 - **`/settings/ai`** (owner and Rapid Rise, for the selected farm): this month's spend
@@ -245,20 +273,17 @@ that would replace the notice's evidence with an older text.
   the farm; the farm's own OpenAI key. Every change is a dialog. Owners read what was used
   and billed, never the provider cost, rate or margin (those columns have no grant).
 - **`/admin/ai`** (Rapid Rise): provider cost against billed, by farm, summed in the
-  database (`ai_admin_month`); the margin and the day's rate (both changeable); health
-  events; the prices in force.
+  database (`ai_admin_month`); the margin and the day's rate (both changeable); when AI
+  use starts to be invoiced and the smallest AI-only invoice; health events; the prices in
+  force.
+- **`/billing`**: an AI-only invoice is named as one; a plan invoice says how much AI use
+  it includes.
 - **The assistant**: the notice on first use (a different one for someone who switched AI
   off); a paused or switched-off message as a calm notice instead of an error; a footer
   switch to turn AI help back on.
 
-## Not built yet (the next release, before any real farm is charged)
+## Not built yet
 
-
-- **Invoicing.** Putting the ledger on the monthly Paystack invoice: an AI amount on the
-  invoice header (the total is derived from the header, not the lines, so a line alone would
-  never be charged), stamping rows by UPDATE ... RETURNING, a usage-only invoice for farms
-  the subscription generator skips (annual, price on application, cancelled), a per-person
-  appendix snapshotted at issue, and the renewal notice saying "plus AI usage".
 - A margin change taking effect from the next month with notice to owners.
 - Monthly reconciliation against the Gateway spend report and the Azure bill, and a
   nightly flag for voice sessions whose reports are implausibly low for the tokens issued.
@@ -267,6 +292,11 @@ that would replace the notice's evidence with an older text.
   server-side and only live recognition stays in the browser.
 
 ## Founder actions
+
+- Decide when farms start paying for AI and voice use and set the date on `/admin/ai`
+  (Invoicing). Until then nothing is billed. Use before the date is never billed, so a date
+  in a new month, announced to owners beforehand, is the clean start. Check the smallest
+  AI-only invoice (R50 ex VAT) at the same time.
 
 - Sign the data agreements with Vercel, Microsoft and OpenAI before real users join.
 - Move Vercel to Pro (Hobby is non-commercial and refuses zero data retention; set

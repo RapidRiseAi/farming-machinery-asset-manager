@@ -63,7 +63,7 @@ export const INVOICE_COLUMNS =
   "id, farm_id, invoice_ref, status, period_start, period_end, issued_on, due_on, plan, " +
   "billing_period, asset_count, unit_price_incl_cents, months_charged, price_version_label, " +
   "vat_rate_bps, subtotal_ex_vat_cents, vat_cents, total_incl_cents, amount_paid_cents, " +
-  "currency, voided_reason";
+  "currency, voided_reason, kind, ai_usage_incl_cents";
 
 /**
  * Attempts, minus `authorization_url` and `access_code`.
@@ -178,6 +178,10 @@ export type InvoiceRow = {
   amount_paid_cents: number;
   currency: string;
   voided_reason: string | null;
+  /** 'period', 'proration', 'slots', or 'ai_usage' (AI and voice use billed on its own). */
+  kind: string;
+  /** AI and voice use on this invoice, VAT-inclusive; part of the total. */
+  ai_usage_incl_cents: number;
 };
 
 export type AttemptRow = {
