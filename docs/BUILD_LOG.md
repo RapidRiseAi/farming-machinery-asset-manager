@@ -4735,3 +4735,77 @@ refused model: a general question was answered through the fallback (the ledger 
 refused call at R0 and the fallback billed under a cent), and the health event opened with
 the Gateway's message. `voice:check` 46/46, `ready:check`, `ui:check` (55 routes at 360px
 and 1024px), 543 unit tests, lint, typecheck, the static checks and the build pass.
+
+## 2026-10-08 - The assistant reads the farm; invites email a sign-in button; true tank balances
+
+The founder found the hands-free assistant could not answer "fuel costs per vehicle",
+"monthly fuel costs" or machine questions: "it doesn't have access to the database".
+
+### What the evidence said
+
+- `llm.ts` told the model "You have no database access and no tools" (release A's privacy
+  choice). Farm answers came only from `local-read.ts` regex phrasings, none about fuel or
+  money; "pay" turned a money question into "that change is not available"; "overdue for a
+  service" looked for a machine called "a service"; unmatched questions reached the
+  data-blind model.
+- Invites created a login and sent nothing, and failed on any address that had one.
+- /fuel summed tank balances from its capped lists (400 deliveries, 600 draws), and for an
+  operator from their own machines' draws only.
+
+### Changes
+
+- **The agent** (`agent.ts`, `farm-data.ts`, `topics.ts`, `20261005130000`): a question
+  the free local paths cannot answer goes to an AI that reads the farm on the person's
+  session: a line per visible machine, the numbers for the question's topic and period
+  (worked out on the server), read tools for the rest, recent exchanges for follow-ups.
+  Fuel and cost are summed in the database (by machine or by month, never past PostgREST's
+  row cap). Changes stay proposals behind the confirmation card. Free paths first; when AI
+  is unavailable a question they understand still gets their answer.
+- **Consent** (`20261008090000`): the notice says the needed farm records go to the model;
+  acknowledgements are stamped ai-on-default-v2 and v1 holders see the notice once.
+- **Invites** (`20261005120000`, `/auth/confirm`): an email in the person's language with a
+  sign-in button that only signs in when pressed (mail scanners); existing logins are
+  added, moved (unpaid or closed home farm, switched off, swept) or refused (staff,
+  workshop, banned, erased) by one service-role function under a per-address lock.
+- **Tank balances** (`20261005122000`): `fuel_tank_balances` counts every row, litres only.
+- Codex's move of the turn and confirm logic into `run-turn.ts` / `confirm-proposal.ts`
+  (its WhatsApp groundwork) shipped first, unchanged; its WhatsApp channel stays in its
+  checkout, synced onto this release.
+
+### Verification
+
+Click-through farm seeded with labelled "Assistant eval" data (a tank, three deliveries,
+40 draws, faults, service lines, cost entries). 20 questions through the real turn route
+and the real Gateway (gpt-4.1-mini), checked against SQL: all correct after two fixes
+(prefetch for the question's period; a rate is not split by month). Typical run: one
+model call, about 2 500 input tokens, about 2 s of model time, about 2.5 cents billed.
+Seven of the twenty never called AI. 559 unit tests, 34 SQL suites (new: team_invites,
+fuel_tank_balances, assistant_farm_data, each mutation-tested), lint, typecheck, static
+checks and the build pass.
+
+Live (`058ce7e`, deployed Ready; migrations 20261005120000, 20261005122000, 20261005130000
+applied before the push, 20261008090000 right after it, two v1 acknowledgements reset):
+five assistant questions on production answered exactly as locally (fuel per vehicle
+this month, tank balance, last month's fuel in Afrikaans, overdue services, a machine's
+September cost); each run tried the refused `gpt-5.4-mini` first and answered on
+`gpt-4.1-mini`. The invite flow end to end on production: invite from /team, the Resend
+email, profile and membership, `/auth/confirm` signing the person in on the inviting farm,
+a spent link refused, a tokenless link explained, a second invite "already on your team",
+the test login deleted. /fuel shows the main tank at 3 061 L. `ready:check` passes.
+
+Two traps worth keeping: a probe written as `pg_get_functiondef('…'::regprocedure)` fails
+while the function does not exist yet (the literal is resolved at plan time; use
+`to_regprocedure`), and on a public page `form button[type="submit"]` finds the header's
+language switch first, not the page's own form.
+
+`ui:check` against production: 55 routes fit 360px and 1024px; one problem, a React #418
+(hydration mismatch) on `/machines/[id]` for the Test Tractor, with the streaming reveal
+scripts (`$RV`) failing on a missing placeholder. It appeared only while the database was
+busy with these checks (12:20 to 12:45) and not in six runs after, in either time zone,
+and the page stayed usable (its dialog opened, closed and restored focus). Not caused by
+this release; a timing race between the machine page's streamed segment and the client.
+Open, to investigate: reproduce by slowing the page's queries.
+
+After the live run, `/auth/confirm` stopped showing the EN/AF switch (`PublicShell`
+`languageSwitch={false}`): the switch returns to the path without its query, which there
+drops the one-time token; the page speaks the invite's own language.

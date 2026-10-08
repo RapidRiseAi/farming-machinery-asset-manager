@@ -26,11 +26,17 @@ export function PublicShell({
   locale,
   children,
   width = "narrow",
+  languageSwitch = true,
 }: {
   locale: Lang;
   children: React.ReactNode;
   /** `narrow` for a form, `wide` for the landing page's content. */
   width?: "narrow" | "wide";
+  /**
+   * False on a page whose URL is the whole point, /auth/confirm: the switch returns to the
+   * path WITHOUT its query, which there would drop the one-time sign-in token.
+   */
+  languageSwitch?: boolean;
 }) {
   return (
     <div className="flex min-h-dvh flex-col bg-sand-50">
@@ -44,7 +50,9 @@ export function PublicShell({
         {/* The switcher shows the LANGUAGE choice, which is independent of tone, an
             af-pro reader must see AF selected, not "af-pro". `localeOf` is the same
             narrowing every other caller of this control uses. */}
-        <DeviceLanguageSwitcher current={localeOf(locale)} label={t("auth.language", locale)} />
+        {languageSwitch ? (
+          <DeviceLanguageSwitcher current={localeOf(locale)} label={t("auth.language", locale)} />
+        ) : null}
       </header>
 
       <main

@@ -110,6 +110,17 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   zero-data-retention routing and is for non-commercial use; after an upgrade set
   `ASSISTANT_TRANSCRIBE_ZDR=1`. A rollback past `240578d` is not clean once people have
   seen the AI notice: roll forward (docs/AI_USAGE.md, "Releasing and rolling back").
+- **Since `058ce7e` (2026-10-08) the assistant's AI reads the farm** (`src/lib/assistant/agent.ts`,
+  docs/AI_USAGE.md "The assistant reads the farm"). Every question that reaches it first
+  pays a refused `gpt-5.4-mini` call (about a second, R0) before the fallback answers: set
+  `LLM_MODEL=openai/gpt-4.1-mini` until Gateway credit is added. The notice now names farm
+  records, evidence `ai-on-default-v2` (`20261008090000` reset v1 acknowledgements): do not
+  roll the code back past it, roll forward. The click-through farm holds labelled
+  "Assistant eval" fuel, cost, fault and service rows for testing it.
+- **WhatsApp** is Codex's, uncommitted in the main checkout (docs/WHATSAPP.md: a text pilot,
+  not deployed, its migration local only). It reuses `runAssistantTurn`, so it gets the
+  same agent. Its tree was synced onto `058ce7e` with its work intact (safety stash
+  `codex-whatsapp-before-sync-2026-10-08`).
 - **Production configuration still missing (read from Vercel on 2026-10-05):** `SENTRY_DSN`
   (no error monitoring: `captureError` only logs), `AI_KEY_SECRET`, `AI_ALERT_EMAIL`,
   `SUPPORT_WEBHOOK_URL` and `SUPPORT_WEBHOOK_SECRET`. Push and notification email need an

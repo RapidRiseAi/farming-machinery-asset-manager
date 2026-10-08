@@ -33,7 +33,9 @@ export default async function ConfirmSignInPage({
   const app = (s: string) => s.replace("{app}", () => APP_NAME);
 
   return (
-    <PublicShell locale={locale}>
+    // No language switch here: it returns to the path without its query, which would drop
+    // the token. The page speaks the invite's own language (`lang`).
+    <PublicShell locale={locale} languageSwitch={false}>
       <div className="pt-4 sm:pt-10">
         <div className="rounded-2xl border border-sand-200 bg-surface p-6 shadow-xs">
           <h1 className="text-2xl font-bold tracking-tight text-ink">{app(t("authConfirm.title", locale))}</h1>
