@@ -25,7 +25,7 @@ type CreateInteraction = {
   farmId: string;
   userId: string;
   captureId?: string | null;
-  channel: AssistantChannel;
+  channel: AssistantChannel | "whatsapp";
   locale: AssistantLocale;
   tier: 0 | 1 | 2;
   input: string;

@@ -16,6 +16,7 @@ export type AssistantContext = {
   profile: Profile;
   farmId: string;
   role: Role;
+  sourceChannel?: "whatsapp";
   supabase: Awaited<ReturnType<typeof createClient>>;
 };
 
