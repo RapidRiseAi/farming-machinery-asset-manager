@@ -355,7 +355,7 @@
       "invoicingOff": "Not billed yet",
       "invoicingMinimum": "Smallest AI-only invoice (ex VAT)",
       "changeInvoicing": "Change invoicing",
-      "invoicingHelp": "From this day, farms' AI and voice use goes on their FleetWise invoice: every completed month rides on the farm's next plan invoice, and a farm with none coming that month (an annual plan, for one) gets an invoice of its own once its use reaches the smallest amount. Use before the date is never billed. Leave the date empty to stop billing; a date cannot be in the past.",
+      "invoicingHelp": "From this day, farms' AI and voice use is charged on their own billing date: a monthly farm's subscription invoice carries all its use up to the day before, and a farm without one that month (an annual plan, for one) gets an AI invoice on the same day of the month, once its use reaches the smallest amount. Use before the date is never billed. Leave the date empty to stop billing; a date cannot be in the past.",
       "invoicingStartsField": "Bill use from (leave empty to stop)",
       "invoicingMinimumField": "Smallest AI-only invoice, rand ex VAT",
       "healthTitle": "Needs attention",

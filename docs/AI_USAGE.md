@@ -241,20 +241,26 @@ that would replace the notice's evidence with an older text.
 `billing_settings.ai_billing_starts_on` on `/admin/ai` (a date cannot be in the past; empty
 stops it). From that day:
 
-- **Completed months only**, Johannesburg's calendar month, in arrears. The running month
-  is never billed, so the invoice shows what the owner's page showed for that month.
-- **On the plan invoice.** The nightly generator stamps every unbilled completed month onto
+- **On the farm's own billing date** (founder decision 2026-10-09, `20261011090000`), in
+  arrears: an invoice carries all unbilled use up to the end of the day before it is raised
+  (Johannesburg). The limit and the owner's page stay on calendar months; only collection
+  follows the billing date.
+- **On the plan invoice.** The nightly generator stamps all unbilled use before today onto
   the period invoice while it is a draft (`app.billing_attach_ai_usage`): rows by UPDATE ...
   RETURNING, so what is summed is what was stamped, and `ai_usage_guard` allows one stamp
   ever. The header carries the ex-VAT amount (`ai_usage_ex_vat_cents`); the derive trigger
   adds VAT at the invoice's own rate and adds it to the total after the discount (a
   discount is a price on the plan, not on the provider's bill). A line (sort 10) shows it.
 - **On its own** (kind `ai_usage`, `app.generate_ai_usage_invoices`, a cron step after the
-  period invoices and before the charges) for a farm no period invoice reaches this month:
-  an annual plan, a price on application, grace, a farm past its plan. Only once its
-  unbilled use reaches `ai_min_invoice_cents` (R50 ex VAT by default); less waits. Never a
-  trial or an unfinished sign-up: their use goes on the first invoice. A farm with no
-  subscription row has no card: its use stays on the ledger, visible by farm here.
+  period invoices and before the charges) for a farm no period invoice reaches: an annual
+  plan, a price on application, grace, a farm past its plan. Raised on the same day of the
+  month as the subscription (its anchor day, or the day it renews), once its unbilled use
+  reaches `ai_min_invoice_cents` (R50 ex VAT by default); less waits for the next billing
+  day. A billing day the run missed is caught up (use over 35 days old is billed on the next
+  run). At most one invoice carrying AI per farm per day: a hold settled after the morning
+  run waits. Never a trial or an unfinished sign-up: their use goes on the first invoice. A
+  farm with no subscription row has no card: its use stays on the ledger, visible by farm
+  here.
 - **Who used it** is frozen on the invoice (`ai_usage_people`: name, voice seconds, AI
   requests, ex-VAT amount) and printed on the invoice and receipt PDFs below the plan,
   discount and AI rows, which add up to the total. A voided invoice keeps its rows: voiding

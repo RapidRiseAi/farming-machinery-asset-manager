@@ -355,7 +355,7 @@
       "invoicingOff": "Nog nie gefaktureer nie",
       "invoicingMinimum": "Kleinste faktuur net vir AI (BTW uitgesluit)",
       "changeInvoicing": "Verander fakturering",
-      "invoicingHelp": "Vanaf hierdie dag gaan plase se AI- en stemgebruik op hul FleetWise-faktuur: elke voltooide maand ry saam op die plaas se volgende planfaktuur, en 'n plaas sonder een daardie maand (byvoorbeeld 'n jaarplan) kry sy eie faktuur sodra die gebruik die kleinste bedrag bereik. Gebruik voor die datum word nooit gefaktureer nie. Laat die datum leeg om fakturering te stop; 'n datum kan nie in die verlede wees nie.",
+      "invoicingHelp": "Vanaf hierdie dag word plase se AI- en stemgebruik op hul eie faktuurdatum gehef: 'n maandelikse plaas se intekeningfaktuur dra al sy gebruik tot die dag tevore, en 'n plaas sonder een daardie maand (byvoorbeeld 'n jaarplan) kry 'n AI-faktuur op dieselfde dag van die maand, sodra die gebruik die kleinste bedrag bereik. Gebruik voor die datum word nooit gefaktureer nie. Laat die datum leeg om fakturering te stop; 'n datum kan nie in die verlede wees nie.",
       "invoicingStartsField": "Faktureer gebruik vanaf (laat leeg om te stop)",
       "invoicingMinimumField": "Kleinste faktuur net vir AI, rand BTW uitgesluit",
       "healthTitle": "Moet aandag kry",

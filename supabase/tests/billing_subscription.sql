@@ -1304,7 +1304,8 @@ declare
     'billing_discount_cents','billing_take_promo_code','billing_check_promo_code',
     -- AI and voice use on the invoice (20261010090000). They stamp ledger rows and write
     -- invoices, so they are reached only through the generator and the cron wrapper.
-    'ai_billing_from','ai_unbilled_cents','billing_attach_ai_usage','generate_ai_usage_invoices'];
+    'ai_billing_from','ai_unbilled_cents','billing_attach_ai_usage','generate_ai_usage_invoices',
+    'ai_billing_cutoff'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',

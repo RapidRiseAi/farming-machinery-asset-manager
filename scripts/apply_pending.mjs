@@ -126,6 +126,11 @@ const PROBES = {
     "select to_regprocedure('public.cron_generate_ai_usage_invoices()') is not null" +
     " and pg_get_functiondef('app.enqueue_billing_renewal_notices()'::regprocedure) like '%ai_cents%'" +
     " and pg_get_functiondef('app.billing_derive_invoice_totals()'::regprocedure) like '%+ new.ai_usage_incl_cents%'",
+  // AI use billed on the farm's billing date: the cutoff helper, and the AI-only generator
+  // that waits for the farm's own day of the month.
+  "20261011090000":
+    "select to_regprocedure('app.ai_billing_cutoff()') is not null" +
+    " and pg_get_functiondef('app.generate_ai_usage_invoices()'::regprocedure) like '%v_cutoff - interval ''35 days''%'",
 };
 
 const url = readEnv("DATABASE_URL");
