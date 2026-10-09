@@ -155,6 +155,10 @@ const waitFor = async (label, expression, timeout = 15_000) => {
 };
 const text = () => evaluate("document.body?.innerText ?? \"\"");
 const has = (s) => `(document.body?.innerText ?? "").includes(${JSON.stringify(s)})`;
+/** The hands-free button's label at the 390px width this check runs at (assistant-client.tsx). */
+const HANDS_FREE = "Hands-free";
+/** A button with exactly this label is on the page (not merely the words, anywhere). */
+const hasButton = (label) => `[...document.querySelectorAll("button")].some((b) => b.innerText.trim() === ${JSON.stringify(label)})`;
 // Ready means the page has finished starting, and the button is enabled AND hydrated. The
 // server renders the button before React attaches to it, and on the live site that gap is
 // seconds; while <html> carries `data-booting` the page holds every tap on a control
@@ -190,7 +194,7 @@ await send("Runtime.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await send("Page.addScriptToEvaluateOnNewDocument", { source: readFileSync(join(ROOT, "scripts/voice_check_fake_azure.js"), "utf8") });
 await send("Page.navigate", { url: `${BASE}/assistant` });
-await waitFor("assistant page", has("Talk hands-free"), 45_000).catch(async (e) => {
+await waitFor("assistant page", hasButton(HANDS_FREE), 45_000).catch(async (e) => {
   console.log((await text()).slice(0, 800));
   throw e;
 });
@@ -242,7 +246,7 @@ await evaluate(`Object.assign(window.__voiceScript, ${JSON.stringify({
 if (await evaluate(has("Got it"))) {
   const opened = async () => (await events("token")).length + (await events("voice-session")).length;
   const before = await opened();
-  await click("Talk hands-free");
+  await click(HANDS_FREE);
   await sleep(600);
   check("the microphone waits for the AI notice", (await opened()) === before && (await evaluate(has("Got it"))));
   await click("Got it");
@@ -252,7 +256,7 @@ if (await evaluate(has("Got it"))) {
 }
 
 // == 1. A question: heard, answered aloud, then listening again; silence pauses ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("listening", has("Listening… just talk"), 15_000);
 check("tap starts listening hands-free", true);
 check("the screen is kept awake while hands-free runs", (await events("wakelock-request")).length === 1);
@@ -285,7 +289,7 @@ const listen1 = log.find((e) => e.ev === "stt-listening" && e.index === 1);
 const end1 = log.find((e) => e.ev === "stt-end-of-stream" && e.index === 1);
 check("nothing said for ~8 s pauses rather than holding the mic open", end1 && end1.t - listen1.t > 7000 && end1.t - listen1.t < 10500, `${end1 ? end1.t - listen1.t : "?"} ms`);
 check("the wake lock is let go when hands-free pauses", (await events("wakelock-release")).length === 1);
-check("the panel is gone and the typing row is back", !(await text()).includes("Stop hands-free") && (await text()).includes("Talk hands-free"));
+check("the panel is gone and the typing row is back", !(await text()).includes("Stop hands-free") && (await evaluate(hasButton(HANDS_FREE))));
 await screenshot("paused-no-speech");
 // Metering (docs/AI_USAGE.md): the token request says this app reports its use, and use is
 // reported within seconds of each turn, not left to the nightly sweep's full-session bill.
@@ -296,7 +300,7 @@ const reportedUse = reports.filter((r) => (r.audioMs ?? 0) > 0 || (r.characters 
 check("voice use is reported to the meter soon after a turn", reportedUse.length >= 1, `${reports.length} report(s)`);
 
 // == 2. A change: read back, wait for the tap, never save by voice ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("proposal read back", "window.__voiceLog.some((e) => e.ev === 'tts-ssml' && e.index === 1)", 20_000);
 log = await voiceLog();
 const readback = log.find((e) => e.ev === "tts-ssml" && e.index === 1);
@@ -317,13 +321,13 @@ check("the result is said aloud", log.find((e) => e.ev === "tts-ssml" && e.index
 await waitFor("listening after the result", "window.__voiceLog.some((e) => e.ev === 'stt-listening' && e.index === 3)", 10_000);
 await waitFor("listening label", has("Listening… just talk"), 5_000);
 await click("Stop hands-free");
-await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
+await waitFor("stopped", `!${has("Stop hands-free")} && ${hasButton(HANDS_FREE)}`, 8_000);
 log = await voiceLog();
 check("Stop closes the mic", log.some((e) => e.ev === "stt-end-of-stream" && e.index === 3));
 check("Stop leaves no stray notice", !(await text()).includes("Hands-free paused"));
 
 // == 3. A follow-up question answered by voice, with a talk-over and a retry ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("clarifying question spoken", "window.__voiceLog.some((e) => e.ev === 'audio-start' && e.ms >= 5000)", 20_000);
 check("the clarifying question is spoken", (await voiceLog()).some((e) => e.ev === "tts-ssml" && e.index === 3 && e.text.includes("hour meter reading")));
 check("the question card stays on screen while it is asked", (await text()).includes("What is the hour meter reading on the Test Tractor?"));
@@ -354,10 +358,10 @@ await waitFor("listening after the save", "window.__voiceLog.some((e) => e.ev ==
 await screenshot("listening-after-save");
 await waitFor("listening label", has("Listening… just talk"), 5_000);
 await click("Stop hands-free");
-await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
+await waitFor("stopped", `!${has("Stop hands-free")} && ${hasButton(HANDS_FREE)}`, 8_000);
 
 // == 4. Stop while the last words are still being finished ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("final words heard", "window.__voiceLog.some((e) => e.ev === 'stt-final' && e.index === 8)", 15_000);
 await waitFor("turn finishing", "window.__voiceLog.some((e) => e.ev === 'stt-end-of-stream' && e.index === 8)", 5_000);
 await waitFor("thinking label", has("Thinking…"), 2_000);
@@ -371,7 +375,7 @@ check("and nothing was sent", (await events("turn")).length === 4);
 await screenshot("stopped-while-thinking");
 
 // == 5. A garbled name is heard again, in the other language, before the turn is sent ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("the hard turn is sent", "window.__voiceLog.filter((e) => e.ev === 'turn').length >= 5", 25_000);
 log = await voiceLog();
 const reheard = log.find((e) => e.ev === "ws-open" && e.kind === "stt" && e.index === 10);
@@ -386,11 +390,11 @@ check("easy turns were sent at once, with no second hearing", easyTurns.every((t
 await waitFor("listening after the answer", "window.__voiceLog.some((e) => e.ev === 'stt-listening' && e.index === 11)", 12_000);
 await waitFor("listening label", has("Listening… just talk"), 5_000);
 await click("Stop hands-free");
-await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
+await waitFor("stopped", `!${has("Stop hands-free")} && ${hasButton(HANDS_FREE)}`, 8_000);
 
 // == 6. Beside a running engine Azure may never close the phrase: once no new words come,
 // the turn is sent anyway, without anyone pressing Done ==
-await click("Talk hands-free");
+await click(HANDS_FREE);
 await waitFor("the unclosed turn is sent on its own", "window.__voiceLog.filter((e) => e.ev === 'turn').length >= 6", 20_000);
 log = await voiceLog();
 const lastWord = log.find((e) => e.ev === "stt-last-word" && e.index === 12);
@@ -403,7 +407,7 @@ check("what was heard goes as the request", quietTurn?.body.input?.toLowerCase()
 await waitFor("listening after that answer", "window.__voiceLog.some((e) => e.ev === 'stt-listening' && e.index === 13)", 12_000);
 await waitFor("listening label", has("Listening… just talk"), 5_000);
 await click("Stop hands-free");
-await waitFor("stopped", `!${has("Stop hands-free")} && ${has("Talk hands-free")}`, 8_000);
+await waitFor("stopped", `!${has("Stop hands-free")} && ${hasButton(HANDS_FREE)}`, 8_000);
 
 log = await voiceLog();
 const held = log.filter((e) => e.ev === "wakelock-request").length;

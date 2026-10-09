@@ -47,3 +47,40 @@ export function configuredLlmFallbackModel(primary: string): string | null {
   const fallback = process.env.LLM_FALLBACK_MODEL?.trim() || "openai/gpt-4.1-mini";
   return fallback && fallback !== primary ? fallback : null;
 }
+
+/**
+ * Models the Gateway refused outright on our account, remembered for a while per server
+ * instance. Measured on 2026-10-09: every one of 16 answers in the ledger first tried the
+ * configured model, was refused ("Free tier users do not have access to this model"), and
+ * only then held budget again and called the fallback, a wasted round trip on every turn.
+ * Remembered, the turn goes straight to the fallback; forgotten after REFUSAL_MEMORY_MS so
+ * adding Gateway credit puts the configured model back without a deploy.
+ */
+const REFUSAL_MEMORY_MS = 10 * 60_000;
+const refusalStore = globalThis as typeof globalThis & { __fleetwiseRefusedModels?: Map<string, number> };
+const refusedModels = refusalStore.__fleetwiseRefusedModels ?? new Map<string, number>();
+refusalStore.__fleetwiseRefusedModels = refusedModels;
+
+export function rememberRefusedModel(model: string, now = Date.now()): void {
+  refusedModels.set(model, now + REFUSAL_MEMORY_MS);
+}
+
+export function recentlyRefused(model: string, now = Date.now()): boolean {
+  const until = refusedModels.get(model);
+  if (until === undefined) return false;
+  if (until <= now) {
+    refusedModels.delete(model);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The model a platform answer starts on: the configured one, or its fallback while the
+ * configured one is remembered as refused.
+ */
+export function platformAnswerModel(now = Date.now()): string {
+  const configured = configuredLlmModel();
+  const fallback = configuredLlmFallbackModel(configured);
+  return fallback && recentlyRefused(configured, now) ? fallback : configured;
+}

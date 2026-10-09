@@ -193,3 +193,26 @@ test("never turns a completed-service history question into a service write", ()
 test("uses the South African calendar date around UTC midnight", () => {
   assert.equal(todayInSouthAfrica(new Date("2026-08-13T22:30:00.000Z")), "2026-08-14");
 });
+
+test("asking to report a problem starts a report, even shaped as a question, in both languages", () => {
+  // Both answered "There are no matching open faults" in production before 2026-10-09.
+  for (const [said, locale] of [
+    ["Can I report a problem on my green John Deere?", "en-ZA"],
+    ["Could we log a fault on the bakkie?", "en-ZA"],
+    ["Kan ek 'n probleem op my groen John Deere rapporteer?", "af-ZA"],
+    // How the recogniser wrote "Can I report a problem" in production.
+    ["Kan hy rapport 'n probleem.", "en-ZA"],
+  ] as const) {
+    const draft = parseDeterministic(said, locale);
+    assert.equal(draft.intent, "report_fault", said);
+    // No symptom was said, so the app asks for it rather than saving the request as one.
+    assert.equal(draft.description, null, said);
+  }
+  // A symptom after a full stop is the description, not part of the machine.
+  assert.equal(
+    parseDeterministic("I want to report a problem on my Mercedes truck. It doesn't start.", "en-ZA").description,
+    "It doesn't start",
+  );
+  // Questions about faults are still reads.
+  assert.equal(parseDeterministic("Which faults are open on the tractor?", "en-ZA").intent, null);
+});

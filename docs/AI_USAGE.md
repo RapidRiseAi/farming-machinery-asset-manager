@@ -89,6 +89,38 @@ diesel last month?" got an apology. Now:
   model (only what the person can see). Acknowledgements are stamped `ai-on-default-v2`
   (`20261008090000`); anyone who acknowledged v1 sees the new notice once.
 
+## Faster and more accurate (2026-10-09)
+
+Measured from production's ledger and the assistant's own interactions first:
+
+- **English heard as Afrikaans.** In English mode the live recogniser identified the
+  language continuously between en-ZA and af-ZA, and Azure does not weigh the candidates'
+  order: "Can I report a problem on my green John Deere" came out as "Kyk na jou rapporte
+  probleem aan my groen jong deur", "spend on fuel" as "spuit on field". English mode now
+  listens in English only (`speech-plan.ts recognitionLocales`), at Azure's base rate;
+  Afrikaans keeps English beside it, because the runtime phrase list of machine names only
+  applies through the en-ZA model and Afrikaans speakers switch into English far more.
+- **The AI hearing is told the language.** The app sends `?locale=` with the clip; OpenAI
+  gets `language` (en/af) and a prompt written in that language instead of "English and
+  Afrikaans mixed". An older app sends none and is heard bilingually, as before.
+- **No waiting for the backup hearing.** The AI hearing measured 0.9 s median; the turn
+  used to wait for the second Azure pass as well (up to 6 s). Once the AI hearing is in, the
+  second pass gets 400 ms more, not the rest of its deadline.
+- **No refused model on every turn.** All 16 answers in the ledger first tried
+  `LLM_MODEL` (refused on the Gateway's free tier), then held budget again and called the
+  fallback. A refusal is now remembered per instance for ten minutes (`llm.ts`), so turns
+  start on the fallback, and adding credit brings the configured model back without a
+  deploy. The farm context and the farm's key load together, and the digest no longer waits
+  for the farm's name and the recent exchanges.
+- **"Can I report a problem?"** was read as a question about the fault list in both
+  languages ("There are no matching open faults"). A request to report now starts a report
+  (`cues.ts REPORT_REQUEST_CUE`), and a symptom after a full stop is kept as the
+  description.
+- **Fuel spend.** "How much did we spend on fuel this month?" was answered "nothing" while
+  the costs block showed R 7 862,40. The fuel summary now also carries diesel bought
+  (deliveries, roles that see costs), and the prompt says spend means the cost of fuel used,
+  never "nothing" when any block shows a cost, and both figures when two disagree.
+
 ## How it is built
 
 **The ledger** (`supabase/migrations/20261004100000_ai_usage_metering.sql`). Every paid
@@ -299,10 +331,9 @@ stops it). From that day:
 
 ## Founder actions
 
-- Decide when farms start paying for AI and voice use and set the date on `/admin/ai`
-  (Invoicing). Until then nothing is billed. Use before the date is never billed, so a date
-  in a new month, announced to owners beforehand, is the clean start. Check the smallest
-  AI-only invoice (R50 ex VAT) at the same time.
+- AI and voice use has been invoiced since 2026-10-09 (founder decision: start now, on the
+  farm's own billing date). The date and the smallest AI-only invoice (R50 ex VAT) are on
+  `/admin/ai`.
 
 - Sign the data agreements with Vercel, Microsoft and OpenAI before real users join.
 - Move Vercel to Pro (Hobby is non-commercial and refuses zero data retention; set

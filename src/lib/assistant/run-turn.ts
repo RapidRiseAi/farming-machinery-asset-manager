@@ -2,7 +2,7 @@ import "server-only";
 import { after, NextResponse } from "next/server";
 import type { AssistantContext } from "@/lib/assistant/context";
 import { loadAssistantMachines, loadOperatorWritableMachineIds } from "@/lib/assistant/data";
-import { AssistantAgentInvalidOutput, configuredLlmFallbackModel, configuredLlmModel } from "@/lib/assistant/llm";
+import { AssistantAgentInvalidOutput, configuredLlmFallbackModel, platformAnswerModel, rememberRefusedModel } from "@/lib/assistant/llm";
 import {
   FARM_AGENT_MAX_OUTPUT_TOKENS,
   FARM_AGENT_MAX_STEPS,
@@ -520,6 +520,12 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         // directly, on that key (never through the Gateway, which falls back to ours when a
         // key fails); otherwise the platform's model on ours. Resolved before the permit
         // row (which records the model) and the hold (which prices it).
+        // The farm as this person can see it is read alongside the key, not after it: both
+        // are database round trips, and the person is waiting on the slower of the two.
+        const agentContextLoad = loadFarmAgentContext(context, machines, body.input, todayInSouthAfrica()).then(
+          (value) => ({ ok: true as const, value }),
+          () => ({ ok: false as const }),
+        );
         const farmKey: FarmKey = await loadFarmOpenAiKey(context.farmId);
         if (farmKey.state === "unavailable") return { unavailable: json(aiUnavailable(body.locale), 503) };
         if (farmKey.state === "broken" && farmKey.fallback === "pause") {
@@ -528,19 +534,16 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         const ownKey = farmKey.state === "active" ? farmKey.key : null;
         let requestedModel: string;
         try {
-          requestedModel = ownKey ? ownKeyLlmModel() : configuredLlmModel();
+          requestedModel = ownKey ? ownKeyLlmModel() : platformAnswerModel();
         } catch {
           return { unavailable: json(aiUnavailable(body.locale), 503) };
         }
         const ownKeyModelId = ownKey ? openAiModelId(requestedModel) : null;
         // The farm as this person can see it, read before the hold so the hold is sized on
         // what will actually be sent (agent.ts). Nothing leaves the server until the permit.
-        let agentContext: FarmAgentContext;
-        try {
-          agentContext = await loadFarmAgentContext(context, machines, body.input, todayInSouthAfrica());
-        } catch {
-          return { unavailable: json(aiUnavailable(body.locale), 503) };
-        }
+        const loadedContext = await agentContextLoad;
+        if (!loadedContext.ok) return { unavailable: json(aiUnavailable(body.locale), 503) };
+        const agentContext: FarmAgentContext = loadedContext.value;
         // Every step re-sends the prompt and what earlier steps added, so the hold covers
         // the longest run: every step, the tool results, every step's output ceiling.
         const holdUnits = answerHoldUnits(
@@ -698,7 +701,11 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           }
           const modelRefused = !ownKey && (failure.code === "gateway_auth" || failure.code === "model_not_found");
           // Every call to a refused model fails until a person acts: tell the founder now.
-          if (modelRefused) after(() => reportModelRefused(attemptModel, error));
+          if (modelRefused) {
+            // Remembered, so the next turns start on the fallback (llm.ts platformAnswerModel).
+            rememberRefusedModel(attemptModel);
+            after(() => reportModelRefused(attemptModel, error));
+          }
           return modelRefused;
         };
 

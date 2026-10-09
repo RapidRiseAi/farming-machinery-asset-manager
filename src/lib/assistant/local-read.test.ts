@@ -453,3 +453,11 @@ test("a service question is answered about the machine it names, in both languag
   assert.ok(fleet.message.includes("Rooi Massey"), fleet.message);
   assert.equal(fleet.machineId, undefined);
 });
+
+test("a request to report a fault is never answered with the fault list", () => {
+  for (const said of ["Can I report a problem on my green John Deere?", "Kan ek 'n probleem op my groen John Deere rapporteer?"]) {
+    assert.equal(parseLocalReadRequest(said), null, said);
+  }
+  // Asking what is wrong is still a read.
+  assert.equal(parseLocalReadRequest("Show me the open faults")?.kind, "faults");
+});

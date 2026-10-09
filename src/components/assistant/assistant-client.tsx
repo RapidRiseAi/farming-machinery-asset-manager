@@ -21,6 +21,7 @@ import {
 } from "./offline-voice";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,12 @@ const NO_MACHINE_NAMED = 0.45;
 /** Azure re-hearing a short clip took about 1 s in testing; the AI models 2.5 to 6.5 s. */
 const SECOND_HEARING_DEADLINE_MS = 6_000;
 const AI_HEARING_DEADLINE_MS = 6_500;
+/**
+ * Once the AI hearing is in, the second pass is only an alternative for the server to
+ * weigh, so it gets this much longer rather than the rest of its deadline. The ledger
+ * measured the AI hearing at 0.9 s median (2026-10-09); the turn used to wait for both.
+ */
+const SECOND_HEARING_GRACE_MS = 400;
 
 function responseError(value: unknown, locale: Lang): AssistantTurnResponse {
   if (value && typeof value === "object" && "kind" in value) return value as AssistantTurnResponse;
@@ -1034,7 +1041,8 @@ export function AssistantClient({
 
   const fetchAiHearings = async (clip: File, signal: AbortSignal): Promise<string[]> => {
     try {
-      const response = await fetch("/api/assistant/transcribe", {
+      // The chosen language goes with the clip, so an English speaker is heard in English.
+      const response = await fetch(`/api/assistant/transcribe?locale=${encodeURIComponent(speechLanguage)}`, {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
@@ -1077,22 +1085,21 @@ export function AssistantClient({
     const controller = new AbortController();
     const deadline = <T,>(work: Promise<T>, ms: number, fallback: T) =>
       Promise.race([work, new Promise<T>((resolve) => window.setTimeout(() => resolve(fallback), ms))]);
-    const [second, ai] = await Promise.all([
-      deadline(
-        getSpeech()
-          .recognizeFile(clip, {
-            locale: otherLocale,
-            autoDetectLocales: [otherLocale],
-            phrases: otherLocale === "en-ZA" ? machineVocabulary : undefined,
-          })
-          .catch(() => ""),
-        SECOND_HEARING_DEADLINE_MS,
-        "",
-      ),
-      aiHelpActive
-        ? deadline(fetchAiHearings(clip, controller.signal), AI_HEARING_DEADLINE_MS, [] as string[])
-        : Promise.resolve([] as string[]),
-    ]);
+    const secondWork = deadline(
+      getSpeech()
+        .recognizeFile(clip, {
+          locale: otherLocale,
+          autoDetectLocales: [otherLocale],
+          phrases: otherLocale === "en-ZA" ? machineVocabulary : undefined,
+        })
+        .catch(() => ""),
+      SECOND_HEARING_DEADLINE_MS,
+      "",
+    );
+    const ai = aiHelpActive
+      ? await deadline(fetchAiHearings(clip, controller.signal), AI_HEARING_DEADLINE_MS, [] as string[])
+      : [];
+    const second = ai.length ? await deadline(secondWork, SECOND_HEARING_GRACE_MS, "") : await secondWork;
     controller.abort();
     if (operation !== operationRef.current) return plain;
 
@@ -1724,15 +1731,53 @@ export function AssistantClient({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("assistant.title", locale)}</h1>
-        {infoButton ? (
-          <div className="mt-1">{infoButton}</div>
-        ) : (
-          <p className="mt-1 text-sm leading-6 text-sand-600">{t("assistant.lead", locale)}</p>
-        )}
+      {/* The language sits beside the title, as a setting of the whole screen, rather than
+          as a full-width row between the title and the conversation: it is chosen once and
+          rarely changed, and the row it took was the first thing on the page. */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-sand-900">{t("assistant.title", locale)}</h1>
+          {infoButton ? (
+            <div className="mt-1">{infoButton}</div>
+          ) : (
+            <p className="mt-1 text-sm leading-6 text-sand-600">{t("assistant.lead", locale)}</p>
+          )}
+        </div>
+        <div
+          role="group"
+          aria-label={t("assistant.languageLabel", locale)}
+          aria-describedby="assistant-language-hint"
+          className="inline-flex shrink-0 rounded-xl border border-sand-200 bg-sand-50 p-1"
+        >
+          {(["en-ZA", "af-ZA"] as const).map((language) => (
+            <button
+              key={language}
+              type="button"
+              disabled={isListening || isBusy || voiceMode}
+              aria-pressed={speechLanguage === language}
+              onClick={() => {
+                operationRef.current += 1;
+                setSpeechLanguage(language);
+                setTurn(null);
+                setCompletion(null);
+                setError(null);
+                setPendingTranscript(null);
+                setTranscript("");
+                transcriptRef.current = "";
+                lastRequestRef.current = null;
+                spokenClarificationRef.current = null;
+              }}
+              className={cn(
+                "focus-ring min-h-[48px] rounded-lg px-4 text-sm font-semibold transition-colors sm:min-h-[40px]",
+                speechLanguage === language ? "bg-surface text-brand-ink shadow-xs" : "text-sand-600 hover:bg-white/70",
+              )}
+            >
+              {language === "af-ZA" ? t("assistant.languageShortAf", locale) : t("assistant.languageShortEn", locale)}
+            </button>
+          ))}
+        </div>
+        <p id="assistant-language-hint" className="sr-only">{t("assistant.languageHint", locale)}</p>
       </header>
-
       {/* AI help is on by default, but nobody is heard by an AI before they have been told
           (POPIA s18; the server refuses until this is dismissed). Shown once, first. For
           someone who switched AI off it says so, and switching on is its own button. A
@@ -1772,38 +1817,6 @@ export function AssistantClient({
           )}
         </Card>
       ) : null}
-
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-sand-200 bg-sand-50 p-1" aria-label={t("assistant.languageLabel", locale)}>
-        {(["af-ZA", "en-ZA"] as const).map((language) => (
-          <button
-            key={language}
-            type="button"
-            disabled={isListening || isBusy || voiceMode}
-            aria-pressed={speechLanguage === language}
-            onClick={() => {
-              operationRef.current += 1;
-              setSpeechLanguage(language);
-              setTurn(null);
-              setCompletion(null);
-              setError(null);
-              setPendingTranscript(null);
-              setTranscript("");
-              transcriptRef.current = "";
-              lastRequestRef.current = null;
-              spokenClarificationRef.current = null;
-            }}
-            className={cn(
-              "focus-ring min-h-[48px] rounded-lg px-3 text-sm font-semibold transition-colors",
-              speechLanguage === language ? "bg-surface text-brand-ink shadow-xs" : "text-sand-600 hover:bg-white/70",
-            )}
-          >
-            {language === "af-ZA" ? t("assistant.languageAf", locale) : t("assistant.languageEn", locale)}
-          </button>
-        ))}
-      </div>
-      {/* Secondary help. Hidden on a phone, where 40px of explanation costs more
-          than it gives: the toggle already reads "Afrikaans · Willem". */}
-      <p className="-mt-3 hidden text-xs leading-5 text-sand-500 sm:block">{t("assistant.languageHint", locale)}</p>
 
       {offlineCaptures.length > 0 ? (
         <Card className="border-callout-warn-edge bg-callout-warn-bg/50">
@@ -2074,55 +2087,48 @@ export function AssistantClient({
       ) : null}
 
       {/* == Composer =======================================================
-          Was a titled form, a field labelled "Request" and a button reading
-          "Interpret request", which is why it read as paperwork rather than an
-          assistant. It is now one composer at the foot of the column with the
-          microphone inside it: the arrangement every assistant people already
-          use has trained them on, so none of it needs explaining.
+          One composer at the foot of the column, in three tiers of weight: the two
+          ways to TALK first, side by side at the same size (speaking is the everyday
+          way, hands-free the eyes-up one, and a farmer chooses between them, so
+          neither hides behind the other); typing beneath them, quieter, one line with
+          its send inside the box. The explanations that used to crowd this card live
+          in the "Voice and AI help" section under it.
 
-          The mic stays a filled 56px circle. This is a voice-first product for
-          someone in a cab wearing gloves, and the documented touch floor is
-          48px; shrinking it to a neat inline glyph would be a regression
-          dressed as tidiness. */}
-      {/* Not sticky. Pinned to the viewport it sat ON TOP of the thread and hid
-          exactly the newest exchanges the thread scrolls into view. In flow, the
-          thread's own scroll region ends directly above it, the arrangement a
-          chat uses, and nothing is covered. */}
+          Every control here is at least 48px on a phone: this is for someone in a cab
+          wearing gloves. Not sticky: pinned to the viewport it sat on top of the
+          thread and hid exactly the newest exchanges. */}
       <Card className="shadow-soft">
         {voiceMode ? (
           /* == Hands-free =====================================================
-             Replaces the typing row while it runs: one status line, what was
+             Replaces the composer while it runs: one large status mark, what was
              heard, and the controls a gloved thumb needs. The confirmation card
              above it is untouched, and its tap is still the only way to save. */
-          <div className="flex flex-col gap-4">
-            <div aria-live="polite" aria-atomic="true" className="flex items-center gap-3">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div aria-live="polite" aria-atomic="true" className="flex flex-col items-center gap-3">
               <span
                 aria-hidden
                 className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl transition-colors",
+                  "flex h-20 w-20 items-center justify-center rounded-full text-3xl transition-colors",
                   phase === "listening"
-                    ? "animate-pulse bg-status-overdue text-white"
+                    ? "animate-pulse bg-status-overdue text-white ring-8 ring-status-overdue/15"
                     : phase === "speaking"
-                      ? "bg-brand-600 text-white"
+                      ? "bg-brand-600 text-white ring-8 ring-brand-600/15"
                       : "bg-surface-sunken text-ink-muted",
                 )}
               >
                 {phase === "speaking" ? <HeadsetIcon /> : <MicIcon />}
               </span>
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-ink">
-                  {voicePhaseLabel(phase, turn?.kind === "confirm", locale)}
-                </p>
-                <p className="text-xs text-ink-muted">{aiHelpActive ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}</p>
-              </div>
+              <p className="text-lg font-semibold text-ink">
+                {voicePhaseLabel(phase, turn?.kind === "confirm", locale)}
+              </p>
             </div>
             {transcript ? (
-              <p className="whitespace-pre-wrap rounded-xl bg-surface-sunken/60 px-4 py-3 text-base leading-7 text-ink">
+              <p className="w-full whitespace-pre-wrap rounded-xl bg-surface-sunken/60 px-4 py-3 text-left text-base leading-7 text-ink">
                 <span className="sr-only">{t("assistant.voice.heard", locale)}: </span>
                 {transcript}
               </p>
             ) : null}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <div className="flex w-full flex-col-reverse gap-2 sm:flex-row [&>*]:sm:flex-1">
               <Button size="lg" variant="secondary" onClick={() => void stopVoiceMode()}>
                 <StopIcon aria-hidden />
                 {t("assistant.voice.stop", locale)}
@@ -2145,19 +2151,17 @@ export function AssistantClient({
             <div
               aria-live="polite"
               aria-atomic="true"
-              className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+              className="mb-4 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
             >
               <span className="text-sm font-semibold text-ink">{phaseLabel(phase, locale)}</span>
-              <span className="text-xs text-ink-muted">
-                {!online ? t("assistant.offlinePrivacy", locale) : aiHelpActive ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}
-              </span>
+              {!online ? <span className="text-xs text-ink-muted">{t("assistant.offlinePrivacy", locale)}</span> : null}
               {voiceNotice ? <span className="basis-full text-sm text-ink">{voiceNotice}</span> : null}
             </div>
 
             {/* What was heard, editable before it is acted on. This is the product's
                 real safeguard and it stays exactly where the sending happens. */}
             {transcript ? (
-              <div className="mb-3 border-b border-edge-soft pb-3">
+              <div className="mb-4 border-b border-edge-soft pb-4">
                 <Field
                   label={t("assistant.transcriptLabel", locale)}
                   htmlFor="assistant-transcript"
@@ -2184,14 +2188,47 @@ export function AssistantClient({
               </div>
             ) : null}
 
-            <div className="flex items-end gap-2">
+            {/* The two ways to talk. */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                aria-pressed={isListening}
+                disabled={isBusy}
+                onClick={() => void (isListening ? stopListening() : startListening())}
+                className={cn(
+                  "focus-ring flex min-h-[64px] items-center justify-center gap-2.5 rounded-2xl px-3 text-base font-semibold text-white shadow-xs transition-colors",
+                  isListening
+                    ? "animate-pulse bg-status-overdue hover:bg-danger-600"
+                    : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
+                  isBusy && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span aria-hidden className="text-2xl">{isListening ? <StopIcon /> : <MicIcon />}</span>
+                <span>{isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}</span>
+              </button>
+              <button
+                type="button"
+                disabled={!online || isBusy || isListening}
+                onClick={startVoiceMode}
+                className="focus-ring flex min-h-[64px] items-center justify-center gap-2.5 rounded-2xl border border-sand-300 bg-surface px-3 text-base font-semibold text-sand-800 shadow-xs transition-colors hover:bg-sand-50 active:bg-sand-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span aria-hidden className="text-2xl text-brand-ink"><HeadsetIcon /></span>
+                {/* "Talk hands-free" wrapped onto two lines at half a phone's width. */}
+                <span className="sm:hidden">{t("assistant.voice.startShort", locale)}</span>
+                <span className="hidden sm:inline">{t("assistant.voice.start", locale)}</span>
+              </button>
+            </div>
+            <p className="mt-2 text-center text-xs leading-5 text-ink-muted">{t("assistant.voice.startHint", locale)}</p>
+
+            {/* Typing: one line that grows, Enter to send, the send button inside the box. */}
+            <div className="relative mt-4">
               <label htmlFor="assistant-typed" className="sr-only">
                 {t("assistant.typeLabel", locale)}
               </label>
               <Textarea
                 id="assistant-typed"
-                rows={2}
-                className="flex-1"
+                rows={1}
+                className="min-h-[56px] resize-none rounded-2xl py-3.5 pl-4 pr-16 leading-6"
                 value={typedInput}
                 placeholder={t("assistant.typePlaceholder", locale)}
                 disabled={isBusy || isListening}
@@ -2213,35 +2250,13 @@ export function AssistantClient({
                   }
                 }}
               />
-
-              <button
-                type="button"
-                aria-label={isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-                aria-pressed={isListening}
-                disabled={isBusy}
-                onClick={() => void (isListening ? stopListening() : startListening())}
-                className={cn(
-                  // Round and icon-only where the row is tight; from sm up it says what it does.
-                  "focus-ring flex h-14 w-14 shrink-0 items-center justify-center gap-2 rounded-full text-2xl text-white shadow-xs transition-colors sm:w-auto sm:px-5",
-                  isListening
-                    ? "animate-pulse bg-status-overdue hover:bg-danger-600"
-                    : "bg-brand-600 hover:bg-brand-700 active:bg-brand-800",
-                  isBusy && "cursor-not-allowed opacity-50",
-                )}
-              >
-                {isListening ? <StopIcon /> : <MicIcon />}
-                <span className="hidden text-sm font-semibold sm:inline">
-                  {isListening ? t("assistant.tapToStop", locale) : t("assistant.tapToSpeak", locale)}
-                </span>
-              </button>
-
               <button
                 type="button"
                 aria-label={t("assistant.sendTranscript", locale)}
                 disabled={!typedInput.trim() || (phase !== "idle" && phase !== "error")}
                 onClick={() => void submitTyped()}
                 className={cn(
-                  "focus-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl transition-colors",
+                  "focus-ring absolute bottom-1 right-1 flex h-12 w-12 items-center justify-center rounded-xl text-xl transition-colors",
                   typedInput.trim() && (phase === "idle" || phase === "error")
                     ? "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800"
                     : "bg-surface-sunken text-ink-subtle",
@@ -2251,69 +2266,75 @@ export function AssistantClient({
                 <SendIcon />
               </button>
             </div>
-
-            {/* The way in to hands-free: secondary, because the microphone beside the
-                box is still the everyday way to talk. */}
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Button size="sm" variant="secondary" disabled={!online || isBusy || isListening} onClick={startVoiceMode}>
-                <HeadsetIcon aria-hidden className="text-base" />
-                {t("assistant.voice.start", locale)}
-              </Button>
-              <p className="text-xs leading-5 text-ink-muted">{t("assistant.voice.startHint", locale)}</p>
-            </div>
-
-            {infoButton ? null : <p className="mt-2 text-xs leading-5 text-ink-muted">{t("assistant.typeHint", locale)}</p>}
           </>
         )}
-
-        {/* Always present, not folded into the starters: the ordinary screens
-            are the fallback when the assistant cannot help, and withdrawing AI
-            permission has to stay reachable once a conversation has begun -
-            which is precisely when somebody might want to withdraw it. */}
-        <div className="mt-4 border-t border-edge-soft pt-3">
-          <p className="text-xs leading-5 text-ink-muted">
-            {t("assistant.manualFallback", locale)}{" "}
-            <Link href="/faults" className="font-semibold text-brand-ink underline">
-              {t("nav.faults", locale)}
-            </Link>{" "}
-            ·{" "}
-            <Link href="/machines" className="font-semibold text-brand-ink underline">
-              {t("nav.machines", locale)}
-            </Link>
-          </p>
-          {!farmAiEnabled ? (
-            // The owner switched AI off for the farm: nothing for this person to switch.
-            <p className="mt-3 text-xs leading-5 text-ink-muted">{t("assistant.aiHelpFarmOff", locale)}</p>
-          ) : aiConsent ? (
-            <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-xs leading-5 text-ink-muted">{t("assistant.audioConsentActive", locale)}</p>
-              <Button
-                size="sm"
-                variant="ghost"
-                loading={consentUpdating}
-                disabled={isBusy && !consentUpdating}
-                onClick={() => void updateAiConsent(false)}
-              >
-                {t("assistant.consentWithdraw", locale)}
-              </Button>
-            </div>
-          ) : noticeSeen ? (
-            // Switched off: switching back on stays one calm tap away, never a nag.
-            <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-xs leading-5 text-ink-muted">{t("assistant.aiHelpOffBody", locale)}</p>
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={consentUpdating}
-                disabled={isBusy && !consentUpdating}
-                onClick={() => void updateAiConsent(true)}
-              >
-                {t("assistant.consentAllow", locale)}
-              </Button>
-            </div>
-          ) : null}
-        </div>
       </Card>
+
+      {/* == The small print ================================================
+          Always present, never folded into the starters: the ordinary screens are the
+          fallback when the assistant cannot help, and AI permission has to stay one tap
+          away once a conversation has begun, which is when somebody might withdraw it.
+          The privacy wording is the same as before, now under one heading instead of
+          spread through the composer. The notice that must come FIRST (POPIA s18) is
+          the card at the top of the page, not this. */}
+      <div className="flex flex-col gap-3">
+        <p className="px-1 text-xs leading-5 text-ink-muted">
+          {t("assistant.manualFallback", locale)}{" "}
+          <Link href="/faults" className="font-semibold text-brand-ink underline">
+            {t("nav.faults", locale)}
+          </Link>{" "}
+          ·{" "}
+          <Link href="/machines" className="font-semibold text-brand-ink underline">
+            {t("nav.machines", locale)}
+          </Link>
+        </p>
+        <Disclosure
+          summary={t("assistant.aboutTitle", locale)}
+          meta={
+            !farmAiEnabled
+              ? t("assistant.aiStatusFarmOff", locale)
+              : aiConsent
+                ? t("assistant.aiStatusOn", locale)
+                : t("assistant.aiStatusOff", locale)
+          }
+        >
+          <div className="space-y-3 px-4 pb-4 text-sm leading-6 text-ink-muted sm:px-5 sm:pb-5">
+            <p>{!online ? t("assistant.offlinePrivacy", locale) : aiHelpActive ? t("assistant.audioPrivacyAi", locale) : t("assistant.audioPrivacy", locale)}</p>
+            {infoButton ? null : <p>{t("assistant.typeHint", locale)}</p>}
+            {!farmAiEnabled ? (
+              // The owner switched AI off for the farm: nothing for this person to switch.
+              <p>{t("assistant.aiHelpFarmOff", locale)}</p>
+            ) : aiConsent ? (
+              <div className="flex flex-col items-start gap-2">
+                <p>{t("assistant.audioConsentActive", locale)}</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={consentUpdating}
+                  disabled={isBusy && !consentUpdating}
+                  onClick={() => void updateAiConsent(false)}
+                >
+                  {t("assistant.consentWithdraw", locale)}
+                </Button>
+              </div>
+            ) : noticeSeen ? (
+              // Switched off: switching back on stays one calm tap away, never a nag.
+              <div className="flex flex-col items-start gap-2">
+                <p>{t("assistant.aiHelpOffBody", locale)}</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={consentUpdating}
+                  disabled={isBusy && !consentUpdating}
+                  onClick={() => void updateAiConsent(true)}
+                >
+                  {t("assistant.consentAllow", locale)}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </Disclosure>
+      </div>
     </div>
   );
 }

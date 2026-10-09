@@ -24,3 +24,13 @@ export const SERVICE_DUE_CUE =
  */
 export const FLEET_SCOPE_CUE =
   /\b(machine|machines|asset|assets|fleet|masjien|masjiene|bate|bates|vloot)\b/;
+
+/**
+ * Asking to report something, question-shaped or not: "can I report a problem on the
+ * green John Deere", "I need to log a fault", "kan ek 'n probleem rapporteer", and the way
+ * the recogniser has written "Can I report a problem" in production ("Kan hy rapport 'n
+ * probleem"). A question about faults is a read; a question asking to REPORT one is a
+ * report, and before 2026-10-09 both of these answered "There are no matching open faults".
+ */
+export const REPORT_REQUEST_CUE =
+  /\b(?:(?:can|could|may)\s+(?:i|we|you)\s+(?:please\s+)?(?:report|log|raise|record)|(?:want|need|would like|wanna)\s+to\s+(?:report|log|raise)|help\s+me\s+(?:report|log)|(?:kan|mag|kon)\s+(?:ek|ons|jy|hy)\b.*\b(?:rap?porteer|rapport|aanmeld|meld)|ek\s+wil\b.*\b(?:rap?porteer|rapport|aanmeld|meld))\b/;

@@ -4869,3 +4869,48 @@ burning an invoice number; the notice payload; a future start). Mutation-checked
 AI out of the total and invoicing a trial each fail it. All 36 SQL suites pass
 (`billing_subscription.sql` registers the new functions in its lockdown sweep), 570 unit
 tests. Sample PDFs rendered in both languages and read.
+
+## 2026-10-11 - AI billed on the billing date and switched on; voice heard in the chosen language; the assistant redesigned
+
+### AI billing
+
+Founder decision: start now, and charge AI use on the same date as the subscription.
+`20261011090000` makes a period invoice carry all unbilled use up to the day before it is
+raised (not completed calendar months), and gives a farm no period invoice reaches its
+AI-only invoice on its own day of the month; a missed day is caught up after 35 days; never
+two invoices carrying AI in a day. `ai_usage_invoicing.sql` rewritten around billing days
+(mutation-checked), all 36 suites pass. Applied and pushed (7f3e277), then
+`ai_billing_starts_on` set to 2026-10-09 in production: Rapid Rise AI's 11 October invoice
+is the first to carry AI use; Rooikoppies Plaas (monthly, next plan invoice 6 February
+2027) gets an AI-only invoice on the 6th when its use since the last bill reaches R50.
+
+### Faster, more accurate AI and voice
+
+Found in production's ledger and interactions, then fixed (docs/AI_USAGE.md "Faster and
+more accurate"): English mode's live recogniser identified the language continuously and
+heard South African English as Afrikaans (now English only; Afrikaans keeps both); the AI
+hearing now gets the chosen language and a prompt in it; the turn no longer waits up to 6 s
+for the backup Azure pass once the AI hearing (0.9 s median) is in; every AI answer first
+tried the refused `LLM_MODEL` (16 of 16) and now remembers the refusal for ten minutes; the
+farm context loads alongside the key and the digest; "Can I report a problem on my green
+John Deere?" listed faults in both languages and now starts a report; fuel spend was
+answered "nothing" beside a R 7 862,40 cost block, and the fuel summary now carries diesel
+bought as well, with a rule for which figure "spend" means.
+
+Measured on a local production build against the live database: this month's fuel spend
+R 7 862,40 and last month's R 49 691 (both previously wrong), litres by month right,
+diesel bought answered, the Afrikaans question right, the report request asks what the
+problem is; model time 1.7 s to 1.8 s a question (3.7 s with a tool step), and after the
+first refusal every turn went straight to the fallback.
+
+### The assistant screen
+
+The language moves into the header as a compact English | Afrikaans toggle (the voice
+names meant nothing and the hint "listens for both" was no longer true for English). The
+composer is two equal talk buttons (Tap to speak, primary; Hands-free) over a one-line type
+box with the send inside it; the privacy text, AI status and Withdraw move into a "Voice and
+AI help" disclosure under it. Hands-free is a centred status mark with full-width controls.
+Every control stays at least 48px on a phone. `voice_check.mjs` now finds the hands-free
+button by its phone label and as a button (the pause notice starts with the same word):
+44/44 against the local build. 574 unit tests, lint, typecheck, design lint, i18n parity
+and keys, dashes and error coverage pass; screenshots read at 390px and 1280px.

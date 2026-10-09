@@ -96,11 +96,10 @@ migration number (`0481`), commit (`bcbd39c`) or feature code (`F14`). Per-featu
 lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.md).
 
 ### Open, founder only
-- **AI help is on by default and metered; invoicing it is built (release B,
-  `20261010090000`) and OFF until a start date is set on `/admin/ai`** (docs/AI_USAGE.md).
-  Before real users join: sign the data agreements with Vercel, Microsoft and OpenAI (the
-  basis is service necessity, so the transfer rests on them); choose the date farms start
-  paying for AI use (announce it to owners first; use before it is never billed); set `AI_KEY_SECRET` (32 random bytes, base64, Sensitive) before any farm
+- **AI help is on by default, metered, and invoiced since 2026-10-09** on each farm's own
+  billing date (`20261010090000`, `20261011090000`; start date on `/admin/ai`;
+  docs/AI_USAGE.md). Before real users join: sign the data agreements with Vercel, Microsoft
+  and OpenAI (the basis is service necessity, so the transfer rests on them); set `AI_KEY_SECRET` (32 random bytes, base64, Sensitive) before any farm
   links a key, the SAME value on every deployment that shares the database (a Preview with
   its own refuses every farm's key); optionally `AI_ALERT_EMAIL`. The AI Gateway is on the
   free tier (5 requests a minute per model, $4.85 of free credit on 2026-10-05): add credits.

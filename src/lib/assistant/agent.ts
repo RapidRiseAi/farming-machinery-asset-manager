@@ -290,7 +290,7 @@ export function farmAgentSystemPrompt(input: {
     "Answer only from the farm data below and from tool results. Never invent a machine, number, date, person or record, and never estimate a figure the data does not give. If the data does not answer the question, call a tool; if nothing answers it, say plainly that FleetWise has no record of it.",
     "Use the numbers as given: they are already added up. Every block of data states the period it covers; name the period you answer for. If the question is about another period, or needs a breakdown a block does not give (per machine for one month, say), call the tool for exactly that instead of working it out. Never report zero unless the data shows zero. Readings are hours (h) or kilometres (km).",
     input.costsVisible
-      ? "Money is in rand, ex VAT; write it like R 12 345,60."
+      ? "Money is in rand, ex VAT; write it like R 12 345,60. What the farm spent on fuel is the fuel cost of the diesel its machines used (the fuel block's cost, which is the costs block's fuel column); diesel BOUGHT into the tanks is dieselBought, which differs by what the tanks gained or lost. For \"spend on fuel\" give the cost of fuel used, and add what was bought when it differs. If any block shows a fuel cost for the period, never say nothing was spent; if two blocks disagree, give both and say which is which."
       : "This person's role may not see money on this farm: never give or guess a rand amount; litres, hours and counts are fine. If they ask for costs, say their role cannot see costs.",
     "Litres per hour and per 100 km come only from fuel draws with meter readings, and each figure covers the whole period of its block: never split it into months or say it stayed the same. To compare two periods' rates, call fuel_summary once per period. If there is no such figure, say there are not enough metered draws.",
     "To report a fault, save a meter reading, save a completed service or record diesel put into a machine, call the matching propose tool with what the person said, passing null for anything they did not say: call it even when details are missing, and never ask for them yourself, because the app asks with the right input. The person then confirms on screen; never say anything was saved, sent, changed or deleted.",
@@ -365,14 +365,20 @@ export async function loadFarmAgentContext(
   input: string,
   today: string,
 ): Promise<FarmAgentContext> {
-  const [farm, costsVisible, history] = await Promise.all([
-    context.supabase.from("farms").select("name").eq("id", context.farmId).maybeSingle(),
-    canViewFarmCosts(context.supabase, context.farmId),
-    recentExchanges(context).catch(() => []),
-  ]);
+  // The digest needs only the cost permission, so it starts as soon as that is known
+  // instead of after the farm's name and the recent exchanges as well.
+  // Promise.resolve starts the query now: a Supabase builder only runs once something
+  // calls its then().
+  const farmRead = Promise.resolve(context.supabase.from("farms").select("name").eq("id", context.farmId).maybeSingle());
+  const historyRead = recentExchanges(context).catch(() => []);
+  const costsVisible = await canViewFarmCosts(context.supabase, context.farmId);
   const scope: FarmDataScope = { supabase: context.supabase, farmId: context.farmId, role: context.role, machines, costsVisible };
   const topics = detectFarmTopics(input);
-  const digest = await prefetchDigest(scope, topics, today, questionPeriod(input, today)).catch(() => null);
+  const [farm, history, digest] = await Promise.all([
+    farmRead,
+    historyRead,
+    prefetchDigest(scope, topics, today, questionPeriod(input, today)).catch(() => null),
+  ]);
   return {
     scope,
     farmName: (farm.data as { name?: string } | null)?.name ?? "this farm",
@@ -387,7 +393,9 @@ export async function loadFarmAgentContext(
 /** The characters of everything sent before the first tool result, for the budget hold. */
 export function farmAgentPromptChars(agent: FarmAgentContext, input: string): number {
   const history = agent.history.reduce((sum, exchange) => sum + exchange.user.length + exchange.assistant.length, 0);
-  return 3_000 + agent.snapshot.length + (agent.digest?.length ?? 0) + history + input.length + FARM_AGENT_TOOLS_CHARS;
+  // The rules themselves measured 2 983 characters on 2026-10-09; 3 500 keeps the hold above
+  // them as they grow (a hold is an upper bound: the farm is billed what was used).
+  return 3_500 + agent.snapshot.length + (agent.digest?.length ?? 0) + history + input.length + FARM_AGENT_TOOLS_CHARS;
 }
 
 export async function runFarmAgent(input: {

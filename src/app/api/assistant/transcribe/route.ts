@@ -89,6 +89,10 @@ export async function POST(request: Request) {
   const audio = new Uint8Array(await request.arrayBuffer());
   if (audio.byteLength > MAX_AUDIO_BYTES) return fail("too_large", 413);
   const durationMs = strictPcmDurationMs(audio);
+  // The language the person chose to speak (the app sends it from 2026-10-09; an older
+  // app sends none and is heard bilingually, as before).
+  const localeParam = new URL(request.url).searchParams.get("locale");
+  const locale = localeParam === "en-ZA" || localeParam === "af-ZA" ? localeParam : undefined;
   if (durationMs === null || durationMs < 200) return fail("bad_audio", 400);
 
   let terms: string[];
@@ -116,7 +120,7 @@ export async function POST(request: Request) {
   const pauseIfKeyFails = farmKey.state === "active" && farmKey.fallback === "pause";
 
   const [primary, fallback] = configuredTranscribeModels();
-  const promptChars = openAiTranscribePrompt(terms).length;
+  const promptChars = openAiTranscribePrompt(terms, locale).length;
   const pending: Promise<unknown>[] = [];
   const controllers: AbortController[] = [];
 
@@ -155,7 +159,7 @@ export async function POST(request: Request) {
           ? await transcribe({
               model: farmOpenAi(direct.key).transcription(direct.id),
               audio,
-              providerOptions: transcribeOptionsFor(model, terms) as Parameters<typeof transcribe>[0]["providerOptions"],
+              providerOptions: transcribeOptionsFor(model, terms, {}, locale) as Parameters<typeof transcribe>[0]["providerOptions"],
               maxRetries: 0,
               abortSignal: signal,
             })
@@ -164,7 +168,7 @@ export async function POST(request: Request) {
               audio,
               providerOptions: transcribeOptionsFor(model, terms, gatewayOptions({
                 farmId, userId: null, feature: "ai_hearing", zeroDataRetention,
-              })) as Parameters<typeof transcribe>[0]["providerOptions"],
+              }), locale) as Parameters<typeof transcribe>[0]["providerOptions"],
               maxRetries: 0,
               abortSignal: signal,
             });

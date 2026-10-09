@@ -234,11 +234,12 @@ export async function fuelSummary(
   if (pick && !pick.ok) return { period, ...machineNotResolved(pick) };
   const machineId = pick?.ok ? pick.machine.id : null;
   const base = { p_farm: scope.farmId, p_from: period.from, p_to: period.to, p_machine: machineId };
-  const [byMachine, byMonth, consumption, tanks] = await Promise.all([
+  const [byMachine, byMonth, consumption, tanks, purchases] = await Promise.all([
     scope.supabase.rpc("assistant_fuel_summary", { ...base, p_by: "machine" }),
     scope.supabase.rpc("assistant_fuel_summary", { ...base, p_by: "month" }),
     scope.supabase.rpc("assistant_fuel_consumption", base),
     machineId ? Promise.resolve(null) : tankBalances(scope),
+    machineId || !scope.costsVisible ? Promise.resolve(null) : fuelPurchases(scope, period),
   ]);
   if (byMachine.error) throw byMachine.error;
   if (byMonth.error) throw byMonth.error;
@@ -296,7 +297,53 @@ export async function fuelSummary(
       ? { notBookedToAMachine: { litres: round(num(noMachine.litres)), ...(scope.costsVisible ? { costRand: rand(noMachine.cost_cents) } : {}) } }
       : {}),
     ...(tanks ? { tanks } : {}),
+    ...(purchases ? { dieselBought: purchases } : {}),
     ...(machineRows.length >= PAGE_ROWS ? { truncated: true } : {}),
+  };
+}
+
+/**
+ * Diesel BOUGHT in the period (deliveries into the farm's tanks), beside the diesel the
+ * machines USED above. A delivery is tank stock, not a machine's cost (0241), so the two
+ * differ by what the tanks gained or lost; a farmer asking "what did we spend on diesel"
+ * may mean either, and without this the assistant could only ever answer the second.
+ * Roles that see costs only, as every rand figure here.
+ */
+async function fuelPurchases(scope: FarmDataScope, period: { from: string; to: string }) {
+  const { data, error } = await scope.supabase
+    .from("fuel_deliveries")
+    .select("date, litres, price_per_l_cents")
+    .eq("farm_id", scope.farmId)
+    .is("deleted_at", null)
+    .gte("date", period.from)
+    .lte("date", period.to)
+    .order("date", { ascending: true })
+    .limit(PAGE_ROWS);
+  if (error) return null;
+  const rows = (data as Array<{ date: string; litres: number | string | null; price_per_l_cents: number | string | null }> | null) ?? [];
+  let litres = 0;
+  let cents = 0;
+  let unpriced = 0;
+  const byMonth = new Map<string, { litres: number; cents: number }>();
+  for (const row of rows) {
+    const l = num(row.litres);
+    const c = row.price_per_l_cents == null ? null : l * num(row.price_per_l_cents);
+    litres += l;
+    if (c == null) unpriced += 1;
+    else cents += c;
+    const month = String(row.date).slice(0, 7);
+    const entry = byMonth.get(month) ?? { litres: 0, cents: 0 };
+    entry.litres += l;
+    entry.cents += c ?? 0;
+    byMonth.set(month, entry);
+  }
+  return {
+    deliveries: rows.length,
+    litres: round(litres),
+    costRand: rand(cents) ?? 0,
+    ...(unpriced ? { deliveriesWithoutAPrice: unpriced } : {}),
+    byMonth: [...byMonth.entries()].map(([month, v]) => ({ month, litres: round(v.litres), costRand: rand(v.cents) ?? 0 })),
+    ...(rows.length >= PAGE_ROWS ? { truncated: true } : {}),
   };
 }
 

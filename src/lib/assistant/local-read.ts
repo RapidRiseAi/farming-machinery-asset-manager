@@ -14,7 +14,7 @@ import {
   type WorkRequestReadRow,
 } from "./read-data";
 import { serviceDueAnswer } from "./presentation";
-import { FLEET_SCOPE_CUE, SERVICE_DUE_CUE } from "./cues";
+import { FLEET_SCOPE_CUE, REPORT_REQUEST_CUE, SERVICE_DUE_CUE } from "./cues";
 import type {
   AssistantDocumentStatus,
   AssistantLocalReadRequest,
@@ -82,6 +82,8 @@ function actionNavigation(text: string): AssistantNavigation {
 export function parseLocalReadRequest(input: string): LocalReadRequest | null {
   const text = normalizeAssistantText(input);
   if (!text) return null;
+  // Asking to REPORT a fault is a report for the parser, never a read of the fault list.
+  if (REPORT_REQUEST_CUE.test(text)) return null;
 
   if (/\b(what can you do|how can you help|help me|wat kan jy doen|hoe kan jy help|help my)\b/.test(text)) {
     return { kind: "help" };

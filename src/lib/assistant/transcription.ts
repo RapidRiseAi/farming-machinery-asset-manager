@@ -1,4 +1,4 @@
-import type { AssistantMachine } from "./types";
+import type { AssistantLocale, AssistantMachine } from "./types";
 
 /**
  * The AI transcription pass: the recording, plus the farm's own machine names as
@@ -90,10 +90,25 @@ export type TranscribeOptions = Record<string, Record<string, unknown>>;
  * The prompt an OpenAI transcriber is given. It reads as text the speaker might have said
  * before, so it is phrased as context, and short: whisper-family prompts are cut at about
  * 224 tokens. Its length also sizes the hearing's budget hold (ai-usage/hold-units.ts).
+ *
+ * Written in the language the person chose to speak, because these models continue in
+ * the prompt's language: "English and Afrikaans mixed" invited an Afrikaans transcript of
+ * English speech (2026-10-09). Without a locale (an older app) it stays bilingual.
  */
-export function openAiTranscribePrompt(terms: readonly string[]): string {
+export function openAiTranscribePrompt(terms: readonly string[], locale?: AssistantLocale): string {
   const names = terms.join(", ").slice(0, 700);
+  if (locale === "en-ZA") {
+    return `A South African farmer speaking English, with some Afrikaans machine words. Machine names and words: ${names}.`;
+  }
+  if (locale === "af-ZA") {
+    return `'n Suid-Afrikaanse boer wat Afrikaans praat, met party Engelse woorde. Masjienname en woorde: ${names}.`;
+  }
   return `South African farm voice note, English and Afrikaans mixed. Machine names and words: ${names}.`;
+}
+
+/** ISO 639-1, as OpenAI's transcription `language` takes it. */
+export function transcriptionLanguage(locale: AssistantLocale | undefined): "en" | "af" | undefined {
+  return locale === "en-ZA" ? "en" : locale === "af-ZA" ? "af" : undefined;
 }
 
 /**
@@ -102,11 +117,21 @@ export function openAiTranscribePrompt(terms: readonly string[]): string {
  * data retention when ASSISTANT_TRANSCRIBE_ZDR=1 (Vercel refuses it on Hobby). A call on a
  * farm's own OpenAI key goes to OpenAI directly and passes none.
  */
-export function transcribeOptionsFor(model: string, terms: readonly string[], gateway: Record<string, unknown> = {}): TranscribeOptions {
+export function transcribeOptionsFor(
+  model: string,
+  terms: readonly string[],
+  gateway: Record<string, unknown> = {},
+  locale?: AssistantLocale,
+): TranscribeOptions {
   const options: TranscribeOptions = {};
   if (Object.keys(gateway).length) options.gateway = { ...gateway };
   if (model.startsWith("microsoft/")) options.azure = { phraseList: { phrases: [...terms] } };
   else if (model.startsWith("google/")) options.google = { mode: "VERBATIM", customVocabulary: [...terms] };
-  else if (model.startsWith("openai/")) options.openai = { prompt: openAiTranscribePrompt(terms) };
+  else if (model.startsWith("openai/")) {
+    // The chosen language as well as the prompt: an English speaker is transcribed in
+    // English, however South African the accent.
+    const language = transcriptionLanguage(locale);
+    options.openai = { prompt: openAiTranscribePrompt(terms, locale), ...(language ? { language } : {}) };
+  }
   return options;
 }

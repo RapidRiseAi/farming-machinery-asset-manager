@@ -1,7 +1,7 @@
 import { normalizeAssistantText } from "./normalize";
 import { replaceNumberWords } from "./numbers";
 import { todayInSouthAfrica } from "./date";
-import { SERVICE_DUE_CUE } from "./cues";
+import { REPORT_REQUEST_CUE, SERVICE_DUE_CUE } from "./cues";
 import type { AssistantDraft, AssistantIntent, AssistantLocale, AssistantUrgency } from "./types";
 
 // Symptoms in both languages, because people report them in whichever comes first:
@@ -127,6 +127,9 @@ function inferIntent(text: string): { intent: AssistantIntent | null; confidence
   if (READING_WORDS.test(text) && (readingWrite || extractMeterReading(text) != null)) {
     return { intent: "log_reading", confidence: 0.9 };
   }
+  // Asking to report one ("can I report a problem on the John Deere?") is a report, even
+  // though it is shaped like a question.
+  if (REPORT_REQUEST_CUE.test(text)) return { intent: "report_fault", confidence: 0.88 };
   if (FAULT_WORDS.test(text) && explicitRead) return { intent: null, confidence: 0.85 };
   if (FAULT_WORDS.test(text) || /\b(report|meld|rapporteer)\b/.test(text)) {
     return { intent: "report_fault", confidence: 0.88 };
@@ -150,13 +153,14 @@ function extractFaultDescription(input: string): string | null {
   if (!value) return null;
 
   value = value
-    .replace(/^\s*(?:please\s+)?(?:i\s+(?:want|would like|need)\s+to\s+)?(?:report|log|record|raise)\s+/iu, "")
-    .replace(/^\s*(?:asseblief\s+)?(?:ek\s+wil(?:\s+graag)?\s+)?(?:rap?porteer|meld|raport)\s+/iu, "")
+    .replace(/^\s*(?:hey|hi|hello|okay|ok)[,\s]+/iu, "")
+    .replace(/^\s*(?:please\s+)?(?:(?:can|could|may)\s+(?:i|we)\s+(?:please\s+)?|i\s+(?:want|would like|need)\s+to\s+)?(?:report|log|record|raise)\s+/iu, "")
+    .replace(/^\s*(?:asseblief\s+)?(?:(?:kan|mag)\s+(?:ek|ons|hy)\s+|ek\s+wil(?:\s+graag)?\s+)?(?:rap?porteer|rapport|meld|raport)\s+/iu, "")
     .trim();
 
   // Afrikaans commonly places the action verb at the end.
   value = value
-    .replace(/^\s*ek\s+wil(?:\s+graag)?\s+/iu, "")
+    .replace(/^\s*(?:ek\s+wil(?:\s+graag)?|(?:kan|mag)\s+(?:ek|ons))\s+/iu, "")
     .replace(/\s+(?:rap?porteer|aanmeld|meld)\s*$/iu, "")
     .trim();
 
@@ -164,7 +168,8 @@ function extractFaultDescription(input: string): string | null {
   // and the symptom follows it, often in the other language. Without this the whole tail
   // read as the machine reference and the user was asked "What is the problem?" again.
   const afterReference = value.match(
-    /^(?:(?:a|an|the|'?n|die)\s+)?(?:problem|fault|issue|probleem|fout)\s+(?:on|with|for|at|op|aan|by|vir|met)\s+[^,;:]+[,;:]\s*(.+)$/iu,
+    // A full stop ends the reference too: "a problem on my Mercedes truck. It doesn't start."
+    /^(?:(?:a|an|the|'?n|die)\s+)?(?:problem|fault|issue|probleem|fout)\s+(?:on|with|for|at|op|aan|by|vir|met)\s+[^,;:.]+(?:[,;:]|\.\s)\s*(.+)$/iu,
   );
   if (afterReference?.[1]?.trim()) return afterReference[1].trim();
 

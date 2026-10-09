@@ -55,3 +55,23 @@ test("models come from the environment when valid, else gpt-4o with MAI as its f
   assert.deepEqual(configuredTranscribeModels(" google/gemini-3.5-transcribe , nonsense "), ["google/gemini-3.5-transcribe"]);
   assert.equal(configuredTranscribeModels("a/1,b/2,c/3,d/4").length, 3);
 });
+
+test("the AI hearing is told the language the person chose, in the prompt and as OpenAI's language", () => {
+  const terms = ["Rooi Bakkie"];
+  // English speech used to come back as Afrikaans: the prompt said "mixed" and no language was set.
+  const en = transcribeOptionsFor("openai/gpt-4o-transcribe", terms, {}, "en-ZA").openai;
+  assert.equal(en.language, "en");
+  assert.match(String(en.prompt), /speaking English/);
+  assert.match(String(en.prompt), /Rooi Bakkie/);
+  const af = transcribeOptionsFor("openai/gpt-4o-transcribe", terms, {}, "af-ZA").openai;
+  assert.equal(af.language, "af");
+  assert.match(String(af.prompt), /Afrikaans praat/);
+  // An older app sends no locale: heard bilingually, as before, with no language forced.
+  const none = transcribeOptionsFor("openai/gpt-4o-transcribe", terms).openai;
+  assert.equal(none.language, undefined);
+  assert.match(String(none.prompt), /English and Afrikaans mixed/);
+  // MAI takes its phrase list only; a language key it does not know is never sent.
+  assert.deepEqual(transcribeOptionsFor("microsoft/mai-transcribe-2", terms, {}, "en-ZA"), { azure: { phraseList: { phrases: terms } } });
+  // The hold is sized on the prompt actually sent.
+  assert.equal(String(en.prompt).length, openAiTranscribePrompt(terms, "en-ZA").length);
+});

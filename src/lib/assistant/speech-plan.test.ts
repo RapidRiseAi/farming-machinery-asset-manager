@@ -23,9 +23,10 @@ test("uses Willem for Afrikaans and Ollie for English", () => {
   assert.equal(voiceForLocale("en-ZA"), "ollie");
 });
 
-test("always offers both recognition locales with the preference first", () => {
+test("English is heard in English only; Afrikaans keeps English beside it for code-switching", () => {
+  // Continuous identification heard South African English as Afrikaans (2026-10-09).
+  assert.deepEqual(recognitionLocales("en-ZA"), ["en-ZA"]);
   assert.deepEqual(recognitionLocales("af-ZA"), ["af-ZA", "en-ZA"]);
-  assert.deepEqual(recognitionLocales("en-ZA"), ["en-ZA", "af-ZA"]);
 });
 
 test("builds entity vocabulary from name, make, model and aliases", () => {
