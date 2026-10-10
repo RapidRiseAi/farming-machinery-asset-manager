@@ -4914,3 +4914,13 @@ Every control stays at least 48px on a phone. `voice_check.mjs` now finds the ha
 button by its phone label and as a button (the pause notice starts with the same word):
 44/44 against the local build. 574 unit tests, lint, typecheck, design lint, i18n parity
 and keys, dashes and error coverage pass; screenshots read at 390px and 1280px.
+
+### Functions moved to Paris (0fa7ce4)
+
+The functions ran in Vercel's default `iad1` (Washington) and the database is in
+`eu-west-3` (Paris): every query crossed the Atlantic. `vercel.json` now pins `cdg1`;
+`vercel inspect` shows the functions there. Measured on production from South Africa, the
+same questions before and after: "which machines are overdue for a service" (no AI) 2.5 s to
+2.7 s warm, now 1.5 s to 1.6 s; "what is wrong with the tractor" (AI) 5.6 s, now 4.7 s; the
+first request after a deploy is still about 4 s (a cold function). Sign-in, /billing and the
+assistant checked on the Paris deploy.
