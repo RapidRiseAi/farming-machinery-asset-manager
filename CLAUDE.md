@@ -8,7 +8,11 @@ service scheduling, job cards, faults, costs, dashboards, WhatsApp alerts.
 - **Next.js (App Router) PWA** + TypeScript + Tailwind, mobile-first (mid-range Android).
 - **Supabase** (Postgres + Auth + Storage) with **row-level security** for multi-tenancy.
 - Migrations = plain SQL files in `supabase/migrations/` (Supabase-compatible; also run against a local Postgres for tests).
-- Deploy target: Vercel (app) + Supabase cloud. (Not wired in Week 1.)
+- Deploy target: Vercel (app) + Supabase cloud. **Functions run in `cdg1` (Paris), beside
+  the database in `eu-west-3` (Paris)**, set by `regions` in `vercel.json` (2026-10-10).
+  They ran in Vercel's default `iad1` (Washington) until then, so every query crossed the
+  Atlantic and a turn of the assistant spent seconds on round trips alone. Keep the two
+  together: moving one without the other brings that back.
 
 ## Commands
 ```bash
