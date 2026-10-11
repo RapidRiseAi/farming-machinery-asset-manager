@@ -10,7 +10,12 @@ import { normalizeAssistantText } from "./normalize";
  * the local reads cannot do, and keeps the local answer when AI is not available.
  */
 
-export const FARM_TOPICS = ["fuel", "costs", "faults", "jobcards", "service", "work", "documents", "readings"] as const;
+export const FARM_TOPICS = [
+  "fuel", "costs", "faults", "jobcards", "service", "work", "documents", "readings",
+  // Records the AI reads since 2026-10-11 (farm-insights.ts). None has a local read, so a
+  // question about one always goes to the AI, with its data fetched up front.
+  "compliance", "tyres", "stock", "budget", "incidents", "value",
+] as const;
 export type FarmTopic = (typeof FARM_TOPICS)[number];
 
 const TOPIC_PATTERNS: Record<FarmTopic, RegExp> = {
@@ -21,7 +26,13 @@ const TOPIC_PATTERNS: Record<FarmTopic, RegExp> = {
   service: /\b(service|services|serviced|servicing|maintenance|due|overdue|diens|dienste|onderhoud|verskuldig|agterstallig)\b/,
   work: /\b(work\s*requests?|quote\s*requests?|repair\s*requests?|werkversoeke?|kwotasieversoeke?)\b/,
   documents: /\b(quotes?|quotations?|invoices?|kwotasies?|fakture?|faktuur)\b/,
-  readings: /\b(hours|hour|reading|readings|meter|odometer|kilomet(?:er|re)s?|km|ure|uur|lesing|lesings)\b/,
+  readings: /\b(hours|hour|reading|readings|meter|odometer|kilomet(?:er|re)s?|km|mileage|worked|utili[sz](?:ation|ed)|driven|ure|uur|lesing|lesings|gewerk|benutting|gery)\b/,
+  compliance: /\b(licen[cs]es?|licen[cs]e discs?|roadworthy|roadworthies|permits?|prdps?|medicals?|expir(?:e|es|ed|y|ing)|renewals?|renew|warrant(?:y|ies)|lisensies?|lisensieskyf|padwaardig(?:heid)?|permitte?|verval(?:t|datum)?|hernu(?:wing)?|waarborg)\b/,
+  tyres: /\b(tyres?|tires?|tread|bande|loopvlak|bandedruk)\b/,
+  stock: /\b(stock|spares?|spare parts|filters?|inventory|parts store|on hand|reorder|voorraad|onderdele|stoor)\b/,
+  budget: /\b(budgets?|budgeted|over budget|begroting|begrotings|begroot)\b/,
+  incidents: /\b(fines?|speeding|incidents?|accidents?|collisions?|crash(?:ed)?|claims?|insurance|boetes?|verkeersboetes?|ongeluk(?:ke)?|voorval(?:le)?|botsing|eise?|versekering)\b/,
+  value: /\b(worth|book value|value of|depreciat\w*|resale|waarde|boekwaarde|waardevermindering)\b/,
 };
 
 /** Asking for a sum, a comparison, a rate, a period or a reason: arithmetic over records. */
@@ -127,5 +138,7 @@ export function questionNeedsAgent(input: string): boolean {
   if (!text) return false;
   const topics = detectFarmTopics(input);
   if (topics.includes("fuel") || topics.includes("costs")) return true;
+  // No local read covers these records: only the AI can answer them.
+  if (topics.some((topic) => (["compliance", "tyres", "stock", "budget", "incidents", "value"] as FarmTopic[]).includes(topic))) return true;
   return ANALYTIC.test(text) || FOLLOW_UP.test(text);
 }

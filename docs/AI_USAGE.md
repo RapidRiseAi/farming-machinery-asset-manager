@@ -121,6 +121,40 @@ Measured from production's ledger and the assistant's own interactions first:
   (deliveries, roles that see costs), and the prompt says spend means the cost of fuel used,
   never "nothing" when any block shows a cost, and both figures when two disagree.
 
+## Everything a farmer asks (2026-10-11)
+
+The founder asked what the assistant was too limited to answer. A 34-question evaluation
+(specific facts, calculations, averages, comparisons, budgets, forecasts, Afrikaans, a
+follow-up) against the click-through farm, seeded with known records, showed it: of the first
+twelve answered on production, one was right. It said "FleetWise has no record" of the
+bakkie's licence disc and roadworthy, the tyres, the oil filters, the fines and the tractor's
+value (all of which exist), took "how many hours did the tractor work last month" from the
+last few readings (51 h; it was 120 h), and read "do any drivers' documents expire" as a
+machine search. Those records never reached the AI.
+
+`farm-insights.ts` adds nine reads, each on the person's own session with farm-data.ts's
+rules (money only for roles that see costs, through the `_visible` projections; no person
+ever named, so drivers' documents and fines are counted and dated):
+
+- `machine_usage`: hours or km worked from the meter readings (the last reading before the
+  period to the last in it, replaced meters skipped), per month, per day and per month on
+  average, and running cost per hour or km.
+- `service_history`: completed jobs by type, cost per job, days in the workshop, each
+  machine's last service.
+- `compliance`: vehicle licences, roadworthies, permits and insurance; warranties by date
+  and hours; drivers' licences, PrDPs and medicals.
+- `tyres`, `fines_incidents_claims`, `parts_stock` (low stock and weeks left at the last 90
+  days' rate), `budgets` (spent against budget and against time elapsed), `machine_value`
+  (book value from `farm_book_values`, three years of costs), `fault_stats`.
+- `calculate` (`calc.ts`): every figure the model works out (averages, shares, rates,
+  changes) goes through a closed-grammar evaluator, never mental arithmetic and never `eval`.
+
+The new topics route a question to the AI and fetch its data up front. Six steps instead of
+four, so a question can read two records and calculate. The tool definitions are about 3 600
+tokens a step (22 tools). Writing it also found that "diesel bought" (2026-10-09) read the
+raw `fuel_deliveries` table, which refuses an owner's session, so it had silently been
+missing; it reads `fuel_deliveries_visible` now.
+
 ## How it is built
 
 **The ledger** (`supabase/migrations/20261004100000_ai_usage_metering.sql`). Every paid

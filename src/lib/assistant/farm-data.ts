@@ -47,15 +47,15 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** The database refuses longer periods (20261005130000); stay a little inside it. */
 const MAX_PERIOD_DAYS = 1095;
 /** PostgREST's page. A result this long may have been cut, and the model is told so. */
-const PAGE_ROWS = 1000;
+export const PAGE_ROWS = 1000;
 
-function addDays(iso: string, days: number): string {
+export function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-function daysBetween(from: string, to: string): number {
+export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
 
@@ -110,12 +110,12 @@ export function rand(cents: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? Math.round(n) / 100 : null;
 }
 
-function num(value: unknown): number {
+export function num(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-function round(value: number, places = 1): number {
+export function round(value: number, places = 1): number {
   const f = 10 ** places;
   return Math.round(value * f) / f;
 }
@@ -131,7 +131,7 @@ export function pickMachine(scope: Pick<FarmDataScope, "machines">, query: strin
   };
 }
 
-function machineNotResolved(pick: Extract<MachinePick, { ok: false }>) {
+export function machineNotResolved(pick: Extract<MachinePick, { ok: false }>) {
   return {
     machineNotResolved: pick.reason,
     candidates: pick.candidates,
@@ -146,7 +146,7 @@ function machineNotResolved(pick: Extract<MachinePick, { ok: false }>) {
  * machines still carrying history) are read once through the person's session, so a
  * machine they cannot see is never named.
  */
-async function machineNames(scope: FarmDataScope, ids: Array<string | null>): Promise<Map<string, string>> {
+export async function machineNames(scope: FarmDataScope, ids: Array<string | null>): Promise<Map<string, string>> {
   const names = new Map(scope.machines.map((machine) => [machine.id, machine.name]));
   const missing = [...new Set(ids.filter((id): id is string => Boolean(id) && !names.has(id!)))];
   if (missing.length) {
@@ -280,14 +280,24 @@ export async function fuelSummary(
     total: {
       litres: round(totals.litres),
       ...(scope.costsVisible ? { costRand: rand(totals.cents), drawsWithAPrice: totals.priced } : {}),
+      // The price per litre, worked out here because the model got it wrong by hand (R 22,14
+      // for R 49 691 over 2 242 L, 2026-10-11). Only when every draw has a price: an
+      // unpriced draw would pull the average down.
+      ...(scope.costsVisible && totals.litres > 0 && totals.priced === totals.draws
+        ? { costPerLitreRand: round(totals.cents / 100 / totals.litres, 2) }
+        : {}),
       draws: totals.draws,
     },
     byMonth: monthsIn(period).map((month) => {
       const row = monthRows.find((r) => String(r.month).slice(0, 7) === month);
+      const litres = num(row?.litres);
       return {
         month,
-        litres: round(num(row?.litres)),
+        litres: round(litres),
         ...(scope.costsVisible ? { costRand: row ? rand(row.cost_cents) ?? 0 : 0 } : {}),
+        ...(scope.costsVisible && row && litres > 0 && row.priced_draws === row.draws
+          ? { costPerLitreRand: round(num(row.cost_cents) / 100 / litres, 2) }
+          : {}),
         draws: row?.draws ?? 0,
       };
     }),
@@ -311,7 +321,9 @@ export async function fuelSummary(
  */
 async function fuelPurchases(scope: FarmDataScope, period: { from: string; to: string }) {
   const { data, error } = await scope.supabase
-    .from("fuel_deliveries")
+    // The _visible projection, not the table: the price is a money column, granted only
+    // through it (20260908112728); the raw table refuses the whole select.
+    .from("fuel_deliveries_visible")
     .select("date, litres, price_per_l_cents")
     .eq("farm_id", scope.farmId)
     .is("deleted_at", null)

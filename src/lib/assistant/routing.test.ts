@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   matchAssistantMachine,
   machinesForAssistantDraft,
+  planAssistantRoute,
   readOnlyWriteTarget,
+  routeWantsAgent,
 } from "./routing";
 import type { AssistantDraft, AssistantMachine } from "./types";
 
@@ -130,4 +132,26 @@ test("still resolves a read-only machine for a status question", () => {
     [assigned],
   );
   assert.equal(match.machine?.id, readOnly.id);
+});
+
+test("questions about the records only the AI reads go to the AI, whatever the local reads think", async () => {
+  const { detectFarmTopics } = await import("./topics");
+  // Each answered "FleetWise has no record" in production before 2026-10-11, and the
+  // drivers' one was taken by the local reader as a search for a machine.
+  for (const [said, topic] of [
+    ["Do any of our drivers' documents expire soon?", "compliance"],
+    ["When does the bakkie's licence disc expire?", "compliance"],
+    ["Which tyres need replacing?", "tyres"],
+    ["How many oil filters do we have in stock?", "stock"],
+    ["Are we over budget on parts?", "budget"],
+    ["Do we have any outstanding traffic fines?", "incidents"],
+    ["What is the tractor worth now?", "value"],
+    ["Wanneer verval die bakkie se lisensie?", "compliance"],
+    ["Watter onderdele raak min in die voorraad?", "stock"],
+  ] as const) {
+    assert.ok(detectFarmTopics(said).includes(topic), `${said} -> ${topic}`);
+    assert.equal(routeWantsAgent(planAssistantRoute(said, said.startsWith("W") && /verval|onderdele/.test(said) ? "af-ZA" : "en-ZA"), said), true, said);
+  }
+  // A fault said as a statement is still a report for the parser, not a question for the AI.
+  assert.equal(routeWantsAgent(planAssistantRoute("The bakkie has a flat tyre", "en-ZA"), "The bakkie has a flat tyre"), false);
 });

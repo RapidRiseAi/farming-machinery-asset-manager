@@ -176,6 +176,10 @@ function navigationAction(
     documents: { href: "/documents", en: "Open quotes and invoices", af: "Maak kwotasies en fakture oop" },
     fuel: { href: "/fuel", en: "Open fuel", af: "Maak brandstof oop" },
     reports: { href: "/reports", en: "Open reports", af: "Maak verslae oop" },
+    tyres: { href: "/tyres", en: "Open tyres", af: "Maak bande oop" },
+    fines: { href: "/fines", en: "Open fines", af: "Maak boetes oop" },
+    incidents: { href: "/incidents", en: "Open incidents", af: "Maak voorvalle oop" },
+    parts: { href: "/parts", en: "Open parts", af: "Maak onderdele oop" },
   } as const;
   if (destination === "none") return undefined;
   const action = actions[destination];

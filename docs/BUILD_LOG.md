@@ -4924,3 +4924,31 @@ same questions before and after: "which machines are overdue for a service" (no 
 2.7 s warm, now 1.5 s to 1.6 s; "what is wrong with the tractor" (AI) 5.6 s, now 4.7 s; the
 first request after a deploy is still about 4 s (a cold function). Sign-in, /billing and the
 assistant checked on the Paris deploy.
+
+## 2026-10-11 - The assistant answers what a farmer asks
+
+Asked what the assistant was too limited to answer, measured it: 34 questions (facts,
+calculations, averages, comparisons, budgets, forecasts, Afrikaans, a follow-up) on the
+click-through farm, seeded with known records ("eval seed 2026-10-11": weekly meter
+readings, three completed jobs, licences, a PrDP, tyres, fines, parts stock, budgets).
+Production before: 1 of the first 12 right ("FleetWise has no record" of the licence disc,
+roadworthy, tyres, oil filters, fines and the tractor's value; 51 h for a month the tractor
+worked 120 h; the drivers' question read as a machine search). The run then lost its session;
+`eval_smart.mjs` signs in again.
+
+`farm-insights.ts` adds nine reads (usage from meter readings with running cost per hour or
+km, service history, expiries, tyres, fines/incidents/warranty claims, parts stock, budgets,
+book value and three years of costs, fault patterns) and `calc.ts` a closed-grammar
+calculator; six steps; new topics route and prefetch. Probing every read on the owner's real
+session found `job_cards`, `parts_catalogue` and `fuel_deliveries` refuse direct selects (money
+columns are granted only through the `_visible` projections): the reads use those, and that
+also fixed 2026-10-09's "diesel bought", which had been silently missing.
+
+After, on a local build against the live database: 32 of 34 right (120 h and 73 h for the
+tractor and the Massey, R 119,89 an hour against R 76,73, 1 634 km, parts R 14 455 of
+R 15 000 at 96% with 78% of the year gone, the bakkie's ownership R 517 921,20, the tractor
+48 h past its service, 9,82 litres per hour across both tractors, all three Afrikaans). The
+two misses were fixed in code: R 22,14 for a litre that is R 22,16 (the model divided in its
+head; the fuel summary now gives `costPerLitreRand`), and "5 days" to fix a fault when none
+had been fixed (the read now says so instead of leaving the figure out). 579 unit tests and
+every static gate pass.

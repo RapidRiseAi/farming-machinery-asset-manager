@@ -3,6 +3,7 @@ import "server-only";
 import { generateText, hasToolCall, isStepCount, tool, type LanguageModel, type ModelMessage, type ToolSet } from "ai";
 import { z } from "zod";
 import { gatewayCallCost } from "@/lib/ai-usage/gateway-cost";
+import { calculateAll } from "./calc";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import type { AssistantContext } from "./context";
 import {
@@ -17,6 +18,17 @@ import {
   workRequestList,
   type FarmDataScope,
 } from "./farm-data";
+import {
+  budgetStatus,
+  complianceStatus,
+  faultStats,
+  finesIncidentsClaims,
+  machineUsage,
+  machineValue,
+  serviceHistory,
+  stockLevels,
+  tyreStatus,
+} from "./farm-insights";
 import { AssistantAgentInvalidOutput, type AgentUsage } from "./llm";
 import { canReadFinancialDocuments } from "./read-data";
 import { detectFarmTopics, questionPeriod, type FarmTopic, type QuestionPeriod } from "./topics";
@@ -42,17 +54,19 @@ import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMac
  * == One call where one call will do ==========================================
  * The Gateway's free tier allows five requests a minute per model, and every step is a
  * request and a wait. Putting the fleet and the question's topic in the prompt answers
- * most questions in one step; tools are for the rest, at most four steps in all.
+ * most questions in one step; tools are for the rest, at most six steps in all (a question
+ * like "what does the tractor cost to run per hour against last year" needs two reads and a
+ * calculation before it can answer).
  */
 
-export const FARM_AGENT_MAX_STEPS = 4;
+export const FARM_AGENT_MAX_STEPS = 6;
 /** Per step. Also what the budget hold is sized on. */
 export const FARM_AGENT_MAX_OUTPUT_TOKENS = 700;
 export const FARM_AGENT_TIMEOUT_MS = 30_000;
 /** What tool results may add to the prompt over a run, for the budget hold. */
 export const FARM_AGENT_TOOL_RESULT_CHARS = 10_000;
-/** The tool definitions as sent, roughly, for the budget hold. */
-export const FARM_AGENT_TOOLS_CHARS = 4_500;
+/** The tool definitions as sent, for the budget hold: 22 tools measured 14 444 characters on 2026-10-11. */
+export const FARM_AGENT_TOOLS_CHARS = 15_000;
 
 export type FarmAgentResult =
   | ({ kind: "command"; draft: AssistantDraft; tankQuery?: string | null } & AgentUsage)
@@ -88,6 +102,12 @@ const TOPIC_NAVIGATION: Partial<Record<FarmTopic, AssistantAnswerPage>> = {
   work: "work",
   documents: "documents",
   readings: "machines",
+  compliance: "machines",
+  tyres: "tyres",
+  stock: "parts",
+  budget: "reports",
+  incidents: "fines",
+  value: "reports",
 };
 
 const TOOL_NAVIGATION: Record<string, AssistantAnswerPage> = {
@@ -99,6 +119,15 @@ const TOOL_NAVIGATION: Record<string, AssistantAnswerPage> = {
   list_job_cards: "jobcards",
   list_work_requests: "work",
   list_quotes_and_invoices: "documents",
+  machine_usage: "machines",
+  service_history: "jobcards",
+  compliance: "machines",
+  tyres: "tyres",
+  fines_incidents_claims: "fines",
+  parts_stock: "parts",
+  budgets: "reports",
+  machine_value: "reports",
+  fault_stats: "faults",
 };
 
 const PROPOSAL_TOOLS = ["propose_fault_report", "propose_meter_reading", "propose_completed_service", "propose_fuel_draw"] as const;
@@ -156,7 +185,67 @@ export function farmAgentTools(scope: FarmDataScope, today: string): ToolSet {
       inputSchema: z.object({ status: z.enum(["active", "all"]).nullable(), machine }),
       execute: (input) => safely(() => workRequestList(scope, input)),
     }),
+    machine_usage: tool({
+      description: "Hours or kilometres each machine worked in a period, from its meter readings: start and end readings, total, per month, average per day and per month, and (if this role may see money) running cost per hour or per km. Default period: the last six months.",
+      inputSchema: z.object({ ...period, machine }),
+      execute: (input) => safely(() => machineUsage(scope, input, today)),
+    }),
+    service_history: tool({
+      description: "Completed job cards (services, repairs, inspections) in a period: count and cost by type, average cost per job, average days in the workshop, the last service per machine, and the jobs themselves. Default period: the last twelve months.",
+      inputSchema: z.object({ ...period, machine, type: z.enum(["scheduled_service", "repair", "inspection", "other"]).nullable() }),
+      execute: (input) => safely(() => serviceHistory(scope, input, today)),
+    }),
+    compliance: tool({
+      description: "What has expired or expires soon: vehicle licence discs, roadworthies, permits and insurance per machine, machine warranties (by date and by hours), and drivers' licences, PrDPs and medicals (counted and dated, never named).",
+      inputSchema: z.object({ withinDays: z.number().int().min(1).max(365).nullable().describe("How far ahead to look, in days; null for 60"), machine }),
+      execute: (input) => safely(() => complianceStatus(scope, input, today)),
+    }),
+    tyres: tool({
+      description: "Tyres fitted to each machine: position, last check (tread and pressure), tread left, use since fitting, which need replacing soon; and tyres in stock by size.",
+      inputSchema: z.object({ machine }),
+      execute: (input) => safely(() => tyreStatus(scope, input)),
+    }),
+    fines_incidents_claims: tool({
+      description: "Traffic fines (outstanding, amounts, nomination deadlines), incidents and accidents (insurance claimed and settled), and warranty claims (claimed and recovered) in a period. Default period: the last twelve months.",
+      inputSchema: z.object({ ...period, machine }),
+      execute: (input) => safely(() => finesIncidentsClaims(scope, input, today)),
+    }),
+    parts_stock: tool({
+      description: "Parts in the farm's store: quantity on hand, reorder point, which are low, use over the last 90 days and weeks of stock left at that rate.",
+      inputSchema: z.object({
+        search: z.string().max(80).nullable().describe("Part number, name or category to look for; null for all"),
+        lowOnly: z.boolean().nullable().describe("true for only parts at or below their reorder point"),
+      }),
+      execute: (input) => safely(() => stockLevels(scope, input, today)),
+    }),
+    fault_stats: tool({
+      description: "Fault patterns in a period: faults per machine, how many stopped the machine, average days to fix, open faults and the commonest kinds. Default period: the last twelve months.",
+      inputSchema: z.object(period),
+      execute: (input) => safely(() => faultStats(scope, input, today)),
+    }),
+    calculate: tool({
+      description: "Exact arithmetic. Use it for every figure you work out yourself. Each expression uses numbers, + - * / ^, brackets and sum(), avg(), min(), max(), round(x, places), abs(), sqrt(), pct(part, whole) and change(from, to) (a percentage). Put all the calculations for an answer in one call.",
+      inputSchema: z.object({
+        calculations: z.array(z.object({
+          label: z.string().max(80).describe("What the number is, e.g. 'rand per litre'"),
+          expression: z.string().min(1).max(500).describe("e.g. 49691 / 2242"),
+        })).min(1).max(12),
+      }),
+      execute: async (input) => ({ results: calculateAll(input.calculations) }),
+    }),
   };
+  if (scope.costsVisible) {
+    tools.budgets = tool({
+      description: "Budgets running on a day (today by default) against what has been spent in their period: budget, spent, remaining, per cent spent against per cent of the period gone, and whether over budget.",
+      inputSchema: z.object({ on: isoDate.describe("The day to look at, YYYY-MM-DD, or null for today") }),
+      execute: (input) => safely(() => budgetStatus(scope, input, today)),
+    });
+    tools.machine_value = tool({
+      description: "What machines are worth and have cost: purchase price, depreciation method, book value today, and three years of costs by kind (fuel, parts, labour, workshop invoices, other, purchase, finance).",
+      inputSchema: z.object({ machine }),
+      execute: (input) => safely(() => machineValue(scope, input, today)),
+    });
+  }
   if (canReadFinancialDocuments(scope.role)) {
     tools.list_quotes_and_invoices = tool({
       description: "Workshop quotes and invoices to this farm, newest first, with what is still outstanding.",
@@ -284,11 +373,14 @@ export function farmAgentSystemPrompt(input: {
 }): string {
   const af = input.locale === "af-ZA";
   return [
-    `You are the FleetWise assistant for the farm "${input.farmName}". FleetWise keeps the farm's machines and vehicles, meter readings, services, faults, job cards, fuel and costs.`,
+    `You are the FleetWise assistant for the farm "${input.farmName}". FleetWise keeps the farm's machines and vehicles, meter readings and hours worked, services and repairs, faults, job cards, fuel, costs and budgets, licences and permits, tyres, parts stock, fines, incidents and warranty claims.`,
     `You are talking to the farm's ${ROLE_LABEL[input.role] ?? input.role}. Today in South Africa is ${weekday(input.today)} ${input.today}.`,
     `Reply in ${af ? "natural Afrikaans" : "South African English"}. People mix Afrikaans and English; keep machine, brand and part names exactly as they are written in the farm data.`,
     "Answer only from the farm data below and from tool results. Never invent a machine, number, date, person or record, and never estimate a figure the data does not give. If the data does not answer the question, call a tool; if nothing answers it, say plainly that FleetWise has no record of it.",
     "Use the numbers as given: they are already added up. Every block of data states the period it covers; name the period you answer for. If the question is about another period, or needs a breakdown a block does not give (per machine for one month, say), call the tool for exactly that instead of working it out. Never report zero unless the data shows zero. Readings are hours (h) or kilometres (km).",
+    "For any figure you work out yourself (a total, a difference, an average, a share, a percentage, a rate, a cost per hour, km or litre, a comparison), call calculate with every calculation in one call, and never do arithmetic in your head, not even a division that looks easy: a figure you did not get from the data or from calculate is a guess. Use a figure the data already gives (costPerLitreRand, averagePerDay, runningCostPerHourRand) as it is. Say briefly how you got it, e.g. R 49 691 for 2 242 litres is R 22,16 a litre.",
+    "Which tool answers what: hours or km worked and averages, and running cost per hour or km (machine_usage); completed services and repairs, their cost and each machine's last service (service_history); what has expired or expires soon (compliance); tyres (tyres); fines, incidents and warranty claims (fines_incidents_claims); parts in stock (parts_stock); budgets against spend (budgets); what a machine is worth and has cost (machine_value); which machines break down most and how long faults take to fix (fault_stats). A question that needs two of these calls both, then calculate.",
+    "People are never named in the data. For drivers' documents or fines, give counts and dates and name the page (Team, Fines); never guess who.",
     input.costsVisible
       ? "Money is in rand, ex VAT; write it like R 12 345,60. What the farm spent on fuel is the fuel cost of the diesel its machines used (the fuel block's cost, which is the costs block's fuel column); diesel BOUGHT into the tanks is dieselBought, which differs by what the tanks gained or lost. For \"spend on fuel\" give the cost of fuel used, and add what was bought when it differs. If any block shows a fuel cost for the period, never say nothing was spent; if two blocks disagree, give both and say which is which."
       : "This person's role may not see money on this farm: never give or guess a rand amount; litres, hours and counts are fine. If they ask for costs, say their role cannot see costs.",
@@ -326,6 +418,13 @@ export async function prefetchDigest(
     else if (topic === "service") parts.push(["serviceDueOrOverdue", servicePlan(scope, { onlyDue: true })]);
     else if (topic === "work") parts.push(["activeWorkRequests", workRequestList(scope, { status: "active" })]);
     else if (topic === "documents" && canReadFinancialDocuments(scope.role)) parts.push(["outstandingInvoices", documentList(scope, { kind: "invoice", outstandingOnly: true })]);
+    else if (topic === "readings") parts.push([label ? `hours and km worked for ${label}` : "hours and km worked for the last six months", machineUsage(scope, asked, today)]);
+    else if (topic === "compliance") parts.push(["expiries (expired or within 60 days)", complianceStatus(scope, {}, today)]);
+    else if (topic === "tyres") parts.push(["tyres", tyreStatus(scope, {})]);
+    else if (topic === "stock") parts.push(["parts stock", stockLevels(scope, {}, today)]);
+    else if (topic === "budget" && scope.costsVisible) parts.push(["budgets today", budgetStatus(scope, {}, today)]);
+    else if (topic === "incidents") parts.push([label ? `fines, incidents and claims for ${label}` : "fines, incidents and claims for the last twelve months", finesIncidentsClaims(scope, asked, today)]);
+    else if (topic === "value" && scope.costsVisible) parts.push(["machine values and three years of costs", machineValue(scope, {}, today)]);
   }
   if (!parts.length) return null;
   const settled = await Promise.allSettled(parts.map(([, read]) => read));

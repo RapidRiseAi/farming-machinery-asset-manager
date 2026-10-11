@@ -15,8 +15,8 @@ export type AssistantChannel = "typed" | "voice";
 export type AssistantUrgency = "can_work" | "limping" | "stopped";
 
 export type AssistantNavigation = "none" | "machines" | "faults" | "jobcards" | "work" | "documents";
-/** Where an AI answer may link: the local reads pages, plus fuel and reports. */
-export type AssistantAnswerPage = AssistantNavigation | "fuel" | "reports";
+/** Where an AI answer may link: the local reads pages, plus the pages the AI's other reads cover. */
+export type AssistantAnswerPage = AssistantNavigation | "fuel" | "reports" | "tyres" | "fines" | "incidents" | "parts";
 
 export type AssistantDocumentStatus =
   | "draft"
