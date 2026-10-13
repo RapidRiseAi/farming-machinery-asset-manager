@@ -2,6 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { rands } from "@/lib/money";
 import { relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -50,13 +51,13 @@ export default async function InboxPage({
   const nowIso = new Date().toISOString();
 
   const [wrRes, noteRes, msRes, wsRes] = await Promise.all([
-    supabase
+    readAll(() => supabase
       .from("work_requests_visible")
       .select("id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
       .eq("farm_id", profile.farm_id!)
       .is("deleted_at", null)
       .neq("status", "closed")
-      .order("updated_at", { ascending: false }),
+      .order("updated_at", { ascending: false })),
     supabase
       .from("notifications")
       .select("id, template, payload, read_at, created_at")

@@ -1,5 +1,6 @@
 import { getProfile, checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { csvResponse, parseFilters, toCsv } from "../data";
 import {
   storageLogbookRows,
@@ -47,10 +48,12 @@ export async function GET(request: Request) {
   const [tankRes, machineRes, delRes, issRes, userRes] = await Promise.all([
     supabase.from("fuel_tanks").select("id, name").eq("farm_id", farmId).is("deleted_at", null).order("name"),
     supabase.from("machines").select("id, name, reg_no, meter_type").eq("farm_id", farmId).is("deleted_at", null),
-    inRange(supabase.from("fuel_deliveries").select("tank_id, date, litres, supplier, invoice_no")
-      .eq("farm_id", farmId).is("deleted_at", null)),
-    inRange(supabase.from("fuel_issues").select("tank_id, machine_id, date, litres, meter_reading, activity, by_user, driver_name")
-      .eq("farm_id", farmId).is("deleted_at", null)),
+    // Every row, in date order: a logbook that stopped at the API's thousandth row would
+    // understate a claim with nothing on the page to say so.
+    readAll(() => inRange(supabase.from("fuel_deliveries").select("tank_id, date, litres, supplier, invoice_no")
+      .eq("farm_id", farmId).is("deleted_at", null)).order("date")),
+    readAll(() => inRange(supabase.from("fuel_issues").select("tank_id, machine_id, date, litres, meter_reading, activity, by_user, driver_name")
+      .eq("farm_id", farmId).is("deleted_at", null)).order("date")),
     supabase.from("users").select("id, name").is("deleted_at", null),
   ]);
 

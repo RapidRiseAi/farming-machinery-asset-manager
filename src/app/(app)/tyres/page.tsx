@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { currentFarmId, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -88,7 +89,13 @@ export default async function TyresPage({
 
   const supabase = await createClient();
   const [{ data: lifeData }, { data: machineData }] = await Promise.all([
-    farmId ? supabase.rpc("tyre_life", { p_farm: farmId }) : Promise.resolve({ data: [] }),
+    // Every tyre, page by page, in the function's own order (machine, then position): a
+    // fleet that has fitted and scrapped more than a thousand tyres was cut there.
+    farmId
+      ? readAll(() => supabase.rpc("tyre_life", { p_farm: farmId })
+          .order("machine_name", { ascending: true, nullsFirst: false })
+          .order("position_label", { ascending: true, nullsFirst: false }), { key: "tyre_id" })
+      : Promise.resolve({ data: [] }),
     supabase
       .from("machines")
       .select("id, name, meter_type, current_reading")

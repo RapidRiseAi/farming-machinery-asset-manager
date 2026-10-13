@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { rands } from "@/lib/money";
 import { ledgerSign, isNote } from "@/lib/partner-docs";
 import { t } from "@/lib/i18n";
@@ -109,12 +110,12 @@ export default async function ContractorDashboardPage({
   // for a workshop user, so a contractor never sees another workshop's request even on a
   // shared farm. The explicit workshop_id filter is kept (belt-and-suspenders + intent).
   // Together: a contractor sees only its own work, and never an unlinked farm's data.
-  const { data: wrData } = await supabase
+  const { data: wrData } = await readAll(() => supabase
     .from("work_requests_visible")
     .select("id, farm_id, machine_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
-    .eq("workshop_id", profile.workshop_id)
+    .eq("workshop_id", profile.workshop_id!)
     .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false }));
   const all = (wrData as WorkRequest[] | null) ?? [];
 
   const farmIds = [...new Set(all.map((r) => r.farm_id))];
@@ -134,12 +135,12 @@ export default async function ContractorDashboardPage({
     // `work_requests.invoice_amount_cents`, the field from before documents existed -
     // so a partner billing entirely through FleetWise documents saw R0 in the panel they
     // were paying for.
-    supabase
+    readAll(() => supabase
       .from("partner_documents")
       .select("id, kind, status, farm_id, partner_client_id, bill_to_name, number, total_cents, amount_paid_cents, due_date")
       .eq("workshop_id", workshop.id)
       .is("deleted_at", null)
-      .not("status", "in", "(draft,void,cancelled,declined,expired)"),
+      .not("status", "in", "(draft,void,cancelled,declined,expired)")),
   ]);
   const docs = (docData as PartnerDoc[] | null) ?? [];
   const machineById = new Map(((msData as Machine[] | null) ?? []).map((m) => [m.id, m]));

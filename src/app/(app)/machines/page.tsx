@@ -2,12 +2,13 @@ import Link from "next/link";
 import { requireProfile, currentFarmId } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { sanitiseFilterTerm } from "@/lib/search-filter";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { summariseCosts, costPerMeter } from "@/lib/cost";
+import { costPerMeter } from "@/lib/cost";
 import { meterReading, meterUnit, relativeDate, num, todayLocal } from "@/lib/format";
 import { SETTING_NUMBERS } from "@/lib/settings";
 import {
@@ -135,15 +136,19 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     .is("deleted_at", null);
   if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
 
-  let costQ = supabase.from("cost_entries").select("machine_id, type, amount_cents").is("deleted_at", null);
-  if (farmId) costQ = costQ.eq("farm_id", farmId);
-
-  type CostRow = { machine_id: string | null; type: string; amount_cents: number | null };
+  // Lifetime cost per machine, added up by the database: the ledger has a row for every
+  // fuel draw, far more than the API returns in one page (20261013090000).
+  type CostRow = { machine_id: string; total_cents: number | string };
+  const costQ = () => supabase.rpc("machine_cost_totals", { p_farm: farmId ?? null });
+  const planQ = () => {
+    const q = supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null);
+    return farmId ? q.eq("farm_id", farmId) : q;
+  };
   const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult] = await Promise.all([
     query,
     dimQuery,
-    supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null),
-    costsVisible ? costQ : Promise.resolve({ data: [] as CostRow[] }),
+    readAll(planQ),
+    costsVisible ? readAll<CostRow>(costQ, { key: "machine_id" }) : Promise.resolve({ data: [] as CostRow[] }),
     farmId
       ? supabase.from("farms").select("settings").eq("id", farmId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -261,19 +266,13 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   // Cost per hour / km, from the same ledger that feeds the reports (F1 `cost.ts`), so
   // the list and the machine page never disagree.
-  const costData = ((costResult.data as CostRow[] | null) ?? []);
-  const costByMachine = new Map<string, { type: string; amount_cents: number | null }[]>();
-  for (const c of costData) {
-    if (!c.machine_id) continue;
-    const list = costByMachine.get(c.machine_id) ?? [];
-    list.push(c);
-    costByMachine.set(c.machine_id, list);
-  }
+  const tcoByMachine = new Map(
+    ((costResult.data as CostRow[] | null) ?? []).map((c) => [c.machine_id, Number(c.total_cents)]),
+  );
   const costPerUnit = (m: MachineRow): number | null => {
     if (m.meter_type === "none") return null;
-    const rows = costByMachine.get(m.id);
-    if (!rows || rows.length === 0) return null;
-    return costPerMeter(summariseCosts(rows).total, m.current_reading);
+    const tco = tcoByMachine.get(m.id);
+    return tco == null ? null : costPerMeter(tco, m.current_reading);
   };
 
   // The current query string, so chips, sort links and search preserve everything else.

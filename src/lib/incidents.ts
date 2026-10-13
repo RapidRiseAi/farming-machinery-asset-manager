@@ -91,8 +91,11 @@ export function claimOpen(status: IncidentStatus): boolean {
 }
 
 /** Has this one been dealt with, one way or another? Drives the "still open" count. */
+/** Nothing left to do: no claim was made, the claim was settled, or the incident is closed. */
+export const CLOSED_INCIDENT_STATUSES: readonly IncidentStatus[] = ["closed", "no_claim", "claim_settled"];
+
 export function incidentOpen(status: IncidentStatus): boolean {
-  return status !== "closed" && status !== "no_claim" && status !== "claim_settled";
+  return !CLOSED_INCIDENT_STATUSES.includes(status);
 }
 
 /**

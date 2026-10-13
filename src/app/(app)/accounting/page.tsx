@@ -4,6 +4,7 @@ import {
 } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readJournal } from "@/lib/accounting-read";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate, num } from "@/lib/format";
@@ -100,19 +101,18 @@ export default async function AccountingPage({
     const { workshop } = await currentWorkshop(profile);
     if (workshop) {
       subjectName = workshop.trading_name ?? workshop.name ?? null;
-      const { data } = await supabase.rpc("partner_journal", {
-        p_workshop: workshop.id, p_from: from, p_to: to,
-      });
-      lines = (data ?? []) as JournalLine[];
+      // Every line: the totals and the account summary below are summed from them.
+      const { data } = await readJournal(supabase, { scope: "partner", workshopId: workshop.id, from, to });
+      lines = data ?? [];
     }
   } else {
     const farmId = await currentFarmId(profile);
     if (farmId) {
       const [{ data }, { data: farm }] = await Promise.all([
-        supabase.rpc("farm_journal", { p_farm: farmId, p_from: from, p_to: to }),
+        readJournal(supabase, { scope: "farm", farmId, from, to }),
         supabase.from("farms").select("name").eq("id", farmId).maybeSingle(),
       ]);
-      lines = (data ?? []) as JournalLine[];
+      lines = data ?? [];
       subjectName = (farm as { name: string } | null)?.name ?? null;
     }
   }

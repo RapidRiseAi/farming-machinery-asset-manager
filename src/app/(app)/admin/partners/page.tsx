@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import {
@@ -55,25 +56,22 @@ export default async function AdminPartnersPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: wData }, { data: linkData }, { data: docData }] = await Promise.all([
-    supabase
+  // Links and documents are counted by the database, one row per partner: counting rows
+  // here stopped at the API's thousandth document on the platform (20261013090000).
+  type Activity = { workshop_id: string; active_clients: number; documents: number };
+  const [{ data: wData }, { data: activityData }] = await Promise.all([
+    readAll(() => supabase
       .from("workshops")
       .select("id, name, trading_name, kind, plan, area, created_at")
       .is("deleted_at", null)
-      .order("created_at", { ascending: false }),
-    supabase.from("workshop_links").select("workshop_id, status").is("deleted_at", null),
-    supabase.from("partner_documents").select("workshop_id, kind, status").is("deleted_at", null),
+      .order("created_at", { ascending: false })),
+    readAll<Activity>(() => supabase.rpc("admin_partner_activity"), { key: "workshop_id" }),
   ]);
 
   const partners = (wData as Row[] | null) ?? [];
-  const links = (linkData as { workshop_id: string; status: string }[] | null) ?? [];
-  const docs = (docData as { workshop_id: string; kind: string; status: string }[] | null) ?? [];
-
-  const clientsBy = new Map<string, number>();
-  for (const l of links) if (l.status === "active") clientsBy.set(l.workshop_id, (clientsBy.get(l.workshop_id) ?? 0) + 1);
-
-  const docsBy = new Map<string, number>();
-  for (const d of docs) if (d.status !== "draft") docsBy.set(d.workshop_id, (docsBy.get(d.workshop_id) ?? 0) + 1);
+  const activity = (activityData as Activity[] | null) ?? [];
+  const clientsBy = new Map(activity.map((a) => [a.workshop_id, a.active_clients]));
+  const docsBy = new Map(activity.map((a) => [a.workshop_id, a.documents]));
 
   const onBooks = partners.filter((p) => p.plan === "books").length;
   // No price is never shown as a zero: "R0,00 a month" reads as a decision somebody made,

@@ -20,6 +20,7 @@ function fixture() {
         gte() { return query; },
         lte() { return query; },
         order() { return query; },
+        range() { return query; },
         maybeSingle() { return Promise.resolve({ data: null, error: null }); },
         then(resolve: (value: unknown) => unknown) {
           // Without a user subject the view owner returns no fuel rows; the raw

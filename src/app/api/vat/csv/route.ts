@@ -1,5 +1,6 @@
 import { requireRole, currentWorkshop, workshopEntitlementOr403 } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
 import { EMPTY_VAT_RETURN, type VatReturn } from "@/lib/expenses";
 
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const [{ data: vatData }, { data: docs }, { data: exps }] = await Promise.all([
     supabase.rpc("partner_vat_return", { p_workshop: workshop.id, p_from: from, p_to: to }),
-    supabase
+    // Every row of the period: the export is what the accountant files from.
+    readAll(() => supabase
       .from("partner_documents")
       .select("number, kind, status, issue_date, bill_to_name, bill_to_vat_number, subtotal_cents, discount_cents, vat_cents")
       .eq("workshop_id", workshop.id)
@@ -38,13 +40,13 @@ export async function GET(request: Request) {
       .in("status", ["sent", "part_paid", "paid", "written_off"])
       .gte("issue_date", from).lte("issue_date", to)
       .is("deleted_at", null)
-      .order("issue_date"),
-    supabase
+      .order("issue_date")),
+    readAll(() => supabase
       .from("partner_expenses")
       .select("supplier_name, supplier_vat_number, reference, category, expense_date, amount_cents, vat_cents, vat_claimable")
       .gte("expense_date", from).lte("expense_date", to)
       .is("deleted_at", null)
-      .order("expense_date"),
+      .order("expense_date")),
   ]);
 
   const v = (((vatData ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);

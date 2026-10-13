@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
+import { readPartnerStatement } from "@/lib/statement-read";
 import {
   withRunningBalance, statementTotals, statementLabel, defaultStatementPeriod,
   AGEING_BUCKETS, EMPTY_AGEING, type StatementRow, type Ageing,
@@ -115,7 +116,7 @@ export default async function StatementsPage({
   let ageing: Ageing = EMPTY_AGEING;
   if (selected) {
     const [{ data: stmt }, { data: aged }] = await Promise.all([
-      supabase.rpc("partner_statement", {
+      readPartnerStatement(supabase, {
         p_workshop: workshop.id,
         p_farm: selected.farm_id,
         p_client: selected.client_id,

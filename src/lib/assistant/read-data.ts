@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth";
 import { matchMachine, normalizeAssistantText } from "./normalize";
 import type { AssistantDocumentStatus, AssistantMachine } from "./types";
+import { ID_CHUNK } from "@/lib/supabase/read-all";
 
 export type AssistantReadScope = {
   supabase: SupabaseClient;
@@ -110,6 +111,22 @@ function visibleIds(scope: AssistantReadScope): string[] {
   return scope.machines.map((machine) => machine.id);
 }
 
+/**
+ * How a list read is kept to the machines this person sees. One machine: by its id. A
+ * fleet small enough to list: by the id list. A larger fleet: by the farm and RLS alone
+ * (which already keep an operator to their own machines), reading a few more rows than
+ * asked for and keeping those on visible machines afterwards. An id list for a large fleet
+ * made the URL too long to be accepted, and the read failed outright.
+ */
+function fleetFilter(scope: AssistantReadScope, resolvedId: string | null, limit: number) {
+  const ids = visibleIds(scope);
+  const listed = resolvedId === null && ids.length <= ID_CHUNK;
+  return {
+    ids: listed ? ids : null,
+    fetch: resolvedId !== null || listed ? limit : limit * 3,
+  };
+}
+
 function canSeeOperationalAmounts(role: Role): boolean {
   return role !== "operator";
 }
@@ -156,14 +173,16 @@ export async function listFaults(
   const resolved = resolveVisibleMachine(input.machine, scope.machines);
   if (resolved && !resolved.ok) return { match: resolved, faults: [] };
   const names = machineNameById(scope.machines);
+  const limit = input.limit ?? 10;
+  const fleet = fleetFilter(scope, resolved?.ok ? resolved.machine.id : null, limit);
   let query = scope.supabase
     .from("faults")
     .select("machine_id, description, category, urgency, status, created_at")
     .eq("farm_id", scope.farmId)
-    .in("machine_id", visibleIds(scope))
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(input.limit ?? 10);
+    .limit(fleet.fetch);
+  if (fleet.ids) query = query.in("machine_id", fleet.ids);
   if (input.view === "resolved") query = query.eq("status", "resolved");
   else if (input.view !== "all") query = query.neq("status", "resolved");
   if (resolved?.ok) query = query.eq("machine_id", resolved.machine.id);
@@ -171,7 +190,10 @@ export async function listFaults(
   if (error) throw error;
   return {
     match: resolved ?? undefined,
-    faults: ((data as Array<Record<string, unknown>> | null) ?? []).map((row) => ({
+    faults: ((data as Array<Record<string, unknown>> | null) ?? [])
+      .filter((row) => names.has(String(row.machine_id)))
+      .slice(0, limit)
+      .map((row) => ({
       machine: names.get(String(row.machine_id)) ?? "Unknown machine",
       description: concise(row.description),
       category: concise(row.category, 80),
@@ -195,14 +217,16 @@ export async function listJobCards(
   if (resolved && !resolved.ok) return { match: resolved, jobCards: [] };
   const names = machineNameById(scope.machines);
   const showAmounts = canSeeOperationalAmounts(scope.role);
+  const limit = input.limit ?? 10;
+  const fleet = fleetFilter(scope, resolved?.ok ? resolved.machine.id : null, limit);
   let query = scope.supabase
     .from("job_cards_visible")
     .select("machine_id, type, status, date_in, date_out, reported_problem, diagnosis, work_performed, total_cents, created_at")
     .eq("farm_id", scope.farmId)
-    .in("machine_id", visibleIds(scope))
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(input.limit ?? 10);
+    .limit(fleet.fetch);
+  if (fleet.ids) query = query.in("machine_id", fleet.ids);
   if (input.view === "completed") query = query.in("status", ["completed", "approved"]);
   else if (input.view !== "all") query = query.in("status", ["reported", "open", "in_progress", "waiting_parts"]);
   if (input.type) query = query.eq("type", input.type);
@@ -211,7 +235,10 @@ export async function listJobCards(
   if (error) throw error;
   return {
     match: resolved ?? undefined,
-    jobCards: ((data as Array<Record<string, unknown>> | null) ?? []).map((row) => ({
+    jobCards: ((data as Array<Record<string, unknown>> | null) ?? [])
+      .filter((row) => names.has(String(row.machine_id)))
+      .slice(0, limit)
+      .map((row) => ({
       machine: names.get(String(row.machine_id)) ?? "Unknown machine",
       type: row.type,
       status: row.status,
@@ -239,14 +266,16 @@ export async function listWorkRequests(
   if (resolved && !resolved.ok) return { match: resolved, workRequests: [] };
   const names = machineNameById(scope.machines);
   const showAmounts = canSeeOperationalAmounts(scope.role);
+  const limit = input.limit ?? 10;
+  const fleet = fleetFilter(scope, resolved?.ok ? resolved.machine.id : null, limit);
   let query = scope.supabase
     .from("work_requests_visible")
     .select("machine_id, kind, status, priority, title, description, quote_amount_cents, invoice_amount_cents, updated_at")
     .eq("farm_id", scope.farmId)
-    .in("machine_id", visibleIds(scope))
     .is("deleted_at", null)
     .order("updated_at", { ascending: false })
-    .limit(input.limit ?? 10);
+    .limit(fleet.fetch);
+  if (fleet.ids) query = query.in("machine_id", fleet.ids);
   if (resolved?.ok) query = query.eq("machine_id", resolved.machine.id);
   if (input.kind) query = query.eq("kind", input.kind);
   if (input.status) query = query.eq("status", input.status);
@@ -255,7 +284,10 @@ export async function listWorkRequests(
   if (error) throw error;
   return {
     match: resolved ?? undefined,
-    workRequests: ((data as Array<Record<string, unknown>> | null) ?? []).map((row) => ({
+    workRequests: ((data as Array<Record<string, unknown>> | null) ?? [])
+      .filter((row) => names.has(String(row.machine_id)))
+      .slice(0, limit)
+      .map((row) => ({
       machine: names.get(String(row.machine_id)) ?? "Unknown machine",
       kind: row.kind,
       status: row.status,

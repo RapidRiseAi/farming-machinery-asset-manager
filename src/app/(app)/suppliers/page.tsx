@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { supplierPositions, EMPTY_POSITION, type Supplier } from "@/lib/suppliers";
@@ -79,12 +80,13 @@ export default async function SuppliersPage({
       .is("deleted_at", null)
       .order("active", { ascending: false })
       .order("name", { ascending: true }),
-    // Only the four columns the rollup needs. RLS scopes both queries to this workshop, so
-    // neither carries a workshop filter of its own.
-    supabase
+    // Only the four columns the rollup needs, every page of them: what is owed to a
+    // supplier is summed from all of their invoices, not the first thousand. RLS scopes
+    // both queries to this workshop, so neither carries a workshop filter of its own.
+    readAll(() => supabase
       .from("partner_expenses")
       .select("supplier_id, amount_cents, vat_cents, paid_on")
-      .is("deleted_at", null),
+      .is("deleted_at", null)),
   ]);
 
   const suppliers = (supplierData ?? []) as Supplier[];

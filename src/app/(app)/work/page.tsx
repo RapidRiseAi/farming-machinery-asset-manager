@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
+import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { rands } from "@/lib/money";
 import { relativeDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
@@ -32,27 +34,57 @@ type WorkRequest = {
 export default async function WorkListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; machine?: string }>;
+  searchParams: Promise<{ status?: string; machine?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
   // Current query string, so a chip preserves whatever else is filtered.
+  // Not the page: a different filter starts again at its first page.
   const search = new URLSearchParams(
-    Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
+    Object.entries(sp).filter(([k, v]) => !!v && k !== "page") as [string, string][],
   ).toString();
   const locale = profile.lang;
   const isContractor = profile.role === "workshop";
 
   const supabase = await createClient();
-  let q = supabase
-    .from("work_requests_visible")
-    .select("id, farm_id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
-  if (sp.status) q = q.eq("status", sp.status);
-  if (sp.machine) q = q.eq("machine_id", sp.machine);
-  const { data } = await q;
-  const rows = (data as WorkRequest[] | null) ?? [];
+  // Open requests are listed whole, however old; closed ones are history and page, newest
+  // first. One list of everything stopped at the API's thousandth row with nothing to say so.
+  const page = pageNumber(sp.page);
+  const requests = () => {
+    let q = supabase
+      .from("work_requests_visible")
+      .select("id, farm_id, machine_id, workshop_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
+      .is("deleted_at", null);
+    if (sp.machine) q = q.eq("machine_id", sp.machine);
+    return q;
+  };
+  const showClosed = !sp.status || sp.status === "closed";
+  const [openRes, closedRes] = await Promise.all([
+    sp.status === "closed"
+      ? Promise.resolve({ data: [] as WorkRequest[] })
+      : readAll<WorkRequest>(() => (sp.status ? requests().eq("status", sp.status) : requests().neq("status", "closed"))
+          .order("updated_at", { ascending: false })),
+    showClosed
+      ? requests().eq("status", "closed").order("updated_at", { ascending: false }).order("id").range(...pageRange(page))
+      : Promise.resolve({ data: [] as WorkRequest[] }),
+  ]);
+  const closedRows = (closedRes.data as WorkRequest[] | null) ?? [];
+  const hasOlder = closedRows.length > PAGE_SIZE;
+  const rows = [...((openRes.data as WorkRequest[] | null) ?? []), ...closedRows.slice(0, PAGE_SIZE)];
+  const pager = (
+    <Pager
+      page={page}
+      hasOlder={hasOlder}
+      href={(n) => {
+        const next = new URLSearchParams(search);
+        next.set("page", String(n));
+        return `/work?${next.toString()}`;
+      }}
+      label={t("ui.pages", locale)}
+      newerLabel={t("ui.pageNewer", locale)}
+      olderLabel={t("ui.pageOlder", locale)}
+    />
+  );
 
   const [{ data: ms }, { data: ws }, { data: fs }] = await Promise.all([
     supabase.from("machines").select("id, name").is("deleted_at", null).order("name"),
@@ -112,7 +144,10 @@ export default async function WorkListPage({
           <EmptyState icon={<PartnersIcon />} title={t("work.empty", locale)} hint={isContractor ? t("work.emptyHintContractor", locale) : t("work.emptyHint", locale)} />
         </FilteredEmpty>
       ) : sp.status ? (
-        <Card flush>{list(rows)}</Card>
+        <div className="flex flex-col gap-3">
+          <Card flush>{list(rows)}</Card>
+          {sp.status === "closed" ? pager : null}
+        </div>
       ) : (
         <div className="flex flex-col gap-6">
           {open.length > 0 ? (
@@ -122,8 +157,9 @@ export default async function WorkListPage({
             </section>
           ) : null}
           {closed.length > 0 ? (
-            <Disclosure summary={t("workview.groups.closed", locale)} meta={String(closed.length)}>
+            <Disclosure summary={t("workview.groups.closed", locale)} meta={hasOlder || page > 1 ? undefined : String(closed.length)} defaultOpen={page > 1}>
               <div className="-mx-1">{list(closed)}</div>
+              {pager}
             </Disclosure>
           ) : null}
         </div>

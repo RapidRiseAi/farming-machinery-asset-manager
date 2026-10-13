@@ -2,6 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { PLANS } from "@/lib/entitlements";
 import { createFarm } from "./actions";
@@ -48,31 +49,22 @@ export default async function AdminFarmsPage({
   const supabase = await createClient();
 
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-  const [{ data: fData }, { data: mData }, { data: uData }, { data: jData }, { data: ftData }] = await Promise.all([
-    supabase.from("farms").select("id, name, plan, status, created_at").order("created_at", { ascending: false }),
-    supabase.from("machines").select("farm_id").is("deleted_at", null),
-    supabase.from("users").select("farm_id, active"),
-    supabase.from("job_cards").select("farm_id, created_at").is("deleted_at", null),
-    supabase.from("faults").select("farm_id, created_at").is("deleted_at", null),
+  // Counted by the database, one row per farm: counting rows here stopped at the API's
+  // thousandth machine, user or job card across the whole platform (20261013090000).
+  type Activity = { farm_id: string; machines: number; active_users: number; jobs_this_month: number; last_activity: string | null };
+  const [{ data: fData }, { data: aData }] = await Promise.all([
+    readAll(() => supabase.from("farms").select("id, name, plan, status, created_at").order("created_at", { ascending: false })),
+    readAll<Activity>(() => supabase.rpc("admin_farm_activity", { p_month_start: monthStart }), { key: "farm_id" }),
   ]);
   const farms = (fData as FarmRow[] | null) ?? [];
 
-  const count = (rows: { farm_id: string }[] | null, pred?: (r: { farm_id: string } & Record<string, unknown>) => boolean) => {
-    const m = new Map<string, number>();
-    for (const r of rows ?? []) if (!pred || pred(r as { farm_id: string } & Record<string, unknown>)) m.set(r.farm_id, (m.get(r.farm_id) ?? 0) + 1);
-    return m;
-  };
-  const machinesBy = count(mData as { farm_id: string }[] | null);
-  const activeUsersBy = count(uData as { farm_id: string; active: boolean }[] | null, (r) => r.active === true);
-  const jobsThisMonthBy = count(jData as { farm_id: string; created_at: string }[] | null, (r) => String(r.created_at) >= monthStart);
-
-  const lastActivityBy = new Map<string, string>();
-  for (const rows of [jData, ftData] as ({ farm_id: string; created_at: string }[] | null)[]) {
-    for (const r of rows ?? []) {
-      const cur = lastActivityBy.get(r.farm_id);
-      if (!cur || r.created_at > cur) lastActivityBy.set(r.farm_id, r.created_at);
-    }
-  }
+  const activity = new Map(((aData as Activity[] | null) ?? []).map((a) => [a.farm_id, a]));
+  const machinesBy = new Map([...activity].map(([id, a]) => [id, a.machines]));
+  const activeUsersBy = new Map([...activity].map(([id, a]) => [id, a.active_users]));
+  const jobsThisMonthBy = new Map([...activity].map(([id, a]) => [id, a.jobs_this_month]));
+  const lastActivityBy = new Map(
+    [...activity].flatMap(([id, a]) => (a.last_activity ? [[id, a.last_activity] as const] : [])),
+  );
   const daysAgo = (iso?: string) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
 
   const newFarm = (

@@ -131,6 +131,20 @@ const PROBES = {
   "20261011090000":
     "select to_regprocedure('app.ai_billing_cutoff()') is not null" +
     " and pg_get_functiondef('app.generate_ai_usage_invoices()'::regprocedure) like '%v_cutoff - interval ''35 days''%'",
+  // Database totals: machines list, expenses page, Rapid Rise's farm and partner lists.
+  "20261013090000":
+    "select to_regprocedure('public.machine_cost_totals(uuid)') is not null" +
+    " and to_regprocedure('public.admin_farm_activity(timestamptz)') is not null" +
+    " and to_regprocedure('public.partner_expense_position(uuid)') is not null" +
+    " and to_regprocedure('public.admin_partner_activity()') is not null",
+  // Statements readable page by page: a sort rank and a row key on both.
+  "20261013100000":
+    "select pg_get_function_result('public.partner_statement(uuid,uuid,uuid,date,date)'::regprocedure) like '%entry_id uuid, sort_rank integer%'" +
+    " and pg_get_function_result('public.supplier_statement(uuid,uuid,date,date)'::regprocedure) like '%sort_rank integer%'",
+  // Scheduled reports claimed in batches: the cron entry point takes a limit.
+  "20261013110000":
+    "select to_regprocedure('public.cron_run_due_report_schedules(integer)') is not null" +
+    " and to_regprocedure('app.run_due_report_schedules(uuid,date,integer)') is not null",
 };
 
 const url = readEnv("DATABASE_URL");

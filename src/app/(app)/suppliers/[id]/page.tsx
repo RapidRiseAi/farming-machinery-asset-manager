@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
+import { readSupplierStatement } from "@/lib/statement-read";
 import {
   withSupplierRunningBalance, supplierStatementTotals, supplierStatementLabel,
   supplierStatementPeriods, defaultSupplierPeriod, supplierPaymentDates,
@@ -129,7 +130,7 @@ export default async function SupplierAccountPage({
   const activeKey = periods.find((p) => p.from === from && p.to === to)?.key ?? null;
 
   const [{ data: stmtData }, { data: agedData }] = await Promise.all([
-    supabase.rpc("supplier_statement", {
+    readSupplierStatement(supabase, {
       p_workshop: workshop.id, p_supplier: supplier.id, p_from: from, p_to: to,
     }),
     supabase.rpc("supplier_ageing", { p_workshop: workshop.id, p_supplier: supplier.id }),

@@ -6,6 +6,7 @@ import { currentPlan, effectiveFarmRole } from "@/lib/auth";
 import { planAllows, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
@@ -207,15 +208,16 @@ export default async function MachineDetailPage({
 
   const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes, dimsRes] = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
-    supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    // The machine's whole history: the lifetime spend below is summed from these.
+    readAll(() => supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
+    readAll(() => supabase.from("faults").select("id, description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("watch_items").select("id, text, status, created_at, source_job_card_id").eq("machine_id", id).order("created_at", { ascending: false }),
     supabase.from("service_plan_lines").select("id, task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     supabase.from("service_templates").select("id, name, machine_type").is("deleted_at", null).or(`machine_type.eq.${machine.type},machine_type.is.null`),
     supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).is("deleted_at", null).order("occurred_on", { ascending: false }).limit(20),
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     costsVisible
-      ? supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null)
+      ? readAll(() => supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null))
       : Promise.resolve({ data: [] }),
     supabase.from("fuel_issues_visible").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
@@ -359,7 +361,7 @@ export default async function MachineDetailPage({
   const canWorkReq = resourceRole != null && ["owner", "manager", "rr_admin"].includes(resourceRole);
   type WR = { id: string; kind: string; status: string; priority: string; title: string | null; workshop_id: string | null; quote_amount_cents: number | null; invoice_amount_cents: number | null; updated_at: string };
   const [workReqRes, workshopRes, workshopLinkRes] = await Promise.all([
-    supabase.from("work_requests_visible").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false }),
+    readAll(() => supabase.from("work_requests_visible").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false })),
     supabase.from("workshops").select("id, name, kind"),
     supabase.from("workshop_links").select("workshop_id").eq("farm_id", machine.farm_id).eq("status", "active").is("deleted_at", null),
   ]);

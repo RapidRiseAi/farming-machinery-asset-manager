@@ -14,6 +14,7 @@ import {
   round,
   type FarmDataScope,
 } from "./farm-data";
+import { readByIds } from "@/lib/supabase/read-all";
 
 /**
  * The rest of the farm's records, for the questions farm-data.ts could not answer.
@@ -241,21 +242,24 @@ export async function serviceHistory(
   const cols = "machine_id, type, date_in, date_out, meter_reading, work_performed, reported_problem, created_at"
     + (scope.costsVisible ? ", total_cents, parts_total_cents, labour_total_cents" : "");
   // The _visible projection: job card totals are money columns, granted only through it.
-  let q = scope.supabase
-    .from("job_cards_visible")
-    .select(cols)
-    .eq("farm_id", scope.farmId)
-    .is("deleted_at", null)
-    .in("status", ["completed", "approved"])
-    .gte("created_at", `${addDays(period.from, -120)}T00:00:00Z`)
-    .order("created_at", { ascending: false })
-    .limit(PAGE_ROWS);
-  if (picked.machineId) q = q.eq("machine_id", picked.machineId);
-  if (input.type && ["scheduled_service", "repair", "inspection", "other"].includes(input.type)) q = q.eq("type", input.type);
-  const { data, error } = await q;
-  if (error) throw error;
+  // Every page of the period: a large farm closes hundreds of job cards a month, and the
+  // newest thousand covered weeks of a year while being summed as the whole of it.
+  const { list: jobRows, truncated } = await paged<JobRow>((a, b) => {
+    let q = scope.supabase
+      .from("job_cards_visible")
+      .select(cols)
+      .eq("farm_id", scope.farmId)
+      .is("deleted_at", null)
+      .in("status", ["completed", "approved"])
+      .gte("created_at", `${addDays(period.from, -120)}T00:00:00Z`)
+      .order("created_at", { ascending: false })
+      .order("id");
+    if (picked.machineId) q = q.eq("machine_id", picked.machineId);
+    if (input.type && ["scheduled_service", "repair", "inspection", "other"].includes(input.type)) q = q.eq("type", input.type);
+    return q.range(a, b);
+  });
   const done = (job: JobRow) => job.date_out ?? job.date_in ?? job.created_at.slice(0, 10);
-  const jobs = rows<JobRow>(data).filter((job) => done(job) >= period.from && done(job) <= period.to);
+  const jobs = jobRows.filter((job) => done(job) >= period.from && done(job) <= period.to);
   const names = await machineNames(scope, jobs.map((job) => job.machine_id));
 
   const byType = new Map<string, { count: number; cents: number; workshopDays: number; withDays: number }>();
@@ -302,6 +306,7 @@ export async function serviceHistory(
       ...(scope.costsVisible ? { totalRand: rand(job.total_cents) ?? 0, partsRand: rand(job.parts_total_cents) ?? 0, labourRand: rand(job.labour_total_cents) ?? 0 } : {}),
     })),
     ...(jobs.length > 20 ? { moreJobs: jobs.length - 20 } : {}),
+    ...(truncated ? { truncated: true } : {}),
   };
 }
 
@@ -317,37 +322,51 @@ export async function complianceStatus(scope: FarmDataScope, input: { withinDays
   const until = addDays(today, within);
   const picked = resolve(scope, input.machine);
   if ("error" in picked) return { asOf: today, ...picked.error };
-  const visibleIds = scope.machines.map((m) => m.id);
-  let lq = scope.supabase
-    .from("licences")
-    .select("machine_id, type, expiry_date")
-    .eq("farm_id", scope.farmId)
-    .is("deleted_at", null)
-    .order("expiry_date", { ascending: true })
-    .limit(500);
-  if (picked.machineId) lq = lq.eq("machine_id", picked.machineId);
+  const visible = new Set(scope.machines.map((m) => m.id));
+  // Every page of each: "documents tracked" counted at most 500, and the warranties were
+  // asked for by an id list that a fleet of a few hundred made too long to be accepted.
+  // Drivers' documents and warranties stay best-effort, as before: a role that cannot read
+  // them still gets its vehicle documents.
+  const settle = <T,>(read: Promise<{ list: T[]; truncated: boolean }>) =>
+    read.then((r) => ({ ...r, failed: false }), () => ({ list: [] as T[], truncated: false, failed: true }));
   const [licences, credentials, warranties] = await Promise.all([
-    lq,
+    paged<{ machine_id: string; type: string; expiry_date: string }>((a, b) => {
+      let q = scope.supabase
+        .from("licences")
+        .select("machine_id, type, expiry_date")
+        .eq("farm_id", scope.farmId)
+        .is("deleted_at", null)
+        .order("expiry_date", { ascending: true })
+        .order("id");
+      if (picked.machineId) q = q.eq("machine_id", picked.machineId);
+      return q.range(a, b);
+    }),
     picked.machineId
-      ? Promise.resolve({ data: [], error: null })
-      : scope.supabase
-          .from("driver_credentials")
-          .select("type, expiry_date")
-          .eq("farm_id", scope.farmId)
-          .is("deleted_at", null)
-          .not("expiry_date", "is", null)
-          .order("expiry_date", { ascending: true })
-          .limit(500),
-    scope.supabase
-      .from("machines")
-      .select("id, name, warranty_expiry_date, warranty_expiry_hours, current_reading, meter_type")
-      .eq("farm_id", scope.farmId)
-      .in("id", picked.machineId ? [picked.machineId] : visibleIds.slice(0, 300)),
+      ? Promise.resolve({ list: [] as { type: string; expiry_date: string }[], truncated: false, failed: false })
+      : settle(paged<{ type: string; expiry_date: string }>((a, b) =>
+          scope.supabase
+            .from("driver_credentials")
+            .select("type, expiry_date")
+            .eq("farm_id", scope.farmId)
+            .is("deleted_at", null)
+            .not("expiry_date", "is", null)
+            .order("expiry_date", { ascending: true })
+            .order("id")
+            .range(a, b))),
+    settle(paged<{ id: string; name: string; warranty_expiry_date: string | null; warranty_expiry_hours: number | string | null; current_reading: number | string | null; meter_type: string }>((a, b) => {
+      let q = scope.supabase
+        .from("machines")
+        .select("id, name, warranty_expiry_date, warranty_expiry_hours, current_reading, meter_type")
+        .eq("farm_id", scope.farmId)
+        .is("deleted_at", null)
+        .order("id");
+      if (picked.machineId) q = q.eq("id", picked.machineId);
+      return q.range(a, b);
+    })),
   ]);
-  if (licences.error) throw licences.error;
-  const names = await machineNames(scope, rows<{ machine_id: string }>(licences.data).map((r) => r.machine_id));
+  const names = await machineNames(scope, licences.list.map((r) => r.machine_id));
   const state = (expires: string) => (expires < today ? "expired" : expires <= until ? "expiring" : "ok");
-  const allLicences = rows<{ machine_id: string; type: string; expiry_date: string }>(licences.data);
+  const allLicences = licences.list;
   const vehicleDocuments = allLicences
     .filter((r) => r.expiry_date <= until)
     .map((r) => ({
@@ -357,11 +376,11 @@ export async function complianceStatus(scope: FarmDataScope, input: { withinDays
       daysLeft: daysBetween(today, r.expiry_date),
       status: state(r.expiry_date),
     }));
-  const drivers = credentials.error ? null : rows<{ type: string; expiry_date: string }>(credentials.data);
+  const drivers = credentials.failed ? null : credentials.list;
   const driverDocuments = drivers
     ?.filter((r) => r.expiry_date <= until)
     .map((r) => ({ document: r.type, expires: r.expiry_date, daysLeft: daysBetween(today, r.expiry_date), status: state(r.expiry_date) }));
-  const warrantyRows = warranties.error ? [] : rows<{ name: string; warranty_expiry_date: string | null; warranty_expiry_hours: number | string | null; current_reading: number | string | null; meter_type: string }>(warranties.data);
+  const warrantyRows = warranties.list.filter((m) => visible.has(m.id));
   const machineWarranties = warrantyRows
     .filter((m) => m.warranty_expiry_date || m.warranty_expiry_hours != null)
     .map((m) => ({
@@ -389,6 +408,7 @@ export async function complianceStatus(scope: FarmDataScope, input: { withinDays
         }
       : picked.machineId ? {} : { driverDocuments: "not visible for this role" }),
     machineWarranties,
+    ...(licences.truncated || credentials.truncated || warranties.truncated ? { truncated: true } : {}),
   };
 }
 
@@ -398,42 +418,32 @@ export async function complianceStatus(scope: FarmDataScope, input: { withinDays
 export async function tyreStatus(scope: FarmDataScope, input: { machine?: string | null }) {
   const picked = resolve(scope, input.machine);
   if ("error" in picked) return picked.error;
-  let fq = scope.supabase
-    .from("tyre_fitments")
-    .select("tyre_id, machine_id, axle, position_label, fitted_on, fitted_reading")
-    .eq("farm_id", scope.farmId)
-    .is("deleted_at", null)
-    .is("removed_on", null)
-    .limit(PAGE_ROWS);
-  if (picked.machineId) fq = fq.eq("machine_id", picked.machineId);
-  const [fitments, tyres, checks] = await Promise.all([
-    fq,
-    scope.supabase
-      .from("tyres")
-      .select("id, brand, pattern, size, status, new_tread_mm, purchase_date" + (scope.costsVisible ? ", purchase_cost_cents" : ""))
-      .eq("farm_id", scope.farmId)
-      .is("deleted_at", null)
-      .limit(PAGE_ROWS),
-    scope.supabase
-      .from("tyre_checks")
-      .select("tyre_id, checked_on, tread_mm, pressure_kpa")
-      .eq("farm_id", scope.farmId)
-      .is("deleted_at", null)
-      .order("checked_on", { ascending: false })
-      .limit(PAGE_ROWS),
+  // The tyres on the machines now, every page; and every tyre once with its latest check,
+  // from tyre_life (one row per tyre). Reading the newest thousand checks reached back only
+  // weeks on a large fleet, so a tyre checked before that had no last check and was never
+  // flagged for replacing.
+  const [fitments, life] = await Promise.all([
+    paged<Row>((a, b) => {
+      let q = scope.supabase
+        .from("tyre_fitments")
+        .select("id, tyre_id, machine_id, axle, position_label, fitted_on, fitted_reading")
+        .eq("farm_id", scope.farmId)
+        .is("deleted_at", null)
+        .is("removed_on", null)
+        .order("id");
+      if (picked.machineId) q = q.eq("machine_id", picked.machineId);
+      return q.range(a, b);
+    }),
+    paged<Row>((a, b) => scope.supabase.rpc("tyre_life", { p_farm: scope.farmId }).order("tyre_id").range(a, b)),
   ]);
-  if (fitments.error) throw fitments.error;
-  if (tyres.error) throw tyres.error;
-  const tyreById = new Map(rows<Row>(tyres.data).map((t) => [String(t.id), t]));
-  const lastCheck = new Map<string, Row>();
-  for (const check of checks.error ? [] : rows<Row>(checks.data)) if (!lastCheck.has(String(check.tyre_id))) lastCheck.set(String(check.tyre_id), check);
+  const tyreById = new Map(life.list.map((t) => [String(t.tyre_id), t]));
   const fleet = fleetById(scope);
-  const names = await machineNames(scope, rows<{ machine_id: string }>(fitments.data).map((f) => f.machine_id));
-  const fitted = rows<Row>(fitments.data).map((f) => {
+  const names = await machineNames(scope, fitments.list.map((f) => String(f.machine_id)));
+  const fitted = fitments.list.map((f) => {
     const tyre = tyreById.get(String(f.tyre_id)) ?? {};
-    const check = lastCheck.get(String(f.tyre_id));
+    const check = tyre.latest_checked_on ? { checked_on: tyre.latest_checked_on, tread_mm: tyre.latest_tread_mm } : null;
     const newTread = tyre.new_tread_mm != null ? num(tyre.new_tread_mm) : null;
-    const tread = check ? num(check.tread_mm) : null;
+    const tread = check && check.tread_mm != null ? num(check.tread_mm) : null;
     const machine = fleet.get(String(f.machine_id));
     const used = machine?.currentReading != null && f.fitted_reading != null ? num(machine.currentReading) - num(f.fitted_reading) : null;
     const leftPercent = tread != null && newTread ? Math.round((tread / newTread) * 100) : null;
@@ -443,14 +453,14 @@ export async function tyreStatus(scope: FarmDataScope, input: { machine?: string
       tyre: [tyre.brand, tyre.pattern, tyre.size].filter(Boolean).join(" ") || "Tyre",
       fittedOn: f.fitted_on,
       ...(used != null && used >= 0 ? { usedSinceFitted: round(used, 0), unit: machine?.meterType === "km" ? "km" : "hours" } : {}),
-      ...(check ? { lastCheck: { date: check.checked_on, treadMm: tread, ...(check.pressure_kpa != null ? { pressureKpa: num(check.pressure_kpa) } : {}) } } : { lastCheck: null }),
+      ...(check ? { lastCheck: { date: check.checked_on, treadMm: tread } } : { lastCheck: null }),
       ...(newTread != null ? { newTreadMm: newTread } : {}),
       ...(leftPercent != null ? { treadLeftPercent: leftPercent } : {}),
       replaceSoon: tread != null && (tread <= 3 || (leftPercent != null && leftPercent <= 25)),
       ...(scope.costsVisible && tyre.purchase_cost_cents != null ? { costRand: rand(tyre.purchase_cost_cents as number) } : {}),
     };
   });
-  const inStock = rows<Row>(tyres.data).filter((t) => t.status === "in_stock");
+  const inStock = life.list.filter((t) => t.status === "in_stock");
   const sizes = new Map<string, number>();
   for (const t of inStock) sizes.set(String(t.size ?? "unknown size"), (sizes.get(String(t.size ?? "unknown size")) ?? 0) + 1);
   return {
@@ -459,6 +469,7 @@ export async function tyreStatus(scope: FarmDataScope, input: { machine?: string
     fitted: fitted.slice(0, 60),
     ...(fitted.length > 60 ? { moreFitted: fitted.length - 60 } : {}),
     inStock: [...sizes.entries()].map(([size, count]) => ({ size, count })),
+    ...(fitments.truncated || life.truncated ? { truncated: true } : {}),
   };
 }
 
@@ -571,37 +582,42 @@ export async function finesIncidentsClaims(
 
 /** What is in the parts store, what is at or below its reorder point, and how fast it goes. */
 export async function stockLevels(scope: FarmDataScope, input: { search?: string | null; lowOnly?: boolean | null }, today: string) {
+  // Every stock line and every issue of the last 90 days, page by page: capped reads summed
+  // usage and stock value over an arbitrary part of a large store.
   const [stock, movements] = await Promise.all([
-    scope.supabase
-      .from("stock_items")
-      .select("id, part_catalogue_id, unit, on_hand, reorder_point, bin")
-      .eq("farm_id", scope.farmId)
-      .is("deleted_at", null)
-      .limit(PAGE_ROWS),
-    scope.supabase
-      .from("stock_movements")
-      .select("stock_item_id, qty")
-      .eq("farm_id", scope.farmId)
-      .eq("kind", "issue")
-      .is("deleted_at", null)
-      .gte("occurred_on", addDays(today, -90))
-      .limit(PAGE_ROWS * 2),
+    paged<Row>((a, b) =>
+      scope.supabase
+        .from("stock_items")
+        .select("id, part_catalogue_id, unit, on_hand, reorder_point, bin")
+        .eq("farm_id", scope.farmId)
+        .is("deleted_at", null)
+        .order("id")
+        .range(a, b)),
+    paged<Row>((a, b) =>
+      scope.supabase
+        .from("stock_movements")
+        .select("id, stock_item_id, qty")
+        .eq("farm_id", scope.farmId)
+        .eq("kind", "issue")
+        .is("deleted_at", null)
+        .gte("occurred_on", addDays(today, -90))
+        .order("id")
+        .range(a, b)).catch(() => ({ list: [] as Row[], truncated: false })),
   ]);
-  if (stock.error) throw stock.error;
   // The catalogue through its _visible projection, not embedded in the stock read: its typical
-  // cost is a money column granted only there, and an embed reaches the raw table.
-  const catalogueIds = [...new Set(rows<Row>(stock.data).map((item) => String(item.part_catalogue_id)))];
-  const catalogue = catalogueIds.length
-    ? await scope.supabase
-        .from("parts_catalogue_visible")
-        .select("id, part_no, description, category" + (scope.costsVisible ? ", typical_cost_cents" : ""))
-        .in("id", catalogueIds.slice(0, PAGE_ROWS))
-    : { data: [], error: null };
+  // cost is a money column granted only there, and an embed reaches the raw table. A hundred
+  // ids a request: one list of every part made the URL too long to be accepted.
+  const catalogueIds = [...new Set(stock.list.map((item) => String(item.part_catalogue_id)))];
+  const catalogue = await readByIds<Row>(catalogueIds, (chunk) =>
+    scope.supabase
+      .from("parts_catalogue_visible")
+      .select("id, part_no, description, category" + (scope.costsVisible ? ", typical_cost_cents" : ""))
+      .in("id", chunk));
   if (catalogue.error) throw catalogue.error;
-  const partById = new Map(rows<Row>(catalogue.data).map((part) => [String(part.id), part]));
-  const items = { data: rows<Row>(stock.data).map((item) => ({ ...item, parts_catalogue: partById.get(String(item.part_catalogue_id)) ?? null })) };
+  const partById = new Map((catalogue.data ?? []).map((part) => [String(part.id), part]));
+  const items = { data: stock.list.map((item) => ({ ...item, parts_catalogue: partById.get(String(item.part_catalogue_id)) ?? null })) };
   const issued = new Map<string, number>();
-  for (const m of movements.error ? [] : rows<Row>(movements.data)) issued.set(String(m.stock_item_id), (issued.get(String(m.stock_item_id)) ?? 0) + Math.abs(num(m.qty)));
+  for (const m of movements.list) issued.set(String(m.stock_item_id), (issued.get(String(m.stock_item_id)) ?? 0) + Math.abs(num(m.qty)));
   const needle = input.search?.trim().toLocaleLowerCase("en-ZA") ?? "";
   const list = rows<Row>(items.data)
     .map((item) => {
@@ -633,6 +649,7 @@ export async function stockLevels(scope: FarmDataScope, input: { search?: string
     ...(list.length > 60 ? { moreItems: list.length - 60 } : {}),
     lowCount: list.filter((item) => item.low).length,
     ...(scope.costsVisible ? { stockValueRand: round(list.reduce((t, item) => t + num((item as { stockValueRand?: number }).stockValueRand), 0), 2) } : {}),
+    ...(stock.truncated || movements.truncated ? { truncated: true } : {}),
   };
 }
 

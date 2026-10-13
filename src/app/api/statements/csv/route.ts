@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
 import { withRunningBalance, statementLabel, type StatementRow } from "@/lib/statement";
 import { parseStatementParty } from "@/lib/statement-party";
+import { readPartnerStatement } from "@/lib/statement-read";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   const { from, to } = party;
 
   const supabase = await createClient();
-  const { data } = await supabase.rpc("partner_statement", {
+  const { data } = await readPartnerStatement(supabase, {
     p_workshop: workshop.id,
     p_farm: party.farmId,
     p_client: party.clientId,

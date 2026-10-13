@@ -5,6 +5,7 @@ import { Pdf } from "@/lib/pdf/doc";
 import { rands } from "@/lib/money";
 import { brandingFrom, type Branding } from "@/lib/branding";
 import { brandingLogoBytes } from "@/lib/partner-media";
+import { readSupplierStatement } from "@/lib/statement-read";
 import {
   withSupplierRunningBalance, supplierStatementTotals, supplierStatementLabel,
   remittanceTotals, SUPPLIER_AGEING_BUCKETS, EMPTY_SUPPLIER_AGEING,
@@ -89,7 +90,7 @@ export async function loadSupplierStatement(
   },
 ): Promise<SupplierStatementData | null> {
   const [{ data: stmt }, { data: aged }, { data: who }] = await Promise.all([
-    supabase.rpc("supplier_statement", {
+    readSupplierStatement(supabase, {
       p_workshop: args.workshopId, p_supplier: args.supplierId,
       p_from: args.from, p_to: args.to,
     }),

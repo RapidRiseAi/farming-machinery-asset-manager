@@ -3,6 +3,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readByIds } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -26,6 +27,35 @@ import { signedReceiptUrls, claimNeedsProof } from "@/lib/receipt-media";
 import { markExpensePaid, deleteExpense, removeReceipt } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+/** The newest expenses listed that match the filters; the figures cover every one. */
+const LIST_ROWS = 200;
+
+type ExpensePosition = {
+  expenses: number;
+  spent_cents: number;
+  claimable_vat_cents: number;
+  unpaid: number;
+  unpaid_cents: number;
+  unsupported: number;
+  unsupported_vat_cents: number;
+};
+
+/** The one row of `partner_expense_position`, as numbers (bigint arrives as a number or a
+ *  string), all zero when there is nothing yet or the read failed. */
+function expensePosition(data: unknown): ExpensePosition {
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
+  const n = (k: keyof ExpensePosition) => Number(row?.[k] ?? 0) || 0;
+  return {
+    expenses: n("expenses"),
+    spent_cents: n("spent_cents"),
+    claimable_vat_cents: n("claimable_vat_cents"),
+    unpaid: n("unpaid"),
+    unpaid_cents: n("unpaid_cents"),
+    unsupported: n("unsupported"),
+    unsupported_vat_cents: n("unsupported_vat_cents"),
+  };
+}
 
 /**
  * What the partner bought (G6).
@@ -68,14 +98,27 @@ export default async function ExpensesPage({
     );
   }
 
+  // == Filters ==
+  // Two questions a partner actually asks of this list: "what have I not paid yet / what
+  // is missing its tax invoice", and "what did I spend on X". Both are plain URL params,
+  // validated here, so an unknown value shows everything rather than nothing. They are
+  // applied by the database: filtered in the page they only ever looked through the newest
+  // rows, and an older unpaid bill was simply not there.
+  const SHOW = ["unpaid", "noproof"] as const;
+  const show = (SHOW as readonly string[]).includes(sp.show ?? "") ? sp.show : undefined;
+  const category = (EXPENSE_CATEGORIES as readonly string[]).includes(sp.category ?? "") ? sp.category : undefined;
+
   const supabase = await createClient();
-  const [{ data }, { data: supplierData }, { data: orderData }] = await Promise.all([
-    supabase
-      .from("partner_expenses")
-      .select("*")
-      .is("deleted_at", null)
-      .order("expense_date", { ascending: false })
-      .limit(200),
+  const listQuery = () => {
+    let q = supabase.from("partner_expenses").select("*").is("deleted_at", null);
+    if (show === "unpaid") q = q.is("paid_on", null);
+    // claimNeedsProof, asked of the database.
+    if (show === "noproof") q = q.eq("vat_claimable", true).gt("vat_cents", 0).is("receipt_path", null);
+    if (category) q = q.eq("category", category);
+    return q.order("expense_date", { ascending: false }).order("id").limit(LIST_ROWS);
+  };
+  const [{ data }, { data: supplierData }, { data: positionData }] = await Promise.all([
+    listQuery(),
     // The book, for the capture form's picker. Inactive suppliers are left out: they are
     // the ones this workshop has stopped buying from, and offering them is how a dormant
     // record quietly comes back to life. Their history is untouched either way.
@@ -85,13 +128,10 @@ export default async function ExpensesPage({
       .is("deleted_at", null)
       .eq("active", true)
       .order("name", { ascending: true }),
-    // Orders, so an expense converted from one can say which. Fetched as a small map rather
-    // than a PostgREST embed because the same page already loads everything else flat, and
-    // a workshop's live order book is a short list.
-    supabase
-      .from("purchase_orders")
-      .select("id, reference, order_date")
-      .is("deleted_at", null),
+    // The figures above the list come from EVERY expense, not from the rows listed
+    // (20261013090000): summed over the newest 200, an unpaid bill older than those fell
+    // out of "still owed".
+    supabase.rpc("partner_expense_position", { p_workshop: workshop.id }),
   ]);
 
   // `supplier_id` (0481) and `purchase_order_id` (0475) are on the row but not on the
@@ -99,33 +139,25 @@ export default async function ExpensesPage({
   // there so this page can render the two links without changing what they see.
   type ExpenseRow = Expense & { supplier_id: string | null; purchase_order_id: string | null };
   const expenses = (data ?? []) as ExpenseRow[];
+  const capped = expenses.length >= LIST_ROWS;
   const suppliers = (supplierData ?? []) as SupplierOption[];
+  const position = expensePosition(positionData);
+
+  // Orders, so an expense converted from one can say which: only the orders the listed
+  // rows name, rather than every order the workshop ever placed.
+  const orderIds = expenses.map((e) => e.purchase_order_id).filter((v): v is string => !!v);
+  const { data: orderData } = await readByIds(orderIds, (chunk) => supabase
+    .from("purchase_orders")
+    .select("id, reference, order_date")
+    .in("id", chunk)
+    .is("deleted_at", null));
   const orders = new Map(
     ((orderData ?? []) as { id: string; reference: string | null; order_date: string }[]).map((o) => [o.id, o])
   );
 
-  const spentCents = expenses.reduce((s, e) => s + expenseTotalCents(e), 0);
-  const unpaid = expenses.filter((e) => !e.paid_on);
-  const unpaidCents = unpaid.reduce((s, e) => s + expenseTotalCents(e), 0);
-  const claimableVat = expenses
-    .filter((e) => e.vat_claimable)
-    .reduce((s, e) => s + e.vat_cents, 0);
-
   // One round trip for the whole page rather than a signed URL per row.
   const receiptUrls = await signedReceiptUrls(supabase, expenses.map((e) => e.receipt_path));
 
-  // VAT being claimed with no supplier tax invoice behind it. Never blocked at capture -
-  // stated here and on the return, because it is what an auditor disallows.
-  const unsupported = expenses.filter(claimNeedsProof);
-  const unsupportedVat = unsupported.reduce((s, e) => s + e.vat_cents, 0);
-
-  // == Filters ==
-  // Two questions a partner actually asks of this list: "what have I not paid yet / what
-  // is missing its tax invoice", and "what did I spend on X". Both are plain URL params,
-  // validated here, so an unknown value shows everything rather than nothing.
-  const SHOW = ["unpaid", "noproof"] as const;
-  const show = (SHOW as readonly string[]).includes(sp.show ?? "") ? sp.show : undefined;
-  const category = (EXPENSE_CATEGORIES as readonly string[]).includes(sp.category ?? "") ? sp.category : undefined;
   const search = new URLSearchParams(
     Object.entries({ show, category }).filter((e): e is [string, string] => !!e[1]),
   ).toString();
@@ -136,8 +168,8 @@ export default async function ExpensesPage({
       current: show,
       options: [
         { value: "", label: t("filters.all", locale) },
-        { value: "unpaid", label: t("expenses.filterUnpaid", locale), count: unpaid.length },
-        { value: "noproof", label: t("expenses.filterNoProof", locale), count: unsupported.length },
+        { value: "unpaid", label: t("expenses.filterUnpaid", locale), count: position.unpaid },
+        { value: "noproof", label: t("expenses.filterNoProof", locale), count: position.unsupported },
       ],
     },
     {
@@ -151,12 +183,7 @@ export default async function ExpensesPage({
     },
   ];
   const filtered = filterState("/expenses", search, filterGroups);
-  const shown = expenses.filter(
-    (e) =>
-      (show !== "unpaid" || !e.paid_on) &&
-      (show !== "noproof" || claimNeedsProof(e)) &&
-      (!category || e.category === category),
-  );
+  const shown = expenses;
 
   const closeLabel = t("ui.close", locale);
   const cancelLabel = t("common.cancel", locale);
@@ -188,27 +215,27 @@ export default async function ExpensesPage({
 
       {/* Stated once at the top as an amount, because "three rows have a warning triangle"
           and "R2 400 of your claim has no invoice behind it" are read very differently. */}
-      {unsupportedVat > 0 ? (
+      {position.unsupported_vat_cents > 0 ? (
         <Flash
           tone="warning"
           clearParams={false}
-          message={`${t("expenses.unsupportedWarning", locale)} ${rands(unsupportedVat)} (${unsupported.length}).`}
+          message={`${t("expenses.unsupportedWarning", locale)} ${rands(position.unsupported_vat_cents)} (${position.unsupported}).`}
         />
       ) : null}
 
       {/* What is still owed to suppliers first: it is the figure that turns into a payment
           this week. What was spent and what can be claimed follow. */}
-      {expenses.length > 0 ? (
+      {position.expenses > 0 ? (
         <StatGrid columns={3}>
           <Stat
             size="md"
             label={t("expenses.statUnpaid", locale)}
-            value={rands(unpaidCents)}
-            delta={`${unpaid.length} ${t("expenses.statUnpaidHint", locale)}`}
-            tone={unpaidCents > 0 ? "due" : "default"}
+            value={rands(position.unpaid_cents)}
+            delta={`${position.unpaid} ${t("expenses.statUnpaidHint", locale)}`}
+            tone={position.unpaid_cents > 0 ? "due" : "default"}
           />
-          <Stat size="md" label={t("expenses.statSpent", locale)} value={rands(spentCents)} />
-          <Stat size="md" label={t("expenses.statVat", locale)} value={rands(claimableVat)} delta={t("expenses.statVatHint", locale)} />
+          <Stat size="md" label={t("expenses.statSpent", locale)} value={rands(position.spent_cents)} />
+          <Stat size="md" label={t("expenses.statVat", locale)} value={rands(position.claimable_vat_cents)} delta={t("expenses.statVatHint", locale)} />
         </StatGrid>
       ) : null}
 
@@ -217,7 +244,9 @@ export default async function ExpensesPage({
           <CardTitle>{t("expenses.listTitle", locale)}</CardTitle>
         </CardHeader>
 
-        {expenses.length === 0 ? (
+        {/* Nothing captured at all, rather than nothing matching the filters (they are applied
+            by the database, so an empty filtered list is still a list). */}
+        {expenses.length === 0 && !filtered.active ? (
           <GetStarted title={t("expenses.emptyTitle", locale)} hint={t("expenses.emptyBody", locale)} />
         ) : (
           <div className="flex flex-col gap-3">
@@ -368,6 +397,9 @@ export default async function ExpensesPage({
                 </Tbody>
               </Table>
             )}
+            {capped ? (
+              <p className="text-sm text-sand-500">{t("expenses.listCapped", locale).replace("{n}", String(LIST_ROWS))}</p>
+            ) : null}
           </div>
         )}
       </Card>

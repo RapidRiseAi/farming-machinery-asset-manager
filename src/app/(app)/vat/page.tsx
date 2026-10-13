@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -84,7 +85,7 @@ export default async function VatPage({
   const supabase = await createClient();
   const [{ data: vatData }, { data: docData }, { data: expData }] = await Promise.all([
     supabase.rpc("partner_vat_return", { p_workshop: workshop.id, p_from: from, p_to: to }),
-    supabase
+    readAll(() => supabase
       .from("partner_documents")
       .select("id, number, kind, status, issue_date, bill_to_name, subtotal_cents, discount_cents, vat_cents")
       .eq("workshop_id", workshop.id)
@@ -93,14 +94,14 @@ export default async function VatPage({
       .gte("issue_date", from)
       .lte("issue_date", to)
       .is("deleted_at", null)
-      .order("issue_date"),
-    supabase
+      .order("issue_date")),
+    readAll(() => supabase
       .from("partner_expenses")
       .select("id, supplier_name, expense_date, amount_cents, vat_cents, vat_claimable, category, receipt_path")
       .gte("expense_date", from)
       .lte("expense_date", to)
       .is("deleted_at", null)
-      .order("expense_date"),
+      .order("expense_date")),
   ]);
 
   const vat = (((vatData ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);

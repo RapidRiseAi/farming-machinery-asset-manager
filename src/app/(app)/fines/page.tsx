@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
@@ -11,6 +12,7 @@ import {
   fineStatusTone,
   nominationDeadlineStatus,
   nominationPending,
+  PENDING_NOMINATION_STATUSES,
   DEFAULT_AARTO_LEAD_DAYS,
   type FineStatus as FineStatusValue,
 } from "@/lib/fines";
@@ -27,6 +29,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, AllClear } from "@/components/ui/empty-state";
+import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
@@ -60,7 +63,7 @@ const NEXT_STATUSES: Record<string, readonly FineStatusValue[]> = {
 export default async function FinesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; sm?: string; sd?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; sm?: string; sd?: string; page?: string }>;
 }) {
   // AARTO fine workflow is a Complete+ feature (FR-19.2). Deny server-side for under-plan
   // farms, fine data is never fetched; an upgrade prompt shows instead.
@@ -88,12 +91,17 @@ export default async function FinesPage({
     .order("name");
   if (farmId) machinesQ = machinesQ.eq("farm_id", farmId);
 
-  let finesQ = supabase
-    .from("fines")
-    .select("id, machine_id, notice_number, authority, offence, offence_date, fine_date, amount_cents, nomination_deadline, status, driver_user_id, driver_name, notes, created_at")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  if (farmId) finesQ = finesQ.eq("farm_id", farmId);
+  // A fine still waiting for its driver to be nominated carries a legal deadline, so those
+  // are listed whole, however old. The rest is history and pages, newest first: one list of
+  // every fine stopped at the API's thousandth with nothing to say so.
+  const page = pageNumber(sp.page);
+  const finesQuery = () => {
+    const q = supabase
+      .from("fines")
+      .select("id, machine_id, notice_number, authority, offence, offence_date, fine_date, amount_cents, nomination_deadline, status, driver_user_id, driver_name, notes, created_at")
+      .is("deleted_at", null);
+    return farmId ? q.eq("farm_id", farmId) : q;
+  };
 
   // Every driver document on the farm, once, rather than a round trip per fine. RLS is what
   // decides how much of it comes back: owner and manager get the farm, anybody else gets
@@ -107,10 +115,15 @@ export default async function FinesPage({
     .is("deleted_at", null);
   if (farmId) credentialsQ = credentialsQ.eq("farm_id", farmId);
 
-  const [machinesRes, opsRes, finesRes, farmRes, credentialsRes] = await Promise.all([
+  const [machinesRes, opsRes, pendingRes, historyRes, farmRes, credentialsRes] = await Promise.all([
     machinesQ,
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
-    finesQ,
+    readAll(() => finesQuery().in("status", [...PENDING_NOMINATION_STATUSES]).order("created_at", { ascending: false })),
+    finesQuery()
+      .not("status", "in", `(${PENDING_NOMINATION_STATUSES.join(",")})`)
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(...pageRange(page)),
     supabase.from("farms").select("settings").eq("id", farmId ?? profile.farm_id ?? "").maybeSingle(),
     credentialsQ,
   ]);
@@ -118,7 +131,9 @@ export default async function FinesPage({
 
   const machines = (machinesRes.data as MachineRow[] | null) ?? [];
   const operators = (opsRes.data as OperatorRow[] | null) ?? [];
-  const fines = (finesRes.data as FineRow[] | null) ?? [];
+  const historyRows = (historyRes.data as FineRow[] | null) ?? [];
+  const hasOlder = historyRows.length > PAGE_SIZE;
+  const fines = [...((pendingRes.data as FineRow[] | null) ?? []), ...historyRows.slice(0, PAGE_SIZE)];
   const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
   const leadDays = Number(farmSettings.aarto_nomination_lead_days) || DEFAULT_AARTO_LEAD_DAYS;
 
@@ -486,10 +501,18 @@ export default async function FinesPage({
       </Card>
 
       {/* == Resolved / historical fines == */}
-      {resolved.length > 0 ? (
+      {resolved.length > 0 || page > 1 ? (
         <Card>
           <CardHeader><CardTitle>{t("fines.otherTitle", locale)}</CardTitle></CardHeader>
           <ul className="flex flex-col gap-2">{resolved.map(renderFineCard)}</ul>
+          <Pager
+            page={page}
+            hasOlder={hasOlder}
+            href={(n) => `/fines?page=${n}`}
+            label={t("ui.pages", locale)}
+            newerLabel={t("ui.pageNewer", locale)}
+            olderLabel={t("ui.pageOlder", locale)}
+          />
         </Card>
       ) : null}
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { currentFarmId, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { enumLabel, meterReading, shortDate, todayLocal } from "@/lib/format";
 import { longMonthYear } from "@/lib/month-names";
@@ -114,13 +115,13 @@ export default async function CalendarPage({
     calendar({ from, to }),
     isCurrent ? calendar(lookbackRange(month)) : Promise.resolve([] as CalendarItem[]),
     isCurrent && farmId
-      ? supabase
+      ? readAll(() => supabase
           .from("service_plan_lines")
           .select("id, machine_id, task, status, next_due_reading")
           .eq("farm_id", farmId)
           .is("deleted_at", null)
           .is("next_due_date", null)
-          .in("status", ["overdue", "due_soon"])
+          .in("status", ["overdue", "due_soon"]))
       : Promise.resolve({ data: [] }),
     isCurrent && farmId
       ? supabase.from("machines").select("id, name, meter_type, status").eq("farm_id", farmId).is("deleted_at", null)

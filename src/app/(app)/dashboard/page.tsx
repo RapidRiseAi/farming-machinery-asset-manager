@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { accessibleFarms, checkEntitlement, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { t, type Lang } from "@/lib/i18n";
@@ -120,13 +121,13 @@ export default async function DashboardPage({
   const flagCut = ymd(new Date(now.getTime() - 45 * 86400000));
   const [machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes, licenceRes, farmRes] = await Promise.all([
     byFarm(supabase.from("machines").select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours, assigned_operator_id").is("deleted_at", null)),
-    byFarm(supabase.from("service_plan_lines").select("machine_id, status, task, next_due_date").is("deleted_at", null)),
-    byFarm(supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false })),
-    byFarm(supabase.from("job_cards_visible").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo))),
-    byFarm(supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"])),
-    byFarm(supabase.from("fuel_issues_visible").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis))),
-    byFarm(supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut)),
-    byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null)),
+    readAll(() => byFarm(supabase.from("service_plan_lines").select("machine_id, status, task, next_due_date").is("deleted_at", null))),
+    readAll(() => byFarm(supabase.from("faults").select("id, machine_id, description, urgency, created_at").neq("status", "resolved").is("deleted_at", null).order("created_at", { ascending: false }))),
+    readAll(() => byFarm(supabase.from("job_cards_visible").select("machine_id, type, total_cents, date_out").is("deleted_at", null).gte("date_out", ymd(sixMonthsAgo)))),
+    readAll(() => byFarm(supabase.from("job_cards").select("machine_id, date_in").is("deleted_at", null).in("status", ["open", "in_progress", "waiting_parts"]))),
+    readAll(() => byFarm(supabase.from("fuel_issues_visible").select("machine_id, litres, cost_cents").is("deleted_at", null).gte("date", ymd(firstThis)))),
+    readAll(() => byFarm(supabase.from("fuel_issues").select("machine_id").is("deleted_at", null).not("anomaly_notified_at", "is", null).gte("date", flagCut))),
+    readAll(() => byFarm(supabase.from("licences").select("id, machine_id, type, number, expiry_date, reminder_lead_days").is("deleted_at", null))),
     // The farm's own name (stated for a one-farm account, see `farmName`) and its
     // settings, for the stale-reading window and the set-up card.
     farmId
@@ -258,13 +259,11 @@ export default async function DashboardPage({
   type PendingFine = { id: string; machineId: string; machineName: string; label: string; deadline: string | null; status: string };
   let pendingNominations: PendingFine[] = [];
   if (aartoAllowed) {
-    let finesQ = supabase
+    const { data: fineData } = await readAll(() => byFarm(supabase
       .from("fines")
       .select("id, machine_id, offence, notice_number, nomination_deadline, status")
       .in("status", ["received", "driver_identified"])
-      .is("deleted_at", null);
-    if (farmId) finesQ = finesQ.eq("farm_id", farmId);
-    const { data: fineData } = await finesQ;
+      .is("deleted_at", null)));
     pendingNominations = ((fineData as DashFine[] | null) ?? [])
       .filter((f) => activeIds.has(f.machine_id))
       .map((f) => ({

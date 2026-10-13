@@ -163,7 +163,7 @@ export async function GET(request: Request) {
         extra: reports,
       });
     } else {
-      steps["scheduled_reports"] = `ok (claimed ${reports.claimed}, sent ${reports.sent})`;
+      steps["scheduled_reports"] = `ok (claimed ${reports.claimed}, sent ${reports.sent}${reports.more ? ", more left for the next run" : ""})`;
     }
   } catch (err) {
     steps["scheduled_reports"] = `error: ${err instanceof Error ? err.message : "unknown"}`;

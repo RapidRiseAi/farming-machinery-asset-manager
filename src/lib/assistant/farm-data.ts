@@ -11,6 +11,7 @@ import {
   listWorkRequests,
   type AssistantReadScope,
 } from "./read-data";
+import { readAll } from "@/lib/supabase/read-all";
 import type { AssistantMachine } from "./types";
 
 /**
@@ -468,19 +469,23 @@ const STATUS_ORDER = { overdue: 0, due_soon: 1, ok: 2 } as const;
 export async function servicePlan(scope: FarmDataScope, input: { machine?: string | null; onlyDue?: boolean | null }) {
   const pick = pickMachine(scope, input.machine);
   if (pick && !pick.ok) return machineNotResolved(pick);
-  const ids = pick?.ok ? [pick.machine.id] : scope.machines.map((machine) => machine.id);
-  if (!ids.length) return { lines: [] };
-  let query = scope.supabase
-    .from("service_plan_lines")
-    .select("machine_id, task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status")
-    .eq("farm_id", scope.farmId)
-    .in("machine_id", ids)
-    .is("deleted_at", null);
-  if (input.onlyDue) query = query.in("status", ["due_soon", "overdue"]);
-  const { data, error } = await query;
+  if (!pick?.ok && !scope.machines.length) return { lines: [] };
+  // Every page of the farm's plan, kept to the machines in scope here rather than by an id
+  // list in the URL, which grows with the fleet until the request is refused.
+  const { data, error } = await readAll(() => {
+    let query = scope.supabase
+      .from("service_plan_lines")
+      .select("machine_id, task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status")
+      .eq("farm_id", scope.farmId)
+      .is("deleted_at", null);
+    if (pick?.ok) query = query.eq("machine_id", pick.machine.id);
+    if (input.onlyDue) query = query.in("status", ["due_soon", "overdue"]);
+    return query;
+  });
   if (error) throw error;
   const names = new Map(scope.machines.map((machine) => [machine.id, machine]));
   const rows = ((data as ServiceLineRow[] | null) ?? [])
+    .filter((row) => names.has(row.machine_id))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || String(a.next_due_date ?? "9").localeCompare(String(b.next_due_date ?? "9")));
   const unit = (machineId: string) => (names.get(machineId)?.meterType === "km" ? "km" : "h");
   return {

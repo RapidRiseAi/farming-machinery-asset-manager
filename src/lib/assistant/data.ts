@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth";
+import { readAll } from "@/lib/supabase/read-all";
 import type { AssistantMachine } from "./types";
 
 type MachineRow = {
@@ -58,21 +59,19 @@ export async function loadAssistantMachines(
   if (machinesResult.error) throw machinesResult.error;
   const machineRows = (machinesResult.data as MachineRow[] | null) ?? [];
   if (machineRows.length === 0) return [];
-  const machineIds = machineRows.map((machine) => machine.id);
-
+  // The whole farm, every page, matched to the machines below: an id list in the URL grows
+  // with the fleet until the request is refused, and the API stops at a thousand rows.
   const [aliasesResult, serviceResult] = await Promise.all([
-    supabase
+    readAll(() => supabase
       .from("asset_aliases")
       .select("machine_id, alias")
       .eq("farm_id", farmId)
-      .in("machine_id", machineIds)
-      .is("deleted_at", null),
-    supabase
+      .is("deleted_at", null)),
+    readAll(() => supabase
       .from("service_plan_lines")
       .select("machine_id, status, next_due_date, next_due_reading")
       .eq("farm_id", farmId)
-      .in("machine_id", machineIds)
-      .is("deleted_at", null),
+      .is("deleted_at", null)),
   ]);
 
   if (aliasesResult.error) throw aliasesResult.error;

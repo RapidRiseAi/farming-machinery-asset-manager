@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { num, shortDate } from "@/lib/format";
@@ -45,7 +46,7 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
     supabase.from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents").eq("singleton", true).maybeSingle(),
     supabase.from("fx_rates").select("day, usd_zar, source").order("day", { ascending: false }).limit(1).maybeSingle(),
     supabase.rpc("ai_admin_month", { p_month: month }),
-    supabase.from("ai_health_events").select("id, kind, subject, detail, created_at").is("resolved_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("ai_health_events").select("id, kind, subject, detail, created_at").is("resolved_at", null).order("created_at", { ascending: false })),
     supabase.from("ai_prices").select("model, unit, usd_per_unit, source, effective_from").order("effective_from", { ascending: false }).limit(500),
   ]);
   const marginBps = Number(settingsRes.data?.ai_margin_bps ?? 3000);

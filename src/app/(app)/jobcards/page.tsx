@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile, effectiveFarmRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
@@ -12,6 +13,7 @@ import { JobStatus } from "@/components/ui/status";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { filterState } from "@/components/ui/filter-state";
 import { Disclosure } from "@/components/ui/disclosure";
+import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { NewJobCard, type JobMachine, type JobContractor } from "./new-job-card";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
@@ -35,28 +37,56 @@ type JobCard = {
 export default async function JobCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; machine?: string; error?: string }>;
+  searchParams: Promise<{ status?: string; machine?: string; error?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
-  // Current query string, so a chip preserves whatever else is filtered.
+  // Current query string, so a chip preserves whatever else is filtered. Not the page: a
+  // different filter starts again at its first page.
   const search = new URLSearchParams(
-    Object.entries(sp).filter(([, v]) => !!v) as [string, string][],
+    Object.entries(sp).filter(([k, v]) => !!v && k !== "page") as [string, string][],
   ).toString();
   const locale = profile.lang;
 
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
-  let q = supabase
-    .from("job_cards_visible")
-    .select("id, type, status, date_in, total_cents, machine_id, work_mode, workshop_id, external_provider_name")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  if (sp.status) q = q.eq("status", sp.status);
-  if (farmId) q = q.eq("farm_id", farmId);
-  if (sp.machine) q = q.eq("machine_id", sp.machine);
-  const { data, error } = await q;
-  const cards = (data as JobCard[] | null) ?? [];
+  // Work still to do or to approve is listed whole, however old. Approved history pages,
+  // newest first: a farm with years of job cards used to get the newest thousand and
+  // nothing to say the rest existed.
+  const page = pageNumber(sp.page);
+  const jobCards = (count?: "exact") => {
+    let q = supabase
+      .from("job_cards_visible")
+      .select("id, type, status, date_in, total_cents, machine_id, work_mode, workshop_id, external_provider_name", count ? { count } : undefined)
+      .is("deleted_at", null);
+    if (farmId) q = q.eq("farm_id", farmId);
+    if (sp.machine) q = q.eq("machine_id", sp.machine);
+    return q;
+  };
+  const liveStatuses = sp.status ? (sp.status === "approved" ? [] : [sp.status]) : [...ACTIVE, "completed"];
+  const showHistory = !sp.status || sp.status === "approved";
+  const [liveRes, historyRes] = await Promise.all([
+    liveStatuses.length
+      ? readAll<JobCard>(() => jobCards().in("status", liveStatuses).order("created_at", { ascending: false }))
+      : Promise.resolve({ data: [] as JobCard[], error: null }),
+    showHistory
+      ? jobCards("exact").eq("status", "approved").order("created_at", { ascending: false }).order("id").range(...pageRange(page))
+      : Promise.resolve({ data: [] as JobCard[], error: null, count: 0 }),
+  ]);
+  const error = (liveRes.error ?? historyRes.error) as { message?: string } | null;
+  const historyRows = (historyRes.data as JobCard[] | null) ?? [];
+  const hasOlder = historyRows.length > PAGE_SIZE;
+  const approvedCount = historyRes.count ?? historyRows.length;
+  const cards = [...((liveRes.data as JobCard[] | null) ?? []), ...historyRows.slice(0, PAGE_SIZE)];
+  const pageHref = (n: number) => {
+    const next = new URLSearchParams(search);
+    next.set("page", String(n));
+    return `/jobcards?${next.toString()}`;
+  };
+  const pager = (
+    <Pager page={page} hasOlder={hasOlder} href={pageHref} label={t("ui.pages", locale)}
+      newerLabel={t("ui.pageNewer", locale)} olderLabel={t("ui.pageOlder", locale)} />
+  );
 
   let machineQuery = supabase.from("machines").select("id, name, farm_id").is("deleted_at", null).order("name");
   if (farmId) machineQuery = machineQuery.eq("farm_id", farmId);
@@ -128,7 +158,12 @@ export default async function JobCardsPage({
         <FilteredEmpty filtered={filters.active} clearHref={filters.clearHref} title={t("empty.noMatchTitle", locale)} hint={t("empty.noMatchHint", locale)} clearLabel={t("empty.clearFilters", locale)}>
           <EmptyState icon={<JobCardsIcon />} title={t("jobcards.empty", locale)} hint={t("jobcards.emptyHint", locale)} />
         </FilteredEmpty>
-      ) : sp.status ? rows(cards) : (
+      ) : sp.status ? (
+        <div className="flex flex-col gap-3">
+          {rows(cards)}
+          {sp.status === "approved" ? pager : null}
+        </div>
+      ) : (
         <div className="flex flex-col gap-6">
           {review.length > 0 ? (
             <section className="flex flex-col gap-2">
@@ -143,10 +178,11 @@ export default async function JobCardsPage({
             </section>
           ) : null}
           {done.length > 0 ? (
-            <Disclosure summary={t("jobview.list.done", locale)} meta={String(done.length)}>
+            <Disclosure summary={t("jobview.list.done", locale)} meta={String(approvedCount)} defaultOpen={page > 1}>
               <ul className="-mx-1 divide-y divide-sand-100">
                 {done.map((c) => <JobRow key={c.id} card={c} machine={nameById[c.machine_id] ?? "-"} who={who(c)} locale={locale} />)}
               </ul>
+              {pager}
             </Disclosure>
           ) : null}
         </div>

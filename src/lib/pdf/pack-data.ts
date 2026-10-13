@@ -34,6 +34,7 @@
  */
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { readMachineFinancials } from "@/lib/cost-visibility";
 import {
   type Profile,
@@ -234,14 +235,14 @@ export async function gatherFleetCompliance(
     loadIssuer(supabase, farmId, profile),
     supabase.from("machines").select(MACHINE_COLUMNS)
       .eq("farm_id", farmId).is("deleted_at", null).order("name"),
-    supabase.from("licences").select(LICENCE_COLUMNS)
-      .eq("farm_id", farmId).is("deleted_at", null).order("expiry_date"),
-    supabase.from("service_plan_lines").select(PLAN_COLUMNS)
-      .eq("farm_id", farmId).is("deleted_at", null).order("task"),
-    supabase.from("faults").select(FAULT_COLUMNS)
-      .eq("farm_id", farmId).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("checklist_instances").select(CHECKLIST_COLUMNS)
-      .eq("farm_id", farmId).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("licences").select(LICENCE_COLUMNS)
+      .eq("farm_id", farmId).is("deleted_at", null).order("expiry_date")),
+    readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)
+      .eq("farm_id", farmId).is("deleted_at", null).order("task")),
+    readAll(() => supabase.from("faults").select(FAULT_COLUMNS)
+      .eq("farm_id", farmId).is("deleted_at", null).order("created_at", { ascending: false })),
+    readAll(() => supabase.from("checklist_instances").select(CHECKLIST_COLUMNS)
+      .eq("farm_id", farmId).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("usage_logs").select(USAGE_COLUMNS)
       .eq("farm_id", farmId).is("deleted_at", null)
       .order("occurred_on", { ascending: false }).limit(USAGE_LIMIT),
@@ -277,14 +278,14 @@ export async function gatherMachineCompliance(
 
   const [issuer, licRes, planRes, faultRes, chkRes, usageRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
-    supabase.from("licences").select(LICENCE_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
-    supabase.from("service_plan_lines").select(PLAN_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("task"),
-    supabase.from("faults").select(FAULT_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("checklist_instances").select(CHECKLIST_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("licences").select(LICENCE_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("expiry_date")),
+    readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("task")),
+    readAll(() => supabase.from("faults").select(FAULT_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
+    readAll(() => supabase.from("checklist_instances").select(CHECKLIST_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("usage_logs").select(USAGE_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null)
       .order("occurred_on", { ascending: false }).limit(USAGE_LIMIT),
@@ -318,14 +319,14 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   const [issuer, gate, licRes, planRes, jcRes, faultRes, readRes, photoRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
     checkEntitlement("tco", profile),
-    supabase.from("licences").select(LICENCE_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
-    supabase.from("service_plan_lines").select(PLAN_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("task"),
-    supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("faults").select(FAULT_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("licences").select(LICENCE_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("expiry_date")),
+    readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("task")),
+    readAll(() => supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
+    readAll(() => supabase.from("faults").select(FAULT_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("meter_readings").select(READING_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null)
       .order("reading_date", { ascending: false }).limit(READING_LIMIT),
@@ -336,11 +337,11 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   const costsAllowed = gate.allowed;
   let costs: PackCost[] = [];
   if (costsAllowed) {
-    const { data } = await supabase
+    const { data } = await readAll(() => supabase
       .from("cost_entries")
       .select("type, amount_cents")
       .eq("machine_id", id)
-      .is("deleted_at", null);
+      .is("deleted_at", null));
     costs = (data as PackCost[] | null) ?? [];
   }
 
@@ -376,12 +377,12 @@ export async function gatherWarranty(auth: MachinePackAuth): Promise<WarrantyInp
 
   const [issuer, planRes, jcRes, faultRes, readRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
-    supabase.from("service_plan_lines").select(PLAN_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("task"),
-    supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
-    supabase.from("faults").select(FAULT_COLUMNS)
-      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("task")),
+    readAll(() => supabase.from("job_cards_visible").select(JOBCARD_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
+    readAll(() => supabase.from("faults").select(FAULT_COLUMNS)
+      .eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("meter_readings").select(READING_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null)
       .order("reading_date", { ascending: false }).limit(READING_LIMIT),

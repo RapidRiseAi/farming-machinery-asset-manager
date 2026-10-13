@@ -4126,6 +4126,33 @@ begin
     raise exception 'G2 FAIL [PART PAYMENTS]: % payment rows (expected 2), a part-paid invoice must show what was received', v_rows;
   end if;
 
+  -- Every line can be told apart, so the statement can be read page by page
+  -- (20261013100000): a payment carries its own id, so two part-payments of one invoice
+  -- never tie, and each line carries the rank the function sorts by.
+  select count(distinct entry_id) into v_rows
+    from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                               '62000000-0000-0000-0000-000000000001', null,
+                               current_date - 400, current_date)
+   where kind = 'payment';
+  if v_rows <> 2 then
+    raise exception 'G2 FAIL [ROW KEY]: % distinct keys on 2 payment lines, paging would tie', v_rows;
+  end if;
+  if exists (select 1
+               from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                                          '62000000-0000-0000-0000-000000000001', null,
+                                          current_date - 400, current_date)
+              where (kind = 'opening' and (entry_id is not null or sort_rank <> 0))
+                 or (kind <> 'opening' and (entry_id is null or sort_rank <> 1))) then
+    raise exception 'G2 FAIL [ROW KEY]: a statement line without its key or with the wrong rank';
+  end if;
+  if exists (select 1
+               from app.partner_statement('62100000-0000-0000-0000-000000000001',
+                                          '62000000-0000-0000-0000-000000000001', null,
+                                          current_date - 400, current_date)
+              group by entry_date, sort_rank, kind, entry_id having count(*) > 1) then
+    raise exception 'G2 FAIL [ROW KEY]: two statement lines tie on the paging order';
+  end if;
+
   -- A quote is not a financial event and has no place on a statement of account.
   select count(*) into v_quotes
     from app.partner_statement('62100000-0000-0000-0000-000000000001',
@@ -10252,6 +10279,20 @@ begin
   end if;
   if r.entry_date <> v_from then
     raise exception 'G25 FAIL [OPENING]: brought forward is dated % rather than the window start %', r.entry_date, v_from;
+  end if;
+
+  -- The rank the function sorts by is returned, so the statement can be read page by page
+  -- in the same order (20261013100000): opening 0, bills 1, settlements 2, and no two
+  -- lines tie on (date, rank, reference, expense).
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+              where sort_rank <> case kind when 'opening' then 0 when 'bill' then 1 else 2 end) then
+    raise exception 'G25 FAIL [RANK]: a supplier statement line carries the wrong sort rank';
+  end if;
+  if exists (select 1 from app.supplier_statement('7e100000-0000-0000-0000-000000000001',
+                                                  '7e400000-0000-0000-0000-000000000001', v_from, v_to)
+              group by entry_date, sort_rank, kind, expense_id having count(*) > 1) then
+    raise exception 'G25 FAIL [ROW KEY]: two supplier statement lines tie on the paging order';
   end if;
 
   -- E1 was billed AND settled before the window: it must contribute nothing at all, which

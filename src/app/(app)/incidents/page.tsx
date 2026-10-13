@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { currentFarmId, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
+import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -14,6 +16,7 @@ import {
   daysWaiting,
   incidentLook,
   incidentOpen,
+  CLOSED_INCIDENT_STATUSES,
   incidentOrder,
   outstandingClaimCents,
   type IncidentRow,
@@ -77,7 +80,7 @@ type JobCardRow = { id: string; machine_id: string; type: string; date_in: strin
 export default async function IncidentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
   const locale = profile.lang;
@@ -87,7 +90,14 @@ export default async function IncidentsPage({
 
   const supabase = await createClient();
 
-  let incidentsQ = supabase.from("incidents").select(INCIDENT_COLUMNS).is("deleted_at", null);
+  // Open incidents are listed whole, however old: every figure above the list is about
+  // them. Closed ones are history and page, newest first.
+  const page = pageNumber(sp.page);
+  const incidentsQuery = () => {
+    const q = supabase.from("incidents").select(INCIDENT_COLUMNS).is("deleted_at", null);
+    return farmId ? q.eq("farm_id", farmId) : q;
+  };
+  const closedList = `(${CLOSED_INCIDENT_STATUSES.join(",")})`;
   let machinesQ = supabase
     .from("machines")
     .select("id, name, reg_no")
@@ -100,20 +110,21 @@ export default async function IncidentsPage({
     .order("date_in", { ascending: false })
     .limit(200);
   if (farmId) {
-    incidentsQ = incidentsQ.eq("farm_id", farmId);
     machinesQ = machinesQ.eq("farm_id", farmId);
     jobCardsQ = jobCardsQ.eq("farm_id", farmId);
   }
 
-  const [incidentsRes, machinesRes, peopleRes, jobCardsRes] = await Promise.all([
-    incidentsQ,
+  const [openRes, closedRes, machinesRes, peopleRes, jobCardsRes] = await Promise.all([
+    readAll(() => incidentsQuery().not("status", "in", closedList).order("occurred_at", { ascending: false })),
+    incidentsQuery().in("status", [...CLOSED_INCIDENT_STATUSES]).order("occurred_at", { ascending: false }).order("id").range(...pageRange(page)),
     machinesQ,
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     jobCardsQ,
   ]);
 
-  const incidents = ((incidentsRes.data as IncidentRow[] | null) ?? [])
-    .slice()
+  const closedRows = (closedRes.data as IncidentRow[] | null) ?? [];
+  const hasOlder = closedRows.length > PAGE_SIZE;
+  const incidents = [...((openRes.data as IncidentRow[] | null) ?? []), ...closedRows.slice(0, PAGE_SIZE)]
     .sort((a, b) => incidentOrder(a, b));
   const machines = (machinesRes.data as MachineRow[] | null) ?? [];
   const people = (peopleRes.data as PersonRow[] | null) ?? [];
@@ -594,6 +605,16 @@ export default async function IncidentsPage({
               );
             })}
           </ul>
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <Pager
+              page={page}
+              hasOlder={hasOlder}
+              href={(n) => `/incidents?page=${n}`}
+              label={t("ui.pages", locale)}
+              newerLabel={t("ui.pageNewer", locale)}
+              olderLabel={t("ui.pageOlder", locale)}
+            />
+          </div>
         </Card>
       )}
     </PageContainer>

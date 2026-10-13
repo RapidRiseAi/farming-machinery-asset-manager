@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { readAll, readByIds } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { num, shortDate } from "@/lib/format";
@@ -44,6 +45,10 @@ export const dynamic = "force-dynamic";
  * invoiced yet, the last one being where money goes missing, because an invoice nobody is
  * expecting is an invoice nobody checks.
  */
+/** The newest orders listed; every open order and every one waiting for an invoice is
+ *  listed as well, however old. */
+const LIST_ROWS = 200;
+
 export default async function OrdersPage({
   searchParams,
 }: {
@@ -74,24 +79,38 @@ export default async function OrdersPage({
   }
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("purchase_orders")
-    .select("*")
-    .is("deleted_at", null)
-    .order("order_date", { ascending: false })
-    .limit(200);
-  const orders = (data ?? []) as PurchaseOrder[];
+  // The newest orders for the record, plus EVERY order still with the supplier or waiting
+  // for its invoice, however old: the three figures above the list are summed from these,
+  // and an order that fell off the bottom of a capped list used to fall out of them too.
+  // Converting the invoice closes a fully received order, so that second set stays short.
+  const [{ data }, { data: activeData }] = await Promise.all([
+    supabase
+      .from("purchase_orders")
+      .select("*")
+      .is("deleted_at", null)
+      .order("order_date", { ascending: false })
+      .order("id")
+      .limit(LIST_ROWS),
+    readAll(() => supabase
+      .from("purchase_orders")
+      .select("*")
+      .is("deleted_at", null)
+      .in("status", ["sent", "part_received", "received"])),
+  ]);
+  const recent = (data ?? []) as PurchaseOrder[];
+  const capped = recent.length >= LIST_ROWS;
+  const orders = [...new Map([...recent, ...((activeData ?? []) as PurchaseOrder[])].map((o) => [o.id, o])).values()]
+    .sort((a, b) => b.order_date.localeCompare(a.order_date) || a.id.localeCompare(b.id));
 
-  // One round trip for every line on the page rather than a query per order. RLS scopes
-  // both reads to this workshop, so the `in` list cannot widen anything.
+  // The lines of every order on the page, a hundred orders a request (an id list in the URL
+  // is refused once it is long enough). RLS scopes both reads to this workshop, so the
+  // `in` list cannot widen anything.
   const ids = orders.map((o) => o.id);
-  const { data: lineRows } = ids.length
-    ? await supabase
-        .from("purchase_order_lines")
-        .select("id, purchase_order_id, qty_ordered, qty_received")
-        .in("purchase_order_id", ids)
-        .is("deleted_at", null)
-    : { data: [] };
+  const { data: lineRows } = await readByIds(ids, (chunk) => supabase
+    .from("purchase_order_lines")
+    .select("id, purchase_order_id, qty_ordered, qty_received")
+    .in("purchase_order_id", chunk)
+    .is("deleted_at", null));
 
   const byOrder = new Map<string, Pick<PurchaseOrderLine, "qty_ordered" | "qty_received">[]>();
   for (const l of (lineRows ?? []) as (Pick<PurchaseOrderLine, "qty_ordered" | "qty_received"> & {
@@ -102,12 +121,13 @@ export default async function OrdersPage({
     byOrder.set(l.purchase_order_id, list);
   }
 
-  // Which orders the supplier has already invoiced. The link lives on the expense (0475).
-  const { data: expenseRows } = await supabase
+  // Which of these orders the supplier has already invoiced. The link lives on the expense
+  // (0475); asked only for the orders on the page, not every converted order ever.
+  const { data: expenseRows } = await readByIds(ids, (chunk) => supabase
     .from("partner_expenses")
     .select("purchase_order_id")
-    .not("purchase_order_id", "is", null)
-    .is("deleted_at", null);
+    .in("purchase_order_id", chunk)
+    .is("deleted_at", null));
   const invoiced = new Set(
     ((expenseRows ?? []) as { purchase_order_id: string }[]).map((e) => e.purchase_order_id),
   );
@@ -249,6 +269,9 @@ export default async function OrdersPage({
               </Tbody>
             </Table>
         )}
+        {capped ? (
+          <p className="mt-3 text-sm text-sand-500">{t("po.listCapped", locale).replace("{n}", num(LIST_ROWS, 0))}</p>
+        ) : null}
       </Card>
     </PageContainer>
   );

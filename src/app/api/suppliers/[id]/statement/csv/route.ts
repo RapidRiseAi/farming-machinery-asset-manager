@@ -1,6 +1,7 @@
 import { requireRole, currentWorkshop, workshopEntitlementOr403 } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
+import { readSupplierStatement } from "@/lib/statement-read";
 import {
   withSupplierRunningBalance, supplierStatementTotals, supplierStatementLabel,
   isoDateOrNull, defaultSupplierPeriod, isUuid, type SupplierStatementRow,
@@ -39,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // download is refused rather than served empty under this partner's name.
   const [{ data: who }, { data: stmt }] = await Promise.all([
     supabase.from("suppliers").select("id, name").eq("id", id).is("deleted_at", null).maybeSingle(),
-    supabase.rpc("supplier_statement", {
+    readSupplierStatement(supabase, {
       p_workshop: workshop.id, p_supplier: id, p_from: from, p_to: to,
     }),
   ]);

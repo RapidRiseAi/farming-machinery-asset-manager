@@ -1,5 +1,6 @@
 import { getProfile, currentWorkshop, currentFarmId, checkEntitlement, checkWorkshopEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readJournal, JOURNAL_MAX_LINES } from "@/lib/accounting-read";
 import { toCsv, csvResponse } from "@/app/(app)/reports/data";
 import {
   journalGrid, journalFilename, isJournalScope, isJournalLayout,
@@ -7,6 +8,8 @@ import {
 } from "@/lib/accounting";
 
 export const dynamic = "force-dynamic";
+// A year of a large farm is many pages of journal lines.
+export const maxDuration = 60;
 
 /**
  * The general journal as a spreadsheet (FR-17.2).
@@ -22,6 +25,10 @@ export const dynamic = "force-dynamic";
  * The rows come from `app.partner_journal` / `app.farm_journal` (0510), which are
  * SECURITY INVOKER, so RLS, not this route, decides whose books are summed. The
  * entitlement check is about who may ASK, and it runs before any query.
+ *
+ * Every line is read (`readJournal`), and a period with more lines than one file should
+ * carry is refused with a sentence rather than cut: a journal that stops part-way does not
+ * balance, and nothing in a CSV would say why.
  */
 export async function GET(request: Request) {
   const profile = await getProfile();
@@ -44,7 +51,7 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  let lines: JournalLine[] = [];
+  let read: Awaited<ReturnType<typeof readJournal>>;
 
   if (scope === "partner") {
     if (profile.role !== "workshop") return new Response("Forbidden", { status: 403 });
@@ -53,10 +60,7 @@ export async function GET(request: Request) {
     }
     const { workshop } = await currentWorkshop(profile);
     if (!workshop) return new Response("Forbidden", { status: 403 });
-    const { data } = await supabase.rpc("partner_journal", {
-      p_workshop: workshop.id, p_from: from, p_to: to,
-    });
-    lines = (data ?? []) as JournalLine[];
+    read = await readJournal(supabase, { scope: "partner", workshopId: workshop.id, from, to });
   } else {
     if (!(await checkEntitlement("advanced_reports", profile)).allowed) {
       return new Response("Upgrade required", { status: 403 });
@@ -65,12 +69,17 @@ export async function GET(request: Request) {
     // union of everything they can reach, a set of books belongs to one entity.
     const farmId = await currentFarmId(profile);
     if (!farmId) return new Response("Forbidden", { status: 403 });
-    const { data } = await supabase.rpc("farm_journal", {
-      p_farm: farmId, p_from: from, p_to: to,
-    });
-    lines = (data ?? []) as JournalLine[];
+    read = await readJournal(supabase, { scope: "farm", farmId, from, to });
   }
 
+  if (read.error) return new Response("Could not read the journal", { status: 500 });
+  if (read.truncated) {
+    return new Response(
+      `More than ${JOURNAL_MAX_LINES} journal lines in this period: choose a shorter one.`,
+      { status: 413 },
+    );
+  }
+  const lines: JournalLine[] = read.data ?? [];
   const grid = journalGrid(lines, layout, profile.lang);
   return csvResponse(journalFilename(scope, from, to), toCsv(grid));
 }

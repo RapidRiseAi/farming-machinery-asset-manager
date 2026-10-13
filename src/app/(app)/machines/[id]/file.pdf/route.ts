@@ -1,5 +1,6 @@
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { readAll } from "@/lib/supabase/read-all";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
@@ -32,9 +33,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const costsVisible = await canViewFarmCosts(supabase, m.farm_id);
 
   const [{ data: jcData }, { data: planData }, { data: faultData }, { data: readingData }, { data: watchData }] = await Promise.all([
-    supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("service_plan_lines").select("task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
-    supabase.from("faults").select("description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
+    readAll(() => supabase.from("faults").select("description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("meter_readings").select("reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(30),
     supabase.from("watch_items").select("text, status").eq("machine_id", id).order("created_at", { ascending: false }),
   ]);

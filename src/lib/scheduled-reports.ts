@@ -11,6 +11,7 @@ import { advanceByCadence, type Cadence } from "@/lib/recurring";
 import { t } from "@/lib/i18n";
 import type { Lang, Locale } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
+import { drainInBatches } from "@/lib/drain";
 
 /**
  * Scheduled & emailed reports, the worker (FR-11.5, migration 0506).
@@ -347,29 +348,38 @@ export async function deliverReportRun(
   );
 }
 
+/** Reports claimed per call: a batch is delivered before the next is claimed. */
+export const REPORT_CLAIM_BATCH = 10;
+
+/** How long the nightly run spends on reports before leaving the rest for the next run. */
+export const REPORT_TIME_BUDGET_MS = 40_000;
+
 /**
  * The nightly step (spliced into /api/cron/nightly).
  *
- * The SQL claims every due period in ONE transaction, so a second cron firing at the
- * same moment finds nothing left to claim, and this then builds and sends them one at a
- * time. A build or a bounce on one farm's report cannot stop another farm's: each run
- * carries its own outcome row.
+ * The SQL claims due periods in a transaction, so a second cron firing at the same moment
+ * finds nothing left to claim, and this builds and sends them one at a time. A build or a
+ * bounce on one farm's report cannot stop another farm's: each run carries its own outcome
+ * row.
+ *
+ * A batch at a time, oldest due first (20261013110000), and only while there is time: one
+ * call used to claim every due report on the platform, the API returned the first thousand,
+ * and whatever the function did not reach before its time limit sat claimed and unsent for
+ * six hours. Now nothing is claimed that is not about to be sent, and what is left stays due
+ * for the next run.
  */
 export async function runDueReportSchedules(
   supabase: SupabaseClient,
-): Promise<{ claimed: number; sent: number; failed: number; error?: string }> {
-  const { data, error } = await supabase.rpc("cron_run_due_report_schedules");
-  if (error) return { claimed: 0, sent: 0, failed: 0, error: error.message };
-
-  const runs = (data ?? []) as ClaimedRun[];
-  let sent = 0;
-  let failed = 0;
-  for (const run of runs) {
+): Promise<{ claimed: number; sent: number; failed: number; more: boolean; error?: string }> {
+  const r = await drainInBatches<ClaimedRun>(
+    async (limit) => {
+      const { data, error } = await supabase.rpc("cron_run_due_report_schedules", { p_limit: limit });
+      return error ? { rows: [], error: error.message } : { rows: (data ?? []) as ClaimedRun[] };
+    },
     // This worker is reachable only after the service-only claim RPC succeeds.
     // Interactive "Send it now" keeps deliverReportRun's masked default.
-    const r = await deliverReportRun(supabase, run, { serviceRole: true });
-    if (r.status === "sent") sent += 1;
-    else failed += 1;
-  }
-  return { claimed: runs.length, sent, failed };
+    async (run) => (await deliverReportRun(supabase, run, { serviceRole: true })).status === "sent",
+    { batch: REPORT_CLAIM_BATCH, budgetMs: REPORT_TIME_BUDGET_MS },
+  );
+  return { claimed: r.claimed, sent: r.ok, failed: r.failed, more: r.more, ...(r.error ? { error: r.error } : {}) };
 }
