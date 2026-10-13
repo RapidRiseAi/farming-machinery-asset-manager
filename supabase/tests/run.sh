@@ -167,4 +167,10 @@ pg "$DB" < "$ROOT/supabase/tests/jobcard_received_invoice.sql"
 
 echo "==> running driver activity and managed integration tests"
 pg "$DB" < "$ROOT/supabase/tests/driving_activity.sql"
+
+echo "==> running database totals tests (reads past the API's thousand rows)"
+pg "$DB" < "$ROOT/supabase/tests/read_totals.sql"
+
+echo "==> running scheduled report batch claim tests"
+pg "$DB" < "$ROOT/supabase/tests/report_claim_batches.sql"
 echo "==> OK"

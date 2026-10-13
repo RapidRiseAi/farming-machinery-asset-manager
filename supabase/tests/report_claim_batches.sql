@@ -52,8 +52,25 @@ begin
 end $$;
 reset role;
 
--- No limit still claims everything due, as before. Two more fall due; the three claimed
--- above are still in flight (pending, under six hours) and are not claimed again.
+-- A report that failed earlier in this drain is not claimed again by the drain: without
+-- this the same failures came back in every batch until the time ran out. The next run, or
+-- an unlimited claim, retries it.
+update public.report_schedule_runs set status = 'failed', error = 'provider unavailable'
+ where schedule_id = 'af200000-0000-4000-9000-000000000002' and status = 'pending';
+set local role service_role;
+do $$
+declare n int;
+begin
+  select count(*) into n from public.cron_run_due_report_schedules(5);
+  if n <> 0 then
+    raise exception 'a batch claimed % report(s): one that failed during this drain came straight back', n;
+  end if;
+end $$;
+reset role;
+
+-- No limit still claims everything due, as before. Two more fall due; the two claimed
+-- above that are still in flight (pending, under six hours) are not claimed again, and the
+-- failed one is retried at once, as the owner's "send it now" expects.
 insert into public.report_schedules (id, farm_id, name, report_key, output_format, cadence, next_run_date, lang, created_by) values
   ('af200000-0000-4000-9000-000000000005', 'af000000-0000-4000-9000-000000000001', 'Later A', 'cost', 'pdf', 'monthly', current_date - 1, 'en', 'af100000-0000-4000-9000-000000000001'),
   ('af200000-0000-4000-9000-000000000006', 'af000000-0000-4000-9000-000000000001', 'Later B', 'cost', 'pdf', 'monthly', current_date - 2, 'en', 'af100000-0000-4000-9000-000000000001');
@@ -65,7 +82,7 @@ do $$
 declare n int;
 begin
   select count(*) into n from public.cron_run_due_report_schedules();
-  if n <> 2 then raise exception 'an unlimited claim took % reports, expected the 2 newly due', n; end if;
+  if n <> 3 then raise exception 'an unlimited claim took % reports, expected the 2 newly due and the failed retry', n; end if;
 end $$;
 reset role;
 

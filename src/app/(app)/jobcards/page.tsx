@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireProfile, effectiveFarmRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -77,6 +78,9 @@ export default async function JobCardsPage({
   const historyRows = (historyRes.data as JobCard[] | null) ?? [];
   const hasOlder = historyRows.length > PAGE_SIZE;
   const approvedCount = historyRes.count ?? historyRows.length;
+  // A page number past the end (a bookmark, or history since deleted) goes back to the
+  // first page rather than showing an empty list as if there were none.
+  if (page > 1 && historyRows.length === 0) redirect(`/jobcards${search ? `?${search}` : ""}`);
   const cards = [...((liveRes.data as JobCard[] | null) ?? []), ...historyRows.slice(0, PAGE_SIZE)];
   const pageHref = (n: number) => {
     const next = new URLSearchParams(search);

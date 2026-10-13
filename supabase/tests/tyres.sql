@@ -193,14 +193,14 @@ begin
 end $$;
 
 -- == (e) The latest check is the one that shows ==============================
-insert into public.tyre_checks (farm_id, tyre_id, checked_on, tread_mm, reading) values
+insert into public.tyre_checks (farm_id, tyre_id, checked_on, tread_mm, reading, pressure_kpa) values
   ('da000000-0000-4000-8000-000000000001', 'da300000-0000-4000-8000-000000000001',
-   date '2025-03-01', 18, 1200),
+   date '2025-03-01', 18, 1200, 210),
   ('da000000-0000-4000-8000-000000000001', 'da300000-0000-4000-8000-000000000001',
-   date '2026-01-01', 9, 3500),
+   date '2026-01-01', 9, 3500, 180),
   -- Out of order on purpose: the newest by DATE wins, not the newest row.
   ('da000000-0000-4000-8000-000000000001', 'da300000-0000-4000-8000-000000000001',
-   date '2025-09-01', 13, 2200);
+   date '2025-09-01', 13, 2200, 195);
 
 set role authenticated;
 select _ty_login('da100000-0000-4000-8000-000000000001');
@@ -212,6 +212,11 @@ begin
   if r.latest_tread_mm <> 9 or r.latest_checked_on <> date '2026-01-01' then
     raise exception 'TYRE FAIL [e]: the latest tread reads % from %',
       r.latest_tread_mm, r.latest_checked_on;
+  end if;
+  -- And the pressure recorded with that same check (20261013120000), not another one's.
+  if r.latest_pressure_kpa is distinct from 180 then
+    raise exception 'TYRE FAIL [e]: the latest pressure reads %, expected the 180 kPa of the latest check',
+      r.latest_pressure_kpa;
   end if;
   -- The baseline comes along, because 9mm means nothing without the 20 it started at.
   if r.new_tread_mm <> 20 then

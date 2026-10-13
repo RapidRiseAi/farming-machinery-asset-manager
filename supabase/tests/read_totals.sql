@@ -89,12 +89,12 @@ declare r record; n int;
 begin
   select * into r from public.machine_cost_totals('ae000000-0000-4000-9000-000000000001')
    where machine_id = 'ae200000-0000-4000-9000-000000000001';
-  if r.total_cents <> 360000 or r.entries <> 3 then
+  if not found or r.total_cents is distinct from 360000 or r.entries is distinct from 3 then
     raise exception 'red tractor lifetime total wrong (deleted entries must not count): %', row_to_json(r);
   end if;
   select * into r from public.machine_cost_totals('ae000000-0000-4000-9000-000000000001')
    where machine_id = 'ae200000-0000-4000-9000-000000000002';
-  if r.total_cents <> 70000 then raise exception 'bakkie total wrong: %', row_to_json(r); end if;
+  if not found or r.total_cents is distinct from 70000 then raise exception 'bakkie total wrong: %', row_to_json(r); end if;
   select count(*) into n from public.machine_cost_totals('ae000000-0000-4000-9000-000000000001');
   if n <> 2 then raise exception 'owner sees % machine totals, expected 2 (no farm-level row)', n; end if;
   -- Without a farm: still only what the policies allow.
@@ -104,8 +104,8 @@ begin
   select count(*) into n from public.admin_farm_activity(timestamptz '2026-10-01 00:00+02');
   if n <> 1 then raise exception 'an owner sees activity for % farms, expected only their own', n; end if;
   select * into r from public.admin_farm_activity(timestamptz '2026-10-01 00:00+02');
-  if r.farm_id <> 'ae000000-0000-4000-9000-000000000001' or r.machines <> 2 or r.active_users <> 2
-     or r.jobs_this_month <> 1 or r.last_activity <> timestamptz '2026-10-09 10:00+02' then
+  if not found or r.farm_id is distinct from 'ae000000-0000-4000-9000-000000000001' or r.machines is distinct from 2 or r.active_users is distinct from 2
+     or r.jobs_this_month is distinct from 1 or r.last_activity is distinct from timestamptz '2026-10-09 10:00+02' then
     raise exception 'owner farm activity wrong: %', row_to_json(r);
   end if;
 end $$;
@@ -129,21 +129,21 @@ declare r record;
 begin
   select * into r from public.admin_farm_activity(timestamptz '2026-10-01 00:00+02')
    where farm_id = 'ae000000-0000-4000-9000-000000000002';
-  if r.farm_id is null or r.machines <> 1 or r.active_users <> 1 or r.jobs_this_month <> 0 or r.last_activity is not null then
+  if not found or r.farm_id is null or r.machines is distinct from 1 or r.active_users is distinct from 1 or r.jobs_this_month is distinct from 0 or r.last_activity is not null then
     raise exception 'admin view of the other farm wrong: %', row_to_json(r);
   end if;
   select * into r from public.machine_cost_totals() where machine_id = 'ae200000-0000-4000-9000-000000000004';
-  if r.total_cents <> 500000 then raise exception 'admin cost total for the other farm wrong: %', row_to_json(r); end if;
+  if not found or r.total_cents is distinct from 500000 then raise exception 'admin cost total for the other farm wrong: %', row_to_json(r); end if;
   select * into r from public.partner_expense_position('ae400000-0000-4000-9000-000000000002');
-  if r.expenses <> 1 or r.spent_cents <> 8050 or r.unpaid <> 1 then
+  if not found or r.expenses is distinct from 1 or r.spent_cents is distinct from 8050 or r.unpaid is distinct from 1 then
     raise exception 'admin view of the other partner''s expenses wrong: %', row_to_json(r);
   end if;
   select * into r from public.admin_partner_activity() where workshop_id = 'ae400000-0000-4000-9000-000000000001';
-  if r.active_clients <> 1 or r.documents <> 1 then
+  if not found or r.active_clients is distinct from 1 or r.documents is distinct from 1 then
     raise exception 'our partner activity wrong (pending link, draft and deleted document must not count): %', row_to_json(r);
   end if;
   select * into r from public.admin_partner_activity() where workshop_id = 'ae400000-0000-4000-9000-000000000002';
-  if r.active_clients <> 1 or r.documents <> 1 then
+  if not found or r.active_clients is distinct from 1 or r.documents is distinct from 1 then
     raise exception 'their partner activity wrong (deleted link must not count): %', row_to_json(r);
   end if;
 end $$;
@@ -156,13 +156,13 @@ do $$
 declare r record;
 begin
   select * into r from public.partner_expense_position('ae400000-0000-4000-9000-000000000001');
-  if r.expenses <> 4 or r.spent_cents <> 48250 or r.claimable_vat_cents <> 4500
-     or r.unpaid <> 2 or r.unpaid_cents <> 17250 or r.unsupported <> 1 or r.unsupported_vat_cents <> 1500 then
+  if not found or r.expenses is distinct from 4 or r.spent_cents is distinct from 48250 or r.claimable_vat_cents is distinct from 4500
+     or r.unpaid is distinct from 2 or r.unpaid_cents is distinct from 17250 or r.unsupported is distinct from 1 or r.unsupported_vat_cents is distinct from 1500 then
     raise exception 'partner expense figures wrong: %', row_to_json(r);
   end if;
   -- Another partner's id: one row, all zero, because the policies show nothing.
   select * into r from public.partner_expense_position('ae400000-0000-4000-9000-000000000002');
-  if r.expenses <> 0 or r.unpaid_cents <> 0 then
+  if not found or r.expenses is distinct from 0 or r.unpaid_cents is distinct from 0 then
     raise exception 'a partner read another partner''s expenses: %', row_to_json(r);
   end if;
   if exists (select 1 from public.admin_partner_activity()
@@ -179,20 +179,20 @@ declare r record;
 begin
   select * into r from public.machine_cost_totals('ae000000-0000-4000-9000-000000000001')
    where machine_id = 'ae200000-0000-4000-9000-000000000001';
-  if r.total_cents <> 360000 or r.entries <> 3 then
+  if not found or r.total_cents is distinct from 360000 or r.entries is distinct from 3 then
     raise exception 'service total counted a deleted entry: %', row_to_json(r);
   end if;
   select * into r from public.admin_farm_activity(timestamptz '2026-10-01 00:00+02')
    where farm_id = 'ae000000-0000-4000-9000-000000000001';
-  if r.machines <> 2 or r.active_users <> 2 then
+  if not found or r.machines is distinct from 2 or r.active_users is distinct from 2 then
     raise exception 'service activity counted a deleted machine or an inactive user: %', row_to_json(r);
   end if;
   select * into r from public.partner_expense_position('ae400000-0000-4000-9000-000000000001');
-  if r.expenses <> 4 or r.unpaid_cents <> 17250 then
+  if not found or r.expenses is distinct from 4 or r.unpaid_cents is distinct from 17250 then
     raise exception 'service expense figures counted a deleted expense: %', row_to_json(r);
   end if;
   select * into r from public.admin_partner_activity() where workshop_id = 'ae400000-0000-4000-9000-000000000001';
-  if r.active_clients <> 1 or r.documents <> 1 then
+  if not found or r.active_clients is distinct from 1 or r.documents is distinct from 1 then
     raise exception 'service partner activity counted a pending link or a deleted or draft document: %', row_to_json(r);
   end if;
 end $$;

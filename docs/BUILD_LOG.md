@@ -4967,3 +4967,65 @@ B8: `pnpm audit --prod` had flagged Next.js, undici (through the AI SDK), sharp 
 source-map-js. Now next 15.5.27, ai 7.0.138, @ai-sdk/openai 4.0.92, and overrides for sharp
 0.35.5, undici 7.30.0 and source-map-js 1.2.2. The audit is clean; 579 tests, typecheck, lint
 and the production build pass.
+
+## 2026-10-13 - Reads that no longer stop at the API's thousandth row (B7)
+
+Supabase's API returns at most 1 000 rows a request and says nothing when it stops. Every
+total, export or list built from an uncapped read of a table that grows with use was
+silently wrong past that point, and several tables pass it quickly: a fuel draw writes a
+cost entry, so a ten-machine farm passes a thousand cost entries in a few months.
+
+`src/lib/supabase/read-all.ts` pages a read (`readAll`, ordered by a unique key so no row is
+read twice or skipped) or an id list (`readByIds`, a hundred ids a request: a fleet's id list
+in the URL is refused once it is long). The reports, the SARS logbook, the dashboard, the
+calendar, the machine page, PDF packs, VAT pages and export, suppliers, contractor and inbox
+use it. Four database totals replace sums over capped reads (`20261013090000`, security
+invoker, so each returns only what the caller may see): lifetime cost per machine for the
+machines list, a partner's expense figures, and Rapid Rise's per-farm and per-partner
+activity. The expenses and orders figures had been summed over their newest 200 rows; an
+unpaid supplier bill older than those fell out of "still owed". Lists of open work (job
+cards, fines awaiting a nomination, incidents, work requests, orders in flight) are read
+whole; history pages, newest first (`src/components/ui/pager.tsx`).
+
+A sweep for the rest (three read-only finders; two died at the usage limit, the third's 20
+findings verified here, several against the production schema) found more:
+
+- The farm data export, the download a closed farm is promised, left out 10 of its 17
+  tables for every farm: seven sort columns that do not exist, and `select *` on the tables
+  whose money columns are granted only through the `_visible` views. It also had no farm
+  filter, so a person on three farms got all three in one file. Rewritten.
+- The general journal CSV and the accounting page read one page of journal lines: a month
+  of a busy farm is thousands, and the export could end between a debit and its contra.
+  Every line now, and a period past 100 000 lines is refused with a sentence.
+- Partner and supplier statements could not be paged at all: no column ordered their lines
+  without ties. `20261013100000` returns each line's sort rank and key; lines and order
+  unchanged.
+- The nightly run claimed every due scheduled report in one call: past a thousand, or past
+  the function's time, claimed reports went unsent for a day. `20261013110000` claims a
+  batch at a time; `src/lib/drain.ts` delivers a batch, then claims the next while there is
+  time (the shape B4 needs for notifications).
+- The assistant's fault, job card and work lists put the whole visible fleet's ids in the
+  URL; its tyre answer read the newest thousand tread checks (weeks, on a big fleet); stock,
+  service history and expiries were capped. Fixed, with `truncated` flags.
+
+`src/lib/supabase/read-all.test.ts` fails the build on any new uncapped read of 33 growing
+tables or 6 growing functions; a read bounded by what it reads is listed with its reason.
+Mutation-checked: un-wrapping one read, or restoring one raw statement call, fails it. The
+SQL suites were mutation-checked too (19 mutations, all caught). 597 unit tests, 38 SQL
+suites, typecheck, lint and the i18n, error, dash and design gates pass.
+
+A two-lens review (the SQL against its previous definitions, and the TypeScript against its
+old behaviour) confirmed the recreated functions differ only where intended, the grants hold,
+the deployed code keeps working with the migrations applied first, and every paging order is
+total. Both lenses found the same real defect: claiming in batches re-claimed a report that
+had failed earlier in the same run, so a failing report came back in every batch until the
+time ran out; a fresh failure now counts as a live claim in batch mode (tested, and the test
+fails against the old check). Also fixed from it: the assistant's tyre answer had lost the
+last recorded pressure (`20261013120000` adds it to tyre_life), a stale ?page= past the end
+redirects to the first page instead of an error or a false empty list, the fines pager keeps
+a driver lookup in progress, the totals suite now fails on a missing row, and CI runs the two
+new suites.
+
+Left for later: the export is built in memory as one JSON response, which a very large farm
+could take past a function's response limit; the accounting summary is summed in the page,
+not in SQL; on Vercel Hobby the nightly drains run once a day.

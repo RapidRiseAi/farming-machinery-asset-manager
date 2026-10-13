@@ -76,9 +76,18 @@ Order: correctness and security first, then load, then product.
 - [x] **B8** Patch Next.js to 15.5.27 or later, the AI SDK packages (undici), sharp; full test run.
       2026-10-13: next 15.5.27, ai 7.0.138, @ai-sdk/openai 4.0.92, overrides sharp 0.35.5,
       undici 7.30.0, source-map-js 1.2.2; `pnpm audit --prod` clean, 579 tests, build.
-- [ ] **B7** One shared paging reader and database-side totals; fix the SARS diesel logbook,
+- [x] **B7** One shared paging reader and database-side totals; fix the SARS diesel logbook,
       reports, machines list lifetime costs, dashboard, machine page and PDF packs; a test that
       fails on any uncapped read of a growing table.
+      2026-10-13: `readAll`/`readByIds`, four database totals, statements and scheduled
+      reports pageable; also fixed the farm data export (10 of 17 tables missing), the
+      journal CSV, expenses/orders figures over their newest 200 only. Guard test in
+      `src/lib/supabase/read-all.test.ts`. Migrations 20261013090000 to 20261013120000.
+- [ ] **Follow-ups from B7:** the farm export is one in-memory JSON response (a very large
+      farm could pass a function's response limit: stream it or split it); the accounting
+      summary sums journal lines in the page (move it into SQL); five older SQL suites are not
+      run by CI's `run.sh` (ai_usage_invoicing, assistant_farm_data, assistant_fuel_proposal,
+      fuel_tank_balances, team_invites).
 - [ ] **B3** Error tracking wired to Sentry when `SENTRY_DSN` is set; `/api/health` for the
       uptime monitor; alert email when a nightly job fails.
 - [ ] **B4** Notification delivery: drain more than 25 per run within a time budget; works with

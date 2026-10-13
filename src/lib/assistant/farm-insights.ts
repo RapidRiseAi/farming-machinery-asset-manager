@@ -441,7 +441,9 @@ export async function tyreStatus(scope: FarmDataScope, input: { machine?: string
   const names = await machineNames(scope, fitments.list.map((f) => String(f.machine_id)));
   const fitted = fitments.list.map((f) => {
     const tyre = tyreById.get(String(f.tyre_id)) ?? {};
-    const check = tyre.latest_checked_on ? { checked_on: tyre.latest_checked_on, tread_mm: tyre.latest_tread_mm } : null;
+    const check = tyre.latest_checked_on
+      ? { checked_on: tyre.latest_checked_on, tread_mm: tyre.latest_tread_mm, pressure_kpa: tyre.latest_pressure_kpa }
+      : null;
     const newTread = tyre.new_tread_mm != null ? num(tyre.new_tread_mm) : null;
     const tread = check && check.tread_mm != null ? num(check.tread_mm) : null;
     const machine = fleet.get(String(f.machine_id));
@@ -453,7 +455,7 @@ export async function tyreStatus(scope: FarmDataScope, input: { machine?: string
       tyre: [tyre.brand, tyre.pattern, tyre.size].filter(Boolean).join(" ") || "Tyre",
       fittedOn: f.fitted_on,
       ...(used != null && used >= 0 ? { usedSinceFitted: round(used, 0), unit: machine?.meterType === "km" ? "km" : "hours" } : {}),
-      ...(check ? { lastCheck: { date: check.checked_on, treadMm: tread } } : { lastCheck: null }),
+      ...(check ? { lastCheck: { date: check.checked_on, treadMm: tread, ...(check.pressure_kpa != null ? { pressureKpa: num(check.pressure_kpa) } : {}) } } : { lastCheck: null }),
       ...(newTread != null ? { newTreadMm: newTread } : {}),
       ...(leftPercent != null ? { treadLeftPercent: leftPercent } : {}),
       replaceSoon: tread != null && (tread <= 3 || (leftPercent != null && leftPercent <= 25)),

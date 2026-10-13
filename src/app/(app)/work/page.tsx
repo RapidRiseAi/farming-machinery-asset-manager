@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -70,6 +71,9 @@ export default async function WorkListPage({
   ]);
   const closedRows = (closedRes.data as WorkRequest[] | null) ?? [];
   const hasOlder = closedRows.length > PAGE_SIZE;
+  // A page number past the end (a bookmark, or history since deleted) goes back to the
+  // first page rather than showing an empty list as if there were none.
+  if (page > 1 && closedRows.length === 0) redirect(`/work${search ? `?${search}` : ""}`);
   const rows = [...((openRes.data as WorkRequest[] | null) ?? []), ...closedRows.slice(0, PAGE_SIZE)];
   const pager = (
     <Pager

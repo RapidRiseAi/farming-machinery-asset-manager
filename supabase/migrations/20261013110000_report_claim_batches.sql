@@ -10,7 +10,9 @@
 -- thousand reports are built: whatever was claimed and not reached waited six hours to be
 -- treated as stale, then came back the next night.
 --
--- The engine now takes p_limit and stops after that many claims, oldest due first. The worker
+-- The engine now takes p_limit and stops after that many claims, oldest due first, and in
+-- batches it does not retry an attempt that failed in the last six hours (that is, earlier
+-- in the same run): it is retried by the next run, as before. The worker
 -- (src/lib/scheduled-reports.ts) claims a batch, delivers it, and claims the next only while
 -- it has time, so nothing is claimed that is not about to be sent; what is left stays due and
 -- goes out on the next run. Without p_limit the engine claims everything, as before, which is
@@ -104,12 +106,18 @@ begin
     -- One live claim blocks every later period for this schedule. This is both the
     -- double-fire guard and the ordering rule: an older delivery finishes (or becomes
     -- stale after six hours) before a newer cadence period may be claimed.
+    --
+    -- In batches, an attempt that FAILED within the same window counts as live too: the
+    -- worker claims again after every full batch, and without this the same failing
+    -- reports came back in every batch until its time ran out, a row and often an email
+    -- attempt each time. They are retried by the next run, once, as before batching; an
+    -- unlimited claim (the owner's "send it now") still retries at once.
     if exists (
       select 1
         from report_schedule_runs q
        where q.schedule_id = r.id
          and q.deleted_at is null
-         and q.status = 'pending'
+         and (q.status = 'pending' or (p_limit is not null and q.status = 'failed'))
          and q.created_at > now() - interval '6 hours'
          and not exists (
            select 1

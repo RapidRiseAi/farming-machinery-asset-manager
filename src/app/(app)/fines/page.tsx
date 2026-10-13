@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -133,6 +134,18 @@ export default async function FinesPage({
   const operators = (opsRes.data as OperatorRow[] | null) ?? [];
   const historyRows = (historyRes.data as FineRow[] | null) ?? [];
   const hasOlder = historyRows.length > PAGE_SIZE;
+  // The pager keeps a driver lookup in progress (sm, sd) and drops one-off flashes.
+  const finesHref = (n: number) => {
+    const q = new URLSearchParams();
+    if (sp.sm) q.set("sm", sp.sm);
+    if (sp.sd) q.set("sd", sp.sd);
+    if (n > 1) q.set("page", String(n));
+    const s = q.toString();
+    return `/fines${s ? `?${s}` : ""}`;
+  };
+  // A page number past the end (a bookmark, or history since deleted) goes back to the
+  // first page rather than showing an empty list as if there were none.
+  if (page > 1 && historyRows.length === 0) redirect(finesHref(1));
   const fines = [...((pendingRes.data as FineRow[] | null) ?? []), ...historyRows.slice(0, PAGE_SIZE)];
   const farmSettings = ((farmRes.data as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
   const leadDays = Number(farmSettings.aarto_nomination_lead_days) || DEFAULT_AARTO_LEAD_DAYS;
@@ -508,7 +521,7 @@ export default async function FinesPage({
           <Pager
             page={page}
             hasOlder={hasOlder}
-            href={(n) => `/fines?page=${n}`}
+            href={finesHref}
             label={t("ui.pages", locale)}
             newerLabel={t("ui.pageNewer", locale)}
             olderLabel={t("ui.pageOlder", locale)}

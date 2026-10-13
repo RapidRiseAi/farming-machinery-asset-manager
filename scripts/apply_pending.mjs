@@ -145,6 +145,9 @@ const PROBES = {
   "20261013110000":
     "select to_regprocedure('public.cron_run_due_report_schedules(integer)') is not null" +
     " and to_regprocedure('app.run_due_report_schedules(uuid,date,integer)') is not null",
+  // tyre_life carries the latest check's pressure.
+  "20261013120000":
+    "select pg_get_function_result('public.tyre_life(uuid)'::regprocedure) like '%latest_pressure_kpa numeric%'",
 };
 
 const url = readEnv("DATABASE_URL");
