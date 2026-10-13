@@ -4952,3 +4952,18 @@ two misses were fixed in code: R 22,14 for a litre that is R 22,16 (the model di
 head; the fuel summary now gives `costPerLitreRand`), and "5 days" to fix a fault when none
 had been fixed (the read now says so instead of leaving the figure out). 579 unit tests and
 every static gate pass.
+
+## 2026-10-13 - The launch checklist; dependencies patched
+
+The launch review (artifact "FleetWise Launch Plan") became `docs/LAUNCH_CHECKLIST.md`: what the
+founder does now for free (domain, Resend, Supabase SMTP and a staging project, Sentry, an
+uptime monitor, an external every-minute scheduler, the Azure budget alert, POPIA), what is
+paid at launch (Vercel Pro, Supabase Pro with backups, Azure Speech F0 to S0 a day early, AI
+Gateway credit, Resend), and the engineering order. Eight founder decisions are recorded
+there; the one that changed the plan: Paystack's Direct Debit is Nigeria-only, so South
+African debit orders wait for a second provider.
+
+B8: `pnpm audit --prod` had flagged Next.js, undici (through the AI SDK), sharp and
+source-map-js. Now next 15.5.27, ai 7.0.138, @ai-sdk/openai 4.0.92, and overrides for sharp
+0.35.5, undici 7.30.0 and source-map-js 1.2.2. The audit is clean; 579 tests, typecheck, lint
+and the production build pass.
