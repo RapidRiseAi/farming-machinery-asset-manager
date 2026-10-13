@@ -34,8 +34,8 @@ export type DeliverResult = {
 };
 
 // SQL leases last five minutes. Bound this pass below that, including provider timeout.
-const BATCH = 25;
-const RUN_BUDGET_MS = 25_000;
+export const BATCH = 25;
+export const RUN_BUDGET_MS = 25_000;
 const FINANCIAL_TEMPLATES = new Set([
   "job_completed", "work_request_quoted", "work_request_invoiced",
   "partner_quote_received", "partner_invoice_received", "quote_awaiting", "invoice_awaiting",

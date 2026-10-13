@@ -51,8 +51,8 @@ export type EmailDeliverResult = {
 };
 
 // The SQL lease is five minutes. Stay well inside it, including provider time.
-const BATCH = 25;
-const RUN_BUDGET_MS = 25_000;
+export const BATCH = 25;
+export const RUN_BUDGET_MS = 25_000;
 
 /** Templates whose payload is about money. Same list as the push path, same reason. */
 const FINANCIAL_TEMPLATES = new Set([

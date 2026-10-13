@@ -39,11 +39,25 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
 14. **Scheduled report delivery** (`runDueReportSchedules`), renders and emails any report
     schedule now due (0506). A TypeScript step rather than an RPC, because it renders the
     report and sends mail; it runs AFTER the database steps so every attachment reflects the
-    same final state a person would see on /reports.
-15. **Web Push delivery** (`deliverPush`), claim up to 25 queued rows that are now deliverable
-    (past their quiet-hours `deliver_after`) and not yet pushed, deliver a signed VAPID push
-    to each recipient's subscribed devices, honouring the per-user `notify_push` toggle.
-    No-ops gracefully when the VAPID env keys are unset (see `.env.example`).
+    same final state a person would see on /reports. Claimed **ten at a time**, oldest due
+    first, each batch delivered before the next is claimed, for up to 40 seconds
+    (20261013110000, `src/lib/drain.ts`); what is left stays due for the next run, and a
+    report that failed earlier in the same run is not claimed again until the next one.
+15. **Notification delivery** (`drainNotifications`), Web Push and email together: each
+    pass claims up to 25 queued rows per channel that are now deliverable (past their
+    quiet-hours `deliver_after`) and not yet sent, honouring `notify_push` and the email
+    preference; passes repeat while either channel came back full and a whole pass still
+    fits in 40 seconds. Push no-ops when the VAPID env keys are unset; email says which part
+    of its configuration is missing (see `.env.example`).
+
+**A run with a failed step is emailed to the founder** (`src/lib/cron/alert.ts`): to
+`OPS_ALERT_EMAIL`, or `AI_ALERT_EMAIL` when that is the only one set, listing only the
+failed steps. The billing route does the same.
+
+**`GET /api/health`** is for an external uptime monitor: 503 when the database does not
+answer, a scheduled route has not started within 26 hours, or its last run started over an
+hour ago and never finished; a finished run with a failed step is a warning (still 200),
+because the alert email covers it and one bounced email must not show the product as down.
 
 **A failed step is now reported, not swallowed.** Each engine's error is captured to the
 observability layer (`NFR-6`, env-gated on `SENTRY_DSN`; otherwise the server log) and the
@@ -71,11 +85,14 @@ is enqueued at all; `users.notify_push` decides whether it is pushed; per-user
 05:00 SAST is the end of quiet hours, so held notifications become deliverable right as
 the farm's day starts, and the Monday digest lands before the 06:00 morning read.
 
-Push also requires a frequent external scheduler calling `GET` or `POST /api/push/send`
-with the same bearer secret, ideally every minute. The checked-in Vercel schedule stays
-daily; the nightly pass alone processes at most 25 notification rows and cannot drain a
-larger backlog or promptly deliver daytime alerts. Provision this external schedule when
-enabling push, and monitor its response for `ok: false` (HTTP 503) and `deferred` counts.
+Daytime delivery requires a frequent external scheduler calling `GET` or `POST
+/api/push/send` with the same bearer secret, ideally every minute (cron-job.org is free).
+Vercel Hobby refuses sub-daily schedules, so the checked-in Vercel schedule stays daily until
+Vercel Pro. Each call drains push and email for up to 40 seconds (`more: true` in its
+response means a channel was still full when time ran out). Monitor its response for
+`ok: false` (HTTP 503) and `deferred` counts, and point the uptime monitor at
+`/api/health`. Functions run on fluid compute with a 300-second default limit (read from
+the project settings, 2026-10-13), so the drains' budgets fit with room to spare.
 
 Each pass stops starting deliveries after 25 seconds and each provider request has a
 10-second timeout. A five-minute lease prevents overlapping passes claiming the same

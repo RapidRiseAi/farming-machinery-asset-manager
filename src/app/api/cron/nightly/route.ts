@@ -3,8 +3,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
 import { bearerMatches } from "@/lib/security/bearer";
 import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
-import { deliverPush } from "@/lib/push/deliver";
-import { deliverNotificationEmail } from "@/lib/notifications/email-deliver";
+import { drainNotifications } from "@/lib/notifications/drain-delivery";
+import { alertCronFailure } from "@/lib/cron/alert";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
 import {
   checkGatewayCredits,
@@ -51,6 +51,9 @@ import {
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Notification delivery's share of the nightly run, after the reports' 40 seconds. */
+const NOTIFY_BUDGET_MS = 40_000;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -170,9 +173,17 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:scheduled_reports" });
   }
 
-  // Web Push for everything just enqueued and now deliverable (no-op if VAPID unset).
+  // Web Push and email for everything just enqueued and now deliverable, pass after pass
+  // of 25 while either channel came back full and time remains (B4): one pass a night was
+  // 25 of each at most, and the rest waited for the next night. Push is a no-op while VAPID
+  // is unset; email says which part of its configuration is missing rather than "not
+  // configured". Email matters because push needs the app installed and WhatsApp is not
+  // live, so for an owner who never opens FleetWise it is the only channel that reaches him.
   try {
-    const push = await deliverPush(supabase);
+    const drained = await drainNotifications(supabase, NOTIFY_BUDGET_MS);
+    const push = drained.push;
+    const mail = drained.email;
+    const more = drained.more ? ", more left for the next run" : "";
     if (!push.ok) {
       // Reported rather than recorded as "ok": a failed delivery means the whole night's
       // alerts reached nobody's phone. Only fields declared on `DeliverResult` are read
@@ -184,21 +195,8 @@ export async function GET(request: Request) {
     } else {
       steps["push_delivery"] = push.skipped
         ? `skipped (${push.skipped})`
-        : `ok (pushed ${push.pushed}, failed ${push.failed})`;
+        : `ok (pushed ${push.pushed}, failed ${push.failed}${more})`;
     }
-  } catch (err) {
-    steps["push_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
-    // Same reasoning as `run` above: a delivery failure here means the whole night's alerts
-    // reached nobody's phone, which is the one failure most worth hearing about.
-    captureError(err, { where: "cron:push_delivery" });
-  }
-
-  // The same alerts by email, for everyone who asked for them (20260920130000). Push needs
-  // the app installed and WhatsApp is not live, so for an owner who never opens FleetWise
-  // this is the only channel that reaches him. A no-op while RESEND_API_KEY is unset, and
-  // it says which part of the configuration is missing rather than "not configured".
-  try {
-    const mail = await deliverNotificationEmail(supabase);
     if (!mail.ok) {
       steps["email_delivery"] =
         `error: delivery-failed (${mail.failed} failed, ${mail.deferred} deferred)`;
@@ -208,15 +206,22 @@ export async function GET(request: Request) {
     } else {
       steps["email_delivery"] = mail.skipped
         ? `skipped (${mail.skipped})`
-        : `ok (sent ${mail.sent}, skipped ${mail.skippedRows})`;
+        : `ok (sent ${mail.sent}, skipped ${mail.skippedRows}${more})`;
     }
   } catch (err) {
-    steps["email_delivery"] = `error: ${err instanceof Error ? err.message : "unknown"}`;
-    captureError(err, { where: "cron:email_delivery" });
+    // Same reasoning as `run` above: a delivery failure here means the whole night's alerts
+    // reached nobody, which is the one failure most worth hearing about.
+    const message = `error: ${err instanceof Error ? err.message : "unknown"}`;
+    steps["push_delivery"] ??= message;
+    steps["email_delivery"] ??= message;
+    captureError(err, { where: "cron:notification_delivery" });
   }
 
   const ok = Object.values(steps).every((s) => s === "ok" || s.startsWith("skipped") || s.startsWith("ok"));
   await finishCronRun(supabase, runId, ok, steps);
+  // A failed step reaches the founder by email too, while no error tracker is set up (B3).
+  // Never throws.
+  if (!ok) await alertCronFailure("/api/cron/nightly", steps);
   return NextResponse.json(
     { ok, ranAt: new Date().toISOString(), runId, steps },
     { status: ok ? 200 : 500 }

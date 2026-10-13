@@ -5,6 +5,7 @@ import { BILLING_RPC } from "@/lib/billing/service";
 import { reconcileStuckAttempts, runBillingCharges } from "@/lib/billing/worker";
 import { captureError } from "@/lib/observability";
 import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
+import { alertCronFailure } from "@/lib/cron/alert";
 import { postDueSupportTickets } from "@/lib/support/outbound";
 import { bearerMatches } from "@/lib/security/bearer";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -309,6 +310,9 @@ export async function GET(request: Request) {
   // Close it with what every step actually said, so "the cron ran" and "the cron worked"
   // stay different questions. Never throws, see the rule at the top of heartbeat.ts.
   await finishCronRun(supabase, runId, ok, steps);
+  // The run that moves money: a failed step reaches the founder by email too (B3). Never
+  // throws.
+  if (!ok) await alertCronFailure("/api/cron/billing", steps);
   return NextResponse.json(
     { ok, ranAt: new Date().toISOString(), runId, steps },
     { status: ok ? 200 : 500 },
