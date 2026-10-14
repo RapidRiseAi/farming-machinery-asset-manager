@@ -176,4 +176,7 @@ pg "$DB" < "$ROOT/supabase/tests/report_claim_batches.sql"
 
 echo "==> running anonymous surface tests"
 pg "$DB" < "$ROOT/supabase/tests/security_surface.sql"
+
+echo "==> running shared rate limit tests"
+pg "$DB" < "$ROOT/supabase/tests/rate_limits.sql"
 echo "==> OK"

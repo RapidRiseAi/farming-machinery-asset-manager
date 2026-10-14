@@ -156,6 +156,10 @@ const PROBES = {
   "20261013140000":
     "select not has_function_privilege('anon', 'public.app_stock_rollup()', 'EXECUTE')" +
     " and exists (select 1 from storage.buckets where id = 'jobcard-photos' and file_size_limit = 10485760)",
+  // Rate limits shared by every server instance (H3).
+  "20261014090000":
+    "select to_regprocedure('public.rate_limit_take(text,integer,integer)') is not null" +
+    " and to_regclass('app.rate_limit_windows') is not null",
 };
 
 const url = readEnv("DATABASE_URL");

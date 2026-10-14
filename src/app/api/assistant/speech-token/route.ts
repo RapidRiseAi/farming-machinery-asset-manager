@@ -3,6 +3,8 @@ import { currentFarmId, effectiveFarmRole, getFarmPlan, getProfile } from "@/lib
 import { getAzureSpeechProviderEnv } from "@/lib/assistant/provider-env";
 import { planAllows } from "@/lib/entitlements";
 import { openVoiceSession, reportVoiceSession } from "@/lib/ai-usage/ledger";
+import { takeSharedRateLimit } from "@/lib/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,6 +142,11 @@ export async function POST(request: Request) {
   const rateLimit = takeRateLimitSlot(profile.id, now);
   if (!rateLimit.allowed) {
     return jsonError("rate_limited", 429, { "Retry-After": String(rateLimit.retryAfter) });
+  }
+  // The same limit across every server instance (H3): the check above is per instance.
+  const shared = await takeSharedRateLimit(await createClient(), "speech_token", RATE_LIMIT_WINDOW_MS / 1000, RATE_LIMIT_MAX_REQUESTS);
+  if (!shared.allowed) {
+    return jsonError("rate_limited", 429, { "Retry-After": String(shared.retryAfter) });
   }
 
   let provider: ReturnType<typeof getAzureSpeechProviderEnv>;

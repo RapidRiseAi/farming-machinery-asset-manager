@@ -5070,3 +5070,15 @@ was done here instead, and it added the per-channel isolation.
 
 598 unit tests, 39 SQL suites (mutation-checked: each new assertion fails without its fix), the
 UI check at 360 and 1024 px, and click-through pass.
+
+## 2026-10-14 - Rate limits every server instance shares (H3)
+
+The speech-token broker and the transcription route each kept their per-user limit in one
+server instance's memory, and serverless runs several, so a loop spread over them got the
+limit once per instance. `20261014090000` keeps the count in the database: one row per person,
+scope and window, incremented atomically by `public.rate_limit_take`, which builds the key from
+the caller's own session so nobody can spend another person's limit. The in-memory check stays
+in front (free; stops a runaway loop on the spot), and a database fault lets the request
+through and is reported (`src/lib/rate-limit.ts`): dictation must not stop because a counter
+could not be written. Transcription asks while the audio uploads, so it adds no wait.
+`rate_limits.sql` (three mutations, all caught) runs in CI; 601 unit tests pass.

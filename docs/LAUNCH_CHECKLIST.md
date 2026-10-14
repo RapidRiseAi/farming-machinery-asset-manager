@@ -105,7 +105,9 @@ Order: correctness and security first, then load, then product.
       service client. Every billing and AI function runs as its owner (checked on production).
 - [x] **H2** Storage: size and file-type limits per bucket; the move check on updates.
       2026-10-14: 20261013140000; the update policy's check written out (it already applied).
-- [ ] **H3** Rate limits in the database instead of per-server memory.
+- [x] **H3** Rate limits in the database instead of per-server memory.
+      2026-10-14: `public.rate_limit_take` (20261014090000) behind the in-memory check, in the
+      speech-token and transcription routes; fails open.
 - [x] **H6** Content security policy (report-only first); revoke anonymous execute on trigger
       functions.
       2026-10-14: `Content-Security-Policy-Report-Only` with reports logged by

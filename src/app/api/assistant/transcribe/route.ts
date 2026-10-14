@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { transcribe } from "ai";
 import { getAssistantContext, sameOrigin } from "@/lib/assistant/context";
+import { takeSharedRateLimit } from "@/lib/rate-limit";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import {
   aiHelpOn,
@@ -83,11 +84,15 @@ export async function POST(request: Request) {
   if (!context) return fail("forbidden", 403);
   if (!aiHelpOn(context.profile)) return fail("notice_required", 403);
   if (!allowed(context.profile.id)) return fail("rate_limited", 429);
+  // The same limit across every server instance (H3), asked while the audio uploads so it
+  // costs no extra wait; the check above is per instance.
+  const sharedLimit = takeSharedRateLimit(context.supabase, "transcribe", RATE_LIMIT_WINDOW_MS / 1000, RATE_LIMIT_MAX);
 
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_AUDIO_BYTES) return fail("too_large", 413);
   const audio = new Uint8Array(await request.arrayBuffer());
   if (audio.byteLength > MAX_AUDIO_BYTES) return fail("too_large", 413);
+  if (!(await sharedLimit).allowed) return fail("rate_limited", 429);
   const durationMs = strictPcmDurationMs(audio);
   // The language the person chose to speak (the app sends it from 2026-10-09; an older
   // app sends none and is heard bilingually, as before).
