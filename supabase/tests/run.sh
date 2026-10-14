@@ -173,4 +173,7 @@ pg "$DB" < "$ROOT/supabase/tests/read_totals.sql"
 
 echo "==> running scheduled report batch claim tests"
 pg "$DB" < "$ROOT/supabase/tests/report_claim_batches.sql"
+
+echo "==> running anonymous surface tests"
+pg "$DB" < "$ROOT/supabase/tests/security_surface.sql"
 echo "==> OK"

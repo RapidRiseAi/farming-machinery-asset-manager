@@ -88,17 +88,29 @@ Order: correctness and security first, then load, then product.
       summary sums journal lines in the page (move it into SQL); five older SQL suites are not
       run by CI's `run.sh` (ai_usage_invoicing, assistant_farm_data, assistant_fuel_proposal,
       fuel_tank_balances, team_invites).
-- [ ] **B3** Error tracking wired to Sentry when `SENTRY_DSN` is set; `/api/health` for the
+- [x] **B3** Error tracking wired to Sentry when `SENTRY_DSN` is set; `/api/health` for the
       uptime monitor; alert email when a nightly job fails.
-- [ ] **B4** Notification delivery: drain more than 25 per run within a time budget; works with
+      2026-10-14 (0efd5e3, live): error reporting was already wired without the SDK
+      (`src/lib/observability.ts`); `/api/health` answers 503 for a database outage or a
+      scheduled route that did not start or never finished; a failed step emails
+      `OPS_ALERT_EMAIL` (or `AI_ALERT_EMAIL`). Founder: set one of those in Vercel.
+- [x] **B4** Notification delivery: drain more than 25 per run within a time budget; works with
       an external every-minute scheduler now and a Vercel cron after Pro (the vercel.json change
       waits for Pro: Hobby refuses sub-daily schedules).
+      2026-10-14 (0efd5e3, live): `drainNotifications` in /api/push/send and the nightly run.
+      Functions run on fluid compute with a 300 s limit (read from the project settings).
 - [ ] **B9** Two-factor sign-in (authenticator app), scope per the founder's decision.
-- [ ] **H1** Billing settings: only the seller details readable by farm users.
-- [ ] **H2** Storage: size and file-type limits per bucket; the move check on updates.
+- [x] **H1** Billing settings: only the seller details readable by farm users.
+      2026-10-14: column grants (20261013130000); Rapid Rise's AI page reads the rest with the
+      service client. Every billing and AI function runs as its owner (checked on production).
+- [x] **H2** Storage: size and file-type limits per bucket; the move check on updates.
+      2026-10-14: 20261013140000; the update policy's check written out (it already applied).
 - [ ] **H3** Rate limits in the database instead of per-server memory.
-- [ ] **H6** Content security policy (report-only first); revoke anonymous execute on trigger
+- [x] **H6** Content security policy (report-only first); revoke anonymous execute on trigger
       functions.
+      2026-10-14: `Content-Security-Policy-Report-Only` with reports logged by
+      /api/csp-report; nine trigger functions revoked from anon, and a suite that fails if any
+      returns. Enforce the policy once the reports are quiet (rename the header).
 - [ ] **B12** The service-worker "buttons stop working" bug: reproduce in the test browser and fix.
 - [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project.
 - [ ] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready

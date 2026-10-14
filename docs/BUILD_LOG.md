@@ -5029,3 +5029,44 @@ new suites.
 Left for later: the export is built in memory as one JSON response, which a very large farm
 could take past a function's response limit; the accounting summary is summed in the page,
 not in SQL; on Vercel Hobby the nightly drains run once a day.
+
+## 2026-10-14 - Notifications drain; a health check for an uptime monitor; failed runs emailed (B3, B4)
+
+Notifications left in passes of 25, one pass per run: 25 a night without the every-minute
+scheduler, 25 a minute with it. `src/lib/notifications/drain-delivery.ts` repeats push and
+email passes while either channel came back full and a whole pass still fits its budget (40
+seconds), each channel on its own so a fault in one never costs the other its run. The
+scheduler's route and the nightly run use it. Functions run on fluid compute with a 300-second
+default limit, read from the project settings rather than assumed.
+
+Error reporting itself was already in place without the Sentry SDK (`src/lib/observability.ts`,
+kept off the 102 kB bundle on purpose). What was missing: `/api/health`, which answers 503 when
+the database does not answer, or a scheduled route has not started in 26 hours or started and
+never finished (a finished run with a failed step is a warning, so one bounced email does not
+read as an outage), and an email listing a run's failed steps to `OPS_ALERT_EMAIL` or
+`AI_ALERT_EMAIL`. Live: the health check answered 200 with last night's runs, which had run the
+new batched report claim cleanly. The independent review died at the usage limit; the review
+was done here instead, and it added the per-channel isolation.
+
+## 2026-10-14 - Billing settings, storage and anon surface (H1, H2, H6)
+
+- H1: every signed-in user, operators and partners included, could read every column of
+  `billing_settings`, including the AI margin, the AI limits and the fallback exchange rate.
+  Granted column by column now (`20261013130000`): the seller's details and the billing terms
+  stay readable; Rapid Rise's AI page reads the rest with the service client behind its role
+  check. Before writing it, every database function that reads the table was checked on
+  production: all run as their owner, so none is affected. The billing suite asserts an owner
+  is refused each hidden column, and fails without the migration.
+- H2: no bucket had a size or file-type limit, and the job card and work request routes took a
+  file's type from the browser. Each bucket now refuses more than the app's own limit (with some
+  room) or a type it never stores (`20261013140000`). The storage update policy's missing check
+  was not a hole (Postgres applies the USING expression); it is written out.
+- H6: nine trigger functions kept PUBLIC execute, so anon held it (never reachable: a trigger
+  function cannot be called directly); revoked, with `security_surface.sql` failing if one
+  returns. A report-only content security policy is sent on every page and violations are
+  logged by `/api/csp-report` (directive, blocked origin, page path; never a query string). On
+  55 routes in Chrome it reported nothing, so it fits the app as it is; enforce it once
+  production reports are quiet.
+
+598 unit tests, 39 SQL suites (mutation-checked: each new assertion fails without its fix), the
+UI check at 360 and 1024 px, and click-through pass.

@@ -148,6 +148,14 @@ const PROBES = {
   // tyre_life carries the latest check's pressure.
   "20261013120000":
     "select pg_get_function_result('public.tyre_life(uuid)'::regprocedure) like '%latest_pressure_kpa numeric%'",
+  // Farm users read the seller's details, not the platform's AI pricing (H1).
+  "20261013130000":
+    "select not has_column_privilege('authenticated', 'public.billing_settings', 'ai_margin_bps', 'SELECT')" +
+    " and has_column_privilege('authenticated', 'public.billing_settings', 'legal_name', 'SELECT')",
+  // Bucket limits, and no trigger function executable by anon (H2, H6).
+  "20261013140000":
+    "select not has_function_privilege('anon', 'public.app_stock_rollup()', 'EXECUTE')" +
+    " and exists (select 1 from storage.buckets where id = 'jobcard-photos' and file_size_limit = 10485760)",
 };
 
 const url = readEnv("DATABASE_URL");

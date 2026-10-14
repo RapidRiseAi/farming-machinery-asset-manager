@@ -418,6 +418,24 @@ begin
     raise exception 'BILLING FAIL [b1]: owner sees settings=% prices=%, expected 1 and 2',
       v_settings, v_price;
   end if;
+  -- The seller's details and the billing terms, yes; the platform's own AI pricing and who
+  -- last edited the row, no (20261013130000). Each hidden column is refused outright.
+  perform legal_name, trading_name, vat_number, vat_rate_bps, billing_address, billing_email,
+          trial_days, grace_days, retry_offsets_days, payment_terms_days, lapsed_grace_days
+     from billing_settings;
+  declare
+    v_hidden text;
+  begin
+    foreach v_hidden in array array[
+      'ai_margin_bps', 'ai_default_limit_cents', 'ai_trial_limit_cents', 'ai_max_owner_limit_cents',
+      'ai_fallback_usd_zar', 'ai_billing_starts_on', 'ai_min_invoice_cents', 'updated_by'] loop
+      begin
+        execute format('select %I from billing_settings', v_hidden);
+        raise exception 'BILLING FAIL [b1]: an owner read billing_settings.%', v_hidden;
+      exception when insufficient_privilege then null;
+      end;
+    end loop;
+  end;
 
   select count(*) into v_mach from machines where farm_id = v_farm;
   if v_mach <> 5 then

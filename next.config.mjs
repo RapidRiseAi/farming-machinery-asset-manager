@@ -1,3 +1,34 @@
+/**
+ * Content security policy, REPORT-ONLY (H6): browsers report what it would block to
+ * /api/csp-report and block nothing. Once the reports are quiet it can be enforced by
+ * renaming the header. Inline scripts and styles stay allowed: the App Router's own
+ * bootstrap is inline and this app uses no nonces. Beyond its own origin the browser talks
+ * only to Supabase (signed photo and voice URLs) and Azure Speech (live dictation).
+ */
+const supabaseOrigin = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").origin;
+  } catch {
+    return "";
+  }
+})();
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${supabaseOrigin}`,
+  `media-src 'self' blob: ${supabaseOrigin}`,
+  "font-src 'self' data:",
+  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://*.speech.microsoft.com wss://*.speech.microsoft.com`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "report-uri /api/csp-report",
+].join("; ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -30,6 +61,7 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(self), geolocation=(self), payment=()",
           },
+          { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy },
         ],
       },
       {

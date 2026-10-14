@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -43,7 +44,9 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
   // The month is summed in the database (ai_admin_month), so it is whole however many
   // rows it has; this page never pulls ledger rows itself.
   const [settingsRes, fxRes, summaryRes, healthRes, pricesRes] = await Promise.all([
-    supabase.from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents").eq("singleton", true).maybeSingle(),
+    // The platform's own AI pricing is not readable by signed-in users (20261013130000):
+    // read with the service client, behind this page's rr_admin check above.
+    createServiceClient().from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents").eq("singleton", true).maybeSingle(),
     supabase.from("fx_rates").select("day, usd_zar, source").order("day", { ascending: false }).limit(1).maybeSingle(),
     supabase.rpc("ai_admin_month", { p_month: month }),
     readAll(() => supabase.from("ai_health_events").select("id, kind, subject, detail, created_at").is("resolved_at", null).order("created_at", { ascending: false })),
