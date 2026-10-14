@@ -284,7 +284,8 @@ previous build's card), and the old build's v2 upgrade never overwrites the noti
 code and status (`lib/ai-usage/outcome.ts`; OpenAI's 429 `insufficient_quota` is an
 exhausted account, not a burst). The nightly job counts the last day in the database
 (`ai_ops_window`), opens one health event per problem and alerts the founder (the
-observability layer, and email to `AI_ALERT_EMAIL` when set): a model failing more than
+observability layer, and email to `AI_ALERT_EMAIL`, or `OPS_ALERT_EMAIL` when that is the
+only one set): a model failing more than
 25% of at least 8 calls in a day (platform credential only, so one farm's broken key is not
 an outage; an answer the model gave but that could not be used is the request's difficulty
 and is not counted, though its cost is recorded), more than 5% of a model's rows clamped to

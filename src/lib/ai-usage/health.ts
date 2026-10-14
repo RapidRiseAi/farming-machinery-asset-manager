@@ -17,7 +17,9 @@ export type HealthKind =
 /**
  * Opens a health event, once: an open event of the same kind and subject already exists,
  * so a repeat night adds nothing (a partial unique index enforces it). A NEW event alerts
- * the founder: the observability layer always, and email when AI_ALERT_EMAIL is set.
+ * the founder: the observability layer always, and email to AI_ALERT_EMAIL, or to
+ * OPS_ALERT_EMAIL when that is the only one set, so one address covers both (as
+ * src/lib/cron/alert.ts does the other way round).
  */
 export async function openHealthEvent(
   supabase: SupabaseClient,
@@ -35,7 +37,7 @@ export async function openHealthEvent(
     where: "ai_health",
     extra: { kind, subject, detail: JSON.stringify(detail).slice(0, 500) },
   });
-  const to = process.env.AI_ALERT_EMAIL?.trim();
+  const to = (process.env.AI_ALERT_EMAIL || process.env.OPS_ALERT_EMAIL || "").trim();
   if (to && emailConfigured()) {
     const lines = [`FleetWise AI health: ${kind}${subject ? ` for ${subject}` : ""}.`, "", JSON.stringify(detail, null, 2), "", "See /admin/ai."];
     const sent = await sendEmail({

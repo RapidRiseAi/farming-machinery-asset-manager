@@ -11,61 +11,103 @@ Money: nothing below costs money before launch except the domain. Every paid upg
 
 ## Part 1: Founder
 
+The founder works from a tickable copy of this part (a private claude.ai page with the same
+steps, where to click and how to check each one). Keep the two in step when either changes.
+Facts below were read from the accounts on 2026-10-14.
+
 ### Now, free (or the domain only)
 
-- [ ] **Buy the domain** (e.g. `fleetwise.co.za`) and tell engineering which one. Engineering
-      then gives you the exact DNS records to paste.
-- [ ] **Vercel, free:** add the domain to the project (Settings, Domains) once the records are
-      in. Set `LLM_MODEL=openai/gpt-4.1-mini` (the free AI Gateway tier refuses the current
-      model, so every AI answer first pays for a refused call). Set `AI_KEY_SECRET` to 32
-      random bytes, base64, marked Sensitive (engineering gives the command; never paste it in
-      chat). Optionally `AI_ALERT_EMAIL`.
+- [ ] **Two-step sign-in on your own account.** The database refuses Rapid Rise's powers
+      without the code (B9), so the next visit asks for it. Scan the QR code with two devices
+      so one lost phone does not lock you out; engineering can remove the factor with the
+      service key if every device is lost.
+- [ ] **Buy the domain** (e.g. `fleetwise.co.za`, auto-renew on) and tell engineering which one.
+      Engineering then gives you the exact DNS records for Vercel and Resend.
+- [ ] **Vercel, free:** set `OPS_ALERT_EMAIL` (failed scheduled runs and AI alerts are emailed
+      there; nothing has reached anyone so far, including the Gateway's low-credit alert of
+      2026-10-06). Set `AI_KEY_SECRET` to 32 random bytes, base64, marked Sensitive (never
+      changed afterwards: keys sealed under one value cannot be opened with another). Set
+      `LLM_MODEL=openai/gpt-4.1-mini`: the free AI Gateway tier refuses the configured
+      `openai/gpt-5.4-mini`, so every AI answer first waits for a refused call. Redeploy after
+      each change.
+- [ ] **cron-job.org, free:** `CRON_SECRET` is Sensitive in Vercel and cannot be copied, so
+      generate a new value, set it in Vercel, redeploy, and give cron-job.org the same value as
+      `Authorization: Bearer <value>` on a job calling `https://<domain>/api/push/send` every
+      minute. Until this exists, reminders written in the day wait for the nightly run. (After
+      Vercel Pro this moves inside Vercel.)
+- [ ] **Uptime monitor, free** (UptimeRobot or Better Stack): `https://<domain>/api/health`
+      every 5 minutes, alerting phone and email.
+- [ ] **Sentry, free Developer plan:** a Next.js project; its DSN in Vercel as `SENTRY_DSN`.
 - [ ] **Resend, free tier:** add and verify the domain (SPF, DKIM and DMARC records), then
       change `EMAIL_FROM` in Vercel to an address on it.
-- [ ] **Supabase, free:** under Authentication, URL Configuration, set the Site URL to the
-      domain and add `https://<domain>/**` to the redirect URLs. Under Authentication, SMTP,
-      turn on custom SMTP with Resend's SMTP details: Supabase's built-in sender is limited to a
-      few emails an hour, so invites and password resets fail with more than a handful of users.
-- [ ] **Supabase, free:** create a second free project called `fleetwise-staging` (load tests
-      and risky migrations run there, never on production). Give engineering its database
-      connection string through a local `.env` file, not chat.
-- [ ] **Sentry, free Developer plan:** create a Next.js project and set its DSN in Vercel as
-      `SENTRY_DSN`.
-- [ ] **Uptime monitor, free** (UptimeRobot or Better Stack): monitor `https://<domain>/api/health`
-      every 5 minutes, alerting your phone and email.
-- [ ] **cron-job.org, free:** a job that calls `https://<domain>/api/push/send` every minute with
-      the header `Authorization: Bearer <CRON_SECRET>` (the value already in Vercel; copy it
-      there, never into chat). Until this exists, reminders leave only in the nightly run, 25 at
-      a time. (After Vercel Pro this moves inside Vercel.)
-- [ ] **Paystack:** after the domain is live, update the callback and webhook URLs to the domain
-      (Settings, API Keys and Webhooks).
-- [ ] **Azure, free tier still:** in the Speech resource, open Cost Management and add a monthly
-      budget with an email alert (for example R500), so usage can never surprise you.
+- [ ] **Supabase, free, SMTP:** password resets and emailed sign-in links are sent by Supabase
+      (`resetPasswordForEmail`, `signInWithOtp`); invites already go through Resend. Supabase's
+      built-in sender delivers only to the Supabase team's own addresses, a few an hour, so turn
+      on custom SMTP with Resend's details (Authentication, Emails, SMTP Settings) and raise the
+      email rate limit. Check with a reset to an address outside the team.
+- [ ] **Vercel and Supabase, after the domain:** add the domain in Vercel (Settings, Domains) and
+      set `NEXT_PUBLIC_SITE_URL=https://<domain>`; in Supabase, URL Configuration, set the Site
+      URL to the domain and add `https://<domain>/**` to the redirect URLs. Tell engineering,
+      who then checks emails, PDF links, the installed app and the payment return page.
+- [ ] **Supabase, free:** a second project, `fleetwise-staging`, in the same region (load tests
+      and risky migrations run there, never on production). Its connection string goes into
+      `.env.local` as `STAGING_DATABASE_URL`, never into chat.
+- [ ] **Paystack (test mode):** the test webhook URL becomes
+      `https://<domain>/api/billing/paystack/webhook`. The payment return page is sent with
+      every payment from `NEXT_PUBLIC_SITE_URL`, so no callback URL is needed in the dashboard.
+- [ ] **Azure, free tier still:** a monthly budget with alerts at 80% and 100% (Cost Management,
+      Budgets), so voice usage can never surprise you.
 - [ ] **POPIA, free:** register the Information Officer with the Information Regulator
-      (eServices portal). Accept the data processing terms of Vercel, Supabase, OpenAI,
-      Microsoft (Azure), Resend and Paystack (all click-through, free).
+      (eServices portal). Accept the data processing terms of Vercel (including the AI
+      Gateway), Supabase, Microsoft (Azure), OpenAI, Resend and Paystack before real users join.
 - [ ] **Lawyer:** a read of the terms (`src/lib/legal.ts`) and the privacy policy, which must name
-      Paris hosting and AI processing abroad and the POPIA section 72 basis.
-- [ ] **Phones:** one iPhone and one Android for the real-device test pass (engineering gives a
-      30-minute script).
-- [ ] **Answer the open decisions** (asked as pop-up questions).
+      Paris hosting, AI and voice processing abroad, the POPIA section 72 basis, lapsed farms
+      read-only for 90 days then closed, and that farms can download all their data.
+- [ ] **Phones:** one iPhone and one Android for the real-device pass (engineering gives a
+      30-minute script). Optional: `SUPPORT_WEBHOOK_URL` for support cases into RapidRise OS.
 
-### At launch (spend)
+### Launch week (spend, a few days before, never on the morning)
 
-- [ ] **Vercel Pro** (about $20 a month), a few days before launch, not on the morning.
-      Engineering then moves the every-minute delivery into Vercel and turns on AI
-      zero-data-retention (`ASSISTANT_TRANSCRIBE_ZDR=1`).
-- [ ] **Supabase Pro** (about $25 a month): turn on daily backups (Database, Backups), then one
-      restore drill on the staging project. Point-in-time recovery can come after launch.
-- [ ] **Azure Speech: change the pricing tier from F0 to S0** (Speech resource, Pricing tier). No
-      monthly fee: pay per audio hour, which farms are billed for cost-plus. F0 allows ONE live
-      recognition at a time, not adjustable; S0 allows 100 by default. The change can take
-      several hours, so do it at least a day before launch. Above about 60 people talking at the
-      same moment, ask Azure support to raise the limit (a free quota request).
-- [ ] **AI Gateway credit** (pay as you go) and set `LLM_MODEL` back to the preferred model. The
+- [ ] **Vercel Pro** ($20 a month per seat, $20 of usage included; Hobby is non-commercial).
+      Engineering then moves the every-minute delivery into Vercel (delete the cron-job.org job
+      after) and turns on AI zero-data-retention (`ASSISTANT_TRANSCRIBE_ZDR=1`).
+- [ ] **Supabase Pro** ($25 a month; daily backups kept 7 days, $10 compute credit): check the
+      backups (Database, Backups), then one restore drill into the staging project.
+      Point-in-time recovery (about $100 a month) can come after launch.
+- [ ] **Azure Speech: change the pricing tier from F0 to S0** (Speech resource, Pricing tier), at
+      least a day early so voice can be tested on it. No monthly fee: pay per audio hour, billed
+      to farms cost-plus. F0 allows ONE live recognition at a time, not adjustable; S0 allows
+      100 by default, raised by a free quota request.
+- [ ] **AI Gateway credit** (pay as you go; the free credit was $4.84 on 2026-10-14) and set
+      `LLM_MODEL` back to `openai/gpt-5.4-mini` or whatever engineering recommends then. The
       free tier allows 5 requests a minute per model; one question can take up to 6.
-- [ ] **Resend paid plan** once sending passes the free tier (3 000 emails a month and 100 a day:
-      the daily cap is the one a launch hits first, since sign-in emails go through it too).
+- [ ] **Resend Pro** ($20 a month, 50 000 emails, no daily cap): the free tier's 100 emails a day
+      is what a launch day passes first.
+- [ ] **Paystack live:** business verification, then the live secret key as
+      `PAYSTACK_SECRET_KEY` (Production only) and the live webhook URL; redeploy. Pay a small
+      real invoice with your own card and refund it; engineering confirms the live event and the
+      settled invoice.
+- [ ] **Today's farms:** every farm and subscription so far was made in Paystack test mode, and a
+      card saved in test mode cannot be charged once Paystack is live. Say which farms are real
+      (they add a real card after go-live) and which are demos (removed at launch), and whether
+      the click-through test farm stays for automatic checks (out of totals, see H5).
+- [ ] **Final check on the domain:** engineering runs every automatic test and the
+      click-through against it; you run the phone script; pick the hour.
+
+### Launch day
+
+- [ ] Uptime monitor and alert inbox open; any alert goes to engineering at once.
+- [ ] Follow the first sign-up end to end with engineering watching the server side.
+- [ ] Support address: farms see `team@rapidriseai.com` as support and billing address today.
+      To change it to one on the domain, tell engineering (there is no admin field for it yet).
+
+### After launch
+
+- [ ] Enforce the content security policy after a week of reports (engineering summarises first).
+- [ ] Supabase compute: Small (about $15 a month, less the $10 credit) if the load test or real
+      use shows connections or CPU running high.
+- [ ] Point-in-time recovery once real data is worth it.
+- [ ] WhatsApp (decided: after launch); debit orders through a second provider (decided: later).
 
 ---
 
