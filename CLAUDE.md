@@ -398,6 +398,11 @@ will bite again.
 - **Never commit a credential-shaped literal**, even a deliberately fake one in a test -
   GitHub push protection blocks the push. Assemble it by concatenation; same runtime value,
   no secret-shaped string in the source.
+- **Account passwords live in `.env.local` only**: `DEMO_PASSWORD` (the demo personas) and
+  `CLICKTHROUGH_PASSWORD` (the click-through owner the check scripts sign in as). Until
+  2026-10-14 both were written in scripts, the demo seed and docs of this public repo while
+  the accounts existed on production, Rapid Rise's admin among them.
+  `src/lib/committed-passwords.test.ts` fails on a password literal in a script or seed.
 
 **Judgement**
 - **For anything that lives in someone else's dashboard, check the dashboard.** A note

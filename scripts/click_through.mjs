@@ -22,7 +22,6 @@ const ROOT = process.cwd();
 const BASE =
   process.argv.find((a) => a.startsWith("--base="))?.slice(7) ?? "http://localhost:3111";
 const EMAIL = "clickthrough@fleetwise.test";
-const PASSWORD = "Clickthrough!2026";
 
 function readEnv(name) {
   const text = fs.readFileSync(path.join(ROOT, ".env.local"), "utf8");
@@ -31,6 +30,13 @@ function readEnv(name) {
     if (m && m[1] === name) return m[2].trim().replace(/^["']|["']$/g, "");
   }
   return null;
+}
+
+// In .env.local only: the repo is public, and this account signs in to production.
+const PASSWORD = readEnv("CLICKTHROUGH_PASSWORD");
+if (!PASSWORD) {
+  console.error("click_through: set CLICKTHROUGH_PASSWORD in .env.local (the click-through owner's password)");
+  process.exit(1);
 }
 
 const SUPABASE_URL = readEnv("NEXT_PUBLIC_SUPABASE_URL");

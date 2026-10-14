@@ -686,7 +686,7 @@ leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.
   - **Live click-through against the hosted demo project** (`nmqtcvdwtyggxjjgtnzm`; the
     last remaining gap, every earlier run used placeholder env, so no query, no RLS
     decision and no role dispatch had ever actually executed). Demo logins are in
-    `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` (password `FleetWise!demo1`). Signed in as
+    `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md` (password now in `.env.local` only). Signed in as
     owner / operator / contractor / rr_admin and drove the built app:
     - **Role dispatch**, `/home` forwards owner→`/dashboard`, operator→`/driver`,
       workshop→`/contractor`, rr_admin→`/admin/farms`. An operator opening `/settings`
@@ -5110,3 +5110,38 @@ verified claim, 41 SQL suites; 606 unit tests; an end-to-end run against the liv
 (a real factor on the test owner, real codes generated from its secret, the gates, the factor
 removed); and the whole journey in Chrome (set up, sign in again with a code, a wrong code
 refused, turned off through the account page).
+
+## 2026-10-14 - Published passwords rotated; AI alerts reach the ops address
+
+Found while writing the founder's launch checklist: this public repo held the password of
+every demo persona (the demo seed and three docs) and of the click-through test owner (five
+scripts), and all fifteen accounts exist on production. One is the only Rapid Rise admin,
+with no second factor yet: with B9 live, anyone reading the repo could sign in, set up their
+own authenticator and hold Rapid Rise's powers over every farm; before B9 the password alone
+was enough.
+
+Checked on production first, read-only: each of the fifteen accepted its published password
+(compared with `crypt` in SQL, not by signing in). What the database keeps shows no misuse:
+no factor was ever enrolled, and every live session came from scripts on addresses matching
+the founder's network, plus one demo-owner session from a cloud address on 2026-10-08,
+probably a cloud test run. It keeps little: auth's audit table is empty on this project.
+
+The founder chose to rotate all fifteen at once. The new passwords were generated locally
+and stored only in `.env.local` (`DEMO_PASSWORD` for the personas, typeable on a phone;
+`CLICKTHROUGH_PASSWORD`, random). They were set in one transaction that also ended the
+accounts' 59 sessions, and it would only commit once the retired passwords failed and the
+new ones matched. Signing in through Supabase Auth worked with both.
+
+In the repo: the scripts read `CLICKTHROUGH_PASSWORD`. The demo seed reads `demo.password`
+and refuses to run without it, since re-running the old seed would have put the published
+password back. The docs point to `.env.local`. `src/lib/committed-passwords.test.ts` fails
+when a retired password reappears anywhere (matched by hash, so the test never prints them)
+or when a script or seed holds a password literal; both mutations were caught. The retired
+passwords remain in git history, which is why the fix is rotation rather than deletion.
+
+AI health alerts (fd24aab) used to be emailed only to `AI_ALERT_EMAIL`, so with just
+`OPS_ALERT_EMAIL` set they reached nobody. They now go to `AI_ALERT_EMAIL`, or else
+`OPS_ALERT_EMAIL`. The Gateway's low-credit alert of 2026-10-06 had reached nobody.
+
+Founder: set up two-step sign-in on the admin account at the next visit (its password is
+`DEMO_PASSWORD`).

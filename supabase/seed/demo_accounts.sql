@@ -21,7 +21,10 @@
 --   run. It will NOT work against the local test shim (that auth.users has no password
 --   columns and there is no GoTrue to authenticate against).
 --
--- EVERY password below is:  FleetWise!demo1
+-- PASSWORD: every account gets the one in the `demo.password` setting, set in the same
+--   session first, to DEMO_PASSWORD from .env.local:  set demo.password = '...';
+--   It is never written in this file. The repo is public, and until 2026-10-14 the
+--   password printed here let anyone sign in to production, Rapid Rise admin included.
 --
 -- Idempotent: re-running resets the demo passwords and re-links everything; it never
 --   duplicates rows. Safe to run repeatedly.
@@ -75,7 +78,7 @@ end $fn$;
 
 do $seed$
 declare
-  pw text := 'FleetWise!demo1';
+  pw text := nullif(current_setting('demo.password', true), '');
 
   -- Existing Weltevrede farm + people (from demo_farm.sql).
   v_farm     uuid := 'aa000000-0000-0000-0000-000000000001';
@@ -94,6 +97,9 @@ declare
   v_farm2    uuid := 'aa000000-0000-0000-0000-000000000002';   -- Rooikoppies Plaas
   v_owner2   uuid := '10000000-0000-0000-0000-000000000021';   -- hendrik@rooikoppies.example
 begin
+  if pw is null or length(pw) < 12 then
+    raise exception 'demo_accounts: set demo.password first (12 characters or more): set demo.password = ''...'';';
+  end if;
   if not exists (select 1 from farms where id = v_farm) then
     raise exception 'Run demo_farm.sql first, Weltevrede demo farm not found.';
   end if;
@@ -242,7 +248,7 @@ begin
     (v_farm2, '74000000-0000-0000-0000-000000000005', null, 'requested', 'Aangevra by TJ', v_owner2)
   on conflict do nothing;
 
-  raise notice 'demo_accounts: % loginable accounts seeded (password FleetWise!demo1) across 2 farms + 7 contractor types',
+  raise notice 'demo_accounts: % loginable accounts seeded (password from demo.password) across 2 farms + 7 contractor types',
     (select count(*) from users where id in (
       v_owner,v_manager,v_mech,v_op1,v_op2,v_wstaff,v_admin,v_owner2,
       '10000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000013',

@@ -32,7 +32,6 @@ export const IDS = {
   jobCard: "f0000000-0000-4000-8000-00000000bc01",
 };
 const EMAIL = "clickthrough@fleetwise.test";
-const PASSWORD = "Clickthrough!2026";
 
 function readEnv(name) {
   const text = fs.readFileSync(path.join(ROOT, ".env.local"), "utf8");
@@ -41,6 +40,14 @@ function readEnv(name) {
     if (m && m[1] === name) return m[2].trim().replace(/^["']|["']$/g, "");
   }
   return null;
+}
+
+// In .env.local only: the repo is public, and this account signs in to production. Until
+// 2026-10-14 it was written here, and anyone reading the repo could sign in with it.
+const PASSWORD = readEnv("CLICKTHROUGH_PASSWORD");
+if (CREATE && !PASSWORD) {
+  console.error("seed_test_farm: set CLICKTHROUGH_PASSWORD in .env.local first (a long random value)");
+  process.exit(1);
 }
 
 const client = new pg.Client({
@@ -158,6 +165,6 @@ await client.query("commit");
 
 console.log("Test farm created.");
 console.log(`  farm    ${IDS.farm}`);
-console.log(`  sign in ${EMAIL} / ${PASSWORD}`);
+console.log(`  sign in ${EMAIL} with CLICKTHROUGH_PASSWORD from .env.local`);
 console.log(`  remove  node scripts/seed_test_farm.mjs --remove`);
 await client.end();

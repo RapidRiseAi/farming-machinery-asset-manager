@@ -20,7 +20,9 @@ Facts below were read from the accounts on 2026-10-14.
 - [ ] **Two-step sign-in on your own account.** The database refuses Rapid Rise's powers
       without the code (B9), so the next visit asks for it. Scan the QR code with two devices
       so one lost phone does not lock you out; engineering can remove the factor with the
-      service key if every device is lost.
+      service key if every device is lost. The admin account's password changed on
+      2026-10-14 (it had been published in this repo): it is `DEMO_PASSWORD` in `.env.local`
+      on the founder's computer.
 - [ ] **Buy the domain** (e.g. `fleetwise.co.za`, auto-renew on) and tell engineering which one.
       Engineering then gives you the exact DNS records for Vercel and Resend.
 - [ ] **Vercel, free:** set `OPS_ALERT_EMAIL` (failed scheduled runs and AI alerts are emailed
@@ -158,6 +160,12 @@ Order: correctness and security first, then load, then product.
       2026-10-14: `Content-Security-Policy-Report-Only` with reports logged by
       /api/csp-report; nine trigger functions revoked from anon, and a suite that fails if any
       returns. Enforce the policy once the reports are quiet (rename the header).
+- [x] **Published passwords** (found 2026-10-14, not in the original review): the demo
+      personas' and the click-through owner's passwords were in this public repo, and the
+      accounts exist on production, Rapid Rise's only admin among them.
+      2026-10-14: all fifteen rotated (founder's decision), sessions ended, new values in
+      `.env.local` only; scripts and the demo seed read them from there;
+      `src/lib/committed-passwords.test.ts` guards it.
 - [ ] **B12** The service-worker "buttons stop working" bug: reproduce in the test browser and fix.
 - [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project.
 - [ ] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready

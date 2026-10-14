@@ -62,7 +62,8 @@ role, so they can create `auth.users` and bypass RLS):
 2. **`supabase/seed/demo_accounts.sql`**, turns every demo user into a **real,
    password-loginable account**, adds **one contractor account per contractor type**, a
    **second farm** (Rooikoppies Plaas) for cross-farm testing, and extra work requests.
-   Idempotent. **Every account's password is `FleetWise!demo1`.**
+   Idempotent. **Every account gets the password in the `demo.password` setting** (run
+   `set demo.password = '...';` first, with `DEMO_PASSWORD` from `.env.local`).
 
 > `demo_accounts.sql` is **hosted-Supabase only**, it sets encrypted passwords and email
 > identities that the local RLS test shim doesn't have. For local RLS testing use
@@ -87,7 +88,9 @@ Supabase Auth in the cloud, so local dev logs into the real demo accounts.
 
 ## 4. Demo login credentials
 
-All passwords: **`FleetWise!demo1`**. (Change or delete these before any real use.)
+All passwords: `DEMO_PASSWORD` in `.env.local` on the founder's computer, never in this
+repo. The repo is public: the password once printed here let anyone sign in to production,
+Rapid Rise admin included, until it was rotated on 2026-10-14.
 
 > **Every demo account delivers to one inbox.** They are Gmail plus-addresses on
 > `therandomneon@gmail.com`, so `+owner`, `+driver`, `+tj` and the rest all arrive in

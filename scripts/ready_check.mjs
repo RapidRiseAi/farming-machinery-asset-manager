@@ -81,10 +81,13 @@ const note = (route, label) => console.log(`NOTE  ${route}  ${label}`);
 // == Session for the repo's throwaway click-through owner (as ui_check.mjs does) ==
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// In .env.local only: the repo is public, and this account signs in to production.
+const PASSWORD = process.env.CLICKTHROUGH_PASSWORD;
+if (!PASSWORD) throw new Error("set CLICKTHROUGH_PASSWORD in .env.local (the click-through owner's password)");
 const auth = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: "POST",
   headers: { apikey: ANON, "content-type": "application/json" },
-  body: JSON.stringify({ email: "clickthrough@fleetwise.test", password: "Clickthrough!2026" }),
+  body: JSON.stringify({ email: "clickthrough@fleetwise.test", password: PASSWORD }),
 });
 if (!auth.ok) throw new Error(`sign-in failed: ${auth.status}`);
 const session = await auth.json();

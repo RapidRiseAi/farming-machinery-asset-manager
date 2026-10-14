@@ -42,7 +42,7 @@ as unverified no matter how confident the code comments sound.
 | i18n | EN/AF at parity, **3 445 leaf keys**, plus professional-tone overlays |
 
 Demo logins are in `docs/FLEETWISE_MANUAL_SETUP_GUIDE.md`; every password is
-`FleetWise!demo1`. The partner used for most testing is `therandomneon+tj@gmail.com`; the farm
+`DEMO_PASSWORD` in `.env.local` (never in the repo). The partner used for most testing is `therandomneon+tj@gmail.com`; the farm
 side is `therandomneon+owner@gmail.com` (owner) and `therandomneon+driver2@gmail.com` (operator).
 
 ---

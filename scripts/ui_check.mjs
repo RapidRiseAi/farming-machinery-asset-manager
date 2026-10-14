@@ -166,10 +166,16 @@ function readEnv(name) {
 // == Sign in the way the app does, and build the cookie @supabase/ssr writes ==
 const SUPABASE_URL = readEnv("NEXT_PUBLIC_SUPABASE_URL");
 const ANON = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+// In .env.local only: the repo is public, and this account signs in to production.
+const PASSWORD = readEnv("CLICKTHROUGH_PASSWORD");
+if (!PASSWORD) {
+  console.error("ui_check: set CLICKTHROUGH_PASSWORD in .env.local (the click-through owner's password)");
+  process.exit(1);
+}
 const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: "POST",
   headers: { apikey: ANON, "content-type": "application/json" },
-  body: JSON.stringify({ email: "clickthrough@fleetwise.test", password: "Clickthrough!2026" }),
+  body: JSON.stringify({ email: "clickthrough@fleetwise.test", password: PASSWORD }),
 });
 if (!res.ok) {
   console.error(`ui_check: could not sign in: ${res.status} ${await res.text()}`);
