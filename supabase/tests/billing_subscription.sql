@@ -54,7 +54,7 @@ begin
     execute $f$
       create function public._t_login(uid uuid) returns void language sql as $b$
         select set_config('request.jwt.claims',
-                          json_build_object('sub', uid, 'role', 'authenticated')::text, false);
+                          json_build_object('sub', uid, 'role', 'authenticated', 'aal', 'aal2')::text, false);
       $b$;
     $f$;
     execute 'grant execute on function public._t_login(uuid) to public';

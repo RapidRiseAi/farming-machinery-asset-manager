@@ -5082,3 +5082,31 @@ in front (free; stops a runaway loop on the spot), and a database fault lets the
 through and is reported (`src/lib/rate-limit.ts`): dictation must not stop because a counter
 could not be written. Transcription asks while the audio uploads, so it adds no wait.
 `rate_limits.sql` (three mutations, all caught) runs in CI; 601 unit tests pass.
+
+## 2026-10-14 - Two-step sign-in (B9)
+
+Founder decision: required for Rapid Rise staff, offered to everyone. An authenticator app's
+six-digit code (TOTP, checked first on the project: enabled) on top of the password.
+
+The app: `/mfa/setup` (scan a QR code into the app, type one code) and `/mfa/verify` (the
+code after a password), both outside the app's layout so the gate cannot loop; a row on the
+account page to turn it on, or off with a confirmation (not for Rapid Rise, and only from a
+session that gave a code, which Supabase requires). The layout's gate (`src/lib/mfa.ts`):
+anyone with a code set up gives it once per session; Rapid Rise staff without one set it up
+before anything else. Sign-in goes straight to the code step when one is set up.
+
+The database: the app's gate is not enough for an account that reaches every farm, because a
+stolen password used straight against the API never sees the app. `20261014100000` makes a
+session count as Rapid Rise only when it gave the code (`aal2` in its token). Admin power
+reaches the policies through `is_rr_admin()` (and `has_farm_access()`), `current_app_role()`
+and `effective_farm_role()`, all changed; of the 32 functions that mention 'rr_admin', two read
+`users.role` to grant something (`job_card_worker`, the QR re-issue guard) and are changed too;
+the rest go through the helpers or refuse. Each changed function was diffed against
+production: the only difference is the check. Farm users' sessions are judged as before.
+
+Tested: `admin_two_step.sql` (the same Rapid Rise account with and without the code, and an
+owner unaffected; four mutations, each caught), the other suites' test sessions now carry the
+verified claim, 41 SQL suites; 606 unit tests; an end-to-end run against the live auth service
+(a real factor on the test owner, real codes generated from its secret, the gates, the factor
+removed); and the whole journey in Chrome (set up, sign in again with a code, a wrong code
+refused, turned off through the account page).

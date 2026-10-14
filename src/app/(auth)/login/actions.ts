@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { syncLocaleOnSignIn } from "@/lib/locale-sync";
 import { siteUrl } from "@/lib/env";
 import { safePath } from "@/lib/safe-path";
+import { readAssurance } from "@/lib/mfa";
 
 export async function signInWithPassword(formData: FormData) {
   const next=safePath(String(formData.get("next")??""),"/home");
@@ -25,6 +26,11 @@ export async function signInWithPassword(formData: FormData) {
   // Honour a language chosen on the login screen instead of silently discarding it.
   await syncLocaleOnSignIn();
   revalidatePath("/", "layout");
+  // A code set up (B9): straight to the second step rather than through the app's gate.
+  const assurance = await readAssurance(supabase);
+  if (assurance.current === "aal1" && assurance.next === "aal2") {
+    redirect(`/mfa/verify?next=${encodeURIComponent(next)}`);
+  }
   // /home dispatches by role, a driver must not land on the owner's money page.
   redirect(safePath(String(formData.get("next") ?? ""), "/home"));
 }

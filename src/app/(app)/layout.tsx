@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import {
   currentPlan,
@@ -13,6 +13,8 @@ import {
 import { planAllows } from "@/lib/entitlements";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
+import { mfaGate, readAssurance } from "@/lib/mfa";
+import { safePath } from "@/lib/safe-path";
 import { countInboxUnread } from "@/lib/inbox";
 import { countInboxDecisions } from "@/lib/inbox-decisions";
 import { t } from "@/lib/i18n";
@@ -81,6 +83,15 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const { profile, plan } = await currentPlan();
+
+  // Two-step sign-in (B9): someone who has set up a code gives it once per session, and
+  // Rapid Rise staff, whose account reaches every farm, set one up before anything else.
+  // Both pages sit outside this layout, so this cannot loop.
+  const twoStep = mfaGate(profile.role, await readAssurance(await createClient()));
+  if (twoStep) {
+    const here = safePath((await headers()).get("x-fw-path") ?? "", "/home");
+    redirect(`/mfa/${twoStep === "verify" ? "verify" : "setup"}?next=${encodeURIComponent(here)}`);
+  }
 
   // A farm that signed up and has not paid gets no app at all, just the screen that takes
   // the payment. This is the only place the check lives, because this layout wraps every

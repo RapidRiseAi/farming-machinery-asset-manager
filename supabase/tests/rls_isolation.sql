@@ -32,7 +32,9 @@ end $$;
 grant execute on function _t_assert(text, bigint, text) to public;
 
 create or replace function _t_login(uid uuid) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, false);
+  -- Every test session has given its second factor (aal2): Rapid Rise's powers need it
+  -- (20261014100000), and nothing else reads it. admin_two_step.sql covers the aal1 case.
+  select set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated', 'aal', 'aal2')::text, false);
 $$;
 grant execute on function _t_login(uuid) to public;
 

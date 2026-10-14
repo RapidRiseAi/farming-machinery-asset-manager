@@ -43,7 +43,9 @@ import {
   resendVerification,
   setPhoneShortcuts,
   setStartPage,
+  turnOffTwoStep,
 } from "./actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /**
  * Your account and preferences: the one place a person, in any role, changes what is
@@ -109,6 +111,9 @@ export default async function AccountPage({
   const locale = profile.lang;
 
   const supabase = await createClient();
+  // Two-step sign-in (B9): on when the person has a verified authenticator factor.
+  const { data: factorList } = await supabase.auth.mfa.listFactors();
+  const twoStepOn = (factorList?.totp ?? []).some((f) => f.status === "verified");
   const [{ data }, farmRes, { plan }, store] = await Promise.all([
     supabase
       .from("users")
@@ -320,6 +325,33 @@ export default async function AccountPage({
                   </DialogActions>
                 </form>
               </DialogForm>
+            }
+          />
+          <PrefRow
+            label={t("account.mfaTitle", locale)}
+            value={
+              <span className="font-normal text-sand-600">
+                {twoStepOn ? t("account.mfaOn", locale) : t("account.mfaOff", locale)}
+                {profile.role === "rr_admin" ? ` ${t("account.mfaRequired", locale)}` : ""}
+              </span>
+            }
+            action={
+              !twoStepOn ? (
+                <Link href="/mfa/setup?next=/account" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                  {t("account.mfaSetUp", locale)}
+                </Link>
+              ) : profile.role === "rr_admin" ? null : (
+                <ConfirmDialog
+                  action={turnOffTwoStep}
+                  triggerLabel={t("account.mfaTurnOff", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("account.mfaTitle", locale)}
+                  consequences={[t("account.mfaTurnOffConfirm", locale)]}
+                  confirmLabel={t("account.mfaTurnOff", locale)}
+                  cancelLabel={cancelLabel}
+                />
+              )
             }
           />
         </FactList>

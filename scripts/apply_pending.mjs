@@ -160,6 +160,10 @@ const PROBES = {
   "20261014090000":
     "select to_regprocedure('public.rate_limit_take(text,integer,integer)') is not null" +
     " and to_regclass('app.rate_limit_windows') is not null",
+  // Rapid Rise's powers need the second factor (B9).
+  "20261014100000":
+    "select to_regprocedure('app.session_mfa_verified()') is not null" +
+    " and pg_get_functiondef('app.is_rr_admin()'::regprocedure) like '%session_mfa_verified%'",
 };
 
 const url = readEnv("DATABASE_URL");

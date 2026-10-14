@@ -163,3 +163,22 @@ export async function setPhoneShortcuts(formData: FormData): Promise<void> {
   revalidatePath("/", "layout");
   redirect("/account?saved=shortcuts#shortcuts");
 }
+
+/**
+ * Turn two-step sign-in off (B9). Every authenticator factor is removed, which Supabase
+ * allows only from a session that gave a code (aal2), so a stolen password cannot switch
+ * it off. Not for Rapid Rise staff: for them it is required.
+ */
+export async function turnOffTwoStep(): Promise<void> {
+  const profile = await requireProfile();
+  if (profile.role === "rr_admin") redirect("/account?error=mfa-required");
+  const supabase = await createClient();
+  const { data } = await supabase.auth.mfa.listFactors();
+  for (const factor of data?.all ?? []) {
+    if (factor.factor_type !== "totp") continue;
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    if (error) redirect("/account?error=mfa-off-failed");
+  }
+  revalidatePath("/account");
+  redirect("/account?saved=1");
+}

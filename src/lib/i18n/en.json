@@ -427,6 +427,28 @@
     "signInTitle": "Welcome back",
     "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes."
   },
+  "mfa": {
+    "verifyTitle": "Enter your code",
+    "verifyBody": "Open your authenticator app and type the six-digit code it shows for FleetWise.",
+    "codeLabel": "Six-digit code",
+    "verifyButton": "Continue",
+    "wrongCode": "That code did not work. Codes change every 30 seconds: type the one showing now.",
+    "notSixDigits": "A code is six digits.",
+    "otherAccount": "Sign in as someone else",
+    "setupTitle": "Set up two-step sign-in",
+    "setupRequired": "Rapid Rise staff accounts reach every farm, so they need a code from an authenticator app as well as the password.",
+    "setupBody": "Each time you sign in, FleetWise will ask for a six-digit code from an app on your phone, so a stolen password alone is not enough.",
+    "step1": "Install an authenticator app, such as Google Authenticator or Microsoft Authenticator.",
+    "step2": "Scan this code with it, or type the key below.",
+    "step3": "Type the six-digit code the app shows.",
+    "keyLabel": "Key",
+    "qrAlt": "QR code for your authenticator app",
+    "start": "Start",
+    "confirm": "Turn on",
+    "alreadyOn": "Two-step sign-in is already on for this account.",
+    "backToAccount": "Back to your account",
+    "startFailed": "Could not start the setup. Try again in a moment."
+  },
   "onboarding": {
     "title": "Get your farm set up",
     "subtitle": "A few quick steps to get the most out of FleetWise.",
@@ -5229,7 +5251,9 @@
     "documentNumberUsed": "This supplier document number is already recorded. Open the existing document instead.",
     "inviteRefused": "That address cannot join a farm team. Use a different email address.",
     "inviteSwitchedOff": "They are already on your team, but their login is off. Open the menu next to their name and choose Activate, then invite them again for a new sign-in email.",
-    "inviteFailed": "We could not invite them. Please try again."
+    "inviteFailed": "We could not invite them. Please try again.",
+    "mfaOffFailed": "Could not turn off two-step sign-in. Sign in again with your code, then try once more.",
+    "mfaRequired": "Two-step sign-in stays on for Rapid Rise staff accounts."
   },
   "billing": {
     "title": "Billing",
@@ -5816,7 +5840,14 @@
     "shortcutsHint": "Up to 3 screens in the bar at the bottom of your phone. Everything else stays under More.",
     "shortcutsStandard": "Standard",
     "changeShortcuts": "Choose your phone shortcuts",
-    "shortcutsReset": "Back to the standard shortcuts"
+    "shortcutsReset": "Back to the standard shortcuts",
+    "mfaTitle": "Two-step sign-in",
+    "mfaOn": "On: a code from your authenticator app is asked for each time you sign in.",
+    "mfaOff": "Off: your password alone signs you in.",
+    "mfaRequired": "Required for Rapid Rise staff.",
+    "mfaSetUp": "Set up",
+    "mfaTurnOff": "Turn off",
+    "mfaTurnOffConfirm": "Turn off two-step sign-in? Your password alone will sign you in again."
   },
   "verify": {
     "verified": {

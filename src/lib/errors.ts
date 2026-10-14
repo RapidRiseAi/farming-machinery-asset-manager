@@ -87,6 +87,8 @@ const CODE_KEYS: Record<string, string> = {
   "you-can-invite-managermechanicoperator-only": "errors.inviteRole",
   auth: "errors.session",
   "no-profile": "errors.session",
+  "mfa-off-failed": "errors.mfaOffFailed",
+  "mfa-required": "errors.mfaRequired",
   "no-farm": "errors.noFarm",
   "no-farm-context": "errors.noFarm",
   "missing-farm": "errors.noFarm",

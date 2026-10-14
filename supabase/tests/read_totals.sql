@@ -82,7 +82,7 @@ insert into public.partner_documents (workshop_id, farm_id, bill_to_name, kind, 
 set local session_replication_role = origin;
 
 -- == The owner ===============================================================
-select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000001","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 do $$
 declare r record; n int;
@@ -112,7 +112,7 @@ end $$;
 reset role;
 
 -- == An operator who may not see costs ========================================
-select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000002","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000002","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 do $$ begin
   if exists (select 1 from public.machine_cost_totals('ae000000-0000-4000-9000-000000000001')) then
@@ -122,7 +122,7 @@ end $$;
 reset role;
 
 -- == Rapid Rise ================================================================
-select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000004","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000004","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 do $$
 declare r record;
@@ -150,7 +150,7 @@ end $$;
 reset role;
 
 -- == The partner ==============================================================
-select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000006","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"ae100000-0000-4000-9000-000000000006","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 do $$
 declare r record;

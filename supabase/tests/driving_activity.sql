@@ -20,7 +20,7 @@ insert into machines(id,farm_id,name,type,meter_type,public_token) values
  ('da200000-0000-4000-8000-000000000002','da000000-0000-4000-8000-000000000002','Other vehicle','tractor','hours','da300000-0000-4000-8000-000000000002');
 
 set local role authenticated;
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 do $$ declare first_result jsonb; retry_result jsonb; begin
  first_result:=record_member_qr('da300000-0000-4000-8000-000000000001','fault','{"p_description":"Retry test","p_urgency":"can_work"}','da400000-0000-4000-8000-000000000001');
  retry_result:=record_member_qr('da300000-0000-4000-8000-000000000001','fault','{"p_description":"Retry test","p_urgency":"can_work"}','da400000-0000-4000-8000-000000000001');
@@ -64,7 +64,7 @@ do $$ begin
  exception when insufficient_privilege then null; end;
 end $$;
 
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 do $$ begin
  perform record_driving_event('da000000-0000-4000-8000-000000000001','da200000-0000-4000-8000-000000000001','da100000-0000-4000-8000-000000000002','depart',now()-interval '2 hours');
  perform record_driving_event('da000000-0000-4000-8000-000000000001','da200000-0000-4000-8000-000000000001','da100000-0000-4000-8000-000000000002','end',now()-interval '1 hour');
@@ -75,7 +75,7 @@ do $$ begin
  exception when insufficient_privilege then null; end;
 end $$;
 
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000005","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000005","role":"authenticated","aal":"aal2"}',true);
 do $$ begin
  if exists(select 1 from driving_sessions) or exists(select 1 from driving_events) then raise exception 'driver sees coworker history'; end if;
  begin
@@ -83,12 +83,12 @@ do $$ begin
    raise exception 'driver impersonates coworker';
  exception when insufficient_privilege then null; end;
 end $$;
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}',true);
 do $$ begin
  if exists(select 1 from driving_sessions) or exists(select 1 from driving_events) then raise exception 'cross farm history leak'; end if;
 end $$;
 
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000004","role":"authenticated","aal":"aal2"}',true);
 do $$ declare c uuid; begin
  c:=configure_driver_connection('da000000-0000-4000-8000-000000000001','Test provider','key_tag',repeat('a',64));
  perform link_driver_device(c,'device-1','da200000-0000-4000-8000-000000000001',null);
@@ -130,7 +130,7 @@ do $$ begin
  if exists(select 1 from faults where machine_id='da200000-0000-4000-8000-000000000001' and (reported_by is distinct from 'da100000-0000-4000-8000-000000000002'::uuid or reporter_name='Impostor')) then raise exception 'QR identity spoofed'; end if;
 end $$;
 set local role authenticated;
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 do $$ declare total_stops integer; begin
  select sum(jsonb_array_length(stop_events)) into total_stops from driving_session_details(array(select id from driving_sessions));
  if total_stops is distinct from 5 then raise exception 'stop summary incomplete'; end if;
@@ -140,7 +140,7 @@ reset role;
 insert into user_farm_memberships(user_id,farm_id,role,active) values('da100000-0000-4000-8000-000000000002','da000000-0000-4000-8000-000000000001','operator',false)
 on conflict(user_id,farm_id) do update set active=false;
 set local role authenticated;
-select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"da100000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 do $$ begin
  if exists(select 1 from resolve_member_qr('da300000-0000-4000-8000-000000000001')) or exists(select 1 from driving_sessions) then raise exception 'revoked membership retains access'; end if;
 end $$;

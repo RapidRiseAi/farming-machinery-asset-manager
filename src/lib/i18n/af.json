@@ -427,6 +427,28 @@
     "signInTitle": "Welkom terug",
     "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie."
   },
+  "mfa": {
+    "verifyTitle": "Tik jou kode in",
+    "verifyBody": "Maak jou verifieerder-toep oop en tik die sesyfer-kode wat dit vir FleetWise wys.",
+    "codeLabel": "Sesyfer-kode",
+    "verifyButton": "Gaan voort",
+    "wrongCode": "Daardie kode het nie gewerk nie. Kodes verander elke 30 sekondes: tik die een wat nou wys.",
+    "notSixDigits": "'n Kode is ses syfers.",
+    "otherAccount": "Meld aan as iemand anders",
+    "setupTitle": "Stel tweestap-aanmelding op",
+    "setupRequired": "Rapid Rise-personeelrekeninge bereik elke plaas, dus het hulle 'n kode van 'n verifieerder-toep sowel as die wagwoord nodig.",
+    "setupBody": "Elke keer as jy aanmeld, vra FleetWise vir 'n sesyfer-kode van 'n toep op jou foon, sodat 'n gesteelde wagwoord alleen nie genoeg is nie.",
+    "step1": "Installeer 'n verifieerder-toep, soos Google Authenticator of Microsoft Authenticator.",
+    "step2": "Skandeer hierdie kode daarmee, of tik die sleutel hieronder in.",
+    "step3": "Tik die sesyfer-kode wat die toep wys.",
+    "keyLabel": "Sleutel",
+    "qrAlt": "QR-kode vir jou verifieerder-toep",
+    "start": "Begin",
+    "confirm": "Skakel aan",
+    "alreadyOn": "Tweestap-aanmelding is reeds aan vir hierdie rekening.",
+    "backToAccount": "Terug na jou rekening",
+    "startFailed": "Kon nie die opstelling begin nie. Probeer weer oor 'n oomblik."
+  },
   "onboarding": {
     "title": "Kry jou plaas opgestel",
     "subtitle": "Enkele vinnige stappe om die meeste uit FleetWise te kry.",
@@ -5229,7 +5251,9 @@
     "documentNumberUsed": "Hierdie verskaffer se dokumentnommer is reeds aangeteken. Maak die bestaande dokument oop.",
     "inviteRefused": "Daardie adres kan nie by 'n plaasspan aansluit nie. Gebruik 'n ander e-posadres.",
     "inviteSwitchedOff": "Hulle is reeds in jou span, maar hul aanmelding is af. Maak die kieslys langs hul naam oop en kies Aktiveer, en nooi hulle dan weer vir 'n nuwe aanmeld-e-pos.",
-    "inviteFailed": "Ons kon hulle nie nooi nie. Probeer asseblief weer."
+    "inviteFailed": "Ons kon hulle nie nooi nie. Probeer asseblief weer.",
+    "mfaOffFailed": "Kon nie tweestap-aanmelding afskakel nie. Meld weer aan met jou kode en probeer dan weer.",
+    "mfaRequired": "Tweestap-aanmelding bly aan vir Rapid Rise-personeelrekeninge."
   },
   "billing": {
     "title": "Rekening",
@@ -5816,7 +5840,14 @@
     "shortcutsHint": "Tot 3 skerms in die balk onderaan jou foon. Alles anders bly onder Meer.",
     "shortcutsStandard": "Standaard",
     "changeShortcuts": "Kies jou foon-kortpaaie",
-    "shortcutsReset": "Terug na die standaard kortpaaie"
+    "shortcutsReset": "Terug na die standaard kortpaaie",
+    "mfaTitle": "Tweestap-aanmelding",
+    "mfaOn": "Aan: 'n kode van jou verifieerder-toep word gevra elke keer as jy aanmeld.",
+    "mfaOff": "Af: jou wagwoord alleen meld jou aan.",
+    "mfaRequired": "Verpligtend vir Rapid Rise-personeel.",
+    "mfaSetUp": "Stel op",
+    "mfaTurnOff": "Skakel af",
+    "mfaTurnOffConfirm": "Skakel tweestap-aanmelding af? Jou wagwoord alleen sal jou weer aanmeld."
   },
   "verify": {
     "verified": {

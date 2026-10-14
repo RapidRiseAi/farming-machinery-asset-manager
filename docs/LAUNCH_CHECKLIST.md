@@ -99,7 +99,10 @@ Order: correctness and security first, then load, then product.
       waits for Pro: Hobby refuses sub-daily schedules).
       2026-10-14 (0efd5e3, live): `drainNotifications` in /api/push/send and the nightly run.
       Functions run on fluid compute with a 300 s limit (read from the project settings).
-- [ ] **B9** Two-factor sign-in (authenticator app), scope per the founder's decision.
+- [x] **B9** Two-factor sign-in (authenticator app), scope per the founder's decision.
+      2026-10-14: `/mfa/setup`, `/mfa/verify`, the account page row; the database refuses Rapid
+      Rise's powers without the code (20261014100000). Founder: the next visit asks you to set
+      up an authenticator app (Google or Microsoft Authenticator).
 - [x] **H1** Billing settings: only the seller details readable by farm users.
       2026-10-14: column grants (20261013130000); Rapid Rise's AI page reads the rest with the
       service client. Every billing and AI function runs as its owner (checked on production).

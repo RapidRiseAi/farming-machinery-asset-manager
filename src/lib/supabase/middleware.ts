@@ -46,7 +46,14 @@ const PROTECTED_PREFIXES = [
  * cookies. No-op when Supabase env isn't configured yet, so the app still runs.
  * Route guards by role are layered on in the auth phase.
  */
+/** The request header carrying the page asked for: see updateSession. */
+export const PATH_HEADER = "x-fw-path";
+
 export async function updateSession(request: NextRequest) {
+  // The page asked for, for server components that send someone elsewhere and back (the
+  // two-step sign-in gate in the app layout). Set here on every request, so a header a
+  // client sent itself is overwritten, and only ever read as a same-site path.
+  request.headers.set(PATH_HEADER, request.nextUrl.pathname + request.nextUrl.search);
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
