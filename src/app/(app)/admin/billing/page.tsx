@@ -141,7 +141,7 @@ export default async function AdminBillingPage({
         .select(SUBSCRIPTION_COLUMNS)
         .is("deleted_at", null)
         .order("created_at", { ascending: false }),
-      supabase.from("farms").select(FARM_BILLING_COLUMNS).order("name", { ascending: true }),
+      supabase.from("farms").select(`${FARM_BILLING_COLUMNS}, is_test`).order("name", { ascending: true }),
     ]);
 
   // Has the schedule actually been firing? The nightly pass can be inferred from the
@@ -632,7 +632,10 @@ export default async function AdminBillingPage({
                   const look = billingLook(SUBSCRIPTION_LOOK, r.sub.status);
                   return (
                     <Tr key={r.sub.id}>
-                      <Td className="font-medium text-sand-900">{r.farm?.name ?? "-"}</Td>
+                      <Td className="font-medium text-sand-900">
+                        {r.farm?.name ?? "-"}
+                        {r.farm?.is_test ? <Badge className="ml-2" title="A test farm: left out of the totals">Test</Badge> : null}
+                      </Td>
                       <Td className="text-sand-600">{t(`plan.${r.sub.plan}`, locale)}</Td>
                       <Td>
                         {r.diverged ? (

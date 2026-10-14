@@ -38,6 +38,8 @@ begin
        'default_language','en','due_soon_hours',25,'due_soon_days',14,
        'stale_reading_days',30,'approval_required',true,
        'cost_visible_to_operators',false,'quiet_hours_start',20,'quiet_hours_end',5));
+  -- A demo farm is a test farm: out of Rapid Rise's totals (20261014110000).
+  update farms set is_test = true where id = v_farm;
 
   -- == External workshop + link (classified contractor, F12a) =====
   -- Managed product (F14e) so the demo shows document building, payments and the gated

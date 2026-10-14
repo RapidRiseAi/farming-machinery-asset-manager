@@ -5145,3 +5145,26 @@ AI health alerts (fd24aab) used to be emailed only to `AI_ALERT_EMAIL`, so with 
 
 Founder: set up two-step sign-in on the admin account at the next visit (its password is
 `DEMO_PASSWORD`).
+
+## 2026-10-14 - Test farms out of Rapid Rise's totals (H5)
+
+The click-through farm the automatic checks sign in to is a real farm on production, so it
+exercises the same row security a customer gets, and it counted as a customer. So did the
+demo farms and the Rapid Rise AI sign-up test: all four farms on production are test farms
+(the founder confirmed each). `20261014110000` adds `farms.is_test`, marks the four, and
+leaves test farms out of the admin farm count ("0 farms, plus 4 test" today), the billing
+console's headline totals and its not-paying-yet list, and the AI revenue total; the AI cost
+total keeps them, because that is money spent. Each list badges a test farm instead of
+hiding it, and the farm page says so. Only Rapid Rise can change a farm row, so a farm
+cannot mark itself.
+
+The review of this change found an older bug: the click-through run's clean-up marked every
+farm's open help requests resolved on production, not only its own, which would have closed
+real customers' questions on every run (only the test farm had any). It is scoped to the test
+farm now, and the run resolves its own question at the end so it does not sit in the support
+queue. The seeds mark the demo farms they create. `test_farms.sql` (a customer by default,
+an owner cannot mark their own farm, Rapid Rise can, billed leaves test farms out, cost keeps
+them; seven mutations caught) runs in CI.
+
+Follow-up: Rapid Rise's all-farms dashboard still sums test farms; it needs a database
+total rather than a list of farm ids.

@@ -347,7 +347,7 @@
       "providerCostZar": "Verskafferskoste in rand",
       "billed": "Aan plase gehef",
       "margin": "Marge verdien",
-      "costNote": "Gehefde bedrae sluit BTW uit. Gebruik op 'n plaas se eie OpenAI-sleutel, en Rapid Rise se ondersteuningsgebruik, word hier gekoste maar nooit gehef nie.",
+      "costNote": "Gehefde bedrae sluit BTW uit. Gebruik op 'n plaas se eie OpenAI-sleutel, en Rapid Rise se ondersteuningsgebruik, word hier gekoste maar nooit gehef nie. Toetsplase word ook gekoste, maar uit die gehefde totaal gelaat.",
       "settingsTitle": "Marge en wisselkoers",
       "marginSetting": "Marge op verskafferskoste",
       "fxSetting": "Amerikaanse dollar in rand",
@@ -391,7 +391,8 @@
         "canary_failed": "Daaglikse toets het misluk",
         "holds_clamped": "Rekeninge onder koste afgekap",
         "voice_underreported": "Stem gebruik maar nie gerapporteer nie"
-      }
+      },
+      "testFarm": "Toets"
     }
   },
   "auth": {

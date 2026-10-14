@@ -173,7 +173,13 @@ Order: correctness and security first, then load, then product.
 - [ ] **H8** Transfer a farm's ownership; move a machine between farms with its history.
 - [ ] **H9** Module switches per farm and a simple mode for operators (per the founder's decision).
 - [ ] **UX** Weekly owner digest email; empty states that teach; assistant suggested questions.
-- [ ] **H5** Keep the click-through test farm out of Rapid Rise's admin totals (removal at launch).
+- [x] **H5** Keep the click-through test farm out of Rapid Rise's admin totals (removal at launch).
+      2026-10-14: `farms.is_test` (20261014110000); all four production farms marked (the founder
+      confirmed each is a test). Left out of the admin farm count, the billing console's totals and
+      its not-paying list, and the AI revenue total (AI cost keeps them: that is money spent);
+      badged where listed. Also fixed: the click-through run marked EVERY farm's open help
+      requests resolved (only the test farm had any). Follow-up: Rapid Rise's all-farms
+      dashboard still sums test farms (needs a database total, not an id list).
 
 ### Founder decisions (2026-10-13)
 

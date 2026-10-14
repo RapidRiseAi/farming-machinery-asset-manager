@@ -196,6 +196,8 @@ begin
   values (v_farm2, 'Rooikoppies Plaas', 'professional', 'monthly', 'active',
           '{"vat_rate_bps":1500,"vat_inclusive_entry":true,"currency":"ZAR","default_language":"en"}'::jsonb)
   on conflict (id) do nothing;
+  -- A demo farm is a test farm: out of Rapid Rise's totals (20261014110000).
+  update farms set is_test = true where id = v_farm2;
 
   perform public._demo_auth_user(v_owner2, 'hendrik@rooikoppies.example', pw, 'Hendrik van Zyl');
   insert into users (id, farm_id, workshop_id, role, name, email, language, active)

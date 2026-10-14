@@ -40,6 +40,7 @@ type Farm = {
   status: string;
   created_at: string;
   settings: Record<string, unknown> | null;
+  is_test: boolean;
 };
 type FarmUser = { id: string; name: string; role: string; email: string | null; active: boolean };
 type Access = {
@@ -62,7 +63,7 @@ export default async function FarmDetailPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at, settings").eq("id", id).maybeSingle();
+  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at, settings, is_test").eq("id", id).maybeSingle();
   const farm = farmData as Farm | null;
   if (!farm) notFound();
   // The farm's own "language for new people" (/settings), read as /team and
@@ -87,7 +88,11 @@ export default async function FarmDetailPage({
 
   return (
     <PageContainer size="wide">
-      <PageHeader title={farm.name} back={{ href: "/admin/farms", label: "Farms" }} />
+      <PageHeader
+        title={farm.name}
+        back={{ href: "/admin/farms", label: "Farms" }}
+        meta={farm.is_test ? <Badge title="Left out of Rapid Rise's totals">Test farm</Badge> : undefined}
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash

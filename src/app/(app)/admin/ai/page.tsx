@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * admins only; the tables' row security says the same.
  */
 
-type FarmRow = { farm_id: string; name: string; cost_usd: number; billed_cents: number; calls: number; failed: number };
+type FarmRow = { farm_id: string; name: string; cost_usd: number; billed_cents: number; calls: number; failed: number; is_test?: boolean };
 type MonthSummary = { platform_cost_usd: number; billed_cents: number; farms: FarmRow[] };
 type HealthRow = { id: string; kind: string; subject: string; detail: Record<string, unknown>; created_at: string };
 type PriceRow = { model: string; unit: string; usd_per_unit: number; source: string; effective_from: string };
@@ -218,7 +218,10 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
             <Tbody>
               {farms.map((farm) => (
                 <Tr key={farm.farm_id}>
-                  <Td label={t("aiUsage.admin.farm", locale)}>{farm.name ?? farm.farm_id}</Td>
+                  <Td label={t("aiUsage.admin.farm", locale)}>
+                    {farm.name ?? farm.farm_id}
+                    {farm.is_test ? <Badge className="ml-2">{t("aiUsage.admin.testFarm", locale)}</Badge> : null}
+                  </Td>
                   <Td label={t("aiUsage.admin.calls", locale)}>{num(Number(farm.calls), 0)}</Td>
                   <Td label={t("aiUsage.admin.failedCalls", locale)}>{num(Number(farm.failed), 0)}</Td>
                   <Td label={t("aiUsage.admin.providerCost", locale)}>${num(Number(farm.cost_usd), 4)}</Td>

@@ -9,7 +9,7 @@ import { createFarm } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { SelectField, TextField } from "@/components/ui/field";
-import { StatusBadge, type StatusLook } from "@/components/ui/badge";
+import { Badge, StatusBadge, type StatusLook } from "@/components/ui/badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
@@ -19,7 +19,7 @@ import { PlusIcon } from "@/components/ui/icons";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { num } from "@/lib/format";
 
-type FarmRow = { id: string; name: string; plan: string; status: string; created_at: string };
+type FarmRow = { id: string; name: string; plan: string; status: string; created_at: string; is_test: boolean };
 
 const planLabel = (p: string): string => t(`plan.${p}`, "en");
 
@@ -53,10 +53,14 @@ export default async function AdminFarmsPage({
   // thousandth machine, user or job card across the whole platform (20261013090000).
   type Activity = { farm_id: string; machines: number; active_users: number; jobs_this_month: number; last_activity: string | null };
   const [{ data: fData }, { data: aData }] = await Promise.all([
-    readAll(() => supabase.from("farms").select("id, name, plan, status, created_at").order("created_at", { ascending: false })),
+    readAll(() => supabase.from("farms").select("id, name, plan, status, created_at, is_test").order("created_at", { ascending: false })),
     readAll<Activity>(() => supabase.rpc("admin_farm_activity", { p_month_start: monthStart }), { key: "farm_id" }),
   ]);
   const farms = (fData as FarmRow[] | null) ?? [];
+  // Test farms (the click-through farm the automatic checks sign in to) are listed, so they
+  // can be opened, but are not customers and stay out of the count (20261014110000).
+  const customers = farms.filter((f) => !f.is_test).length;
+  const tests = farms.length - customers;
 
   const activity = new Map(((aData as Activity[] | null) ?? []).map((a) => [a.farm_id, a]));
   const machinesBy = new Map([...activity].map(([id, a]) => [id, a.machines]));
@@ -96,7 +100,7 @@ export default async function AdminFarmsPage({
     <PageContainer size="wide">
       <PageHeader
         title="Farms"
-        meta={farms.length > 0 ? `${num(farms.length)} farm${farms.length === 1 ? "" : "s"}` : undefined}
+        meta={farms.length > 0 ? `${num(customers)} farm${customers === 1 ? "" : "s"}${tests > 0 ? `, plus ${num(tests)} test` : ""}` : undefined}
         lead="Every farm on FleetWise. Open one to change its plan or status, or to help it in support mode."
         actions={newFarm}
       />
@@ -128,6 +132,7 @@ export default async function AdminFarmsPage({
                   <Tr key={f.id}>
                     <Td className="font-medium">
                       <Link href={`/admin/farms/${f.id}`} className="focus-ring rounded text-brand-ink hover:underline">{f.name}</Link>
+                      {f.is_test ? <Badge className="ml-2" title="A test farm: left out of the totals">Test</Badge> : null}
                     </Td>
                     <Td className="text-sand-600">{planLabel(f.plan)}</Td>
                     <Td><StatusBadge tone={look.tone} shape={look.shape} label={statusWord(f.status)} /></Td>

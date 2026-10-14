@@ -182,4 +182,7 @@ pg "$DB" < "$ROOT/supabase/tests/rate_limits.sql"
 
 echo "==> running Rapid Rise two-step tests"
 pg "$DB" < "$ROOT/supabase/tests/admin_two_step.sql"
+
+echo "==> running test farm tests"
+pg "$DB" < "$ROOT/supabase/tests/test_farms.sql"
 echo "==> OK"

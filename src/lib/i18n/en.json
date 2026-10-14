@@ -347,7 +347,7 @@
       "providerCostZar": "Provider cost in rand",
       "billed": "Billed to farms",
       "margin": "Margin earned",
-      "costNote": "Billed amounts exclude VAT. Use on a farm's own OpenAI key, and Rapid Rise support use, is costed here but never billed.",
+      "costNote": "Billed amounts exclude VAT. Use on a farm's own OpenAI key, and Rapid Rise support use, is costed here but never billed. Test farms are costed too, but left out of the billed total.",
       "settingsTitle": "Margin and exchange rate",
       "marginSetting": "Margin on provider cost",
       "fxSetting": "US dollar in rand",
@@ -391,7 +391,8 @@
         "canary_failed": "Daily check failed",
         "holds_clamped": "Bills clamped below cost",
         "voice_underreported": "Voice taken but not reported"
-      }
+      },
+      "testFarm": "Test"
     }
   },
   "auth": {

@@ -119,9 +119,9 @@ await client.query(
 );
 
 await client.query(
-  `insert into public.farms (id, name, plan, status, billing_period, billing_email)
-   values ($1, 'Click-through Test Farm', 'complete', 'active', 'monthly', $2)
-   on conflict (id) do nothing`,
+  `insert into public.farms (id, name, plan, status, billing_period, billing_email, is_test)
+   values ($1, 'Click-through Test Farm', 'complete', 'active', 'monthly', $2, true)
+   on conflict (id) do update set is_test = true`,
   [IDS.farm, EMAIL],
 );
 

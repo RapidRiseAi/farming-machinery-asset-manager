@@ -971,6 +971,10 @@ export type FarmBillingRow = {
   asset_count: number;
   /** Null means invoices are going out with no address on them. */
   billing_address: string | null;
+  /** A farm Rapid Rise tests or demos with: never a customer, so in no total (20261014110000).
+   * Read by the billing console only (it selects it on top of FARM_BILLING_COLUMNS), so the
+   * farm's own billing page never depends on the column. */
+  is_test?: boolean;
 };
 
 // == The billable count, and the sentence that explains it ====================
@@ -1099,18 +1103,20 @@ export function adminBillingRows(
   return rows;
 }
 
-/** How many of the listed subscriptions are in each state worth a headline. */
+/** How many of the listed subscriptions are in each state worth a headline. Test farms
+ * stay listed, so they can be opened, but are not counted. */
 export function adminTotals(rows: AdminBillingRow[]): {
   all: number;
   failing: number;
   downgraded: number;
   trialing: number;
 } {
+  const counted = rows.filter((r) => !r.farm?.is_test);
   return {
-    all: rows.length,
-    failing: rows.filter((r) => r.sub.status === "past_due" || r.sub.status === "grace").length,
-    downgraded: rows.filter((r) => r.sub.status === "downgraded").length,
-    trialing: rows.filter((r) => r.sub.status === "trialing").length,
+    all: counted.length,
+    failing: counted.filter((r) => r.sub.status === "past_due" || r.sub.status === "grace").length,
+    downgraded: counted.filter((r) => r.sub.status === "downgraded").length,
+    trialing: counted.filter((r) => r.sub.status === "trialing").length,
   };
 }
 
@@ -1136,7 +1142,8 @@ export function farmsWithoutSubscription(
 ): FarmBillingRow[] {
   const covered = new Set((subs ?? []).map((s) => s.farm_id));
   return (farms ?? [])
-    .filter((f) => !covered.has(f.id) && f.status === "active")
+    // A test farm is never meant to pay, so it is not a farm missing a subscription.
+    .filter((f) => !covered.has(f.id) && f.status === "active" && !f.is_test)
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

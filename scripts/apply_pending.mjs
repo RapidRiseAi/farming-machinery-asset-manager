@@ -164,6 +164,11 @@ const PROBES = {
   "20261014100000":
     "select to_regprocedure('app.session_mfa_verified()') is not null" +
     " and pg_get_functiondef('app.is_rr_admin()'::regprocedure) like '%session_mfa_verified%'",
+  // Test farms stay out of Rapid Rise's totals (H5).
+  "20261014110000":
+    "select exists (select 1 from information_schema.columns where table_schema = 'public'" +
+    " and table_name = 'farms' and column_name = 'is_test')" +
+    " and pg_get_functiondef('public.ai_admin_month(date)'::regprocedure) like '%is_test%'",
 };
 
 const url = readEnv("DATABASE_URL");

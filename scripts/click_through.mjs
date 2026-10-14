@@ -43,10 +43,17 @@ const SUPABASE_URL = readEnv("NEXT_PUBLIC_SUPABASE_URL");
 const ANON = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 const SERVICE = readEnv("SUPABASE_SERVICE_ROLE_KEY");
 
-/** Close out the previous run's questions. Service-role, because a farm cannot. */
+/** The click-through farm (scripts/seed_test_farm.mjs). */
+const TEST_FARM = "f0000000-0000-4000-8000-00000000fa01";
+
+/**
+ * Close out this farm's open questions. Service-role, because a farm cannot. ONLY this
+ * farm's: until 2026-10-14 the filter had no farm, so every run on production marked every
+ * customer's open question resolved and dropped it off Rapid Rise's support queue.
+ */
 async function resolveOpenHelpRequests() {
   await fetch(
-    `${SUPABASE_URL}/rest/v1/support_tickets?kind=eq.help_request&status=in.(open,waiting)`,
+    `${SUPABASE_URL}/rest/v1/support_tickets?farm_id=eq.${TEST_FARM}&kind=eq.help_request&status=in.(open,waiting)`,
     {
       method: "PATCH",
       headers: {
@@ -185,7 +192,7 @@ const rest = (pathAndQuery, init = {}) =>
     },
   });
 
-const FARM = "f0000000-0000-4000-8000-00000000fa01";
+const FARM = TEST_FARM;
 const MACHINE = "f0000000-0000-4000-8000-00000000aa01";
 const today = new Date().toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
@@ -430,6 +437,10 @@ await step("a write aimed at another farm is refused", async () => {
   });
   return { ok: r.status >= 400 && r.status < 500, status: r.status, text: () => r.text() };
 });
+
+// The question this run asked would otherwise sit in Rapid Rise's support queue until the
+// next run, and raise a due-ticket alert if that is days away.
+await resolveOpenHelpRequests();
 
 console.log(
   failures === 0
