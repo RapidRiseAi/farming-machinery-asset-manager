@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadStatement, buildStatementPdf, statementFilename } from "@/lib/pdf/statement";
 import { statementEmailHtml, statementEmailText, statementSubject } from "@/lib/email/statement-email";
-import { sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
+import { BARE_ADDRESS, sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
 import { parseStatementParty } from "@/lib/statement-party";
 import { sameOrigin } from "@/lib/security/same-origin";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   // The customer's billing address, or one typed for this send.
   const to = (body.email || data.party.email || "").trim();
-  if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+  if (!to || !BARE_ADDRESS.test(to)) {
     return NextResponse.json({ error: "no-address" }, { status: 400 });
   }
 
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
 
   const result = emailConfigured()
     ? await sendEmail({
+        scope: { workshopId: workshop.id },
         to,
         from: fromAddress(data.brand.name),
         replyTo: data.brand.email ?? null,

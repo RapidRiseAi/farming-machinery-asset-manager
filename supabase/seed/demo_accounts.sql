@@ -52,7 +52,9 @@ begin
     aud                        = 'authenticated',
     role                       = 'authenticated',
     instance_id                = coalesce(auth.users.instance_id, '00000000-0000-0000-0000-000000000000'),
-    email                      = excluded.email,
+    -- An existing login keeps its address: production's personas were moved to Gmail
+    -- plus-addresses by hand (4cae862), and a re-run must not move them back.
+    email                      = auth.users.email,
     encrypted_password         = excluded.encrypted_password,
     email_confirmed_at         = coalesce(auth.users.email_confirmed_at, now()),
     created_at                 = coalesce(auth.users.created_at, now()),
@@ -97,6 +99,10 @@ declare
   v_farm2    uuid := 'aa000000-0000-0000-0000-000000000002';   -- Rooikoppies Plaas
   v_owner2   uuid := '10000000-0000-0000-0000-000000000021';   -- hendrik@rooikoppies.example
 begin
+  -- Everything this seed touches is test data (20261014120000). The fence is lifted for
+  -- this transaction only (a direct session may), and everything is marked test at the end.
+  perform set_config('app.test_fence', 'off', true);
+
   if pw is null or length(pw) < 12 then
     raise exception 'demo_accounts: set demo.password first (12 characters or more): set demo.password = ''...'';';
   end if;
@@ -114,19 +120,20 @@ begin
   perform public._demo_auth_user(v_op2,     'sipho@weltevrede.example', pw, 'Sipho');
   perform public._demo_auth_user(v_wstaff,  'tj@tjservice.example',     pw, 'TJ');
 
-  -- Keep the profile email column in step with the login email (nice for the UI).
-  update users set email = 'danie@weltevrede.example' where id = v_owner   and email is distinct from 'danie@weltevrede.example';
-  update users set email = 'piet@weltevrede.example'  where id = v_manager and email is distinct from 'piet@weltevrede.example';
-  update users set email = 'johan@weltevrede.example' where id = v_mech    and email is distinct from 'johan@weltevrede.example';
-  update users set email = 'thabo@weltevrede.example' where id = v_op1     and email is distinct from 'thabo@weltevrede.example';
-  update users set email = 'sipho@weltevrede.example' where id = v_op2     and email is distinct from 'sipho@weltevrede.example';
-  update users set email = 'tj@tjservice.example'     where id = v_wstaff  and email is distinct from 'tj@tjservice.example';
+  -- Keep the profile email column in step with the login email (nice for the UI), which
+  -- is whatever the login is now, not what this file first created it as.
+  update users u set email = a.email from auth.users a
+   where a.id = u.id and u.id in (v_owner, v_manager, v_mech, v_op1, v_op2, v_wstaff)
+     and u.email is distinct from a.email;
 
   -- Platform (RapidRise) admin, cross-tenant console, no farm/workshop.
-  perform public._demo_auth_user(v_admin, 'admin@fleetwise.dev', pw, 'RapidRise Admin');
-  insert into users (id, farm_id, workshop_id, role, name, email, language, active)
-  values (v_admin, null, null, 'rr_admin', 'RapidRise Admin', 'admin@fleetwise.dev', 'en', true)
-  on conflict (id) do update set role = 'rr_admin', active = true, email = excluded.email;
+  -- A TEST admin (20261014120000): it signs in to show the admin persona exists, but the
+  -- database never gives a test account Rapid Rise's powers. A reserved .test address, so
+  -- nobody can register the domain and receive its sign-in links.
+  perform public._demo_auth_user(v_admin, 'admin@fleetwise.test', pw, 'RapidRise Admin (test)');
+  insert into users (id, farm_id, workshop_id, role, name, email, language, active, is_test)
+  values (v_admin, null, null, 'rr_admin', 'RapidRise Admin (test)', 'admin@fleetwise.test', 'en', true, true)
+  on conflict (id) do update set role = 'rr_admin', active = true, is_test = true, email = coalesce(users.email, excluded.email);
 
   -- Assign an operator to a machine so per-role visibility (F7) has something to show:
   -- Thabo (operator) should see ONLY the Groen John Deere.
@@ -168,7 +175,7 @@ begin
     ('10000000-0000-0000-0000-000000000015', null, 'bb000000-0000-0000-0000-000000000005', 'workshop', 'Karoo Tyre',      'fitment@karootyre.example',    'en', true),
     ('10000000-0000-0000-0000-000000000016', null, 'bb000000-0000-0000-0000-000000000006', 'workshop', 'Boland Towing',   'dispatch@bolandtow.example',   'en', true),
     ('10000000-0000-0000-0000-000000000017', null, 'bb000000-0000-0000-0000-000000000007', 'workshop', 'Sam (Doall)',     'general@doall.example',        'en', true)
-  on conflict (id) do update set workshop_id = excluded.workshop_id, role = 'workshop', active = true, email = excluded.email;
+  on conflict (id) do update set workshop_id = excluded.workshop_id, role = 'workshop', active = true, email = coalesce(users.email, excluded.email);
 
   -- Active links Weltevrede ↔ each new contractor.
   insert into workshop_links (workshop_id, farm_id, status)
@@ -196,13 +203,11 @@ begin
   values (v_farm2, 'Rooikoppies Plaas', 'professional', 'monthly', 'active',
           '{"vat_rate_bps":1500,"vat_inclusive_entry":true,"currency":"ZAR","default_language":"en"}'::jsonb)
   on conflict (id) do nothing;
-  -- A demo farm is a test farm: out of Rapid Rise's totals (20261014110000).
-  update farms set is_test = true where id = v_farm2;
 
   perform public._demo_auth_user(v_owner2, 'hendrik@rooikoppies.example', pw, 'Hendrik van Zyl');
   insert into users (id, farm_id, workshop_id, role, name, email, language, active)
   values (v_owner2, v_farm2, null, 'owner', 'Hendrik van Zyl', 'hendrik@rooikoppies.example', 'en', true)
-  on conflict (id) do update set farm_id = v_farm2, role = 'owner', active = true, email = excluded.email;
+  on conflict (id) do update set farm_id = v_farm2, role = 'owner', active = true, email = coalesce(users.email, excluded.email);
 
   -- Three vehicles on Rooikoppies.
   insert into machines (id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, status, current_reading, current_reading_date, purchase_date, purchase_price_cents, supplier, location, notes) values
@@ -256,6 +261,16 @@ begin
       '10000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000013',
       '10000000-0000-0000-0000-000000000014','10000000-0000-0000-0000-000000000015',
       '10000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000017'));
+
+  -- Test, all of it: the two farms, every workshop that works with them, and every account
+  -- in them, plus the test admin. Then the fence goes back up for anything after.
+  update farms set is_test = true where id in (v_farm, v_farm2);
+  update workshops set is_test = true
+   where id = v_workshop or id in (select workshop_id from workshop_links where farm_id in (v_farm, v_farm2));
+  update users set is_test = true
+   where farm_id in (v_farm, v_farm2) or id = v_admin
+      or workshop_id in (select id from workshops where is_test);
+  perform set_config('app.test_fence', '', true);
 end $seed$;
 
 -- Tidy up the helper so it does not linger in the schema.

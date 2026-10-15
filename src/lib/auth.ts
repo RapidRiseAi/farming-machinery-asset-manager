@@ -1,7 +1,10 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import type { User } from "@supabase/supabase-js";
+import { cookies, headers } from "next/headers";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { rapidRiseLockPath, rapidRiseVerdict, readAssurance } from "@/lib/mfa";
+import { safePath } from "@/lib/safe-path";
 import {
   type Plan,
   type Feature,
@@ -65,14 +68,17 @@ export type Profile = {
   /** When the person dismissed the AI notice; AI calls are refused until it is set. */
   ai_notice_seen_at: string | null;
   active: boolean;
+  /** A test account: never Rapid Rise, never in a real farm or workshop (20261014120000). */
+  is_test: boolean;
 };
 
 type ProfileRow = Omit<Profile, "lang"> & { language: Locale; tone: Tone };
 
-const PROFILE_COLUMNS =
+const PROFILE_COLUMNS_BEFORE_FENCE =
   "id, farm_id, workshop_id, role, name, email, language, tone, language_set_at, " +
   "ai_processing_opt_in, ai_processing_opted_in_at, ai_processing_consent_version, " +
   "ai_processing_withdrawn_at, ai_notice_seen_at, active";
+const PROFILE_COLUMNS = `${PROFILE_COLUMNS_BEFORE_FENCE}, is_test`;
 
 /** The authenticated Supabase auth user, or null. */
 export async function getUser(): Promise<User | null> {
@@ -81,22 +87,80 @@ export async function getUser(): Promise<User | null> {
   return data.user ?? null;
 }
 
-/** The current user's app profile row (public.users), or null. */
-export async function getProfile(): Promise<Profile | null> {
+/**
+ * Whether this session may use Rapid Rise's powers, asked of the database itself
+ * (public.session_is_rapid_rise: the second factor given in this session, and not a test
+ * account). Much of what Rapid Rise does in the app runs with the service key, past the
+ * database's own rules, so the app takes no other word for it. Cached per request; a call
+ * that fails answers no.
+ */
+export const rapidRiseUnlocked = cache(async (): Promise<boolean> => {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("session_is_rapid_rise");
+    if (error) console.error(`[auth] session_is_rapid_rise failed: ${error.code ?? ""} ${error.message}`);
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+});
+
+/** Where a Rapid Rise account goes when this session cannot act as Rapid Rise. */
+async function lockPathFor(supabase: SupabaseClient, profile: Profile): Promise<string> {
+  const here = safePath((await headers()).get("x-fw-path") ?? "", "/home");
+  return rapidRiseLockPath(profile.is_test, await readAssurance(supabase), here);
+}
+
+type LoadedProfile = { profile: Profile | null; lock: string | null };
+
+/**
+ * The current user's profile, and where to send them instead when it is a Rapid Rise
+ * account this session may not act as (no second factor yet, or a test account). Such a
+ * profile is never handed to the app at all, so no role check anywhere, in a page, a
+ * server action or a route, can take it for Rapid Rise (20261014120000). Before this,
+ * several actions checked only the role and then used the service key, which let a
+ * password alone past B9's second factor.
+ */
+const loadProfile = cache(async (): Promise<LoadedProfile> => {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
-  if (!uid) return null;
-  const { data } = await supabase
+  if (!uid) return { profile: null, lock: null };
+  const { data, error } = await supabase
     .from("users")
     .select(PROFILE_COLUMNS)
     .eq("id", uid)
     .maybeSingle();
-  const row = data as ProfileRow | null;
-  if (!row) return null;
+  let row = data as ProfileRow | null;
+  if (error) {
+    console.error(`[auth] profile read failed: ${error.code ?? ""} ${error.message}`);
+    // The column missing (code shipped before its migration) must not sign everyone out:
+    // read the rest. A Rapid Rise account still gets nothing, because the database check
+    // below cannot answer yes until the migration is there too.
+    if (error.code === "42703") {
+      const retry = await supabase.from("users").select(PROFILE_COLUMNS_BEFORE_FENCE).eq("id", uid).maybeSingle();
+      row = retry.data ? ({ ...(retry.data as object), is_test: false } as ProfileRow) : null;
+    }
+  }
+  if (!row) return { profile: null, lock: null };
   const language: Locale = isLocale(row.language) ? row.language : defaultLocale;
   const tone: Tone = isTone(row.tone) ? row.tone : defaultTone;
-  return { ...row, language, tone, lang: langOf(language, tone) };
+  const profile: Profile = { ...row, is_test: row.is_test === true, language, tone, lang: langOf(language, tone) };
+  // Any Rapid Rise profile the database refuses is withheld, a deactivated one included, so
+  // no caller has to remember to check `active` before trusting the role. The database is
+  // only asked about Rapid Rise accounts.
+  if (profile.role === "rr_admin") {
+    const verdict = rapidRiseVerdict(profile.role, profile.active, await rapidRiseUnlocked());
+    if (verdict === "lock") return { profile: null, lock: await lockPathFor(supabase, profile) };
+    if (verdict === "withhold") return { profile: null, lock: null };
+  }
+  return { profile, lock: null };
+});
+
+/** The current user's app profile row (public.users), or null. Null as well for a Rapid
+ * Rise account this session may not act as (see loadProfile). */
+export async function getProfile(): Promise<Profile | null> {
+  return (await loadProfile()).profile;
 }
 
 /** Redirect to /login unless authenticated. */
@@ -111,7 +175,8 @@ export async function requireUser(): Promise<User> {
  * deactivated one) is sent back to /login, profiles are created via invites.
  */
 export async function requireProfile(): Promise<Profile> {
-  const profile = await getProfile();
+  const { profile, lock } = await loadProfile();
+  if (lock) redirect(lock);
   if (!profile || !profile.active) redirect("/login?error=no-profile");
   return profile;
 }

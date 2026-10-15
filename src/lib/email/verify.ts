@@ -97,6 +97,7 @@ export async function sendVerificationEmail(
   ].join("\n");
 
   const sent = await sendEmail({
+    scope: { userId: opts.userId },
     to: opts.email,
     from: fromAddress(APP_NAME),
     subject: t("verifyEmail.subject", L).replace("{app}", APP_NAME),

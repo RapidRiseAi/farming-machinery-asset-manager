@@ -327,22 +327,27 @@ export async function deliverReportRun(
   let sent = 0;
   let providerId: string | null = null;
   const failures: string[] = [];
+  const refused: string[] = [];
   for (const to of run.recipients) {
-    const res = await sendEmail({ to, from, subject: body.subject, html: body.html, text: body.text, attachments });
+    const res = await sendEmail({ scope: { farmId: run.farm_id }, to, from, subject: body.subject, html: body.html, text: body.text, attachments });
     if (res.ok) {
       sent += 1;
       providerId = providerId ?? res.id;
+    } else if (res.refused) {
+      // Refused for good (a test farm's report to a real address): noted, never a failure.
+      refused.push(`${to}: ${res.error}`);
     } else {
       failures.push(`${to}: ${res.error}`);
     }
   }
 
+  const notes = [...failures, ...refused.map((r) => `not sent, ${r}`)];
   return finish(
     {
-      status: sent > 0 ? "sent" : "failed",
+      status: sent > 0 || failures.length === 0 ? "sent" : "failed",
       sent,
       failed: failures.length,
-      error: failures.length ? failures.join("; ").slice(0, 900) : null,
+      error: notes.length ? notes.join("; ").slice(0, 900) : null,
     },
     { row_count: rowCount, bytes, provider: "resend", provider_id: providerId },
   );

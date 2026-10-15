@@ -89,6 +89,7 @@ const CODE_KEYS: Record<string, string> = {
   "no-profile": "errors.session",
   "mfa-off-failed": "errors.mfaOffFailed",
   "mfa-required": "errors.mfaRequired",
+  "email-test-only": "errors.emailTestOnly",
   "no-farm": "errors.noFarm",
   "no-farm-context": "errors.noFarm",
   "missing-farm": "errors.noFarm",

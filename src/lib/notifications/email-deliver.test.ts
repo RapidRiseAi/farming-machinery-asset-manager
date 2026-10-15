@@ -92,14 +92,28 @@ function withMail(
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   const site = process.env.NEXT_PUBLIC_SITE_URL;
+  const dbEnv = {
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  };
   const realFetch = globalThis.fetch;
   // Assembled, never written out: a credential-shaped literal is blocked by GitHub push
   // protection even when it is deliberately fake.
   process.env.RESEND_API_KEY = ["re", "test", "0123456789abcdefghij"].join("_");
   process.env.EMAIL_FROM = "alerts@fleetwise.test";
   process.env.NEXT_PUBLIC_SITE_URL = "https://app.fleetwise.test";
-  globalThis.fetch = (async (_url: string, init: { body?: string }) => {
+  // The sender asks the database whether this scope may email these recipients before every
+  // message (20261014120000). Answered here as the database would for a real farm's member.
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://db.fleetwise.test";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = ["anon", "test"].join("-");
+  process.env.SUPABASE_SERVICE_ROLE_KEY = ["service", "test"].join("-");
+  globalThis.fetch = (async (url: string, init: { body?: string }) => {
     const body = JSON.parse(String(init?.body ?? "{}"));
+    if (String(url).includes("/rest/v1/rpc/email_recipients_allowed")) {
+      scopeChecks.push(body);
+      return new Response(JSON.stringify(scopeAnswer.allowed), { status: 200, headers: { "content-type": "application/json" } });
+    }
     const mail: SentMail = {
       to: Array.isArray(body.to) ? body.to[0] : String(body.to),
       subject: String(body.subject ?? ""),
@@ -118,8 +132,17 @@ function withMail(
     if (key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = key;
     if (from === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = from;
     if (site === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = site;
+    for (const [name, value] of Object.entries(dbEnv)) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
   });
 }
+
+/** What the database answers the sender's recipient check with; a test sets it to false. */
+const scopeAnswer = { allowed: true };
+
+/** Every recipient check the sender made, as the database received it. */
+const scopeChecks: Array<{ p_farm: string | null; p_workshop: string | null; p_user: string | null; p_to: string[] }> = [];
 
 test("with no mail account configured it says which part is missing and sends nothing", async () => {
   const key = process.env.RESEND_API_KEY;
@@ -149,7 +172,26 @@ test("an accepted alert is sent once and marked done", async () => {
     assert.match(sent[0].text, /Groen John Deere/);
     assert.match(sent[0].text, /https:\/\/app\.fleetwise\.test/);
     assert.deepEqual(finished, [{ id: "note-1", terminal: true, error: null }]);
+    // Sent as that person's mail: a test account's alerts may only reach test addresses.
+    assert.deepEqual(scopeChecks.at(-1), { p_farm: null, p_workshop: null, p_user: "user-1", p_to: ["farmer@example.test"] });
   });
+});
+
+test("a refusal (a test account emailing a real address) is finished, never retried", async () => {
+  scopeAnswer.allowed = false;
+  try {
+    await withMail(async (sent) => {
+      const { client, finished } = fixture();
+      const result = await deliverNotificationEmail(client);
+      assert.equal(sent.length, 0, "nothing reached the provider");
+      assert.equal(result.sent, 0);
+      assert.equal(result.skippedRows, 1);
+      assert.equal(result.failed, 0, "a refusal is not a failure: no retry, no failed run, no alert");
+      assert.deepEqual(finished, [{ id: "note-1", terminal: true, error: null }]);
+    });
+  } finally {
+    scopeAnswer.allowed = true;
+  }
 });
 
 test("a provider failure defers the alert instead of losing it", async () => {

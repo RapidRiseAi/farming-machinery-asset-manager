@@ -185,4 +185,7 @@ pg "$DB" < "$ROOT/supabase/tests/admin_two_step.sql"
 
 echo "==> running test farm tests"
 pg "$DB" < "$ROOT/supabase/tests/test_farms.sql"
+
+echo "==> running test account fence tests"
+pg "$DB" < "$ROOT/supabase/tests/test_account_fence.sql"
 echo "==> OK"

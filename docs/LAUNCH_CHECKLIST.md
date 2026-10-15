@@ -17,12 +17,14 @@ Facts below were read from the accounts on 2026-10-14.
 
 ### Now, free (or the domain only)
 
-- [ ] **Two-step sign-in on your own account.** The database refuses Rapid Rise's powers
-      without the code (B9), so the next visit asks for it. Scan the QR code with two devices
-      so one lost phone does not lock you out; engineering can remove the factor with the
-      service key if every device is lost. The admin account's password changed on
-      2026-10-14 (it had been published in this repo): it is `DEMO_PASSWORD` in `.env.local`
-      on the founder's computer.
+- [ ] **Your real admin login: team@rapidriseai.com** (decided 2026-10-14). It is Rapid
+      Rise's only admin. Sign in with the temporary `RR_ADMIN_PASSWORD` from `.env.local`;
+      FleetWise makes you set up two-step first (scan the QR code with two devices). Then
+      change the password on the Account page to one only you know and delete the line from
+      `.env.local`. The therandomneon personas stay for testing (`DEMO_PASSWORD`); the test
+      admin persona has no admin powers and says so when it signs in.
+- [ ] **GitHub secret scanning and push protection** (repository Settings, Code security),
+      free for public repositories: GitHub refuses a push carrying a key or password.
 - [ ] **Buy the domain** (e.g. `fleetwise.co.za`, auto-renew on) and tell engineering which one.
       Engineering then gives you the exact DNS records for Vercel and Resend.
 - [ ] **Vercel, free:** set `OPS_ALERT_EMAIL` (failed scheduled runs and AI alerts are emailed
@@ -89,10 +91,9 @@ Facts below were read from the accounts on 2026-10-14.
       `PAYSTACK_SECRET_KEY` (Production only) and the live webhook URL; redeploy. Pay a small
       real invoice with your own card and refund it; engineering confirms the live event and the
       settled invoice.
-- [ ] **Today's farms:** every farm and subscription so far was made in Paystack test mode, and a
-      card saved in test mode cannot be charged once Paystack is live. Say which farms are real
-      (they add a real card after go-live) and which are demos (removed at launch), and whether
-      the click-through test farm stays for automatic checks (out of totals, see H5).
+- [x] **Today's farms:** decided 2026-10-14: all four are test farms, marked and walled off
+      from real ones (see the account-safety entry in Part 2). Nothing to do at launch: real
+      farms sign up fresh, in Paystack live mode.
 - [ ] **Final check on the domain:** engineering runs every automatic test and the
       click-through against it; you run the phone script; pick the hour.
 
@@ -166,6 +167,12 @@ Order: correctness and security first, then load, then product.
       2026-10-14: all fifteen rotated (founder's decision), sessions ended, new values in
       `.env.local` only; scripts and the demo seed read them from there;
       `src/lib/committed-passwords.test.ts` guards it.
+- [x] **Account safety** (found 2026-10-14, not in the original review): test accounts walled
+      off from real ones (`is_test` on farms, workshops and accounts; triggers on every row that
+      ties them together), a test account never Rapid Rise, test farms kept to the trial AI
+      amount and to test inboxes, and one answer to "is this Rapid Rise" in the app (admin
+      actions had checked only the role, then used the service key past B9).
+      2026-10-14: 20261014120000; `test_account_fence.sql` (ten mutations caught).
 - [ ] **B12** The service-worker "buttons stop working" bug: reproduce in the test browser and fix.
 - [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project.
 - [ ] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready

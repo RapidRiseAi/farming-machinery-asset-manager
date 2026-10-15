@@ -426,7 +426,8 @@
     "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling. Jou plaas en jou faktuur wag.",
     "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak. Dit vat 'n sekonde.",
     "signInTitle": "Welkom terug",
-    "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie."
+    "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie.",
+    "errRapidRiseCheck": "Jou Rapid Rise-toegang kon nie nou bevestig word nie. Probeer oor 'n oomblik weer, of meld af en meld weer aan."
   },
   "mfa": {
     "verifyTitle": "Tik jou kode in",
@@ -5254,7 +5255,8 @@
     "inviteSwitchedOff": "Hulle is reeds in jou span, maar hul aanmelding is af. Maak die kieslys langs hul naam oop en kies Aktiveer, en nooi hulle dan weer vir 'n nuwe aanmeld-e-pos.",
     "inviteFailed": "Ons kon hulle nie nooi nie. Probeer asseblief weer.",
     "mfaOffFailed": "Kon nie tweestap-aanmelding afskakel nie. Meld weer aan met jou kode en probeer dan weer.",
-    "mfaRequired": "Tweestap-aanmelding bly aan vir Rapid Rise-personeelrekeninge."
+    "mfaRequired": "Tweestap-aanmelding bly aan vir Rapid Rise-personeelrekeninge.",
+    "emailTestOnly": "Dit is 'n toetsplaas of toetsrekening, dus kan dit net e-pos na toetsadresse stuur."
   },
   "billing": {
     "title": "Rekening",
@@ -6228,5 +6230,9 @@
     "pending": "Besig om aan te meld…",
     "broken": "Hierdie aanmeldskakel is onvolledig. Vra vir 'n nuwe een op die aanmeldbladsy.",
     "toLogin": "Gaan na aanmelding"
+  },
+  "testAccount": {
+    "title": "Dit is 'n toetsrekening",
+    "body": "Toetsrekeninge kry nooit Rapid Rise se administrateurmagte nie, dus bly die administrateurskerms vir hierdie een toe. Meld aan met jou regte Rapid Rise-rekening om na plase om te sien."
   }
 }

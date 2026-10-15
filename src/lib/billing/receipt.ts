@@ -398,6 +398,7 @@ export async function sendDueReceipts(
         receipt.seller.tradingName || receipt.seller.legalName || "FleetWise";
 
       const sent = await sendEmail({
+        scope: { farmId: row.farm_id },
         to: row.recipient_email,
         from: fromLine(sellerName),
         replyTo: receipt.seller.email ?? null,
@@ -409,6 +410,12 @@ export async function sendDueReceipts(
         attachments: [{ filename: `${receipt.invoiceRef}.pdf`, content: pdf }],
       });
 
+      if (!sent.ok && sent.refused) {
+        // Refused for good (a test farm's billing address is a real one): keep the claim so
+        // it is not retried every night, and say why.
+        out.reasons.push(`${row.invoice_ref}: not sent (${sent.error})`);
+        continue;
+      }
       if (!sent.ok) throw new Error(sent.error);
       out.sent += 1;
     } catch (err) {
@@ -472,12 +479,18 @@ export async function sendDueFailureNotices(
       const locale = await farmLocale(supabase, row.farm_id);
       const body = failureBody(row, locale);
       const sent = await sendEmail({
+        scope: { farmId: row.farm_id },
         to: row.recipient_email,
         from: fromLine("FleetWise"),
         subject: body.subject,
         html: body.html,
         text: body.text,
       });
+      if (!sent.ok && sent.refused) {
+        out.skipped += 1;
+        out.reasons.push(`not sent (${sent.error})`);
+        continue;
+      }
       if (!sent.ok) throw new Error(sent.error);
       out.sent += 1;
     } catch (err) {

@@ -25,8 +25,9 @@ insert into auth.users (id, email) values
   ('d1100000-0000-4000-9000-000000000001', 'testfarm.owner@example.test'),
   ('d1100000-0000-4000-9000-000000000002', 'testfarm.admin@example.test'),
   ('d1100000-0000-4000-9000-000000000003', 'testfarm.customer@example.test');
+-- The demo farm's owner joins after Rapid Rise marks it (20261014120000: a farm cannot
+-- change sides with people of the other kind on it).
 insert into public.users (id, farm_id, role, name, email) values
-  ('d1100000-0000-4000-9000-000000000001', 'd1000000-0000-4000-9000-000000000002', 'owner',    'Demo owner',     'testfarm.owner@example.test'),
   ('d1100000-0000-4000-9000-000000000002', null,                                   'rr_admin', 'Admin',          'testfarm.admin@example.test'),
   ('d1100000-0000-4000-9000-000000000003', 'd1000000-0000-4000-9000-000000000001', 'owner',    'Customer owner', 'testfarm.customer@example.test');
 
@@ -37,13 +38,13 @@ do $$ begin
   end if;
 end $$;
 
--- == Its owner cannot mark it as a test farm =======================================
-select public._t_login('d1100000-0000-4000-9000-000000000001');
+-- == An owner cannot mark their own farm as a test farm =============================
+select public._t_login('d1100000-0000-4000-9000-000000000003');
 set local role authenticated;
-update public.farms set is_test = true where id = 'd1000000-0000-4000-9000-000000000002';
+update public.farms set is_test = true where id = 'd1000000-0000-4000-9000-000000000001';
 reset role;
 do $$ begin
-  if (select is_test from public.farms where id = 'd1000000-0000-4000-9000-000000000002') then
+  if (select is_test from public.farms where id = 'd1000000-0000-4000-9000-000000000001') then
     raise exception 'owner: marked their own farm as a test farm, dropping it out of the totals';
   end if;
 end $$;
@@ -58,6 +59,9 @@ do $$ begin
     raise exception 'admin: Rapid Rise could not mark a test farm';
   end if;
 end $$;
+
+insert into public.users (id, farm_id, role, name, email) values
+  ('d1100000-0000-4000-9000-000000000001', 'd1000000-0000-4000-9000-000000000002', 'owner', 'Demo owner', 'testfarm.owner@example.test');
 
 -- == The AI month: billed leaves the test farm out, cost keeps it ==================
 -- Fixture rows only; the reservations they point at are not under test.

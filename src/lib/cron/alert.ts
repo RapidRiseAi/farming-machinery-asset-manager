@@ -28,6 +28,7 @@ export async function alertCronFailure(route: string, steps: Record<string, stri
   const text = lines.join("\n");
   try {
     const sent = await sendEmail({
+      scope: "platform",
       to,
       from: process.env.EMAIL_FROM || "documents@fleetwise.app",
       subject: `FleetWise: ${route} had ${failed.length} failed step${failed.length === 1 ? "" : "s"}`,

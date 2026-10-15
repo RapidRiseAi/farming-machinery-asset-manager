@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadDocument } from "@/lib/document-load";
 import { buildDocumentPdf, documentFilename, documentLabel } from "@/lib/pdf/partner-document";
-import { sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
+import { BARE_ADDRESS, sendEmail, emailConfigured, fromAddress } from "@/lib/email/resend";
 import { documentEmailHtml, documentEmailText, documentSubject } from "@/lib/email/document-email";
 import { balanceDueCents } from "@/lib/partner-docs";
 import { publicDocumentUrl } from "@/lib/public-url";
@@ -51,8 +51,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = (await request.json().catch(() => ({}))) as { to?: string; cc?: string; message?: string };
   const to = (body.to || doc.bill_to_email || "").trim();
-  if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+  if (!to || !BARE_ADDRESS.test(to)) {
     return NextResponse.json({ error: "no-address" }, { status: 400 });
+  }
+  // The copy line gets the same check: one bare address, never a list.
+  const cc = (body.cc ?? "").trim() || null;
+  if (cc && !BARE_ADDRESS.test(cc)) {
+    return NextResponse.json({ error: "bad-cc" }, { status: 400 });
   }
 
   const { bytes, brand } = await buildDocumentPdf(loaded);
@@ -74,8 +79,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const result = emailConfigured()
     ? await sendEmail({
+        scope: { workshopId: doc.workshop_id },
         to,
-        cc: body.cc?.trim() || null,
+        cc,
         from: fromAddress(brand.name),
         // A reply goes to the partner, not to us, they are the ones doing business here.
         replyTo: brand.email ?? null,
@@ -92,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     workshop_id: doc.workshop_id,
     farm_id: doc.farm_id,
     to_email: to,
-    cc_email: body.cc?.trim() || null,
+    cc_email: cc,
     subject,
     status: result.ok ? "sent" : "failed",
     provider: result.provider,
@@ -102,7 +108,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error, label: documentLabel(doc.kind) }, { status: 502 });
+    // A refusal is the request's fault (an address a test workshop may not email), not ours.
+    const status = "refused" in result && result.refused ? 400 : 502;
+    return NextResponse.json({ error: result.error, label: documentLabel(doc.kind) }, { status });
   }
   return NextResponse.json({ ok: true, to });
 }

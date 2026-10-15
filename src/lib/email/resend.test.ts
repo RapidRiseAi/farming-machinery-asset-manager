@@ -93,6 +93,7 @@ test("sendEmail refuses on its own, and says why", async () => {
     globalThis.fetch = spy as unknown as typeof fetch;
     try {
       const r = await sendEmail({
+        scope: "platform",
         to: "someone@example.invalid",
         from: GOOD_FROM,
         subject: "x",
@@ -113,4 +114,32 @@ test("the real shape is still accepted, the control", () => {
     assert.equal(emailConfigProblem(), null);
     assert.equal(emailConfigured(), true);
   });
+});
+
+test("a list or a display name in the copy line is refused before anything is sent", async () => {
+  // Set and restored here rather than with withEnv, which restores before async work ends.
+  const saved = { key: process.env.RESEND_API_KEY, from: process.env.EMAIL_FROM };
+  process.env.RESEND_API_KEY = GOOD_KEY;
+  process.env.EMAIL_FROM = GOOD_FROM;
+  {
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      throw new Error("sendEmail reached the network with a bad address");
+    }) as unknown as typeof fetch;
+    try {
+      for (const cc of ["victim@gmail.com, x@example.com", "Name <x@example.com>", "a@b@c.co"]) {
+        const r = await sendEmail({ scope: "platform", to: "someone@example.com", cc, from: GOOD_FROM, subject: "x", html: "x", text: "x" });
+        assert.equal(r.ok, false, cc);
+        assert.equal(r.ok === false && r.error, "email-bad-address", cc);
+        assert.equal(r.ok === false && r.refused, true, cc);
+      }
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = original;
+      if (saved.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = saved.key;
+      if (saved.from === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = saved.from;
+    }
+  }
 });

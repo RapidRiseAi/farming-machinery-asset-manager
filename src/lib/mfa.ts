@@ -24,6 +24,31 @@ export function mfaGate(role: string | null | undefined, assurance: Assurance): 
   return null;
 }
 
+/**
+ * What the profile loader does with a profile (20261014120000): hand it to the app; withhold
+ * it and send the session elsewhere (an active Rapid Rise account this session may not act
+ * as); or withhold it quietly (a deactivated one, which has nowhere to be sent). Only a Rapid
+ * Rise role is ever held back, and only when the database said no.
+ */
+export function rapidRiseVerdict(role: string, active: boolean, unlocked: boolean): "allow" | "lock" | "withhold" {
+  if (role !== "rr_admin" || unlocked) return "allow";
+  return active ? "lock" : "withhold";
+}
+
+/**
+ * Where a Rapid Rise account goes when the database will not treat this session as Rapid
+ * Rise (20261014120000): a test account to the page that says so; anyone else to the code
+ * step they still owe. A session that gave its code and was refused all the same means the
+ * answer could not be read, so it goes to sign-in with an error, never anywhere it could act.
+ * `here` is where to come back to.
+ */
+export function rapidRiseLockPath(isTest: boolean, assurance: Assurance, here: string): string {
+  if (isTest) return "/test-account";
+  const step = mfaGate("rr_admin", assurance);
+  if (!step) return "/login?error=mfa-required";
+  return `/mfa/${step}?next=${encodeURIComponent(here)}`;
+}
+
 /** Supabase types the level as an open string; anything but the two known values is unknown. */
 function level(value: string | null | undefined): "aal1" | "aal2" | null {
   return value === "aal1" || value === "aal2" ? value : null;

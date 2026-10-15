@@ -41,6 +41,7 @@ export async function openHealthEvent(
   if (to && emailConfigured()) {
     const lines = [`FleetWise AI health: ${kind}${subject ? ` for ${subject}` : ""}.`, "", JSON.stringify(detail, null, 2), "", "See /admin/ai."];
     const sent = await sendEmail({
+      scope: "platform",
       to,
       from: process.env.EMAIL_FROM || "documents@fleetwise.app",
       subject: `FleetWise AI: ${kind.replace(/_/g, " ")}`,

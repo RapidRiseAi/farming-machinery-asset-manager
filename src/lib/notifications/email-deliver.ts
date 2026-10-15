@@ -183,6 +183,7 @@ export async function deliverNotificationEmail(
 
     try {
       const sent = await sendEmail({
+        scope: { userId: user.id },
         to: address,
         from: fromAddress(APP_NAME),
         subject: title,
@@ -191,6 +192,10 @@ export async function deliverNotificationEmail(
       });
       if (sent.ok) {
         result.sent++;
+        await finish(n, true);
+      } else if (sent.refused) {
+        // Refused for good (a test account's mail to a real address): done, not failed.
+        result.skippedRows++;
         await finish(n, true);
       } else {
         fail(sent.error);

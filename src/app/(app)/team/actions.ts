@@ -77,7 +77,12 @@ export async function inviteUser(formData: FormData) {
       p_name: name,
       p_language: language,
     });
-    if (error) redirect(`${back}?error=${error.code === "42501" ? "forbidden" : "invite-failed"}`);
+    if (error) {
+      // The test-account fence (20261014120000) refuses with 42501 as well: that address
+      // cannot join this team, which is not the inviter lacking permission.
+      const fence = /never mix|cannot join a (real|test) (farm|workshop)/i.test(error.message ?? "");
+      redirect(`${back}?error=${fence ? "invite-refused" : error.code === "42501" ? "forbidden" : "invite-failed"}`);
+    }
     return data as InviteDecision;
   };
 

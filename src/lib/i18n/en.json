@@ -426,7 +426,8 @@
     "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment. Your farm and your invoice are waiting.",
     "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it. This takes a second.",
     "signInTitle": "Welcome back",
-    "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes."
+    "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes.",
+    "errRapidRiseCheck": "Your Rapid Rise access could not be confirmed just now. Try again in a moment, or sign out and sign in again."
   },
   "mfa": {
     "verifyTitle": "Enter your code",
@@ -5254,7 +5255,8 @@
     "inviteSwitchedOff": "They are already on your team, but their login is off. Open the menu next to their name and choose Activate, then invite them again for a new sign-in email.",
     "inviteFailed": "We could not invite them. Please try again.",
     "mfaOffFailed": "Could not turn off two-step sign-in. Sign in again with your code, then try once more.",
-    "mfaRequired": "Two-step sign-in stays on for Rapid Rise staff accounts."
+    "mfaRequired": "Two-step sign-in stays on for Rapid Rise staff accounts.",
+    "emailTestOnly": "This is a test farm or test account, so it can only send email to test addresses."
   },
   "billing": {
     "title": "Billing",
@@ -6228,5 +6230,9 @@
     "pending": "Signing in…",
     "broken": "This sign-in link is incomplete. Ask for a new one on the sign-in page.",
     "toLogin": "Go to sign in"
+  },
+  "testAccount": {
+    "title": "This is a test account",
+    "body": "Test accounts never get Rapid Rise's admin powers, so the admin screens stay closed to this one. Sign in with your real Rapid Rise account to look after farms."
   }
 }

@@ -59,7 +59,9 @@ export default async function LoginPage({
       // were simply sent to is the same leak in a different costume.
       raw === "no-profile"
       ? undefined
-      : raw === "auth"
+      : raw === "mfa-required"
+        ? t("auth.errRapidRiseCheck", locale)
+        : raw === "auth"
         ? t("auth.errLinkExpired", locale)
         : raw === "need-email"
           ? t("auth.errNeedEmail", locale)

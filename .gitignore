@@ -25,9 +25,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files (never commit secrets)
+# local env files (never commit secrets). Every variant: Next also loads .env.production and
+# .env.development, and a backup copy of .env.local is still .env-something. Only the
+# template, which holds names and no values, is committed.
 .env
-.env*.local
+.env*
+!.env.example
 
 # vercel local project metadata
 .vercel/

@@ -402,7 +402,25 @@ will bite again.
   `CLICKTHROUGH_PASSWORD` (the click-through owner the check scripts sign in as). Until
   2026-10-14 both were written in scripts, the demo seed and docs of this public repo while
   the accounts existed on production, Rapid Rise's admin among them.
-  `src/lib/committed-passwords.test.ts` fails on a password literal in a script or seed.
+  `src/lib/committed-passwords.test.ts` fails on a password literal in any committed file.
+- **Test accounts are fenced off from real ones (20261014120000).** `farms`, `workshops` and
+  `users` carry `is_test`. A test account is never Rapid Rise whatever its role says (the
+  service-role functions check the mark too), never in a real farm or workshop. Every table
+  with both `farm_id` and `workshop_id`, and the person-to-farm rows (accounts, memberships,
+  grants, driver credentials, AI limits, report recipients, a job card's mechanic), must be
+  test on both sides or real on both (triggers, so every write path); server-written records
+  (audit, AI usage, notifications) are exempt by name in the test. Test farms keep to the
+  trial AI amount, and the app's mail for them goes only to one bare test address each
+  (`sendEmail` requires a `scope`; a refusal is `refused: true`, which callers finish as
+  skipped, never retry or alert on). Test inboxes are `app.test_email_inboxes`, not anything a
+  test account can type. The real admin is team@rapidriseai.com, with two-step. A NEW table
+  with `farm_id` and `workshop_id`, or `farm_id` and `user_id`, must be fenced or exempted on
+  purpose: `test_account_fence.sql` fails until it is.
+- **"Is this Rapid Rise?" has one answer: the database's.** `getProfile`/`requireProfile`
+  never hand the app an `rr_admin` profile that `public.session_is_rapid_rise()` refuses (no
+  second factor this session, or a test account); such a session is sent to two-step or to
+  /test-account instead. Never decide it from `users.role` read some other way before using
+  the service key: that is exactly how a password alone got past B9 until 2026-10-14.
 
 **Judgement**
 - **For anything that lives in someone else's dashboard, check the dashboard.** A note

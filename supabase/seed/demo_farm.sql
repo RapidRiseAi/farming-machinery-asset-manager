@@ -24,6 +24,9 @@ declare
   v_op2      uuid := '10000000-0000-0000-0000-000000000005';
   v_wstaff   uuid := '10000000-0000-0000-0000-000000000006';
 begin
+  -- Test data, all of it (20261014120000): the fence is lifted for this transaction and
+  -- everything is marked test at the end.
+  perform set_config('app.test_fence', 'off', true);
   if exists (select 1 from farms where id = v_farm) then
     raise notice 'demo farm already seeded, skipping';
     return;
@@ -282,12 +285,12 @@ begin
     (v_farm, '71000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000002', 'JD-RE509672',   'John Deere fuel filter',    1,  41000);
 
   -- == Partners directory (F12a) ==================================
-  -- GLOBAL suggested partners (RR-curated, farm_id null, is_suggested true) that every
-  -- farm sees, plus this farm's own contractors, one already connected to TJ's workshop.
+  -- This farm's own partners only. These were GLOBAL suggestions once (farm_id null), which
+  -- every farm sees, real customers included: demo data never goes where real farms look.
   insert into partners (farm_id, is_suggested, name, kind, phone, whatsapp, email, area, workshop_id, notes, created_by) values
-    (null,   true,  'AgriParts Wholesale',   'parts_supplier',   '+27514440101', '+27514440101', 'sales@agriparts.example', 'Welkom',     null,        'Bulk filters, oils and belts', null),
-    (null,   true,  'Vrystaat Auto Electric', 'auto_electrician', '+27514440202', '+27514440202', 'info@vsauto.example',     'Bloemfontein', null,      'Alternators, starters, wiring', null),
-    (null,   true,  'Highway Towing 24/7',    'towing',           '+27824440303', '+27824440303', null,                      'N1 corridor', null,       'Heavy recovery, day and night', null),
+    (v_farm, false, 'AgriParts Wholesale',   'parts_supplier',   '+27514440101', '+27514440101', 'sales@agriparts.example', 'Welkom',     null,        'Bulk filters, oils and belts', null),
+    (v_farm, false, 'Vrystaat Auto Electric', 'auto_electrician', '+27514440202', '+27514440202', 'info@vsauto.example',     'Bloemfontein', null,      'Alternators, starters, wiring', null),
+    (v_farm, false, 'Highway Towing 24/7',    'towing',           '+27824440303', '+27824440303', null,                      'N1 corridor', null,       'Heavy recovery, day and night', null),
     (v_farm, false, 'TJ Service & Repairs',   'mechanic',         '+27825550134', '+27825550134', 'tj@tjrepairs.example',    'Bothaville',  v_workshop, 'Our main mechanic, connected', v_owner),
     (v_farm, false, 'Bothaville Tyres',       'tyre',             '+27825550777', '+27825550777', 'shop@bvtyres.example',    'Bothaville',  null,       'Tractor + bakkie tyres',        v_owner);
 
@@ -515,5 +518,11 @@ begin
     (v_farm, 'machines', '20000000-0000-0000-0000-000000000004', 'update',
      jsonb_build_object('old', jsonb_build_object('status','active'), 'new', jsonb_build_object('status','in_workshop')),
      now() - interval '12 days');
+
+  -- Test, all of it: the farm, its workshop and every account in them.
+  update farms set is_test = true where id = v_farm;
+  update workshops set is_test = true where id = v_workshop;
+  update users set is_test = true where farm_id = v_farm or workshop_id = v_workshop;
+  perform set_config('app.test_fence', '', true);
 end
 $seed$;

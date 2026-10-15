@@ -23,7 +23,17 @@ export type EmailAttachment = {
   content: Uint8Array;
 };
 
+/**
+ * Whose message this is (20261014120000). A test farm, test workshop or test account can
+ * only email test addresses, so a leaked test login cannot send mail from our domain to
+ * anyone it likes. Every send names its scope, which makes forgetting it a type error;
+ * `"platform"` is Rapid Rise's own mail to its own people (ops alerts), never a farm's.
+ */
+export type EmailScope = { farmId: string } | { workshopId: string } | { userId: string } | "platform";
+
 export type SendEmailInput = {
+  /** Whose message this is: see EmailScope. */
+  scope: EmailScope;
   to: string;
   from: string;
   /** Where a reply should land, the partner's own address, not ours. */
@@ -37,7 +47,20 @@ export type SendEmailInput = {
 
 export type SendEmailResult =
   | { ok: true; id: string | null; provider: "resend" }
-  | { ok: false; error: string; provider: "resend" | "none" };
+  | {
+      ok: false;
+      error: string;
+      provider: "resend" | "none";
+      /**
+       * Refused for good, not failed: a test scope emailing a real address, or an address
+       * that is not one bare address. Callers mark the message done (skipped) instead of
+       * retrying it, and do not report a failed run for it.
+       */
+      refused?: boolean;
+    };
+
+/** One bare address: no list, no display name. The database applies the same rule. */
+export const BARE_ADDRESS = /^[^@\s,;<>"()]+@[^@\s,;<>"()]+\.[^@\s,;<>"()]+$/;
 
 /**
  * Why email is not configured, or null when it is.
@@ -88,11 +111,60 @@ export function fromAddress(partnerName: string): string {
   return safe ? `${safe} via FleetWise <${base}>` : base;
 }
 
+/** Asks the database whether a scope may email these recipients. */
+export type RecipientCheck = (
+  scope: Exclude<EmailScope, "platform">,
+  recipients: string[],
+) => Promise<{ allowed: boolean; error?: string }>;
+
+const databaseRecipientCheck: RecipientCheck = async (scope, recipients) => {
+  const { createServiceClient } = await import("@/lib/supabase/service");
+  const { data, error } = await createServiceClient().rpc("email_recipients_allowed", {
+    p_farm: "farmId" in scope ? scope.farmId : null,
+    p_workshop: "workshopId" in scope ? scope.workshopId : null,
+    p_user: "userId" in scope ? scope.userId : null,
+    p_to: recipients,
+  });
+  if (error) return { allowed: false, error: error.message };
+  return { allowed: data === true };
+};
+
+/**
+ * Why this scope may not email these recipients, or null when it may. A real farm,
+ * workshop or account is never limited; a test one only reaches test addresses
+ * (public.email_recipients_allowed). A check that cannot be made refuses, as a failure
+ * (not a refusal), so notifications, receipts and failure notices try again later; a
+ * scheduled report, an invite or a verification email sent then is not retried, which is
+ * the price of never guessing.
+ */
+export async function emailScopeProblem(
+  scope: EmailScope,
+  recipients: (string | null | undefined)[],
+  check: RecipientCheck = databaseRecipientCheck,
+): Promise<string | null> {
+  if (scope === "platform") return null;
+  const to = recipients.filter((r): r is string => typeof r === "string" && r.trim() !== "");
+  try {
+    const answer = await check(scope, to);
+    if (answer.error) return `email-scope-check-failed: ${answer.error}`;
+    return answer.allowed ? null : "email-test-only";
+  } catch (err) {
+    return `email-scope-check-failed: ${err instanceof Error ? err.message : "unknown"}`;
+  }
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   // Checked here as well as at the call sites: `sendEmail` is reachable on its own, and a
   // guard that lives only in the callers is a guard somebody will forget.
   const problem = emailConfigProblem();
   if (problem) return { ok: false, error: `email-not-configured: ${problem}`, provider: "none" };
+  for (const address of [input.to, input.cc]) {
+    if (address != null && address.trim() !== "" && !BARE_ADDRESS.test(address.trim())) {
+      return { ok: false, error: "email-bad-address", provider: "none", refused: true };
+    }
+  }
+  const blocked = await emailScopeProblem(input.scope, [input.to, input.cc]);
+  if (blocked) return { ok: false, error: blocked, provider: "none", refused: blocked === "email-test-only" };
   const key = process.env.RESEND_API_KEY as string;
 
   const body: Record<string, unknown> = {

@@ -236,9 +236,13 @@ export async function inviteContractor(formData: FormData) {
       })
       .eq("id", workshopId);
   } else {
+    // The new workshop takes the farm's test mark (20261014120000): a test farm's contractor
+    // is a test workshop, which the fence then lets it link with.
+    const { data: farmMark } = await svc.from("farms").select("is_test").eq("id", farmId).maybeSingle();
     const { data: ws, error: wErr } = await svc
       .from("workshops")
       .insert({
+        is_test: (farmMark as { is_test?: boolean } | null)?.is_test === true,
         name,
         kind: partner.kind,
         phone: partner.phone,

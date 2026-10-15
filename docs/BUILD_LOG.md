@@ -51,8 +51,7 @@ Done:
   machine registry CRUD (`/machines` list/filter/search, new, edit);
   meter readings (capture + current-reading advance, farm-scoped);
   machine photos (client-side compression → Storage, farm-scoped `storage.objects`
-  RLS in `0201`). Verified as owner `danie@weltevrede.example` (all dev logins:
-  `FarmGear!dev1`).
+  RLS in `0201`). Verified as owner `danie@weltevrede.example` (dev logins since retired; the accounts no longer exist).
 - README with Vercel deploy env-var notes.
 - **Hosted Supabase wired + verified.** Project `nmqtcvdwtyggxjjgtnzm` (repurposed the
   org's spare; cleared an old restaurant demo). Migrations + Storage buckets + demo seed
@@ -104,7 +103,7 @@ Remaining (Week 4 + v1.5):
 
 Env/dashboard follow-ups: delete the empty `menu-media` bucket; optional Auth
 leaked-password protection. Dev logins: `admin@farmgear.dev`, `danie@weltevrede.example`
-(both `FarmGear!dev1`).
+(both retired; neither account exists any more).
 
 - **FleetWise F1, Cost & TCO spine (migrations `0210-0211`; branch
   `claude/fleetwise-cost-tco-spine`; isolation-tested, `db:test` green):**
@@ -5168,3 +5167,91 @@ them; seven mutations caught) runs in CI.
 
 Follow-up: Rapid Rise's all-farms dashboard still sums test farms; it needs a database
 total rather than a list of farm ids.
+
+## 2026-10-14 - Test accounts walled off; the real admin; one answer to "is this Rapid Rise"
+
+The founder's decisions, taken in pop-ups: team@rapidriseai.com becomes Rapid Rise's real
+admin (a temporary password in `.env.local`, two-step at its first sign-in, then a password
+only the founder knows); the therandomneon personas stay on production for testing every
+screen, but the test admin persona loses its powers; the Rapid Rise AI farm is a test farm;
+test farms get guardrails as well as the fence.
+
+Found while doing it: the admin server actions (the AI margin, the billing reconciler, the
+partner directory) checked only `profile.role === "rr_admin"` and then used the service
+key. The database refuses Rapid Rise's powers without the second factor (B9), but the
+service key never asks it, so a password alone got past two-step through those actions.
+
+`20261014120000`: `workshops.is_test` and `users.is_test` beside `farms.is_test`, with
+production's test data marked (every farm and workshop there is a test one, and so is every
+account in them). Rapid Rise's powers now need the second factor AND a non-test account
+(`app.rr_admin_unlocked`; the five functions B9 changed are regenerated to ask it, otherwise
+identical), and `public.session_is_rapid_rise()` gives the app the same answer. Triggers keep
+test and real apart on every row that ties a person to a farm or a farm to a workshop (people,
+memberships, permission grants, links, partner entries, client lists, job cards, work
+requests, documents, revisions, recurring invoices, document emails), for every write path.
+A new account takes its mark from the farm or workshop it is created in; only Rapid Rise or
+the server changes a mark; a farm or workshop changes sides only in a direct database session
+that lifts the fence for one transaction, never through the API. Test farms' AI and voice
+spending stays at the trial amount, and `public.email_recipients_allowed` keeps a test farm,
+workshop or account to test addresses.
+
+The app: `loadProfile` (behind `getProfile` and `requireProfile`) never hands out an
+`rr_admin` profile the database refuses; that session goes to two-step, or to a new
+/test-account page for a test account. Every role check, in a page, an action or a route,
+is safe by construction rather than by remembering. `sendEmail` requires a scope (a farm, a
+workshop, a person, or `"platform"` for Rapid Rise's own alerts), so forgetting it is a type
+error, and it asks the database before a test scope sends.
+
+An adversarial review before release (one reviewer hunting Rapid Rise's powers, one trying
+to cross the fence) found what the first version missed, all fixed here: a test account could
+type an outsider's address into its own profile and have it count as a test inbox (test
+addresses are now reserved domains plus `app.test_email_inboxes`, which only Rapid Rise
+writes); Rapid Rise's support and dispute alerts still went to the test admin
+(`app.notify_rr_billing` leaves test accounts out); two service-role functions trusted the
+role alone (`app.ai_member_role`, and `apply_offline_capture`, rewritten in place as
+20260927160340 did, so its later changes stay); driver credentials, members' AI limits, report
+recipients and a job card's mechanic now sit behind the fence, and a test fails on any new
+table tying a person to a farm that is neither fenced nor deliberately exempt; the migration
+refuses to finish if team@rapidriseai.com would not be a real, active admin afterwards; the
+loader keeps ordinary people signed in if the code ever lands before the migration (only
+Rapid Rise fails closed), withholds a deactivated admin's profile too, and the sign-in page
+says when the Rapid Rise check could not be made; a test farm's contractor invite creates a
+test workshop instead of failing on the fence.
+
+A second round (a correctness reviewer whose first run dropped its connection) found a
+release-process trap: B9's probe in `apply_pending.mjs` read `is_rr_admin`'s text for
+`session_mfa_verified`, which the fence moves into a helper, so the next release run would
+have reported B9 missing and re-run it, quietly undoing the fence. Probes now check objects
+only, and every trigger here is dropped first so a re-run cannot stop half-way. Also from
+that round: a guardrail refusal is permanent (`refused: true`), so notifications finish it as
+skipped, reports note it, receipts keep their claim, and nothing retries hourly, answers 503
+or emails a failed-run alert over it; every address must be one bare address, which closes a
+comma-list trick and the unchecked copy line on document sends; the post-marking check covers
+every fenced table and the job-card mechanic; `job_card_worker`'s server branch reads the
+mark; the fence lifts only for the database's own administrators (an allow-list); an invite
+the fence refuses says so instead of "no permission"; the loader's decision is a pure
+function with tests; the password guard reads git's own file list, so it never opens an
+ignored local env file.
+
+From the credential sweeps, in the same release: the build log's retired "dev logins"
+password is gone and its hash joins the guard; the guard reads every committed file and many
+more shapes (fallbacks, unquoted assignments, YAML, JSON bodies, `set_config`, URL userinfo)
+with a four-entry allow list; `.gitignore` ignores every `.env` variant except the template;
+the demo seeds keep existing login addresses on a re-run, give the admin persona a reserved
+`.test` address, mark everything they create as test, and create no global partner
+suggestions (the three on production, with made-up but real-format numbers, were hidden);
+six merged branches still carrying the retired passwords were deleted from GitHub (the
+unmerged financial-controls branch was kept); no API tokens existed to survive the rotation.
+
+Tests: `test_account_fence.sql` (eighteen mutations, all caught; one assertion had passed for the
+wrong reason, a session claim left over from an earlier block, until each expected refusal
+was pinned to the fence's own message), `test_farms.sql` reordered so Rapid Rise marks the
+farm before its owner joins, unit tests for the lock routing and the email scope; all 43 SQL
+suites pass on fresh databases.
+
+Production changes made directly today, each reversible: team@'s profile and temporary
+password; the test admin persona switched off until the fence shipped; the three demo
+suggestions soft-deleted.
+
+Follow-ups: `demo_farm.sql` no longer runs on a fresh database (job cards need an assigned
+member since the job-card workflow); Rapid Rise's all-farms dashboard still sums test farms.

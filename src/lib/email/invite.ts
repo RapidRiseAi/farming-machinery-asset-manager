@@ -26,7 +26,7 @@ export type InviteSendResult =
   | { ok: true }
   | {
       ok: false;
-      reason: "email-not-configured" | "no-site-url" | "link-failed" | "send-failed";
+      reason: "email-not-configured" | "no-site-url" | "link-failed" | "send-failed" | "refused";
       detail?: string;
     };
 
@@ -97,8 +97,8 @@ export async function sendInviteEmail(
     `<p style="color:#555">${escapeHtml(fallbackBefore)}<a href="${escapeHtml(login)}">${escapeHtml(login)}</a>${escapeHtml(fallbackAfter ?? "")}<br>${escapeHtml(ignore)}</p>`,
   ].join("\n");
 
-  const sent = await sendEmail({ to: opts.email, from: fromAddress(APP_NAME), subject, html, text });
-  if (!sent.ok) return { ok: false, reason: "send-failed", detail: sent.error };
+  const sent = await sendEmail({ scope: { farmId: opts.farmId }, to: opts.email, from: fromAddress(APP_NAME), subject, html, text });
+  if (!sent.ok) return { ok: false, reason: sent.refused ? "refused" : "send-failed", detail: sent.error };
   return { ok: true };
 }
 

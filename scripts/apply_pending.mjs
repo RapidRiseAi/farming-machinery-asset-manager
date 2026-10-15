@@ -161,14 +161,23 @@ const PROBES = {
     "select to_regprocedure('public.rate_limit_take(text,integer,integer)') is not null" +
     " and to_regclass('app.rate_limit_windows') is not null",
   // Rapid Rise's powers need the second factor (B9).
-  "20261014100000":
-    "select to_regprocedure('app.session_mfa_verified()') is not null" +
-    " and pg_get_functiondef('app.is_rr_admin()'::regprocedure) like '%session_mfa_verified%'",
+  // Objects only: 20261014120000 rewrites is_rr_admin to ask app.rr_admin_unlocked(), which
+  // asks session_mfa_verified() itself, so a check on is_rr_admin's text would report B9
+  // missing after the fence and re-run it, undoing the fence.
+  "20261014100000": "select to_regprocedure('app.session_mfa_verified()') is not null",
   // Test farms stay out of Rapid Rise's totals (H5).
   "20261014110000":
     "select exists (select 1 from information_schema.columns where table_schema = 'public'" +
     " and table_name = 'farms' and column_name = 'is_test')" +
     " and pg_get_functiondef('public.ai_admin_month(date)'::regprocedure) like '%is_test%'",
+  // Test accounts walled off from real ones; Rapid Rise never a test account.
+  "20261014120000":
+    "select to_regprocedure('app.rr_admin_unlocked()') is not null" +
+    " and to_regprocedure('public.email_recipients_allowed(uuid,uuid,uuid,text[])') is not null" +
+    " and exists (select 1 from pg_trigger where tgname = 'workshop_links_test_fence')" +
+    " and pg_get_functiondef('app.is_rr_admin()'::regprocedure) like '%rr_admin_unlocked%'" +
+    " and pg_get_functiondef('app.notify_rr_billing(uuid,text,jsonb)'::regprocedure) like '%is_test%'" +
+    " and to_regclass('app.test_email_inboxes') is not null",
 };
 
 const url = readEnv("DATABASE_URL");
