@@ -529,6 +529,9 @@ export default async function AccountPage({
             subscribed. Only the browser knows the second, so it is its own row. */}
         <div className="mt-3 border-t border-sand-100 pt-3">
           <PushToggle locale={locale} bare accountPushOn={prefs.push} />
+          <Link href="/account/whatsapp" className="mt-3 inline-block text-sm text-brand-ink underline">
+            {t("whatsapp.title", locale)}
+          </Link>
         </div>
       </Card>
 

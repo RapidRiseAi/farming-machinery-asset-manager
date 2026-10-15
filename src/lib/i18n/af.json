@@ -1192,7 +1192,8 @@
     "tplAiKeyFailedPlatform": "Jou OpenAI-sleutel het opgehou werk ({reason}). AI-hulp loop nou op FleetWise en word op jou rekening gehef totdat jy dit regmaak.",
     "aiKeyReasonQuota": "geen krediet meer nie",
     "aiKeyReasonRefused": "geweier",
-    "aiKeyReasonUnreadable": "dit kan nie meer gelees word nie en moet weer gekoppel word"
+    "aiKeyReasonUnreadable": "dit kan nie meer gelees word nie en moet weer gekoppel word",
+    "tplJobAssigned": "’n Werk is aan jou toegewys. Maak dit oop om die besonderhede te sien."
   },
   "settings": {
     "notSet": "Nie gestel nie",
@@ -6234,5 +6235,36 @@
   "testAccount": {
     "title": "Dit is 'n toetsrekening",
     "body": "Toetsrekeninge kry nooit Rapid Rise se administrateurmagte nie, dus bly die administrateurskerms vir hierdie een toe. Meld aan met jou regte Rapid Rise-rekening om na plase om te sien."
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "linkedFarm": "Gekoppelde plaas",
+    "description": "Ontvang werkkennisgewings en gebruik jou Fleetwise-assistent op WhatsApp.",
+    "back": "Terug na rekening",
+    "explainer": "Koppel jou eie nommer aan die gekose plaas. Jou gewone Fleetwise-toegang en AI-limiete geld steeds. WhatsApp is op Complete- en Done for You-planne beskikbaar.",
+    "notConfigured": "WhatsApp word opgestel. Jy kan jou nommer koppel sodra Fleetwise dit aktiveer.",
+    "selectedFarm": "Koppel aan",
+    "phone": "WhatsApp-nommer met landkode",
+    "notifications": "Werkkennisgewings",
+    "assistant": "Fleetwise-assistent",
+    "on": "Aan",
+    "off": "Af",
+    "expires": "Koppeling verval (SAST)",
+    "assistantUntil": "Assistent gemagtig tot (SAST)",
+    "authorize": "Magtig assistent vir 12 uur",
+    "disconnect": "Ontkoppel WhatsApp",
+    "replace": "Verander nommer, plaas of voorkeure",
+    "connect": "Koppel WhatsApp",
+    "notificationsConsent": "Stuur my Fleetwise-werkkennisgewings op WhatsApp.",
+    "assistantConsent": "Laat my my Fleetwise-assistent deur hierdie WhatsApp-nommer gebruik.",
+    "privacy": "Meta en Fleetwise verwerk WhatsApp-boodskappe. Versoeke wat AI nodig het, gebruik ook die AI-verskaffers wat in Fleetwise beskryf word. Gebruik jou eie nommer, nie ’n gedeelde werkfoon nie. Moenie die koppelboodskap aanstuur nie. Assistenttoegang duur 12 uur; koppel jou nommer elke 30 dae weer.",
+    "begin": "Berei koppeling voor",
+    "verifyInstructions": "Maak WhatsApp oop en stuur die voorbereide boodskap vanaf hierdie nommer. Kom dan hierheen terug en bevestig. Die versoek verval binne 10 minute.",
+    "open": "Maak WhatsApp oop",
+    "finish": "Ek het die boodskap gestuur: bevestig koppeling",
+    "stop": "Stuur STOP op WhatsApp of ontkoppel hier om kennisgewings en assistenttoegang te stop. Jou koppeling bly by die gekose plaas wanneer jy plase in die toep wissel.",
+    "notVerified": "Die boodskap is nog nie bevestig nie, die versoek het verval, of die nommer is reeds gekoppel. Stuur dit vanaf jou eie nommer en probeer weer.",
+    "failed": "Dit kon nie gestoor word nie. Kontroleer jou nommer, kies minstens een opsie en maak seker jou plaasplan sluit WhatsApp in. Probeer binnekort weer.",
+    "saved": "Jou WhatsApp-instellings is gestoor."
   }
 }

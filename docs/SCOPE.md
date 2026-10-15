@@ -5,6 +5,12 @@
 
 ## 1. Vision & Positioning
 
+**Founder amendment, 6 October 2026:** implement opt-in WhatsApp notifications and
+a WhatsApp channel for the existing Fleetwise assistant, preserving user/farm access
+controls and using the same agent. The first implementation is a disabled text pilot
+on one Fleetwise number; provider setup and live verification remain. See
+[WhatsApp integration](WHATSAPP.md) for supported capabilities, limits and activation.
+
 **Founder amendment, 3 October 2026:** driver sessions, arrivals/departures, stop
 durations and manager-assisted capture are now in scope. Vehicle QR access requires
 authentication and active farm membership; strangers receive Fleetwise login/signup

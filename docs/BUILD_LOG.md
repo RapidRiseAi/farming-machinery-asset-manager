@@ -4735,6 +4735,61 @@ refused call at R0 and the fallback billed under a cent), and the health event o
 the Gateway's message. `voice:check` 46/46, `ready:check`, `ui:check` (55 routes at 360px
 and 1024px), 543 unit tests, lint, typecheck, the static checks and the build pass.
 
+## 6 October 2026: WhatsApp text pilot, local and disabled
+
+### Changes
+
+- Extracted the web assistant turn and confirmation implementations into shared server
+  modules. WhatsApp invokes those same functions with a verified user's scoped client;
+  its interaction rows carry the existing `whatsapp` channel value.
+- Added Account > WhatsApp, separate notification/assistant opt-ins, number-bound
+  one-time linking, signed Meta webhooks, a durable inbox, conversation leases,
+  reference-bound confirmation, STOP/disconnect, 12-hour assistant authorization and
+  30-day number-link expiry. No session cookies or refresh tokens are stored for delegation.
+- Added job/fault assignment events and an approved-template delivery adapter. Recipient
+  eligibility and current assignment are checked before sending. Ambiguous network sends
+  are not blindly retried. `/api/cron/whatsapp` needs an authenticated minute scheduler.
+- Added restrictive WhatsApp RLS scopes and narrowed the shared view/confirmation helpers
+  for delegated tokens. Existing web tokens retain their behavior. Agent reads never use
+  the transport worker's service-role client. Permissions are rechecked before replies.
+- Added `docs/WHATSAPP.md` with platform feasibility, setup, security boundaries, known
+  pilot limitations and acceptance checks. `.env.example` defaults the channel off.
+
+### Verification and release state
+
+- All 192 migrations apply on disposable PGlite; all 32 SQL suites pass, including existing
+  RLS isolation, billing policy checks and deployment compatibility. The new WhatsApp suite
+  additionally proves link ownership, number reuse refusal, cross-farm isolation, operator
+  visibility, membership revocation, lease ownership, expiry and STOP. Its extended run
+  exercises the real confirmation RPC and verifies a repeated confirmation writes one fault.
+- The full unit run passed 550 tests; a subsequent provider-mocked delivery test also passed
+  (seven delivery scenarios: consenting assignee, revoked link, opt-out, different user,
+  different farm, reassignment and ambiguous provider failure). No real WhatsApp was sent.
+- Production build, typecheck, lint, design/contrast checks, i18n parity/key coverage,
+  punctuation and diff whitespace checks passed. The new page has not been browser- or
+  phone-tested. Supabase acceptance of the imported signing key is not yet tested live.
+- No production migration, deploy, Meta configuration, credentials, paid service changes
+  or scheduler changes were made. `WHATSAPP_ENABLED` remains off by default. Voice notes,
+  media, groups, username-only identities and a delivery operations UI are not implemented.
+  Activation requires the founder's Meta number/templates, server configuration, signing
+  key setup and the real two-farm pilot in the guide.
+
+## 8 October 2026: WhatsApp permission-change validation
+
+- Bound cached WhatsApp confirmations and clarifications to the permissions under which
+  they were prepared. A role, assignment or other authorization change discards that state
+  before any protected details are repeated. The queue records this authorization context
+  with the saved reply; worker recovery still requires a fresh request.
+- Added provider-mocked coverage for unchanged permissions, a change before the next turn,
+  a change during the turn and recovery of a previously saved reply. SQL also verifies that
+  a demotion changes the live authorization fingerprint and invalidates cached state.
+- Full application tests: 552 passed. All 192 migrations apply and all 32 SQL suites pass
+  on disposable PGlite. Typecheck, lint, production build and diff whitespace checks pass.
+- Browser runtime initialization succeeded but discovered no available browser. The new
+  account UI and real-phone flow remain unverified. No production schema, deployment,
+  credentials, scheduler or Meta delivery changed; the integration remains locally built
+  and disabled, pending the setup and live acceptance checks in `docs/WHATSAPP.md`.
+
 ## 2026-10-08 - The assistant reads the farm; invites email a sign-in button; true tank balances
 
 The founder found the hands-free assistant could not answer "fuel costs per vehicle",

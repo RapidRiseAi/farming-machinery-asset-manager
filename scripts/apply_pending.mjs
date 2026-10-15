@@ -38,6 +38,11 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  "20261015175415":
+    "select to_regclass('public.whatsapp_links') is not null" +
+    " and to_regprocedure('public.whatsapp_assistant_role(uuid)') is not null" +
+    " and coalesce(pg_get_functiondef(to_regprocedure('app.effective_farm_role(uuid,uuid)')) like '%app.whatsapp_scope(p_farm)%', false)" +
+    " and coalesce(pg_get_functiondef(to_regprocedure('app.effective_farm_role(uuid,uuid)')) like '%app.rr_admin_unlocked()%', false)",
   "20260918120000": "select to_regprocedure('public.billing_signup_email_taken(text)') is not null",
   "20260918130000": "select to_regprocedure('public.billing_take_signup_slot(text,integer)') is not null",
   "20260918140000":

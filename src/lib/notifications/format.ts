@@ -45,6 +45,9 @@ export function formatNotification(
   const licenceType = p.licence_type ? t(`licenceType.${p.licence_type}`, locale) : "";
   const credentialType = p.credential ? t(`credentialType.${p.credential}`, locale) : "";
   switch (template) {
+    case "job_assigned":
+    case "fault_assigned":
+      return t("notifications.tplJobAssigned", locale);
     case "service_due_soon":
       return fill("notifications.tplServiceDueSoon", locale, { machine: m, task: String(p.task ?? "") });
     case "service_overdue":
@@ -350,7 +353,7 @@ export function notificationTitle(template: string, locale: Lang): string {
 export function notificationUrl(template: string, payload: NotePayload): string {
   const p = payload ?? {};
   if (template.startsWith("fault_")) return "/faults";
-  if (template === "job_completed" && p.job_card_id) return `/jobcards/${p.job_card_id}`;
+  if ((template === "job_completed" || template === "job_assigned") && p.job_card_id) return `/jobcards/${p.job_card_id}`;
   // Work-request activity + quote/invoice reminders deep-link to the request itself.
   if (
     (template.startsWith("work_request_") || template === "quote_awaiting" || template === "invoice_awaiting") &&

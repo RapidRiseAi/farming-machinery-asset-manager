@@ -1192,7 +1192,8 @@
     "tplAiKeyFailedPlatform": "Your OpenAI key stopped working ({reason}). AI help now runs on FleetWise and is billed to your account until you fix it.",
     "aiKeyReasonQuota": "out of credit",
     "aiKeyReasonRefused": "refused",
-    "aiKeyReasonUnreadable": "it can no longer be read and must be linked again"
+    "aiKeyReasonUnreadable": "it can no longer be read and must be linked again",
+    "tplJobAssigned": "A work item has been assigned to you. Open it to view the details."
   },
   "settings": {
     "notSet": "Not set",
@@ -6234,5 +6235,36 @@
   "testAccount": {
     "title": "This is a test account",
     "body": "Test accounts never get Rapid Rise's admin powers, so the admin screens stay closed to this one. Sign in with your real Rapid Rise account to look after farms."
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "linkedFarm": "Connected farm",
+    "description": "Receive work alerts and use your Fleetwise assistant on WhatsApp.",
+    "back": "Back to account",
+    "explainer": "Connect your own number to the selected farm. Your usual Fleetwise permissions and AI limits still apply. WhatsApp is available on Complete and Done for You plans.",
+    "notConfigured": "WhatsApp is being set up. You can connect your number once Fleetwise activates it.",
+    "selectedFarm": "Connect to",
+    "phone": "WhatsApp number with country code",
+    "notifications": "Work notifications",
+    "assistant": "Fleetwise assistant",
+    "on": "On",
+    "off": "Off",
+    "expires": "Connection expires (SAST)",
+    "assistantUntil": "Assistant authorized until (SAST)",
+    "authorize": "Authorize assistant for 12 hours",
+    "disconnect": "Disconnect WhatsApp",
+    "replace": "Change number, farm or preferences",
+    "connect": "Connect WhatsApp",
+    "notificationsConsent": "Send me Fleetwise work notifications on WhatsApp.",
+    "assistantConsent": "Let me use my Fleetwise assistant through this WhatsApp number.",
+    "privacy": "WhatsApp messages are processed by Meta and Fleetwise. Requests that need AI also use the AI providers described in Fleetwise. Use a private number, not a shared work phone. Do not forward the connection message. Assistant access lasts 12 hours; reconnect your number every 30 days.",
+    "begin": "Prepare connection",
+    "verifyInstructions": "Open WhatsApp and send the prepared message from this number. Then come back here and confirm. The connection request expires in 10 minutes.",
+    "open": "Open WhatsApp",
+    "finish": "I sent the message: confirm connection",
+    "stop": "Send STOP on WhatsApp or disconnect here to stop alerts and assistant access. Your connection stays with its chosen farm when you switch farms in the app.",
+    "notVerified": "The message has not been verified, the request expired, or this number is already linked. Send it from your own number and try again.",
+    "failed": "That could not be saved. Check your number, select at least one option, and confirm that your farm plan includes WhatsApp. Try again shortly.",
+    "saved": "Your WhatsApp settings were saved."
   }
 }

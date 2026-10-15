@@ -188,4 +188,7 @@ pg "$DB" < "$ROOT/supabase/tests/test_farms.sql"
 
 echo "==> running test account fence tests"
 pg "$DB" < "$ROOT/supabase/tests/test_account_fence.sql"
+echo "==> running WhatsApp identity, permissions and delivery tests"
+pg "$DB" < "$ROOT/supabase/tests/whatsapp_channel.sql"
+
 echo "==> OK"
