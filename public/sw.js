@@ -9,7 +9,7 @@
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/*, mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v4-member-qr";
+const VERSION = "fleetwise-v5-warm-once";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -52,11 +52,11 @@ self.addEventListener("message", (event) => {
     const paths = Array.isArray(event.data.paths)
       ? event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))
       : [];
-    event.waitUntil(clearData().then(() => (paths.length ? warmPaths(paths) : undefined)));
+    event.waitUntil(clearData().then(() => (paths.length ? warmOnce(paths, { force: true }) : undefined)));
     return;
   }
   if (event.data && event.data.type === "warm" && Array.isArray(event.data.paths)) {
-    event.waitUntil(warmPaths(event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))));
+    event.waitUntil(warmOnce(event.data.paths.filter((p) => typeof p === "string" && p.startsWith("/"))));
   }
 });
 
@@ -90,6 +90,30 @@ const APP_FALLBACKS = ["/dashboard", "/driver", "/contractor", "/machines"];
  * is exactly what that person's role can actually reach, a driver warms the driver's
  * screens, a contractor warms theirs, rather than a hardcoded guess.
  */
+/*
+ * One warm at a time, and not again for a while (B12, 2026-10-15). Warming used to run in
+ * full on every page load: every screen in the person's nav fetched again, each one a full
+ * server render. A few quick reloads stacked those runs until the server and the connection
+ * were busy with pages nobody was looking at, and the page in front of the person came
+ * alive later and later (measured: 26 s to 57 s over twelve loads in one tab, flat with the
+ * worker bypassed). The cool-down lives here for this worker's lifetime and in the page
+ * (warm-routes.tsx) across restarts of the worker; a change of person or farm still forces
+ * a fresh warm, because what is cached must belong to whoever is signed in.
+ */
+const WARM_COOLDOWN_MS = 30 * 60 * 1000;
+let warming = null;
+let lastWarmAt = 0;
+
+function warmOnce(paths, { force = false } = {}) {
+  if (warming) return warming;
+  if (!force && Date.now() - lastWarmAt < WARM_COOLDOWN_MS) return Promise.resolve();
+  warming = warmPaths(paths).finally(() => {
+    lastWarmAt = Date.now();
+    warming = null;
+  });
+  return warming;
+}
+
 async function warmPaths(paths) {
   const cache = await caches.open(DATA_CACHE);
   for (const path of paths) {
@@ -107,7 +131,8 @@ async function warmPaths(paths) {
        * message below, which the app sends when the signed-in user or the current farm
        * changes. This is the second line of defence, not the only one.
        */
-      const res = await fetch(path, { credentials: "same-origin" });
+      // Low priority: the page the person is looking at always goes first.
+      const res = await fetch(path, { credentials: "same-origin", priority: "low" });
       if (res && res.ok && !res.redirected) await cache.put(path, res.clone());
     } catch {
       /* no signal, or the route declined, try again next time the app opens */
@@ -194,6 +219,12 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return; // dynamic; network only
   if (url.pathname.startsWith("/auth/")) return; // auth flows; network only
   if (requiresLiveAccess(url.pathname)) return;
+  // Next's own page data for in-app navigation and link prefetching (an `RSC` header and an
+  // `_rsc` query). Never cached here (B12, 2026-10-15): a page loads a dozen of these for its
+  // menu, and passing each through the cache added work to every load and served stale data
+  // to the router. When one fails offline, the router falls back to a full page load, which
+  // the navigation handler below does answer from the cache.
+  if (request.headers.get("rsc") === "1" || url.searchParams.has("_rsc")) return;
 
   if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg") {
     event.respondWith(cacheFirst(request, SHELL_CACHE));

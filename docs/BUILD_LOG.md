@@ -5255,3 +5255,30 @@ suggestions soft-deleted.
 
 Follow-ups: `demo_farm.sql` no longer runs on a fresh database (job cards need an assigned
 member since the job-card workflow); Rapid Rise's all-farms dashboard still sums test farms.
+
+## 2026-10-15 - Pages no longer slow down with every load (B12)
+
+B12 was "the buttons stop working after about eight reloads": the page rendered, but React
+had not attached yet, so taps did nothing. Reproduced against a local production build with
+the service worker in control: twelve hard loads in one tab, cycling six routes, took from
+26 s to 57 s before the page came alive, while the same run with the worker bypassed stayed
+flat. Two causes, both in the offline layer.
+
+Warming: every page load asked the worker to keep every screen in the person's menu ready
+offline, and the worker refetched all of them every time, each a full server render. Quick
+reloads stacked those runs up until the server and the connection were busy with pages
+nobody was looking at. Now the worker runs one warm at a time, at most every 30 minutes, at
+low network priority; the page remembers when it last asked (and asks nothing while no
+worker controls it); a change of person or farm still forces a fresh warm, because cached
+pages must belong to whoever is signed in.
+
+Page data: the worker also cached and re-served Next's own RSC requests, a dozen per load for
+the menu's link prefetching, adding work to every load and handing the router stale data.
+Those now skip the worker; offline, a failed one falls back to a full page load, which the
+worker does answer from its cache.
+
+After both: the same twelve loads take 2 to 3 s, alive within 0.4 s of arriving, the same as
+with the worker bypassed, and no longer grow (the odd 5 to 7 s load is the server's distance
+from the database on this machine). `scripts/sw_check.mjs` is the measurement. The extra
+renders were also about seven background page renders per page view in production, so this
+removes a multiplier the load test would have met.

@@ -152,15 +152,17 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   loop in Chrome against a stand-in Azure. Whether iOS Safari plays the replies (the audio
   unlock) and returns sound to the speaker after the mic closes, and how well Azure really
   hears mixed Afrikaans and English, need a person on the live site.
-- **The service worker stops pages hydrating after about eight hard loads in one tab.**
-  The page renders correctly and React attaches to nothing: buttons visible, enabled,
-  clicks do nothing, no console error, no error boundary. Reproduced on pages nobody had
-  touched (`/machines/import`, `/statements`, `/settings/api`) and on `/tyres` at a third
-  of the bundle size, so it is neither a regression nor bundle weight; bypassing `sw.js`
-  makes the 9th and 10th loads hydrate fine. `ui:check` therefore bypasses the service
-  worker. **Whether a real person on a real device can provoke it is not answered** -
-  normal use is client-side routing, but this is a PWA relaunched from a home screen, and
-  the symptom a customer reports is "the buttons don't work". Needs a phone.
+- **The service worker used to slow pages down more with every load (B12, fixed 2026-10-15).**
+  Every load asked it to "warm" every screen in the menu and it refetched all of them each
+  time; it also cached and re-served Next's own page data (RSC) for every menu link. A few
+  reloads stacked those up: twelve loads in one tab went from 26 s to 57 s before the page
+  came alive, flat with the worker bypassed. Warming is now one run at a time, at most every
+  30 minutes (in the worker and in the page), at low priority, and RSC requests skip the
+  worker: twelve loads stay at 2 to 3 s, alive within 0.4 s of arriving, the same as
+  bypassed. `node scripts/sw_check.mjs` measures it (sign-in as the click-through owner,
+  worker in control, `--bypass` for the baseline; a route that redirects shows as "?").
+  `ui:check` still bypasses the worker, as it measures the app. A real phone relaunching the
+  installed app is still worth one look.
 - A real Paystack **decline** has never happened (test mode accepts every valid stored authorization).
 - `changeOwnPlan` / `changeVehicleSlots` are rendered and verified wired but **never
   pressed**, they write to the demo farm's ledger, and an upgrade raises a proration

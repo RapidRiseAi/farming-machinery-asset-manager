@@ -22,11 +22,15 @@ import { useEffect } from "react";
  * which farm they have open; when it changes, the worker is told to drop everything it
  * holds before warming again.
  *
- * Deliberately quiet: it runs once, after load, only when a worker is already
- * controlling the page. Nothing here blocks rendering, and on a metered connection it
- * costs one small request per screen, once.
+ * Deliberately quiet: it runs after load, only when a worker is already controlling the
+ * page, and at most every 30 minutes (or when the person or farm changes). Nothing here
+ * blocks rendering. It used to ask on EVERY load, and the worker refetched every screen
+ * each time, which is what B12 was: a few reloads in a row stacked those runs up.
  */
 const CONTEXT_KEY = "farmgear:cache-context";
+/** When this browser last asked for a warm, so a reload does not ask again (B12). */
+const LAST_WARM_KEY = "farmgear:last-warm";
+const WARM_EVERY_MS = 30 * 60 * 1000;
 
 export function WarmRoutes({ paths, contextKey }: { paths: string[]; contextKey: string }) {
   useEffect(() => {
@@ -36,6 +40,11 @@ export function WarmRoutes({ paths, contextKey }: { paths: string[]; contextKey:
     let cancelled = false;
     const send = () => {
       if (cancelled) return;
+      // No worker controlling the page yet: there is nobody to tell, so record nothing and
+      // decide again on the next load. Recording the context or the warm time here would
+      // skip both (and a context change's clear) for the next half hour.
+      const controller = navigator.serviceWorker.controller;
+      if (!controller) return;
       /*
        * Cache Storage is ORIGIN-wide and keyed only by URL, there is nothing in a cache
        * key about who was signed in or which farm they had open. On a shared farm-office
@@ -52,9 +61,24 @@ export function WarmRoutes({ paths, contextKey }: { paths: string[]; contextKey:
            direction: we would rather re-fetch than serve the wrong person's page. */
       }
       const changed = previous !== contextKey;
-      navigator.serviceWorker.controller?.postMessage(
-        changed ? { type: "clear-data", paths } : { type: "warm", paths },
-      );
+      // Warmed recently and nothing changed: the screens are already there, and every page
+      // visited is refreshed in the cache as it is opened anyway. Asking again on every load
+      // is what stacked up behind B12.
+      if (!changed) {
+        let last = 0;
+        try {
+          last = Number(window.localStorage.getItem(LAST_WARM_KEY) ?? 0) || 0;
+        } catch {
+          /* storage unavailable: fall through and ask; the worker keeps its own cool-down */
+        }
+        if (Date.now() - last < WARM_EVERY_MS) return;
+      }
+      try {
+        window.localStorage.setItem(LAST_WARM_KEY, String(Date.now()));
+      } catch {
+        /* storage unavailable */
+      }
+      controller.postMessage(changed ? { type: "clear-data", paths } : { type: "warm", paths });
     };
 
     // Wait for a genuine idle moment: warming must never compete with the page the

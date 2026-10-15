@@ -173,7 +173,10 @@ Order: correctness and security first, then load, then product.
       amount and to test inboxes, and one answer to "is this Rapid Rise" in the app (admin
       actions had checked only the role, then used the service key past B9).
       2026-10-14: 20261014120000; `test_account_fence.sql` (ten mutations caught).
-- [ ] **B12** The service-worker "buttons stop working" bug: reproduce in the test browser and fix.
+- [x] **B12** The service-worker "buttons stop working" bug: reproduce in the test browser and fix.
+      2026-10-15: reproduced (26 s rising to 57 s over twelve loads, flat bypassed); warming
+      made single-flight with a 30-minute cool-down at low priority, RSC requests out of the
+      worker; now 2 to 3 s, flat. `scripts/sw_check.mjs`. One look on a real phone remains.
 - [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project.
 - [ ] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready
       for the domain.
