@@ -36,7 +36,9 @@
 -- database. Identical to the definition at the top of the suite; `_t_`-prefixed, which
 -- is the prefix G11 (a) exempts.
 create or replace function _t_login(uid uuid) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, false);
+  -- Match the shared test login helper: later suites reuse this committed function.
+  -- Tests for a missing second factor explicitly supply aal1 themselves.
+  select set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated', 'aal', 'aal2')::text, false);
 $$;
 grant execute on function _t_login(uuid) to public;
 
