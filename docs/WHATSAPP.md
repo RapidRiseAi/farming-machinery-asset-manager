@@ -1,8 +1,36 @@
 # Fleetwise WhatsApp integration
 
-Status: text pilot being prepared for a disabled production release, 15 October 2026.
-Real Meta delivery has not yet been tested. WhatsApp stays disabled until the webhook,
-templates, scheduler and live pilot are ready.
+Status: text pilot deployed with `WHATSAPP_ENABLED=0`, 16 October 2026.
+Production code is `5ab1e00`, Vercel deployment `dpl_B7CErPF3vAReMy5XaM1DXWwRgstd`,
+at `https://app.fleet-wise.co.za`. Real Meta delivery has not yet been tested.
+Webhook verification, template approval, app publishing, the minute scheduler and a
+controlled live pilot remain before general use.
+
+## Disabled release verified on 16 October 2026
+
+- Applied `20261015175415_whatsapp_channel.sql` to project `nmqtcvdwtyggxjjgtnzm`.
+  The MCP migration ledger records the same SQL as `20261016075622_whatsapp_channel`.
+  Do not apply it again under the repository timestamp; use the existing object probe.
+- CI run `38869943650` passed the PostgreSQL 16 suite and every app quality/build gate
+  on `5ab1e00`. Local checks passed 632 app tests, all 44 SQL suites and 209 migrations.
+- On the production domain: login 200, unauthenticated account 307 to login, link POST
+  401, webhook GET without verification credentials 403, disabled webhook POST 503,
+  and cron without its bearer secret 401. No customer messages were sent.
+- Live checks confirmed RLS and denied direct anon/authenticated access on all four
+  delivery/link tables; worker RPCs are service-only and account RPCs reject anon.
+  The new role resolver preserves `rr_admin_unlocked()` and the real/test-account fence.
+- Advisor comparison added only the expected notices for two private queue tables
+  without browser policies and four narrowly authorized SECURITY DEFINER account RPCs.
+  Existing security-definer masking-view and other advisory findings are unchanged.
+- A browser session was unavailable, so real-phone linking and signed Meta events
+  remain unverified. The original checkout's uncommitted work was preserved; the
+  release was built in `C:/projects/.fleetwise-whatsapp-launch`.
+
+Next: in the Meta app's production setup, set the callback to
+`https://app.fleet-wise.co.za/api/whatsapp/webhook`, use the saved
+`WHATSAPP_VERIFY_TOKEN`, then verify and save. GET verification works while disabled.
+Keep the flag at `0` until subscriptions, approved templates, publishing and the
+controlled pilot are coordinated; POST deliveries intentionally receive 503 meanwhile.
 
 ## Setup completed on 15 October 2026
 

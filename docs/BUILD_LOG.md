@@ -5337,3 +5337,44 @@ with the worker bypassed, and no longer grow (the odd 5 to 7 s load is the serve
 from the database on this machine). `scripts/sw_check.mjs` is the measurement. The extra
 renders were also about seven background page renders per page view in production, so this
 removes a multiplier the load test would have met.
+
+## 2026-10-16: WhatsApp text pilot released disabled
+
+Released `5ab1e00` on top of production `9ee011a`, preserving the original checkout's
+uncommitted work in place and assembling the release in a separate worktree at
+`C:/projects/.fleetwise-whatsapp-launch`. Vercel deployment
+`dpl_B7CErPF3vAReMy5XaM1DXWwRgstd` is Ready and serves `app.fleet-wise.co.za` with
+`WHATSAPP_ENABLED=0`. Supabase Site URL/callback and the dedicated ES256 signing key
+had already been configured; the public/private key match and delegated Data API token
+were checked on October 15. No Meta messages were sent during this release.
+
+Applied repository migration `20261015175415_whatsapp_channel.sql` to
+`nmqtcvdwtyggxjjgtnzm` using the Supabase migration tool. Its tool-generated ledger
+version is `20261016075622` (`whatsapp_channel`); the object-based pending-migration
+probe prevents applying it twice. Live checks confirmed the final RPC, preserved admin
+second-factor check, RLS on all four tables, no direct browser/anon table access, and
+service-only worker RPCs. Link and inbox tables were empty. Advisor changes are the
+expected private-queue/no-policy notices and four intentional, identity-checked account
+RPCs; existing masking-view/search-path/other advisories were not changed.
+
+CI found two issues that local isolated SQL suites missed: an existing test file
+redefined the shared login helper without `aal2`, and the new WhatsApp member check
+called `has_entitlement`, which recursed through delegated `has_farm_access`. Fixed
+the shared helper and checked the plan rank directly after live user/farm membership
+validation. Added worker-without-browser-identity coverage and made the queue-order
+test use distinct provider timestamps with a NULL-safe assertion. PostgreSQL 16 CI
+run `38869943650` passes on the released SHA. Local validation: 632 app tests, all
+44 SQL suites, all 209 migrations, typecheck, lint, i18n parity/keys, error catalogue,
+design checks, dash check and the Next.js 15.5.27 production build.
+
+HTTP checks on the staged build and then the production domain: login 200; unauthenticated
+WhatsApp account 307 to login; same-origin link POST 401; webhook GET without token 403;
+disabled webhook POST 503; cron without bearer authorization 401. Browser runtime had
+no connected session, so this does not claim a UI click-through or live Meta delivery.
+
+Remaining: Meta callback verification and messages/WABA subscription, publish/access
+requirements in the Meta dashboard, both template approvals, a minute scheduler and
+a controlled opted-in pilot (including STOP, cross-farm denial, assignment delivery
+and shared-assistant confirmation). Only then enable wider use. Text is the pilot;
+WhatsApp media/voice, groups, and BSUID-only identities are not implemented. The latest
+setup instructions and limitations are in `docs/WHATSAPP.md`.

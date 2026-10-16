@@ -61,6 +61,10 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
+**Release update, 2026-10-16:** production is `5ab1e00`, including the disabled WhatsApp
+text pilot; CI `38869943650` passed and Vercel reported Ready. Migration and HTTP checks
+are recorded in `docs/WHATSAPP.md`. The older October 5 validation snapshot below is historical.
+
 **Phase: live in production on Vercel (`main`).** The app code in production is `240578d`
 (2026-10-05): AI and voice usage release A (`f3ddce2`: every paid AI call and stretch of
 voice held and settled into a per-farm, per-person ledger; owner limits; AI on by default
@@ -121,10 +125,11 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   records, evidence `ai-on-default-v2` (`20261008090000` reset v1 acknowledgements): do not
   roll the code back past it, roll forward. The click-through farm holds labelled
   "Assistant eval" fuel, cost, fault and service rows for testing it.
-- **WhatsApp** is Codex's, uncommitted in the main checkout (docs/WHATSAPP.md: a text pilot,
-  not deployed, its migration local only). It reuses `runAssistantTurn`, so it gets the
-  same agent. Its tree was synced onto `058ce7e` with its work intact (safety stash
-  `codex-whatsapp-before-sync-2026-10-08`).
+- **WhatsApp** text pilot is deployed with `WHATSAPP_ENABLED=0`; its migration is applied.
+  It reuses `runAssistantTurn`. Meta webhook/subscription, publishing, template approval,
+  a minute scheduler and live linking/message tests remain (`docs/WHATSAPP.md`).
+  Use `C:/projects/.fleetwise-whatsapp-launch` for follow-up work; the original checkout
+  still holds the preserved older uncommitted WhatsApp work and must not be deployed.
 - **Production configuration still missing (read from Vercel on 2026-10-05):** `SENTRY_DSN`
   (no error monitoring: `captureError` only logs), `AI_KEY_SECRET`, `AI_ALERT_EMAIL`,
   `SUPPORT_WEBHOOK_URL` and `SUPPORT_WEBHOOK_SECRET`. Push and notification email need an
