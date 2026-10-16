@@ -85,7 +85,10 @@ language sql stable security definer set search_path = '' as $$
       and u.role in ('owner','manager','mechanic','operator')
       and f.deleted_at is null and f.status in ('active','trial')
       and u.is_test = f.is_test
-      and app.has_entitlement(p_farm, 'whatsapp')
+      -- Membership is checked here for p_user, including service workers without
+      -- auth.uid(). has_entitlement() calls has_farm_access(), which would recurse
+      -- through whatsapp_scope() when this is validating a delegated token.
+      and app.plan_rank(f.plan) >= app.feature_min_rank('whatsapp')
       and (exists(select 1 from public.user_farm_memberships m where m.user_id=u.id
              and m.farm_id=p_farm and m.active and m.deleted_at is null)
         or (u.farm_id=p_farm and not exists(select 1 from public.user_farm_memberships m

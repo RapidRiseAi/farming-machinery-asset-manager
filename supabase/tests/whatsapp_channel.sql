@@ -42,6 +42,16 @@ do $$ declare c uuid; denied boolean:=false; begin
  if not denied then raise exception 'Link code replayed'; end if;
 end $$;
 
+-- Delivery workers have no browser identity; membership must resolve from the link.
+select set_config('request.jwt.claims','{"role":"service_role"}',false);
+set role service_role;
+do $$ declare target jsonb; begin
+ select public.whatsapp_delivery_target(id) into target from public.whatsapp_links where phone='27820000001';
+ if target is null or target->>'user_id' is distinct from 'fa100000-0000-0000-0000-000000000001' then
+   raise exception 'Service worker could not resolve the verified identity without a browser session'; end if;
+end $$;
+reset role;
+
 -- Another logged-in account cannot finish our challenge or take an active number.
 select set_config('request.jwt.claims','{"sub":"fa100000-0000-0000-0000-000000000002","role":"authenticated"}',false);
 do $$ declare c uuid; denied boolean:=false; begin
@@ -127,11 +137,12 @@ end $$;
 set role service_role;
 select public.whatsapp_receive('wa-message-1','27820000001','status',now());
 select public.whatsapp_receive('wa-message-1','27820000001','status',now());
-select public.whatsapp_receive('wa-message-2','27820000001','another request',now());
+-- Distinct provider timestamps make chronological order explicit; now() is constant in this transaction.
+select public.whatsapp_receive('wa-message-2','27820000001','another request',now()+interval '1 second');
 do $$ declare i public.whatsapp_inbox; lease uuid:=gen_random_uuid(); tag text; begin
  if (select count(*) from public.whatsapp_inbox where provider_id='wa-message-1')<>1 then raise exception 'Webhook duplicated'; end if;
  select * into i from public.whatsapp_claim(lease);
- if i.provider_id<>'wa-message-1' then raise exception 'Queue ordering'; end if;
+ if i.provider_id is distinct from 'wa-message-1' then raise exception 'Queue ordering'; end if;
  if exists(select 1 from public.whatsapp_claim(gen_random_uuid())) then raise exception 'Concurrent conversation claimed'; end if;
  if public.whatsapp_save_reply(i.id,gen_random_uuid(),'bad','{}','permissions') then raise exception 'Unrelated worker changed conversation'; end if;
  tag:=public.whatsapp_delivery_target(i.link_id)->>'authority_tag';
