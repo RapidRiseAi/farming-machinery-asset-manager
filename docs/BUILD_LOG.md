@@ -5378,3 +5378,38 @@ a controlled opted-in pilot (including STOP, cross-farm denial, assignment deliv
 and shared-assistant confirmation). Only then enable wider use. Text is the pilot;
 WhatsApp media/voice, groups, and BSUID-only identities are not implemented. The latest
 setup instructions and limitations are in `docs/WHATSAPP.md`.
+
+## 2026-10-16: WhatsApp scheduler and controlled pilot activation
+
+The founder's screenshots confirm both utility templates Active, a saved callback and
+messages field subscription, and successful Meta app publishing. The account-level WABA
+subscription toggle still needs verification during linking. The corrected pilot login
+is `therandomneon+owner@gmail.com`, the active test owner of Weltevrede Boerdery on the
+Complete plan. Its eligibility and existing AI consent/notice acknowledgement were checked.
+
+Runtime `c9e4fe4` adds a dedicated `WHATSAPP_CRON_SECRET` bearer accepted only by the
+WhatsApp worker, with auth tests. The existing broader cron credential was preserved.
+Updated the public privacy notice to describe optional WhatsApp processing. CI run
+`38875082906` passed PostgreSQL 16 and all app gates/build; local app tests passed 633.
+Vercel deployment `dpl_4KKPKd1rRmeZ2C1HxQAgBmXFNmZP` reported Ready.
+
+Applied scheduler infrastructure and permissions migrations to hosted Supabase, with
+the dedicated bearer and canonical worker URL stored separately in Vault. The minute
+job was initially paused. An authenticated direct request and a Vault-backed pg_net
+request returned 200 with messaging disabled; after activation, the first scheduled run
+at 15:12 UTC also returned HTTP 200 and disabled/zero counters. Cron history alone is
+not delivery evidence, so the HTTP response was checked too. A daily job prunes only
+these jobs' execution history older than seven days.
+
+Hosted pg_net grants belong to supabase_admin and cannot be revoked by postgres. The
+follow-up migration is best-effort for other installations, not a claim that managed
+grants were removed. The net schema is excluded from the Data API (406/PGRST106), and
+Vault denies anon/authenticated decrypted-secret reads. The extension metadata adds an
+extension-in-public advisory; networking objects live in net. Keep that schema private
+from the Data API. The dedicated credential limits scope to this worker.
+
+Local migration verification applied 211 migrations. No links, challenges or inbox rows
+existed before activation. Set production WHATSAPP_ENABLED=1 for the next deployment;
+the founder must still link his own number and complete delivery/AI/STOP checks. No
+actual WhatsApp messages have been sent by this release work. The original checkout's
+uncommitted work remains preserved; follow-ups use the release worktree.

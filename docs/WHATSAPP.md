@@ -1,10 +1,14 @@
 # Fleetwise WhatsApp integration
 
-Status: text pilot deployed with `WHATSAPP_ENABLED=0`, 16 October 2026.
-Production code is `5ab1e00`, Vercel deployment `dpl_B7CErPF3vAReMy5XaM1DXWwRgstd`,
-at `https://app.fleet-wise.co.za`. Real Meta delivery has not yet been tested.
-Webhook verification, template approval, app publishing, the minute scheduler and a
-controlled live pilot remain before general use.
+Status: production text pilot activation, 16 October 2026.
+Runtime code `c9e4fe4` is deployed at `https://app.fleet-wise.co.za`; the production
+flag has been set to `WHATSAPP_ENABLED=1` for the next deployment. Real Meta delivery
+has not yet been tested. The original disabled-release evidence remains below.
+The founder's October 16 screenshots confirm a saved webhook, the `messages` field
+subscription, both utility templates Active, and successful Meta app publishing.
+The account-level Subscribe webhooks toggle was requested on; its final state has not
+been independently checked. The minute scheduler is active and HTTP-verified; the
+founder must connect his own number before the controlled live pilot can proceed.
 
 ## Disabled release verified on 16 October 2026
 
@@ -26,11 +30,46 @@ controlled live pilot remain before general use.
   remain unverified. The original checkout's uncommitted work was preserved; the
   release was built in `C:/projects/.fleetwise-whatsapp-launch`.
 
-Next: in the Meta app's production setup, set the callback to
-`https://app.fleet-wise.co.za/api/whatsapp/webhook`, use the saved
-`WHATSAPP_VERIFY_TOKEN`, then verify and save. GET verification works while disabled.
-Keep the flag at `0` until subscriptions, approved templates, publishing and the
-controlled pilot are coordinated; POST deliveries intentionally receive 503 meanwhile.
+The verified callback is `https://app.fleet-wise.co.za/api/whatsapp/webhook`.
+The initial pilot account is the founder's active test owner on Weltevrede Boerdery
+(Complete plan); live membership/entitlement eligibility was checked. Real-phone
+linking must still be completed by that signed-in account and its WhatsApp owner.
+The corrected pilot login is `therandomneon+owner@gmail.com`. Its existing AI notice
+acknowledgement and processing consent were checked. No links, challenges or inbox
+messages existed immediately before activation.
+
+## Supabase scheduler
+
+`20261016083512_whatsapp_scheduler.sql` installs hosted `pg_cron` and `pg_net`, creates
+`fleetwise-whatsapp-minute` paused, and a daily seven-day cleanup of its own cron history.
+Plain PostgreSQL CI skips this optional managed infrastructure; the real hosted install
+must be verified separately. `20261016150056_whatsapp_scheduler_permissions.sql` adds
+best-effort restrictions for installations where the migration role owns the extension.
+
+Production uses a dedicated Sensitive `WHATSAPP_CRON_SECRET` in Vercel, also stored as
+`fleetwise_whatsapp_worker_secret` in Supabase Vault. The Vault URL secret
+`fleetwise_whatsapp_worker_url` points to the canonical `/api/cron/whatsapp` endpoint.
+The job contains secret names only. The original `CRON_SECRET` remains accepted by
+the route but is not given to this scheduler. No unrelated cron credentials were changed.
+
+Hosted pg_net is owned by `supabase_admin`: the project's `postgres` role cannot revoke
+its managed schema/table/function grants. The `net` schema is NOT exposed by the Data
+API (verified HTTP 406/PGRST106); never expose it, because queued request headers include
+the dedicated bearer. Vault denies anon/authenticated secret reads. The extension-in-public
+advisor notice describes its installation metadata; its networking objects live in `net`.
+
+On October 16, deployment `dpl_4KKPKd1rRmeZ2C1HxQAgBmXFNmZP` accepted the dedicated
+credential with HTTP 200. Both a manual Vault-backed request and the first scheduled
+run at 15:12 UTC returned HTTP 200 with disabled/zero counters; cron history also showed
+success. `fleetwise-whatsapp-minute` is active every minute. The permission migration
+is recorded by the hosted ledger as `20261016150134_whatsapp_scheduler_permissions`.
+
+For subsequent releases, check an authenticated HTTP request
+with messaging disabled, then activate only `fleetwise-whatsapp-minute`. Check both
+cron history AND `net._http_response` status: a successfully queued HTTP request alone
+does not prove worker success. Pause the job through Supabase Cron if repeated calls fail.
+References: [Supabase scheduling](https://supabase.com/docs/guides/functions/schedule-functions)
+and [Cron history retention](https://supabase.com/docs/guides/cron/quickstart).
 
 ## Setup completed on 15 October 2026
 
@@ -215,12 +254,12 @@ operations UI before high-volume rollout.
    run with the feature disabled. Enable the flag in the test deployment when ready
    to receive signed POSTs. The webhook validates the signature against the original
    payload as shown in [Meta's signature example](https://github.com/fbsamples/whatsapp-api-examples/blob/main/signature-validation-with-webhooks-payloads/app.py).
-7. Configure an external scheduler every minute to GET
-   `/api/cron/whatsapp` with `Authorization: Bearer <CRON_SECRET>`.
+7. Configure the Supabase scheduler above every minute to GET
+   `/api/cron/whatsapp` with `Authorization: Bearer <WHATSAPP_CRON_SECRET>`.
    Existing nightly Vercel cron jobs alone do not provide timely task notifications.
-   This PR deliberately does not change the hosting plan or configure paid services.
-8. Finish the privacy/data-processing review and the tests below. Only then enable
-   `WHATSAPP_ENABLED=1` on production and invite a small pilot group to connect.
+   This uses the existing Supabase project without changing the Vercel hosting plan.
+8. Finish the privacy/data-processing review, then enable `WHATSAPP_ENABLED=1` for a
+   controlled opted-in pilot. Complete the live tests below before inviting wider use.
 
 ## Pilot acceptance checks
 

@@ -1,5 +1,10 @@
 # Nightly cron, service dues, notifications, digest
 
+WhatsApp has a separate minute worker at `/api/cron/whatsapp`, scheduled from Supabase
+Cron with a dedicated `WHATSAPP_CRON_SECRET` held in Vault. Setup, activation checks and
+managed-extension permissions are documented in [WHATSAPP.md](WHATSAPP.md#supabase-scheduler).
+Its feature flag is independent of the existing nightly and billing jobs below.
+
 The route `GET /api/cron/nightly` runs the nightly maintenance pass. It uses the
 service-role Supabase client (trusted server code, bypasses RLS) and calls, in order:
 

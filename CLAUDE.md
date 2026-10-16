@@ -61,9 +61,11 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
 
 ## Current state
 
-**Release update, 2026-10-16:** production is `5ab1e00`, including the disabled WhatsApp
-text pilot; CI `38869943650` passed and Vercel reported Ready. Migration and HTTP checks
-are recorded in `docs/WHATSAPP.md`. The older October 5 validation snapshot below is historical.
+**Release update, 2026-10-16:** production runtime is `c9e4fe4`, including the WhatsApp
+text pilot and dedicated scheduler authentication; CI `38875082906` passed and Vercel
+reported Ready. The minute scheduler is active and HTTP-verified. The production flag
+is set to 1 for the next deployment and founder linking/live delivery remain untested.
+See `docs/WHATSAPP.md`. The older October 5 validation snapshot below is historical.
 
 **Phase: live in production on Vercel (`main`).** The app code in production is `240578d`
 (2026-10-05): AI and voice usage release A (`f3ddce2`: every paid AI call and stretch of
@@ -125,9 +127,10 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   records, evidence `ai-on-default-v2` (`20261008090000` reset v1 acknowledgements): do not
   roll the code back past it, roll forward. The click-through farm holds labelled
   "Assistant eval" fuel, cost, fault and service rows for testing it.
-- **WhatsApp** text pilot is deployed with `WHATSAPP_ENABLED=0`; its migration is applied.
-  It reuses `runAssistantTurn`. Meta webhook/subscription, publishing, template approval,
-  a minute scheduler and live linking/message tests remain (`docs/WHATSAPP.md`).
+- **WhatsApp** text pilot activation is in progress with production `WHATSAPP_ENABLED=1`.
+  It reuses `runAssistantTurn`. Meta publishing, templates and webhook field setup are
+  confirmed by screenshots; the minute scheduler is active. The WABA subscription toggle
+  and real-phone linking/messages still need verification (`docs/WHATSAPP.md`).
   Use `C:/projects/.fleetwise-whatsapp-launch` for follow-up work; the original checkout
   still holds the preserved older uncommitted WhatsApp work and must not be deployed.
 - **Production configuration still missing (read from Vercel on 2026-10-05):** `SENTRY_DSN`

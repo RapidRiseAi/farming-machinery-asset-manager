@@ -114,8 +114,8 @@ The hedge is therefore gone. If a line here is wrong, it is wrong, not "awaiting
 - ✅ FR-15.4 (P1) Offline media cached
 
 ### §16 WhatsApp & mobile
-- 🟡 FR-16.1 (P0) Text pilot deployed disabled, 2026-10-16; shared assistant and verified linking implemented. Meta/live pilot pending (`WHATSAPP.md`).
-- 🟡 FR-16.2 (P1) Opt-in reminders/confirmations deployed disabled; template approval, webhook setup, minute scheduler and live delivery checks pending.
+- 🟡 FR-16.1 (P0) Text pilot activation, 2026-10-16; shared assistant and verified linking implemented. Meta app published; founder linking and live AI checks pending (`WHATSAPP.md`).
+- 🟡 FR-16.2 (P1) Templates active, webhook saved, minute scheduler active and HTTP-verified. Opt-in assignment delivery and STOP tests remain pending.
 - ✅ FR-16.3 (P0) Responsive mobile, ≥44px, low-end Android
 
 ### §17 Integrations & API
