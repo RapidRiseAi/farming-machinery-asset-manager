@@ -20,6 +20,10 @@ export function equalSecret(left: string, right: string): boolean {
   return Boolean(left && right) && timingSafeEqual(createHash("sha256").update(left).digest(), createHash("sha256").update(right).digest());
 }
 
+export function validWorkerAuthorization(header: string | null, secrets: readonly (string | undefined)[]): boolean {
+  return secrets.some(secret => Boolean(secret) && equalSecret(header ?? "", `Bearer ${secret}`));
+}
+
 const messageSchema = z.object({
   id: z.string().min(1).max(300),
   from: z.string().regex(/^[1-9][0-9]{7,14}$/).optional(),

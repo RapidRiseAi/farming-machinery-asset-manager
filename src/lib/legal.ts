@@ -177,15 +177,25 @@ export const PRIVACY: Clause[] = [
       "Vercel, where the application runs.",
       "Paystack, card payments. They see your payment details; we do not.",
       "Resend, the email we send you: receipts, alerts, confirmation links.",
+      "Meta's WhatsApp Business Platform, if you choose to connect WhatsApp. It handles your WhatsApp number, messages and delivery information so FleetWise can receive your requests and send the notifications or replies you selected.",
       "If your farm turns on the optional voice assistant, Microsoft Azure Speech processes what is said, using the South Africa North region. A further optional step can send transcript TEXT to a language model outside South Africa, and that one only ever runs if the person has explicitly agreed to it and can be switched off again at any time.",
       "We do not sell your information, and we do not share it with anybody for advertising.",
+    ],
+  },
+  {
+    heading: "Optional WhatsApp connection",
+    body: [
+      "You choose whether to connect your WhatsApp number to your signed-in FleetWise account, and whether to enable work notifications, the assistant, or both. We record the verified number, linked farm, consent choices, message text and delivery status to provide those features.",
+      "The WhatsApp assistant uses the same farm permissions and AI settings as the app. Requests and relevant farm records can be processed by the configured AI provider to answer you. WhatsApp and AI processing may take place outside South Africa.",
+      "Reply STOP or disconnect from Account > WhatsApp to stop the connection. This stops future processing through the link; it does not erase operational records you already created or messages already delivered to WhatsApp.",
+      "The scheduled cleanup removes message and reply text from FleetWise's WhatsApp delivery queue after 30 days and clears expired conversation context. Delivery identifiers and operational records follow their own retention. You can use the contact details below to request access, correction or deletion.",
     ],
   },
   {
     heading: "Information leaving South Africa",
     body: [
       "Some of the services above run outside South Africa. POPIA allows this where the receiving party is bound to a comparable standard of protection, which is what our agreements with them provide for.",
-      "The voice-to-text step is deliberately kept in the South Africa North region. The optional language-model step is the only part that requires a person’s explicit agreement first, because it is the only part that sends text abroad without needing to.",
+      "The voice-to-text step is deliberately kept in the South Africa North region. The optional language-model and WhatsApp features can process text outside South Africa; their account settings explain the choices before you use them.",
     ],
   },
   {

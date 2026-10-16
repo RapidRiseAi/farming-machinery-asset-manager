@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac, generateKeyPairSync, verify } from "node:crypto";
-import { validSignature, parseWebhook, hashLinkToken, phoneNumber, replyWindowOpen } from "./protocol";
+import { validSignature, parseWebhook, hashLinkToken, phoneNumber, replyWindowOpen, validWorkerAuthorization } from "./protocol";
 import { delegatedToken } from "./identity";
 import { clarificationAnswer, confirmationAction, renderWhatsAppResponse } from "./conversation";
 import type { AssistantTurnResponse } from "@/lib/assistant/types";
+
+test("worker authorization rejects missing credentials and accepts either configured bearer", () => {
+  for (const header of [null, "", "Bearer ", "Bearer undefined", "Bearer wrong", "Basic dedicated"]) {
+    assert.equal(validWorkerAuthorization(header, ["dedicated", "existing"]), false);
+    assert.equal(validWorkerAuthorization(header, [undefined, ""]), false);
+  }
+  assert.equal(validWorkerAuthorization("Bearer dedicated", ["dedicated", "existing"]), true);
+  assert.equal(validWorkerAuthorization("Bearer existing", [undefined, "existing"]), true);
+  assert.equal(validWorkerAuthorization("Bearer dedicated ", ["dedicated"]), false);
+});
 
 test("webhook authentication covers the exact bytes and rejects forged or absent signatures", () => {
   const secret = "test-only-signature-secret";

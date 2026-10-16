@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { processWhatsAppInbox, deliverWhatsAppNotifications } from "@/lib/whatsapp/worker";
-import { equalSecret } from "@/lib/whatsapp/protocol";
+import { validWorkerAuthorization } from "@/lib/whatsapp/protocol";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappEnabled } from "@/lib/whatsapp/config";
 
@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || !equalSecret(request.headers.get("authorization") ?? "", `Bearer ${secret}`)) {
+  // The Supabase scheduler gets its own credential, scoped to this route only.
+  if (!validWorkerAuthorization(request.headers.get("authorization"),
+    [process.env.WHATSAPP_CRON_SECRET, process.env.CRON_SECRET])) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
