@@ -5413,3 +5413,24 @@ existed before activation. Set production WHATSAPP_ENABLED=1 for the next deploy
 the founder must still link his own number and complete delivery/AI/STOP checks. No
 actual WhatsApp messages have been sent by this release work. The original checkout's
 uncommitted work remains preserved; follow-ups use the release worktree.
+
+## 2026-10-17: Diagnose failed WhatsApp linking and accept local phone formats
+
+The founder could sign in after opening the magic link in the requesting browser.
+Five WhatsApp challenges on October 16 remained unverified; the canonical +27 input
+was already accepted, so formatting alone does not explain missing verification.
+Production activation was verified on `20d1749`: authenticated worker 200, anonymous
+worker 401, unsigned webhook 403, and the minute scheduler returned enabled/zero counts.
+
+Added South African local/0027/+27 (0) normalization with equivalent-format and invalid
+input tests. The UI shows the canonical number and locks the pending form, with an
+explicit restart instead of silently replacing the token. LINK parsing tolerates outer
+and separating whitespace while retaining the exact 256-bit token. Finish preflight
+reads only the authenticated user's challenge and distinguishes expired/replaced/missing
+verification; the existing transactional RPC still enforces ownership and phone proof.
+
+Added read-only, bearer-protected Meta configuration checks on the existing worker route,
+with app-secret proof and sanitized results. Fixed-code webhook logs distinguish receipt,
+signature/schema/routing rejection, link match and processing failure without recording
+personal data or secrets. Live Meta configuration and signed delivery still need checking.
+Validation: 636 tests passed, typecheck, lint, i18n parity/keys, errors, design and dash gates.

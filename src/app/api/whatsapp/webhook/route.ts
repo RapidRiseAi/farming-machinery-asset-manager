@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappConfig, whatsappEnabled } from "@/lib/whatsapp/config";
-import { equalSecret, hashLinkToken, parseWebhook, validSignature } from "@/lib/whatsapp/protocol";
+import { equalSecret, hashLinkToken, parseWebhook, validSignature, linkMessageToken } from "@/lib/whatsapp/protocol";
 import { processWhatsAppInbox } from "@/lib/whatsapp/worker";
 
 export const runtime = "nodejs";
@@ -18,6 +18,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Fixed event codes only: never record bodies, tokens, phone numbers or credentials.
+  console.info("whatsapp_webhook_received");
   if (!whatsappEnabled()) return new Response("Unavailable", { status: 503 });
   try {
     const config = whatsappConfig();
@@ -35,10 +37,12 @@ export async function POST(request: Request) {
     }
     const raw = Buffer.concat(chunks).toString("utf8");
     if (!validSignature(raw, request.headers.get("x-hub-signature-256"), config.appSecret)) {
+      console.warn("whatsapp_webhook_signature_rejected");
       return new Response("Forbidden", { status: 403 });
     }
     const values = parseWebhook(JSON.parse(raw), config.waba, config.phoneId);
-    if (!values) return new Response("Bad request", { status: 400 });
+    if (!values) { console.warn("whatsapp_webhook_payload_rejected"); return new Response("Bad request", { status: 400 }); }
+    if (!values.length) console.info("whatsapp_webhook_no_matching_account_or_phone");
     const service = createServiceClient();
     for (const value of values) {
       for (const status of value.statuses ?? []) {
@@ -54,10 +58,11 @@ export async function POST(request: Request) {
         if (!message.from) continue;
         const text = message.type === "text" ? message.text?.body
           : message.type === "interactive" ? message.interactive?.button_reply?.id : undefined;
-        const link = text?.match(/^LINK ([a-f0-9]{64})$/i);
+        const link = linkMessageToken(text);
         if (link) {
-          const { error } = await service.rpc("whatsapp_verify_link", { p_hash: hashLinkToken(link[1].toLowerCase()), p_phone: message.from });
+          const { data, error } = await service.rpc("whatsapp_verify_link", { p_hash: hashLinkToken(link), p_phone: message.from });
           if (error) throw new Error("link_store_failed");
+          console.info(data ? "whatsapp_link_message_verified" : "whatsapp_link_message_not_matched");
           continue;
         }
         const { error } = await service.rpc("whatsapp_receive", {
@@ -71,6 +76,7 @@ export async function POST(request: Request) {
     after(async () => { await processWhatsAppInbox(1); });
     return NextResponse.json({ received: true });
   } catch {
+    console.error("whatsapp_webhook_processing_failed");
     // Returning 503 makes Meta retry; unique provider IDs make replay harmless.
     return new Response("Temporarily unavailable", { status: 503 });
   }

@@ -3,6 +3,7 @@ import { processWhatsAppInbox, deliverWhatsAppNotifications } from "@/lib/whatsa
 import { validWorkerAuthorization } from "@/lib/whatsapp/protocol";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappEnabled } from "@/lib/whatsapp/config";
+import { checkWhatsAppConfiguration } from "@/lib/whatsapp/diagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
+    if (new URL(request.url).searchParams.get("check") === "configuration") {
+      return NextResponse.json(await checkWhatsAppConfiguration(), { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (whatsappEnabled()) {
       const { error } = await createServiceClient().rpc("whatsapp_prune");
       if (error) throw new Error("whatsapp_prune_failed");

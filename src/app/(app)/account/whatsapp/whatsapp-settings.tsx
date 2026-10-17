@@ -9,6 +9,7 @@ import { TextField } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogForm } from "@/components/ui/dialog-form";
 import { Fact, FactList } from "@/components/ui/facts";
+import { phoneNumber } from "@/lib/whatsapp/phone";
 
 export type LinkStatus = { id: string; farmId: string; farmName: string; phone: string; notifications: boolean; assistant: boolean; expiresAt: string; assistantUntil: string };
 
@@ -18,14 +19,22 @@ export function WhatsAppSettings({ locale, status, enabled, farmName }: {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [challenge, setChallenge] = useState<{ challengeId: string; url: string } | null>(null);
+  const [phone, setPhone] = useState("");
+  const [challenge, setChallenge] = useState<{ challengeId: string; url: string; phone: string } | null>(null);
+  const normalizedPhone = phoneNumber(phone);
   async function submit(body: unknown) {
     setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/whatsapp/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(t(result.error === "not_verified" ? "whatsapp.notVerified" : "whatsapp.failed", locale));
+        const errorKeys: Record<string, string> = {
+          not_verified: "whatsapp.notVerified", invalid_phone: "whatsapp.invalidPhone",
+          rate_limited: "whatsapp.rateLimited", link_replaced: "whatsapp.linkReplaced",
+          link_expired: "whatsapp.linkExpired", message_not_verified: "whatsapp.messageNotVerified",
+          number_unavailable: "whatsapp.numberUnavailable",
+        };
+        setMessage(t(errorKeys[result.error] ?? "whatsapp.failed", locale));
         return;
       }
       if (result.challengeId) setChallenge(result);
@@ -54,18 +63,23 @@ export function WhatsAppSettings({ locale, status, enabled, farmName }: {
     {enabled && farmName ? <DialogForm trigger={t(status ? "whatsapp.replace" : "whatsapp.connect", locale)} title={t("whatsapp.connect", locale)} closeLabel={t("ui.close", locale)}>
       <form className="flex flex-col gap-4" onSubmit={event => {
         event.preventDefault();
+        if (busy || challenge) return;
         const data = new FormData(event.currentTarget);
         void submit({ action: "begin", phone: data.get("phone"), notifications: data.get("notifications") === "on", assistant: data.get("assistant") === "on" });
       }}>
-        <TextField label={t("whatsapp.phone", locale)} name="phone" type="tel" required placeholder="+27..." autoComplete="tel" />
-        <Checkbox name="notifications" label={t("whatsapp.notificationsConsent", locale)} />
-        <Checkbox name="assistant" label={t("whatsapp.assistantConsent", locale)} />
+        <TextField label={t("whatsapp.phone", locale)} name="phone" type="tel" required placeholder="082 123 4567" autoComplete="tel"
+          value={phone} onChange={event => setPhone(event.target.value)} disabled={busy || Boolean(challenge)}
+          hint={normalizedPhone ? `${t("whatsapp.numberToConnect", locale)}: +${normalizedPhone}` : t("whatsapp.phoneHint", locale)} />
+        <Checkbox name="notifications" disabled={busy || Boolean(challenge)} label={t("whatsapp.notificationsConsent", locale)} />
+        <Checkbox name="assistant" disabled={busy || Boolean(challenge)} label={t("whatsapp.assistantConsent", locale)} />
         <p className="text-sm text-sand-600">{t("whatsapp.privacy", locale)}</p>
-        <Button type="submit" disabled={busy}>{t("whatsapp.begin", locale)}</Button>
+        {!challenge ? <Button type="submit" disabled={busy}>{t("whatsapp.begin", locale)}</Button> : null}
         {challenge ? <div className="flex flex-col gap-3" aria-live="polite">
+          <p className="font-medium">{t("whatsapp.numberToConnect", locale)}: {challenge.phone}</p>
           <p>{t("whatsapp.verifyInstructions", locale)}</p>
           <a href={challenge.url} target="_blank" rel="noopener noreferrer" className="text-brand-ink underline">{t("whatsapp.open", locale)}</a>
           <Button type="button" disabled={busy} onClick={() => submit({ action: "finish", challengeId: challenge.challengeId })}>{t("whatsapp.finish", locale)}</Button>
+          <Button type="button" variant="secondary" disabled={busy} onClick={() => { setChallenge(null); setMessage(""); }}>{t("whatsapp.startAgain", locale)}</Button>
         </div> : null}
         {message ? <p role="status">{message}</p> : null}
       </form>

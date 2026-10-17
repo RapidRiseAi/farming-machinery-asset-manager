@@ -2,7 +2,7 @@
 
 Status: production text pilot activation, 16 October 2026.
 Runtime code `c9e4fe4` is deployed at `https://app.fleet-wise.co.za`; the production
-flag has been set to `WHATSAPP_ENABLED=1` for the next deployment. Real Meta delivery
+flag is `WHATSAPP_ENABLED=1` (live activation deployment `dpl_CmCS8z9CWMGbNrTLsBHz75XPn2aZ`). Real Meta delivery
 has not yet been tested. The original disabled-release evidence remains below.
 The founder's October 16 screenshots confirm a saved webhook, the `messages` field
 subscription, both utility templates Active, and successful Meta app publishing.
@@ -140,6 +140,11 @@ Automated chats must offer a route to a person; HELP/HUMAN/SUPPORT links to `/he
 
 1. In Account > WhatsApp, an authenticated employee enters their own international
    number and independently opts in to notifications and/or the assistant.
+   South African local numbers (082...), +27, 0027, and printed +27 (0) forms are
+   normalized to the same provider identity. Other countries need a country code.
+   Spaces, brackets, dots and hyphens are accepted; letters and extensions are rejected.
+   The normalized number is displayed before and after preparation. Pending form fields
+   are locked; Start again deliberately replaces a request instead of accidental re-clicks.
 2. The server resolves the current farm, checks active membership and the existing
    WhatsApp plan entitlement (Complete or Done for You), and creates a random 256-bit
    linking challenge. Only its SHA-256 hash is stored, with a ten-minute expiry.
@@ -262,6 +267,21 @@ operations UI before high-volume rollout.
    controlled opted-in pilot. Complete the live tests below before inviting wider use.
 
 ## Pilot acceptance checks
+
+Operator diagnosis: GET `/api/cron/whatsapp?check=configuration` with the same worker
+bearer runs read-only Meta subscription/phone checks, without draining queues or sending.
+The credential never appears in output. The response reports subscribed app IDs, whether
+the configured phone ID belongs to the WABA, and whether its number matches the configured
+business phone. Meta error output is reduced to HTTP status and numeric error code.
+App-secret proof also checks that the access token and app secret belong together.
+Look for app `1630168065215465` in production's subscriptions. If morePages is true,
+absence on the first page is not conclusive. This check does not prove inbound delivery.
+
+Webhook logs contain fixed event codes only: received, signature rejected, payload
+rejected, no matching account/phone, link verified/not matched, or processing failed.
+Never log a LINK token, message body, sender number, provider response or credential.
+The account UI distinguishes an expired/replaced request, an unverified message,
+a number already linked elsewhere, and the five-attempt hourly limit.
 
 - Two real test accounts on different farms, plus an operator limited to an assigned
   machine. Each links from Account > WhatsApp and proves their own number.

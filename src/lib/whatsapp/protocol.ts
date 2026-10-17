@@ -1,9 +1,10 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-export function phoneNumber(value: string): string | null {
-  const number = value.trim().replace(/^\+/, "").replace(/[ ()-]/g, "");
-  return /^[1-9][0-9]{7,14}$/.test(number) ? number : null;
+export { phoneNumber } from "./phone";
+
+export function linkMessageToken(value: string | undefined): string | null {
+  return value?.trim().match(/^LINK\s+([a-f0-9]{64})$/i)?.[1].toLowerCase() ?? null;
 }
 
 export function hashLinkToken(value: string): string {

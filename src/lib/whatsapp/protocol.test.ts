@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac, generateKeyPairSync, verify } from "node:crypto";
-import { validSignature, parseWebhook, hashLinkToken, phoneNumber, replyWindowOpen, validWorkerAuthorization } from "./protocol";
+import { validSignature, parseWebhook, hashLinkToken, phoneNumber, replyWindowOpen, validWorkerAuthorization, linkMessageToken } from "./protocol";
 import { delegatedToken } from "./identity";
 import { clarificationAnswer, confirmationAction, renderWhatsAppResponse } from "./conversation";
 import type { AssistantTurnResponse } from "@/lib/assistant/types";
@@ -35,10 +35,27 @@ test("only the configured business and receiving number route messages", () => {
   assert.equal(parseWebhook({ ...envelope, object: "other" }, "222", "111"), null);
 });
 
-test("phone validation never invents a country code and token hashes reveal no bearer", () => {
-  assert.equal(phoneNumber("+27 (82) 000-0001"), "27820000001");
-  assert.equal(phoneNumber("0820000001"), null);
-  assert.equal(phoneNumber("someone@example.test"), null);
+test("equivalent South African phone formats match the provider's canonical sender", () => {
+  for (const value of ["+27 (82) 000-0001", "0820000001", "082 000 0001", "27820000001",
+    "0027 82 000 0001", "+27 (0)82 000 0001", "  +27\u00a082.000.0001  "]) {
+    assert.equal(phoneNumber(value), "27820000001", value);
+  }
+  assert.equal(phoneNumber("+44 7700 900123"), "447700900123");
+  for (const value of ["someone@example.test", "082000000", "08200000012", "+2782abc0000001",
+    "++27820000001", "27820000001 ext 1", "+27 000 000 000", "", "00027820000001"]) {
+    assert.equal(phoneNumber(value), null, value);
+  }
+});
+
+test("link messages tolerate whitespace but never extract a code from other text", () => {
+  const token = "a1".repeat(32);
+  assert.equal(linkMessageToken(`  link\n${token.toUpperCase()}  `), token);
+  for (const value of [undefined, `please LINK ${token}`, `LINK ${token} extra`, `LINK ${token.slice(1)}`]) {
+    assert.equal(linkMessageToken(value), null);
+  }
+});
+
+test("token hashes reveal no bearer", () => {
   const hash = hashLinkToken("example-secret");
   assert.match(hash, /^[a-f0-9]{64}$/);
   assert.notEqual(hash, hashLinkToken("another-secret"));
