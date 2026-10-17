@@ -29,9 +29,31 @@ export async function checkWhatsAppConfiguration() {
         morePages: Boolean(body.paging?.next) };
     } catch { return { ok: false as const, status: null, code: null }; }
   }
-  const [subscriptions, phones] = await Promise.all([read("subscribed_apps"), read("phone_numbers")]);
+  async function inspectToken() {
+    // Meta's token debugger is read-only. Never log its URL or raw response: both can contain secrets.
+    const url = new URL(`https://graph.facebook.com/${config.version}/debug_token`);
+    url.searchParams.set("input_token", config.accessToken);
+    url.searchParams.set("appsecret_proof", proof);
+    try {
+      const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000),
+        headers: { Authorization: `Bearer ${config.accessToken}` } });
+      const body = await response.json();
+      if (!response.ok || typeof body?.data?.is_valid !== "boolean") {
+        return { ok: false as const, status: response.status,
+          code: typeof body?.error?.code === "number" ? body.error.code : null };
+      }
+      const data = body.data;
+      const scopes: unknown[] = Array.isArray(data.scopes) ? data.scopes : [];
+      return { ok: true as const, valid: data.is_valid as boolean,
+        appId: typeof data.app_id === "string" && /^\d+$/.test(data.app_id) ? data.app_id : null,
+        managementPermission: scopes.includes("whatsapp_business_management"),
+        messagingPermission: scopes.includes("whatsapp_business_messaging") };
+    } catch { return { ok: false as const, status: null, code: null }; }
+  }
+  const [subscriptions, phones, token] = await Promise.all([read("subscribed_apps"), read("phone_numbers"), inspectToken()]);
   const phone = phones.ok ? phones.data.find(row => row.id === config.phoneId) : null;
   return {
+    token,
     subscriptions: subscriptions.ok ? { ok: true, morePages: subscriptions.morePages,
       appIds: subscriptions.data.flatMap(row => {
         const app = row.whatsapp_business_api_data as { id?: unknown } | undefined;
