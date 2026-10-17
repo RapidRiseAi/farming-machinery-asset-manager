@@ -16,10 +16,15 @@ export async function checkWhatsAppConfiguration() {
       const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000),
         headers: { Authorization: `Bearer ${config.accessToken}` } });
       const body = await response.json();
-      if (!response.ok || !Array.isArray(body.data)) return {
-        ok: false as const, status: response.status,
-        code: typeof body?.error?.code === "number" ? body.error.code : null,
-      };
+      if (!response.ok || !Array.isArray(body.data)) {
+        const message = typeof body?.error?.message === "string" ? body.error.message : "";
+        const reason = /appsecret_proof|app.secret/i.test(message) ? "app_secret_mismatch"
+          : body?.error?.code === 190 ? "invalid_access_token"
+          : /permission|access|does not exist|unsupported get/i.test(message) ? "account_access_denied"
+          : "provider_rejected";
+        return { ok: false as const, status: response.status,
+          code: typeof body?.error?.code === "number" ? body.error.code : null, reason };
+      }
       return { ok: true as const, status: response.status, data: body.data as Record<string, unknown>[],
         morePages: Boolean(body.paging?.next) };
     } catch { return { ok: false as const, status: null, code: null }; }
