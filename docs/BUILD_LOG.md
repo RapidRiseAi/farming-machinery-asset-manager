@@ -5434,3 +5434,24 @@ with app-secret proof and sanitized results. Fixed-code webhook logs distinguish
 signature/schema/routing rejection, link match and processing failure without recording
 personal data or secrets. Live Meta configuration and signed delivery still need checking.
 Validation: 636 tests passed, typecheck, lint, i18n parity/keys, errors, design and dash gates.
+
+## 2026-10-17: Messaging-account assignment resolved; real phone linked
+
+Production diagnostics on `bbce802` confirmed a valid token for Fleetwise with both
+WhatsApp scopes and access to the registered phone. WABA subscription and phone-list
+queries failed with code 100/subcode 33. The founder's screenshots showed the system
+user was assigned to the phone's WhatsApp account but not its separate messaging
+account. Granting phone management alone did not resolve the account query failures.
+
+The founder assigned Fleetwise (System user) to the Fleetwise messaging account with
+management access. Rechecking the existing production token then returned the configured
+phone and business number, plus the Fleetwise app in the account's subscribed apps.
+No account ID or token was replaced. CI runs `39060047976` and `39060048299` passed;
+deployment `dpl_BU1KrymEYgWFra6jzyAKtniprCEf` is Ready on the canonical app domain.
+
+At 21:26 SAST, the founder confirmed successful linking from WhatsApp Desktop. Read-only
+database verification found an active link for the pilot owner, with notifications and
+assistant consent enabled. This proves the incoming signed LINK flow and authenticated
+confirmation worked. An actual AI reply and work-notification delivery remain unverified;
+the founder was asked to send a read-only fleet question next. No phone or LINK token is
+recorded in these notes.

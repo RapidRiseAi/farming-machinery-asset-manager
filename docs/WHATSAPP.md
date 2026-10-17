@@ -1,14 +1,20 @@
 # Fleetwise WhatsApp integration
 
-Status: production text pilot activation, 16 October 2026.
-Runtime code `c9e4fe4` is deployed at `https://app.fleet-wise.co.za`; the production
-flag is `WHATSAPP_ENABLED=1` (live activation deployment `dpl_CmCS8z9CWMGbNrTLsBHz75XPn2aZ`). Real Meta delivery
-has not yet been tested. The original disabled-release evidence remains below.
-The founder's October 16 screenshots confirm a saved webhook, the `messages` field
-subscription, both utility templates Active, and successful Meta app publishing.
-The account-level Subscribe webhooks toggle was requested on; its final state has not
-been independently checked. The minute scheduler is active and HTTP-verified; the
-founder must connect his own number before the controlled live pilot can proceed.
+Status: production phone linking verified, 17 October 2026.
+Runtime code `bbce802` is deployed at `https://app.fleet-wise.co.za`; the production
+flag is `WHATSAPP_ENABLED=1` (deployment `dpl_BU1KrymEYgWFra6jzyAKtniprCEf`).
+The founder completed real WhatsApp linking at 21:26 SAST, confirmed by the app and
+the persisted active link. Notifications and assistant consent are both enabled.
+AI replies, outbound template delivery and the remaining pilot acceptance checks below
+still require live verification. The original disabled-release evidence remains below.
+
+The access failure was resolved by assigning the Fleetwise system user to the separate
+Fleetwise **messaging account**, with its management access. Assignment to the phone's
+WhatsApp account alone did not provide that access in Meta's current dashboard.
+Before assignment, the token was valid with both WhatsApp scopes and direct phone access,
+but WABA queries returned code 100/subcode 33. Afterwards, both account queries succeeded;
+the configured phone/number matched and app `1630168065215465` was subscribed.
+The account ID was correct throughout; no access token replacement was required.
 
 ## Disabled release verified on 16 October 2026
 
@@ -33,7 +39,7 @@ founder must connect his own number before the controlled live pilot can proceed
 The verified callback is `https://app.fleet-wise.co.za/api/whatsapp/webhook`.
 The initial pilot account is the founder's active test owner on Weltevrede Boerdery
 (Complete plan); live membership/entitlement eligibility was checked. Real-phone
-linking must still be completed by that signed-in account and its WhatsApp owner.
+linking was completed by that signed-in account and its WhatsApp owner on October 17.
 The corrected pilot login is `therandomneon+owner@gmail.com`. Its existing AI notice
 acknowledgement and processing consent were checked. No links, challenges or inbox
 messages existed immediately before activation.
