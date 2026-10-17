@@ -25,8 +25,13 @@ test("operator diagnostics identify missing subscription and wrong receiving pho
       if (url.pathname.endsWith("debug_token")) {
         assert.equal(url.searchParams.get("input_token"), "test-access-secret");
         return Response.json({ data: { is_valid: true, app_id: "333", scopes: tokenScopes,
-          user_id: "PRIVATE", extra: "test-access-secret" } });
+          user_id: "444", extra: "test-access-secret", granular_scopes: [
+            { scope: "whatsapp_business_management", target_ids: ["222", "PRIVATE"] },
+            { scope: "whatsapp_business_messaging", target_ids: ["222"] },
+            { scope: "other", target_ids: ["555"] },
+          ] } });
       }
+      if (url.pathname.endsWith("/111")) return Response.json({ id: "111", display_phone_number: "+27 82 000 0001", extra: "PRIVATE" });
       return Response.json({ data: url.pathname.endsWith("subscribed_apps")
         ? subscribed ? [{ whatsapp_business_api_data: { id: "333", name: "PRIVATE" } }] : []
         : [{ id: subscribed ? "111" : "999", display_phone_number: "+27 82 000 0001" }] });
@@ -38,18 +43,19 @@ test("operator diagnostics identify missing subscription and wrong receiving pho
     const matched = await checkWhatsAppConfiguration();
     assert.deepEqual(matched.subscriptions, { ok: true, morePages: false, appIds: ["333"] });
     assert.deepEqual(matched.phone, { ok: true, morePages: false, configuredIdFound: true, businessNumberMatches: true });
-    assert.deepEqual(matched.token, { ok: true, valid: true, appId: "333", managementPermission: true, messagingPermission: true });
+    assert.deepEqual(matched.token, { ok: true, valid: true, appId: "333", systemUserId: "444", whatsappAssetIds: ["222"], managementPermission: true, messagingPermission: true });
+    assert.deepEqual(matched.directPhone, { ok: true, businessNumberMatches: true });
     assert.doesNotMatch(JSON.stringify(matched), /PRIVATE|27820000001|secret/);
     tokenScopes = ["whatsapp_business_messaging"];
     assert.equal((await checkWhatsAppConfiguration()).token.managementPermission, false);
     rejected = true;
     const failure = await checkWhatsAppConfiguration();
-    assert.deepEqual(failure.subscriptions, { ok: false, status: 400, code: 190, reason: "invalid_access_token" });
+    assert.deepEqual(failure.subscriptions, { ok: false, status: 400, code: 190, subcode: null, reason: "invalid_access_token" });
     assert.deepEqual(failure.token, { ok: false, status: 400, code: 190 });
     assert.doesNotMatch(JSON.stringify(failure), /secret/);
     proofRejected = true;
     const badProof = await checkWhatsAppConfiguration();
-    assert.deepEqual(badProof.subscriptions, { ok: false, status: 400, code: 100, reason: "app_secret_mismatch" });
+    assert.deepEqual(badProof.subscriptions, { ok: false, status: 400, code: 100, subcode: null, reason: "app_secret_mismatch" });
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(old)) {

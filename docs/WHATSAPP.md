@@ -272,8 +272,10 @@ Operator diagnosis: GET `/api/cron/whatsapp?check=configuration` with the same w
 bearer runs read-only Meta token/subscription/phone checks, without draining queues or sending.
 The credential never appears in output. The response reports subscribed app IDs, whether
 the configured phone ID belongs to the WABA, and whether its number matches the configured
-business phone. Token output includes only validity, app ID and the two WhatsApp permission
-booleans. Meta error output is reduced to HTTP status, numeric error code and a fixed reason.
+business phone. Token output includes validity, app/system-user IDs, WhatsApp asset IDs and
+the two WhatsApp permission booleans. A separate phone lookup distinguishes phone access
+from account access. Meta error output is reduced to HTTP status, numeric error code/subcode
+and a fixed reason. Missing granular asset IDs alone do not prove lack of access.
 App-secret proof also checks that the access token and app secret belong together.
 Look for app `1630168065215465` in production's subscriptions. If morePages is true,
 absence on the first page is not conclusive. This check does not prove inbound delivery.
