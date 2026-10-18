@@ -54,6 +54,46 @@ test("questions the local reads answer well stay local and free", () => {
   }
 });
 
+test("fleet attention questions reach the farm agent with faults, jobs and service records", () => {
+  for (const question of [
+    "Which machines need attention on my farm?",
+    "Which machines require attention?",
+    "Does the red tractor need attention?",
+    "Watter masjiene het aandag nodig op my plaas?",
+    "Watter masjiene benodig aandag?",
+  ]) {
+    const topics = detectFarmTopics(question);
+    for (const topic of ["faults", "jobcards", "service"] as const) {
+      assert.ok(topics.includes(topic), `${question}: missing ${topic}`);
+    }
+    assert.equal(routeWantsAgent(planAssistantRoute(question, "en-ZA"), question), true, question);
+  }
+});
+
+test("farm qualifiers keep the visible fleet fallback instead of asking for a machine name", async () => {
+  const { answerLocalRead, parseLocalReadRequest } = await import("./local-read");
+  const scope = { supabase: {} as FarmDataScope["supabase"], farmId: "f", role: "owner" as const, machines: [tractor] };
+  for (const question of [
+    "Which machines need attention on my farm?",
+    "Show machines on our farm",
+    "Show machines on the farm",
+    "Watter masjiene het aandag nodig op my plaas?",
+    "Wys masjiene op ons plaas",
+    "Wys masjiene op die plaas",
+  ]) {
+    const request = parseLocalReadRequest(question);
+    assert.ok(request, question);
+    const answer = await answerLocalRead(request, scope, "en-ZA");
+    assert.match(answer.message, /You can access 1 machines/, question);
+    assert.equal(answer.machineId, undefined, question);
+    assert.equal(answer.machineOptions, undefined, question);
+  }
+  // An unrecognised specific name still refuses instead of widening to the fleet.
+  const request = parseLocalReadRequest("Show machines for Unlisted ZXQ9");
+  assert.ok(request);
+  assert.match((await answerLocalRead(request, scope, "en-ZA")).message, /could not find that machine/);
+});
+
 test("routing: help, navigation and plain lists never cost an AI call", () => {
   for (const question of ["What can you do?", "Open faults", "Show open faults", "Which machines need a service?"]) {
     assert.equal(routeWantsAgent(planAssistantRoute(question, "en-ZA"), question), false, question);

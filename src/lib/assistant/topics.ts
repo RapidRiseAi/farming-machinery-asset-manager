@@ -56,6 +56,10 @@ const ANALYTIC = new RegExp(
 /** Words that only make sense against an earlier answer: "and the other one?". */
 const FOLLOW_UP = /^(?:and|what about|how about|same for|also|en|wat van|hoe van|dieselfde vir|ook)\b|\b(?:it|its|that one|the other one|them|those|dit|daardie een|die ander een|hulle)\b/;
 
+// Attention spans service, faults and workshop jobs. A fleet count cannot answer
+// it, even when the question contains no explicit word for any of those records.
+const ATTENTION = /\b(?:needs?\s+attention|requir(?:e|es)\s+attention|attention\s+needed|aandag\s+(?:nodig|benodig)|benodig\s+aandag)\b/;
+
 export type QuestionPeriod = { from: string; to: string; label: string };
 
 const MONTHS: Array<[RegExp, number]> = [
@@ -124,6 +128,11 @@ export function questionPeriod(input: string, today: string): QuestionPeriod | n
 export function detectFarmTopics(input: string): FarmTopic[] {
   const text = normalizeAssistantText(input);
   const topics = FARM_TOPICS.filter((topic) => TOPIC_PATTERNS[topic].test(text));
+  if (ATTENTION.test(text)) {
+    for (const topic of ["faults", "jobcards", "service"] as const) {
+      if (!topics.includes(topic)) topics.push(topic);
+    }
+  }
   // "R 2 500" or "R2500" names money even with no money word.
   if (!topics.includes("costs") && /(?:^|\s)r\s?\d/i.test(input)) topics.push("costs");
   return topics;
@@ -136,6 +145,7 @@ export function detectFarmTopics(input: string): FarmTopic[] {
 export function questionNeedsAgent(input: string): boolean {
   const text = normalizeAssistantText(input);
   if (!text) return false;
+  if (ATTENTION.test(text)) return true;
   const topics = detectFarmTopics(input);
   if (topics.includes("fuel") || topics.includes("costs")) return true;
   // No local read covers these records: only the AI can answer them.

@@ -5455,3 +5455,17 @@ assistant consent enabled. This proves the incoming signed LINK flow and authent
 confirmation worked. An actual AI reply and work-notification delivery remain unverified;
 the founder was asked to send a read-only fleet question next. No phone or LINK token is
 recorded in these notes.
+
+## 2026-10-18: Correct fleet-attention questions from WhatsApp
+
+The pilot's two replies were sent/read, but "Which machines need attention on my farm?"
+returned the unknown-machine answer. The generic qualifier list lacked farm/plaas, and
+attention questions stayed on a fleet-count local read. Generic English/Afrikaans farm
+qualifiers now retain the caller's visible fleet; specific unknown names still refuse.
+Attention questions select the existing farm-reading AI and prefetch faults, jobs and
+service information through its existing caller-scoped reads. No transport, permission,
+database or credential changes. Local fallback remains a fleet overview when AI is unavailable.
+
+Validation: all 638 tests, typecheck and lint pass. Regression cases cover the exact pilot
+phrase, English/Afrikaans variants, topic selection, fallback and an unknown named machine.
+Live answer quality and assignment-template delivery still need the pilot's next test.
